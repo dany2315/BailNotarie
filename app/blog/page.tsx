@@ -106,7 +106,7 @@ export default function BlogPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {blogPosts.map((post) => (
-              <Card key={post.id} className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
+              <Card key={post.id} className="py-0 overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <div className="aspect-video bg-gray-200 overflow-hidden">
                   <img 
                     src={post.image} 
@@ -166,7 +166,7 @@ export default function BlogPage() {
             <input
               type="email"
               placeholder="Votre adresse email"
-              className="flex-1 px-4 py-3 rounded-lg border-0 focus:ring-2 focus:ring-blue-300"
+              className="flex-1 px-4 py-3 bg-white rounded-lg border-0 focus:ring-2 focus:ring-blue-300"
             />
             <button className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors">
               S'abonner

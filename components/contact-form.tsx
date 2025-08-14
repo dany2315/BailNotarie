@@ -171,11 +171,11 @@ export function ContactForm() {
 
       {/* Informations de contact */}
       <div className="space-y-8">
-        <Card className="p-8">
+        <Card className="p-8 h-full ">
           <h3 className="text-2xl font-semibold text-gray-900 mb-6">
             Contactez-nous directement
           </h3>
-          <div className="space-y-6">
+          <div className=" h-full flex flex-col justify-between">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                 <Phone className="h-6 w-6 text-green-600" />
@@ -216,16 +216,6 @@ export function ContactForm() {
               className="w-full text-lg py-3"
             />
           </div>
-        </Card>
-
-        <Card className="p-6 bg-blue-50 border-blue-200">
-          <h4 className="font-semibold text-blue-900 mb-2">
-            Réponse rapide garantie
-          </h4>
-          <p className="text-blue-800 text-sm">
-            Notre équipe s'engage à vous recontacter dans les 2 heures ouvrées 
-            suivant votre demande pour étudier votre projet.
-          </p>
         </Card>
       </div>
     </div>

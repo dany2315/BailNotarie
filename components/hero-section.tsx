@@ -26,7 +26,7 @@ export function HeroSection() {
                 <span className="text-blue-600"> sécurisé</span>
               </h1>
               <p className="text-xl text-gray-600 leading-relaxed text-center">
-                Formalisez votre colocation avec un notaire en toute confiance.
+                Formalisez votre bail avec un notaire en toute confiance.
                 Un acte authentique, incontestable et exécutoire immédiatement.
               </p>
             </div>
