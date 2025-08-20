@@ -1,8 +1,11 @@
 import { Header } from "@/components/header";
 import { HeroSection } from "@/components/hero-section";
 import { PresentationSection } from "@/components/presentation-section";
+import { StatsSection } from "@/components/stats-section";
 import { BenefitsSection } from "@/components/benefits-section";
 import { ProcessSection } from "@/components/process-section";
+import { TestimonialsSection } from "@/components/testimonials-section";
+import { CTASection } from "@/components/cta-section";
 import { ContactForm } from "@/components/contact-form";
 import { Footer } from "@/components/footer";
 
@@ -12,8 +15,11 @@ export default function Home() {
       <Header />
       <HeroSection />
       <PresentationSection />
+      <StatsSection />
       <BenefitsSection />
       <ProcessSection />
+      <TestimonialsSection />
+      <CTASection />
       
       {/* Section Contact */}
       <section id="contact" className="py-20 bg-gray-50">

@@ -103,7 +103,7 @@ export function HeroSection() {
                   <div className="flex -space-x-4 hover:-space-x-2 transition-all duration-300">
                     <Image 
                       className="h-10 w-10 rounded-full border-4 border-white shadow-2xl hover:scale-110 transition-transform duration-200"
-                      src="https://randomuser.me/api/portraits/men/32.jpg"
+                      src="https://images.pexels.com/photos/2182970/pexels-photo-2182970.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face"
                       alt="Notaire"
                       width={48}
                       height={48}
@@ -111,7 +111,7 @@ export function HeroSection() {
                     />
                     <Image
                       className="h-10 w-10 rounded-full border-4 border-white shadow-2xlhover:scale-110 transition-transform duration-200"
-                      src="https://randomuser.me/api/portraits/women/45.jpg"
+                      src="https://images.pexels.com/photos/3785079/pexels-photo-3785079.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face"
                       alt="Notaire"
                       width={48} 
                       height={48}
@@ -119,7 +119,7 @@ export function HeroSection() {
                     />
                     <Image
                       className="h-10 w-10 rounded-full border-4 border-white shadow-2xl hover:scale-110 transition-transform duration-200"
-                      src="https://randomuser.me/api/portraits/men/67.jpg"
+                      src="https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face"
                       alt="Notaire"
                       width={48}
                       height={48}
