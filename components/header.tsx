@@ -56,7 +56,7 @@ export function Header() {
                 <span className="sr-only">Ouvrir le menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[300px] px-8 pb-10 sm:w-[400px]">
+            <SheetContent side="right" className="w-[300px] px-8 pb-10 h-screen sm:w-[400px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center space-x-2">
                   <Scale className="h-6 w-6 text-blue-600" />
