@@ -98,11 +98,11 @@ export function HeroSection() {
 
             {/* Garantie */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 backdrop-blur-sm rounded-2xl p-6 border border-blue-100 shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between">
+              <div className="flex items-end justify-between">
                 <div className="flex flex-col md:flex-row items-start md:items-center space-x-6">
                   <div className="flex -space-x-4 hover:-space-x-2 transition-all duration-300">
                     <Image 
-                      className="h-12 w-12 rounded-full border-4 border-white shadow-sm hover:scale-110 transition-transform duration-200"
+                      className="h-10 w-10 rounded-full border-4 border-white shadow-sm hover:scale-110 transition-transform duration-200"
                       src="https://randomuser.me/api/portraits/men/32.jpg"
                       alt="Notaire"
                       width={48}
@@ -110,7 +110,7 @@ export function HeroSection() {
                       quality={90}
                     />
                     <Image
-                      className="h-12 w-12 rounded-full border-4 border-white shadow-sm hover:scale-110 transition-transform duration-200"
+                      className="h-10 w-10 rounded-full border-4 border-white shadow-sm hover:scale-110 transition-transform duration-200"
                       src="https://randomuser.me/api/portraits/women/45.jpg"
                       alt="Notaire"
                       width={48} 
@@ -118,7 +118,7 @@ export function HeroSection() {
                       quality={90}
                     />
                     <Image
-                      className="h-12 w-12 rounded-full border-4 border-white shadow-sm hover:scale-110 transition-transform duration-200"
+                      className="h-10 w-10 rounded-full border-4 border-white shadow-sm hover:scale-110 transition-transform duration-200"
                       src="https://randomuser.me/api/portraits/men/67.jpg"
                       alt="Notaire"
                       width={48}
@@ -131,11 +131,11 @@ export function HeroSection() {
                     <p className="text-sm text-gray-600 font-medium">Experts en droit immobilier</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end space-y-1">
+                <div className="flex flex-col justify-end items-end space-y-1">
                   <div className="flex items-center space-x-2 bg-white/80 px-4 py-1.5 rounded-full shadow-sm">
                     <div className="flex">
                       {"★★★★★".split("").map((star, i) => (
-                        <span key={i} className="text-yellow-400 text-lg">
+                        <span key={i} className="text-yellow-400 text-sm md:text-lg">
                           {star}
                         </span>
                       ))}
