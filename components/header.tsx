@@ -72,7 +72,7 @@ export function Header() {
                 <span className="sr-only">Ouvrir le menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[320px] sm:w-[400px]">
+            <SheetContent side="right" className="w-[300px] sm:w-[400px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -85,8 +85,8 @@ export function Header() {
                 </SheetDescription>
               </SheetHeader>
               
-              <div className="flex flex-col h-full">
-                <nav className="flex flex-col space-y-2 mt-6">
+              <div className="flex flex-col h-full justify-between">
+                <nav className="flex flex-col space-y-2 ">
                   {menuItems.map((item) => (
                     <Link
                       key={item.href}
@@ -99,42 +99,44 @@ export function Header() {
                     </Link>
                   ))}
                 </nav>
-                
-                <Separator className="my-6" />
-                
-                {/* Section contact */}
-                <div className="space-y-4">
-                  <div className="px-4">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Contactez-nous</h3>
-                    <div className="space-y-2 text-sm text-gray-600">
-                      <div className="flex items-center space-x-2">
-                        <Mail className="h-4 w-4" />
-                        <span>contact@bailnotarie.fr</span>
+                <div className="  ">
+                  <Separator className="my-6" />
+                  
+                  {/* Section contact */}
+                  <div className="space-y-6">
+                    <div className="px-4">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-3">Contactez-nous</h3>
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <div className="flex items-center space-x-2">
+                          <Mail className="h-4 w-4" />
+                          <span>contact@bailnotarie.fr</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs">📍</span>
+                          <span>123 Rue de la Paix, 75001 Paris</span>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs">📍</span>
-                        <span>123 Rue de la Paix, 75001 Paris</span>
-                      </div>
+                    </div>
+                    
+                    <div className="px-4">
+                      <PhoneButton 
+                        phoneNumber="01 23 45 67 89" 
+                        className="w-full justify-center"
+                        onClick={handleMenuClick}
+                      />
                     </div>
                   </div>
                   
-                  <div className="px-4">
-                    <PhoneButton 
-                      phoneNumber="01 23 45 67 89" 
-                      className="w-full justify-center"
-                      onClick={handleMenuClick}
-                    />
+                  {/* Footer du menu */}
+                  <div className=" py-6 border-t border-gray-200 mt-6">
+                    <div className="px-4 text-center">
+                      <p className="text-xs text-gray-500">
+                        © 2024 BailNotarie. Tous droits réservés.
+                      </p>
+                    </div>
                   </div>
                 </div>
-                
-                {/* Footer du menu */}
-                <div className="mt-auto pt-6 border-t border-gray-200">
-                  <div className="px-4 text-center">
-                    <p className="text-xs text-gray-500">
-                      © 2024 BailNotarie. Tous droits réservés.
-                    </p>
-                  </div>
-                </div>
+
               </div>
             </SheetContent>
           </Sheet>
