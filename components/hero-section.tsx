@@ -99,7 +99,7 @@ export function HeroSection() {
             {/* Garantie */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 backdrop-blur-sm rounded-2xl p-6 border border-blue-100 shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-6">
+                <div className="flex flex-col md:flex-row items-start md:items-center space-x-6">
                   <div className="flex -space-x-4 hover:-space-x-2 transition-all duration-300">
                     <Image 
                       className="h-12 w-12 rounded-full border-4 border-white shadow-sm hover:scale-110 transition-transform duration-200"
