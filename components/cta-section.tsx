@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { ArrowRight, Shield, Clock } from "lucide-react";
