@@ -180,9 +180,14 @@ export function ProcessSection() {
               {/* Détails de l'étape */}
               <div className="space-y-8">
                 <div className="flex items-center space-x-4">
-                  <div className={`w-20 h-20 bg-gradient-to-br ${steps[activeStep].color} rounded-3xl flex items-center justify-center shadow-2xl`}>
-                    <steps[activeStep].icon className="h-10 w-10 text-white" />
-                  </div>
+                  {(() => {
+                    const Icon = steps[activeStep].icon;
+                    return (
+                      <div className={`w-20 h-20 bg-gradient-to-br ${steps[activeStep].color} rounded-3xl flex items-center justify-center shadow-2xl`}>
+                        <Icon className="h-10 w-10 text-white" />
+                      </div>
+                    );
+                  })()}
                   <div>
                     <div className="text-sm font-semibold text-gray-500 mb-1">
                       Étape {steps[activeStep].number}
@@ -224,9 +229,14 @@ export function ProcessSection() {
               <div className="relative">
                 <div className="bg-white rounded-3xl p-8 shadow-2xl">
                   <div className="aspect-square flex flex-col justify-center items-center space-y-6">
-                    <div className={`w-32 h-32 bg-gradient-to-br ${steps[activeStep].color} rounded-full flex items-center justify-center shadow-2xl animate-pulse`}>
-                      <steps[activeStep].icon className="h-16 w-16 text-white" />
-                    </div>
+                    {(() => {
+                      const Icon = steps[activeStep].icon;
+                      return (
+                        <div className={`w-32 h-32 bg-gradient-to-br ${steps[activeStep].color} rounded-full flex items-center justify-center shadow-2xl animate-pulse`}>
+                          <Icon className="h-16 w-16 text-white" />
+                        </div>
+                      );
+                    })()}
                     <div className="text-center">
                       <h4 className="text-2xl font-bold text-gray-900 mb-2">
                         {steps[activeStep].title}
@@ -244,10 +254,10 @@ export function ProcessSection() {
           </div>
         </div>
 
-        {/* Section documents avec design moderne */}
+        {/* Section documents */}
         <div className="bg-gradient-to-br from-gray-900 via-blue-900 to-indigo-900 rounded-3xl overflow-hidden shadow-2xl">
           <div className="grid lg:grid-cols-2">
-            {/* Image avec overlay informatif */}
+            {/* Image */}
             <div className="relative h-64 lg:h-auto">
               <Image
                 src="https://images.pexels.com/photos/4427541/pexels-photo-4427541.jpeg?auto=compress&cs=tinysrgb&w=800"
@@ -257,7 +267,7 @@ export function ProcessSection() {
               />
               <div className="absolute inset-0 bg-gradient-to-r from-gray-900/90 to-transparent"></div>
               
-              {/* Contenu overlay */}
+              {/* Overlay */}
               <div className="absolute inset-0 flex flex-col justify-center p-8 text-white">
                 <h3 className="text-3xl font-bold mb-6">
                   Documents requis
@@ -286,34 +296,37 @@ export function ProcessSection() {
             {/* Liste des documents */}
             <div className="p-12 text-white">
               <div className="space-y-8">
-                {documents.map((doc, index) => (
-                  <div key={index} className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/15 transition-all duration-300">
-                    <div className="flex items-center space-x-4 mb-6">
-                      <div className={`w-12 h-12 bg-gradient-to-br ${doc.color} rounded-xl flex items-center justify-center shadow-lg`}>
-                        <doc.icon className="h-6 w-6 text-white" />
-                      </div>
-                      <h4 className="text-xl font-bold">{doc.category}</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      {doc.items.map((item, itemIndex) => (
-                        <div key={itemIndex} className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-2 h-2 rounded-full ${item.required ? 'bg-red-400' : 'bg-green-400'}`}></div>
-                            <span className="text-sm">{item.name}</span>
-                          </div>
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            item.required 
-                              ? 'bg-red-500/20 text-red-300' 
-                              : 'bg-green-500/20 text-green-300'
-                          }`}>
-                            {item.required ? 'Obligatoire' : 'Optionnel'}
-                          </span>
+                {documents.map((doc, index) => {
+                  const DocIcon = doc.icon;
+                  return (
+                    <div key={index} className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/15 transition-all duration-300">
+                      <div className="flex items-center space-x-4 mb-6">
+                        <div className={`w-12 h-12 bg-gradient-to-br ${doc.color} rounded-xl flex items-center justify-center shadow-lg`}>
+                          <DocIcon className="h-6 w-6 text-white" />
                         </div>
-                      ))}
+                        <h4 className="text-xl font-bold">{doc.category}</h4>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {doc.items.map((item, itemIndex) => (
+                          <div key={itemIndex} className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-2 h-2 rounded-full ${item.required ? 'bg-red-400' : 'bg-green-400'}`}></div>
+                              <span className="text-sm">{item.name}</span>
+                            </div>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              item.required 
+                                ? 'bg-red-500/20 text-red-300' 
+                                : 'bg-green-500/20 text-green-300'
+                            }`}>
+                              {item.required ? 'Obligatoire' : 'Optionnel'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               
               <div className="mt-8 p-6 bg-gradient-to-r from-green-600/20 to-emerald-600/20 rounded-2xl border border-green-400/30">
