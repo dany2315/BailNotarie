@@ -1,56 +1,96 @@
-import { Card } from "@/components/ui/card";
-import { FileCheck, Users, Shield } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { FileCheck, Users, Shield, ArrowRight, CheckCircle } from "lucide-react";
+import Image from "next/image";
 
 export function PresentationSection() {
   return (
-    <section className="py-20 bg-white">
+    <section className="py-20 bg-white relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-            Nous simplifions la création de votre bail notarié
-          </h2>
-          <p className="text-xl text-gray-600 max-w-4xl mx-auto leading-relaxed">
-            Signé devant un notaire, votre bail devient un acte authentique, incontestable et exécutoire immédiatement. 
-            Notre rôle : préparer le dossier, coordonner avec le notaire et vous remettre un bail prêt à l'usage.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <Card className="p-8 text-center hover:shadow-lg transition-shadow duration-300">
-            <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-              <FileCheck className="h-8 w-8 text-blue-600" />
+        <div className="grid lg:grid-cols-2 gap-16 items-center">
+          {/* Contenu texte */}
+          <div className="space-y-8">
+            <div>
+              <Badge className="mb-4 bg-blue-100 text-blue-800 hover:bg-blue-100">
+                Notre mission
+              </Badge>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
+                Nous simplifions la création de votre bail notarié
+              </h2>
+              <p className="text-xl text-gray-600 leading-relaxed mb-8">
+                Signé devant un notaire, votre bail devient un acte authentique, incontestable et exécutoire immédiatement. 
+                Notre rôle : préparer le dossier, coordonner avec le notaire et vous remettre un bail prêt à l'usage.
+              </p>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-              Préparation complète
-            </h3>
-            <p className="text-gray-600 leading-relaxed">
-              Nous collectons et vérifions tous les documents nécessaires pour constituer votre dossier.
-            </p>
-          </Card>
 
-          <Card className="p-8 text-center hover:shadow-lg transition-shadow duration-300">
-            <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Users className="h-8 w-8 text-green-600" />
+            {/* Liste des avantages */}
+            <div className="space-y-4">
+              {[
+                "Préparation complète de votre dossier",
+                "Coordination directe avec le notaire",
+                "Sécurité juridique maximale garantie",
+                "Accompagnement personnalisé"
+              ].map((item, index) => (
+                <div key={index} className="flex items-center space-x-3">
+                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  </div>
+                  <span className="text-gray-700 font-medium">{item}</span>
+                </div>
+              ))}
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-              Coordination notaire
-            </h3>
-            <p className="text-gray-600 leading-relaxed">
-              Nous faisons le lien avec le notaire et organisons la signature dans les meilleures conditions.
-            </p>
-          </Card>
 
-          <Card className="p-8 text-center hover:shadow-lg transition-shadow duration-300">
-            <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Shield className="h-8 w-8 text-purple-600" />
+            <div className="flex items-center space-x-4 pt-4">
+              <div className="flex -space-x-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="w-10 h-10 bg-blue-100 rounded-full border-2 border-white flex items-center justify-center">
+                    <span className="text-blue-600 font-semibold text-sm">{i}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Processus en 4 étapes</p>
+                <p className="text-sm text-gray-600">Simple et transparent</p>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-              Sécurité juridique
-            </h3>
-            <p className="text-gray-600 leading-relaxed">
-              Votre bail notarié vous offre une protection maximale et une force exécutoire immédiate.
-            </p>
-          </Card>
+          </div>
+
+          {/* Image avec overlay d'informations */}
+          <div className="relative">
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl">
+              <Image
+                src="https://images.pexels.com/photos/4427430/pexels-photo-4427430.jpeg?auto=compress&cs=tinysrgb&w=800"
+                alt="Signature de contrat notarié"
+                width={600}
+                height={400}
+                className="object-cover w-full h-[400px]"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+              
+              {/* Overlay avec statistiques */}
+              <div className="absolute bottom-6 left-6 right-6">
+                <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6">
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">2000+</div>
+                      <div className="text-sm text-gray-600">Clients</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">48h</div>
+                      <div className="text-sm text-gray-600">Délai moyen</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-purple-600">98%</div>
+                      <div className="text-sm text-gray-600">Satisfaction</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Éléments décoratifs */}
+            <div className="absolute -top-4 -right-4 w-24 h-24 bg-blue-100 rounded-full opacity-20"></div>
+            <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-green-100 rounded-full opacity-20"></div>
+          </div>
         </div>
       </div>
     </section>
