@@ -1,6 +1,7 @@
 import { Header } from "@/components/header";
 import { HeroSection } from "@/components/hero-section";
 import { PresentationSection } from "@/components/presentation-section";
+import { ProcessSection } from "@/components/process-section"
 import { StatsSection } from "@/components/stats-section";
 import { BenefitsSection } from "@/components/benefits-section";
 import { TestimonialsSection } from "@/components/testimonials-section";
