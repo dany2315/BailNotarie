@@ -9,9 +9,6 @@ import { ContactForm } from "@/components/contact-form";
 import { Footer } from "@/components/footer";
 import dynamic from "next/dynamic";
 
-const ProcessSection = dynamic(() => import("@/components/process-section").then(mod => ({ default: mod.ProcessSection })), {
-  ssr: false
-});
 
 export default function Home() {
   return (
