@@ -3,11 +3,15 @@ import { HeroSection } from "@/components/hero-section";
 import { PresentationSection } from "@/components/presentation-section";
 import { StatsSection } from "@/components/stats-section";
 import { BenefitsSection } from "@/components/benefits-section";
-import { ProcessSection } from "@/components/process-section";
 import { TestimonialsSection } from "@/components/testimonials-section";
 import { CTASection } from "@/components/cta-section";
 import { ContactForm } from "@/components/contact-form";
 import { Footer } from "@/components/footer";
+import dynamic from "next/dynamic";
+
+const ProcessSection = dynamic(() => import("@/components/process-section").then(mod => ({ default: mod.ProcessSection })), {
+  ssr: false
+});
 
 export default function Home() {
   return (
