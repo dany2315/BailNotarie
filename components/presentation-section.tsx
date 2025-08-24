@@ -103,6 +103,33 @@ export function PresentationSection() {
           </div>
         </div>
 
+
+      {/* Call to Action */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-16">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+            Prêt à simplifier votre bail notarié ?
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Contactez nos experts pour un accompagnement personnalisé
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              onClick={() => window.location.href = 'tel:0123456789'}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Phone className="mr-2 h-4 w-4" />
+              Appeler maintenant
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              Demander un devis
+            </Button>
+          </div>
+        </div>
+      </div>
           
       </div>
     </section>

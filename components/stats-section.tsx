@@ -129,6 +129,33 @@ export function StatsSection() {
           </div>
         </div>
       </div>
+
+      {/* Call to Action */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-16">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+            Rejoignez nos 2000+ clients satisfaits
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Bénéficiez de notre expertise reconnue en bail notarié
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              onClick={() => window.location.href = 'tel:0123456789'}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Phone className="mr-2 h-4 w-4" />
+              01 23 45 67 89
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              Obtenir un devis
+            </Button>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

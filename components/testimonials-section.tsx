@@ -146,6 +146,33 @@ export function TestimonialsSection() {
           ))}
         </div>
       </div>
+
+      {/* Call to Action */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-16">
+        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl shadow-xl p-8 border border-yellow-200">
+          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+            Rejoignez nos clients satisfaits
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Découvrez pourquoi 98% de nos clients nous recommandent
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              onClick={() => window.location.href = 'tel:0123456789'}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              <Phone className="mr-2 h-4 w-4" />
+              Nous faire confiance
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              Demander un avis
+            </Button>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

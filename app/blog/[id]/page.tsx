@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Link from "next/link";
-import { Calendar, Clock, ArrowLeft, Share2 } from "lucide-react";
+import { Calendar, Clock, ArrowLeft, Share2, User, Eye, BookOpen, MessageCircle } from "lucide-react";
+import Image from "next/image";
 
 // Simulation d'un article de blog
 const blogPost = {
@@ -38,8 +39,13 @@ const blogPost = {
   category: "Comparaison",
   date: "15 janvier 2024",
   readTime: "5 min",
+  views: "1,247",
   image: "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  author: "Équipe BailNotarie"
+  author: {
+    name: "Équipe BailNotarie",
+    avatar: "https://images.pexels.com/photos/2182970/pexels-photo-2182970.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face",
+    bio: "Experts en droit immobilier et bail notarié"
+  }
 };
 
 const relatedPosts = [
@@ -47,13 +53,17 @@ const relatedPosts = [
     id: 2,
     title: "Les étapes clés pour établir un bail notarié",
     excerpt: "Guide complet des démarches à suivre pour faire authentifier votre contrat de bail par un notaire.",
-    category: "Guide pratique"
+    category: "Guide pratique",
+    image: "https://images.pexels.com/photos/4427430/pexels-photo-4427430.jpeg?auto=compress&cs=tinysrgb&w=400",
+    readTime: "7 min"
   },
   {
     id: 5,
     title: "Force exécutoire : l'avantage majeur du bail notarié",
     excerpt: "Comprendre la force exécutoire du bail notarié et ses implications concrètes en cas de litige.",
-    category: "Juridique"
+    category: "Juridique",
+    image: "https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=400",
+    readTime: "6 min"
   }
 ];
 
@@ -62,108 +72,240 @@ export default function BlogPostPage() {
     <main className="min-h-screen bg-gray-50">
       <Header />
       
-      {/* Breadcrumb */}
-      <section className="bg-white py-4 border-b">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Link 
-            href="/blog"
-            className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Retour au blog
-          </Link>
+      {/* Hero Section avec image */}
+      <section className="relative h-[60vh] md:h-[70vh] overflow-hidden">
+        <Image
+          src={blogPost.image}
+          alt={blogPost.title}
+          fill
+          className="object-cover"
+          priority
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20"></div>
+        
+        {/* Contenu superposé */}
+        <div className="absolute inset-0 flex items-end">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 w-full">
+            <Link 
+              href="/blog"
+              className="inline-flex items-center text-white/80 hover:text-white transition-colors mb-6"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Retour au blog
+            </Link>
+            
+            <div className="space-y-4">
+              <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
+                {blogPost.category}
+              </Badge>
+              
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white leading-tight">
+                {blogPost.title}
+              </h1>
+              
+              {/* Métadonnées */}
+              <div className="flex flex-wrap items-center gap-4 text-white/80 text-sm">
+                <div className="flex items-center space-x-2">
+                  <Image
+                    src={blogPost.author.avatar}
+                    alt={blogPost.author.name}
+                    width={32}
+                    height={32}
+                    className="rounded-full"
+                  />
+                  <span>{blogPost.author.name}</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Calendar className="h-4 w-4" />
+                  <span>{blogPost.date}</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Clock className="h-4 w-4" />
+                  <span>{blogPost.readTime} de lecture</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Eye className="h-4 w-4" />
+                  <span>{blogPost.views} vues</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Article */}
-      <article className="py-16">
+      {/* Contenu principal */}
+      <section className="py-12 md:py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* En-tête */}
-          <header className="mb-12">
-            <div className="mb-6">
-              <Badge variant="secondary" className="mb-4">
-                {blogPost.category}
-              </Badge>
-              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-                {blogPost.title}
-              </h1>
-              <div className="flex items-center justify-between text-gray-600">
-                <div className="flex items-center space-x-6">
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4" />
-                    <span>{blogPost.date}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Clock className="h-4 w-4" />
-                    <span>{blogPost.readTime} de lecture</span>
-                  </div>
-                  <span>Par {blogPost.author}</span>
+          <div className="grid lg:grid-cols-4 gap-8">
+            {/* Contenu de l'article */}
+            <article className="lg:col-span-3">
+              {/* Barre de partage mobile */}
+              <div className="flex items-center justify-between mb-8 p-4 bg-white rounded-xl shadow-sm border lg:hidden">
+                <div className="flex items-center space-x-4">
+                  <Button variant="outline" size="sm">
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Partager
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Commenter
+                  </Button>
                 </div>
-                <Button variant="outline" size="sm">
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Partager
-                </Button>
               </div>
-            </div>
-            
-            <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
-              <img 
-                src={blogPost.image} 
-                alt={blogPost.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          </header>
 
-          {/* Contenu */}
-          <div className="prose prose-lg max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: blogPost.content }} />
-          </div>
+              {/* Contenu */}
+              <div className="bg-white rounded-2xl shadow-sm border p-6 md:p-8">
+                <div className="prose prose-lg max-w-none">
+                  <div dangerouslySetInnerHTML={{ __html: blogPost.content }} />
+                </div>
 
-          {/* CTA */}
-          <div className="mt-12 p-8 bg-blue-50 rounded-lg border border-blue-200">
-            <h3 className="text-2xl font-semibold text-gray-900 mb-4">
-              Prêt à créer votre bail notarié ?
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Notre équipe d'experts vous accompagne dans toutes les étapes de création de votre bail notarié.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button asChild className="bg-blue-600 hover:bg-blue-700">
-                <Link href="/#contact">Demander un devis</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="tel:0123456789">Nous appeler</Link>
-              </Button>
-            </div>
+                {/* Tags et partage */}
+                <div className="mt-12 pt-8 border-t border-gray-200">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">bail notarié</Badge>
+                      <Badge variant="secondary">comparaison</Badge>
+                      <Badge variant="secondary">juridique</Badge>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-600">Partager :</span>
+                      <Button variant="outline" size="sm">
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Profil auteur */}
+              <div className="mt-8 bg-white rounded-2xl shadow-sm border p-6">
+                <div className="flex items-start space-x-4">
+                  <Image
+                    src={blogPost.author.avatar}
+                    alt={blogPost.author.name}
+                    width={64}
+                    height={64}
+                    className="rounded-full"
+                  />
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1">{blogPost.author.name}</h3>
+                    <p className="text-gray-600 text-sm mb-3">{blogPost.author.bio}</p>
+                    <Button variant="outline" size="sm">
+                      <User className="h-4 w-4 mr-2" />
+                      Voir le profil
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            {/* Sidebar */}
+            <aside className="lg:col-span-1 space-y-6">
+              {/* Barre de partage desktop */}
+              <div className="hidden lg:block bg-white rounded-xl shadow-sm border p-4">
+                <h3 className="font-semibold text-gray-900 mb-4">Partager l'article</h3>
+                <div className="space-y-2">
+                  <Button variant="outline" size="sm" className="w-full justify-start">
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Partager
+                  </Button>
+                  <Button variant="outline" size="sm" className="w-full justify-start">
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Commenter
+                  </Button>
+                </div>
+              </div>
+
+              {/* CTA */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                <h3 className="font-bold text-gray-900 mb-3">
+                  Besoin d'aide ?
+                </h3>
+                <p className="text-gray-600 text-sm mb-4">
+                  Nos experts vous accompagnent dans votre projet de bail notarié.
+                </p>
+                <div className="space-y-2">
+                  <Button 
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    onClick={() => window.location.href = 'tel:0123456789'}
+                  >
+                    Nous appeler
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
+                  >
+                    Devis gratuit
+                  </Button>
+                </div>
+              </div>
+
+              {/* Statistiques de lecture */}
+              <div className="bg-white rounded-xl shadow-sm border p-4">
+                <h3 className="font-semibold text-gray-900 mb-4">Statistiques</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Vues</span>
+                    <span className="font-semibold">{blogPost.views}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Temps de lecture</span>
+                    <span className="font-semibold">{blogPost.readTime}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Catégorie</span>
+                    <Badge variant="secondary" className="text-xs">{blogPost.category}</Badge>
+                  </div>
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
-      </article>
+      </section>
 
       {/* Articles liés */}
       <section className="py-16 bg-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8">
-            Articles liés
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+            Articles recommandés
           </h2>
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             {relatedPosts.map((post) => (
-              <Card key={post.id} className="p-6 hover:shadow-lg transition-shadow duration-300">
-                <Badge variant="secondary" className="mb-3">
-                  {post.category}
-                </Badge>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                  {post.title}
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  {post.excerpt}
-                </p>
-                <Link 
-                  href={`/blog/${post.id}`}
-                  className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                >
-                  Lire l'article →
-                </Link>
+              <Card key={post.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 group">
+                <div className="aspect-video relative overflow-hidden">
+                  <Image
+                    src={post.image}
+                    alt={post.title}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute top-4 left-4">
+                    <Badge variant="secondary" className="bg-white/90">
+                      {post.category}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
+                    {post.title}
+                  </h3>
+                  <p className="text-gray-600 mb-4 line-clamp-2">
+                    {post.excerpt}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1 text-sm text-gray-500">
+                      <BookOpen className="h-4 w-4" />
+                      <span>{post.readTime}</span>
+                    </div>
+                    <Link 
+                      href={`/blog/${post.id}`}
+                      className="text-blue-600 hover:text-blue-700 font-medium transition-colors text-sm"
+                    >
+                      Lire l'article →
+                    </Link>
+                  </div>
+                </div>
               </Card>
             ))}
           </div>

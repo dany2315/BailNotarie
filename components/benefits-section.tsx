@@ -196,6 +196,33 @@ export function BenefitsSection() {
           </div>
         </div>
       </div>
+
+      {/* Call to Action */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-16">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl shadow-xl p-8 border border-blue-200">
+          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+            Sécurisez votre location dès maintenant
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Profitez de tous les avantages du bail notarié avec notre accompagnement expert
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              onClick={() => window.location.href = 'tel:0123456789'}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Phone className="mr-2 h-4 w-4" />
+              Parler à un expert
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              Devis personnalisé
+            </Button>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
