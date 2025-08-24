@@ -65,12 +65,18 @@ export function ProcessSection() {
     <section id="process" className="py-20 bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <Badge className="mb-4 bg-green-100 text-green-800 hover:bg-green-100">
-            Notre processus
+
+          <Badge className=" mb-8 bg-gradient-to-r from-green-400 to-green-800 text-white border-0 px-6 py-2 text-sm font-semibold">
+            Notre mission
           </Badge>
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-            5 étapes simples vers votre bail notarié
+          <h2 className="text-4xl md:text-6xl font-bold mb-8">
+            <span className="bg-gradient-to-r from-green-900 via-green-600 to-green-800 bg-clip-text text-transparent">
+            5 étapes simples
+            </span>
+            <br />
+            <span className="text-gray-900">vers votre bail notarié</span>
           </h2>
+
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Un processus transparent et efficace pour sécuriser votre location
           </p>
