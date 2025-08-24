@@ -1,5 +1,6 @@
 /* eslint-disable consistent-return */
 /* eslint-disable no-useless-return */
+
 import { useEffect, useState } from 'react';
 
 const useIsMobile = () => {

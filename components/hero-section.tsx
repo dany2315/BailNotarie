@@ -91,7 +91,7 @@ export function HeroSection() {
                 onClick={scrollToContact}
                 className="text-lg px-8 py-4 border-2 hover:bg-blue-50"
               >
-                Demander un devis
+                Mon bail notarié
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </div>

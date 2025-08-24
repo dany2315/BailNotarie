@@ -1,6 +1,8 @@
+"use client";
 import { Badge } from "@/components/ui/badge";
 import { Phone, FileText, Send, PenTool, Download, ArrowRight, Clock, CheckCircle } from "lucide-react";
 import Image from "next/image";
+import { Button } from "./ui/button";
 
 export function ProcessSection() {
   const steps = [
@@ -67,7 +69,7 @@ export function ProcessSection() {
         <div className="text-center mb-16">
 
           <Badge className=" mb-8 bg-gradient-to-r from-green-400 to-green-800 text-white border-0 px-6 py-2 text-sm font-semibold">
-            Notre mission
+            Processus
           </Badge>
           <h2 className="text-4xl md:text-6xl font-bold mb-8">
             <span className="bg-gradient-to-r from-green-900 via-green-600 to-green-800 bg-clip-text text-transparent">
@@ -186,6 +188,8 @@ export function ProcessSection() {
             </div>
           </div>
         </div>
+
+        
       </div>
     </section>
   );

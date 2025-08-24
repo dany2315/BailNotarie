@@ -1,9 +1,12 @@
+"use client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Star, Quote, MapPin, Calendar, ThumbsUp, Award } from "lucide-react";
 import Image from "next/image";
+import useIsMobile  from "@/hooks/useIsMobile";
 
 export function TestimonialsSection() {
+  const isMobile = useIsMobile();
   const testimonials = [
     {
       name: "Marie Dubois",
@@ -71,7 +74,7 @@ export function TestimonialsSection() {
           </p>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-8">
+        {!isMobile && <div className="flex flex-wrap justify-center gap-8">
             {stats.map((stat, index) => (
               <div key={index} className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
                 <div className="w-12 h-12 bg-gradient-to-br from-yellow-300 to-orange-500 rounded-xl flex items-center justify-center">
@@ -83,7 +86,7 @@ export function TestimonialsSection() {
                 </div>
               </div>
             ))}
-          </div>
+          </div>}
 
         <div className="grid md:grid-cols-3 gap-8 mt-20">
           {testimonials.map((testimonial, index) => (

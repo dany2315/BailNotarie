@@ -1,6 +1,8 @@
+"use client";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Users, FileCheck, Clock, Star, Award, Shield, Zap } from "lucide-react";
+import { TrendingUp, Users, FileCheck, Clock, Star, Award, Shield, Zap, ArrowRight } from "lucide-react";
 import Image from "next/image";
+import { Button } from "./ui/button";
 
 export function StatsSection() {
   const mainStats = [
@@ -114,21 +116,15 @@ export function StatsSection() {
                 ))}
               </div>
               
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl px-6 py-4 border border-blue-100">
-                <div className="flex items-center space-x-4">
-                  <div className="flex -space-x-2">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="w-12 h-12 bg-blue-600 rounded-full border-2 border-white flex items-center justify-center">
-                        <Star className="h-6 w-6 text-white fill-current" />
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <p className="font-bold text-gray-900">Excellence reconnue</p>
-                    <p className="text-sm text-gray-600">Par nos clients et partenaires</p>
-                  </div>
-                </div>
-              </div>
+      <Button 
+      variant="outline"
+      onClick={() => {
+        window.location.href = "tel:+33606060606";
+      }}
+      >
+       Faire parti de nos clients satisfaits
+        <ArrowRight className="ml-2 h-5 w-5" />
+      </Button>
             </div>
           </div>
         </div>

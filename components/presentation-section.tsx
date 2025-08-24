@@ -1,6 +1,10 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
-import { FileCheck, Users, Shield, ArrowRight, CheckCircle } from "lucide-react";
+import {  ArrowRight, CheckCircle } from "lucide-react";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
+
 
 export function PresentationSection() {
   return (
@@ -9,11 +13,11 @@ export function PresentationSection() {
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
       </div>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center ">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center ">
       <Badge className=" mb-8 bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-0 px-6 py-2 text-sm font-semibold">
             Notre mission
           </Badge>
-        <div className="grid lg:grid-cols-2 gap-16 items-center ">
+        <div className="grid lg:grid-cols-2 gap-16 items-center pb-10 ">
           {/* Contenu texte */}
 
           <div className="space-y-8 ">
@@ -98,6 +102,8 @@ export function PresentationSection() {
             <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-green-100 rounded-full opacity-20"></div>
           </div>
         </div>
+
+          
       </div>
     </section>
   );
