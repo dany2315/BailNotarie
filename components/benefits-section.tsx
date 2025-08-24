@@ -1,6 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Zap, Eye, Shield, HeartHandshake, ArrowRight, CheckCircle, Clock, Scale, Star, Award } from "lucide-react";
+import { Zap, Eye, Shield, HeartHandshake, ArrowRight, CheckCircle, Clock, Scale } from "lucide-react";
 import Image from "next/image";
 
 export function BenefitsSection() {
@@ -8,216 +7,180 @@ export function BenefitsSection() {
     {
       icon: Zap,
       title: "Force exécutoire immédiate",
-      description: "Action rapide en cas d'impayés, sans procès. Délais d'expulsion réduits à 2-3 mois au lieu de 12-18 mois.",
-      features: ["Pas de procédure judiciaire", "Économie de temps et d'argent", "Récupération rapide des loyers"],
-      color: "from-red-500 to-pink-600",
+      description: "Action rapide en cas d'impayés, sans procès. Délais d'expulsion réduits à 2-3 mois.",
+      color: "from-red-500 to-pink-500",
       bgColor: "bg-red-50",
-      borderColor: "border-red-200"
+      iconColor: "text-red-600"
     },
     {
       icon: Shield,
-      title: "Protection juridique renforcée",
-      description: "Sécurité maximale avec un document authentique validé par un officier public.",
-      features: ["Document incontestable", "Validation par notaire", "Conformité légale garantie"],
-      color: "from-green-500 to-emerald-600",
+      title: "Protection renforcée",
+      description: "Sécurité juridique maximale avec un document authentique et officiel.",
+      color: "from-green-500 to-emerald-500",
       bgColor: "bg-green-50",
-      borderColor: "border-green-200"
+      iconColor: "text-green-600"
     },
     {
       icon: Eye,
-      title: "Transparence totale",
-      description: "Clarté absolue des termes avec validation par un professionnel impartial du droit.",
-      features: ["Termes clairs et précis", "Pas d'ambiguïté juridique", "Conseil personnalisé"],
-      color: "from-blue-500 to-cyan-600",
+      title: "Clarté et transparence",
+      description: "Validation par un notaire impartial avec des termes clairs et sans ambiguïté.",
+      color: "from-blue-500 to-cyan-500",
       bgColor: "bg-blue-50",
-      borderColor: "border-blue-200"
+      iconColor: "text-blue-600"
+    },
+    {
+      icon: HeartHandshake,
+      title: "Accompagnement complet",
+      description: "Suivi personnalisé jusqu'à la signature avec remise du bail finalisé.",
+      color: "from-purple-500 to-indigo-500",
+      bgColor: "bg-purple-50",
+      iconColor: "text-purple-600"
     }
   ];
 
-  const comparisonData = [
-    { 
-      aspect: "Délai d'expulsion", 
-      classic: "12-18 mois", 
-      notarial: "2-3 mois",
-      advantage: "Gain de 10-15 mois"
-    },
-    { 
-      aspect: "Coût procédure", 
-      classic: "3000-5000€", 
-      notarial: "0€",
-      advantage: "Économie jusqu'à 5000€"
-    },
-    { 
-      aspect: "Force juridique", 
-      classic: "Limitée", 
-      notarial: "Maximale",
-      advantage: "Sécurité absolue"
-    },
-    { 
-      aspect: "Validation", 
-      classic: "Aucune", 
-      notarial: "Notaire",
-      advantage: "Expertise garantie"
-    }
+  const comparisonPoints = [
+    { feature: "Force exécutoire", classic: false, notarial: true },
+    { feature: "Délai d'expulsion", classic: "12-18 mois", notarial: "2-3 mois" },
+    { feature: "Validation juridique", classic: false, notarial: true },
+    { feature: "Sécurité maximale", classic: false, notarial: true },
+    { feature: "Coût initial", classic: "Faible", notarial: "Modéré" }
   ];
 
   return (
-    <section id="services" className="py-20 bg-gradient-to-br from-slate-50 via-white to-blue-50">
+    <section id="services" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* En-tête moderne */}
-        <div className="text-center mb-20">
-          <Badge className="mb-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-0 px-8 py-3 text-base font-semibold rounded-full">
-            Avantages exclusifs
-          </Badge>
-          <h2 className="text-4xl md:text-6xl font-bold mb-8">
-            <span className="bg-gradient-to-r from-gray-900 via-blue-800 to-indigo-800 bg-clip-text text-transparent">
+        <div className="text-center mb-16">
+
+          <Badge className="mb-6 bg-gradient-to-r from-indigo-600 to-purple-800 text-white border-0 px-6 py-2 text-sm font-semibold">
+              Nos avantages
+            </Badge>
+            <h2 className="text-4xl md:text-6xl font-bold mb-8">
+            <span className="bg-gradient-to-r from-gray-900 via-indigo-600 to-purple-800 bg-clip-text text-transparent">
               Le bail notarié,
             </span>
             <br />
             <span className="text-gray-900">votre meilleur allié</span>
           </h2>
-          <p className="text-xl text-gray-600 max-w-4xl mx-auto leading-relaxed">
-            Découvrez comment le bail notarié révolutionne la gestion locative avec des avantages 
-            concrets et mesurables pour votre tranquillité d'esprit.
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Découvrez les avantages uniques d'un bail authentifié par un notaire
           </p>
         </div>
 
-        {/* Avantages principaux - Layout en zigzag */}
-        <div className="space-y-20 mb-24">
+        {/* Grille des avantages avec design moderne */}
+        <div className="grid md:grid-cols-2 gap-8 mb-20 ">
           {mainBenefits.map((benefit, index) => (
-            <div key={index} className={`grid lg:grid-cols-2 gap-12 items-center ${index % 2 === 1 ? 'lg:grid-flow-col-dense' : ''}`}>
-              {/* Contenu */}
-              <div className={`space-y-8 ${index % 2 === 1 ? 'lg:col-start-2' : ''}`}>
-                <div className="space-y-6">
-                  <div className={`w-20 h-20 bg-gradient-to-br ${benefit.color} rounded-3xl flex items-center justify-center shadow-2xl`}>
-                    <benefit.icon className="h-10 w-10 text-white" />
+            <div key={index} className="group relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-2xl" 
+                   style={{backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))`}}></div>
+              
+              <div className={`${benefit.bgColor} rounded-2xl p-8 h-full border border-gray-100 group-hover:border-gray-200 transition-all duration-300 group-hover:shadow-xl`}>
+                <div className="flex items-start space-x-4">
+                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${benefit.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                    <benefit.icon className="h-7 w-7 text-white" />
                   </div>
-                  
-                  <div>
-                    <h3 className="text-3xl font-bold text-gray-900 mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-gray-800 transition-colors">
                       {benefit.title}
                     </h3>
-                    <p className="text-xl text-gray-600 leading-relaxed mb-8">
+                    <p className="text-gray-600 leading-relaxed">
                       {benefit.description}
                     </p>
                   </div>
                 </div>
-
-                {/* Liste des fonctionnalités */}
-                <div className="space-y-4">
-                  {benefit.features.map((feature, featureIndex) => (
-                    <div key={featureIndex} className="flex items-center space-x-4">
-                      <div className={`w-8 h-8 bg-gradient-to-br ${benefit.color} rounded-full flex items-center justify-center shadow-lg`}>
-                        <CheckCircle className="h-5 w-5 text-white" />
-                      </div>
-                      <span className="text-lg font-medium text-gray-800">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <Button className={`bg-gradient-to-r ${benefit.color} hover:shadow-xl text-white px-8 py-4 rounded-2xl text-lg font-semibold transition-all duration-300 hover:scale-105`}>
-                  En savoir plus
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </div>
-
-              {/* Illustration */}
-              <div className={`relative ${index % 2 === 1 ? 'lg:col-start-1' : ''}`}>
-                <div className={`${benefit.bgColor} ${benefit.borderColor} border-2 rounded-3xl p-8 shadow-2xl`}>
-                  <div className="aspect-square bg-white rounded-2xl p-8 shadow-inner">
-                    <div className="h-full flex flex-col justify-center items-center space-y-6">
-                      <div className={`w-24 h-24 bg-gradient-to-br ${benefit.color} rounded-full flex items-center justify-center shadow-xl`}>
-                        <benefit.icon className="h-12 w-12 text-white" />
-                      </div>
-                      <div className="text-center">
-                        <h4 className="text-2xl font-bold text-gray-900 mb-2">{benefit.title}</h4>
-                        <div className="w-16 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full mx-auto"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
                 
-                {/* Éléments décoratifs */}
-                <div className={`absolute -top-4 -right-4 w-16 h-16 bg-gradient-to-br ${benefit.color} rounded-full opacity-20 blur-xl`}></div>
-                <div className={`absolute -bottom-4 -left-4 w-20 h-20 bg-gradient-to-br ${benefit.color} rounded-full opacity-15 blur-xl`}></div>
+                <div className="mt-6 flex items-center text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">
+                  <span>En savoir plus</span>
+                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Section de comparaison moderne */}
-        <div className="bg-gradient-to-br from-gray-900 via-blue-900 to-indigo-900 rounded-3xl overflow-hidden shadow-2xl">
-          <div className="grid lg:grid-cols-2">
-            {/* Image avec overlay */}
-            <div className="relative h-64 lg:h-auto">
-              <Image
-                src="https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=800"
-                alt="Balance de la justice"
-                fill
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-gray-900/80 to-transparent"></div>
-              
-              {/* Badges flottants */}
-              <div className="absolute top-6 left-6 space-y-3">
-                <div className="bg-white/95 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
-                  <div className="flex items-center space-x-2">
-                    <Award className="h-5 w-5 text-yellow-500" />
-                    <span className="text-sm font-semibold text-gray-900">Certifié qualité</span>
-                  </div>
-                </div>
-                <div className="bg-green-500/95 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
-                  <div className="flex items-center space-x-2">
-                    <Shield className="h-5 w-5 text-white" />
-                    <span className="text-sm font-semibold text-white">100% sécurisé</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
+        {/* Section de comparaison */}
+        <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-3xl p-8 lg:p-12">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Tableau de comparaison */}
-            <div className="p-12 text-white">
-              <h3 className="text-3xl font-bold mb-8 flex items-center">
-                <Scale className="h-8 w-8 mr-3 text-blue-300" />
-                Comparaison détaillée
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-8">
+                Bail notarié vs Bail classique
               </h3>
               
-              <div className="space-y-6">
-                {comparisonData.map((item, index) => (
-                  <div key={index} className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/15 transition-colors duration-300">
-                    <div className="flex justify-between items-start mb-4">
-                      <h4 className="text-lg font-semibold text-blue-200">{item.aspect}</h4>
-                      <div className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-xs font-medium">
-                        {item.advantage}
-                      </div>
+              <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <div className="grid grid-cols-3 bg-gray-50 p-4 font-semibold text-gray-700 text-sm">
+                  <div>Critère</div>
+                  <div className="text-center">Bail classique</div>
+                  <div className="text-center">Bail notarié</div>
+                </div>
+                
+                {comparisonPoints.map((point, index) => (
+                  <div key={index} className="grid grid-cols-3 p-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors">
+                    <div className="font-medium text-gray-900">{point.feature}</div>
+                    <div className="text-center">
+                      {typeof point.classic === 'boolean' ? (
+                        point.classic ? (
+                          <CheckCircle className="h-5 w-5 text-green-600 mx-auto" />
+                        ) : (
+                          <div className="w-5 h-5 bg-red-100 rounded-full mx-auto flex items-center justify-center">
+                            <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+                          </div>
+                        )
+                      ) : (
+                        <span className="text-gray-600">{point.classic}</span>
+                      )}
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center">
-                        <div className="text-sm text-gray-300 mb-1">Bail classique</div>
-                        <div className="text-red-300 font-semibold">{item.classic}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-sm text-gray-300 mb-1">Bail notarié</div>
-                        <div className="text-green-300 font-semibold">{item.notarial}</div>
-                      </div>
+                    <div className="text-center">
+                      {typeof point.notarial === 'boolean' ? (
+                        point.notarial ? (
+                          <CheckCircle className="h-5 w-5 text-green-600 mx-auto" />
+                        ) : (
+                          <div className="w-5 h-5 bg-red-100 rounded-full mx-auto flex items-center justify-center">
+                            <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+                          </div>
+                        )
+                      ) : (
+                        <span className="text-green-600 font-semibold">{point.notarial}</span>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-              
-              <div className="mt-8 p-6 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 rounded-2xl border border-blue-400/30">
-                <div className="flex items-center space-x-4">
-                  <div className="flex -space-x-2">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <Star key={i} className="h-6 w-6 text-yellow-400 fill-current" />
-                    ))}
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg">Recommandé par 98% de nos clients</p>
-                    <p className="text-blue-200 text-sm">Basé sur 2000+ avis vérifiés</p>
+            </div>
+
+            {/* Image avec overlay informatif */}
+            <div className="relative">
+              <div className="relative rounded-2xl overflow-hidden shadow-2xl">
+                <Image
+                  src="https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=600"
+                  alt="Balance de la justice"
+                  width={500}
+                  height={400}
+                  className="object-cover w-full h-[400px]"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+                
+                {/* Overlay avec points clés */}
+                <div className="absolute bottom-6 left-6 right-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3 text-white">
+                      <Scale className="h-6 w-6" />
+                      <span className="font-semibold">Équité et transparence</span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-white">
+                      <Clock className="h-6 w-6" />
+                      <span className="font-semibold">Gain de temps considérable</span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-white">
+                      <Shield className="h-6 w-6" />
+                      <span className="font-semibold">Protection juridique maximale</span>
+                    </div>
                   </div>
                 </div>
+              </div>
+              
+              {/* Badge flottant */}
+              <div className="absolute -top-4 -right-4 bg-green-500 text-white px-4 py-2 rounded-full font-semibold shadow-lg">
+                Recommandé
               </div>
             </div>
           </div>
