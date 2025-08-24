@@ -143,7 +143,7 @@ export function TestimonialsSection() {
           >
             <CarouselContent className="-ml-2 md:-ml-4">
               {testimonials.map((testimonial, index) => (
-                <CarouselItem key={index} className="pl-2 md:pl-4  md:basis-1/2 lg:basis-1/3 px-15">
+                <CarouselItem key={index} className=" md:pl-4 pl-2  md:basis-1/2 lg:basis-1/3 ">
                   <Card className="p-0 overflow-hidden   bg-white/90  border-0 shadow-xl relative h-full">
                     <div className="p-8 pb-0">
                       <div className="flex items-start space-x-4 mb-6">
@@ -191,7 +191,7 @@ export function TestimonialsSection() {
 
                     <div className="relative px-8 pb-6">
                       <Quote className="h-8 w-8 text-blue-200 absolute -top-2 left-5" />
-                      <p className="text-gray-700 italic pl-6">
+                      <p className="text-gray-700 text-sm italic pl-6">
                         "{testimonial.text}"
                       </p>
                     </div>
