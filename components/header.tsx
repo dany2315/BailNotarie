@@ -23,7 +23,7 @@ export function Header() {
     { href: "#services", label: "Services", icon: Briefcase },
     { href: "#process", label: "Processus", icon: Settings },
     { href: "/blog", label: "Blog", icon: BookOpen },
-    { href: "#contact", label: "Contact", icon: Mail },
+    { href: "/#contact", label: "Contact", icon: Mail },
   ];
 
   const handleMenuClick = () => {
@@ -54,7 +54,7 @@ export function Header() {
             <Link href="/blog" className="text-gray-700 hover:text-blue-600 transition-colors">
               Blog
             </Link>
-            <Link href="#contact" className="text-gray-700 hover:text-blue-600 transition-colors">
+            <Link href="/#contact" className="text-gray-700 hover:text-blue-600 transition-colors">
               Contact
             </Link>
           </nav>

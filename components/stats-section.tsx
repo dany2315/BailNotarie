@@ -103,10 +103,10 @@ export function StatsSection() {
                 Pourquoi nous choisir ?
               </h3>
               
-              <div className="grid grid-cols-2 gap-4 mb-8">
+              <div className="flex flex-wrap justify-center gap-4 mb-8">
                 {achievements.map((achievement, index) => (
-                  <div key={index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-full hover:bg-blue-50 transition-colors duration-200">
-                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+                  <div key={index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-full hover:bg-blue-50 transition-colors duration-200 pr-4">
+                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-full">
                       <achievement.icon className="h-5 w-5 text-blue-600" />
                     </div>
                     <span className="font-medium text-gray-800">{achievement.text}</span>
