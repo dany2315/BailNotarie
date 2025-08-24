@@ -6,7 +6,7 @@ import { Phone } from "lucide-react";
 export function CallButton() {
   return (
     <Button 
-      className="bg-blue-600 hover:bg-blue-700 text-white"
+      className="bg-blue-600 hover:bg-blue-700 text-white w-full"
       onClick={() => window.location.href = 'tel:0123456789'}
     >
       <Phone className="size-4" />
@@ -19,6 +19,7 @@ export function ContactButton() {
   return (
     <Button 
       variant="outline"
+      className="w-full"
       onClick={() => {
         const contactElement = document.getElementById('contact');
         if (contactElement) {

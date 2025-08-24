@@ -71,7 +71,7 @@ export function ContactForm() {
   }
 
   return (
-    <div className="grid lg:grid-cols-2 gap-12">
+    <div className="flex flex-col lg:flex-row gap-12 w-full  ">
       {/* Formulaire */}
       <Card className="p-8">
         <h3 className="text-2xl font-semibold text-gray-900 mb-6">
@@ -171,11 +171,11 @@ export function ContactForm() {
 
       {/* Informations de contact */}
       <div className="space-y-8">
-        <Card className="p-8 h-full ">
+        <Card className="p-8 h-auto ">
           <h3 className="text-2xl font-semibold text-gray-900 mb-6">
             Contactez-nous directement
           </h3>
-          <div className=" h-full flex flex-col justify-between">
+          <div className=" h-full flex flex-col space-y-6 justify-between">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                 <Phone className="h-6 w-6 text-green-600" />
@@ -198,16 +198,6 @@ export function ContactForm() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <MapPin className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Adresse</p>
-                <p className="text-gray-600">123 Rue de la Paix</p>
-                <p className="text-gray-600">75001 Paris</p>
-              </div>
-            </div>
           </div>
 
           <div className="mt-8 pt-6 border-t">

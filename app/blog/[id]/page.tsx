@@ -88,7 +88,7 @@ export default function BlogPostPage() {
         
         {/* Contenu superposé */}
         <div className="absolute inset-0 flex items-end">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 w-full">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 w-full">
             <Link 
               href="/blog"
               className="inline-flex items-center text-white/80 hover:text-white transition-colors mb-6"
@@ -130,7 +130,19 @@ export default function BlogPostPage() {
                   <Eye className="h-4 w-4" />
                   <span>{blogPost.views} vues</span>
                 </div>
+                
+                
               </div>
+              <div className="flex items-center space-x-4">
+                  <Button variant="outline" className="bg-transparent text-white" size="sm">
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Partager
+                  </Button>
+                  <Button variant="outline" className="bg-transparent text-white" size="sm">
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Commenter
+                  </Button>
+                </div>
             </div>
           </div>
         </div>
@@ -138,23 +150,11 @@ export default function BlogPostPage() {
 
       {/* Contenu principal */}
       <section className="py-12 md:py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-4 gap-8">
             {/* Contenu de l'article */}
             <article className="lg:col-span-3">
               {/* Barre de partage mobile */}
-              <div className="flex items-center justify-between mb-8 p-4 bg-white rounded-xl shadow-sm border lg:hidden">
-                <div className="flex items-center space-x-4">
-                  <Button variant="outline" size="sm">
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Partager
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    Commenter
-                  </Button>
-                </div>
-              </div>
 
               {/* Contenu */}
               <div className="bg-white rounded-2xl shadow-sm border p-6 md:p-8">
@@ -207,7 +207,7 @@ export default function BlogPostPage() {
               {/* Barre de partage desktop */}
               <div className="hidden lg:block bg-white rounded-xl shadow-sm border p-4">
                 <h3 className="font-semibold text-gray-900 mb-4">Partager l'article</h3>
-                <div className="space-y-2">
+                <div className="space-y-2 ">
                   <Button variant="outline" size="sm" className="w-full justify-start">
                     <Share2 className="h-4 w-4 mr-2" />
                     Partager
@@ -220,37 +220,19 @@ export default function BlogPostPage() {
               </div>
 
               {/* CTA */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 ">
                 <h3 className="font-bold text-gray-900 mb-3">
                   Besoin d'aide ?
                 </h3>
                 <p className="text-gray-600 text-sm mb-4">
                   Nos experts vous accompagnent dans votre projet de bail notarié.
                 </p>
-                <div className="space-y-2">
+                <div className="space-y-2 ">
                   <CallButton />
                   <ContactButton />
                 </div>
               </div>
 
-              {/* Statistiques de lecture */}
-              <div className="bg-white rounded-xl shadow-sm border p-4">
-                <h3 className="font-semibold text-gray-900 mb-4">Statistiques</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Vues</span>
-                    <span className="font-semibold">{blogPost.views}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Temps de lecture</span>
-                    <span className="font-semibold">{blogPost.readTime}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Catégorie</span>
-                    <Badge variant="secondary" className="text-xs">{blogPost.category}</Badge>
-                  </div>
-                </div>
-              </div>
             </aside>
           </div>
         </div>
