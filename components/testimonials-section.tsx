@@ -12,13 +12,9 @@ import {
 } from "@/components/ui/carousel";
 import { Star, Quote, MapPin, Calendar, ThumbsUp, Award, Phone } from "lucide-react";
 import Image from "next/image";
-import Autoplay from "embla-carousel-autoplay";
-import { useRef } from "react";
 
 export function TestimonialsSection() {
-  const plugin = useRef(
-    Autoplay({ delay: 4000, stopOnInteraction: true })
-  );
+
 
   const testimonials = [
     {
@@ -139,19 +135,16 @@ export function TestimonialsSection() {
         {/* Carrousel Shadcn */}
         <div className="relative">
           <Carousel
-            plugins={[plugin.current]}
             className="w-full"
-            onMouseEnter={plugin.current.stop}
-            onMouseLeave={plugin.current.reset}
             opts={{
-              align: "start",
+              align: "center",
               loop: true,
             }}
           >
             <CarouselContent className="-ml-2 md:-ml-4">
               {testimonials.map((testimonial, index) => (
-                <CarouselItem key={index} className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3">
-                  <Card className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white/90 border-0 shadow-xl relative h-full">
+                <CarouselItem key={index} className="pl-2 md:pl-4  md:basis-1/2 lg:basis-1/3 px-15">
+                  <Card className="p-0 overflow-hidden   bg-white/90  border-0 shadow-xl relative h-full">
                     <div className="p-8 pb-0">
                       <div className="flex items-start space-x-4 mb-6">
                         <div className="relative">
@@ -207,8 +200,8 @@ export function TestimonialsSection() {
                 </CarouselItem>
               ))}
             </CarouselContent>
-            <CarouselPrevious className="hidden md:flex -left-12 bg-white/90 hover:bg-white shadow-lg" />
-            <CarouselNext className="hidden md:flex -right-12 bg-white/90 hover:bg-white shadow-lg" />
+            <CarouselPrevious className=" left-3 bg-white/90 hover:bg-white shadow-lg" />
+            <CarouselNext className=" right-3 bg-white/90 hover:bg-white shadow-lg" />
           </Carousel>
         </div>
 
