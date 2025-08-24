@@ -1,13 +1,17 @@
 "use client";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Quote, MapPin, Calendar, ThumbsUp, Award , Phone} from "lucide-react";
-import Image from "next/image";
-import useIsMobile  from "@/hooks/useIsMobile";
 import { Button } from "@/components/ui/button";
+import { Star, Quote, MapPin, Calendar, ThumbsUp, Award, Phone, ChevronLeft, ChevronRight } from "lucide-react";
+import Image from "next/image";
+import useIsMobile from "@/hooks/useIsMobile";
 
 export function TestimonialsSection() {
   const isMobile = useIsMobile();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+
   const testimonials = [
     {
       name: "Marie Dubois",
@@ -41,6 +45,39 @@ export function TestimonialsSection() {
       date: "Il y a 3 semaines",
       highlight: "Tranquillité d'esprit garantie",
       verified: true
+    },
+    {
+      name: "Pierre Durand",
+      role: "Propriétaire bailleur",
+      image: "https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop&crop=face",
+      rating: 5,
+      text: "Service impeccable ! L'accompagnement était parfait du début à la fin. Le bail notarié me donne une sécurité que je n'avais jamais eue avec mes anciens contrats classiques.",
+      location: "Toulouse 1er",
+      date: "Il y a 1 semaine",
+      highlight: "Accompagnement parfait",
+      verified: true
+    },
+    {
+      name: "Isabelle Moreau",
+      role: "Gestionnaire de patrimoine",
+      image: "https://images.pexels.com/photos/3756679/pexels-photo-3756679.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop&crop=face",
+      rating: 5,
+      text: "Pour mes clients investisseurs, je recommande systématiquement le bail notarié. La force exécutoire immédiate est un atout majeur. BailNotarie offre un service de qualité.",
+      location: "Nice 7ème",
+      date: "Il y a 4 jours",
+      highlight: "Recommandé par les professionnels",
+      verified: true
+    },
+    {
+      name: "Jean-Luc Bernard",
+      role: "Propriétaire multi-biens",
+      image: "https://images.pexels.com/photos/2182973/pexels-photo-2182973.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop&crop=face",
+      rating: 5,
+      text: "Après 15 ans dans l'immobilier, je peux dire que le bail notarié est la meilleure protection. L'équipe BailNotarie est compétente et les délais sont respectés.",
+      location: "Bordeaux 3ème",
+      date: "Il y a 5 jours",
+      highlight: "15 ans d'expérience validée",
+      verified: true
     }
   ];
 
@@ -50,18 +87,62 @@ export function TestimonialsSection() {
     { number: "98%", label: "Recommandent", icon: Award }
   ];
 
+  // Carrousel automatique
+  useEffect(() => {
+    if (!isAutoPlaying) return;
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prevIndex) => 
+        prevIndex === testimonials.length - 1 ? 0 : prevIndex + 1
+      );
+    }, 4000); // Change toutes les 4 secondes
+
+    return () => clearInterval(interval);
+  }, [isAutoPlaying, testimonials.length]);
+
+  const nextTestimonial = () => {
+    setCurrentIndex((prevIndex) => 
+      prevIndex === testimonials.length - 1 ? 0 : prevIndex + 1
+    );
+  };
+
+  const prevTestimonial = () => {
+    setCurrentIndex((prevIndex) => 
+      prevIndex === 0 ? testimonials.length - 1 : prevIndex - 1
+    );
+  };
+
+  const goToSlide = (index: number) => {
+    setCurrentIndex(index);
+  };
+
+  // Calculer les témoignages visibles
+  const getVisibleTestimonials = () => {
+    if (isMobile) {
+      return [testimonials[currentIndex]];
+    } else {
+      const visible = [];
+      for (let i = 0; i < 3; i++) {
+        const index = (currentIndex + i) % testimonials.length;
+        visible.push(testimonials[index]);
+      }
+      return visible;
+    }
+  };
+
   return (
-    <section  className="py-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
+    <section className="py-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-20 left-20 w-64 h-64 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
         <div className="absolute bottom-20 right-20 w-64 h-64 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-           <Badge className="mb-6 bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0 px-6 py-2 text-sm font-semibold">
-              Témoignages clients
-            </Badge>
+          <Badge className="mb-6 bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0 px-6 py-2 text-sm font-semibold">
+            Témoignages clients
+          </Badge>
 
           <h2 className="text-4xl md:text-6xl font-bold mb-8">
             <span className="bg-gradient-to-r from-gray-900 via-yellow-400 to-orange-500 bg-clip-text text-transparent">
@@ -75,7 +156,9 @@ export function TestimonialsSection() {
           </p>
         </div>
 
-        {!isMobile && <div className="flex flex-wrap justify-center gap-8">
+        {/* Statistiques */}
+        {!isMobile && (
+          <div className="flex flex-wrap justify-center gap-8 mb-16">
             {stats.map((stat, index) => (
               <div key={index} className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
                 <div className="w-12 h-12 bg-gradient-to-br from-yellow-300 to-orange-500 rounded-xl flex items-center justify-center">
@@ -87,74 +170,143 @@ export function TestimonialsSection() {
                 </div>
               </div>
             ))}
-          </div>}
+          </div>
+        )}
 
-        <div className="grid md:grid-cols-3 gap-8 mt-20">
-          {testimonials.map((testimonial, index) => (
-            <Card key={index} className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white/90  border-0 shadow-xl relative">
-              <div className="p-8 pb-0">
-                  <div className="flex items-start space-x-4 mb-6">
-                    <div className="relative">
-                      <Image
-                        src={testimonial.image}
-                        alt={testimonial.name}
-                        width={60}
-                        height={60}
-                        className="rounded-full object-cover shadow-lg"
-                      />
-                      {testimonial.verified && (
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
-                          <Award className="h-3 w-3 text-white" />
+        {/* Carrousel */}
+        <div className="relative">
+          {/* Contrôles de navigation */}
+          <div className="flex justify-between items-center mb-8">
+            <button
+              onClick={prevTestimonial}
+              onMouseEnter={() => setIsAutoPlaying(false)}
+              onMouseLeave={() => setIsAutoPlaying(true)}
+              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors z-10"
+            >
+              <ChevronLeft className="h-6 w-6 text-gray-600" />
+            </button>
+
+            {/* Indicateurs */}
+            <div className="flex space-x-2">
+              {testimonials.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => goToSlide(index)}
+                  onMouseEnter={() => setIsAutoPlaying(false)}
+                  onMouseLeave={() => setIsAutoPlaying(true)}
+                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                    index === currentIndex 
+                      ? 'bg-orange-500 w-8' 
+                      : 'bg-gray-300 hover:bg-gray-400'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={nextTestimonial}
+              onMouseEnter={() => setIsAutoPlaying(false)}
+              onMouseLeave={() => setIsAutoPlaying(true)}
+              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors z-10"
+            >
+              <ChevronRight className="h-6 w-6 text-gray-600" />
+            </button>
+          </div>
+
+          {/* Témoignages */}
+          <div 
+            className="relative overflow-hidden"
+            onMouseEnter={() => setIsAutoPlaying(false)}
+            onMouseLeave={() => setIsAutoPlaying(true)}
+          >
+            <div className={`grid ${isMobile ? 'grid-cols-1' : 'md:grid-cols-3'} gap-8 transition-all duration-500 ease-in-out`}>
+              {getVisibleTestimonials().map((testimonial, index) => (
+                <Card key={`${currentIndex}-${index}`} className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white/90 border-0 shadow-xl relative animate-in slide-in-from-bottom-4 duration-700">
+                  <div className="p-8 pb-0">
+                    <div className="flex items-start space-x-4 mb-6">
+                      <div className="relative">
+                        <Image
+                          src={testimonial.image}
+                          alt={testimonial.name}
+                          width={60}
+                          height={60}
+                          className="rounded-full object-cover shadow-lg"
+                        />
+                        {testimonial.verified && (
+                          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
+                            <Award className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-900 text-lg">{testimonial.name}</h4>
+                        <p className="text-sm text-gray-600 mb-2">{testimonial.role}</p>
+                        <div className="flex items-center space-x-2 text-xs text-gray-500">
+                          <MapPin className="h-3 w-3" />
+                          <span>{testimonial.location}</span>
+                          <span>•</span>
+                          <Calendar className="h-3 w-3" />
+                          <span>{testimonial.date}</span>
                         </div>
-                      )}
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-gray-900 text-lg">{testimonial.name}</h4>
-                      <p className="text-sm text-gray-600 mb-2">{testimonial.role}</p>
-                      <div className="flex items-center space-x-2 text-xs text-gray-500">
-                        <MapPin className="h-3 w-3" />
-                        <span>{testimonial.location}</span>
-                        <span>•</span>
-                        <Calendar className="h-3 w-3" />
-                        <span>{testimonial.date}</span>
+
+                    {/* Étoiles */}
+                    <div className="flex items-center space-x-1 mb-4">
+                      {[...Array(testimonial.rating)].map((_, i) => (
+                        <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
+                      ))}
+                    </div>
+
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-6 border border-blue-100">
+                      <div className="flex items-center space-x-2">
+                        <ThumbsUp className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-semibold text-blue-800">{testimonial.highlight}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Étoiles */}
-                  <div className="flex items-center space-x-1 mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                    ))}
+                  <div className="relative px-8 pb-6">
+                    <Quote className="h-8 w-8 text-blue-200 absolute -top-2 left-5" />
+                    <p className="text-gray-700 italic pl-6">
+                      "{testimonial.text}"
+                    </p>
                   </div>
+                  <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 absolute bottom-0 left-0 right-0"></div>
+                </Card>
+              ))}
+            </div>
+          </div>
 
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-6 border border-blue-100">
-                    <div className="flex items-center space-x-2">
-                      <ThumbsUp className="h-4 w-4 text-blue-600" />
-                      <span className="text-sm font-semibold text-blue-800">{testimonial.highlight}</span>
-                    </div>
-              </div>
-              </div>
-
-              <div className="relative px-8 pb-6">
-                <Quote className="h-8 w-8 text-blue-200 absolute -top-2 left-5" />
-                <p className="text-gray-700 italic pl-6">
-                  "{testimonial.text}"
-                </p>
-              </div>
-              <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 absolute bottom-0 left-0 right-0"></div>
-            </Card>
-          ))}
+          {/* Barre de progression */}
+          <div className="mt-8 bg-gray-200 rounded-full h-1 overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full transition-all duration-100 ease-linear"
+              style={{
+                width: `${((currentIndex + 1) / testimonials.length) * 100}%`
+              }}
+            />
+          </div>
         </div>
-      </div>
-      <div className="flex justify-center mt-10 w-full px-4">
-        <Button 
+
+        {/* Call to Action */}
+        <div className="flex justify-center mt-16 w-full px-4">
+          <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-2xl p-8 border border-orange-200 max-w-2xl w-full text-center">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">
+              Rejoignez nos clients satisfaits
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Plus de 2000 propriétaires nous font déjà confiance pour sécuriser leurs locations
+            </p>
+            <Button 
               onClick={() => window.location.href = 'tel:0123456789'}
-              className="bg-orange-600 hover:bg-orange-700 w-full"
+              className="bg-orange-600 hover:bg-orange-700 w-full sm:w-auto px-8 py-3 text-lg"
             >
-              <Phone className="mr-2 h-4 w-4" />
+              <Phone className="mr-2 h-5 w-5" />
               Nous faire confiance
             </Button>
+          </div>
+        </div>
       </div>
     </section>
   );
