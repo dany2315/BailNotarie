@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Calendar, Clock, ArrowRight } from "lucide-react";
+import { CallButton, ContactButton } from "@/components/ui/action-buttons";
 
 const blogPosts = [
   {

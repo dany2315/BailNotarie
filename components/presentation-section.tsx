@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 export function PresentationSection() {
   return (
     <section className="py-20 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob pointer-events-none"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
       </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center ">
       <Badge className=" mb-8 bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-0 px-6 py-2 text-sm font-semibold">
@@ -114,18 +114,25 @@ export function PresentationSection() {
             Contactez nos experts pour un accompagnement personnalisé
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
-              onClick={() => window.location.href = 'tel:0123456789'}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Phone className="mr-2 h-4 w-4" />
-              Appeler maintenant
-            </Button>
+          <Button 
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={() => window.location.href = 'tel:0123456789'}
+          >
+            <Phone className="size-4" />
+            <span>Appeler maintenant</span>
+          </Button>
             <Button 
               variant="outline"
-              onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
+              className="border-blue-200 hover:bg-blue-50"
+              onClick={() => {
+                const contactElement = document.getElementById('contact');
+                if (contactElement) {
+                  contactElement.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+
             >
-              Demander un devis
+              <span>Demander un devis</span>
             </Button>
           </div>
         </div>

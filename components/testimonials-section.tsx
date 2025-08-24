@@ -1,9 +1,10 @@
 "use client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Quote, MapPin, Calendar, ThumbsUp, Award } from "lucide-react";
+import { Star, Quote, MapPin, Calendar, ThumbsUp, Award , Phone} from "lucide-react";
 import Image from "next/image";
 import useIsMobile  from "@/hooks/useIsMobile";
+import { Button } from "@/components/ui/button";
 
 export function TestimonialsSection() {
   const isMobile = useIsMobile();
@@ -51,7 +52,7 @@ export function TestimonialsSection() {
 
   return (
     <section  className="py-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-20 left-20 w-64 h-64 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
         <div className="absolute bottom-20 right-20 w-64 h-64 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
@@ -146,32 +147,14 @@ export function TestimonialsSection() {
           ))}
         </div>
       </div>
-
-      {/* Call to Action */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-16">
-        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl shadow-xl p-8 border border-yellow-200">
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">
-            Rejoignez nos clients satisfaits
-          </h3>
-          <p className="text-gray-600 mb-6">
-            Découvrez pourquoi 98% de nos clients nous recommandent
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
+      <div className="flex justify-center mt-10 w-full px-4">
+        <Button 
               onClick={() => window.location.href = 'tel:0123456789'}
-              className="bg-orange-600 hover:bg-orange-700"
+              className="bg-orange-600 hover:bg-orange-700 w-full"
             >
               <Phone className="mr-2 h-4 w-4" />
               Nous faire confiance
             </Button>
-            <Button 
-              variant="outline"
-              onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
-            >
-              Demander un avis
-            </Button>
-          </div>
-        </div>
       </div>
     </section>
   );

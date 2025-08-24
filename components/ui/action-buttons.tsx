@@ -1,0 +1,32 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { Phone } from "lucide-react";
+
+export function CallButton() {
+  return (
+    <Button 
+      className="bg-blue-600 hover:bg-blue-700 text-white"
+      onClick={() => window.location.href = 'tel:0123456789'}
+    >
+      <Phone className="size-4" />
+      <span>Appeler maintenant</span>
+    </Button>
+  );
+}
+
+export function ContactButton() {
+  return (
+    <Button 
+      variant="outline"
+      onClick={() => {
+        const contactElement = document.getElementById('contact');
+        if (contactElement) {
+          contactElement.scrollIntoView({ behavior: 'smooth' });
+        }
+      }}
+    >
+      <span>Demander un devis</span>
+    </Button>
+  );
+}

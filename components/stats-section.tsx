@@ -1,6 +1,6 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Users, FileCheck, Clock, Star, Award, Shield, Zap, ArrowRight } from "lucide-react";
+import { TrendingUp, Users, FileCheck, Clock, Star, Award, Shield, Zap, ArrowRight , Phone} from "lucide-react";
 import Image from "next/image";
 import { Button } from "./ui/button";
 
@@ -115,44 +115,19 @@ export function StatsSection() {
                   </div>
                 ))}
               </div>
-              
-      <Button 
-      variant="outline"
-      onClick={() => {
-        window.location.href = "tel:+33606060606";
-      }}
-      >
-       Faire parti de nos clients satisfaits
-        <ArrowRight className="ml-2 h-5 w-5" />
-      </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Call to Action */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-16">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+              <h3 className="text-xl text-center font-medium text-gray-900 mb-4">
             Rejoignez nos 2000+ clients satisfaits
           </h3>
-          <p className="text-gray-600 mb-6">
-            Bénéficiez de notre expertise reconnue en bail notarié
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
-              onClick={() => window.location.href = 'tel:0123456789'}
-              className="bg-green-600 hover:bg-green-700"
+            className="bg-green-600 hover:bg-green-700"
+            onClick={() => {
+              window.location.href = "tel:+33606060606";
+            }}
             >
-              <Phone className="mr-2 h-4 w-4" />
-              01 23 45 67 89
+            Faire parti de nos clients satisfaits
+              <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            <Button 
-              variant="outline"
-              onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
-            >
-              Obtenir un devis
-            </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -73,7 +73,7 @@ export function ProcessSection() {
   ];
 
   return (
-    <section id="process" className="py-20 bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <section id="process" className="pb-20 pt-10 bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <Badge className="mb-8 bg-gradient-to-r from-green-400 to-green-800 text-white border-0 px-6 py-2 text-sm font-semibold">
@@ -155,7 +155,10 @@ export function ProcessSection() {
             <div className="p-6">
               <div className="flex items-center space-x-4 mb-6">
                 <div className={`w-12 h-12 ${steps[activeStep].color} rounded-full flex items-center justify-center`}>
-                  <steps[activeStep].icon className="h-6 w-6 text-white" />
+                  {(() => {
+                    const StepIcon = steps[activeStep].icon;
+                    return <StepIcon className="h-6 w-6 text-white" />;
+                  })()}
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">{steps[activeStep].title}</h3>
@@ -247,14 +250,7 @@ export function ProcessSection() {
         </div>
 
         {/* Call to Action */}
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl shadow-xl p-8 border border-green-200">
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">
-              Prêt à démarrer votre processus ?
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Nos experts vous accompagnent à chaque étape pour un bail notarié en toute sérénité
-            </p>
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button 
                 onClick={() => window.location.href = 'tel:0123456789'}
@@ -263,15 +259,9 @@ export function ProcessSection() {
                 <Phone className="mr-2 h-4 w-4" />
                 Commencer maintenant
               </Button>
-              <Button 
-                variant="outline"
-                onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
-              >
-                Poser une question
-              </Button>
+              
             </div>
-          </div>
-        </div>
+     
       </div>
     </section>
   );

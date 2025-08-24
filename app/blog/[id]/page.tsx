@@ -1,11 +1,14 @@
+"use client";
+
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Link from "next/link";
-import { Calendar, Clock, ArrowLeft, Share2, User, Eye, BookOpen, MessageCircle } from "lucide-react";
+import { Calendar, Clock, ArrowLeft, Share2, User, Eye, BookOpen, MessageCircle, Phone } from "lucide-react";
 import Image from "next/image";
+import { CallButton, ContactButton } from "@/components/ui/action-buttons";
 
 // Simulation d'un article de blog
 const blogPost = {
@@ -225,19 +228,8 @@ export default function BlogPostPage() {
                   Nos experts vous accompagnent dans votre projet de bail notarié.
                 </p>
                 <div className="space-y-2">
-                  <Button 
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                    onClick={() => window.location.href = 'tel:0123456789'}
-                  >
-                    Nous appeler
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
-                  >
-                    Devis gratuit
-                  </Button>
+                  <CallButton />
+                  <ContactButton />
                 </div>
               </div>
 
