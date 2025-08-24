@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Zap, Eye, Shield, HeartHandshake, ArrowRight, CheckCircle, Clock, Scale } from "lucide-react";
 import Image from "next/image";
 

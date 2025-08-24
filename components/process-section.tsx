@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, FileText, Send, PenTool, Download, ArrowRight, Clock, CheckCircle, ChevronRight } from "lucide-react";
+import { Phone, FileText, Send, PenTool, Download, ArrowRight, Clock, CheckCircle, ChevronRight, User, Calendar, Star } from "lucide-react";
 import Image from "next/image";
 
 export function ProcessSection() {

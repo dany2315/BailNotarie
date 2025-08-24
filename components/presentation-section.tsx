@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import {  ArrowRight, CheckCircle } from "lucide-react";
+import { Phone, ArrowRight, CheckCircle } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 
