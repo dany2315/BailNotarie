@@ -97,6 +97,16 @@ export function BenefitsSection() {
           ))}
         </div>
 
+        <h2 className="text-2xl md:text-4xl font-bold mb-20 text-center">
+            <span className="bg-gradient-to-r from-gray-900 via-indigo-600 to-purple-800 bg-clip-text text-transparent">
+            Comparez les avantages du bail notarié
+            </span>
+            <br />
+            <span className="text-gray-900">avec le bail classique</span>
+        </h2>
+
+          
+
         {/* Section de comparaison */}
         <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-3xl p-8 lg:p-12">
           <div className="grid lg:grid-cols-2 gap-12 items-center">

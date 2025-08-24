@@ -87,7 +87,7 @@ export function TestimonialsSection() {
 
         <div className="grid md:grid-cols-3 gap-8 mt-20">
           {testimonials.map((testimonial, index) => (
-            <Card key={index} className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white/90 backdrop-blur-sm border-0 shadow-xl relative">
+            <Card key={index} className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white/90  border-0 shadow-xl relative">
               <div className="p-8 pb-0">
                   <div className="flex items-start space-x-4 mb-6">
                     <div className="relative">

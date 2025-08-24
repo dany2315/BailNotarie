@@ -89,7 +89,7 @@ export function ProcessSection() {
           
           <div className="space-y-12">
             {steps.map((step, index) => (
-              <div key={index} className={`flex items-center ${index % 2 === 0 ? 'lg:flex-row' : 'lg:flex-row-reverse'} flex-col lg:space-x-8`}>
+              <div key={index} className={`flex items-center ${index % 2 === 0 ? 'lg:flex-row ' : 'lg:flex-row-reverse ml-16 '} flex-col lg:space-x-8`}>
                 {/* Contenu */}
                 <div className={`flex-1 ${index % 2 === 0 ? 'lg:text-right' : 'lg:text-left'} text-center lg:text-left mb-8 lg:mb-0`}>
                   <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">

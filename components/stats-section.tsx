@@ -98,14 +98,14 @@ export function StatsSection() {
             </div>
             
             {/* Contenu */}
-            <div className="p-8 lg:p-12 flex flex-col justify-center">
+            <div className="px-8 py-6 lg:p-12 flex flex-col justify-center">
               <h3 className="text-2xl font-bold text-gray-900 mb-6">
                 Pourquoi nous choisir ?
               </h3>
               
               <div className="grid grid-cols-2 gap-4 mb-8">
                 {achievements.map((achievement, index) => (
-                  <div key={index} className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl hover:bg-blue-50 transition-colors duration-200">
+                  <div key={index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-full hover:bg-blue-50 transition-colors duration-200">
                     <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
                       <achievement.icon className="h-5 w-5 text-blue-600" />
                     </div>
@@ -114,7 +114,7 @@ export function StatsSection() {
                 ))}
               </div>
               
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl px-6 py-4 border border-blue-100">
                 <div className="flex items-center space-x-4">
                   <div className="flex -space-x-2">
                     {[1, 2, 3].map((i) => (
