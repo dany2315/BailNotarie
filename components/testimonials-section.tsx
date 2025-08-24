@@ -1,16 +1,24 @@
 "use client";
-import { useState, useEffect } from "react";
+
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Star, Quote, MapPin, Calendar, ThumbsUp, Award, Phone, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import { Star, Quote, MapPin, Calendar, ThumbsUp, Award, Phone } from "lucide-react";
 import Image from "next/image";
-import useIsMobile from "@/hooks/useIsMobile";
+import Autoplay from "embla-carousel-autoplay";
+import { useRef } from "react";
 
 export function TestimonialsSection() {
-  const isMobile = useIsMobile();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const plugin = useRef(
+    Autoplay({ delay: 4000, stopOnInteraction: true })
+  );
 
   const testimonials = [
     {
@@ -87,49 +95,6 @@ export function TestimonialsSection() {
     { number: "98%", label: "Recommandent", icon: Award }
   ];
 
-  // Carrousel automatique
-  useEffect(() => {
-    if (!isAutoPlaying) return;
-
-    const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => 
-        prevIndex === testimonials.length - 1 ? 0 : prevIndex + 1
-      );
-    }, 4000); // Change toutes les 4 secondes
-
-    return () => clearInterval(interval);
-  }, [isAutoPlaying, testimonials.length]);
-
-  const nextTestimonial = () => {
-    setCurrentIndex((prevIndex) => 
-      prevIndex === testimonials.length - 1 ? 0 : prevIndex + 1
-    );
-  };
-
-  const prevTestimonial = () => {
-    setCurrentIndex((prevIndex) => 
-      prevIndex === 0 ? testimonials.length - 1 : prevIndex - 1
-    );
-  };
-
-  const goToSlide = (index: number) => {
-    setCurrentIndex(index);
-  };
-
-  // Calculer les témoignages visibles
-  const getVisibleTestimonials = () => {
-    if (isMobile) {
-      return [testimonials[currentIndex]];
-    } else {
-      const visible = [];
-      for (let i = 0; i < 3; i++) {
-        const index = (currentIndex + i) % testimonials.length;
-        visible.push(testimonials[index]);
-      }
-      return visible;
-    }
-  };
-
   return (
     <section className="py-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none">
@@ -157,136 +122,94 @@ export function TestimonialsSection() {
         </div>
 
         {/* Statistiques */}
-        {!isMobile && (
-          <div className="flex flex-wrap justify-center gap-8 mb-16">
-            {stats.map((stat, index) => (
-              <div key={index} className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
-                <div className="w-12 h-12 bg-gradient-to-br from-yellow-300 to-orange-500 rounded-xl flex items-center justify-center">
-                  <stat.icon className="h-6 w-6 text-white" />
-                </div>
-                <div className="text-left">
-                  <div className="text-2xl font-bold text-gray-900">{stat.number}</div>
-                  <div className="text-sm text-gray-600 font-medium">{stat.label}</div>
-                </div>
+        <div className="hidden md:flex flex-wrap justify-center gap-8 mb-16">
+          {stats.map((stat, index) => (
+            <div key={index} className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-yellow-300 to-orange-500 rounded-xl flex items-center justify-center">
+                <stat.icon className="h-6 w-6 text-white" />
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Carrousel */}
-        <div className="relative">
-          {/* Contrôles de navigation */}
-          <div className="flex justify-between items-center mb-8">
-            <button
-              onClick={prevTestimonial}
-              onMouseEnter={() => setIsAutoPlaying(false)}
-              onMouseLeave={() => setIsAutoPlaying(true)}
-              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors z-10"
-            >
-              <ChevronLeft className="h-6 w-6 text-gray-600" />
-            </button>
-
-            {/* Indicateurs */}
-            <div className="flex space-x-2">
-              {testimonials.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => goToSlide(index)}
-                  onMouseEnter={() => setIsAutoPlaying(false)}
-                  onMouseLeave={() => setIsAutoPlaying(true)}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                    index === currentIndex 
-                      ? 'bg-orange-500 w-8' 
-                      : 'bg-gray-300 hover:bg-gray-400'
-                  }`}
-                />
-              ))}
+              <div className="text-left">
+                <div className="text-2xl font-bold text-gray-900">{stat.number}</div>
+                <div className="text-sm text-gray-600 font-medium">{stat.label}</div>
+              </div>
             </div>
+          ))}
+        </div>
 
-            <button
-              onClick={nextTestimonial}
-              onMouseEnter={() => setIsAutoPlaying(false)}
-              onMouseLeave={() => setIsAutoPlaying(true)}
-              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors z-10"
-            >
-              <ChevronRight className="h-6 w-6 text-gray-600" />
-            </button>
-          </div>
-
-          {/* Témoignages */}
-          <div 
-            className="relative overflow-hidden"
-            onMouseEnter={() => setIsAutoPlaying(false)}
-            onMouseLeave={() => setIsAutoPlaying(true)}
+        {/* Carrousel Shadcn */}
+        <div className="relative">
+          <Carousel
+            plugins={[plugin.current]}
+            className="w-full"
+            onMouseEnter={plugin.current.stop}
+            onMouseLeave={plugin.current.reset}
+            opts={{
+              align: "start",
+              loop: true,
+            }}
           >
-            <div className={`grid ${isMobile ? 'grid-cols-1' : 'md:grid-cols-3'} gap-8 transition-all duration-500 ease-in-out`}>
-              {getVisibleTestimonials().map((testimonial, index) => (
-                <Card key={`${currentIndex}-${index}`} className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white/90 border-0 shadow-xl relative animate-in slide-in-from-bottom-4 duration-700">
-                  <div className="p-8 pb-0">
-                    <div className="flex items-start space-x-4 mb-6">
-                      <div className="relative">
-                        <Image
-                          src={testimonial.image}
-                          alt={testimonial.name}
-                          width={60}
-                          height={60}
-                          className="rounded-full object-cover shadow-lg"
-                        />
-                        {testimonial.verified && (
-                          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
-                            <Award className="h-3 w-3 text-white" />
+            <CarouselContent className="-ml-2 md:-ml-4">
+              {testimonials.map((testimonial, index) => (
+                <CarouselItem key={index} className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3">
+                  <Card className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white/90 border-0 shadow-xl relative h-full">
+                    <div className="p-8 pb-0">
+                      <div className="flex items-start space-x-4 mb-6">
+                        <div className="relative">
+                          <Image
+                            src={testimonial.image}
+                            alt={testimonial.name}
+                            width={60}
+                            height={60}
+                            className="rounded-full object-cover shadow-lg"
+                          />
+                          {testimonial.verified && (
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
+                              <Award className="h-3 w-3 text-white" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-gray-900 text-lg">{testimonial.name}</h4>
+                          <p className="text-sm text-gray-600 mb-2">{testimonial.role}</p>
+                          <div className="flex items-center space-x-2 text-xs text-gray-500">
+                            <MapPin className="h-3 w-3" />
+                            <span>{testimonial.location}</span>
+                            <span>•</span>
+                            <Calendar className="h-3 w-3" />
+                            <span>{testimonial.date}</span>
                           </div>
-                        )}
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-gray-900 text-lg">{testimonial.name}</h4>
-                        <p className="text-sm text-gray-600 mb-2">{testimonial.role}</p>
-                        <div className="flex items-center space-x-2 text-xs text-gray-500">
-                          <MapPin className="h-3 w-3" />
-                          <span>{testimonial.location}</span>
-                          <span>•</span>
-                          <Calendar className="h-3 w-3" />
-                          <span>{testimonial.date}</span>
+
+                      {/* Étoiles */}
+                      <div className="flex items-center space-x-1 mb-4">
+                        {[...Array(testimonial.rating)].map((_, i) => (
+                          <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
+                        ))}
+                      </div>
+
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-6 border border-blue-100">
+                        <div className="flex items-center space-x-2">
+                          <ThumbsUp className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-semibold text-blue-800">{testimonial.highlight}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Étoiles */}
-                    <div className="flex items-center space-x-1 mb-4">
-                      {[...Array(testimonial.rating)].map((_, i) => (
-                        <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                      ))}
+                    <div className="relative px-8 pb-6">
+                      <Quote className="h-8 w-8 text-blue-200 absolute -top-2 left-5" />
+                      <p className="text-gray-700 italic pl-6">
+                        "{testimonial.text}"
+                      </p>
                     </div>
-
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-6 border border-blue-100">
-                      <div className="flex items-center space-x-2">
-                        <ThumbsUp className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-semibold text-blue-800">{testimonial.highlight}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="relative px-8 pb-6">
-                    <Quote className="h-8 w-8 text-blue-200 absolute -top-2 left-5" />
-                    <p className="text-gray-700 italic pl-6">
-                      "{testimonial.text}"
-                    </p>
-                  </div>
-                  <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 absolute bottom-0 left-0 right-0"></div>
-                </Card>
+                    <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 absolute bottom-0 left-0 right-0"></div>
+                  </Card>
+                </CarouselItem>
               ))}
-            </div>
-          </div>
-
-          {/* Barre de progression */}
-          <div className="mt-8 bg-gray-200 rounded-full h-1 overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full transition-all duration-100 ease-linear"
-              style={{
-                width: `${((currentIndex + 1) / testimonials.length) * 100}%`
-              }}
-            />
-          </div>
+            </CarouselContent>
+            <CarouselPrevious className="hidden md:flex -left-12 bg-white/90 hover:bg-white shadow-lg" />
+            <CarouselNext className="hidden md:flex -right-12 bg-white/90 hover:bg-white shadow-lg" />
+          </Carousel>
         </div>
 
         {/* Call to Action */}
