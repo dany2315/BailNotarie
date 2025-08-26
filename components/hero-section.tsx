@@ -163,10 +163,10 @@ export function HeroSection() {
               <Image
                 src="https://images.pexels.com/photos/7821913/pexels-photo-7821913.jpeg?auto=compress&cs=tinysrgb&w=800"
                 alt="Notaire signant un acte authentique"
+                priority
                 width={600}
                 height={400}
                 className="object-cover w-full h-[400px]"
-                priority
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
               

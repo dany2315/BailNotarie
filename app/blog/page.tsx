@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { Card } from "@/components/ui/card";
@@ -5,6 +6,34 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Calendar, Clock, ArrowRight } from "lucide-react";
 import { CallButton, ContactButton } from "@/components/ui/action-buttons";
+
+export const metadata: Metadata = {
+  title: "Blog - Conseils et Guides sur le Bail Notarié",
+  description: "📚 Découvrez nos conseils d'experts sur le bail notarié : guides pratiques, comparaisons, actualités juridiques. Tout pour sécuriser vos locations.",
+  keywords: [
+    "blog bail notarié",
+    "conseils propriétaire",
+    "guide bail authentique",
+    "actualités notariales",
+    "droit immobilier",
+    "location sécurisée",
+    "force exécutoire",
+    "expulsion locataire"
+  ],
+  openGraph: {
+    title: "Blog BailNotarie - Conseils et Guides sur le Bail Notarié",
+    description: "📚 Découvrez nos conseils d'experts sur le bail notarié : guides pratiques, comparaisons, actualités juridiques.",
+    url: "https://bailnotarie.fr/blog",
+    images: [
+      {
+        url: "https://bailnotarie.fr/og-blog.png",
+        width: 1200,
+        height: 630,
+        alt: "Blog BailNotarie - Conseils experts"
+      }
+    ]
+  }
+};
 
 const blogPosts = [
   {
