@@ -62,14 +62,6 @@ export const metadata: Metadata = {
     "msapplication-TileColor": "#2563eb",
     "theme-color": "#ffffff",
   },
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
   icons: {
    icon:[
     {url: "/favicon.ico",type: "image/x-icon", sizes: "any"},
@@ -128,7 +120,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://images.pexels.com" />
         <link rel="dns-prefetch" href="https://images.pexels.com" />
       </head>
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>{children}
       
       {/* Google Analytics */}
       <Script
@@ -208,6 +200,7 @@ export default function RootLayout({
           })
         }}
       />
+      </body>
     </html>
   );
 }
