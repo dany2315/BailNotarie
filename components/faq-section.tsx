@@ -214,7 +214,7 @@ export function FAQSection() {
         </div>
 
         {/* Call to Action */}
-        <div className=" text-center">
+        <div className="mt-16 text-center">
           <Card className="p-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
             <div className="max-w-2xl mx-auto">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
