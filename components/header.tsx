@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, Scale, X, Home, Briefcase, Settings, BookOpen, Mail } from "lucide-react";
+import { Menu, Scale, X, Home, Briefcase, Settings, BookOpen, Mail, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { Separator } from "@/components/ui/separator";
@@ -23,6 +23,7 @@ export function Header() {
     { href: "#services", label: "Services", icon: Briefcase },
     { href: "#process", label: "Processus", icon: Settings },
     { href: "/blog", label: "Blog", icon: BookOpen },
+    { href: "#faq", label: "FAQ", icon: HelpCircle },
     { href: "/#contact", label: "Contact", icon: Mail },
   ];
 
@@ -53,6 +54,9 @@ export function Header() {
             </Link>
             <Link href="/blog" className="text-gray-700 hover:text-blue-600 transition-colors">
               Blog
+            </Link>
+            <Link href="#faq" className="text-gray-700 hover:text-blue-600 transition-colors">
+              FAQ
             </Link>
             <Link href="/#contact" className="text-gray-700 hover:text-blue-600 transition-colors">
               Contact
