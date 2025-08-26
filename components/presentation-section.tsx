@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, ArrowRight, CheckCircle } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { CountingNumber } from "./animate-ui/text/counting-number";
 
 
 export function PresentationSection() {
@@ -81,15 +82,36 @@ export function PresentationSection() {
                 <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6">
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
-                      <div className="text-2xl font-bold text-blue-600">2000+</div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        <CountingNumber
+                          number={2000}
+                          transition={{ stiffness: 90, damping: 50 }}
+                          inViewOnce={true}
+                        />
+                        +
+                      </div>
                       <div className="text-sm text-gray-600">Clients</div>
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-green-600">48h</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        <CountingNumber
+                          number={48} 
+                          transition={{ stiffness: 90, damping: 50 }}
+                          inViewOnce={true}
+                        />
+                        h
+                      </div>
                       <div className="text-sm text-gray-600">Délai moyen</div>
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-purple-600">98%</div>
+                      <div className="text-2xl font-bold text-purple-600">
+                        <CountingNumber
+                          number={98}
+                          transition={{ stiffness: 90, damping: 50 }}
+                          inViewOnce={true}
+                        />
+                        %
+                      </div>
                       <div className="text-sm text-gray-600">Satisfaction</div>
                     </div>
                   </div>
