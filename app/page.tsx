@@ -7,6 +7,7 @@ import { BenefitsSection } from "@/components/benefits-section";
 import { TestimonialsSection } from "@/components/testimonials-section";
 import { CTASection } from "@/components/cta-section";
 import { ContactForm } from "@/components/contact-form";
+import { FAQSection } from "@/components/faq-section";
 import { Footer } from "@/components/footer";
 import dynamic from "next/dynamic";
 
@@ -21,6 +22,7 @@ export default function Home() {
       <BenefitsSection />
       <ProcessSection />
       <TestimonialsSection />
+      <FAQSection />
       <CTASection />
       
       {/* Section Contact */}
