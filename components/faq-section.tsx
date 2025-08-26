@@ -172,7 +172,7 @@ export function FAQSection() {
         <div className="space-y-8">
           {faqCategories.map((category, categoryIndex) => (
             <Card key={categoryIndex} className="overflow-hidden">
-              <div className={`bg-gradient-to-r ${category.color} p-6`}>
+              <div className={`bg-gradient-to-r ${category.color} px-6 pb-6`}>
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                     <category.icon className="h-6 w-6 text-white" />
