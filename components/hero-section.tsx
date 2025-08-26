@@ -19,7 +19,7 @@ export function HeroSection() {
         <div className="flex flex-col-reverse lg:grid lg:grid-cols-2 gap-12 items-center">
           {/* Contenu principal */}
           <div className="space-y-8">
-            <div className="space-y-4">
+            <div className="space-y-4 text-indigo-100">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
                 Bail notarié
                 <span className="text-blue-600"> simple</span> et

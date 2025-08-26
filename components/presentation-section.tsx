@@ -85,8 +85,6 @@ export function PresentationSection() {
                       <div className="text-2xl font-bold text-blue-600">
                         <CountingNumber
                           number={2000}
-                          transition={{ stiffness: 90, damping: 50 }}
-                          inViewOnce={true}
                         />
                         +
                       </div>
@@ -96,8 +94,6 @@ export function PresentationSection() {
                       <div className="text-2xl font-bold text-green-600">
                         <CountingNumber
                           number={48} 
-                          transition={{ stiffness: 90, damping: 50 }}
-                          inViewOnce={true}
                         />
                         h
                       </div>
@@ -107,8 +103,6 @@ export function PresentationSection() {
                       <div className="text-2xl font-bold text-purple-600">
                         <CountingNumber
                           number={98}
-                          transition={{ stiffness: 90, damping: 50 }}
-                          inViewOnce={true}
                         />
                         %
                       </div>

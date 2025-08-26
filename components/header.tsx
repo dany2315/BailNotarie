@@ -14,6 +14,7 @@ import {
   SheetTrigger,
   SheetDescription,
 } from "@/components/ui/sheet";
+import Image from "next/image";
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
@@ -36,8 +37,8 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <Scale className="h-8 w-8 text-blue-600" />
+          <Link href="/" className="flex items-center space-x-2 p-2 rounded-full text-blue-50 bg-gradient-to-br from-blue-50 to-indigo-100 hover:bg-indigo-200 transition-colors">
+            <Image src="/logoSans.png" alt="BailNotarie" width={100} height={100} className=" h-10 w-10" />
             <span className="text-xl font-bold text-gray-900">BailNotarie</span>
           </Link>
 
@@ -79,10 +80,10 @@ export function Header() {
             <SheetContent side="right" className="w-[300px] sm:w-[400px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                  <Scale className="h-6 w-6 text-blue-600" />
-                  <span className="text-lg font-bold text-gray-900">BailNotarie</span>
-                  </div>
+                <Link href="/" className="flex items-center space-x-2 p-2 rounded-full text-blue-50 bg-gradient-to-br from-blue-50 to-indigo-100 hover:bg-indigo-200 transition-colors">
+                  <Image src="/logoSans.png" alt="BailNotarie" width={100} height={100} className=" h-10 w-10" />
+                  <span className="text-xl font-bold text-gray-900">BailNotarie</span>
+                </Link>
                 </SheetTitle>
                 <SheetDescription>
                   Votre partenaire pour les baux notariés sécurisés
