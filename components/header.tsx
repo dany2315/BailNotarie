@@ -111,7 +111,9 @@ export function Header() {
                     <div className="px-4">
                       <h3 className="text-sm font-semibold text-gray-900 mb-3">Contactez-nous</h3>
                       <div className="space-y-2 text-sm text-gray-600">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2" onClick={() => {
+                          window.open("mailto:contact@bailnotarie.fr", "_blank");
+                        }}>
                           <Mail className="h-4 w-4" />
                           <span>contact@bailnotarie.fr</span>
                         </div>
