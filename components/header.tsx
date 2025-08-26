@@ -115,10 +115,6 @@ export function Header() {
                           <Mail className="h-4 w-4" />
                           <span>contact@bailnotarie.fr</span>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs">📍</span>
-                          <span>123 Rue de la Paix, 75001 Paris</span>
-                        </div>
                       </div>
                     </div>
                     
