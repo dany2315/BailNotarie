@@ -18,9 +18,10 @@ export default function Home() {
       <Header />
       <HeroSection />
       <PresentationSection />
-      <StatsSection />
+      
       <BenefitsSection />
       <ProcessSection />
+      <StatsSection />
       <TestimonialsSection />
       <FAQSection />
       <CTASection />

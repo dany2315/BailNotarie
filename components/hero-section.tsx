@@ -53,7 +53,7 @@ export function HeroSection() {
               {/* Image mobile du notaire */}
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <Image
-                  src="https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=600"
+                  src="https://images.pexels.com/photos/7821913/pexels-photo-7821913.jpeg/?auto=compress&cs=tinysrgb&w=600"
                   alt="Notaire signant un acte authentique"
                   width={400}
                   height={250}
@@ -161,7 +161,7 @@ export function HeroSection() {
             {/* Image principale du notaire */}
             <div className="relative rounded-2xl overflow-hidden shadow-2xl transform rotate-1 hover:rotate-0 transition-transform duration-300">
               <Image
-                src="https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800"
+                src="https://images.pexels.com/photos/7821913/pexels-photo-7821913.jpeg?auto=compress&cs=tinysrgb&w=800"
                 alt="Notaire signant un acte authentique"
                 width={600}
                 height={400}

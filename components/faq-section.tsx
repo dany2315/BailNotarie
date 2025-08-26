@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronDown, ChevronUp, Phone, HelpCircle, Users, Shield, Clock, FileText, Euro, Scale, CheckCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, Phone, HelpCircle, Users, Shield, Clock, FileText, Euro, Scale, CheckCircle, Code } from "lucide-react";
 
 export function FAQSection() {
   const [openItems, setOpenItems] = useState<number[]>([]);
@@ -43,12 +43,8 @@ export function FAQSection() {
       color: "from-green-500 to-emerald-500",
       questions: [
         {
-          question: "Qu'est-ce qu'un bail notarié exactement ?",
-          answer: "Un bail notarié est un contrat de location authentifié par un notaire. Contrairement au bail sous seing privé classique, il devient un acte authentique avec force exécutoire immédiate. Cela signifie qu'en cas d'impayés, vous pouvez directement procéder à une saisie sans passer par un tribunal."
-        },
-        {
-          question: "Quelle est la différence avec un bail classique ?",
-          answer: "La différence principale est la force exécutoire. Avec un bail classique, en cas de problème, vous devez saisir le tribunal (12-18 mois de procédure). Avec un bail notarié, vous pouvez agir immédiatement (2-3 mois). De plus, le bail notarié offre une sécurité juridique maximale car il est validé par un professionnel du droit."
+          question: "Qu'est-ce qu'un bail notarié et en quoi diffère-t-il d'un bail classique ?",
+          answer: "Un bail notarié est un contrat de location authentifié par un notaire. Contrairement au bail sous seing privé classique, il devient un acte authentique doté d’une force exécutoire immédiate. Cela signifie qu’en cas d’impayés, vous pouvez directement procéder à une saisie sans passer par un tribunal, réduisant le délai à 2-3 mois contre 12-18 mois pour un bail classique. En plus de cette rapidité, il offre une sécurité juridique maximale car il est validé par un professionnel du droit."
         },
         {
           question: "Le bail notarié est-il légal ?",
@@ -61,36 +57,13 @@ export function FAQSection() {
       ]
     },
     {
-      title: "Processus et délais",
-      icon: Clock,
-      color: "from-purple-500 to-indigo-500",
-      questions: [
-        {
-          question: "Combien de temps prend la création d'un bail notarié ?",
-          answer: "En moyenne, le processus complet prend 5 à 7 jours ouvrés. Cela inclut : constitution du dossier (24h), transmission au notaire (48h), validation et préparation (48h), puis signature. Ces délais peuvent varier selon la complexité du dossier et la disponibilité du notaire."
-        },
-        {
-          question: "Que se passe-t-il si mon dossier est incomplet ?",
-          answer: "Nous vérifions votre dossier avant transmission au notaire. Si des pièces manquent, nous vous contactons immédiatement pour les obtenir. Notre expérience nous permet d'identifier rapidement les documents nécessaires et d'éviter les allers-retours."
-        },
-        {
-          question: "Puis-je suivre l'avancement de mon dossier ?",
-          answer: "Oui, nous vous tenons informé à chaque étape par email et SMS. Vous recevez des notifications lors de la réception de votre dossier, de sa transmission au notaire, de sa validation, et de la programmation de la signature."
-        },
-        {
-          question: "Comment se déroule la signature ?",
-          answer: "La signature peut se faire de deux façons : en présentiel dans l'étude du notaire, ou par visioconférence sécurisée (signature électronique qualifiée). Dans les deux cas, le notaire vérifie l'identité des parties et explique les termes du contrat avant signature."
-        }
-      ]
-    },
-    {
       title: "Coûts et tarification",
       icon: Euro,
       color: "from-orange-500 to-red-500",
       questions: [
         {
           question: "Combien coûte un bail notarié ?",
-          answer: "Le coût total comprend nos honoraires de service (à partir de 299€) et les émoluments du notaire (environ 150-200€ selon la complexité). Soit un total généralement compris entre 450€ et 500€. Ce coût peut être amorti dès le premier incident évité."
+          answer: "Le prix d’un bail notarié est strictement fixé par la loi. Il correspond à 50 % d’un mois de loyer hors charges et hors taxes. Exemple : pour un loyer de 1 000 € HT, les émoluments dus au notaire s’élèvent à 500 €. Ce montant est versé directement à l’étude notariale. Référence juridique : articles A.444-172 et suivants du Code de commerce (tarif réglementé des notaires)."
         },
         {
           question: "Y a-t-il des frais cachés ?",
