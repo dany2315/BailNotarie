@@ -49,14 +49,14 @@ export default function MailConfirmation({
           <Section style={{ 
             background: "linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)",
             padding: "32px 24px",
-            textAlign: "center"
+            textAlign: "start"
           }}>
               <Link
               href="https://bailnotarie.fr"
               style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
+                justifyContent: "start",
                 textDecoration: "none",
                 color: "#1e3a8a", // text-blue-900 par ex
               }}
