@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { PhoneButton } from "@/components/ui/phone-button";
-import { Mail, Phone, MapPin, Send, CheckCircle } from "lucide-react";
+import { Mail, Phone, Send, CheckCircle } from "lucide-react";
+import { sendMail } from "@/app/action";
 
 const formSchema = z.object({
   firstName: z.string().min(2, "Le prénom doit contenir au moins 2 caractères"),
@@ -35,20 +36,20 @@ export function ContactForm() {
     resolver: zodResolver(formSchema),
   });
 
-  const onSubmit = async (data: FormData) => {
+  async function onSubmit(data: FormData) {
     setIsLoading(true);
-    
-    // Simulation d'envoi
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log("Form data:", data);
-    setIsSubmitted(true);
-    setIsLoading(false);
-    reset();
-    
-    // Reset après 5 secondes
-    setTimeout(() => setIsSubmitted(false), 5000);
-  };
+    const res = await sendMail(data);
+
+    if (res.success) {
+      setIsSubmitted(true);
+      reset();
+      setIsLoading(false);
+      setTimeout(() => setIsSubmitted(false), 10000);
+    } else {
+      alert(res.error || "Une erreur est survenue lors de l'envoi.");
+      setIsLoading(false);
+    }
+  }
 
   if (isSubmitted) {
     return (
@@ -71,7 +72,7 @@ export function ContactForm() {
   }
 
   return (
-    <div className="grid lg:grid-cols-2 gap-12">
+    <div className="flex flex-col lg:flex-row gap-12 w-full  ">
       {/* Formulaire */}
       <Card className="p-8">
         <h3 className="text-2xl font-semibold text-gray-900 mb-6">
@@ -124,6 +125,16 @@ export function ContactForm() {
             <Input
               id="phone"
               type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="tel"
+              minLength={10}
+              maxLength={10}
+              onKeyPress={(e) => {
+                if (!/[0-9]/.test(e.key)) {
+                  e.preventDefault();
+                }
+              }}
               {...register("phone")}
               className="mt-1"
               placeholder="01 23 45 67 89"
@@ -171,18 +182,18 @@ export function ContactForm() {
 
       {/* Informations de contact */}
       <div className="space-y-8">
-        <Card className="p-8 h-full ">
+        <Card className="p-8 h-auto ">
           <h3 className="text-2xl font-semibold text-gray-900 mb-6">
             Contactez-nous directement
           </h3>
-          <div className=" h-full flex flex-col justify-between">
+          <div className=" h-full flex flex-col space-y-6 justify-between">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                 <Phone className="h-6 w-6 text-green-600" />
               </div>
               <div>
                 <p className="font-medium text-gray-900">Téléphone</p>
-                <p className="text-gray-600">01 23 45 67 89</p>
+                <Button variant="link" className="text-gray-600 cursor-pointer pl-0" onClick={() => window.open('tel:0749387756', '_blank')}>07 49 38 77 56</Button>
                 <p className="text-sm text-gray-500">Lun-Ven 9h-18h</p>
               </div>
             </div>
@@ -193,27 +204,17 @@ export function ContactForm() {
               </div>
               <div>
                 <p className="font-medium text-gray-900">Email</p>
-                <p className="text-gray-600">contact@bailnotarie.fr</p>
+                  <Button variant="link" className="text-gray-600 cursor-pointer pl-0" onClick={() => window.open('mailto:contact@bailnotarie.fr', '_blank')}>contact@bailnotarie.fr</Button>
                 <p className="text-sm text-gray-500">Réponse sous 24h</p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <MapPin className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Adresse</p>
-                <p className="text-gray-600">123 Rue de la Paix</p>
-                <p className="text-gray-600">75001 Paris</p>
-              </div>
-            </div>
           </div>
 
           <div className="mt-8 pt-6 border-t">
             <PhoneButton 
-              phoneNumber="01 23 45 67 89" 
-              className="w-full text-lg py-3"
+              phoneNumber="07 49 38 77 56" 
+              className="w-full text-lg py-3 cursor-pointer"
             />
           </div>
         </Card>

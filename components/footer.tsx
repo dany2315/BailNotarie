@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Scale, Mail, Phone, MapPin } from "lucide-react";
+import { Button } from "./ui/button";
 
 export function Footer() {
   return (
@@ -22,10 +25,11 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">Services</h3>
             <ul className="space-y-2 text-sm text-gray-400">
-              <li><Link href="#services" className="hover:text-white transition-colors">Bail notarié</Link></li>
-              <li><Link href="#process" className="hover:text-white transition-colors">Processus</Link></li>
-              <li><Link href="/blog" className="hover:text-white transition-colors">Conseils juridiques</Link></li>
-              <li><Link href="#contact" className="hover:text-white transition-colors">Devis gratuit</Link></li>
+              <li><Link href="/" className="hover:text-white transition-colors">Accueil</Link></li>
+              <li><Link href="/#services" className="hover:text-white transition-colors">Services</Link></li>
+              <li><Link href="/#process" className="hover:text-white transition-colors">Processus</Link></li>
+              {/*<li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>*/}
+              <li><Link href="/#contact" className="hover:text-white transition-colors">Devis gratuit</Link></li>
             </ul>
           </div>
 
@@ -44,18 +48,14 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">Contact</h3>
             <div className="space-y-3 text-sm text-gray-400">
-              <div className="flex items-center space-x-2">
+              <Button variant="link" className="flex items-center space-x-2 text-white cursor-pointer" onClick={() => window.open('tel:0123456789', '_blank')}>
                 <Phone className="h-4 w-4" />
-                <span>01 23 45 67 89</span>
-              </div>
-              <div className="flex items-center space-x-2">
+                <span>07 49 38 77 56</span>
+              </Button>
+              <Button variant="link" className="flex items-center space-x-2 text-white cursor-pointer" onClick={() => window.open('mailto:contact@bailnotarie.fr', '_blank')}>
                 <Mail className="h-4 w-4" />
                 <span>contact@bailnotarie.fr</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <MapPin className="h-4 w-4" />
-                <span>123 Rue de la Paix, 75001 Paris</span>
-              </div>
+              </Button>
             </div>
           </div>
         </div>

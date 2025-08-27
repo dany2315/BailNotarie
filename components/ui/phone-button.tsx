@@ -7,11 +7,13 @@ interface PhoneButtonProps {
   phoneNumber: string;
   className?: string;
   size?: "sm" | "default" | "lg";
+  onClick?: () => void;
 }
 
-export function PhoneButton({ phoneNumber, className, size = "default" }: PhoneButtonProps) {
+export function PhoneButton({ phoneNumber, className, size = "default", onClick }: PhoneButtonProps) {
   const handleCall = () => {
     window.location.href = `tel:${phoneNumber}`;
+    onClick?.();
   };
 
   return (
