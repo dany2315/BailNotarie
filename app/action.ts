@@ -2,6 +2,7 @@
 
 import { Resend } from "resend";
 import MailConfirmation from "@/emails/mail-Confirmation";
+import MailNotificationEquipe from "@/emails/mail-Notification-Equipe";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -23,6 +24,20 @@ export async function sendMail(formData: {
         email: formData.email,
         phone: formData.phone,
         message: formData.message,
+      }),
+    });
+
+    await resend.emails.send({
+      from: "noreply@bailnotarie.fr",
+      to: ["davidserfaty2315@gmail.com","chlomicohensolal@gmail.com"],
+      subject: "Nouvelle demande de contact",
+      react: MailNotificationEquipe({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        message: formData.message,
+        dateDemande: new Date().toLocaleDateString("fr-FR"),
       }),
     });
 
