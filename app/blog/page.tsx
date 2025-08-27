@@ -9,7 +9,7 @@ import { CallButton, ContactButton } from "@/components/ui/action-buttons";
 
 export const metadata: Metadata = {
   title: "Blog - Conseils et Guides sur le Bail Notarié",
-  description: "📚 Découvrez nos conseils d'experts sur le bail notarié : guides pratiques, comparaisons, actualités juridiques. Tout pour sécuriser vos locations.",
+  description: "Découvrez nos conseils d'experts sur le bail notarié : guides pratiques, comparaisons, actualités juridiques. Tout pour sécuriser vos locations.",
   keywords: [
     "blog bail notarié",
     "conseils propriétaire",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: "Blog BailNotarie - Conseils et Guides sur le Bail Notarié",
-    description: "📚 Découvrez nos conseils d'experts sur le bail notarié : guides pratiques, comparaisons, actualités juridiques.",
+    description: "Découvrez nos conseils d'experts sur le bail notarié : guides pratiques, comparaisons, actualités juridiques.",
     url: "https://bailnotarie.fr/blog",
     images: [
       {

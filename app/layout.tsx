@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     default: "BailNotarie - Bail Notarié Simple et Sécurisé | Expert en Acte Authentique",
     template: "%s | BailNotarie"
   },
-  description: "✅ Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
+  description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
   keywords: [
     "bail notarié",
     "acte authentique",
@@ -79,7 +79,7 @@ export const metadata: Metadata = {
     locale: "fr_FR",
     url: "https://bailnotarie.fr",
     title: "BailNotarie - Bail Notarié Simple et Sécurisé | Expert en Acte Authentique",
-    description: "✅ Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
+    description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
     siteName: "BailNotarie",
     images: [
       { 
@@ -96,7 +96,7 @@ export const metadata: Metadata = {
     site: "@bailnotarie",
     creator: "@bailnotarie",
     title: "BailNotarie - Bail Notarié Simple et Sécurisé",
-    description: "✅ Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
+    description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
     images: ["https://bailnotarie.fr/og-image.png"],
   },
   manifest: '/site.webmanifest',
@@ -148,7 +148,7 @@ export default function RootLayout({
             "name": "BailNotarie",
             "description": "Expert en création de baux notariés avec force exécutoire immédiate. Service professionnel pour propriétaires bailleurs.",
             "url": "https://bailnotarie.fr",
-            "logo": "https://bailnotarie.fr/logoSans.png",
+            "logo": "https://bailnotarie.fr/logoAvec.png",
             "image": "https://bailnotarie.fr/og-image.png",
             "telephone": "+33123456789",
             "email": "contact@bailnotarie.fr",

@@ -110,8 +110,8 @@ export function BenefitsSection() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
-              onClick={() => window.location.href = 'tel:0123456789'}
-              className="bg-blue-600 hover:bg-blue-700"
+              onClick={() => window.location.href = 'tel:0749387756'}
+              className="bg-blue-600 hover:bg-blue-700 cursor-pointer"
             >
               <Phone className="mr-2 h-4 w-4" />
               Parler à un expert
@@ -220,7 +220,7 @@ export function BenefitsSection() {
        <div className="flex justify-center mt-10 mb-0">
           <Button 
               variant="ghost"
-              className="text-gray-900"
+              className="text-gray-900 cursor-pointer"
               onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}
             >
               Contactez-nous

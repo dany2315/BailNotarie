@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { Mail, Phone, MapPin, Send, CheckCircle } from "lucide-react";
+import { resend } from "@/lib/resend";
+import MailConfirmation from "@/emails/mail-Confirmation";
 
 const formSchema = z.object({
   firstName: z.string().min(2, "Le prénom doit contenir au moins 2 caractères"),
@@ -39,15 +41,18 @@ export function ContactForm() {
     setIsLoading(true);
     
     // Simulation d'envoi
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log("Form data:", data);
+    await resend.emails.send({
+      from: "noreply@bailnotarie.fr",
+      to: data.email,
+      subject: "Confirmation de votre demande de contact",
+      react: MailConfirmation()
+    });
     setIsSubmitted(true);
     setIsLoading(false);
     reset();
     
     // Reset après 5 secondes
-    setTimeout(() => setIsSubmitted(false), 5000);
+    setTimeout(() => setIsSubmitted(false), 10000);
   };
 
   if (isSubmitted) {
@@ -77,7 +82,10 @@ export function ContactForm() {
         <h3 className="text-2xl font-semibold text-gray-900 mb-6">
           Demander un devis gratuit
         </h3>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form action={() => {
+          "use server";
+          handleSubmit(onSubmit);
+        }} className="space-y-6">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="firstName">Prénom *</Label>
@@ -182,7 +190,7 @@ export function ContactForm() {
               </div>
               <div>
                 <p className="font-medium text-gray-900">Téléphone</p>
-                <p className="text-gray-600">01 23 45 67 89</p>
+                <Button variant="link" className="text-gray-600 cursor-pointer pl-0" onClick={() => window.open('tel:0749387756', '_blank')}>07 49 38 77 56</Button>
                 <p className="text-sm text-gray-500">Lun-Ven 9h-18h</p>
               </div>
             </div>
@@ -193,7 +201,7 @@ export function ContactForm() {
               </div>
               <div>
                 <p className="font-medium text-gray-900">Email</p>
-                <p className="text-gray-600">contact@bailnotarie.fr</p>
+                  <Button variant="link" className="text-gray-600 cursor-pointer pl-0" onClick={() => window.open('mailto:contact@bailnotarie.fr', '_blank')}>contact@bailnotarie.fr</Button>
                 <p className="text-sm text-gray-500">Réponse sous 24h</p>
               </div>
             </div>
@@ -202,8 +210,8 @@ export function ContactForm() {
 
           <div className="mt-8 pt-6 border-t">
             <PhoneButton 
-              phoneNumber="01 23 45 67 89" 
-              className="w-full text-lg py-3"
+              phoneNumber="07 49 38 77 56" 
+              className="w-full text-lg py-3 cursor-pointer"
             />
           </div>
         </Card>

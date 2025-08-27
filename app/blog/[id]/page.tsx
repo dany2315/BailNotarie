@@ -1,6 +1,5 @@
 "use client";
 
-import type { Metadata } from "next";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { Badge } from "@/components/ui/badge";
@@ -10,48 +9,6 @@ import Link from "next/link";
 import { Calendar, Clock, ArrowLeft, Share2, User, Eye, BookOpen, MessageCircle, Phone } from "lucide-react";
 import Image from "next/image";
 import { CallButton, ContactButton } from "@/components/ui/action-buttons";
-
-// Génération des métadonnées dynamiques
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  // Ici vous pourriez récupérer les données de l'article depuis une API/base de données
-  const articleTitle = "Bail notarié vs bail classique : quelles différences ?";
-  const articleDescription = "Découvrez les avantages du bail notarié par rapport au bail sous seing privé et pourquoi il peut être un choix judicieux pour votre location.";
-  
-  return {
-    title: `${articleTitle} - Blog BailNotarie`,
-    description: articleDescription,
-    keywords: [
-      "bail notarié vs classique",
-      "différences bail authentique",
-      "avantages bail notarié",
-      "force exécutoire",
-      "sécurité juridique",
-      "comparaison baux"
-    ],
-    openGraph: {
-      title: articleTitle,
-      description: articleDescription,
-      url: `https://bailnotarie.fr/blog/${params.id}`,
-      type: "article",
-      publishedTime: "2024-01-15T00:00:00.000Z",
-      authors: ["Équipe BailNotarie"],
-      images: [
-        {
-          url: "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200",
-          width: 1200,
-          height: 630,
-          alt: articleTitle
-        }
-      ]
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: articleTitle,
-      description: articleDescription,
-      images: ["https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200"]
-    }
-  };
-}
 
 // Simulation d'un article de blog
 const blogPost = {
@@ -289,7 +246,7 @@ export default function BlogPostPage() {
           </h2>
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             {relatedPosts.map((post) => (
-              <Card key={post.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 group">
+              <Card key={post.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 group pt-0">
                 <div className="aspect-video relative overflow-hidden">
                   <Image
                     src={post.image}

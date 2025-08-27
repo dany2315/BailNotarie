@@ -23,7 +23,7 @@ export function Header() {
     { href: "/", label: "Accueil", icon: Home },
     { href: "#services", label: "Services", icon: Briefcase },
     { href: "#process", label: "Processus", icon: Settings },
-    { href: "/blog", label: "Blog", icon: BookOpen },
+    //{ href: "/blog", label: "Blog", icon: BookOpen },
     { href: "#faq", label: "FAQ", icon: HelpCircle },
     { href: "/#contact", label: "Contact", icon: Mail },
   ];
@@ -53,9 +53,9 @@ export function Header() {
             <Link href="#process" className="text-gray-700 hover:text-blue-600 transition-colors">
               Processus
             </Link>
-            <Link href="/blog" className="text-gray-700 hover:text-blue-600 transition-colors">
+            {/*<Link href="/blog" className="text-gray-700 hover:text-blue-600 transition-colors">
               Blog
-            </Link>
+            </Link>*/}
             <Link href="#faq" className="text-gray-700 hover:text-blue-600 transition-colors">
               FAQ
             </Link>
@@ -66,7 +66,7 @@ export function Header() {
 
           {/* CTA Desktop */}
           <div className="hidden md:flex items-center space-x-4">
-            <PhoneButton phoneNumber="01 23 45 67 89" />
+            <PhoneButton phoneNumber="07 49 38 77 56"  />
           </div>
 
           {/* Menu Mobile avec Sheet */}
@@ -111,20 +111,20 @@ export function Header() {
                   <div className="space-y-6">
                     <div className="px-4">
                       <h3 className="text-sm font-semibold text-gray-900 mb-3">Contactez-nous</h3>
-                      <div className="space-y-2 text-sm text-gray-600">
-                        <div className="flex items-center space-x-2" onClick={() => {
+
+                        <Button variant="link" className="flex items-center space-x-2 text-gray-600 cursor-pointer !pl-0 m-0" onClick={() => {
                           window.open("mailto:contact@bailnotarie.fr", "_blank");
                         }}>
                           <Mail className="h-4 w-4" />
                           <span>contact@bailnotarie.fr</span>
-                        </div>
-                      </div>
+                        </Button>
+
                     </div>
                     
                     <div className="px-4">
                       <PhoneButton 
-                        phoneNumber="01 23 45 67 89" 
-                        className="w-full justify-center"
+                        phoneNumber="07 49 38 77 56" 
+                        className="w-full justify-center cursor-pointer"
                         onClick={handleMenuClick}
                       />
                     </div>

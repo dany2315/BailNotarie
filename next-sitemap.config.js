@@ -23,14 +23,14 @@ module.exports = {
     // Personnaliser les priorités et fréquences
     const customPriorities = {
       '/': 1.0,
-      '/blog': 0.8,
-      '/blog/[id]': 0.7,
+      //'/blog': 0.8,
+      //'/blog/[id]': 0.7,
     };
 
     const customChangefreq = {
       '/': 'weekly',
-      '/blog': 'weekly',
-      '/blog/[id]': 'monthly',
+      //'/blog': 'weekly',
+      //'/blog/[id]': 'monthly',
     };
 
     return {

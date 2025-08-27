@@ -131,15 +131,15 @@ export function PresentationSection() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={() => window.location.href = 'tel:0123456789'}
+            className="bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+            onClick={() => window.location.href = 'tel:0749387756'}
           >
             <Phone className="size-4" />
             <span>Appeler maintenant</span>
           </Button>
             <Button 
               variant="outline"
-              className="border-blue-200 hover:bg-blue-50"
+              className="border-blue-200 hover:bg-blue-50 cursor-pointer"
               onClick={() => {
                 const contactElement = document.getElementById('contact');
                 if (contactElement) {

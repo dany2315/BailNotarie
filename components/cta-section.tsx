@@ -46,15 +46,15 @@ export function CTASection() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <PhoneButton 
-              phoneNumber="01 23 45 67 89" 
+              phoneNumber="07 49 38 77 56" 
               size="lg"
-              className="text-lg px-8 py-4 bg-green-600 hover:bg-green-700"
+              className="text-lg px-8 py-4 bg-green-600 hover:bg-green-700 cursor-pointer"
             />
             <Button 
               variant="outline" 
               size="lg"
               onClick={scrollToContact}
-              className="text-lg px-8 py-4 border-2 border-white  hover:bg-white text-blue-600 hover:text-blue-800 transition-all duration-300"
+              className="text-lg px-8 py-4 border-2 cursor-pointer border-white  hover:bg-white text-blue-600 hover:text-blue-800 transition-all duration-300"
             >
               Demander un devis gratuit
               <ArrowRight className="ml-2 h-5 w-5" />

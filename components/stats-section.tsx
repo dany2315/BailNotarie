@@ -119,9 +119,9 @@ export function StatsSection() {
             Rejoignez nos 2000+ clients satisfaits
           </h3>
             <Button 
-            className="bg-green-600 hover:bg-green-700"
+            className="bg-green-600 hover:bg-green-700 cursor-pointer"
             onClick={() => {
-              window.location.href = "tel:+33606060606";
+              window.location.href = "tel:0749387756";
             }}
             >
             Faire parti de nos clients satisfaits

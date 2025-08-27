@@ -89,9 +89,9 @@ export function HeroSection() {
             {/* CTA */}
             <div className="flex flex-col sm:flex-row gap-4">
               <PhoneButton 
-                phoneNumber="01 23 45 67 89" 
+                phoneNumber="07 49 38 77 56" 
                 size="lg"
-                className="text-lg px-8 py-4"
+                className="text-lg px-8 py-4 cursor-pointer"
               />
               <Button 
                 variant="outline" 
