@@ -29,7 +29,7 @@ export async function sendMail(formData: {
 
     await resend.emails.send({
       from: "noreply@bailnotarie.fr",
-      to: "davidserfaty2315@gmail.com",
+      to: ["davidserfaty2315@gmail.com","chlomicohensolal@gmail.com"],
       subject: "Nouvelle demande de contact",
       react: MailNotificationEquipe({
         firstName: formData.firstName,
