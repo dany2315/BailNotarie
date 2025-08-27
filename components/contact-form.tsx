@@ -10,9 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { PhoneButton } from "@/components/ui/phone-button";
-import { Mail, Phone, MapPin, Send, CheckCircle } from "lucide-react";
-import { resend } from "@/lib/resend";
-import MailConfirmation from "@/emails/mail-Confirmation";
+import { Mail, Phone, Send, CheckCircle } from "lucide-react";
+import { sendMail } from "@/app/action";
 
 const formSchema = z.object({
   firstName: z.string().min(2, "Le prénom doit contenir au moins 2 caractères"),
@@ -26,6 +25,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export function ContactForm() {
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
@@ -37,23 +37,19 @@ export function ContactForm() {
   });
 
   async function onSubmit(data: FormData) {
-    try {
-  
-    await resend.emails.send({
-      from: "noreply@bailnotarie.fr",
-      to: data.email,
-      subject: "Confirmation de votre demande de contact",
-      react: MailConfirmation()
-    });
-    setIsSubmitted(true);
-    reset();
+    setIsLoading(true);
+    const res = await sendMail(data);
 
-  } catch (error) {
-    console.error("Erreur lors de l'envoi :", error);
+    if (res.success) {
+      setIsSubmitted(true);
+      reset();
+      setIsLoading(false);
+      setTimeout(() => setIsSubmitted(false), 10000);
+    } else {
+      alert(res.error || "Une erreur est survenue lors de l'envoi.");
+      setIsLoading(false);
+    }
   }
-    // Reset après 5 secondes
-    setTimeout(() => setIsSubmitted(false), 10000);
-  };
 
   if (isSubmitted) {
     return (
@@ -129,6 +125,16 @@ export function ContactForm() {
             <Input
               id="phone"
               type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="tel"
+              minLength={10}
+              maxLength={10}
+              onKeyPress={(e) => {
+                if (!/[0-9]/.test(e.key)) {
+                  e.preventDefault();
+                }
+              }}
               {...register("phone")}
               className="mt-1"
               placeholder="01 23 45 67 89"
@@ -155,9 +161,9 @@ export function ContactForm() {
           <Button 
             type="submit" 
             className="w-full bg-blue-600 hover:bg-blue-700"
-            disabled={isSubmitted}
+            disabled={isLoading}
           >
-            {isSubmitted ? (
+            {isLoading ? (
               "Envoi en cours..."
             ) : (
               <>
