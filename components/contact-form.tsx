@@ -26,7 +26,6 @@ type FormData = z.infer<typeof formSchema>;
 
 export function ContactForm() {
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
@@ -37,10 +36,9 @@ export function ContactForm() {
     resolver: zodResolver(formSchema),
   });
 
-  const onSubmit = async (data: FormData) => {
-    setIsLoading(true);
-    
-    // Simulation d'envoi
+  async function onSubmit(data: FormData) {
+    try {
+  
     await resend.emails.send({
       from: "noreply@bailnotarie.fr",
       to: data.email,
@@ -48,9 +46,11 @@ export function ContactForm() {
       react: MailConfirmation()
     });
     setIsSubmitted(true);
-    setIsLoading(false);
     reset();
-    
+
+  } catch (error) {
+    console.error("Erreur lors de l'envoi :", error);
+  }
     // Reset après 5 secondes
     setTimeout(() => setIsSubmitted(false), 10000);
   };
@@ -82,10 +82,7 @@ export function ContactForm() {
         <h3 className="text-2xl font-semibold text-gray-900 mb-6">
           Demander un devis gratuit
         </h3>
-        <form action={() => {
-          "use server";
-          handleSubmit(onSubmit);
-        }} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="firstName">Prénom *</Label>
@@ -158,9 +155,9 @@ export function ContactForm() {
           <Button 
             type="submit" 
             className="w-full bg-blue-600 hover:bg-blue-700"
-            disabled={isLoading}
+            disabled={isSubmitted}
           >
-            {isLoading ? (
+            {isSubmitted ? (
               "Envoi en cours..."
             ) : (
               <>
