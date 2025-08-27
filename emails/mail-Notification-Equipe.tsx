@@ -13,24 +13,34 @@ import {
 } from "@react-email/components";
 import * as React from "react";
 
-interface MailConfirmationProps {
+interface MailNotificationEquipeProps {
   firstName: string;
   lastName: string;
   email: string;
   phone: string;
   message: string;
+  dateDemande: string;
 }
 
-export default function MailConfirmation({
+export default function MailNotificationEquipe({
   firstName,
   lastName,
   email,
   phone,
-  message
-}: MailConfirmationProps) {
+  message,
+  dateDemande
+}: MailNotificationEquipeProps) {
   return (
     <Html>
-      <Head />
+      <Head>
+        <style>{`
+            @media only screen and (min-width: 600px) {
+            .btn-desktop {
+                margin-right: 12px !important;
+            }
+            }
+        `}</style>
+      </Head>
       <Body style={{ 
         backgroundColor: "#f8fafc", 
         fontFamily: "Arial, sans-serif",
@@ -51,14 +61,14 @@ export default function MailConfirmation({
             padding: "32px 24px",
             textAlign: "center"
           }}>
-              <Link
+            <Link
               href="https://bailnotarie.fr"
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 textDecoration: "none",
-                color: "#1e3a8a", // text-blue-900 par ex
+                color: "#1e3a8a",
               }}
             >
               <Img
@@ -87,23 +97,22 @@ export default function MailConfirmation({
             <Text style={{ 
               color: "#1e3a8a",
               fontSize: "20px",
-              margin: "30px 0px 0px 0px "
+              margin: "30px 0px 0px 0px"
             }}>
               Votre partenaire pour les baux notariés sécurisés
             </Text>
-
           </Section>
 
           {/* Contenu principal */}
           <Section style={{ padding: "40px 24px" }}>
             <Heading style={{ 
-              color: "#1f2937",
+              color: "#dc2626",
               fontSize: "24px",
               fontWeight: "bold",
               margin: "0 0 16px 0",
               textAlign: "center"
             }}>
-              Demande reçue avec succès !
+              🆕 Nouvelle demande reçue !
             </Heading>
             
             <Text style={{ 
@@ -112,32 +121,24 @@ export default function MailConfirmation({
               lineHeight: "1.6",
               margin: "0 0 24px 0"
             }}>
-              Bonjour {firstName} {lastName},
-            </Text>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              Nous avons bien reçu votre demande de bail notarié. Notre équipe d'experts va l'étudier avec attention et vous recontacter dans les plus brefs délais.
+              Une nouvelle personne s'est intéressée à nos services de bail notarié.
             </Text>
 
-            {/* Récapitulatif de la demande */}
+            {/* Informations du prospect */}
             <Section style={{ 
-              backgroundColor: "#f9fafb",
+              backgroundColor: "#fef2f2",
               borderRadius: "8px",
               padding: "24px",
-              margin: "24px 0"
+              margin: "24px 0",
+              border: "2px solid #fecaca"
             }}>
               <Text style={{ 
-                color: "#1f2937",
+                color: "#991b1b",
                 fontSize: "18px",
                 fontWeight: "bold",
                 margin: "0 0 16px 0"
               }}>
-                📋 Récapitulatif de votre demande :
+                👤 Informations du prospect :
               </Text>
               
               <Text style={{ 
@@ -154,7 +155,7 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: "0 0 8px 0"
               }}>
-                <strong>Email :</strong> {email}
+                <strong>Email :</strong> <Link href={`mailto:${email}`} style={{ color: "#2563eb", textDecoration: "none" }}>{email}</Link>
               </Text>
               <Text style={{ 
                 color: "#374151",
@@ -162,7 +163,15 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: "0 0 8px 0"
               }}>
-                <strong>Téléphone :</strong> {phone}
+                <strong>Téléphone :</strong> <Link href={`tel:${phone}`} style={{ color: "#2563eb", textDecoration: "none" }}>{phone}</Link>
+              </Text>
+              <Text style={{ 
+                color: "#374151",
+                fontSize: "14px",
+                lineHeight: "1.6",
+                margin: "0 0 16px 0"
+              }}>
+                <strong>Date de demande :</strong> {dateDemande}
               </Text>
               <Text style={{ 
                 color: "#374151",
@@ -187,7 +196,7 @@ export default function MailConfirmation({
               </Text>
             </Section>
 
-            {/* Points clés */}
+            {/* Actions à effectuer */}
             <Section style={{ 
               backgroundColor: "#f0f9ff",
               borderRadius: "8px",
@@ -195,12 +204,12 @@ export default function MailConfirmation({
               margin: "24px 0"
             }}>
               <Text style={{ 
-                color: "#1f2937",
+                color: "#1e40af",
                 fontSize: "18px",
                 fontWeight: "bold",
                 margin: "0 0 16px 0"
               }}>
-                ⚡ Ce qui vous attend :
+                📋 Actions recommandées :
               </Text>
               
               <Text style={{ 
@@ -209,7 +218,7 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: "0 0 8px 0"
               }}>
-                • <strong>Devis gratuit</strong> sous 24h
+                1️⃣ <strong>Contacter le prospect</strong> sous 24h maximum
               </Text>
               <Text style={{ 
                 color: "#374151",
@@ -217,7 +226,7 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: "0 0 8px 0"
               }}>
-                • <strong>Bail notarié</strong> en 48h
+                2️⃣ <strong>Établir un devis</strong> personnalisé
               </Text>
               <Text style={{ 
                 color: "#374151",
@@ -225,7 +234,7 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: "0 0 8px 0"
               }}>
-                • <strong>Force exécutoire</strong> immédiate
+                3️⃣ <strong>Expliquer le processus</strong> de bail notarié
               </Text>
               <Text style={{ 
                 color: "#374151",
@@ -233,37 +242,57 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: 0
               }}>
-                • <strong>+2000 clients</strong> satisfaits
+                4️⃣ <strong>Suivre le dossier</strong> jusqu'à la signature
               </Text>
             </Section>
 
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 32px 0"
-            }}>
-              En attendant notre retour, n'hésitez pas à nous contacter directement au <strong>07 49 38 77 56</strong> pour toute question urgente.
-            </Text>
-
-            {/* CTA principal */}
+            {/* Boutons d'action rapide */}
             <Section style={{ textAlign: "center", margin: "32px 0" }}>
               <Button
-                href="https://bailnotarie.fr"
+                href={`mailto:${email}?subject=Demande de bail notarié - BailNotarie&body=Bonjour ${firstName} ${lastName},%0D%0A%0D%0ANous avons bien reçu votre demande et nous vous remercions de l'intérêt que vous portez à nos services.%0D%0A%0D%0ANotre équipe va étudier votre projet et vous recontacter dans les plus brefs délais.%0D%0A%0D%0ACordialement,%0D%0AL'équipe BailNotarie`}
+                className="btn-desktop"
+                style={{ 
+                  backgroundColor: "#059669",
+                  color: "#ffffff",
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  textDecoration: "none",
+                  fontSize: "14px",
+                  fontWeight: "bold",
+                  display: "inline-block",
+                  marginRight: "0",
+                }}
+              >
+                📧  Répondre par email
+              </Button>
+              
+              <Button
+                href={`tel:${phone}`}
                 style={{ 
                   backgroundColor: "#2563eb",
                   color: "#ffffff",
-                  padding: "16px 32px",
+                  marginTop:"10px",
+                  padding: "12px 24px",
                   borderRadius: "8px",
                   textDecoration: "none",
-                  fontSize: "16px",
+                  fontSize: "14px",
                   fontWeight: "bold",
                   display: "inline-block"
                 }}
               >
-                Retour à la page d'accueil
+                📞 Appeler directement
               </Button>
             </Section>
+
+            <Text style={{ 
+              color: "#6b7280",
+              fontSize: "14px",
+              lineHeight: "1.6",
+              margin: "0 0 32px 0",
+              textAlign: "center"
+            }}>
+              <strong>Priorité :</strong> Ce prospect a manifesté un intérêt actif. Une réponse rapide augmente significativement les chances de conversion.
+            </Text>
           </Section>
 
           <Hr style={{ 
@@ -283,21 +312,21 @@ export default function MailConfirmation({
               fontSize: "14px",
               margin: "0 0 8px 0"
             }}>
-              <strong>BailNotarie</strong> - Expert en bail notarié depuis 2019
+              <strong>BailNotarie</strong> - Système de notification automatique
             </Text>
             <Text style={{ 
               color: "#6b7280",
               fontSize: "12px",
               margin: "0 0 8px 0"
             }}>
-              <Link href="tel:+33749387756" className="text-gray-600 no-underline">📞 07 49 38 77 56</Link> | <Link href="https://bailnotarie.fr" className="text-gray-600 no-underline">🌐 bailnotarie.fr</Link>
+              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href="https://bailnotarie.fr" style={{ color: "#6b7280", textDecoration: "none" }}>🌐 bailnotarie.fr</Link>
             </Text>
             <Text style={{ 
               color: "#9ca3af",
               fontSize: "12px",
               margin: 0
             }}>
-              Cet email a été envoyé automatiquement suite à votre demande sur notre site.
+              Cette notification a été générée automatiquement suite à une nouvelle demande sur le site.
             </Text>
           </Section>
         </Container>
