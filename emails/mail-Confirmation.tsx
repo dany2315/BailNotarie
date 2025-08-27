@@ -290,7 +290,7 @@ export default function MailConfirmation({
               fontSize: "12px",
               margin: "0 0 8px 0"
             }}>
-              <Link href="tel:+33749387756" className="text-gray-600 no-underline">📞 07 49 38 77 56</Link> | <Link href="https://bailnotarie.fr" className="text-gray-600 no-underline">🌐 bailnotarie.fr</Link>
+              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href="https://bailnotarie.fr" style={{ color: "#6b7280", textDecoration: "none" }}>🌐 bailnotarie.fr</Link>
             </Text>
             <Text style={{ 
               color: "#9ca3af",
