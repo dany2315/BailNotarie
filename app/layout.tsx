@@ -54,9 +54,7 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "your-google-verification-code",
-    yandex: "your-yandex-verification-code",
-    yahoo: "your-yahoo-verification-code",
+    google: "google-site-verification=x_2ORStLKvXGVFbuibksag2S99sccQgdX387oacodLs",
   },
   other: {
     "msapplication-TileColor": "#2563eb",
@@ -124,7 +122,7 @@ export default function RootLayout({
       
       {/* Google Analytics */}
       <Script
-        src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"
+        src="https://www.googletagmanager.com/gtag/js?id=G-TZ7DF5J0XW"
         strategy="afterInteractive"
       />
       <Script id="google-analytics" strategy="afterInteractive">
@@ -132,7 +130,7 @@ export default function RootLayout({
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
-          gtag('config', 'GA_MEASUREMENT_ID');
+          gtag('config', 'G-TZ7DF5J0XW');
         `}
       </Script>
       
@@ -150,7 +148,7 @@ export default function RootLayout({
             "url": "https://bailnotarie.fr",
             "logo": "https://bailnotarie.fr/logoAvec.png",
             "image": "https://bailnotarie.fr/og-image.png",
-            "telephone": "+33123456789",
+            "telephone": "+33749387756",
             "email": "contact@bailnotarie.fr",
             "address": {
               "@type": "PostalAddress",
