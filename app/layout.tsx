@@ -81,7 +81,7 @@ export const metadata: Metadata = {
     siteName: "BailNotarie",
     images: [
       { 
-        url: "https://bailnotarie.fr/og-image.png",
+        url: "https://bailnotarie.fr/og-cover.png",
         width: 1200,
         height: 630,
         alt: "BailNotarie - Expert en bail notarié avec force exécutoire immédiate",
@@ -95,7 +95,7 @@ export const metadata: Metadata = {
     creator: "@bailnotarie",
     title: "BailNotarie - Bail Notarié Simple et Sécurisé",
     description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
-    images: ["https://bailnotarie.fr/og-image.png"],
+    images: ["https://bailnotarie.fr/og-cover.png"],
   },
   manifest: '/site.webmanifest',
 };
