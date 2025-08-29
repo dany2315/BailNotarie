@@ -76,9 +76,9 @@ export const metadata: Metadata = {
     type: "website",
     locale: "fr_FR",
     url: "https://www.bailnotarie.fr",
+    siteName: "BailNotarie",
     title: "BailNotarie - Bail Notarié Simple et Sécurisé | Expert en Acte Authentique",
     description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
-    siteName: "BailNotarie",
     images: [
       { 
         url: "https://www.bailnotarie.fr/og-cover-v2.png",
@@ -90,10 +90,10 @@ export const metadata: Metadata = {
   },
   twitter: {  
     card: "summary_large_image",
-    site: "@bailnotarie",
-    creator: "@bailnotarie",
     title: "BailNotarie - Bail Notarié Simple et Sécurisé",
     description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
+    site: "@bailnotarie",
+    creator: "@bailnotarie",
     images: ["https://www.bailnotarie.fr/og-cover-v2.png"],
   },
   manifest: '/site.webmanifest',
