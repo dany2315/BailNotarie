@@ -81,7 +81,7 @@ export const metadata: Metadata = {
     siteName: "BailNotarie",
     images: [
       { 
-        url: "https://www.bailnotarie.fr/og-cover.png",
+        url: "https://www.bailnotarie.fr/og-cover-v2.png",
         width: 1200,
         height: 630,
         alt: "BailNotarie - Expert en bail notarié avec force exécutoire immédiate",
@@ -95,7 +95,7 @@ export const metadata: Metadata = {
     creator: "@bailnotarie",
     title: "BailNotarie - Bail Notarié Simple et Sécurisé",
     description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
-    images: ["https://www.bailnotarie.fr/og-cover.png"],
+    images: ["https://www.bailnotarie.fr/og-cover-v2.png"],
   },
   manifest: '/site.webmanifest',
 };
@@ -147,7 +147,7 @@ export default function RootLayout({
             "description": "Expert en création de baux notariés avec force exécutoire immédiate. Service professionnel pour propriétaires bailleurs.",
             "url": "https://bailnotarie.fr",
             "logo": "https://bailnotarie.fr/logoAvec.png",
-            "image": "https://bailnotarie.fr/og-image.png",
+            "image": "https://bailnotarie.fr/og-cover-v2.png",
             "telephone": "+33749387756",
             "email": "contact@bailnotarie.fr",
             "address": {
