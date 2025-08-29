@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   applicationName: "BailNotarie",
   creator: "DADtech",
   publisher: "BailNotarie",
-  authors: [{ name: "BailNotarie", url: "https://bailnotarie.fr" }],
+  authors: [{ name: "BailNotarie", url: "https://www.bailnotarie.fr" }],
   category: "Business",
   classification: "Notarial Services",
   robots: {
@@ -48,9 +48,9 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://bailnotarie.fr",
+    canonical: "https://www.bailnotarie.fr",
     languages: {
-      'fr-FR': 'https://bailnotarie.fr',
+      'fr-FR': 'https://www.bailnotarie.fr',
     },
   },
   verification: {
@@ -75,13 +75,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "fr_FR",
-    url: "https://bailnotarie.fr",
+    url: "https://www.bailnotarie.fr",
     title: "BailNotarie - Bail Notarié Simple et Sécurisé | Expert en Acte Authentique",
     description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
     siteName: "BailNotarie",
     images: [
       { 
-        url: "https://bailnotarie.fr/og-cover.png",
+        url: "https://www.bailnotarie.fr/og-cover.png",
         width: 1200,
         height: 630,
         alt: "BailNotarie - Expert en bail notarié avec force exécutoire immédiate",
@@ -95,7 +95,7 @@ export const metadata: Metadata = {
     creator: "@bailnotarie",
     title: "BailNotarie - Bail Notarié Simple et Sécurisé",
     description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
-    images: ["https://bailnotarie.fr/og-cover.png"],
+    images: ["https://www.bailnotarie.fr/og-cover.png"],
   },
   manifest: '/site.webmanifest',
 };
