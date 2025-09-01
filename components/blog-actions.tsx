@@ -22,7 +22,7 @@ export function BlogActions({ slug, title, description, variant = 'hero', onComm
         {/* Boutons dans la section hero */}
         <div className="flex items-center space-x-4">
           <ShareButtonSimple 
-            url={`https://bailnotarie.fr/blog/${slug}`}
+            url={`https://${process.env.NEXT_PUBLIC_URL}/blog/${slug}`}
             title={title}
             description={description}
             variant="outline"
@@ -47,7 +47,7 @@ export function BlogActions({ slug, title, description, variant = 'hero', onComm
       <div className="hidden lg:block bg-white rounded-xl shadow-sm border p-4">
         <h3 className="font-semibold text-gray-900 mb-4">Partager l'article</h3>
         <ShareButtons
-          url={`https://bailnotarie.fr/blog/${slug}`}
+          url={`https://${process.env.NEXT_PUBLIC_URL}/blog/${slug}`}
           title={title}
           description={description}
         />

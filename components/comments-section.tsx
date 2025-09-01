@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { MessageCircle, Send, User, Calendar, RefreshCw, Plus, Shield } from "lucide-react";
 import { formatDate } from '@/lib/blog-utils';
 import ReCAPTCHA from 'react-google-recaptcha';
+import '@/styles/recaptcha-modal.css';
 
 interface Comment {
   id: string;
@@ -71,6 +72,13 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
     setIsModalOpen(open);
     if (!open) {
       resetForm();
+    } else {
+      // S'assurer que le reCAPTCHA se charge correctement
+      setTimeout(() => {
+        if (recaptchaRef.current) {
+          recaptchaRef.current.reset();
+        }
+      }, 100);
     }
   };
 
@@ -89,6 +97,12 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
   useImperativeHandle(ref, () => ({
     openModal: () => {
       setIsModalOpen(true);
+      // S'assurer que le reCAPTCHA se charge correctement
+      setTimeout(() => {
+        if (recaptchaRef.current) {
+          recaptchaRef.current.reset();
+        }
+      }, 200);
     }
   }));
 
@@ -120,6 +134,11 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
     } else {
       setFieldErrors(prev => ({ ...prev, captcha: 'Veuillez valider le reCAPTCHA' }));
     }
+  };
+
+  // Fonction pour gérer le chargement du reCAPTCHA
+  const handleRecaptchaLoad = () => {
+    console.log('reCAPTCHA chargé');
   };
 
   // Validation en temps réel
@@ -346,7 +365,7 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
       {/* Bouton pour ouvrir le modal de commentaire */}
       <div className="flex justify-center">
         <Dialog open={isModalOpen} onOpenChange={handleModalChange}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto comment-modal">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-blue-600" />
@@ -412,17 +431,29 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
               </div>
 
               {/* reCAPTCHA */}
-              <div className=" ">
-
-                <div className="flex justify-center">
+              <div className="bg-gray-50 p-4 rounded-lg border relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="h-4 w-4 text-blue-600" />
+                  <Label className="text-sm font-medium">Vérification de sécurité *</Label>
+                </div>
+                <div className="flex justify-center relative" style={{ zIndex: 9999 }}>
                   <ReCAPTCHA
                     ref={recaptchaRef}
                     sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
                     onChange={handleRecaptchaChange}
                     onExpired={resetRecaptcha}
+                    onLoad={handleRecaptchaLoad}
                     onError={() => {
                       setFieldErrors(prev => ({ ...prev, captcha: 'Erreur reCAPTCHA. Veuillez réessayer.' }));
                     }}
+                    style={{ 
+                      zIndex: 9999,
+                      transform: 'scale(1)',
+                      transformOrigin: 'center'
+                    }}
+                    theme="light"
+                    size="normal"
+                    tabindex={0}
                   />
                 </div>
                 {fieldErrors.captcha && (

@@ -77,7 +77,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
               
               <div className="flex items-center space-x-4">
                 <ShareButtonSimple 
-                  url={`https://bailnotarie.fr/blog/${article.slug}`}
+                  url={`https://${process.env.NEXT_PUBLIC_URL}/blog/${article.slug}`}
                   title={article.title}
                   description={article.description}
                   variant="outline"
@@ -117,7 +117,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
                   </div>
                   <div className="flex items-center space-x-2">
                     <ShareButtonSimple 
-                      url={`https://bailnotarie.fr/blog/${article.slug}`}
+                      url={`https://${process.env.NEXT_PUBLIC_URL}/blog/${article.slug}`}
                       title={article.title}
                       description={article.description}
                       variant="outline"
@@ -186,7 +186,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
                 <h3 className="font-semibold text-gray-900 mb-4">Partager l'article</h3>
                 <div className="space-y-2">
                   <ShareButtonSimple 
-                    url={`https://bailnotarie.fr/blog/${article.slug}`}
+                    url={`https://${process.env.NEXT_PUBLIC_URL}/blog/${article.slug}`}
                     title={article.title}
                     description={article.description}
                     variant="outline"
