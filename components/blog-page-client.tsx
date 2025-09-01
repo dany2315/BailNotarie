@@ -11,6 +11,7 @@ import { CommentButton } from '@/components/comment-button';
 import { CommentsSection, CommentsSectionRef } from '@/components/comments-section';
 import { CallButton, ContactButton } from '@/components/ui/action-buttons';
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
+import useIsMobile from '@/hooks/useIsMobile';
 
 interface BlogPageClientProps {
   article: any;
@@ -20,7 +21,7 @@ interface BlogPageClientProps {
 export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps) {
   const commentsSectionRef = useRef<CommentsSectionRef>(null);
   const readTime = calculateReadTime(article.content);
-
+  const isMobile = useIsMobile();
   const handleCommentClick = () => {
     commentsSectionRef.current?.openModal();
   };
@@ -135,8 +136,22 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
                 </div>
               </div>
 
+              {/* CTA Mobile */}
+              { isMobile && <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 mt-10 ">
+                <h3 className="font-bold text-gray-900 mb-3">
+                  Besoin d'aide ?
+                </h3>
+                <p className="text-gray-600 text-sm mb-4">
+                  Nos experts vous accompagnent dans votre projet de bail notarié.
+                </p>
+                <div className="space-y-2 ">
+                  <CallButton />
+                  <ContactButton />
+                </div>
+              </div>}
+
               {/* Section commentaires */}
-              <div id="comments-section" className="mt-12">
+              <div id="comments-section" className="sm:mt-12 mt-0">
                 <CommentsSection 
                   ref={commentsSectionRef}
                   articleId={article.id}
@@ -203,7 +218,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
               </div>
 
               {/* CTA */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 ">
+              { !isMobile && <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 ">
                 <h3 className="font-bold text-gray-900 mb-3">
                   Besoin d'aide ?
                 </h3>
@@ -214,7 +229,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
                   <CallButton />
                   <ContactButton />
                 </div>
-              </div>
+              </div>}
             </div>
           </div>
         </div>
