@@ -78,7 +78,16 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
         if (recaptchaRef.current) {
           recaptchaRef.current.reset();
         }
-      }, 100);
+        // Forcer les styles du reCAPTCHA
+        const recaptchaElements = document.querySelectorAll('.g-recaptcha, .g-recaptcha *');
+        recaptchaElements.forEach((element) => {
+          if (element instanceof HTMLElement) {
+            element.style.zIndex = '99999';
+            element.style.pointerEvents = 'auto';
+            element.style.position = 'relative';
+          }
+        });
+      }, 200);
     }
   };
 
@@ -102,7 +111,16 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
         if (recaptchaRef.current) {
           recaptchaRef.current.reset();
         }
-      }, 200);
+        // Forcer les styles du reCAPTCHA
+        const recaptchaElements = document.querySelectorAll('.g-recaptcha, .g-recaptcha *');
+        recaptchaElements.forEach((element) => {
+          if (element instanceof HTMLElement) {
+            element.style.zIndex = '99999';
+            element.style.pointerEvents = 'auto';
+            element.style.position = 'relative';
+          }
+        });
+      }, 300);
     }
   }));
 
@@ -139,6 +157,15 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
   // Fonction pour gérer le chargement du reCAPTCHA
   const handleRecaptchaLoad = () => {
     console.log('reCAPTCHA chargé');
+    // S'assurer que les événements sont bien attachés
+    setTimeout(() => {
+      const recaptchaElement = document.querySelector('.g-recaptcha');
+      if (recaptchaElement && recaptchaElement instanceof HTMLElement) {
+        recaptchaElement.style.zIndex = '99999';
+        recaptchaElement.style.pointerEvents = 'auto';
+        recaptchaElement.style.position = 'relative';
+      }
+    }, 100);
   };
 
   // Validation en temps réel
@@ -443,8 +470,8 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
                   <Shield className="h-4 w-4 text-blue-600" />
                   <Label className="text-sm font-medium text-blue-800">Vérification de sécurité *</Label>
                 </div>
-                <div className="flex justify-center relative overflow-hidden" style={{ zIndex: 9999 }}>
-                  <div className="transform scale-90 sm:scale-100">
+                <div className="flex justify-center relative" style={{ zIndex: 99999, pointerEvents: 'auto' }}>
+                  <div className="transform scale-90 sm:scale-100" style={{ zIndex: 99999, pointerEvents: 'auto' }}>
                     <ReCAPTCHA
                       ref={recaptchaRef}
                       sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
@@ -455,9 +482,11 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
                         setFieldErrors(prev => ({ ...prev, captcha: 'Erreur reCAPTCHA. Veuillez réessayer.' }));
                       }}
                       style={{ 
-                        zIndex: 9999,
+                        zIndex: 99999,
                         transform: 'scale(1)',
-                        transformOrigin: 'center'
+                        transformOrigin: 'center',
+                        pointerEvents: 'auto',
+                        position: 'relative'
                       }}
                       theme="light"
                       size="normal"

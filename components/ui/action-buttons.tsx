@@ -21,10 +21,7 @@ export function ContactButton() {
       variant="outline"
       className="w-full"
       onClick={() => {
-        const contactElement = document.getElementById('contact');
-        if (contactElement) {
-          contactElement.scrollIntoView({ behavior: 'smooth' });
-        }
+        window.location.href = '/#contact';
       }}
     >
       <span>Demander un devis</span>
