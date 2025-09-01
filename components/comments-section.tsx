@@ -351,49 +351,55 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
     <div className="space-y-6">
       {/* Message de succès */}
       {showSuccessMessage && (
-        <Card className="p-4 bg-green-50 border-green-200">
-          <div className="flex items-center gap-2 text-green-800">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <p className="font-medium">Commentaire soumis avec succès !</p>
+        <Card className="p-4 bg-green-50 border-green-200 rounded-lg shadow-sm">
+          <div className="flex items-center gap-3 text-green-800">
+            <div className="p-2 bg-green-100 rounded-full">
+              <div className="w-4 h-4 bg-green-500 rounded-full animate-pulse"></div>
+            </div>
+            <div>
+              <p className="font-semibold text-lg">Commentaire publié !</p>
+              <p className="text-green-700 text-sm">
+                Votre commentaire est maintenant visible sur l'article.
+              </p>
+            </div>
           </div>
-          <p className="text-green-700 text-sm mt-1">
-            Votre commentaire a été publié avec succès et est maintenant visible !
-          </p>
         </Card>
       )}
 
       {/* Bouton pour ouvrir le modal de commentaire */}
       <div className="flex justify-center">
         <Dialog open={isModalOpen} onOpenChange={handleModalChange}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto comment-modal">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-blue-600" />
+          <DialogContent className="w-[95vw] max-w-[500px] max-h-[95vh] overflow-y-auto overflow-x-hidden comment-modal mx-auto">
+            <DialogHeader className="text-center pb-4 border-b border-gray-100">
+              <DialogTitle className="flex items-center justify-center gap-2 text-xl font-semibold text-gray-800">
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <MessageCircle className="h-5 w-5 text-blue-600" />
+                </div>
                 Laisser un commentaire
               </DialogTitle>
-              <DialogDescription className="mt-2">
-                Partagez votre avis ou posez une question sur cet article. Votre commentaire sera publié immédiatement après validation du captcha de sécurité.
+              <DialogDescription className="mt-3 text-gray-600 text-sm leading-relaxed">
+                Partagez votre avis sur cet article. Votre commentaire sera publié immédiatement après validation.
               </DialogDescription>
             </DialogHeader>
             
-            <form onSubmit={handleSubmit} className="space-y-4 mt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div >
-                  <Label htmlFor="name" className="mb-2">Nom *</Label>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="name" className="mb-2 block text-sm font-medium">Nom *</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => handleFieldChange('name', e.target.value)}
                     required
                     placeholder="Votre nom"
-                    className={fieldErrors.name ? 'border-red-500' : ''}
+                    className={`w-full ${fieldErrors.name ? 'border-red-500' : ''}`}
                   />
                   {fieldErrors.name && (
                     <p className="text-red-500 text-sm mt-1">{fieldErrors.name}</p>
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="email" className="mb-2">Email *</Label>
+                  <Label htmlFor="email" className="mb-2 block text-sm font-medium">Email *</Label>
                   <Input
                     id="email"
                     type="email"
@@ -401,7 +407,7 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
                     onChange={(e) => handleFieldChange('email', e.target.value)}
                     required
                     placeholder="votre@email.com"
-                    className={fieldErrors.email ? 'border-red-500' : ''}
+                    className={`w-full ${fieldErrors.email ? 'border-red-500' : ''}`}
                   />
                   {fieldErrors.email && (
                     <p className="text-red-500 text-sm mt-1">{fieldErrors.email}</p>
@@ -410,7 +416,7 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
               </div>
               
               <div>
-                <Label htmlFor="content" className="mb-2">Commentaire *</Label>
+                <Label htmlFor="content" className="mb-2 block text-sm font-medium">Commentaire *</Label>
                 <Textarea
                   id="content"
                   value={formData.content}
@@ -418,64 +424,67 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
                   required
                   placeholder="Partagez votre avis ou posez une question..."
                   rows={4}
-                  className={fieldErrors.content ? 'border-red-500' : ''}
+                  className={`w-full resize-none ${fieldErrors.content ? 'border-red-500' : ''}`}
                 />
-                <div className="flex justify-between items-center mt-1">
+                <div className="flex flex-col gap-1 mt-2">
                   {fieldErrors.content && (
                     <p className="text-red-500 text-sm">{fieldErrors.content}</p>
                   )}
-                  <p className="text-gray-500 text-sm ml-auto">
+                  <p className="text-gray-500 text-sm text-right">
                     {formData.content.length}/1000 caractères
                   </p>
                 </div>
               </div>
 
               {/* reCAPTCHA */}
-              <div className="bg-gray-50 p-4 rounded-lg border relative z-10">
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 relative z-10">
                 <div className="flex items-center gap-2 mb-3">
                   <Shield className="h-4 w-4 text-blue-600" />
-                  <Label className="text-sm font-medium">Vérification de sécurité *</Label>
+                  <Label className="text-sm font-medium text-blue-800">Vérification de sécurité *</Label>
                 </div>
-                <div className="flex justify-center relative" style={{ zIndex: 9999 }}>
-                  <ReCAPTCHA
-                    ref={recaptchaRef}
-                    sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
-                    onChange={handleRecaptchaChange}
-                    onExpired={resetRecaptcha}
-                    onLoad={handleRecaptchaLoad}
-                    onError={() => {
-                      setFieldErrors(prev => ({ ...prev, captcha: 'Erreur reCAPTCHA. Veuillez réessayer.' }));
-                    }}
-                    style={{ 
-                      zIndex: 9999,
-                      transform: 'scale(1)',
-                      transformOrigin: 'center'
-                    }}
-                    theme="light"
-                    size="normal"
-                    tabindex={0}
-                  />
+                <div className="flex justify-center relative overflow-hidden" style={{ zIndex: 9999 }}>
+                  <div className="transform scale-90 sm:scale-100">
+                    <ReCAPTCHA
+                      ref={recaptchaRef}
+                      sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
+                      onChange={handleRecaptchaChange}
+                      onExpired={resetRecaptcha}
+                      onLoad={handleRecaptchaLoad}
+                      onError={() => {
+                        setFieldErrors(prev => ({ ...prev, captcha: 'Erreur reCAPTCHA. Veuillez réessayer.' }));
+                      }}
+                      style={{ 
+                        zIndex: 9999,
+                        transform: 'scale(1)',
+                        transformOrigin: 'center'
+                      }}
+                      theme="light"
+                      size="normal"
+                      tabindex={0}
+                    />
+                  </div>
                 </div>
                 {fieldErrors.captcha && (
                   <p className="text-red-500 text-sm mt-2 text-center">{fieldErrors.captcha}</p>
                 )}
-                <p className="text-xs text-gray-500 mt-2 text-center">
+                <p className="text-xs text-blue-600 mt-2 text-center">
                   Cochez la case pour prouver que vous n'êtes pas un robot.
                 </p>
               </div>
               
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => handleModalChange(false)}
+                  className="w-full sm:w-auto order-2 sm:order-1"
                 >
                   Annuler
                 </Button>
                 <Button 
                   type="submit" 
                   disabled={isSubmitting || !isFormValid()}
-                  className="flex items-center gap-2"
+                  className="flex items-center justify-center gap-2 w-full sm:w-auto order-1 sm:order-2 bg-blue-600 hover:bg-blue-700"
                 >
                   {isSubmitting ? (
                     <>
@@ -497,22 +506,25 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
 
       {/* Liste des commentaires */}
       {approvedComments.length > 0 ? (
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold">
+        <Card className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+            <div className="text-center sm:text-left">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center justify-center sm:justify-start gap-2">
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <MessageCircle className="h-5 w-5 text-blue-600" />
+                </div>
                 Commentaires ({approvedComments.length})
               </h3>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-gray-600 mt-2">
                 Tous les commentaires sont modérés et approuvés
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex justify-center sm:justify-end">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
               >
                 <MessageCircle className="h-4 w-4" />
                Commenter
@@ -525,23 +537,23 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
               <div 
                 key={comment.id} 
                 id={`comment-${comment.id}`}
-                className={`border-b border-gray-100 pb-4 last:border-b-0 ${
-                  parseCommentDate(comment.createdAt) > new Date(Date.now() - 60000) ? 'animate-pulse bg-blue-50 rounded-2xl p-4' : ''
+                className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm ${
+                  parseCommentDate(comment.createdAt) > new Date(Date.now() - 60000) ? 'animate-pulse bg-blue-50 border-blue-200' : ''
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-100">
-                    <User className="h-4 w-4 text-blue-600" />
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-100 flex-shrink-0">
+                    <User className="h-5 w-5 text-blue-600" />
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-gray-900">{comment.name}</span>
-                      <span className="text-sm text-gray-500">
-                        <Calendar className="h-3 w-3 inline mr-1" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-2">
+                      <span className="font-semibold text-gray-900 text-sm">{comment.name}</span>
+                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
                         {formatDate(parseCommentDate(comment.createdAt))}
                       </span>
                     </div>
-                    <p className="text-gray-700">
+                    <p className="text-gray-700 text-sm leading-relaxed">
                       {comment.content}
                     </p>
                   </div>
@@ -552,16 +564,17 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
         </Card>
       ) : (
         <Card className="p-6">
-          <div className="text-center py-8 text-gray-500">
-            <MessageCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-lg font-medium">Aucun commentaire</p>
-            <p className="text-sm mb-4">
-              Soyez le premier à commenter cet article !
+          <div className="text-center py-12 text-gray-500">
+            <div className="p-4 bg-gray-100 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+              <MessageCircle className="h-10 w-10 text-gray-400" />
+            </div>
+            <p className="text-xl font-semibold text-gray-700 mb-2">Aucun commentaire</p>
+            <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+              Soyez le premier à partager votre avis sur cet article !
             </p>
             <Button
-              variant="outline"
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
             >
               <MessageCircle className="h-4 w-4" />
               Laisser un commentaire

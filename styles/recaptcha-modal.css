@@ -20,13 +20,32 @@
 
 /* Améliorer le scroll du modal */
 [data-radix-dialog-content] {
-  max-height: 90vh !important;
+  max-height: 95vh !important;
   overflow-y: auto !important;
+  overflow-x: hidden !important;
+  width: 95vw !important;
+  max-width: 500px !important;
+  margin: 0 auto !important;
 }
 
 /* S'assurer que le contenu du modal peut scroller */
 [data-radix-dialog-content] > div {
   overflow: visible !important;
+  overflow-x: hidden !important;
+}
+
+/* Améliorer l'affichage mobile */
+@media (max-width: 640px) {
+  [data-radix-dialog-content] {
+    width: 95vw !important;
+    max-width: none !important;
+    margin: 10px !important;
+    max-height: 90vh !important;
+  }
+  
+  .comment-modal [data-radix-dialog-content] {
+    padding: 16px !important;
+  }
 }
 
 /* Améliorer l'affichage des éléments du reCAPTCHA */
@@ -112,6 +131,29 @@
 .comment-modal [data-radix-dialog-content] {
   overflow-y: auto !important;
   overflow-x: hidden !important;
+  width: 95vw !important;
+  max-width: 500px !important;
+}
+
+/* Améliorer l'affichage mobile du reCAPTCHA */
+@media (max-width: 640px) {
+  .comment-modal .g-recaptcha {
+    transform: scale(0.85) !important;
+    transform-origin: center !important;
+  }
+  
+  .comment-modal .g-recaptcha iframe {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Améliorer l'affichage des champs de formulaire sur mobile */
+@media (max-width: 640px) {
+  .comment-modal input,
+  .comment-modal textarea {
+    font-size: 16px !important; /* Évite le zoom automatique sur iOS */
+  }
 }
 
 /* Améliorer l'affichage des éléments du reCAPTCHA */
