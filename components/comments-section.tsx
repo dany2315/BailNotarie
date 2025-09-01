@@ -159,8 +159,8 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
     console.log('reCAPTCHA chargé');
     // S'assurer que les événements sont bien attachés
     setTimeout(() => {
-      const recaptchaElement = document.querySelector('.g-recaptcha');
-      if (recaptchaElement && recaptchaElement instanceof HTMLElement) {
+      const recaptchaElement = document.querySelector('.g-recaptcha') as HTMLElement;
+      if (recaptchaElement) {
         recaptchaElement.style.zIndex = '99999';
         recaptchaElement.style.pointerEvents = 'auto';
         recaptchaElement.style.position = 'relative';
