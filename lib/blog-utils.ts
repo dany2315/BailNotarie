@@ -76,7 +76,7 @@ export function generateArticleMetadata(article: Article) {
         ...article.title.toLowerCase().split(' ').filter(word => word.length > 3)
       ];
   
-  const ogImage = article.ogImage || article.imageUrl || "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200";
+  const ogImage =  article.imageUrl
 
   return {
     title,
