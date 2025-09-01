@@ -8,6 +8,7 @@ const commentSchema = z.object({
   email: z.string().email('Email invalide'),
   content: z.string().min(10, 'Le commentaire doit contenir au moins 10 caractères'),
   articleId: z.string().min(1, 'ID de l\'article requis'),
+  captchaToken: z.string().min(1, 'Token reCAPTCHA requis'),
 });
 
 export async function POST(request: NextRequest) {
@@ -20,6 +21,38 @@ export async function POST(request: NextRequest) {
     // Validation des données
     const validatedData = commentSchema.parse(body);
     console.log('✅ Données validées avec succès');
+    
+    // Vérification du reCAPTCHA
+    const recaptchaSecretKey = process.env.RECAPTCHA_SECRET_KEY;
+    if (!recaptchaSecretKey) {
+      console.log('❌ Clé secrète reCAPTCHA manquante');
+      return NextResponse.json(
+        { error: 'Configuration reCAPTCHA manquante' },
+        { status: 500 }
+      );
+    }
+
+    const recaptchaResponse = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        secret: recaptchaSecretKey,
+        response: validatedData.captchaToken,
+      }),
+    });
+
+    const recaptchaData = await recaptchaResponse.json();
+    
+    if (!recaptchaData.success) {
+      console.log('❌ reCAPTCHA invalide:', recaptchaData['error-codes']);
+      return NextResponse.json(
+        { error: 'Vérification reCAPTCHA échouée. Veuillez réessayer.' },
+        { status: 400 }
+      );
+    }
+    console.log('✅ reCAPTCHA validé');
     
     // Vérifier que l'article existe
     const article = await prisma.article.findUnique({
@@ -43,7 +76,7 @@ export async function POST(request: NextRequest) {
         email: validatedData.email,
         content: validatedData.content,
         articleId: validatedData.articleId,
-        isApproved: false, // Par défaut, les commentaires ne sont pas approuvés
+        isApproved: true, // Approuver automatiquement si le captcha est valide
       },
     });
     
@@ -57,6 +90,7 @@ export async function POST(request: NextRequest) {
           name: comment.name,
           content: comment.content,
           createdAt: comment.createdAt,
+          isApproved: comment.isApproved,
         }
       },
       { status: 201 }

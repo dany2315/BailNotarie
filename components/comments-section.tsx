@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { MessageCircle, Send, User, Calendar, RefreshCw, Plus } from "lucide-react";
+import { MessageCircle, Send, User, Calendar, RefreshCw, Plus, Shield } from "lucide-react";
 import { formatDate } from '@/lib/blog-utils';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 interface Comment {
   id: string;
@@ -40,17 +41,29 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
   const [fieldErrors, setFieldErrors] = useState({
     name: '',
     email: '',
-    content: ''
+    content: '',
+    captcha: ''
   });
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
   const [localComments, setLocalComments] = useState(comments);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'approved' | 'pending'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Fonction pour réinitialiser le reCAPTCHA
+  const resetRecaptcha = () => {
+    if (recaptchaRef.current) {
+      recaptchaRef.current.reset();
+    }
+    setCaptchaToken(null);
+    setFieldErrors(prev => ({ ...prev, captcha: '' }));
+  };
 
   // Fonction pour réinitialiser le formulaire
   const resetForm = () => {
     setFormData({ name: '', email: '', content: '' });
-    setFieldErrors({ name: '', email: '', content: '' });
+    setFieldErrors({ name: '', email: '', content: '', captcha: '' });
+    resetRecaptcha();
   };
 
   // Fonction pour gérer l'ouverture/fermeture du modal
@@ -74,16 +87,20 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
 
   // Exposer la fonction openModal via ref
   useImperativeHandle(ref, () => ({
-    openModal: () => setIsModalOpen(true)
+    openModal: () => {
+      setIsModalOpen(true);
+    }
   }));
+
+  // Tous les commentaires sont approuvés (captcha validé)
+  const approvedComments = localComments.filter(comment => comment.isApproved);
 
   // Log pour débogage
   console.log('🔍 CommentsSection props:', { 
     articleId, 
     commentsCount: comments.length,
     totalCommentsCount: localComments.length,
-    approvedCommentsCount: localComments.filter(c => c.isApproved).length,
-    pendingCommentsCount: localComments.filter(c => !c.isApproved).length
+    approvedCommentsCount: approvedComments.length
   });
 
   // Rafraîchissement automatique des commentaires toutes les 30 secondes
@@ -94,6 +111,16 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
 
     return () => clearInterval(interval);
   }, [articleId]);
+
+  // Fonction pour gérer le changement de reCAPTCHA
+  const handleRecaptchaChange = (token: string | null) => {
+    setCaptchaToken(token);
+    if (token) {
+      setFieldErrors(prev => ({ ...prev, captcha: '' }));
+    } else {
+      setFieldErrors(prev => ({ ...prev, captcha: 'Veuillez valider le reCAPTCHA' }));
+    }
+  };
 
   // Validation en temps réel
   const validateField = (field: string, value: string) => {
@@ -146,6 +173,7 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) &&
       formData.content.trim().length >= 10 &&
       formData.content.trim().length <= 1000 &&
+      captchaToken !== null &&
       articleId
     );
   };
@@ -162,20 +190,6 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
       console.error('Erreur lors du rafraîchissement des commentaires:', error);
     }
   };
-
-  // Fonction pour filtrer les commentaires
-  const getFilteredComments = () => {
-    switch (filter) {
-      case 'approved':
-        return localComments.filter(comment => comment.isApproved);
-      case 'pending':
-        return localComments.filter(comment => !comment.isApproved);
-      default:
-        return localComments;
-    }
-  };
-
-  const filteredComments = getFilteredComments();
 
   // Fonction de validation côté client
   const validateForm = () => {
@@ -205,6 +219,11 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
       errors.push('Le commentaire doit contenir au moins 10 caractères');
     } else if (formData.content.trim().length > 1000) {
       errors.push('Le commentaire ne peut pas dépasser 1000 caractères');
+    }
+
+    // Validation du reCAPTCHA
+    if (!captchaToken) {
+      errors.push('Veuillez valider le reCAPTCHA');
     }
 
     // Validation de l'articleId
@@ -242,9 +261,10 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
     // Log des données envoyées pour débogage
     const requestData = {
       ...formData,
-      articleId
+      articleId,
+      captchaToken
     };
-    console.log('📤 Données envoyées à l\'API:', { ...requestData, email: '[MASKED]' });
+    console.log('📤 Données envoyées à l\'API:', { ...requestData, email: '[MASKED]', captchaToken: '[MASKED]' });
 
     try {
       const response = await fetch('/api/comments', {
@@ -268,13 +288,14 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
           email: formData.email,
           content: formData.content,
           createdAt: new Date(),
-          isApproved: false, // Le commentaire n'est pas encore approuvé
+          isApproved: responseData.comment.isApproved, // Utiliser le statut retourné par l'API
           articleId: articleId
         };
         
         setLocalComments(prev => [newComment, ...prev]);
         setFormData({ name: '', email: '', content: '' });
-        setFieldErrors({ name: '', email: '', content: '' });
+        setFieldErrors({ name: '', email: '', content: '', captcha: '' });
+        resetRecaptcha();
         
         // Fermer le modal
         setIsModalOpen(false);
@@ -317,7 +338,7 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
             <p className="font-medium">Commentaire soumis avec succès !</p>
           </div>
           <p className="text-green-700 text-sm mt-1">
-            Votre commentaire sera visible après modération par notre équipe.
+            Votre commentaire a été publié avec succès et est maintenant visible !
           </p>
         </Card>
       )}
@@ -332,7 +353,7 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
                 Laisser un commentaire
               </DialogTitle>
               <DialogDescription className="mt-2">
-                Partagez votre avis ou posez une question sur cet article. Votre commentaire sera visible après modération.
+                Partagez votre avis ou posez une question sur cet article. Votre commentaire sera publié immédiatement après validation du captcha de sécurité.
               </DialogDescription>
             </DialogHeader>
             
@@ -389,6 +410,28 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
                   </p>
                 </div>
               </div>
+
+              {/* reCAPTCHA */}
+              <div className=" ">
+
+                <div className="flex justify-center">
+                  <ReCAPTCHA
+                    ref={recaptchaRef}
+                    sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
+                    onChange={handleRecaptchaChange}
+                    onExpired={resetRecaptcha}
+                    onError={() => {
+                      setFieldErrors(prev => ({ ...prev, captcha: 'Erreur reCAPTCHA. Veuillez réessayer.' }));
+                    }}
+                  />
+                </div>
+                {fieldErrors.captcha && (
+                  <p className="text-red-500 text-sm mt-2 text-center">{fieldErrors.captcha}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Cochez la case pour prouver que vous n'êtes pas un robot.
+                </p>
+              </div>
               
               <div className="flex justify-end gap-3 pt-4">
                 <Button
@@ -422,13 +465,16 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
       </div>
 
       {/* Liste des commentaires */}
-      {localComments.length > 0 && (
+      {approvedComments.length > 0 ? (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold">
-                Commentaires ({localComments.length})
+                Commentaires ({approvedComments.length})
               </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Tous les commentaires sont modérés et approuvés
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -444,34 +490,17 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
           </div>
           
           <div className="space-y-4">
-            {filteredComments.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <MessageCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-lg font-medium">Aucun commentaire</p>
-                <p className="text-sm">
-                  {filter === 'all' && 'Soyez le premier à commenter cet article !'}
-                  {filter === 'approved' && 'Aucun commentaire approuvé pour le moment.'}
-                  {filter === 'pending' && 'Aucun commentaire en attente de modération.'}
-                </p>
-              </div>
-            ) : (
-              filteredComments.map((comment) => (
+            {approvedComments.map((comment) => (
               <div 
                 key={comment.id} 
                 id={`comment-${comment.id}`}
                 className={`border-b border-gray-100 pb-4 last:border-b-0 ${
-                  !comment.isApproved ? 'bg-amber-50 border-amber-200 rounded-lg p-3' : ''
-                } ${
-                  parseCommentDate(comment.createdAt) > new Date(Date.now() - 60000) ? 'animate-pulse bg-blue-50' : ''
+                  parseCommentDate(comment.createdAt) > new Date(Date.now() - 60000) ? 'animate-pulse bg-blue-50 rounded-2xl p-4' : ''
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    comment.isApproved ? 'bg-blue-100' : 'bg-amber-100'
-                  }`}>
-                    <User className={`h-4 w-4 ${
-                      comment.isApproved ? 'text-blue-600' : 'text-amber-600'
-                    }`} />
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-100">
+                    <User className="h-4 w-4 text-blue-600" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -480,20 +509,32 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
                         <Calendar className="h-3 w-3 inline mr-1" />
                         {formatDate(parseCommentDate(comment.createdAt))}
                       </span>
-                      {!comment.isApproved && (
-                        <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
-                          En attente de modération
-                        </span>
-                      )}
                     </div>
-                    <p className={`${comment.isApproved ? 'text-gray-700' : 'text-gray-600 italic'}`}>
+                    <p className="text-gray-700">
                       {comment.content}
                     </p>
                   </div>
                 </div>
               </div>
-            ))
-            )}
+            ))}
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-6">
+          <div className="text-center py-8 text-gray-500">
+            <MessageCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <p className="text-lg font-medium">Aucun commentaire</p>
+            <p className="text-sm mb-4">
+              Soyez le premier à commenter cet article !
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Laisser un commentaire
+            </Button>
           </div>
         </Card>
       )}

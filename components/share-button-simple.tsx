@@ -50,7 +50,7 @@ export function ShareButtonSimple({
       onClick={handleShare}
     >
       <Share2 className="h-4 w-4" />
-      <span className="hidden sm:inline">Partager</span>
+      <span className="sm:inline">Partager</span>
     </Button>
   );
 }

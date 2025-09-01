@@ -118,6 +118,16 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
                       url={`https://bailnotarie.fr/blog/${article.slug}`}
                       title={article.title}
                       description={article.description}
+                      variant="outline"
+                      size="sm"
+                      className="bg-transparent text-black"
+                      
+                    />
+                    <CommentButton 
+                      variant="outline"
+                      size="sm"
+                      className="bg-transparent text-black"
+                      onCommentClick={handleCommentClick}
                     />
                   </div>
                 </div>

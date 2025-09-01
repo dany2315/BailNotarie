@@ -72,8 +72,6 @@ export function generateArticleMetadata(article: Article) {
     : [
         "bail notarié",
         "location immobilière",
-        "force exécutoire",
-        "sécurité juridique",
         article.category.name.toLowerCase(),
         ...article.title.toLowerCase().split(' ').filter(word => word.length > 3)
       ];
