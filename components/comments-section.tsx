@@ -369,8 +369,8 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
       {/* Bouton pour ouvrir le modal de commentaire */}
       <div className="flex justify-center">
         <Dialog open={isModalOpen} onOpenChange={handleModalChange}>
-          <DialogContent className="w-[95vw] max-w-[500px] max-h-[95vh] overflow-y-auto overflow-x-hidden comment-modal mx-auto">
-            <DialogHeader className="text-center pb-4 border-b border-gray-100">
+          <DialogContent className="w-[95vw] max-w-[500px] max-h-[95vh] overflow-hidden comment-modal mx-auto flex flex-col">
+            <DialogHeader className="text-center pb-4 border-b border-gray-100 flex-shrink-0">
               <DialogTitle className="flex items-center justify-center gap-2 text-xl font-semibold text-gray-800">
                 <div className="p-2 bg-blue-100 rounded-full">
                   <MessageCircle className="h-5 w-5 text-blue-600" />
@@ -382,7 +382,8 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
               </DialogDescription>
             </DialogHeader>
             
-            <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-1 scrollable-content">
+              <form onSubmit={handleSubmit} className="space-y-4 mt-4 pb-4">
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="name" className="mb-2 block text-sm font-medium">Nom *</Label>
@@ -499,7 +500,8 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
                   )}
                 </Button>
               </div>
-            </form>
+              </form>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

@@ -21,17 +21,27 @@
 /* Améliorer le scroll du modal */
 [data-radix-dialog-content] {
   max-height: 95vh !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+  overflow: hidden !important;
   width: 95vw !important;
   max-width: 500px !important;
   margin: 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 /* S'assurer que le contenu du modal peut scroller */
 [data-radix-dialog-content] > div {
   overflow: visible !important;
   overflow-x: hidden !important;
+}
+
+/* En-tête fixe */
+[data-radix-dialog-content] [data-radix-dialog-header] {
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  top: 0 !important;
+  background: white !important;
+  z-index: 10 !important;
 }
 
 /* Améliorer l'affichage mobile */
@@ -129,10 +139,48 @@
 
 /* S'assurer que le contenu du modal peut scroller correctement */
 .comment-modal [data-radix-dialog-content] {
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+  overflow: hidden !important;
   width: 95vw !important;
   max-width: 500px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Zone de contenu scrollable */
+.comment-modal [data-radix-dialog-content] .scrollable-content {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 4px !important; /* Espace pour la scrollbar */
+}
+
+/* Style de la scrollbar */
+.comment-modal .scrollable-content::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.comment-modal .scrollable-content::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 3px !important;
+}
+
+.comment-modal .scrollable-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 3px !important;
+}
+
+.comment-modal .scrollable-content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
+/* En-tête fixe dans le modal */
+.comment-modal [data-radix-dialog-header] {
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  top: 0 !important;
+  background: white !important;
+  z-index: 10 !important;
+  border-bottom: 1px solid #e5e7eb !important;
 }
 
 /* Améliorer l'affichage mobile du reCAPTCHA */
