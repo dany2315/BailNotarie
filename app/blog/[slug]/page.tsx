@@ -67,7 +67,7 @@ async function getRelatedArticles(categoryId: string, currentSlug: string) {
       slug: { not: currentSlug }
     },
     take: 3,
-    include: { category: true },
+    include: { category: true},
     orderBy: { createdAt: 'desc' }
   })
 }

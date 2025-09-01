@@ -25,6 +25,8 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
     commentsSectionRef.current?.openModal();
   };
 
+  console.log(relatedArticles);
+
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Hero Section avec image */}
@@ -147,7 +149,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
                 <Card className="p-6 mt-12">
                   <h3 className="font-semibold mb-4">Articles liés</h3>
                   <div className="space-y-4">
-                    {relatedArticles.map((relatedArticle: { id: string; slug: string; title: string; createdAt: Date }) => (
+                    {relatedArticles.map((relatedArticle: { id: string; slug: string; title: string; createdAt: Date , imageUrl: string }) => (
                       <Link 
                         key={relatedArticle.id}
                         href={`/blog/${relatedArticle.slug}`}
@@ -155,7 +157,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
                       >
                         <div className="flex gap-3">
                           <Image
-                            src="https://images.pexels.com/photos/4427430/pexels-photo-4427430.jpeg?auto=compress&cs=tinysrgb&w=100"
+                            src={relatedArticle.imageUrl || "https://images.pexels.com/photos/4427430/pexels-photo-4427430.jpeg?auto=compress&cs=tinysrgb&w=100"}
                             alt={relatedArticle.title}
                             width={60}
                             height={60}

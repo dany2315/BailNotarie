@@ -124,7 +124,7 @@ export default async function BlogPage() {
               <Card key={article.id} className="py-0 overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <div className="aspect-video bg-gray-200 overflow-hidden">
                   <img 
-                    src="https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800"
+                    src={article.imageUrl || "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800"}
                     alt={article.title}
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                   />
