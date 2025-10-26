@@ -122,10 +122,6 @@ export function SoftwareApplicationSchema({
     },
     "aggregateRating": {
       "@type": "AggregateRating",
-      "itemReviewed": {
-        "@type": "Service",
-        "name": name
-      },
       "ratingValue": aggregateRating.ratingValue,
       "reviewCount": aggregateRating.reviewCount,
       "bestRating": aggregateRating.bestRating,
@@ -135,7 +131,7 @@ export function SoftwareApplicationSchema({
       "@type": "Review",
         "itemReviewed": {
           "@type": "Service",
-          "name": name
+          "name": "BailNotarie"
         },
       "author": {
         "@type": "Person",

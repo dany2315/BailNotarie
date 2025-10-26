@@ -113,10 +113,6 @@ export function OrganizationSchema({
     },
     "aggregateRating": {
       "@type": "AggregateRating",
-      "itemReviewed": {
-        "@type": "Organization",
-        "name": name
-      },
       "ratingValue": 4.9,
       "reviewCount": 2000,
       "bestRating": 5,
