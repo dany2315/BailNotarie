@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface OrganizationSchemaProps {
+interface OptimizedOrganizationSchemaProps {
   name?: string;
   description?: string;
   url?: string;
@@ -20,9 +20,10 @@ interface OrganizationSchemaProps {
   foundingDate?: string;
   numberOfEmployees?: string;
   areaServed?: string[];
+  knowsAbout?: string[];
 }
 
-export function OrganizationSchema({
+export function OptimizedOrganizationSchema({
   name = "BailNotarie",
   description = "Expert en création de baux notariés avec force exécutoire renforcée. Accompagnement par des notaires certifiés pour une protection juridique maximale.",
   url = "https://bailnotarie.fr",
@@ -42,8 +43,23 @@ export function OrganizationSchema({
   ],
   foundingDate = "2019",
   numberOfEmployees = "10-50",
-  areaServed = ["France", "Europe"]
-}: OrganizationSchemaProps) {
+  areaServed = ["France", "Europe"],
+  knowsAbout = [
+    "Bail notarié",
+    "Force exécutoire",
+    "Droit immobilier",
+    "Notariat",
+    "Bail notaire",
+    "Bail location",
+    "Bail location notarié",
+    "Loi 2025-125",
+    "Location immobilière",
+    "Protection juridique",
+    "Accompagnement juridique",
+    "Acte authentique",
+    "Procédures simplifiées"
+  ]
+}: OptimizedOrganizationSchemaProps) {
   const schema = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -77,18 +93,7 @@ export function OrganizationSchema({
       "@type": "Country",
       "name": area
     })),
-    "knowsAbout": [
-      "Bail notarié",
-      "Force exécutoire",
-      "Droit immobilier",
-      "Notariat",
-      "Bail notaire",
-      "Bail location",
-      "Bail location notarié",
-      "Loi 2025-125 ",
-      "Location immobilière",
-      "Protection juridique"
-    ],
+    "knowsAbout": knowsAbout,
     "hasOfferCatalog": {
       "@type": "OfferCatalog",
       "name": "Services BailNotarie",
@@ -117,7 +122,32 @@ export function OrganizationSchema({
       "reviewCount": 2000,
       "bestRating": 5,
       "worstRating": 1
-    }
+    },
+    "keywords": [
+      "bail notarié",
+      "force exécutoire", 
+      "notaire",
+      "location",
+      "bail",
+      "acte authentique",
+      "procédures simplifiées",
+      "protection juridique",
+      "accompagnement juridique",
+      "service notarial"
+    ],
+    "inLanguage": "fr-FR",
+    "additionalType": "https://schema.org/LegalService",
+    "serviceArea": {
+      "@type": "Country",
+      "name": "France"
+    },
+    "hasCredential": [
+      {
+        "@type": "EducationalOccupationalCredential",
+        "name": "Notaires certifiés",
+        "description": "Certification professionnelle notariale"
+      }
+    ]
   };
 
   return (
@@ -130,4 +160,4 @@ export function OrganizationSchema({
   );
 }
 
-export default OrganizationSchema;
+export default OptimizedOrganizationSchema;
