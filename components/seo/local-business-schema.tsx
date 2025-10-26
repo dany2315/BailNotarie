@@ -217,7 +217,7 @@ export function LocalBusinessSchema({
       "@type": "Country",
       "name": area
     })),
-    "serviceArea": {
+    "serviceArea": serviceArea.geoMidpoint ? {
       "@type": "GeoCircle",
       "geoMidpoint": {
         "@type": "GeoCoordinates",
@@ -225,7 +225,7 @@ export function LocalBusinessSchema({
         "longitude": serviceArea.geoMidpoint.longitude
       },
       "geoRadius": serviceArea.geoRadius
-    },
+    } : undefined,
     "keywords": [
       "bail notarié",
       "force exécutoire",
