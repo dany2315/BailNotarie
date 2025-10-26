@@ -122,6 +122,11 @@ export function SoftwareApplicationSchema({
     },
     "aggregateRating": {
       "@type": "AggregateRating",
+      "itemReviewed": {
+        "@type": "Service",
+        "name": name,
+        "url": url
+      },
       "ratingValue": aggregateRating.ratingValue,
       "reviewCount": aggregateRating.reviewCount,
       "bestRating": aggregateRating.bestRating,
@@ -129,6 +134,11 @@ export function SoftwareApplicationSchema({
     },
     "review": reviews.map(review => ({
       "@type": "Review",
+        "itemReviewed": {
+          "@type": "Service",
+          "name": name,
+          "url": url
+        },
       "author": {
         "@type": "Person",
         "name": review.author

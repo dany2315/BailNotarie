@@ -68,6 +68,15 @@ export function ServiceSchema({
     },
     "aggregateRating": {
       "@type": "AggregateRating",
+      "itemReviewed": {
+        "@type": "Service",
+        "name": name,
+        "provider": {
+          "@type": "Organization",
+          "name": provider.name,
+          "url": provider.url
+        }
+      },
       "ratingValue": aggregateRating.ratingValue,
       "reviewCount": aggregateRating.reviewCount,
       "bestRating": 5,
