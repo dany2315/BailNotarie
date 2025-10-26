@@ -43,3 +43,5 @@ next-env.d.ts
 # react email
 .react-email
 
+
+/lib/generated/prisma

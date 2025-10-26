@@ -10,35 +10,9 @@ import { CTASection } from "@/components/cta-section";
 import { ContactForm } from "@/components/contact-form";
 import { FAQSection } from "@/components/faq-section";
 import { Footer } from "@/components/footer";
-import dynamic from "next/dynamic";
+import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
 
-export const metadata: Metadata = {
-  title: "Accueil - Bail Notarié Simple et Sécurisé",
-  description: "✅ Créez votre bail notarié en 48h avec BailNotarie. Force exécutoire immédiate, +2000 clients satisfaits, devis gratuit. Expert depuis 2019.",
-  keywords: [
-    "bail notarié",
-    "acte authentique",
-    "force exécutoire",
-    "propriétaire bailleur",
-    "location sécurisée",
-    "notaire bail",
-    "expulsion rapide",
-    "impayés loyer"
-  ],
-  openGraph: {
-    title: "BailNotarie - Bail Notarié Simple et Sécurisé",
-    description: "✅ Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits, devis gratuit.",
-    url: "https://bailnotarie.fr",
-    images: [
-      {
-        url: "https://bailnotarie.fr/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "BailNotarie - Expert en bail notarié"
-      }
-    ]
-  }
-};
+export const metadata: Metadata = generateDynamicMetadata({ page: 'home' });
 
 export default function Home() {
   return (

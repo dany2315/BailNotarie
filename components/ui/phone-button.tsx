@@ -19,7 +19,7 @@ export function PhoneButton({ phoneNumber, className, size = "default", onClick 
   return (
     <Button 
       onClick={handleCall}
-      className={`bg-green-600 hover:bg-green-700 text-white font-semibold ${className}`}
+      className={`bg-green-600 hover:bg-green-700 text-white font-semibold cursor-pointer ${className}`}
       size={size}
     >
       <Phone className="mr-2 h-4 w-4" />

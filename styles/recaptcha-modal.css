@@ -1,0 +1,266 @@
+/* Styles pour améliorer le reCAPTCHA dans le modal */
+
+
+
+body[data-scroll-locked="1"] {
+  pointer-events: auto !important;
+}
+
+/* Améliorer le scroll du modal */
+[data-radix-dialog-content] {
+  max-height: 95vh !important;
+  overflow: hidden !important;
+  width: 95vw !important;
+  max-width: 500px !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* S'assurer que le contenu du modal peut scroller */
+[data-radix-dialog-content] > div {
+  overflow: visible !important;
+  overflow-x: hidden !important;
+}
+
+/* En-tête fixe */
+[data-radix-dialog-content] [data-radix-dialog-header] {
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  top: 0 !important;
+  background: white !important;
+  z-index: 10 !important;
+}
+
+/* Améliorer l'affichage mobile */
+@media (max-width: 640px) {
+  [data-radix-dialog-content] {
+    width: 95vw !important;
+    max-width: none !important;
+    margin: 10px !important;
+    max-height: 90vh !important;
+  }
+  
+  .comment-modal [data-radix-dialog-content] {
+    padding: 16px !important;
+  }
+}
+
+/* Améliorer l'affichage des éléments du reCAPTCHA */
+.g-recaptcha-response {
+  z-index: 9999 !important;
+}
+
+/* S'assurer que les popups du reCAPTCHA sont visibles */
+.g-recaptcha-popup {
+  z-index: 100000 !important;
+}
+
+/* Améliorer l'interaction avec les éléments du reCAPTCHA */
+.g-recaptcha-checkbox {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+
+/* S'assurer que les images du reCAPTCHA sont cliquables */
+.g-recaptcha-image {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Améliorer l'affichage des boutons du reCAPTCHA */
+.g-recaptcha-button {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Forcer tous les éléments interactifs du reCAPTCHA */
+.g-recaptcha [role="button"],
+.g-recaptcha [role="checkbox"],
+.g-recaptcha [role="img"],
+.g-recaptcha [role="presentation"] {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Styles spécifiques pour le modal de commentaires */
+.comment-modal {
+  z-index: 50 !important;
+}
+
+.comment-modal [data-radix-dialog-overlay] {
+  z-index: 50 !important;
+}
+
+.comment-modal [data-radix-dialog-content] {
+  z-index: 51 !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+}
+
+/* S'assurer que les éléments du reCAPTCHA dans le modal sont accessibles */
+.comment-modal .g-recaptcha {
+  z-index: 99999 !important;
+  position: relative !important;
+  pointer-events: auto !important;
+}
+
+.comment-modal .g-recaptcha iframe {
+  z-index: 99999 !important;
+  position: relative !important;
+  pointer-events: auto !important;
+}
+
+/* Améliorer l'interaction avec les éléments du reCAPTCHA */
+.comment-modal .g-recaptcha * {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+
+/* S'assurer que les popups du reCAPTCHA sont visibles au-dessus du modal */
+.comment-modal .g-recaptcha-popup {
+  z-index: 100000 !important;
+}
+
+/* Améliorer l'affichage des images du reCAPTCHA */
+.comment-modal .g-recaptcha-image {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Améliorer l'affichage des boutons du reCAPTCHA */
+.comment-modal .g-recaptcha-button {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Forcer tous les éléments interactifs du reCAPTCHA dans le modal */
+.comment-modal .g-recaptcha [role="button"],
+.comment-modal .g-recaptcha [role="checkbox"],
+.comment-modal .g-recaptcha [role="img"],
+.comment-modal .g-recaptcha [role="presentation"],
+.comment-modal .g-recaptcha div,
+.comment-modal .g-recaptcha span,
+.comment-modal .g-recaptcha img,
+.comment-modal .g-recaptcha button,
+.comment-modal .g-recaptcha input {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative !important;
+}
+
+/* S'assurer que le contenu du modal peut scroller correctement */
+.comment-modal [data-radix-dialog-content] {
+  width: 95vw !important;
+  max-width: 500px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Zone de contenu scrollable */
+.comment-modal [data-radix-dialog-content] .scrollable-content {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 4px !important; /* Espace pour la scrollbar */
+}
+
+/* Style de la scrollbar */
+.comment-modal .scrollable-content::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.comment-modal .scrollable-content::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 3px !important;
+}
+
+.comment-modal .scrollable-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 3px !important;
+}
+
+.comment-modal .scrollable-content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
+/* En-tête fixe dans le modal */
+.comment-modal [data-radix-dialog-header] {
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  top: 0 !important;
+  background: white !important;
+  z-index: 10 !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+/* Améliorer l'affichage mobile du reCAPTCHA */
+@media (max-width: 640px) {
+  .comment-modal .g-recaptcha {
+    transform: scale(0.85) !important;
+    transform-origin: center !important;
+  }
+  
+  .comment-modal .g-recaptcha iframe {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Améliorer l'affichage des champs de formulaire sur mobile */
+@media (max-width: 640px) {
+  .comment-modal input,
+  .comment-modal textarea {
+    font-size: 16px !important; /* Évite le zoom automatique sur iOS */
+  }
+}
+
+/* Styles supplémentaires pour le reCAPTCHA */
+.g-recaptcha,
+.g-recaptcha *,
+.g-recaptcha iframe,
+.g-recaptcha div,
+.g-recaptcha span,
+.g-recaptcha img,
+.g-recaptcha button,
+.g-recaptcha input,
+.g-recaptcha [role="button"],
+.g-recaptcha [role="checkbox"],
+.g-recaptcha [role="img"],
+.g-recaptcha [role="presentation"] {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  position: relative !important;
+}
+
+/* Forcer l'interactivité du reCAPTCHA */
+.g-recaptcha iframe[src*="recaptcha"] {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  position: relative !important;
+}
+
+/* S'assurer que les éléments du reCAPTCHA sont cliquables */
+.g-recaptcha [data-callback],
+.g-recaptcha [data-expired-callback],
+.g-recaptcha [data-error-callback] {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+
+/* Améliorer l'affichage des éléments du reCAPTCHA */
+.comment-modal .g-recaptcha-response {
+  z-index: 9999 !important;
+}
+
+/* S'assurer que les éléments du reCAPTCHA sont visibles */
+.comment-modal .g-recaptcha-checkbox {
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+}

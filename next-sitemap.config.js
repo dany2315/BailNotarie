@@ -1,3 +1,5 @@
+const { PrismaClient } = require('@prisma/client');
+
 /** @type {import('next-sitemap').IConfig} */
 module.exports = {
   siteUrl: process.env.SITE_URL || 'https://bailnotarie.fr',
@@ -19,18 +21,47 @@ module.exports = {
       'https://bailnotarie.fr/sitemap.xml',
     ],
   },
+  additionalPaths: async (config) => {
+    const prisma = new PrismaClient();
+    
+    try {
+      // Récupérer tous les articles de blog
+      const articles = await prisma.article.findMany({
+        select: {
+          slug: true,
+          updatedAt: true,
+        },
+        orderBy: {
+          updatedAt: 'desc',
+        },
+      });
+
+      // Convertir en format sitemap
+      const blogPaths = articles.map((article) => ({
+        loc: `/blog/${article.slug}`,
+        changefreq: 'weekly',
+        priority: 0.9,
+        lastmod: article.updatedAt.toISOString(),
+      }));
+
+      return blogPaths;
+    } catch (error) {
+      console.error('Erreur lors de la génération du sitemap:', error);
+      return [];
+    } finally {
+      await prisma.$disconnect();
+    }
+  },
   transform: async (config, path) => {
     // Personnaliser les priorités et fréquences
     const customPriorities = {
       '/': 1.0,
-      //'/blog': 0.8,
-      //'/blog/[id]': 0.7,
+      '/blog': 0.8,
     };
 
     const customChangefreq = {
       '/': 'weekly',
-      //'/blog': 'weekly',
-      //'/blog/[id]': 'monthly',
+      '/blog': 'weekly',
     };
 
     return {

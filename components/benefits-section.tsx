@@ -8,32 +8,32 @@ export function BenefitsSection() {
   const mainBenefits = [
     {
       icon: Zap,
-      title: "Force exécutoire immédiate",
-      description: "Action rapide en cas d'impayés, sans procès. Délais d'expulsion réduits à 2-3 mois.",
+      title: "Force exécutoire renforcée",
+      description: "Nouveaux avantages : procédures simplifiées et accélérées en cas d'impayés. Délais d'expulsion considérablement réduits.",
       color: "from-red-500 to-pink-500",
       bgColor: "bg-red-50",
       iconColor: "text-red-600"
     },
     {
       icon: Shield,
-      title: "Protection renforcée",
-      description: "Sécurité juridique maximale avec un document authentique et officiel.",
+      title: "Protection juridique maximale",
+      description: "Sécurité renforcée avec un acte authentique incontestable et des garanties légales étendues.",
       color: "from-green-500 to-emerald-500",
       bgColor: "bg-green-50",
       iconColor: "text-green-600"
     },
     {
       icon: Eye,
-      title: "Clarté et transparence",
-      description: "Validation par un notaire impartial avec des termes clairs et sans ambiguïté.",
+      title: "Procédures modernisées",
+      description: "Simplification des démarches avec validation notariale et transparence accrue des échanges.",
       color: "from-blue-500 to-cyan-500",
       bgColor: "bg-blue-50",
       iconColor: "text-blue-600"
     },
     {
       icon: HeartHandshake,
-      title: "Accompagnement complet",
-      description: "Suivi personnalisé jusqu'à la signature avec remise du bail finalisé.",
+      title: "Accompagnement expert",
+      description: "Suivi personnalisé par nos notaires certifiés avec remise du bail finalisé et conseils juridiques.",
       color: "from-purple-500 to-indigo-500",
       bgColor: "bg-purple-50",
       iconColor: "text-purple-600"
@@ -41,11 +41,11 @@ export function BenefitsSection() {
   ];
 
   const comparisonPoints = [
-    { feature: "Force exécutoire", classic: false, notarial: true },
-    { feature: "Délai d'expulsion", classic: "12-18 mois", notarial: "2-3 mois" },
-    { feature: "Validation juridique", classic: false, notarial: true },
-    { feature: "Sécurité maximale", classic: false, notarial: true },
-    { feature: "Coût initial", classic: "Faible", notarial: "Modéré" }
+    { feature: "Force exécutoire renforcée", classic: false, notarial: true },
+    { feature: "Délai d'expulsion", classic: "12-18 mois", notarial: "Procédures accélérées" },
+    { feature: "Protection juridique", classic: "Limitée", notarial: "Maximale" },
+    { feature: "Procédures simplifiées", classic: false, notarial: true },
+    { feature: "Recours en cas d'impayés", classic: "Long et coûteux", notarial: "Rapide et efficace" }
   ];
 
   return (
@@ -54,17 +54,17 @@ export function BenefitsSection() {
         <div className="text-center mb-16">
 
           <Badge className="mb-6 bg-gradient-to-r from-indigo-600 to-purple-800 text-white border-0 px-6 py-2 text-sm font-semibold">
-              Nos avantages
+              Nouveaux avantages
             </Badge>
             <h2 className="text-4xl md:text-6xl font-bold mb-8">
             <span className="bg-gradient-to-r from-gray-900 via-indigo-600 to-purple-800 bg-clip-text text-transparent">
-              Le bail notarié,
+              Le bail notarié renforcé,
             </span>
             <br />
-            <span className="text-gray-900">votre meilleur allié</span>
+            <span className="text-gray-900">votre sécurité maximale</span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Découvrez les avantages uniques d'un bail authentifié par un notaire
+            Profitez des nouveaux avantages : force exécutoire renforcée, procédures simplifiées et protection juridique maximale
           </p>
         </div>
 
@@ -103,10 +103,10 @@ export function BenefitsSection() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-16">
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl shadow-xl p-8 border border-blue-200">
           <h3 className="text-2xl font-bold text-gray-900 mb-4">
-            Sécurisez votre location dès maintenant
+            Profitez des nouveaux avantages dès maintenant
           </h3>
           <p className="text-gray-600 mb-6">
-            Profitez de tous les avantages du bail notarié avec notre accompagnement expert
+            Force exécutoire renforcée, procédures simplifiées et protection maximale avec notre accompagnement expert
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
@@ -122,10 +122,10 @@ export function BenefitsSection() {
 
         <h2 className="text-4xl md:text-6xl font-bold mb-20 text-center mt-20">
             <span className="bg-gradient-to-r from-gray-900 via-indigo-600 to-purple-800 bg-clip-text text-transparent">
-            Comparez les avantages du bail notarié
+            Bail notarié renforcé
             </span>
             <br />
-            <span className="text-gray-900">avec le bail classique</span>
+            <span className="text-gray-900">vs bail classique</span>
         </h2>
 
         {/* Section de comparaison */}
@@ -134,14 +134,14 @@ export function BenefitsSection() {
             {/* Tableau de comparaison */}
             <div>
               <h3 className="text-2xl font-bold text-gray-900 mb-8">
-                Bail notarié vs Bail classique
+                Bail notarié renforcé vs Bail classique
               </h3>
               
               <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
                 <div className="grid grid-cols-3 bg-gray-50 p-4 font-semibold text-gray-700 text-sm">
                   <div>Critère</div>
                   <div className="text-center">Bail classique</div>
-                  <div className="text-center">Bail notarié</div>
+                  <div className="text-center">Bail notarié renforcé</div>
                 </div>
                 
                 {comparisonPoints.map((point, index) => (
@@ -195,11 +195,11 @@ export function BenefitsSection() {
                   <div className="space-y-3">
                     <div className="flex items-center space-x-3 text-white">
                       <Scale className="h-6 w-6" />
-                      <span className="font-semibold">Équité et transparence</span>
+                      <span className="font-semibold">Force exécutoire renforcée</span>
                     </div>
                     <div className="flex items-center space-x-3 text-white">
                       <Clock className="h-6 w-6" />
-                      <span className="font-semibold">Gain de temps considérable</span>
+                      <span className="font-semibold">Procédures accélérées</span>
                     </div>
                     <div className="flex items-center space-x-3 text-white">
                       <Shield className="h-6 w-6" />

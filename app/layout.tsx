@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
+import { StructuredData } from "@/components/seo/structured-data";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -133,70 +134,8 @@ export default function RootLayout({
         `}
       </Script>
       
-      {/* Schema.org JSON-LD */}
-      <Script
-        id="schema-org"
-        type="application/ld+json"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "ProfessionalService",
-            "name": "BailNotarie",
-            "description": "Expert en création de baux notariés avec force exécutoire immédiate. Service professionnel pour propriétaires bailleurs.",
-            "url": "https://bailnotarie.fr",
-            "logo": "https://bailnotarie.fr/logoAvec.png",
-            "image": "https://bailnotarie.fr/og-cover-v2.png",
-            "telephone": "+33749387756",
-            "email": "contact@bailnotarie.fr",
-            "address": {
-              "@type": "PostalAddress",
-              "addressCountry": "FR",
-              "addressLocality": "Paris"
-            },
-            "serviceType": "Notarial Services",
-            "areaServed": {
-              "@type": "Country",
-              "name": "France"
-            },
-            "hasOfferCatalog": {
-              "@type": "OfferCatalog",
-              "name": "Services de bail notarié",
-              "itemListElement": [
-                {
-                  "@type": "Offer",
-                  "itemOffered": {
-                    "@type": "Service",
-                    "name": "Création de bail notarié",
-                    "description": "Service complet de création de bail notarié avec force exécutoire immédiate"
-                  }
-                }
-              ]
-            },
-            "aggregateRating": {
-              "@type": "AggregateRating",
-              "ratingValue": "4.9",
-              "reviewCount": "2000",
-              "bestRating": "5",
-              "worstRating": "1"
-            },
-            "review": [
-              {
-                "@type": "Review",
-                "author": {
-                  "@type": "Person",
-                  "name": "Marie Dubois"
-                },
-                "reviewRating": {
-                  "@type": "Rating",
-                  "ratingValue": "5"
-                },
-                "reviewBody": "Excellent service ! Le processus était simple et rapide. Mon bail notarié m'a permis de récupérer rapidement les loyers impayés."
-              }
-            ]
-          })
-        }}
-      />
+      {/* Données structurées SEO optimisées */}
+      <StructuredData />
       </body>
     </html>
   );
