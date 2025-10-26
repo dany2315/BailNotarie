@@ -124,8 +124,7 @@ export function SoftwareApplicationSchema({
       "@type": "AggregateRating",
       "itemReviewed": {
         "@type": "Service",
-        "name": name,
-        "url": url
+        "name": name
       },
       "ratingValue": aggregateRating.ratingValue,
       "reviewCount": aggregateRating.reviewCount,
@@ -136,8 +135,7 @@ export function SoftwareApplicationSchema({
       "@type": "Review",
         "itemReviewed": {
           "@type": "Service",
-          "name": name,
-          "url": url
+          "name": name
         },
       "author": {
         "@type": "Person",

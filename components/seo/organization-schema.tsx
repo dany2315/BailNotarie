@@ -115,8 +115,7 @@ export function OrganizationSchema({
       "@type": "AggregateRating",
       "itemReviewed": {
         "@type": "Organization",
-        "name": name,
-        "url": url
+        "name": name
       },
       "ratingValue": 4.9,
       "reviewCount": 2000,

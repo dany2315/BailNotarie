@@ -70,12 +70,7 @@ export function ServiceSchema({
       "@type": "AggregateRating",
       "itemReviewed": {
         "@type": "Service",
-        "name": name,
-        "provider": {
-          "@type": "Organization",
-          "name": provider.name,
-          "url": provider.url
-        }
+        "name": name
       },
       "ratingValue": aggregateRating.ratingValue,
       "reviewCount": aggregateRating.reviewCount,
