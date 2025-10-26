@@ -205,7 +205,7 @@ export function ProcessSection() {
           <div className="grid lg:grid-cols-2">
             <div className="relative h-64 lg:h-auto">
               <Image
-                src="https://images.pexels.com/photos/1764956/pexels-photo-1764956.jpeg"
+                src="https://images.pexels.com/photos/4792282/pexels-photo-4792282.jpeg"
                 alt="Documents administratifs"
                 fill
                 className="object-cover"

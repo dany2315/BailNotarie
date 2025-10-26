@@ -7,34 +7,9 @@ import Link from "next/link";
 import { Calendar, Clock, ArrowRight } from "lucide-react";
 import { CallButton, ContactButton } from "@/components/ui/action-buttons";
 import { prisma } from '@/lib/prisma';
+import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
 
-export const metadata: Metadata = {
-  title: "Blog - Conseils et Guides sur le Bail Notarié",
-  description: "Découvrez nos conseils d'experts sur le bail notarié : guides pratiques, comparaisons, actualités juridiques. Tout pour sécuriser vos locations.",
-  keywords: [
-    "blog bail notarié",
-    "conseils propriétaire",
-    "guide bail authentique",
-    "actualités notariales",
-    "droit immobilier",
-    "location sécurisée",
-    "force exécutoire",
-    "expulsion locataire"
-  ],
-  openGraph: {
-    title: "Blog BailNotarie - Conseils et Guides sur le Bail Notarié",
-    description: "Découvrez nos conseils d'experts sur le bail notarié : guides pratiques, comparaisons, actualités juridiques.",
-    url: "https://bailnotarie.fr/blog",
-    images: [
-      {
-        url: "https://bailnotarie.fr/og-blog.png",
-        width: 1200,
-        height: 630,
-        alt: "Blog BailNotarie - Conseils experts"
-      }
-    ]
-  }
-};
+export const metadata: Metadata = generateDynamicMetadata({ page: 'blog' });
 
 // Fonction pour récupérer les articles depuis Prisma
 async function getArticles() {
@@ -94,7 +69,7 @@ export default async function BlogPage() {
       </section>
 
       {/* Filtres */}
-      <section className="py-8 bg-white border-b">
+      {/*<section className="py-8 bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap gap-2 justify-center">
             <Badge 
@@ -114,10 +89,10 @@ export default async function BlogPage() {
             ))}
           </div>
         </div>
-      </section>
+      </section>*/}
 
       {/* Articles */}
-      <section className="py-16">
+      <section className="pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {articles.map((article) => (

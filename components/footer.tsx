@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Scale, Mail, Phone, MapPin } from "lucide-react";
 import { Button } from "./ui/button";
+import Image from "next/image";
 
 export function Footer() {
   return (
@@ -11,9 +12,8 @@ export function Footer() {
         <div className="grid md:grid-cols-4 gap-8">
           {/* Logo et description */}
           <div className="space-y-4">
-            <Link href="/" className="flex items-center space-x-2">
-              <Scale className="h-8 w-8 text-blue-400" />
-              <span className="text-xl font-bold">BailNotarie</span>
+            <Link href="/" className=" w-auto rounded-lg overflow-hidden bg-white ">
+              <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} className="  w-30" />
             </Link>
             <p className="text-gray-400 text-sm">
               Votre partenaire de confiance pour la création de baux notariés 

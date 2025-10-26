@@ -5,6 +5,10 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { Home, ArrowLeft, Search, FileText, Phone, Mail } from "lucide-react";
 import Image from "next/image";
+import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = generateDynamicMetadata({ page: 'notFound' });
 
 export default function NotFound() {
   return (

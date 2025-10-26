@@ -21,13 +21,12 @@ export function HeroSection() {
           <div className="space-y-8">
             <div className="space-y-4 text-indigo-100">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
-                Bail notarié
-                <span className="text-blue-600"> simple</span> et
-                <span className="text-blue-600"> sécurisé</span>
+                Bail notarié avec
+                <span className="text-blue-600"> force exécutoire</span> renforcée
               </h1>
               <p className="text-xl text-gray-600 leading-relaxed text-center">
-                Formalisez votre bail avec un notaire en toute confiance.
-                Un acte authentique, incontestable et exécutoire immédiatement.
+                Procédures simplifiées, protection maximale et recours accélérés en cas d'impayés.
+                Un acte authentique incontestable et efficace.
               </p>
             </div>
 
@@ -35,15 +34,15 @@ export function HeroSection() {
             <div className="flex flex-row justify-center gap-4 sm:gap-20 w-full">
               <div className="flex items-center space-x-2">
                 <Shield className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium text-gray-700">Sécurisé</span>
+                <span className="text-sm font-medium text-gray-700">Sécurité</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium text-gray-700">Rapide</span>
+                <span className="text-sm font-medium text-gray-700">Garanti</span>
               </div>
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium text-gray-700">Garanti</span>
+                <span className="text-sm font-medium text-gray-700">Rapide</span>
               </div>
             </div>
 
@@ -97,7 +96,7 @@ export function HeroSection() {
                 variant="outline" 
                 size="lg"
                 onClick={scrollToContact}
-                className="text-lg px-8 py-4 border-2 hover:bg-blue-50"
+                className="text-lg px-8 py-4 border-2 hover:bg-blue-50 cursor-pointer"
               >
                 Mon bail notarié
                 <ArrowRight className="ml-2 h-5 w-5" />
