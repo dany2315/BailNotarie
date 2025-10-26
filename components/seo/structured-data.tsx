@@ -1,6 +1,6 @@
 import React from 'react';
+import { OrganizationSchema } from './organization-schema';
 import { LocalBusinessSchema } from './local-business-schema';
-import { ServiceSchema } from './service-schema';
 import { FAQSchema } from './faq-schema';
 import { ArticleSchema } from './article-schema';
 
@@ -26,13 +26,13 @@ interface StructuredDataProps {
 export function StructuredData({ page = 'home', customData, article }: StructuredDataProps) {
   return (
     <>
-      {/* Schéma LocalBusiness Principal - Éligible pour les étoiles et avis */}
+      {/* Schéma Organization Principal - Éligible pour les étoiles et avis selon Google */}
+      <OrganizationSchema />
+      
+      {/* Schéma LocalBusiness - Pour les informations locales et contact */}
       <LocalBusinessSchema />
       
-      {/* Schéma Service - Pour les informations détaillées du service */}
-      <ServiceSchema />
-      
-      {/* Schéma FAQ - Pour les questions fréquentes */}
+      {/* Schéma FAQ - Pour les questions fréquentes et featured snippets */}
       <FAQSchema />
       
       {/* Schéma Article - Pour les articles de blog */}

@@ -22,18 +22,6 @@ interface LocalBusinessSchemaProps {
   priceRange?: string;
   paymentAccepted?: string[];
   currenciesAccepted?: string[];
-  aggregateRating?: {
-    ratingValue: number;
-    reviewCount: number;
-    bestRating?: number;
-    worstRating?: number;
-  };
-  reviews?: Array<{
-    author: string;
-    rating: number;
-    reviewBody: string;
-    datePublished: string;
-  }>;
   sameAs?: string[];
   hasOfferCatalog?: Array<{
     name: string;
@@ -70,44 +58,6 @@ export function LocalBusinessSchema({
   priceRange = "€€",
   paymentAccepted = ["Cash", "Credit Card", "Bank Transfer"],
   currenciesAccepted = ["EUR"],
-  aggregateRating = {
-    ratingValue: 4.9,
-    reviewCount: 2000,
-    bestRating: 5,
-    worstRating: 1
-  },
-  reviews = [
-    {
-      author: "Marie Dubois",
-      rating: 5,
-      reviewBody: "Excellent service d'accompagnement ! Le processus était simple et rapide. Mon bail notarié m'a permis de récupérer rapidement les loyers impayés grâce à la force exécutoire renforcée.",
-      datePublished: "2024-12-15"
-    },
-    {
-      author: "Jean Martin",
-      rating: 5,
-      reviewBody: "Accompagnement professionnel par des notaires certifiés. Les procédures simplifiées ont considérablement réduit les délais. Je recommande vivement BailNotarie.",
-      datePublished: "2024-12-10"
-    },
-    {
-      author: "Sophie Leroy",
-      rating: 5,
-      reviewBody: "Protection juridique maximale avec un acte authentique incontestable. L'équipe est très réactive et les conseils sont précieux pour sécuriser ma location.",
-      datePublished: "2024-12-05"
-    },
-    {
-      author: "Pierre Moreau",
-      rating: 4,
-      reviewBody: "Service de qualité avec une équipe compétente. Le bail notarié offre une sécurité supplémentaire importante pour les propriétaires.",
-      datePublished: "2024-11-28"
-    },
-    {
-      author: "Claire Bernard",
-      rating: 5,
-      reviewBody: "Force exécutoire renforcée très efficace. Les procédures d'expulsion ont été considérablement accélérées. Un investissement qui vaut le coup.",
-      datePublished: "2024-11-20"
-    }
-  ],
   sameAs = [
     "https://bailnotarie.fr",
     "mailto:contact@bailnotarie.fr",
@@ -173,32 +123,6 @@ export function LocalBusinessSchema({
     "priceRange": priceRange,
     "paymentAccepted": paymentAccepted,
     "currenciesAccepted": currenciesAccepted,
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": aggregateRating.ratingValue,
-      "reviewCount": aggregateRating.reviewCount,
-      "bestRating": aggregateRating.bestRating,
-      "worstRating": aggregateRating.worstRating
-    },
-    "review": reviews.map(review => ({
-      "@type": "Review",
-      "itemReviewed": {
-        "@type": "LocalBusiness",
-        "name": name
-      },
-      "author": {
-        "@type": "Person",
-        "name": review.author
-      },
-      "reviewRating": {
-        "@type": "Rating",
-        "ratingValue": review.rating,
-        "bestRating": 5,
-        "worstRating": 1
-      },
-      "reviewBody": review.reviewBody,
-      "datePublished": review.datePublished
-    })),
     "sameAs": sameAs,
     "hasOfferCatalog": {
       "@type": "OfferCatalog",
