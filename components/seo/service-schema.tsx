@@ -68,10 +68,6 @@ export function ServiceSchema({
     },
     "aggregateRating": {
       "@type": "AggregateRating",
-      "itemReviewed": {
-        "@type": "Service",
-        "name": name
-      },
       "ratingValue": aggregateRating.ratingValue,
       "reviewCount": aggregateRating.reviewCount,
       "bestRating": 5,
