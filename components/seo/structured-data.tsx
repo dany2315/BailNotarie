@@ -1,7 +1,6 @@
 import React from 'react';
-import { SoftwareApplicationSchema } from './software-application-schema';
-import { OrganizationSchema } from './organization-schema';
-import { ServiceSchema } from './service-schema';
+import { OptimizedServiceSchema } from './optimized-service-schema';
+import { OptimizedOrganizationSchema } from './optimized-organization-schema';
 import { FAQSchema } from './faq-schema';
 import { ArticleSchema } from './article-schema';
 
@@ -27,14 +26,11 @@ interface StructuredDataProps {
 export function StructuredData({ page = 'home', customData, article }: StructuredDataProps) {
   return (
     <>
-      {/* Schéma SoftwareApplication - Principal pour les étoiles */}
-      <SoftwareApplicationSchema />
+      {/* Schéma Service Principal - Optimisé selon Google Guidelines */}
+      <OptimizedServiceSchema />
       
-      {/* Schéma Organization - Pour la crédibilité */}
-      <OrganizationSchema />
-      
-      {/* Schéma Service - Pour les services spécifiques */}
-      <ServiceSchema />
+      {/* Schéma Organization - Pour la crédibilité et les informations de contact */}
+      <OptimizedOrganizationSchema />
       
       {/* Schéma FAQ - Pour les questions fréquentes */}
       <FAQSchema />
