@@ -11,26 +11,54 @@ export function FAQSchema({
   faqs = [
     {
       question: "Qu'est-ce qu'un bail notarié ?",
-      answer: "Un bail notarié est un contrat de location authentifié par un notaire, doté d'une force exécutoire renforcée qui permet des procédures simplifiées et accélérées en cas d'impayés."
+      answer: "Un bail notarié est un contrat de location établi par un notaire qui bénéficie de la force exécutoire renforcée. Il permet un recouvrement accéléré des loyers impayés et une protection juridique maximale pour les propriétaires."
     },
     {
-      question: "Quels sont les avantages du bail notarié ?",
-      answer: "Le bail notarié offre une force exécutoire renforcée, des procédures simplifiées, une protection juridique maximale et un accompagnement expert par des notaires certifiés."
+      question: "Quels sont les avantages d'un bail notarié ?",
+      answer: "Les principaux avantages sont : force exécutoire renforcée, procédures d'expulsion accélérées, protection juridique maximale, acte authentique incontestable, et accompagnement par des notaires certifiés."
     },
     {
-      question: "Combien coûte un bail notarié ?",
-      answer: "Le coût d'un bail notarié varie selon la complexité du dossier. Contactez-nous pour un devis gratuit et personnalisé adapté à vos besoins."
+      question: "Combien coûte la création d'un bail notarié ?",
+      answer: "Le coût varie selon la complexité du bail et les services inclus. Contactez-nous pour un devis personnalisé adapté à vos besoins spécifiques."
     },
     {
       question: "Quel est le délai pour créer un bail notarié ?",
-      answer: "Grâce à nos procédures modernisées, nous pouvons créer votre bail notarié rapidement avec un accompagnement personnalisé par nos notaires certifiés."
+      answer: "Le délai moyen est de 15 jours ouvrés, incluant la rédaction, la validation par le notaire et la signature. Les procédures simplifiées permettent une mise en place rapide."
     },
     {
-      question: "Le bail notarié est-il plus sécurisé ?",
-      answer: "Oui, le bail notarié offre une sécurité juridique maximale avec un acte authentique incontestable et des garanties légales étendues."
+      question: "Le bail notarié est-il valable dans toute la France ?",
+      answer: "Oui, le bail notarié est valable sur tout le territoire français. Notre service couvre la France entière avec un accompagnement personnalisé dans chaque région."
     },
     {
-      question: "Que change la nouvelle loi 2025-125 pour le bail notarié ?",
+      question: "Que se passe-t-il en cas de loyers impayés ?",
+      answer: "Grâce à la force exécutoire renforcée, les procédures de recouvrement sont considérablement accélérées. Vous pouvez obtenir un titre exécutoire directement sans passer par les tribunaux."
+    },
+    {
+      question: "Puis-je modifier un bail notarié existant ?",
+      answer: "Oui, toute modification nécessite un avenant notarié. Notre équipe vous accompagne dans toutes les démarches de modification ou de renouvellement."
+    },
+    {
+      question: "Quelle est la différence avec un bail classique ?",
+      answer: "Le bail notarié offre une sécurité juridique supérieure avec force exécutoire renforcée, procédures accélérées et protection maximale, contrairement au bail classique qui nécessite des procédures judiciaires longues."
+    },
+    {
+      question: "Dois-je être présent physiquement pour la signature ?",
+      answer: "La présence physique est généralement requise pour la signature devant notaire, mais nous organisons les rendez-vous selon vos disponibilités et votre localisation."
+    },
+    {
+      question: "Le bail notarié est-il conforme à la loi 2025-125 ?",
+      answer: "Absolument. Nos baux notariés sont entièrement conformes à la nouvelle réglementation et aux dernières évolutions législatives en matière de location immobilière."
+    },
+    {
+      question: "Comment puis-je obtenir un devis pour la création d'un bail notarié ?",
+      answer: "Contactez-nous via notre formulaire de contact ou par téléphone. Nous vous fournirons un devis personnalisé adapté à vos besoins spécifiques."
+    },
+    {
+      question: "Quel est le processus de création d'un bail notarié ?",
+      answer: "Le processus est simple et rapide. Nous vous accompagnons dans toutes les étapes : rédaction du bail, validation par le notaire, signature et délivrance du document final."
+    },
+    {
+      question: "Quel est le décret 2025-125 pour le bail notarié ?",
       answer: "La loi 2025-125 renforce les avantages du bail notarié en simplifiant davantage les procédures d'expulsion et en réduisant les délais d'exécution en cas d'impayés. Elle accorde également de nouvelles prérogatives aux notaires pour une protection accrue des propriétaires."
     },
   ]
