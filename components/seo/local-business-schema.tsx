@@ -40,9 +40,9 @@ interface LocalBusinessSchemaProps {
 export function LocalBusinessSchema({
   name = "BailNotarie",
   description = "Service professionnel d'accompagnement dans la création de bail notarié avec force exécutoire renforcée. Accompagnement par des notaires certifiés pour une protection juridique maximale.",
-  url = "https://bailnotarie.fr",
-  logo = "https://bailnotarie.fr/logoSans.png",
-  image = "https://bailnotarie.fr/og-cover-v2.png",
+  url = "https://www.bailnotarie.fr",
+  logo = "https://www.bailnotarie.fr/logoSans.png",
+  image = "https://www.bailnotarie.fr/og-cover-v2.png",
   telephone = "+33749387756",
   email = "contact@bailnotarie.fr",
   address = {
@@ -59,7 +59,7 @@ export function LocalBusinessSchema({
   paymentAccepted = ["Cash", "Credit Card", "Bank Transfer"],
   currenciesAccepted = ["EUR"],
   sameAs = [
-    "https://bailnotarie.fr",
+    "https://www.bailnotarie.fr",
     "mailto:contact@bailnotarie.fr",
     "tel:+33749387756"
   ],

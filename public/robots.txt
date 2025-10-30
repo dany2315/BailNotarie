@@ -9,7 +9,7 @@ Disallow: /_next/
 Disallow: /admin/
 
 # Host
-Host: https://bailnotarie.fr
+Host: https://www.bailnotarie.fr
 
 # Sitemaps
-Sitemap: https://bailnotarie.fr/sitemap.xml
+Sitemap: https://www.bailnotarie.fr/sitemap.xml

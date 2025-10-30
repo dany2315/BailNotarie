@@ -18,7 +18,7 @@ interface ArticleSchemaProps {
 }
 
 export function ArticleSchema({ article }: ArticleSchemaProps) {
-  const baseUrl = "https://bailnotarie.fr";
+  const baseUrl = "https://www.bailnotarie.fr";
   const articleUrl = `${baseUrl}/blog/${article.slug}`;
   
   const schema = {

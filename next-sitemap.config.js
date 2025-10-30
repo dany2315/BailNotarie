@@ -4,7 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 
 /** @type {import('next-sitemap').IConfig} */
 module.exports = {
-  siteUrl: process.env.SITE_URL || 'https://bailnotarie.fr',
+  siteUrl: process.env.SITE_URL || 'https://www.bailnotarie.fr',
   generateRobotsTxt: true,
   generateIndexSitemap: false, // garde un seul sitemap.xml
   exclude: ['/server-sitemap-index.xml'],
@@ -16,7 +16,7 @@ module.exports = {
     ],
     // Laisse ce bloc si tu veux déclarer d'autres sitemaps externes
     additionalSitemaps: [
-      'https://bailnotarie.fr/sitemap.xml',
+      'https://www.bailnotarie.fr/sitemap.xml',
     ],
   },
 
