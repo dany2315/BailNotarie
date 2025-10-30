@@ -44,9 +44,9 @@ export const defaultMetadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://bailnotarie.fr",
+    canonical: "https://www.bailnotarie.fr",
     languages: {
-      'fr-FR': 'https://bailnotarie.fr',
+      'fr-FR': 'https://www.bailnotarie.fr',
     },
   },
   verification: {
@@ -66,13 +66,13 @@ export const defaultMetadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "fr_FR",
-    url: "https://bailnotarie.fr",
+    url: "https://www.bailnotarie.fr",
     siteName: "BailNotarie",
     title: "BailNotarie - Bail Notarié avec Force Exécutoire Renforcée",
     description: "Profitez des nouveaux avantages du bail notarié : force exécutoire immédiate, procédures simplifiées, protection maximale.",
     images: [
       {
-        url: "https://bailnotarie.fr/og-cover-v2.png",
+        url: "https://www.bailnotarie.fr/og-cover-v2.png",
         width: 1200,
         height: 630,
         alt: "BailNotarie - Expert en bail notarié avec force exécutoire renforcée",
@@ -85,14 +85,14 @@ export const defaultMetadata: Metadata = {
     description: "Profitez des nouveaux avantages du bail notarié : force exécutoire immédiate, procédures simplifiées, protection maximale.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
-    images: ["https://bailnotarie.fr/og-cover-v2.png"],
+    images: ["https://www.bailnotarie.fr/og-cover-v2.png"],
   },
 };
 
 export function generatePageMetadata(pageData: PageMetadata): Metadata {
-  const baseUrl = "https://bailnotarie.fr";
+  const baseUrl = "https://www.bailnotarie.fr";
   const canonicalUrl = pageData.canonical ? `${baseUrl}${pageData.canonical}` : baseUrl;
-  const ogImage = pageData.ogImage || "https://bailnotarie.fr/og-cover-v2.png";
+  const ogImage = pageData.ogImage || "https://www.bailnotarie.fr/og-cover-v2.png";
 
   return {
     title: pageData.title,
@@ -171,7 +171,7 @@ export const pageMetadata = {
       "notaire bail"
     ],
     canonical: "/",
-    ogImage: "https://bailnotarie.fr/og-cover-v2.png",
+    ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     ogType: "website" as const,
     noIndex: false
   },
@@ -190,7 +190,7 @@ export const pageMetadata = {
       "bail sécurisé"
     ],
     canonical: "/#services",
-    ogImage: "https://bailnotarie.fr/og-cover-v2.png",
+    ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     ogType: "website" as const,
     noIndex: false
   },
@@ -208,7 +208,7 @@ export const pageMetadata = {
       "procédure bail notaire"
     ],
     canonical: "/#process",
-    ogImage: "https://bailnotarie.fr/og-cover-v2.png",
+    ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     ogType: "website" as const,
     noIndex: false
   },
@@ -226,7 +226,7 @@ export const pageMetadata = {
       "questions fréquentes"
     ],
     canonical: "/#faq",
-    ogImage: "https://bailnotarie.fr/og-cover-v2.png",
+    ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     ogType: "website" as const,
     noIndex: false
   },
@@ -244,7 +244,7 @@ export const pageMetadata = {
       "consultation gratuite"
     ],
     canonical: "/#contact",
-    ogImage: "https://bailnotarie.fr/og-cover-v2.png",
+    ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     ogType: "website" as const,
     noIndex: false
   },
@@ -262,7 +262,7 @@ export const pageMetadata = {
       "expertise notariale"
     ],
     canonical: "/blog",
-    ogImage: "https://bailnotarie.fr/og-cover-v2.png",
+    ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     ogType: "website" as const,
     noIndex: false
   },
@@ -277,7 +277,7 @@ export const pageMetadata = {
       "services notaire"
     ],
     canonical: "/404",
-    ogImage: "https://bailnotarie.fr/og-cover-v2.png",
+    ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     ogType: "website" as const,
     noIndex: true
   }
