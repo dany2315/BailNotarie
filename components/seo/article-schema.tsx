@@ -1,4 +1,5 @@
-import React from 'react';
+"use client";
+import React from "react";
 
 interface ArticleSchemaProps {
   article: {
@@ -20,19 +21,20 @@ interface ArticleSchemaProps {
 export function ArticleSchema({ article }: ArticleSchemaProps) {
   const baseUrl = "https://www.bailnotarie.fr";
   const articleUrl = `${baseUrl}/blog/${article.slug}`;
-  
+
   const schema = {
     "@context": "https://schema.org",
-    "@type": "Article",
-    "headline": article.title,
-    "description": article.description,
+    "@type": ["Article", "BlogPosting"],
+    "headline": article.title.trim().slice(0, 110),
+    "description": article.description.trim().slice(0, 200),
     "url": articleUrl,
     "datePublished": article.publishedAt,
-    "dateModified": article.updatedAt,
+    "dateModified": article.updatedAt || article.publishedAt,
     "author": {
-      "@type": "Organization",
+      "@type": "Person",
       "name": article.author || "BailNotarie",
-      "url": baseUrl
+      "url": baseUrl,
+      "sameAs": []
     },
     "publisher": {
       "@type": "Organization",
@@ -76,25 +78,22 @@ export function ArticleSchema({ article }: ArticleSchemaProps) {
         "description": "Contrat de location authentifié par un notaire"
       },
       {
-        "@type": "Thing", 
+        "@type": "Thing",
         "name": "Force Exécutoire",
         "description": "Pouvoir d'exécution immédiate du contrat"
       }
     ],
-    "mentions": [
-      {
-        "@type": "Organization",
-        "name": "BailNotarie",
-        "url": baseUrl
-      }
-    ]
+    "speakable": {
+      "@type": "SpeakableSpecification",
+      "cssSelector": ["h1", "p"]
+    }
   };
 
   return (
     <script
       type="application/ld+json"
       dangerouslySetInnerHTML={{
-        __html: JSON.stringify(schema, null, 2)
+        __html: JSON.stringify(schema)
       }}
     />
   );

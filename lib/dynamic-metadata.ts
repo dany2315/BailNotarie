@@ -1,5 +1,8 @@
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { generatePageMetadata, pageMetadata } from '@/lib/metadata';
+
+// supprime les fragments de type "#section" -> canonical doit être sans ancre
+const stripHash = (path?: string) => (path ? path.split('#')[0] || '/' : undefined);
 
 interface DynamicMetadataProps {
   page: keyof typeof pageMetadata;
@@ -7,8 +10,8 @@ interface DynamicMetadataProps {
     title?: string;
     description?: string;
     keywords?: string[];
-    canonical?: string;
-    ogImage?: string;
+    canonical?: string;     // chemin relatif (ex: '/', '/blog/slug')
+    ogImage?: string;       // relatif OK si metadataBase est défini
     ogType?: 'website' | 'article';
     noIndex?: boolean;
   };
@@ -16,51 +19,50 @@ interface DynamicMetadataProps {
 
 export function generateDynamicMetadata({ page, customData }: DynamicMetadataProps): Metadata {
   const baseData = pageMetadata[page];
-  
-  if (customData) {
-    return generatePageMetadata({
-      title: customData.title || baseData.title,
-      description: customData.description || baseData.description,
-      keywords: customData.keywords || baseData.keywords,
-      canonical: customData.canonical || baseData.canonical,
-      ogImage: customData.ogImage || baseData.ogImage,
-      ogType: customData.ogType || baseData.ogType,
-      noIndex: customData.noIndex || baseData.noIndex
-    });
-  }
-  
-  return generatePageMetadata(baseData);
+
+  // Utilise ?? pour ne pas écraser un false/''/[] explicitement fournis
+  const merged = {
+    title: customData?.title ?? baseData.title,
+    description: customData?.description ?? baseData.description,
+    keywords: customData?.keywords ?? baseData.keywords,
+    canonical: stripHash(customData?.canonical ?? baseData.canonical),
+    ogImage: customData?.ogImage ?? baseData.ogImage,
+    ogType: customData?.ogType ?? baseData.ogType,
+    noIndex: customData?.noIndex ?? baseData.noIndex,
+  };
+
+  return generatePageMetadata(merged);
 }
 
-// Fonction utilitaire pour les pages d'articles de blog
+// ---- Blog post ----
+// Utilise des URL relatives si tu as metadataBase = https://www.bailnotarie.fr
 export function generateBlogPostMetadata(post: {
   title: string;
   description: string;
   slug: string;
-  publishedAt: string;
-  image?: string;
+  publishedAt: string; // utile si tu ajoutes JSON-LD
+  image?: string;      // peut être relatif: '/og-cover-v2.png'
   tags?: string[];
 }): Metadata {
-  const baseUrl = "https://bailnotarie.fr";
-  const postUrl = `${baseUrl}/blog/${post.slug}`;
-  
+  const canonical = `/blog/${post.slug}`;
+
   return generatePageMetadata({
     title: `${post.title} | Blog BailNotarie`,
     description: post.description,
     keywords: [
-      "blog bail notarié",
-      "article bail notarié",
-      ...(post.tags || []),
-      "actualités juridiques",
-      "conseils notaire"
+      'blog bail notarié',
+      'article bail notarié',
+      ...(post.tags ?? []),
+      'actualités juridiques',
+      'conseils notaire',
     ],
-    canonical: `/blog/${post.slug}`,
-    ogImage: post.image || "https://bailnotarie.fr/og-cover-v2.png",
-    ogType: "article"
+    canonical,                               // ✅ relatif, sans #
+    ogImage: post.image ?? '/og-cover-v2.png',
+    ogType: 'article',
   });
 }
 
-// Fonction utilitaire pour les pages de catégories
+// ---- Catégorie ----
 export function generateCategoryMetadata(category: {
   name: string;
   description: string;
@@ -71,13 +73,13 @@ export function generateCategoryMetadata(category: {
     description: category.description,
     keywords: [
       category.name.toLowerCase(),
-      "bail notarié",
-      "catégorie",
-      "articles",
-      "conseils"
+      'bail notarié',
+      'catégorie',
+      'articles',
+      'conseils',
     ],
-    canonical: `/blog/category/${category.slug}`,
-    ogType: "website"
+    canonical: `/blog/category/${category.slug}`,  // ✅ relatif
+    ogType: 'website',
   });
 }
 
