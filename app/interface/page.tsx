@@ -7,14 +7,6 @@ import { Building2, FileText, Link as LinkIcon, AlertCircle, Plus } from "lucide
 import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { StatusBadge } from "@/components/shared/status-badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 export default async function InterfacePage() {
   const user = await getCurrentUser();
@@ -40,7 +32,6 @@ export default async function InterfacePage() {
       parties: true,
     },
   });
-console.log("recentLeases", recentLeases);
   // Intakes récents
   const recentIntakes = await prisma.intakeLink.findMany({
     take: 5,
