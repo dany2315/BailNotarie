@@ -49,6 +49,8 @@ export default async function BlogPage() {
     return Math.ceil(wordCount / 200); // 200 mots par minute
   };
 
+  console.log(articles);
+
   return (
     <main className="min-h-screen bg-gray-50">
       <Header />
