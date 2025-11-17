@@ -46,7 +46,7 @@ export async function createBasicClient(data: unknown) {
   });
 
   // Envoyer l'email avec le lien du formulaire
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
   const formUrl = `${baseUrl}/intakes/${intakeLink.token}`;
 
   try {
@@ -214,7 +214,7 @@ export async function createFullClient(data: unknown) {
       });
 
       // Envoyer l'email au locataire avec le formulaire
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
       const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
 
       try {
@@ -641,7 +641,7 @@ export async function submitOwnerForm(data: unknown) {
 
   // Envoyer l'email au locataire avec le formulaire (seulement si locataire et IntakeLink existent)
   if (tenant && tenantIntakeLink && validated.tenantEmail) {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
     const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
 
     try {
@@ -949,7 +949,7 @@ export async function sendIntakeLinkToClient(clientId: string) {
     throw new Error("Le client n'a pas d'email");
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
   // Si le client est un LEAD, envoyer le lien de conversion
   if (client.profilType === ProfilType.LEAD) {
