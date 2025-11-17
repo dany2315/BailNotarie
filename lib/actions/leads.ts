@@ -55,7 +55,7 @@ export async function createLead(data: unknown) {
     });
 
     // Envoyer l'email avec le lien de conversion
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
     const convertUrl = `${baseUrl}/intakes/${token}/convert`;
 
     let emailSent = false;
@@ -173,7 +173,7 @@ export async function convertLead(data: {
     throw new Error("Ce lien a déjà été utilisé ou a expiré");
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
   if (role === "PROPRIETAIRE") {
     // Mettre à jour le lead en PROPRIETAIRE
