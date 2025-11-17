@@ -1,0 +1,286 @@
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { 
+  User, 
+  Building2, 
+  Key, 
+  Home, 
+  Shield, 
+  Users, 
+  Map, 
+  CheckCircle2, 
+  XCircle, 
+  Circle, 
+  CircleDot, 
+  FileText, 
+  Heart, 
+  HeartOff,
+  Building,
+  Sparkles
+} from "lucide-react";
+
+interface StatusBadgeProps {
+  status: string;
+  className?: string;
+}
+
+export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const variants: Record<string, { 
+    variant: "default" | "secondary" | "destructive" | "outline"; 
+    label: string;
+    icon?: React.ReactNode;
+  }> = {
+    // ClientType
+    PERSONNE_PHYSIQUE: { 
+      variant: "default", 
+      label: "Personne physique",
+      icon: <User className="size-3" />
+    },
+    PERSONNE_MORALE: { 
+      variant: "default", 
+      label: "Personne morale",
+      icon: <Building2 className="size-3" />
+    },
+    // ProfilType
+    PROPRIETAIRE: { 
+      variant: "default", 
+      label: "Propriétaire",
+      icon: <Key className="size-3" />
+    },
+    LOCATAIRE: { 
+      variant: "secondary", 
+      label: "Locataire",
+      icon: <Home className="size-3" />
+    },
+    LEAD: {
+      variant: "outline",
+      label: "Lead",
+      icon: <CircleDot className="size-3" />
+    },
+    // PropertyStatus
+    LOUER: { 
+      variant: "default", 
+      label: "Loué",
+      icon: <CheckCircle2 className="size-3" />
+    },
+    NON_LOUER: { 
+      variant: "outline", 
+      label: "Non loué",
+      icon: <XCircle className="size-3" />
+    },
+    // BailStatus
+    DRAFT: { 
+      variant: "outline", 
+      label: "Brouillon",
+      icon: <FileText className="size-3" />
+    },
+    PENDING_VALIDATION: { 
+      variant: "secondary", 
+      label: "En validation",
+      icon: <CircleDot className="size-3" />
+    },
+    READY_FOR_NOTARY: { 
+      variant: "default", 
+      label: "Prêt pour notaire",
+      icon: <CheckCircle2 className="size-3" />
+    },
+    ACTIVE: {
+      variant: "default",
+      label: "Actif",
+      icon: <CheckCircle2 className="size-3" />
+    },
+    TERMINATED: { 
+      variant: "outline", 
+      label: "Terminé",
+      icon: <FileText className="size-3" />
+    },
+    CANCELED: { 
+      variant: "destructive", 
+      label: "Annulé",
+      icon: <XCircle className="size-3" />
+    },
+    // IntakeLink status
+    PENDING: { 
+      variant: "secondary", 
+      label: "En attente",
+      icon: <CircleDot className="size-3" />
+    },
+    SUBMITTED: { 
+      variant: "default", 
+      label: "Soumis",
+      icon: <CheckCircle2 className="size-3" />
+    },
+    EXPIRED: { 
+      variant: "destructive", 
+      label: "Expiré",
+      icon: <XCircle className="size-3" />
+    },
+    REVOKED: { 
+      variant: "destructive", 
+      label: "Révoqué",
+      icon: <XCircle className="size-3" />
+    },
+    // CompletionStatus
+    NOT_STARTED: { 
+      variant: "outline", 
+      label: "Non commencé",
+      icon: <Circle className="size-3" />
+    },
+    PARTIAL: { 
+      variant: "secondary", 
+      label: "Partiel",
+      icon: <CircleDot className="size-3" />
+    },
+    PENDING_CHECK: { 
+      variant: "secondary", 
+      label: "En vérification",
+      icon: <CircleDot className="size-3" />
+    },
+    COMPLETED: { 
+      variant: "default", 
+      label: "Complété",
+      icon: <CheckCircle2 className="size-3" />
+    },
+  };
+
+  const config = variants[status] || { variant: "outline" as const, label: status, icon: null };
+
+  return (
+    <Badge variant={config.variant} className={cn(className)}>
+      {config.icon}
+      {config.label}
+    </Badge>
+  );
+}
+
+// Badge pour le type de bien
+export function PropertyTypeBadge({ type, className }: { type: string; className?: string }) {
+  const configs: Record<string, { label: string; icon: React.ReactNode; variant: "default" | "secondary" | "outline" }> = {
+    APPARTEMENT: {
+      label: "Appartement",
+      icon: <Building className="size-3" />,
+      variant: "default"
+    },
+    MAISON: {
+      label: "Maison",
+      icon: <Home className="size-3" />,
+      variant: "secondary"
+    }
+  };
+
+  const config = configs[type] || { label: type, icon: null, variant: "outline" as const };
+
+  return (
+    <Badge variant={config.variant} className={cn(className)}>
+      {config.icon}
+      {config.label}
+    </Badge>
+  );
+}
+
+// Badge pour le statut légal du bien
+export function PropertyLegalStatusBadge({ status, className }: { status: string; className?: string }) {
+  const configs: Record<string, { label: string; icon: React.ReactNode; variant: "default" | "secondary" | "outline" }> = {
+    PLEIN_PROPRIETE: {
+      label: "Plein propriété",
+      icon: <Shield className="size-3" />,
+      variant: "default"
+    },
+    CO_PROPRIETE: {
+      label: "Copropriété",
+      icon: <Users className="size-3" />,
+      variant: "secondary"
+    },
+    LOTISSEMENT: {
+      label: "Lotissement",
+      icon: <Map className="size-3" />,
+      variant: "outline"
+    }
+  };
+
+  const config = configs[status] || { label: status, icon: null, variant: "outline" as const };
+
+  return (
+    <Badge variant={config.variant} className={cn(className)}>
+      {config.icon}
+      {config.label}
+    </Badge>
+  );
+}
+
+// Badge pour le statut familial
+export function FamilyStatusBadge({ status, className }: { status: string; className?: string }) {
+  const configs: Record<string, { label: string; icon: React.ReactNode; variant: "default" | "secondary" | "outline" }> = {
+    CELIBATAIRE: {
+      label: "Célibataire",
+      icon: <User className="size-3" />,
+      variant: "outline"
+    },
+    MARIE: {
+      label: "Marié(e)",
+      icon: <Heart className="size-3" />,
+      variant: "default"
+    },
+    DIVORCE: {
+      label: "Divorcé(e)",
+      icon: <HeartOff className="size-3" />,
+      variant: "outline"
+    },
+    VEUF: {
+      label: "Veuf(ve)",
+      icon: <HeartOff className="size-3" />,
+      variant: "outline"
+    },
+    PACS: {
+      label: "Pacsé(e)",
+      icon: <Sparkles className="size-3" />,
+      variant: "secondary"
+    }
+  };
+
+  const config = configs[status] || { label: status, icon: null, variant: "outline" as const };
+
+  return (
+    <Badge variant={config.variant} className={cn(className)}>
+      {config.icon}
+      {config.label}
+    </Badge>
+  );
+}
+
+// Badge pour le régime matrimonial
+export function MatrimonialRegimeBadge({ regime, className }: { regime: string; className?: string }) {
+  const configs: Record<string, { label: string; icon: React.ReactNode; variant: "default" | "secondary" | "outline" }> = {
+    COMMUNAUTE_REDUITE: {
+      label: "Communauté réduite aux acquêts",
+      icon: <Sparkles className="size-3" />,
+      variant: "default"
+    },
+    SEPARATION_DE_BIENS: {
+      label: "Séparation de biens",
+      icon: <Shield className="size-3" />,
+      variant: "secondary"
+    },
+    PARTICIPATION_AUX_AQUETS: {
+      label: "Participation aux acquêts",
+      icon: <Sparkles className="size-3" />,
+      variant: "secondary"
+    },
+    COMMUNAUTE_UNIVERSELLE: {
+      label: "Communauté universelle",
+      icon: <Sparkles className="size-3" />,
+      variant: "default"
+    }
+  };
+
+  const config = configs[regime] || { label: regime, icon: null, variant: "outline" as const };
+
+  return (
+    <Badge variant={config.variant} className={cn(className)}>
+      {config.icon}
+      {config.label}
+    </Badge>
+  );
+}

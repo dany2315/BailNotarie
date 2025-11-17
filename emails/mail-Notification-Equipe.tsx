@@ -32,15 +32,7 @@ export default function MailNotificationEquipe({
 }: MailNotificationEquipeProps) {
   return (
     <Html>
-      <Head>
-        <style>{`
-            @media only screen and (min-width: 600px) {
-            .btn-desktop {
-                margin-right: 12px !important;
-            }
-            }
-        `}</style>
-      </Head>
+      <Head />
       <Body style={{ 
         backgroundColor: "#f8fafc", 
         fontFamily: "Arial, sans-serif",
@@ -58,11 +50,14 @@ export default function MailNotificationEquipe({
           {/* Header avec logo */}
           <Section style={{ 
             background: "linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)",
-            padding: "32px 24px",
+            paddingTop: "32px",
+            paddingBottom: "32px",
+            paddingLeft: "24px",
+            paddingRight: "24px",
             textAlign: "start"
           }}>
             <Link
-              href="https://bailnotarie.fr"
+              href="https://www.bailnotarie.fr"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -72,7 +67,7 @@ export default function MailNotificationEquipe({
               }}
             >
               <Img
-                src="https://bailnotarie.fr/logoSans.png"
+                src="https://www.bailnotarie.fr/logoSans.png"
                 alt="BailNotarie"
                 width="40"
                 height="40"
@@ -104,7 +99,7 @@ export default function MailNotificationEquipe({
           </Section>
 
           {/* Contenu principal */}
-          <Section style={{ padding: "40px 24px" }}>
+          <Section style={{ paddingTop: "40px", paddingBottom: "40px", paddingLeft: "24px", paddingRight: "24px" }}>
             <Heading style={{ 
               color: "#dc2626",
               fontSize: "24px",
@@ -128,7 +123,10 @@ export default function MailNotificationEquipe({
             <Section style={{ 
               backgroundColor: "#fef2f2",
               borderRadius: "8px",
-              padding: "24px",
+              paddingTop: "24px",
+              paddingBottom: "24px",
+              paddingLeft: "24px",
+              paddingRight: "24px",
               margin: "24px 0",
               border: "2px solid #fecaca"
             }}>
@@ -163,7 +161,7 @@ export default function MailNotificationEquipe({
                 lineHeight: "1.6",
                 margin: "0 0 8px 0"
               }}>
-                <strong>Téléphone :</strong> <Link href={`tel:${phone}`} style={{ color: "#2563eb", textDecoration: "none" }}>{phone}</Link>
+                <strong>Téléphone :</strong> {phone ? <Link href={`tel:${phone}`} style={{ color: "#2563eb", textDecoration: "none" }}>{phone}</Link> : <span style={{ color: "#374151" }}>{phone || "Non renseigné"}</span>}
               </Text>
               <Text style={{ 
                 color: "#374151",
@@ -200,7 +198,10 @@ export default function MailNotificationEquipe({
             <Section style={{ 
               backgroundColor: "#f0f9ff",
               borderRadius: "8px",
-              padding: "24px",
+              paddingTop: "24px",
+              paddingBottom: "24px",
+              paddingLeft: "24px",
+              paddingRight: "24px",
               margin: "24px 0"
             }}>
               <Text style={{ 
@@ -247,10 +248,9 @@ export default function MailNotificationEquipe({
             </Section>
 
             {/* Boutons d'action rapide */}
-            <Section style={{ textAlign: "center", margin: "32px 0" }}>
+            <Section style={{ textAlign: "center", margin: "32px 0", paddingLeft: "24px", paddingRight: "24px" }}>
               <Button
                 href={`mailto:${email}?subject=Demande de bail notarié - BailNotarie&body=Bonjour ${firstName} ${lastName},%0D%0A%0D%0ANous avons bien reçu votre demande et nous vous remercions de l'intérêt que vous portez à nos services.%0D%0A%0D%0ANotre équipe va étudier votre projet et vous recontacter dans les plus brefs délais.%0D%0A%0D%0ACordialement,%0D%0AL'équipe BailNotarie`}
-                className="btn-desktop"
                 style={{ 
                   backgroundColor: "#059669",
                   color: "#ffffff",
@@ -260,14 +260,14 @@ export default function MailNotificationEquipe({
                   fontSize: "14px",
                   fontWeight: "bold",
                   display: "inline-block",
-                  marginRight: "0",
+                  marginRight: "12px",
                 }}
               >
                 📧  Répondre par email
               </Button>
               
               <Button
-                href={`tel:${phone}`}
+                href={phone ? `tel:${phone}` : undefined}
                 style={{ 
                   backgroundColor: "#2563eb",
                   color: "#ffffff",
@@ -303,7 +303,10 @@ export default function MailNotificationEquipe({
 
           {/* Footer */}
           <Section style={{ 
-            padding: "24px",
+            paddingTop: "24px",
+            paddingBottom: "24px",
+            paddingLeft: "24px",
+            paddingRight: "24px",
             textAlign: "center",
             backgroundColor: "#f9fafb"
           }}>
@@ -319,7 +322,7 @@ export default function MailNotificationEquipe({
               fontSize: "12px",
               margin: "0 0 8px 0"
             }}>
-              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href="https://bailnotarie.fr" style={{ color: "#6b7280", textDecoration: "none" }}>🌐 bailnotarie.fr</Link>
+              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href="https://www.bailnotarie.fr" style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
             </Text>
             <Text style={{ 
               color: "#9ca3af",

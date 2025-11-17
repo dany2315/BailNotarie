@@ -57,6 +57,7 @@ export function OrganizationSchema({
   numberOfEmployees = "10-50",
   areaServed = ["France", "Europe"],
   knowsAbout = [
+    "bail notarié",
     "Bail notarié",
     "Force exécutoire",
     "Droit immobilier",
