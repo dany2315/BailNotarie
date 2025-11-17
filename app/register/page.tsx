@@ -24,7 +24,7 @@ const registerSchema = z.object({
   password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
   confirmPassword: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
   name: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
-  role: z.enum(["ADMIN", "NOTARY", "OPS", "REVIEWER"]).default("OPS"),
+  role: z.enum(["ADMINISTRATEUR", "NOTAIRE", "OPERATEUR", "REVIEWER"]).default("OPERATEUR"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Les mots de passe ne correspondent pas",
   path: ["confirmPassword"],
@@ -42,7 +42,7 @@ export default function RegisterPage() {
     password: "",
     confirmPassword: "",
     name: "",
-    role: "OPS",
+    role: "OPERATEUR",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,7 +75,7 @@ export default function RegisterPage() {
       }
 
       // Mettre à jour le rôle via l'API si nécessaire
-      if (data?.user?.id && formData.role !== "OPS") {
+      if (data?.user?.id && formData.role !== "OPERATEUR") {
         try {
           const roleResponse = await fetch("/api/auth/update-role", {
             method: "POST",
