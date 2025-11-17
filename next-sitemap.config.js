@@ -6,7 +6,7 @@ module.exports = {
   siteUrl: process.env.SITE_URL || "https://www.bailnotarie.fr",
   generateRobotsTxt: true,
   generateIndexSitemap: false, // un seul sitemap.xml
-  exclude: ["/server-sitemap-index.xml"],
+  exclude: ["/server-sitemap-index.xml","/login","/register"],
 
   robotsTxtOptions: {
     policies: [
