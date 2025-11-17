@@ -52,6 +52,11 @@ async function main() {
         <h2>Conclusion</h2>
         <p>Le bail notarié représente un investissement judicieux pour les propriétaires souhaitant une sécurité maximale dans leurs relations locatives.</p>
       `,
+      metaTitle: "Bail Notarié : Qu'est-ce que c'est et pourquoi le choisir ?",
+      metaDescription: "Découvrez les avantages du bail notarié et pourquoi il peut être un choix judicieux pour sécuriser votre location immobilière.",
+      metaKeywords: "bail notarié, avantages, sécurité, location immobilière, notaire",
+      imageUrl: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=400&fit=crop",
+      ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     },
     {
       title: "Les étapes pour établir un bail notarié : guide complet",
@@ -81,6 +86,11 @@ async function main() {
         <h2>Conclusion</h2>
         <p>Bien que plus coûteux initialement, le bail notarié offre une sécurité juridique incomparable.</p>
       `,
+      metaTitle: "Les étapes pour établir un bail notarié : guide complet",
+      metaDescription: "Guide étape par étape pour établir un bail notarié, de la préparation des documents à la signature chez le notaire.",
+      metaKeywords: "bail notarié, étapes, guide, notaire, préparation, documents",
+      imageUrl: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=400&fit=crop",
+      ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     },
     {
       title: "Force exécutoire : l'avantage majeur du bail notarié",
@@ -107,6 +117,11 @@ async function main() {
         <h2>Conclusion</h2>
         <p>La force exécutoire fait du bail notarié un outil de protection puissant pour les propriétaires.</p>
       `,
+      metaTitle: "Force exécutoire : l'avantage majeur du bail notarié",
+      metaDescription: "Comprendre la force exécutoire du bail notarié et ses implications concrètes en cas de litige locatif.",
+      metaKeywords: "bail notarié, force exécutoire, propriétaire, locataire, notaire",
+      imageUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop",
+      ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     },
     {
       title: "Bail notarié vs bail classique : analyse comparative",
@@ -154,6 +169,11 @@ async function main() {
         <h2>Conclusion</h2>
         <p>Le choix dépend de votre situation et de votre appétence au risque. Pour une sécurité maximale, le bail notarié reste le choix le plus judicieux.</p>
       `,
+      metaTitle: "Bail notarié vs bail classique : analyse comparative",
+      metaDescription: "Comparaison détaillée entre le bail notarié et le bail sous seing privé pour vous aider à faire le bon choix.",
+      metaKeywords: "bail notarié, bail classique, analyse comparative, propriétaire, locataire, notaire",
+      imageUrl: "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800&h=400&fit=crop",
+      ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     },
     {
       title: "Les obligations légales dans un bail notarié",
@@ -187,6 +207,11 @@ async function main() {
         <h2>Conclusion</h2>
         <p>Le bail notarié garantit une sécurité juridique optimale pour toutes les parties impliquées.</p>
       `,
+      metaTitle: "Les obligations légales dans un bail notarié",
+      metaDescription: "Découvrez les obligations légales spécifiques au bail notarié et comment elles protègent propriétaire et locataire.",
+      metaKeywords: "bail notarié, obligations légales, propriétaire, locataire, notaire",
+      imageUrl: "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200",
+      ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
     },
   ]
 
@@ -201,6 +226,11 @@ async function main() {
         description: articleData.description,
         content: articleData.content,
         categoryId: category.id,
+        metaTitle: articleData.metaTitle,
+        metaDescription: articleData.metaDescription,
+        metaKeywords: articleData.metaKeywords,
+        imageUrl: articleData.imageUrl,
+        ogImage: articleData.ogImage,
       },
       create: {
         title: articleData.title,
@@ -208,6 +238,11 @@ async function main() {
         description: articleData.description,
         content: articleData.content,
         categoryId: category.id,
+        metaTitle: articleData.metaTitle,
+        metaDescription: articleData.metaDescription,
+        metaKeywords: articleData.metaKeywords,
+        imageUrl: articleData.imageUrl,
+        ogImage: articleData.ogImage,
       },
     })
 

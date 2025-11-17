@@ -35,9 +35,9 @@ export function Header() {
   return (
     <header className="bg-white shadow-sm border-b sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center  py-2">
+        <div className="flex justify-between items-center  ">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2  rounded-lg overflow-hidden text-blue-50 bg-gradient-to-br from-blue-50 to-indigo-100 hover:bg-indigo-200 transition-colors">
+          <Link href="/" className="flex items-center space-x-2  rounded-lg overflow-hidden text-blue-50 ">
             <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} className="  w-full" />
           </Link>
 
@@ -70,16 +70,16 @@ export function Header() {
 
           {/* Menu Mobile avec Sheet */}
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden">
-                <Menu className="h-6 w-6" />
+            <SheetTrigger asChild >
+              <Button variant="ghost" size="icon" className="md:hidden ">
+                <Menu className="w-full" />
                 <span className="sr-only">Ouvrir le menu</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[300px] sm:w-[400px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center justify-between">
-                <Link href="/" className="flex items-center space-x-2  rounded-lg text-blue-50 bg-gradient-to-br from-blue-50 to-indigo-100 hover:bg-indigo-200 transition-colors">
+                <Link href="/" className="flex items-center space-x-2  rounded-lg text-blue-50 ">
                     <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} className="  w-30" />  
                 </Link>
                 </SheetTitle>

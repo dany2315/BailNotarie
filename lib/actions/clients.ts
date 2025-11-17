@@ -1,0 +1,1068 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-helpers";
+import { 
+  createBasicClientSchema, 
+  createFullClientSchema,
+  createFullClientWithPropertySchema,
+  createTenantBasicClientSchema,
+  ownerFormSchema,
+  tenantFormSchema,
+  updateClientSchema
+} from "@/lib/zod/client";
+import { revalidatePath } from "next/cache";
+import { Decimal } from "@prisma/client/runtime/library";
+import { resend } from "@/lib/resend";
+import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus } from "@prisma/client";
+import MailOwnerForm from "@/emails/mail-owner-form";
+import MailTenantForm from "@/emails/mail-tenant-form";
+import MailLeadConversion from "@/emails/mail-lead-conversion";
+import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actions/documents";
+import { randomBytes } from "crypto";
+
+// Créer un client basique (email uniquement) et envoyer un email avec formulaire
+export async function createBasicClient(data: unknown) {
+  const user = await requireAuth();
+  const validated = createBasicClientSchema.parse(data);
+
+  // Créer le client avec profilType PROPRIETAIRE (sans type, sera défini dans le formulaire)
+  const client = await prisma.client.create({
+    data: {
+      type: ClientType.PERSONNE_PHYSIQUE, // Type temporaire, sera mis à jour dans le formulaire
+      profilType: ProfilType.PROPRIETAIRE,
+      email: validated.email,
+      createdById: user.id,
+    },
+  });
+
+  // Créer un IntakeLink pour le formulaire propriétaire
+  const intakeLink = await prisma.intakeLink.create({
+    data: {
+      target: "OWNER",
+      clientId: client.id,
+      createdById: user.id,
+    },
+  });
+
+  // Envoyer l'email avec le lien du formulaire
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const formUrl = `${baseUrl}/intakes/${intakeLink.token}`;
+
+  try {
+    await resend.emails.send({
+      from: "noreply@bailnotarie.fr",
+      to: validated.email,
+      subject: "Formulaire de bail notarié - Propriétaire",
+      react: MailOwnerForm({
+        firstName: "",
+        lastName: "",
+        formUrl,
+      }),
+    });
+  } catch (error) {
+    console.error("Erreur lors de l'envoi de l'email:", error);
+    // On continue même si l'email échoue
+  }
+
+  revalidatePath("/interface/clients");
+  return { client, intakeLink };
+}
+
+// Créer un client complet (toutes les données)
+export async function createFullClient(data: unknown) {
+  const user = await requireAuth();
+  
+  // Essayer d'abord avec le schéma complet (avec bien, bail, locataire)
+  try {
+    const validated = createFullClientWithPropertySchema.parse(data);
+    
+    // Créer le client propriétaire
+    let client;
+    try {
+      if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
+        client = await prisma.client.create({
+          data: {
+            type: ClientType.PERSONNE_PHYSIQUE,
+            profilType: ProfilType.PROPRIETAIRE,
+            firstName: validated.firstName,
+            lastName: validated.lastName,
+            profession: validated.profession,
+            phone: validated.phone,
+            email: validated.email,
+            fullAddress: validated.fullAddress,
+            nationality: validated.nationality,
+            familyStatus: validated.familyStatus as FamilyStatus | null,
+            matrimonialRegime: validated.matrimonialRegime as MatrimonialRegime | null,
+            birthPlace: validated.birthPlace,
+            birthDate: validated.birthDate,
+            createdById: user.id,
+
+          },
+        });
+      } else {
+        client = await prisma.client.create({
+          data: {
+            type: ClientType.PERSONNE_MORALE,
+            profilType: ProfilType.PROPRIETAIRE,
+            legalName: validated.legalName,
+            registration: validated.registration,
+            phone: validated.phone,
+            email: validated.email,
+            fullAddress: validated.fullAddress,
+            nationality: validated.nationality,
+            createdById: user.id,
+          },
+        });
+      }
+    } catch (error: any) {
+      // Gérer les erreurs Prisma (contrainte unique, etc.)
+      if (error.code === "P2002") {
+        if (error.meta?.target?.includes("email")) {
+          throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+        }
+        throw new Error("Une erreur de contrainte unique s'est produite.");
+      }
+      throw error;
+    }
+
+    // Créer le bien
+    const property = await prisma.property.create({
+      data: {
+        label: validated.propertyLabel,
+        fullAddress: validated.propertyFullAddress,
+        surfaceM2: validated.propertySurfaceM2 ? new Decimal(validated.propertySurfaceM2) : null,
+        type: validated.propertyType,
+        legalStatus: validated.propertyLegalStatus,
+        status: validated.propertyStatus || PropertyStatus.NON_LOUER,
+        ownerId: client.id,
+        createdById: user.id,
+      },
+    });
+
+    // Créer ou récupérer le locataire (seulement si email fourni)
+    let tenant = null;
+    let tenantIntakeLink = null;
+    
+    if (validated.tenantEmail) {
+      // Vérifier si un locataire avec cet email existe déjà
+      const existingTenant = await prisma.client.findUnique({
+        where: { email: validated.tenantEmail },
+      });
+
+      if (existingTenant) {
+        // Utiliser le locataire existant
+        tenant = existingTenant;
+      } else {
+        // Créer un nouveau locataire
+        try {
+          tenant = await prisma.client.create({
+            data: {
+              type: ClientType.PERSONNE_PHYSIQUE,
+              profilType: ProfilType.LOCATAIRE,
+              email: validated.tenantEmail,
+              createdById: user.id,
+            },
+          });
+        } catch (error: any) {
+          // Gérer les erreurs Prisma (contrainte unique, etc.)
+          if (error.code === "P2002") {
+            if (error.meta?.target?.includes("email")) {
+              throw new Error(`Un client avec l'email ${validated.tenantEmail} existe déjà.`);
+            }
+            throw new Error("Une erreur de contrainte unique s'est produite.");
+          }
+          throw error;
+        }
+      }
+    }
+
+    // Créer le bail avec ou sans locataire
+    const bailParties = [{ id: client.id }]; // Propriétaire
+    if (tenant) {
+      bailParties.push({ id: tenant.id }); // Locataire
+    }
+
+    const bail = await prisma.bail.create({
+      data: {
+        bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
+        bailFamily: validated.bailFamily || BailFamille.HABITATION,
+        status: BailStatus.DRAFT,
+        rentAmount: validated.bailRentAmount || 0,
+        monthlyCharges: validated.bailMonthlyCharges || 0,
+        securityDeposit: validated.bailSecurityDeposit || 0,
+        effectiveDate: validated.bailEffectiveDate ? new Date(validated.bailEffectiveDate) : new Date(),
+        endDate: validated.bailEndDate ? new Date(validated.bailEndDate) : null,
+        paymentDay: validated.bailPaymentDay || null,
+        propertyId: property.id,
+        parties: {
+          connect: bailParties,
+        },
+        createdById: user.id,
+      },
+    });
+
+    // Créer un IntakeLink et envoyer l'email seulement si le locataire existe
+    if (tenant) {
+      tenantIntakeLink = await prisma.intakeLink.create({
+        data: {
+          target: "TENANT",
+          clientId: tenant.id,
+          propertyId: property.id,
+          bailId: bail.id,
+        },
+      });
+
+      // Envoyer l'email au locataire avec le formulaire
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
+
+      try {
+        await resend.emails.send({
+          from: "noreply@bailnotarie.fr",
+          to: validated.tenantEmail!,
+          subject: "Formulaire de bail notarié - Locataire",
+          react: MailTenantForm({
+            firstName: "",
+            lastName: "",
+            formUrl: tenantFormUrl,
+          }),
+        });
+      } catch (error) {
+        console.error("Erreur lors de l'envoi de l'email au locataire:", error);
+        // On continue même si l'email échoue
+      }
+    }
+
+    revalidatePath("/interface/clients");
+    revalidatePath("/interface/properties");
+    revalidatePath("/interface/bails");
+
+    return { client, property, bail, tenant, tenantIntakeLink };
+  } catch (error: any) {
+    // Si c'est une erreur Prisma de contrainte unique, la relancer avec un message clair
+    if (error.code === "P2002") {
+      if (error.meta?.target?.includes("email")) {
+        const email = (data as any)?.email || (data as any)?.tenantEmail || "cet email";
+        throw new Error(`Un client avec ${email} existe déjà.`);
+      }
+      throw new Error("Une erreur de contrainte unique s'est produite.");
+    }
+
+    // Si c'est une erreur Zod, la relancer
+    if (error.name === "ZodError") {
+      throw error;
+    }
+
+    // Si c'est déjà une Error avec un message, la relancer
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    // Si le schéma complet échoue, essayer avec le schéma simple (sans bien/bail/locataire)
+    try {
+      const validated = createFullClientSchema.parse(data);
+
+      if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
+        try {
+          const client = await prisma.client.create({
+            data: {
+              type: ClientType.PERSONNE_PHYSIQUE,
+              profilType: ProfilType.PROPRIETAIRE,
+              firstName: validated.firstName,
+              lastName: validated.lastName,
+              profession: validated.profession,
+              phone: validated.phone,
+              email: validated.email,
+              fullAddress: validated.fullAddress,
+              nationality: validated.nationality,
+              familyStatus: validated.familyStatus as FamilyStatus | null,
+              matrimonialRegime: validated.matrimonialRegime as MatrimonialRegime | null,
+              birthPlace: validated.birthPlace,
+              birthDate: validated.birthDate,
+              createdById: user.id,
+            },
+            include: {
+              bails: true,
+              ownedProperties: true,
+            },
+          });
+
+          revalidatePath("/interface/clients");
+          return client;
+        } catch (createError: any) {
+          if (createError.code === "P2002") {
+            if (createError.meta?.target?.includes("email")) {
+              throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+            }
+            throw new Error("Une erreur de contrainte unique s'est produite.");
+          }
+          throw createError;
+        }
+      } else {
+        try {
+          const client = await prisma.client.create({
+            data: {
+              type: ClientType.PERSONNE_MORALE,
+              profilType: ProfilType.PROPRIETAIRE,
+              legalName: validated.legalName,
+              registration: validated.registration,
+              phone: validated.phone,
+              email: validated.email,
+              fullAddress: validated.fullAddress,
+              nationality: validated.nationality,
+              createdById: user.id,
+            },
+            include: {
+              bails: true,
+              ownedProperties: true,
+            },
+          });
+
+          revalidatePath("/interface/clients");
+          return client;
+        } catch (createError: any) {
+          if (createError.code === "P2002") {
+            if (createError.meta?.target?.includes("email")) {
+              throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+            }
+            throw new Error("Une erreur de contrainte unique s'est produite.");
+          }
+          throw createError;
+        }
+      }
+    } catch (parseError: any) {
+      // Si c'est une erreur Zod, formater les messages d'erreur
+      if (parseError.name === "ZodError") {
+        const errorMessages = parseError.issues.map((issue: any) => {
+          const path = issue.path.join(".");
+          return `${path}: ${issue.message}`;
+        });
+        throw new Error(errorMessages.join(", "));
+      }
+      // Relancer les autres erreurs
+      throw parseError;
+    }
+  }
+}
+
+// Soumettre le formulaire propriétaire (crée bien, bail, locataire et envoie email)
+export async function submitOwnerForm(data: unknown) {
+  let validated;
+  try {
+    validated = ownerFormSchema.parse(data);
+  } catch (error: any) {
+    // Si c'est une erreur Zod, formater les messages d'erreur
+    if (error.issues && Array.isArray(error.issues)) {
+      const errorMessages = error.issues.map((issue: any) => {
+        const path = issue.path.join(".");
+        return `${path}: ${issue.message}`;
+      });
+      throw new Error(errorMessages.join(", "));
+    }
+    throw error;
+  }
+
+  // Mettre à jour le client propriétaire
+  const ownerUpdateData: any = {
+    updatedAt: new Date(),
+  };
+
+  if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
+    if (validated.firstName) ownerUpdateData.firstName = validated.firstName;
+    if (validated.lastName) ownerUpdateData.lastName = validated.lastName;
+    if (validated.profession) ownerUpdateData.profession = validated.profession;
+    if (validated.familyStatus) ownerUpdateData.familyStatus = validated.familyStatus;
+    if (validated.matrimonialRegime) ownerUpdateData.matrimonialRegime = validated.matrimonialRegime;
+    if (validated.birthPlace) ownerUpdateData.birthPlace = validated.birthPlace;
+    if (validated.birthDate) ownerUpdateData.birthDate = validated.birthDate;
+  } else {
+    if (validated.legalName) ownerUpdateData.legalName = validated.legalName;
+    if (validated.registration) ownerUpdateData.registration = validated.registration;
+  }
+
+  if (validated.phone) ownerUpdateData.phone = validated.phone;
+  if (validated.email) ownerUpdateData.email = validated.email;
+  if (validated.fullAddress) ownerUpdateData.fullAddress = validated.fullAddress;
+  if (validated.nationality) ownerUpdateData.nationality = validated.nationality;
+
+  await prisma.client.update({
+    where: { id: validated.clientId },
+    data: ownerUpdateData,
+  });
+
+  // Récupérer l'intakeLink du propriétaire pour vérifier les objets existants
+  const ownerIntakeLink = await prisma.intakeLink.findFirst({
+    where: {
+      clientId: validated.clientId,
+      target: "OWNER",
+      status: "PENDING",
+    },
+    include: {
+      property: true,
+      bail: {
+        include: {
+          parties: true,
+        },
+      },
+    },
+  });
+
+  // Utiliser le bien existant ou en créer un nouveau
+  let property;
+  if (ownerIntakeLink?.propertyId && ownerIntakeLink.property) {
+    // Mettre à jour le bien existant
+    property = await prisma.property.update({
+      where: { id: ownerIntakeLink.propertyId },
+      data: {
+        label: validated.propertyLabel,
+        fullAddress: validated.propertyFullAddress,
+        surfaceM2: validated.propertySurfaceM2 ? new Decimal(validated.propertySurfaceM2) : null,
+        type: validated.propertyType,
+        legalStatus: validated.propertyLegalStatus,
+        status: validated.propertyStatus || PropertyStatus.NON_LOUER,
+      },
+    });
+  } else {
+    // Créer un nouveau bien
+    property = await prisma.property.create({
+      data: {
+        label: validated.propertyLabel,
+        fullAddress: validated.propertyFullAddress,
+        surfaceM2: validated.propertySurfaceM2 ? new Decimal(validated.propertySurfaceM2) : null,
+        type: validated.propertyType,
+        legalStatus: validated.propertyLegalStatus,
+        status: validated.propertyStatus || PropertyStatus.NON_LOUER,
+        ownerId: validated.clientId,
+      },
+    });
+  }
+
+  // Chercher ou créer le locataire (seulement si email fourni)
+  let tenant = null;
+  const rawPayload = ownerIntakeLink?.rawPayload as any;
+  
+  if (validated.tenantEmail) {
+    // D'abord, vérifier si un locataire est lié via le rawPayload (cas de conversion lead)
+    if (rawPayload?.relatedTenantId) {
+      // Si un locataire est lié via le rawPayload, l'utiliser
+      tenant = await prisma.client.findUnique({
+        where: { id: rawPayload.relatedTenantId },
+      });
+      
+      if (tenant) {
+        // Mettre à jour l'email si nécessaire
+        if (tenant.email !== validated.tenantEmail.trim().toLowerCase()) {
+          tenant = await prisma.client.update({
+            where: { id: tenant.id },
+            data: {
+              email: validated.tenantEmail.trim().toLowerCase(),
+            },
+          });
+        }
+      }
+    }
+    
+    // Si aucun locataire n'a été trouvé via rawPayload, vérifier si un locataire est déjà rattaché au bail existant
+    if (!tenant && ownerIntakeLink?.bailId && ownerIntakeLink.bail) {
+      const existingTenant = ownerIntakeLink.bail.parties.find(
+        (party: any) => party.profilType === ProfilType.LOCATAIRE
+      );
+      
+      if (existingTenant) {
+        // Si un locataire est déjà rattaché au bail, mettre à jour son email
+        tenant = await prisma.client.update({
+          where: { id: existingTenant.id },
+          data: {
+            email: validated.tenantEmail.trim().toLowerCase(),
+          },
+        });
+      } else {
+        // Si aucun locataire n'est rattaché, chercher un locataire existant avec cet email
+        tenant = await prisma.client.findFirst({
+          where: {
+            email: validated.tenantEmail.trim().toLowerCase(),
+            profilType: ProfilType.LOCATAIRE,
+          },
+        });
+
+        if (!tenant) {
+          // Si le locataire n'existe pas, le créer
+          tenant = await prisma.client.create({
+            data: {
+              type: ClientType.PERSONNE_PHYSIQUE,
+              profilType: ProfilType.LOCATAIRE,
+              email: validated.tenantEmail.trim().toLowerCase(),
+            },
+          });
+        }
+      }
+    } else if (!tenant) {
+      // Si le bail n'existe pas encore, chercher ou créer le locataire
+      tenant = await prisma.client.findFirst({
+        where: {
+          email: validated.tenantEmail.trim().toLowerCase(),
+          profilType: ProfilType.LOCATAIRE,
+        },
+      });
+
+      if (!tenant) {
+        tenant = await prisma.client.create({
+          data: {
+            type: ClientType.PERSONNE_PHYSIQUE,
+            profilType: ProfilType.LOCATAIRE,
+            email: validated.tenantEmail.trim().toLowerCase(),
+          },
+        });
+      }
+    }
+  }
+
+  // Utiliser le bail existant ou en créer un nouveau
+  let bail;
+  const bailParties = [{ id: validated.clientId }]; // Propriétaire
+  if (tenant) {
+    bailParties.push({ id: tenant.id }); // Locataire
+  }
+
+  if (ownerIntakeLink?.bailId && ownerIntakeLink.bail) {
+    // Vérifier si le locataire est déjà connecté au bail
+    const isTenantConnected = tenant ? ownerIntakeLink.bail.parties.some(
+      (party: any) => party.id === tenant!.id
+    ) : false;
+    
+    // Préparer les données de mise à jour
+    const updateData: any = {
+      bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
+      bailFamily: validated.bailFamily || BailFamille.HABITATION,
+      rentAmount: validated.bailRentAmount,
+      monthlyCharges: validated.bailMonthlyCharges || 0,
+      securityDeposit: validated.bailSecurityDeposit || 0,
+      effectiveDate: validated.bailEffectiveDate,
+      endDate: validated.bailEndDate,
+      paymentDay: validated.bailPaymentDay,
+    };
+    
+    // Connecter le locataire seulement s'il existe et n'est pas déjà connecté
+    if (tenant && !isTenantConnected) {
+      updateData.parties = {
+        connect: bailParties,
+      };
+    }
+    
+    // Mettre à jour le bail existant
+    bail = await prisma.bail.update({
+      where: { id: ownerIntakeLink.bailId },
+      data: updateData,
+    });
+  } else {
+    // Créer un nouveau bail
+    bail = await prisma.bail.create({
+      data: {
+        bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
+        bailFamily: validated.bailFamily || BailFamille.HABITATION,
+        status: BailStatus.DRAFT,
+        rentAmount: validated.bailRentAmount,
+        monthlyCharges: validated.bailMonthlyCharges || 0,
+        securityDeposit: validated.bailSecurityDeposit || 0,
+        effectiveDate: validated.bailEffectiveDate,
+        endDate: validated.bailEndDate,
+        paymentDay: validated.bailPaymentDay,
+        propertyId: property.id,
+        parties: {
+          connect: bailParties,
+        },
+      },
+    });
+  }
+
+  // Chercher ou créer l'IntakeLink pour le formulaire locataire (seulement si locataire existe)
+  let tenantIntakeLink = null;
+  
+  if (tenant) {
+    // D'abord, chercher un IntakeLink existant pour ce locataire (peut-être créé lors de la conversion lead)
+    tenantIntakeLink = await prisma.intakeLink.findFirst({
+      where: {
+        clientId: tenant.id,
+        target: "TENANT",
+        status: "PENDING",
+      },
+    });
+
+    if (tenantIntakeLink) {
+      // Mettre à jour l'IntakeLink existant avec le bail et le bien
+      tenantIntakeLink = await prisma.intakeLink.update({
+        where: { id: tenantIntakeLink.id },
+        data: {
+          propertyId: property.id,
+          bailId: bail.id,
+        },
+      });
+    } else {
+      // Si aucun IntakeLink n'existe, chercher un avec le bailId
+      tenantIntakeLink = await prisma.intakeLink.findFirst({
+        where: {
+          clientId: tenant.id,
+          bailId: bail.id,
+          target: "TENANT",
+        },
+      });
+
+      if (!tenantIntakeLink) {
+        // Créer un nouvel IntakeLink
+        tenantIntakeLink = await prisma.intakeLink.create({
+          data: {
+            target: "TENANT",
+            clientId: tenant.id,
+            propertyId: property.id,
+            bailId: bail.id,
+          },
+        });
+      }
+    }
+  }
+
+  // Mettre à jour l'IntakeLink du propriétaire comme soumis
+  if (ownerIntakeLink) {
+    await prisma.intakeLink.update({
+      where: { id: ownerIntakeLink.id },
+      data: {
+        status: "SUBMITTED",
+        submittedAt: new Date(),
+        rawPayload: validated as any,
+        propertyId: property.id,
+        bailId: bail.id,
+      },
+    });
+  }
+
+  // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
+  // Plus besoin de les gérer ici
+
+  // Envoyer l'email au locataire avec le formulaire (seulement si locataire et IntakeLink existent)
+  if (tenant && tenantIntakeLink && validated.tenantEmail) {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
+
+    try {
+      await resend.emails.send({
+        from: "noreply@bailnotarie.fr",
+        to: validated.tenantEmail!,
+        subject: "Formulaire de bail notarié - Locataire",
+        react: MailTenantForm({
+          firstName: "",
+          lastName: "",
+          formUrl: tenantFormUrl,
+        }),
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de l'email au locataire:", error);
+      // On continue même si l'email échoue
+    }
+  }
+
+  revalidatePath("/interface/clients");
+  revalidatePath("/interface/properties");
+  revalidatePath("/interface/bails");
+
+  return { property, bail, tenant, tenantIntakeLink };
+}
+
+// Soumettre le formulaire locataire
+export async function submitTenantForm(data: unknown) {
+  let validated;
+  try {
+    validated = tenantFormSchema.parse(data);
+  } catch (error: any) {
+    // Si c'est une erreur Zod, formater les messages d'erreur
+    if (error.issues && Array.isArray(error.issues)) {
+      const errorMessages = error.issues.map((issue: any) => {
+        const path = issue.path.join(".");
+        return `${path}: ${issue.message}`;
+      });
+      throw new Error(errorMessages.join(", "));
+    }
+    throw error;
+  }
+
+  // Mettre à jour le client locataire
+  const tenantUpdateData: any = {
+    updatedAt: new Date(),
+    firstName: validated.firstName,
+    lastName: validated.lastName,
+  };
+
+  if (validated.profession) tenantUpdateData.profession = validated.profession;
+  if (validated.phone) tenantUpdateData.phone = validated.phone;
+  if (validated.email) tenantUpdateData.email = validated.email;
+  if (validated.fullAddress) tenantUpdateData.fullAddress = validated.fullAddress;
+  if (validated.nationality) tenantUpdateData.nationality = validated.nationality;
+  if (validated.familyStatus) tenantUpdateData.familyStatus = validated.familyStatus;
+  if (validated.matrimonialRegime) tenantUpdateData.matrimonialRegime = validated.matrimonialRegime;
+  if (validated.birthPlace) tenantUpdateData.birthPlace = validated.birthPlace;
+  if (validated.birthDate) tenantUpdateData.birthDate = validated.birthDate;
+
+  await prisma.client.update({
+    where: { id: validated.clientId },
+    data: tenantUpdateData,
+  });
+
+  // Mettre à jour l'IntakeLink du locataire comme soumis
+  const tenantIntakeLink = await prisma.intakeLink.findFirst({
+    where: {
+      clientId: validated.clientId,
+      target: "TENANT",
+      status: "PENDING",
+    },
+  });
+
+  if (tenantIntakeLink) {
+    await prisma.intakeLink.update({
+      where: { id: tenantIntakeLink.id },
+      data: {
+        status: "SUBMITTED",
+        submittedAt: new Date(),
+        rawPayload: validated as any,
+      },
+    });
+  }
+
+  // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
+  // Plus besoin de les gérer ici
+
+  revalidatePath("/interface/clients");
+  return { success: true };
+}
+
+// Mettre à jour un client
+export async function updateClient(data: unknown) {
+  const user = await requireAuth();
+  const validated = updateClientSchema.parse(data);
+  const { id, ...updateData } = validated;
+
+  const existing = await prisma.client.findUnique({
+    where: { id },
+    include: { bails: true, ownedProperties: true },
+  });
+
+  if (!existing) {
+    throw new Error("Client introuvable");
+  }
+
+  const client = await prisma.client.update({
+    where: { id },
+    data: {
+      ...updateData,
+      updatedById: user.id,
+    },
+    include: {
+      bails: true,
+      ownedProperties: true,
+    },
+  });
+
+  revalidatePath("/interface/clients");
+  revalidatePath(`/interface/clients/${id}`);
+  return client;
+}
+
+// Supprimer un client
+export async function deleteClient(id: string) {
+  await requireAuth();
+  await prisma.client.delete({ where: { id } });
+  revalidatePath("/interface/clients");
+}
+
+// Obtenir un client
+export async function getClient(id: string) {
+  await requireAuth();
+  return prisma.client.findUnique({
+    where: { id },
+    include: {
+      bails: {
+        include: {
+          property: {
+            include: {
+              owner: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  legalName: true,
+                  type: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          parties: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              legalName: true,
+              type: true,
+              email: true,
+              profilType: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+      ownedProperties: {
+        include: {
+          bails: {
+            include: {
+              parties: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  legalName: true,
+                  type: true,
+                  email: true,
+                  profilType: true,
+                },
+              },
+            },
+            orderBy: { createdAt: "desc" },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+      createdBy: { select: { id: true, name: true, email: true } },
+      updatedBy: { select: { id: true, name: true, email: true } },
+      documents: {
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+}
+
+// Obtenir la liste des clients
+export async function getClients(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  type?: ClientType;
+  profilType?: ProfilType;
+}) {
+  await requireAuth();
+
+  const where: any = {};
+
+  if (params.type) {
+    where.type = params.type;
+  }
+
+  if (params.profilType) {
+    where.profilType = params.profilType;
+  }
+
+  if (params.search) {
+    where.OR = [
+      { email: { contains: params.search, mode: "insensitive" } },
+      { phone: { contains: params.search, mode: "insensitive" } },
+      { firstName: { contains: params.search, mode: "insensitive" } },
+      { lastName: { contains: params.search, mode: "insensitive" } },
+      { legalName: { contains: params.search, mode: "insensitive" } },
+    ];
+  }
+
+  const page = params.page || 1;
+  const pageSize = params.pageSize || 10;
+
+  const [data, total] = await Promise.all([
+    prisma.client.findMany({
+      where,
+      include: {
+        ownedProperties: true,
+        bails: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        },
+      },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.client.count({ where }),
+  ]);
+
+  // Sérialiser les données
+  const serializedData = JSON.parse(JSON.stringify(data));
+
+  return {
+    data: serializedData,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+// Obtenir tous les clients (pour filtrage côté client)
+export async function getAllClients() {
+  await requireAuth();
+
+  const data = await prisma.client.findMany({
+    include: {
+      ownedProperties: true,
+      bails: true,
+      createdBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Sérialiser les données
+  const serializedData = JSON.parse(JSON.stringify(data));
+
+  return serializedData;
+}
+
+// Envoyer le lien du formulaire à un client existant
+export async function sendIntakeLinkToClient(clientId: string) {
+  const user = await requireAuth();
+
+  // Récupérer le client
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  if (!client.email) {
+    throw new Error("Le client n'a pas d'email");
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+  // Si le client est un LEAD, envoyer le lien de conversion
+  if (client.profilType === ProfilType.LEAD) {
+    // Vérifier s'il existe déjà un IntakeLink de conversion en PENDING ou SUBMITTED
+    let intakeLink = await prisma.intakeLink.findFirst({
+      where: {
+        clientId: client.id,
+        target: "LEAD",
+        status: {
+          in: ["PENDING", "SUBMITTED"],
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    // Si aucun lien valide n'existe, en créer un nouveau
+    if (!intakeLink) {
+      const token = randomBytes(32).toString("hex");
+      intakeLink = await prisma.intakeLink.create({
+        data: {
+          token,
+          target: "LEAD",
+          clientId: client.id,
+          status: "PENDING",
+          createdById: user.id,
+        },
+      });
+    }
+
+    const convertUrl = `${baseUrl}/intakes/${intakeLink.token}/convert`;
+
+    try {
+      await resend.emails.send({
+        from: "noreply@bailnotarie.fr",
+        to: client.email,
+        subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
+        react: MailLeadConversion({
+          convertUrl,
+        }),
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de l'email:", error);
+      throw new Error("Erreur lors de l'envoi de l'email");
+    }
+
+    revalidatePath("/interface/clients");
+    return { intakeLink, emailSent: true };
+  }
+
+  // Pour les autres profils (PROPRIETAIRE ou LOCATAIRE)
+  // Déterminer le target selon le profilType
+  const target = client.profilType === ProfilType.PROPRIETAIRE ? "OWNER" : 
+                 client.profilType === ProfilType.LOCATAIRE ? "TENANT" : 
+                 "OWNER"; // Par défaut OWNER
+
+  // Vérifier s'il existe déjà un IntakeLink valide (PENDING) pour ce client et ce target
+  let intakeLink = await prisma.intakeLink.findFirst({
+    where: {
+      clientId: client.id,
+      target: target as any,
+      status: "PENDING",
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  // Si aucun lien valide n'existe, en créer un nouveau
+  if (!intakeLink) {
+    intakeLink = await prisma.intakeLink.create({
+      data: {
+        target: target as any,
+        clientId: client.id,
+        createdById: user.id,
+      },
+    });
+  }
+
+  // Envoyer l'email avec le lien du formulaire
+  const formUrl = `${baseUrl}/intakes/${intakeLink.token}`;
+
+  try {
+    if (target === "OWNER") {
+      await resend.emails.send({
+        from: "noreply@bailnotarie.fr",
+        to: client.email,
+        subject: "Formulaire de bail notarié - Propriétaire",
+        react: MailOwnerForm({
+          firstName: client.firstName || "",
+          lastName: client.lastName || "",
+          formUrl,
+        }),
+      });
+    } else {
+      await resend.emails.send({
+        from: "noreply@bailnotarie.fr",
+        to: client.email,
+        subject: "Formulaire de bail notarié - Locataire",
+        react: MailTenantForm({
+          firstName: client.firstName || "",
+          lastName: client.lastName || "",
+          formUrl,
+        }),
+      });
+    }
+  } catch (error) {
+    console.error("Erreur lors de l'envoi de l'email:", error);
+    throw new Error("Erreur lors de l'envoi de l'email");
+  }
+
+  revalidatePath("/interface/clients");
+  return { intakeLink, emailSent: true };
+}
+

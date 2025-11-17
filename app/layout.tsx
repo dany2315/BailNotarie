@@ -3,10 +3,12 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
 import { StructuredData } from "@/components/seo/structured-data";
+import { Toaster } from "@/components/shared/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
     default: "BailNotarie - Bail Notarié Simple et Sécurisé | Expert en Acte Authentique",
     template: "%s | BailNotarie"
@@ -136,6 +138,8 @@ export default function RootLayout({
       
       {/* Données structurées SEO optimisées */}
       <StructuredData />
+      {/* Toaster pour les notifications */}
+      <Toaster />
       </body>
     </html>
   );
