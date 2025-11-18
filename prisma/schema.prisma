@@ -46,9 +46,9 @@ enum MatrimonialRegime {
 
 enum CompletionStatus {
   NOT_STARTED      // aucune donnée encore envoyée
-  PARTIAL          // certaines données envoyées (lead, mail envoyé, début formulaire)
-  PENDING_CHECK    // données envoyées par le client, en attente de vérification
-  COMPLETED        // toutes les données requises sont conformes
+  PARTIAL          // certaines données envoyées par le formulaire
+  PENDING_CHECK    // données envoyées par le client, en attente de vérification par nous 
+  COMPLETED        // toutes les données requises sont conformes et verifier par nous 
 }
 
 enum PropertyStatus {
@@ -79,13 +79,11 @@ enum BailFamille {
 }
 
 enum BailStatus {
-  DRAFT
-  PENDING_VALIDATION
-  READY_FOR_NOTARY
-  ACTIVE
-  TERMINATED
-  CANCELED
-  EXPIRED
+  DRAFT // brouillon, pas toute les données sont remplies
+  PENDING_VALIDATION // en attente de validation par bailnotarie si toute les donne sont remplies
+  READY_FOR_NOTARY // prêt pour notaire
+  SIGNED // signé
+  TERMINATED // terminé
 }
 
 enum IntakeTarget {
@@ -103,6 +101,25 @@ enum CommentTarget {
   DOCUMENT
   INTAKE
   LEAD
+}
+
+enum NotificationType {
+  COMMENT_CREATED
+  CLIENT_CREATED
+  CLIENT_UPDATED
+  CLIENT_DELETED
+  PROPERTY_CREATED
+  PROPERTY_UPDATED
+  PROPERTY_DELETED
+  BAIL_CREATED
+  BAIL_UPDATED
+  BAIL_DELETED
+  BAIL_STATUS_CHANGED
+  INTAKE_SUBMITTED
+  INTAKE_REVOKED
+  COMPLETION_STATUS_CHANGED
+  LEAD_CREATED
+  LEAD_CONVERTED
 }
 
 enum DocumentKind {
@@ -196,6 +213,7 @@ model User {
 
   // Back-relations nommées
   comments           CommentInterface[] @relation("CommentCreatedBy")
+  commentsRead       CommentRead[]      @relation("CommentReadByUser")
   uploadedDocuments  Document[]         @relation("DocumentUploadedBy")
   clientsCreated     Client[]            @relation("ClientCreatedBy") 
   clientsUpdated     Client[]            @relation("ClientUpdatedBy")
@@ -204,6 +222,8 @@ model User {
   bailsCreated      Bail[]            @relation("BailCreatedBy") 
   bailsUpdated      Bail[]            @relation("BailUpdatedBy")
   intakeLinksCreated IntakeLink[]       @relation("IntakeLinkCreatedBy")
+  notificationsCreated Notification[]   @relation("NotificationCreatedBy")
+  notificationsReceived Notification[]  @relation("NotificationReceivedBy")
 }
 
 /**
@@ -408,9 +428,64 @@ model CommentInterface {
   createdAt   DateTime @default(now())
   createdById String
   createdBy   User     @relation("CommentCreatedBy", fields: [createdById], references: [id])
+  
+  // Relation pour suivre quels utilisateurs ont lu ce commentaire
+  readBy       CommentRead[]
 
   @@index([target, targetId])
   @@index([createdById])
+}
+
+/**
+ * ---------------------- Comment Read Status ------
+ * Table de jointure pour suivre quels commentaires ont été lus par quels utilisateurs
+ */
+
+model CommentRead {
+  id        String   @id @default(cuid())
+  commentId String
+  comment   CommentInterface @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("CommentReadByUser", fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime @default(now())
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+  @@index([readAt])
+}
+
+/**
+ * ---------------------- Notifications ------------------
+ */
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  
+  // Données polymorphes pour identifier l'entité concernée
+  targetType String?         // CLIENT, PROPERTY, BAIL, INTAKE, COMMENT
+  targetId   String?         // ID de l'entité concernée
+  
+  // Métadonnées supplémentaires (JSON pour flexibilité)
+  metadata   Json?           // Ex: { oldStatus, newStatus, createdByForm, etc. }
+  
+  // Relations
+  createdById String?        // Utilisateur qui a déclenché l'événement (peut être null si créé par formulaire)
+  createdBy   User?          @relation("NotificationCreatedBy", fields: [createdById], references: [id])
+  
+  recipientId String         // Utilisateur qui reçoit la notification
+  recipient   User           @relation("NotificationReceivedBy", fields: [recipientId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime       @default(now())
+  readAt      DateTime?
+  
+  @@index([recipientId])
+  @@index([isRead])
+  @@index([type])
+  @@index([targetType, targetId])
+  @@index([createdAt])
 }
 
 /**

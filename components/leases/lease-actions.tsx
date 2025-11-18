@@ -44,12 +44,12 @@ export function LeaseActions({ row }: LeaseActionsProps) {
 
   return (
     <div className="flex items-center gap-1">
-      <Link href={`/interface/leases/${row.id}`}>
+      <Link href={`/interface/baux/${row.id}`}>
         <Button variant="ghost" size="icon" className="h-8 w-8" title="Voir">
           <Eye className="size-4" />
         </Button>
       </Link>
-      <Link href={`/interface/leases/${row.id}/edit`}>
+      <Link href={`/interface/baux/${row.id}/edit`}>
         <Button variant="ghost" size="icon" className="h-8 w-8" title="Modifier">
           <Edit className="size-4" />
         </Button>

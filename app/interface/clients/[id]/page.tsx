@@ -8,11 +8,18 @@ import {
   FamilyStatusBadge, 
   MatrimonialRegimeBadge 
 } from "@/components/shared/status-badge";
+import { CompletionStatusSelect } from "@/components/shared/completion-status-select";
 import { formatDate, formatCurrency, formatSurface, formatDateTime } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClientType, ProfilType, BailStatus, PropertyStatus } from "@prisma/client";
+import { ClientType, ProfilType, BailStatus, PropertyStatus, Property } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { DocumentsList } from "@/components/leases/documents-list";
+import { PropertyBailsViewer } from "@/components/clients/property-bails-viewer";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { SendIntakeButton } from "@/components/clients/send-intake-button";
+import { ClientActionsDropdown } from "@/components/clients/client-actions-dropdown";
+import { CommentsDrawer } from "@/components/comments/comments-drawer";
 
 export default async function ClientDetailPage({
   params,
@@ -40,15 +47,22 @@ export default async function ClientDetailPage({
 
   // Sérialiser les données pour convertir les Decimal en nombres
   // Utilisation de JSON.parse(JSON.stringify()) pour sérialiser complètement
-  // Cela convertit automatiquement tous les Decimal en nombres
+  // Cela convertit automatiquement tous les Decimal en nombres et les Dates en strings
   const serializedBails = client.bails ? JSON.parse(JSON.stringify(client.bails, (key, value) => serializeDecimal(value))) as typeof client.bails : [];
   const serializedProperties = client.ownedProperties ? JSON.parse(JSON.stringify(client.ownedProperties, (key, value) => serializeDecimal(value))) as typeof client.ownedProperties : [];
+  const serializedIntakeLinks = client.intakeLinks ? client.intakeLinks.map(link => ({
+    id: link.id,
+    token: link.token,
+    target: link.target,
+    status: link.status,
+    createdAt: link.createdAt.toISOString(),
+  })) as Array<{ id: string; token: string; target: string; status: string; createdAt: string }> : [];
 
   // Statistiques
   const stats = {
     properties: serializedProperties.length,
     bails: serializedBails.length,
-    activeBails: serializedBails.filter((b: any) => b.status === BailStatus.ACTIVE).length,
+    activeBails: serializedBails.filter((b: any) => b.status === BailStatus.SIGNED).length,
     totalRent: serializedBails.reduce((sum: number, bail: any) => {
       return sum + (Number(bail.rentAmount) || 0);
     }, 0),
@@ -64,23 +78,43 @@ export default async function ClientDetailPage({
               <ArrowLeft className="size-4" />
             </Button>
           </Link>
-          <div>
-            <div className="flex items-center gap-3">
+          <div className="flex flex-row items-center gap-3">
+            <div className="flex flex-col items-start ">
               <h1 className="text-3xl font-bold">{clientName || "Client"}</h1>
+              <p className="text-muted-foreground mt-1">
+                Détails complets du client
+              </p>
+            </div>
+            <div className="flex flex-col items-start gap-1">
               <StatusBadge status={client.type} />
               <StatusBadge status={client.profilType} />
             </div>
-            <p className="text-muted-foreground mt-1">
-              Détails complets du client
-            </p>
+            
           </div>
         </div>
-        <Link href={`/interface/clients/${client.id}/edit`}>
-          <Button>
-            <Edit className="size-4 mr-2" />
-            Modifier
+        <ButtonGroup>
+          <CompletionStatusSelect
+            type="client"
+            id={client.id}
+            currentStatus={client.completionStatus}
+            viewLabel={false}
+            asChild
+          />
+          
+          <Button asChild>
+            <Link href={`/interface/clients/${client.id}/edit`}>
+              <Edit className="size-4 mr-2" />
+              Modifier
+            </Link>
           </Button>
-        </Link>
+          <CommentsDrawer target="CLIENT" targetId={client.id} />
+          <ClientActionsDropdown
+            clientId={client.id}
+            hasEmail={!!client.email}
+            profilType={client.profilType}
+            intakeLinks={serializedIntakeLinks}
+          />
+        </ButtonGroup>
       </div>
 
       {/* Statistiques */}
@@ -247,183 +281,52 @@ export default async function ClientDetailPage({
                   </div>
                 )}
               </div>
-
-              <Separator />
-
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Statut de complétion</label>
-                <div className="mt-1">
-                  <StatusBadge status={client.completionStatus} />
-                </div>
-              </div>
             </CardContent>
           </Card>
 
-          {/* Propriétés */}
-          {stats.properties > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Propriétés ({stats.properties})
-                </CardTitle>
-                <CardDescription>Biens immobiliers possédés</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {serializedProperties.map((property: any) => (
-                  <div key={property.id} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="font-semibold">{property.label || "Sans libellé"}</h3>
-                          <StatusBadge status={property.status} />
-                        </div>
-                        <p className="text-sm text-muted-foreground flex items-start gap-1">
-                          <MapPin className="h-3 w-3 mt-0.5" />
-                          {property.fullAddress}
-                        </p>
-                      </div>
-                      <Link href={`/interface/properties/${property.id}`}>
-                        <Button variant="ghost" size="sm">Voir</Button>
-                      </Link>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-3 text-sm">
-                      {property.type && (
-                        <div>
-                          <label className="text-xs text-muted-foreground">Type</label>
-                          <p className="mt-0.5">{property.type.replace(/_/g, " ")}</p>
-                        </div>
-                      )}
-                      {property.surfaceM2 && (
-                        <div>
-                          <label className="text-xs text-muted-foreground">Surface</label>
-                          <p className="mt-0.5">{formatSurface(property.surfaceM2)}</p>
-                        </div>
-                      )}
-                      {property.legalStatus && (
-                        <div>
-                          <label className="text-xs text-muted-foreground">Statut légal</label>
-                          <p className="mt-0.5">{property.legalStatus.replace(/_/g, " ")}</p>
-                        </div>
-                      )}
-                    </div>
-                    {property.bails && property.bails.length > 0 && (
-                      <div className="pt-2 border-t">
-                        <p className="text-xs text-muted-foreground mb-2">
-                          {property.bails.length} bail{property.bails.length > 1 ? "x" : ""} associé{property.bails.length > 1 ? "s" : ""}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Baux */}
-          {stats.bails > 0 && (
+          {/* Documents */}
+          {client.documents && client.documents.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Baux ({stats.bails})
+                  Documents ({client.documents.length})
                 </CardTitle>
-                <CardDescription>Contrats de location</CardDescription>
+                <CardDescription>Pièces jointes du client</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {serializedBails.map((bail: any) => {
-                  const owner = bail.parties?.find((p: any) => p.profilType === ProfilType.PROPRIETAIRE);
-                  const tenant = bail.parties?.find((p: any) => p.profilType === ProfilType.LOCATAIRE);
-                  const ownerName = owner?.type === ClientType.PERSONNE_PHYSIQUE
-                    ? `${owner.firstName || ""} ${owner.lastName || ""}`.trim()
-                    : owner?.legalName || "";
-                  const tenantName = tenant?.type === ClientType.PERSONNE_PHYSIQUE
-                    ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim()
-                    : tenant?.legalName || "";
-
-                  return (
-                    <div key={bail.id} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="font-semibold">
-                              {bail.bailType?.replace(/_/g, " ")} - {bail.bailFamily?.replace(/_/g, " ")}
-                            </h3>
-                            <StatusBadge status={bail.status} />
-                          </div>
-                          {bail.property && (
-                            <p className="text-sm text-muted-foreground flex items-start gap-1">
-                              <Home className="h-3 w-3 mt-0.5" />
-                              {bail.property.fullAddress}
-                            </p>
-                          )}
-                        </div>
-                        <Link href={`/interface/leases/${bail.id}`}>
-                          <Button variant="ghost" size="sm">Voir</Button>
-                        </Link>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2 text-sm">
-                        <div>
-                          <label className="text-xs text-muted-foreground">Loyer</label>
-                          <p className="mt-0.5 font-medium">{formatCurrency(bail.rentAmount)}</p>
-                        </div>
-                        {bail.monthlyCharges && bail.monthlyCharges > 0 && (
-                          <div>
-                            <label className="text-xs text-muted-foreground">Charges</label>
-                            <p className="mt-0.5">{formatCurrency(bail.monthlyCharges)}</p>
-                          </div>
-                        )}
-                        {bail.securityDeposit && bail.securityDeposit > 0 && (
-                          <div>
-                            <label className="text-xs text-muted-foreground">Dépôt de garantie</label>
-                            <p className="mt-0.5">{formatCurrency(bail.securityDeposit)}</p>
-                          </div>
-                        )}
-                        {bail.paymentDay && (
-                          <div>
-                            <label className="text-xs text-muted-foreground">Jour de paiement</label>
-                            <p className="mt-0.5">Le {bail.paymentDay}</p>
-                          </div>
-                        )}
-                        <div>
-                          <label className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Date d'effet
-                          </label>
-                          <p className="mt-0.5">{formatDate(bail.effectiveDate)}</p>
-                        </div>
-                        {bail.endDate && (
-                          <div>
-                            <label className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              Date de fin
-                            </label>
-                            <p className="mt-0.5">{formatDate(bail.endDate)}</p>
-                          </div>
-                        )}
-                      </div>
-                      {bail.parties && bail.parties.length > 0 && (
-                        <div className="pt-2 border-t space-y-2">
-                          <p className="text-xs text-muted-foreground">Parties :</p>
-                          <div className="flex flex-wrap gap-2">
-                            {owner && (
-                              <Badge variant="outline">
-                                Propriétaire: {ownerName || owner.email || "N/A"}
-                              </Badge>
-                            )}
-                            {tenant && (
-                              <Badge variant="outline">
-                                Locataire: {tenantName || tenant.email || "N/A"}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              <CardContent>
+                <DocumentsList
+                  documents={client.documents.map((doc: any) => ({
+                    id: doc.id,
+                    kind: doc.kind,
+                    fileKey: doc.fileKey,
+                    mimeType: doc.mimeType,
+                    label: doc.label,
+                    createdAt: doc.createdAt,
+                  }))}
+                  documentKindLabels={{
+                    KBIS: "KBIS",
+                    STATUTES: "Statuts",
+                    INSURANCE: "Assurance",
+                    TITLE_DEED: "Titre de propriété",
+                    BIRTH_CERT: "Acte de naissance",
+                    ID_IDENTITY: "Pièce d'identité",
+                    LIVRET_DE_FAMILLE: "Livret de famille",
+                    CONTRAT_DE_PACS: "Contrat de PACS",
+                    DIAGNOSTICS: "Diagnostics",
+                    REGLEMENT_COPROPRIETE: "Règlement de copropriété",
+                    CAHIER_DE_CHARGE_LOTISSEMENT: "Cahier des charges lotissement",
+                    STATUT_DE_LASSOCIATION_SYNDICALE: "Statut de l'association syndicale",
+                    RIB: "RIB",
+                  }}
+                />
               </CardContent>
             </Card>
+          )}
+
+          {/* Biens et Baux */}
+          {stats.properties > 0 && (
+            <PropertyBailsViewer properties={serializedProperties as any[]} />
           )}
         </div>
 
@@ -470,6 +373,11 @@ export default async function ClientDetailPage({
                   Modifier le client
                 </Button>
               </Link>
+              <SendIntakeButton 
+                clientId={client.id}
+                hasEmail={!!client.email}
+                profilType={client.profilType}
+              />
               {client.email && (
                 <a href={`mailto:${client.email}`} className="block">
                   <Button variant="outline" className="w-full justify-start">

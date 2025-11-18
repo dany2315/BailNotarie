@@ -39,7 +39,7 @@ export function ClientCreateButton() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setIsDialogOpen(true)}>
               <Mail className="mr-2 h-4 w-4" />
-              Envoyer par mail le formulaire
+              Inviter le propriétaire
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/interface/clients/new">

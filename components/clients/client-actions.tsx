@@ -61,9 +61,9 @@ export function ClientActions({ row }: { row: any }) {
             Modifier
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleSendIntakeLink}>
+        <DropdownMenuItem onClick={handleSendIntakeLink} disabled={!row.email}>
           <Mail className="mr-2 h-4 w-4" />
-          Envoyer le lien du formulaire
+          Envoyer le formulaire
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleDelete} className="text-destructive">
           <Trash2 className="mr-2 h-4 w-4" />

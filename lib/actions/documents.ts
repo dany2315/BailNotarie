@@ -5,6 +5,10 @@ import { requireAuth } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { DocumentKind } from "@prisma/client";
 import { put } from "@vercel/blob";
+import { 
+  updateClientCompletionStatus as calculateAndUpdateClientStatus, 
+  updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
+} from "@/lib/utils/completion-status";
 
 export async function getSignedUrl(kind: string, fileName: string, mimeType: string) {
   await requireAuth();
@@ -46,10 +50,13 @@ export async function createDocument(data: {
     },
   });
 
+  // Mettre à jour les statuts de complétion
   if (data.clientId) {
+    await calculateAndUpdateClientStatus(data.clientId);
     revalidatePath(`/interface/clients/${data.clientId}`);
   }
   if (data.propertyId) {
+    await calculateAndUpdatePropertyStatus(data.propertyId);
     revalidatePath(`/interface/properties/${data.propertyId}`);
   }
   if (data.bailId) {
@@ -67,13 +74,19 @@ export async function deleteDocument(id: string) {
     throw new Error("Document introuvable");
   }
 
+  const clientId = document.clientId;
+  const propertyId = document.propertyId;
+
   await prisma.document.delete({ where: { id } });
 
-  if (document.clientId) {
-    revalidatePath(`/interface/clients/${document.clientId}`);
+  // Mettre à jour les statuts de complétion
+  if (clientId) {
+    await calculateAndUpdateClientStatus(clientId);
+    revalidatePath(`/interface/clients/${clientId}`);
   }
-  if (document.propertyId) {
-    revalidatePath(`/interface/properties/${document.propertyId}`);
+  if (propertyId) {
+    await calculateAndUpdatePropertyStatus(propertyId);
+    revalidatePath(`/interface/properties/${propertyId}`);
   }
   if (document.bailId) {
     revalidatePath(`/interface/bails/${document.bailId}`);
@@ -142,6 +155,14 @@ async function uploadFileAndCreateDocument(
       uploadedById: user.id,
     },
   });
+
+  // Mettre à jour les statuts de complétion
+  if (options.clientId) {
+    await calculateAndUpdateClientStatus(options.clientId);
+  }
+  if (options.propertyId) {
+    await calculateAndUpdatePropertyStatus(options.propertyId);
+  }
 
   return document;
 }

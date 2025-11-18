@@ -3,20 +3,21 @@ import { prisma } from "@/lib/prisma";
 import { KPICard } from "@/components/shared/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, Link as LinkIcon, AlertCircle, Plus } from "lucide-react";
+import { Building2, FileText, Link as LinkIcon, AlertCircle, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { BailStatus, CompletionStatus, PropertyStatus  } from "@prisma/client";
 
 export default async function InterfacePage() {
   const user = await getCurrentUser();
 
   // KPIs
-  const [activeProperties, activeLeases, pendingIntakes, readyForNotary] = await Promise.all([
-    prisma.property.count({ where: { status: "NON_LOUER" } }),
-    prisma.bail.count({ where: { status: "ACTIVE" } }),
+  const [completedClients, signedLeases, pendingIntakes, readyForNotary] = await Promise.all([
+    prisma.client.count({ where: { completionStatus: CompletionStatus.COMPLETED } }),
+    prisma.bail.count({ where: { status: BailStatus.SIGNED } }),
     prisma.intakeLink.count({ where: { status: "PENDING" } }),
-    prisma.bail.count({ where: { status: "READY_FOR_NOTARY" } }),
+    prisma.bail.count({ where: { status: BailStatus.READY_FOR_NOTARY } }),
   ]);
 
   // Derniers baux modifiés
@@ -47,6 +48,7 @@ export default async function InterfacePage() {
     },
   });
 
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -63,7 +65,7 @@ export default async function InterfacePage() {
               Créer Bien
             </Button>
           </Link>
-          <Link href="/interface/leases/new">
+          <Link href="/interface/baux/new">
             <Button size="sm">
               <Plus className="size-4 mr-2" />
               Créer Bail
@@ -81,28 +83,28 @@ export default async function InterfacePage() {
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title="Biens actifs"
-          value={activeProperties}
-          icon={Building2}
-          description="Biens en statut ACTIVE"
+          title="Clients complets"
+          value={completedClients}
+          icon={Users}
+          description=""
         />
         <KPICard
-          title="Baux actifs"
-          value={activeLeases}
+          title="Baux signés"
+          value={signedLeases}
           icon={FileText}
-          description="Baux en statut ACTIVE"
+          description=""
         />
         <KPICard
-          title="Intakes en attente"
-          value={pendingIntakes}
-          icon={LinkIcon}
-          description="Liens PENDING"
-        />
-        <KPICard
-          title="Prêts pour notaire"
+          title="Baux prêts pour notaire"
           value={readyForNotary}
           icon={AlertCircle}
-          description="Baux READY_FOR_NOTARY"
+          description=""
+        />
+        <KPICard
+          title="Liens en attente"
+          value={pendingIntakes}
+          icon={LinkIcon}
+          description=""
         />
       </div>
 
@@ -120,15 +122,20 @@ export default async function InterfacePage() {
             ) : (
               <div className="space-y-4">
                 {recentLeases.map((lease) => {
-                  const tenant = lease.parties.find((p: any) => p.profilType === "LOCATAIRE");
-                  const owner = lease.parties.find((p: any) => p.profilType === "PROPRIETAIRE");
-                  const displayName = tenant
-                    ? tenant.firstName && tenant.lastName
-                      ? `${tenant.firstName} ${tenant.lastName}`
-                      : tenant.email || "N/A"
-                    : owner
-                    ? owner.legalName || (owner.firstName && owner.lastName ? `${owner.firstName} ${owner.lastName}` : owner.email) || "N/A"
-                    : "N/A";
+                  const tenant = lease.parties.find((p: any) => p.profilType === "LOCATAIRE") as any;
+                  const owner = lease.parties.find((p: any) => p.profilType === "PROPRIETAIRE") as any;
+                  
+                  if (!tenant || !owner) {
+                    return null;
+                  }
+                  
+                  const displayNameTenant = tenant.firstName && tenant.lastName
+                    ? `${tenant.firstName} ${tenant.lastName}`
+                    : tenant.email || tenant.legalName || "N/A";
+                  
+                  const displayNameOwner = owner.firstName && owner.lastName
+                    ? `${owner.firstName} ${owner.lastName}`
+                    : owner.email || owner.legalName || "N/A";
 
                   return (
                     <div
@@ -137,13 +144,17 @@ export default async function InterfacePage() {
                     >
                       <div className="flex-1">
                         <Link
-                          href={`/interface/leases/${lease.id}`}
+                          href={`/interface/baux/${lease.id}`}
                           className="font-medium hover:underline"
                         >
-                          {lease.property.fullAddress}
+                          Bail #{lease.id.slice(-8).toUpperCase()}
                         </Link>
                         <p className="text-sm text-muted-foreground">
-                          {displayName}
+                          {displayNameTenant}
+                          
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {displayNameOwner}
                         </p>
                       </div>
                       <div className="text-right">
@@ -155,7 +166,7 @@ export default async function InterfacePage() {
                     </div>
                   );
                 })}
-                <Link href="/interface/leases">
+                <Link href="/interface/baux">
                   <Button variant="outline" className="w-full">
                     Voir tous les baux
                   </Button>
@@ -219,7 +230,7 @@ export default async function InterfacePage() {
             <p className="text-sm text-muted-foreground mb-4">
               {readyForNotary} bail{readyForNotary > 1 ? "x" : ""} en attente de validation notariale
             </p>
-            <Link href="/interface/leases?status=READY_FOR_NOTARY">
+            <Link href="/interface/baux?status=READY_FOR_NOTARY">
               <Button>Voir les baux prêts pour notaire</Button>
             </Link>
           </CardContent>

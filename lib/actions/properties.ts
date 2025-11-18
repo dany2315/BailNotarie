@@ -5,7 +5,9 @@ import { requireAuth } from "@/lib/auth-helpers";
 import { createPropertySchema, updatePropertySchema } from "@/lib/zod/property";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
-import { PropertyStatus } from "@prisma/client";
+import { PropertyStatus, CompletionStatus, NotificationType } from "@prisma/client";
+import { updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus } from "@/lib/utils/completion-status";
+import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 
 export async function createProperty(data: unknown) {
   const user = await requireAuth();
@@ -22,6 +24,18 @@ export async function createProperty(data: unknown) {
       owner: true,
     },
   });
+
+  // Mettre à jour le statut de complétion
+  await calculateAndUpdatePropertyStatus(property.id);
+
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le bien)
+  await createNotificationForAllUsers(
+    NotificationType.PROPERTY_CREATED,
+    "PROPERTY",
+    property.id,
+    user.id,
+    { createdByForm: false }
+  );
 
   revalidatePath("/interface/properties");
   return property;
@@ -44,14 +58,44 @@ export async function updateProperty(data: unknown) {
     },
   });
 
+  // Mettre à jour le statut de complétion
+  await calculateAndUpdatePropertyStatus(id);
+
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a modifié le bien)
+  await createNotificationForAllUsers(
+    NotificationType.PROPERTY_UPDATED,
+    "PROPERTY",
+    id,
+    user.id
+  );
+
   revalidatePath("/interface/properties");
   revalidatePath(`/interface/properties/${id}`);
   return property;
 }
 
 export async function deleteProperty(id: string) {
-  await requireAuth();
+  const user = await requireAuth();
+  
+  // Récupérer les infos du bien avant suppression pour la notification
+  const property = await prisma.property.findUnique({ 
+    where: { id },
+    include: { owner: true }
+  });
+  
   await prisma.property.delete({ where: { id } });
+  
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a supprimé le bien)
+  if (property) {
+    await createNotificationForAllUsers(
+      NotificationType.PROPERTY_DELETED,
+      "PROPERTY",
+      id,
+      user.id,
+      { propertyAddress: property.fullAddress }
+    );
+  }
+  
   revalidatePath("/interface/properties");
 }
 
@@ -118,5 +162,42 @@ export async function getProperties(params: {
     pageSize,
     totalPages: Math.ceil(total / pageSize),
   };
+}
+
+// Mettre à jour le statut de complétion d'un bien
+export async function updatePropertyCompletionStatus(data: { id: string; completionStatus: CompletionStatus }) {
+  const user = await requireAuth();
+  const { id, completionStatus } = data;
+
+  // Récupérer l'ancien statut
+  const oldProperty = await prisma.property.findUnique({ where: { id } });
+  const oldStatus = oldProperty?.completionStatus;
+
+  const property = await prisma.property.update({
+    where: { id },
+    data: {
+      completionStatus,
+      updatedById: user.id,
+    },
+  });
+
+  // Créer une notification si le statut a changé
+  if (oldStatus && oldStatus !== completionStatus) {
+    await createNotificationForAllUsers(
+      NotificationType.COMPLETION_STATUS_CHANGED,
+      "PROPERTY",
+      id,
+      user.id,
+      { 
+        oldStatus,
+        newStatus: completionStatus,
+        entityType: "PROPERTY"
+      }
+    );
+  }
+
+  revalidatePath("/interface/properties");
+  revalidatePath(`/interface/properties/${id}`);
+  return property;
 }
 

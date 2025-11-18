@@ -12,6 +12,12 @@ import { randomBytes } from "crypto";
 import { BailType, BailFamille, BailStatus, PropertyStatus, ClientType, ProfilType } from "@prisma/client";
 import { resend } from "@/lib/resend";
 import MailTenantForm from "@/emails/mail-tenant-form";
+import { 
+  updateClientCompletionStatus as calculateAndUpdateClientStatus, 
+  updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
+} from "@/lib/utils/completion-status";
+import { createNotificationForAllUsers } from "@/lib/utils/notifications";
+import { NotificationType } from "@prisma/client";
 
 export async function createIntakeLink(data: unknown) {
   const user = await requireAuth();
@@ -39,11 +45,21 @@ export async function createIntakeLink(data: unknown) {
 }
 
 export async function revokeIntakeLink(id: string) {
-  await requireAuth();
+  const user = await requireAuth();
   const intakeLink = await prisma.intakeLink.update({
     where: { id },
     data: { status: "REVOKED" },
   });
+  
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a révoqué)
+  await createNotificationForAllUsers(
+    NotificationType.INTAKE_REVOKED,
+    "INTAKE",
+    id,
+    user.id,
+    { intakeTarget: intakeLink.target }
+  );
+  
   revalidatePath("/interface/intakes");
   return intakeLink;
 }
@@ -209,6 +225,15 @@ export async function submitIntake(data: unknown) {
     },
   });
 
+  // Créer une notification pour tous les utilisateurs (soumis par formulaire)
+  await createNotificationForAllUsers(
+    NotificationType.INTAKE_SUBMITTED,
+    "INTAKE",
+    updated.id,
+    null, // Soumis par formulaire, pas par un utilisateur
+    { intakeTarget: intakeLink.target }
+  );
+
   revalidatePath(`/intakes/${token}`);
   return updated;
 }
@@ -320,6 +345,8 @@ export async function savePartialIntake(data: unknown) {
         where: { id: intakeLink.clientId },
         data: updateData,
       });
+      // Mettre à jour le statut de complétion
+      await calculateAndUpdateClientStatus(intakeLink.clientId);
     }
 
     // Créer ou mettre à jour le bien si les données sont disponibles
@@ -348,6 +375,9 @@ export async function savePartialIntake(data: unknown) {
         });
         propertyId = property.id;
 
+        // Mettre à jour le statut de complétion
+        await calculateAndUpdatePropertyStatus(property.id);
+
         // Mettre à jour l'intakeLink avec le propertyId
         await prisma.intakeLink.update({
           where: { id: intakeLink.id },
@@ -373,6 +403,8 @@ export async function savePartialIntake(data: unknown) {
             where: { id: propertyId },
             data: updateData,
           });
+          // Mettre à jour le statut de complétion
+          await calculateAndUpdatePropertyStatus(propertyId);
         }
       }
     }
@@ -594,6 +626,8 @@ export async function savePartialIntake(data: unknown) {
         where: { id: intakeLink.clientId },
         data: updateData,
       });
+      // Mettre à jour le statut de complétion
+      await calculateAndUpdateClientStatus(intakeLink.clientId);
     }
 
     // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload

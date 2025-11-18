@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createCommentSchema = z.object({
-  target: z.enum(["PARTY", "PROPERTY", "LEASE", "DOCUMENT", "INTAKE"]),
+  target: z.enum(["CLIENT", "PROPERTY", "BAIL", "DOCUMENT", "INTAKE", "LEAD"]),
   targetId: z.string().cuid("ID cible invalide").min(1, "L'ID de la cible est requis"),
   body: z.string()
     .min(1, "Le commentaire ne peut pas être vide")

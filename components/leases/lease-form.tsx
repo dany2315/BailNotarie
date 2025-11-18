@@ -88,7 +88,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
       
       await onSubmit(formData);
       toast.success(initialData?.id ? "Bail modifié avec succès" : "Bail créé avec succès");
-      router.push(initialData?.id ? `/interface/leases/${initialData.id}` : "/interface/leases");
+      router.push(initialData?.id ? `/interface/baux/${initialData.id}` : "/interface/baux");
     } catch (error: any) {
       toast.error(error.message || (initialData?.id ? "Erreur lors de la modification du bail" : "Erreur lors de la création du bail"));
     } finally {

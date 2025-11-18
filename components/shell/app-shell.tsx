@@ -42,6 +42,7 @@ import Image from "next/image";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Separator } from "../ui/separator";
+import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +53,7 @@ import {
 } from "../ui/dropdown-menu";
 const navigation = [
   { name: "Dashboard", href: "/interface", icon: LayoutDashboard },
-  { name: "Baux", href: "/interface/leases", icon: FileText },
+  { name: "Baux", href: "/interface/baux", icon: FileText },
   { name: "Clients", href: "/interface/clients", icon: Users },
   { name: "Biens", href: "/interface/properties", icon: Building2 },
   { name: "Intakes", href: "/interface/intakes", icon: LinkIcon },
@@ -209,6 +210,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex items-center gap-x-4 lg:gap-x-6 flex-1">
             <Breadcrumbs />
+            </div>
+            <div className="flex items-center gap-x-4">
+              <NotificationsDropdown />
             </div>
           </div>
         </header>

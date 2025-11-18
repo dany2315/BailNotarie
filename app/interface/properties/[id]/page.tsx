@@ -4,10 +4,12 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit } from "lucide-react";
 import { PropertyLegalStatusBadge, PropertyTypeBadge, StatusBadge } from "@/components/shared/status-badge";
+import { CompletionStatusSelect } from "@/components/shared/completion-status-select";
 import { formatDate } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { ClientType } from "@prisma/client";
+import { CommentsDrawer } from "@/components/comments/comments-drawer";
 
 export default async function PropertyDetailPage({
   params,
@@ -41,12 +43,15 @@ export default async function PropertyDetailPage({
             </p>
           </div>
         </div>
-        <Link href={`/interface/properties/${property.id}/edit`}>
-          <Button>
-            <Edit className="size-4 mr-2" />
-            Modifier
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <CommentsDrawer target="PROPERTY" targetId={property.id} />
+          <Link href={`/interface/properties/${property.id}/edit`}>
+            <Button>
+              <Edit className="size-4 mr-2" />
+              Modifier
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -95,12 +100,11 @@ export default async function PropertyDetailPage({
               </div>
             )}
             {property.completionStatus && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Statut de complétion</label>
-                <div className="mt-1">
-                  <StatusBadge status={property.completionStatus} />
-                </div>
-              </div>
+              <CompletionStatusSelect
+                type="property"
+                id={property.id}
+                currentStatus={property.completionStatus}
+              />
             )}
           </CardContent>
         </Card>

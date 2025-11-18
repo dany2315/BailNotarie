@@ -14,12 +14,18 @@ import {
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
 import { resend } from "@/lib/resend";
-import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus } from "@prisma/client";
+import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus, CompletionStatus } from "@prisma/client";
 import MailOwnerForm from "@/emails/mail-owner-form";
 import MailTenantForm from "@/emails/mail-tenant-form";
 import MailLeadConversion from "@/emails/mail-lead-conversion";
 import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actions/documents";
 import { randomBytes } from "crypto";
+import { 
+  updateClientCompletionStatus as calculateAndUpdateClientStatus, 
+  updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
+} from "@/lib/utils/completion-status";
+import { createNotificationForAllUsers } from "@/lib/utils/notifications";
+import { NotificationType } from "@prisma/client";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -64,6 +70,15 @@ export async function createBasicClient(data: unknown) {
     console.error("Erreur lors de l'envoi de l'email:", error);
     // On continue même si l'email échoue
   }
+
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le client)
+  await createNotificationForAllUsers(
+    NotificationType.CLIENT_CREATED,
+    "CLIENT",
+    client.id,
+    user.id,
+    { createdByForm: false }
+  );
 
   revalidatePath("/interface/clients");
   return { client, intakeLink };
@@ -126,6 +141,9 @@ export async function createFullClient(data: unknown) {
       throw error;
     }
 
+    // Mettre à jour le statut de complétion du client
+    await calculateAndUpdateClientStatus(client.id);
+
     // Créer le bien
     const property = await prisma.property.create({
       data: {
@@ -139,6 +157,9 @@ export async function createFullClient(data: unknown) {
         createdById: user.id,
       },
     });
+
+    // Mettre à jour le statut de complétion du bien
+    await calculateAndUpdatePropertyStatus(property.id);
 
     // Créer ou récupérer le locataire (seulement si email fourni)
     let tenant = null;
@@ -201,6 +222,15 @@ export async function createFullClient(data: unknown) {
         createdById: user.id,
       },
     });
+    
+    // Notification pour création de bail (déjà gérée dans createLease, mais on l'ajoute ici aussi pour cohérence)
+    await createNotificationForAllUsers(
+      NotificationType.BAIL_CREATED,
+      "BAIL",
+      bail.id,
+      user.id,
+      { createdByForm: false }
+    );
 
     // Créer un IntakeLink et envoyer l'email seulement si le locataire existe
     if (tenant) {
@@ -288,6 +318,9 @@ export async function createFullClient(data: unknown) {
             },
           });
 
+          // Mettre à jour le statut de complétion
+          await calculateAndUpdateClientStatus(client.id);
+
           revalidatePath("/interface/clients");
           return client;
         } catch (createError: any) {
@@ -318,6 +351,18 @@ export async function createFullClient(data: unknown) {
               ownedProperties: true,
             },
           });
+
+          // Mettre à jour le statut de complétion
+          await calculateAndUpdateClientStatus(client.id);
+
+          // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le client)
+          await createNotificationForAllUsers(
+            NotificationType.CLIENT_CREATED,
+            "CLIENT",
+            client.id,
+            user.id,
+            { createdByForm: false }
+          );
 
           revalidatePath("/interface/clients");
           return client;
@@ -391,6 +436,9 @@ export async function submitOwnerForm(data: unknown) {
     data: ownerUpdateData,
   });
 
+  // Mettre à jour le statut de complétion
+  await calculateAndUpdateClientStatus(validated.clientId);
+
   // Récupérer l'intakeLink du propriétaire pour vérifier les objets existants
   const ownerIntakeLink = await prisma.intakeLink.findFirst({
     where: {
@@ -423,6 +471,8 @@ export async function submitOwnerForm(data: unknown) {
         status: validated.propertyStatus || PropertyStatus.NON_LOUER,
       },
     });
+    // Mettre à jour le statut de complétion du bien
+    await calculateAndUpdatePropertyStatus(property.id);
   } else {
     // Créer un nouveau bien
     property = await prisma.property.create({
@@ -436,6 +486,17 @@ export async function submitOwnerForm(data: unknown) {
         ownerId: validated.clientId,
       },
     });
+    // Mettre à jour le statut de complétion du bien
+    await calculateAndUpdatePropertyStatus(property.id);
+    
+    // Notification pour création de bien via formulaire
+    await createNotificationForAllUsers(
+      NotificationType.PROPERTY_CREATED,
+      "PROPERTY",
+      property.id,
+      null, // Créé par formulaire, pas par un utilisateur
+      { createdByForm: true }
+    );
   }
 
   // Chercher ou créer le locataire (seulement si email fourni)
@@ -495,6 +556,15 @@ export async function submitOwnerForm(data: unknown) {
               email: validated.tenantEmail.trim().toLowerCase(),
             },
           });
+          
+          // Notification pour création de client via formulaire
+          await createNotificationForAllUsers(
+            NotificationType.CLIENT_CREATED,
+            "CLIENT",
+            tenant.id,
+            null, // Créé par formulaire, pas par un utilisateur
+            { createdByForm: true }
+          );
         }
       }
     } else if (!tenant) {
@@ -514,6 +584,15 @@ export async function submitOwnerForm(data: unknown) {
             email: validated.tenantEmail.trim().toLowerCase(),
           },
         });
+        
+        // Notification pour création de client via formulaire
+        await createNotificationForAllUsers(
+          NotificationType.CLIENT_CREATED,
+          "CLIENT",
+          tenant.id,
+          null, // Créé par formulaire, pas par un utilisateur
+          { createdByForm: true }
+        );
       }
     }
   }
@@ -624,7 +703,7 @@ export async function submitOwnerForm(data: unknown) {
 
   // Mettre à jour l'IntakeLink du propriétaire comme soumis
   if (ownerIntakeLink) {
-    await prisma.intakeLink.update({
+    const updatedIntakeLink = await prisma.intakeLink.update({
       where: { id: ownerIntakeLink.id },
       data: {
         status: "SUBMITTED",
@@ -634,6 +713,15 @@ export async function submitOwnerForm(data: unknown) {
         bailId: bail.id,
       },
     });
+    
+    // Notification pour soumission d'intake via formulaire
+    await createNotificationForAllUsers(
+      NotificationType.INTAKE_SUBMITTED,
+      "INTAKE",
+      updatedIntakeLink.id,
+      null, // Soumis par formulaire, pas par un utilisateur
+      { intakeTarget: "OWNER" }
+    );
   }
 
   // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
@@ -707,6 +795,9 @@ export async function submitTenantForm(data: unknown) {
     data: tenantUpdateData,
   });
 
+  // Mettre à jour le statut de complétion
+  await calculateAndUpdateClientStatus(validated.clientId);
+
   // Mettre à jour l'IntakeLink du locataire comme soumis
   const tenantIntakeLink = await prisma.intakeLink.findFirst({
     where: {
@@ -717,7 +808,7 @@ export async function submitTenantForm(data: unknown) {
   });
 
   if (tenantIntakeLink) {
-    await prisma.intakeLink.update({
+    const updatedIntakeLink = await prisma.intakeLink.update({
       where: { id: tenantIntakeLink.id },
       data: {
         status: "SUBMITTED",
@@ -725,6 +816,15 @@ export async function submitTenantForm(data: unknown) {
         rawPayload: validated as any,
       },
     });
+    
+    // Notification pour soumission d'intake via formulaire
+    await createNotificationForAllUsers(
+      NotificationType.INTAKE_SUBMITTED,
+      "INTAKE",
+      updatedIntakeLink.id,
+      null, // Soumis par formulaire, pas par un utilisateur
+      { intakeTarget: "TENANT" }
+    );
   }
 
   // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
@@ -761,6 +861,17 @@ export async function updateClient(data: unknown) {
     },
   });
 
+  // Mettre à jour le statut de complétion
+  await updateClientCompletionStatus({ id, completionStatus: client.completionStatus });
+
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a modifié le client)
+  await createNotificationForAllUsers(
+    NotificationType.CLIENT_UPDATED,
+    "CLIENT",
+    client.id,
+    user.id
+  );
+
   revalidatePath("/interface/clients");
   revalidatePath(`/interface/clients/${id}`);
   return client;
@@ -768,8 +879,24 @@ export async function updateClient(data: unknown) {
 
 // Supprimer un client
 export async function deleteClient(id: string) {
-  await requireAuth();
+  const user = await requireAuth();
+  
+  // Récupérer les infos du client avant suppression pour la notification
+  const client = await prisma.client.findUnique({ where: { id } });
+  
   await prisma.client.delete({ where: { id } });
+  
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a supprimé le client)
+  if (client) {
+    await createNotificationForAllUsers(
+      NotificationType.CLIENT_DELETED,
+      "CLIENT",
+      id,
+      user.id,
+      { clientEmail: client.email || null }
+    );
+  }
+  
   revalidatePath("/interface/clients");
 }
 
@@ -833,6 +960,9 @@ export async function getClient(id: string) {
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
       documents: {
+        orderBy: { createdAt: "desc" },
+      },
+      intakeLinks: {
         orderBy: { createdAt: "desc" },
       },
     },
@@ -1064,5 +1194,42 @@ export async function sendIntakeLinkToClient(clientId: string) {
 
   revalidatePath("/interface/clients");
   return { intakeLink, emailSent: true };
+}
+
+// Mettre à jour le statut de complétion d'un client
+export async function updateClientCompletionStatus(data: { id: string; completionStatus: CompletionStatus }) {
+  const user = await requireAuth();
+  const { id, completionStatus } = data;
+
+  // Récupérer l'ancien statut
+  const oldClient = await prisma.client.findUnique({ where: { id } });
+  const oldStatus = oldClient?.completionStatus;
+
+  const client = await prisma.client.update({
+    where: { id },
+    data: {
+      completionStatus,
+      updatedById: user.id,
+    },
+  });
+
+  // Créer une notification si le statut a changé
+  if (oldStatus && oldStatus !== completionStatus) {
+    await createNotificationForAllUsers(
+      NotificationType.COMPLETION_STATUS_CHANGED,
+      "CLIENT",
+      id,
+      user.id,
+      { 
+        oldStatus,
+        newStatus: completionStatus,
+        entityType: "CLIENT"
+      }
+    );
+  }
+
+  revalidatePath("/interface/clients");
+  revalidatePath(`/interface/clients/${id}`);
+  return client;
 }
 

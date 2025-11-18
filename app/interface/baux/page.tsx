@@ -81,7 +81,7 @@ export default async function LeasesPage({
             Gestion des baux notariés
           </p>
         </div>
-        <Link href="/interface/leases/new">
+        <Link href="/interface/baux/new">
           <Button>
             <Plus className="size-4 mr-2" />
             Nouveau bail

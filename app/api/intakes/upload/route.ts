@@ -105,11 +105,11 @@ export async function POST(request: NextRequest) {
         let targetBailId: string | null = null;
 
         // Documents client
-        if (["kbis", "statutes", "birthCert", "idIdentity", "livretDeFamille", "contratDePacs","insuranceOwner", "ribOwner", "insuranceTenant", "ribTenant"].includes(name)) {
+        if (["kbis", "statutes", "birthCert", "idIdentity", "livretDeFamille", "contratDePacs", "insuranceTenant", "ribTenant"].includes(name)) {
           targetClientId = finalClientId;
         }
         // Documents bien
-        else if (["diagnostics", "titleDeed", "reglementCopropriete", "cahierChargeLotissement", "statutAssociationSyndicale"].includes(name)) {
+        else if (["diagnostics", "titleDeed", "reglementCopropriete", "cahierChargeLotissement", "statutAssociationSyndicale", "insuranceOwner", "ribOwner"].includes(name)) {
           targetPropertyId = finalPropertyId;
         }
 

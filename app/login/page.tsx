@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
-import { signIn } from "@/lib/auth-client";
+import { signIn, useSession } from "@/lib/auth-client";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -20,6 +20,7 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  const { data: session, isPending } = useSession();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -27,6 +28,21 @@ export default function LoginPage() {
     email: "",
     password: "",
   });
+
+  // Rediriger vers l'interface si l'utilisateur est déjà connecté
+  useEffect(() => {
+    if (session && !isPending) {
+      router.push("/interface");
+    }
+  }, [session, isPending, router]);
+
+  if (isPending) {
+    return <div>Chargement...</div>;
+  }
+
+  if (session) {
+    return null; // Retourner null pendant la redirection
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

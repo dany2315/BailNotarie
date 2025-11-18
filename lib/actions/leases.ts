@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
 import { revalidatePath } from "next/cache";
-import { BailFamille, BailType, BailStatus, ProfilType } from "@prisma/client";
+import { BailFamille, BailType, BailStatus, ProfilType, NotificationType } from "@prisma/client";
+import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 
 export async function createLease(data: unknown) {
   const user = await requireAuth();
@@ -60,7 +61,15 @@ export async function createLease(data: unknown) {
     },
   });
 
-  revalidatePath("/interface/leases");
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le bail)
+  await createNotificationForAllUsers(
+    NotificationType.BAIL_CREATED,
+    "BAIL",
+    bail.id,
+    user.id
+  );
+
+  revalidatePath("/interface/baux");
   return bail;
 }
 
@@ -124,6 +133,11 @@ export async function updateLease(data: unknown) {
     }
   }
 
+  // Récupérer l'ancien statut avant la mise à jour
+  const oldBail = await prisma.bail.findUnique({ where: { id } });
+  const oldStatus = oldBail?.status;
+  const newStatus = updatePayload.status || oldBail?.status;
+
   const bail = await prisma.bail.update({
     where: { id },
     data: updatePayload,
@@ -133,8 +147,30 @@ export async function updateLease(data: unknown) {
     },
   });
 
-  revalidatePath("/interface/leases");
-  revalidatePath(`/interface/leases/${id}`);
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a modifié le bail)
+  await createNotificationForAllUsers(
+    NotificationType.BAIL_UPDATED,
+    "BAIL",
+    id,
+    user.id
+  );
+
+  // Si le statut a changé, créer une notification supplémentaire
+  if (oldStatus && newStatus && oldStatus !== newStatus) {
+    await createNotificationForAllUsers(
+      NotificationType.BAIL_STATUS_CHANGED,
+      "BAIL",
+      id,
+      user.id,
+      {
+        oldStatus,
+        newStatus,
+      }
+    );
+  }
+
+  revalidatePath("/interface/baux");
+  revalidatePath(`/interface/baux/${id}`);
   return bail;
 }
 
@@ -155,6 +191,10 @@ export async function transitionLease(data: unknown) {
 
   const user = await requireAuth();
 
+  // Récupérer l'ancien statut
+  const oldBail = await prisma.bail.findUnique({ where: { id } });
+  const oldStatus = oldBail?.status;
+
   const bail = await prisma.bail.update({
     where: { id },
     data: {
@@ -167,15 +207,47 @@ export async function transitionLease(data: unknown) {
     },
   });
 
-  revalidatePath("/interface/leases");
-  revalidatePath(`/interface/leases/${id}`);
+  // Créer une notification pour le changement de statut
+  if (oldStatus && oldStatus !== nextStatus) {
+    await createNotificationForAllUsers(
+      NotificationType.BAIL_STATUS_CHANGED,
+      "BAIL",
+      id,
+      user.id,
+      {
+        oldStatus,
+        newStatus: nextStatus,
+      }
+    );
+  }
+
+  revalidatePath("/interface/baux");
+  revalidatePath(`/interface/baux/${id}`);
   return bail;
 }
 
 export async function deleteLease(id: string) {
-  await requireAuth();
+  const user = await requireAuth();
+  
+  // Récupérer les infos du bail avant suppression pour la notification
+  const bail = await prisma.bail.findUnique({ 
+    where: { id },
+    include: { property: true }
+  });
+  
   await prisma.bail.delete({ where: { id } });
-  revalidatePath("/interface/leases");
+  
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a supprimé le bail)
+  if (bail) {
+    await createNotificationForAllUsers(
+      NotificationType.BAIL_DELETED,
+      "BAIL",
+      id,
+      user.id
+    );
+  }
+  
+  revalidatePath("/interface/baux");
 }
 
 export async function getLease(id: string) {
