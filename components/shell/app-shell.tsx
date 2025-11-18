@@ -62,7 +62,7 @@ const navigation = [
 
 function AppSidebar() {
   const pathname = usePathname();
-  const { state, toggleSidebar } = useSidebar();
+  const { state, toggleSidebar, isMobile } = useSidebar();
   const { data: session, isPending } = useSession();
 
   const handleSignOut = async () => {
@@ -110,7 +110,7 @@ function AppSidebar() {
                 return (
                   <SidebarMenuItem key={item.name} >
                     <SidebarMenuButton asChild isActive={isActive} tooltip={item.name} >
-                      <Link href={item.href} onClick={() => toggleSidebar()}>
+                      <Link href={item.href} onClick={isMobile ? () => toggleSidebar() : undefined}>
                         <item.icon />
                         <span>{item.name}</span>
                       </Link>
