@@ -20,6 +20,7 @@ import { ButtonGroup } from "@/components/ui/button-group";
 import { SendIntakeButton } from "@/components/clients/send-intake-button";
 import { ClientActionsDropdown } from "@/components/clients/client-actions-dropdown";
 import { CommentsDrawer } from "@/components/comments/comments-drawer";
+import { DeleteClientButton } from "@/components/clients/delete-client-button";
 
 export default async function ClientDetailPage({
   params,
@@ -119,6 +120,10 @@ export default async function ClientDetailPage({
               hasEmail={!!client.email}
               profilType={client.profilType}
               intakeLinks={serializedIntakeLinks}
+            />
+            <DeleteClientButton 
+              clientId={client.id} 
+              clientName={clientName || "Client"}
             />
           </ButtonGroup>
         </div>

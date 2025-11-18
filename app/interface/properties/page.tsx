@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { getPaginationParams } from "@/lib/utils/pagination";
-import { PropertyOwnerCell, PropertyStatusCell, PropertyDateCell } from "@/components/properties/property-table-cells";
+import { PropertyFullAddressCell, PropertyOwnerCell, PropertyStatusCell, PropertyDateCell } from "@/components/properties/property-table-cells";
 import { PropertyActions } from "@/components/properties/property-actions";
 
 export default async function PropertiesPage({
@@ -42,7 +42,7 @@ export default async function PropertiesPage({
     {
       id: "address",
       header: "Adresse",
-      accessorKey: "fullAddress",
+      cell: PropertyFullAddressCell,
     },
     {
       id: "owner",

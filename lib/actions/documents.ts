@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { DocumentKind } from "@prisma/client";
-import { put } from "@vercel/blob";
+import { put, del } from "@vercel/blob";
 import { 
   updateClientCompletionStatus as calculateAndUpdateClientStatus, 
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
@@ -66,6 +66,26 @@ export async function createDocument(data: {
   return document;
 }
 
+// Helper pour supprimer un fichier blob
+async function deleteBlobFile(fileKey: string) {
+  try {
+    // Extraire l'URL du fichier blob
+    if (fileKey && fileKey.startsWith('http')) {
+      await del(fileKey, {
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+    }
+  } catch (error) {
+    // Ne pas faire échouer la suppression si le fichier blob n'existe pas
+    console.error(`Erreur lors de la suppression du fichier blob ${fileKey}:`, error);
+  }
+}
+
+// Helper pour supprimer plusieurs fichiers blob
+export async function deleteBlobFiles(fileKeys: string[]) {
+  await Promise.all(fileKeys.map(key => deleteBlobFile(key)));
+}
+
 export async function deleteDocument(id: string) {
   await requireAuth();
   const document = await prisma.document.findUnique({ where: { id } });
@@ -76,6 +96,10 @@ export async function deleteDocument(id: string) {
 
   const clientId = document.clientId;
   const propertyId = document.propertyId;
+  const fileKey = document.fileKey;
+
+  // Supprimer le fichier blob
+  await deleteBlobFile(fileKey);
 
   await prisma.document.delete({ where: { id } });
 

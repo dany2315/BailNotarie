@@ -26,11 +26,6 @@ async function handleSubmit(data: FormData) {
   if (partyId && partyId.toString().trim() !== "") {
     formData.partyId = partyId.toString().trim();
   }
-  
-  const expiresAt = data.get("expiresAt");
-  if (expiresAt && expiresAt.toString().trim() !== "") {
-    formData.expiresAt = expiresAt.toString().trim();
-  }
 
   // Validation avec Zod avant d'appeler createIntakeLink
   try {

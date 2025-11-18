@@ -26,6 +26,7 @@ import {
 } from "@/lib/utils/completion-status";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { NotificationType } from "@prisma/client";
+import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -877,27 +878,295 @@ export async function updateClient(data: unknown) {
   return client;
 }
 
-// Supprimer un client
-export async function deleteClient(id: string) {
-  const user = await requireAuth();
+// Helper pour obtenir le nom d'un client
+function getClientName(client: { type: ClientType; firstName?: string | null; lastName?: string | null; legalName?: string | null; email?: string | null }): string {
+  if (client.type === ClientType.PERSONNE_PHYSIQUE) {
+    const name = `${client.firstName || ""} ${client.lastName || ""}`.trim();
+    return name || client.email || "Client";
+  }
+  return client.legalName || client.email || "Client";
+}
+
+// Obtenir le nom d'un client par son ID (pour le dialog de confirmation)
+export async function getClientNameById(id: string): Promise<string> {
+  await requireAuth();
+  const client = await prisma.client.findUnique({
+    where: { id },
+    select: {
+      type: true,
+      firstName: true,
+      lastName: true,
+      legalName: true,
+      email: true,
+    },
+  });
   
-  // Récupérer les infos du client avant suppression pour la notification
-  const client = await prisma.client.findUnique({ where: { id } });
-  
-  await prisma.client.delete({ where: { id } });
-  
-  // Créer une notification pour tous les utilisateurs (sauf celui qui a supprimé le client)
-  if (client) {
-    await createNotificationForAllUsers(
-      NotificationType.CLIENT_DELETED,
-      "CLIENT",
-      id,
-      user.id,
-      { clientEmail: client.email || null }
-    );
+  if (!client) {
+    return "Client";
   }
   
+  return getClientName(client);
+}
+
+// Supprimer un client
+export async function deleteClient(id: string): Promise<{ success: true } | { success: false; error: string; blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }> }> {
+  const user = await requireAuth();
+  
+  // Récupérer le client avec toutes ses relations
+  const client = await prisma.client.findUnique({
+    where: { id },
+    include: {
+      bails: {
+        include: {
+          parties: {
+            select: {
+              id: true,
+              profilType: true,
+            },
+          },
+        },
+      },
+      ownedProperties: {
+        include: {
+          bails: {
+            include: {
+              parties: {
+                select: {
+                  id: true,
+                  profilType: true,
+                  type: true,
+                  firstName: true,
+                  lastName: true,
+                  legalName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          documents: {
+            select: {
+              id: true,
+              fileKey: true,
+            },
+          },
+        },
+      },
+      documents: {
+        select: {
+          id: true,
+          fileKey: true,
+        },
+      },
+      intakeLinks: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  const clientName = getClientName(client);
+
+  // Gérer les différents cas selon le profilType
+  if (client.profilType === ProfilType.LEAD) {
+    // LEAD : Supprimer le client + son intake s'il y en a un
+    const intakeLinkIds = client.intakeLinks.map(link => link.id);
+    
+    // Supprimer les intakeLinks
+    if (intakeLinkIds.length > 0) {
+      await prisma.intakeLink.deleteMany({
+        where: { id: { in: intakeLinkIds } },
+      });
+    }
+
+    // Supprimer les documents et leurs fichiers blob
+    const documentFileKeys = client.documents.map(doc => doc.fileKey);
+    if (documentFileKeys.length > 0) {
+      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      await deleteBlobFiles(documentFileKeys);
+    }
+
+    await prisma.document.deleteMany({
+      where: { clientId: id },
+    });
+
+    // Supprimer le client
+    await prisma.client.delete({ where: { id } });
+
+  } else if (client.profilType === ProfilType.LOCATAIRE) {
+    // LOCATAIRE : Supprimer le client + ses documents (du blob aussi) + sa connexion avec le bail + les intake en relation
+    
+    // Supprimer les documents et leurs fichiers blob
+    const documentFileKeys = client.documents.map(doc => doc.fileKey);
+    if (documentFileKeys.length > 0) {
+      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      await deleteBlobFiles(documentFileKeys);
+    }
+
+    await prisma.document.deleteMany({
+      where: { clientId: id },
+    });
+
+    // Supprimer les connexions avec les baux (disconnect le locataire des baux)
+    for (const bail of client.bails) {
+      await prisma.bail.update({
+        where: { id: bail.id },
+        data: {
+          parties: {
+            disconnect: { id },
+          },
+        },
+      });
+    }
+
+    // Supprimer les intakeLinks en relation
+    await prisma.intakeLink.deleteMany({
+      where: { clientId: id },
+    });
+
+    // Supprimer le client
+    await prisma.client.delete({ where: { id } });
+
+  } else if (client.profilType === ProfilType.PROPRIETAIRE) {
+    // PROPRIETAIRE : Vérifications complexes
+    
+    // Vérifier s'il y a des baux avec des locataires
+    const blockingEntities: Array<{ id: string; name: string; type: "CLIENT" | "BAIL"; link: string }> = [];
+    
+    for (const property of client.ownedProperties) {
+      for (const bail of property.bails) {
+        // Vérifier si le bail a un locataire connecté
+        const hasTenant = bail.parties.some(party => party.profilType === ProfilType.LOCATAIRE);
+        
+        if (hasTenant) {
+          const tenant = bail.parties.find(party => party.profilType === ProfilType.LOCATAIRE);
+          if (tenant) {
+            const tenantName = tenant.type === ClientType.PERSONNE_PHYSIQUE
+              ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || "Locataire"
+              : tenant.legalName || tenant.email || "Locataire";
+            
+            blockingEntities.push({
+              id: tenant.id,
+              name: tenantName,
+              type: "CLIENT",
+              link: `/interface/clients/${tenant.id}`,
+            });
+          }
+        }
+      }
+    }
+
+    if (blockingEntities.length > 0) {
+      return {
+        success: false,
+        error: `Impossible de supprimer le propriétaire "${clientName}". ` +
+          `Il existe ${blockingEntities.length} locataire${blockingEntities.length > 1 ? 's' : ''} connecté${blockingEntities.length > 1 ? 's' : ''} à ${blockingEntities.length > 1 ? 'des baux' : 'un bail'}. ` +
+          `Vous devez d'abord supprimer le${blockingEntities.length > 1 ? 's' : ''} locataire${blockingEntities.length > 1 ? 's' : ''} concerné${blockingEntities.length > 1 ? 's' : ''}.`,
+        blockingEntities,
+      };
+    }
+
+    // Vérifier s'il y a des baux sans locataire
+    const bailsWithoutTenant: Array<{ id: string; name: string; type: "BAIL"; link: string }> = [];
+    
+    for (const property of client.ownedProperties) {
+      for (const bail of property.bails) {
+        const hasTenant = bail.parties.some(party => party.profilType === ProfilType.LOCATAIRE);
+        if (!hasTenant) {
+          bailsWithoutTenant.push({
+            id: bail.id,
+            name: `Bail #${bail.id.slice(-8).toUpperCase()}`,
+            type: "BAIL",
+            link: `/interface/baux/${bail.id}`,
+          });
+        }
+      }
+    }
+
+    if (bailsWithoutTenant.length > 0) {
+      return {
+        success: false,
+        error: `Impossible de supprimer le propriétaire "${clientName}". ` +
+          `Il existe ${bailsWithoutTenant.length} bail${bailsWithoutTenant.length > 1 ? 'x' : ''} associé${bailsWithoutTenant.length > 1 ? 's' : ''} à ses biens. ` +
+          `Vous devez d'abord supprimer le${bailsWithoutTenant.length > 1 ? 's' : ''} bail${bailsWithoutTenant.length > 1 ? 'x' : ''} concerné${bailsWithoutTenant.length > 1 ? 's' : ''}.`,
+        blockingEntities: bailsWithoutTenant,
+      };
+    }
+
+    // Si seulement un bien et ses données du client : supprimer le client + le bien + les documents du bien et du client (du blob) + les intake en relation
+    
+    // Collecter tous les documents (client + biens)
+    const allDocumentFileKeys: string[] = [];
+    
+    // Documents du client
+    allDocumentFileKeys.push(...client.documents.map(doc => doc.fileKey));
+    
+    // Documents des biens
+    for (const property of client.ownedProperties) {
+      allDocumentFileKeys.push(...property.documents.map(doc => doc.fileKey));
+    }
+
+    // Supprimer tous les fichiers blob
+    if (allDocumentFileKeys.length > 0) {
+      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      await deleteBlobFiles(allDocumentFileKeys);
+    }
+
+    // Supprimer tous les documents (client + biens)
+    await prisma.document.deleteMany({
+      where: {
+        OR: [
+          { clientId: id },
+          { propertyId: { in: client.ownedProperties.map(p => p.id) } },
+        ],
+      },
+    });
+
+    // Supprimer les intakeLinks en relation avec le client et les biens
+    await prisma.intakeLink.deleteMany({
+      where: {
+        OR: [
+          { clientId: id },
+          { propertyId: { in: client.ownedProperties.map(p => p.id) } },
+        ],
+      },
+    });
+
+    // Supprimer les baux (s'ils existent encore, normalement ils sont déjà supprimés)
+    const propertyIds = client.ownedProperties.map(p => p.id);
+    if (propertyIds.length > 0) {
+      await prisma.bail.deleteMany({
+        where: { propertyId: { in: propertyIds } },
+      });
+    }
+
+    // Supprimer les biens
+    await prisma.property.deleteMany({
+      where: { ownerId: id },
+    });
+
+    // Supprimer le client
+    await prisma.client.delete({ where: { id } });
+  } else {
+    // Cas par défaut (ne devrait pas arriver)
+    await prisma.client.delete({ where: { id } });
+  }
+  
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a supprimé le client)
+  await createNotificationForAllUsers(
+    NotificationType.CLIENT_DELETED,
+    "CLIENT",
+    id,
+    user.id,
+    { clientEmail: client.email || null, clientName }
+  );
+  
   revalidatePath("/interface/clients");
+  return { success: true };
 }
 
 // Obtenir un client

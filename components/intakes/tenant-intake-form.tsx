@@ -93,6 +93,90 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     defaultValues: initialValues.current,
   });
 
+  // Fonction pour déterminer la première étape incomplète
+  const getFirstIncompleteStep = (): number => {
+    const values = initialValues.current;
+    const currentClientType = values.type;
+    
+    // Fonction helper pour vérifier si une valeur est vide
+    const isEmpty = (val: any): boolean => {
+      return val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "");
+    };
+    
+    // Vérifier l'étape 0: Informations personnelles
+    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
+      if (isEmpty(values.type) || isEmpty(values.firstName) || isEmpty(values.lastName) || 
+          isEmpty(values.email) || isEmpty(values.phone) || isEmpty(values.fullAddress) || 
+          isEmpty(values.nationality) || isEmpty(values.familyStatus) || 
+          isEmpty(values.birthPlace) || isEmpty(values.birthDate) || isEmpty(values.profession)) {
+        return 0;
+      }
+      if (values.familyStatus === FamilyStatus.MARIE && isEmpty(values.matrimonialRegime)) {
+        return 0;
+      }
+    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
+      if (isEmpty(values.type) || isEmpty(values.legalName) || isEmpty(values.email) || 
+          isEmpty(values.phone) || isEmpty(values.fullAddress) || 
+          isEmpty(values.nationality) || isEmpty(values.registration)) {
+        return 0;
+      }
+    } else {
+      return 0; // Type non défini
+    }
+
+    // Vérifier l'étape 1: Pièces jointes
+    // Utiliser intakeLink directement pour avoir les données à jour
+    // Vérifier les documents selon le type de client
+    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
+      const clientDocs = intakeLink.client?.documents || [];
+      const hasBirthCert = clientDocs.some((doc: any) => doc.kind === "BIRTH_CERT");
+      const hasIdIdentity = clientDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
+      
+      if (!hasBirthCert || !hasIdIdentity) {
+        return 1;
+      }
+      
+      if (values.familyStatus === FamilyStatus.MARIE) {
+        const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE");
+        if (!hasLivret) {
+          return 1;
+        }
+      }
+      if (values.familyStatus === FamilyStatus.PACS) {
+        const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS");
+        if (!hasPacs) {
+          return 1;
+        }
+      }
+    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
+      const clientDocs = intakeLink.client?.documents || [];
+      const hasKbis = clientDocs.some((doc: any) => doc.kind === "KBIS");
+      const hasStatutes = clientDocs.some((doc: any) => doc.kind === "STATUTES");
+      
+      if (!hasKbis || !hasStatutes) {
+        return 1;
+      }
+    }
+
+    // Vérifier les documents du bail
+    const bailDocs = intakeLink.bail?.documents || [];
+    const hasInsurance = bailDocs.some((doc: any) => doc.kind === "INSURANCE");
+    const hasRib = bailDocs.some((doc: any) => doc.kind === "RIB");
+    
+    if (!hasInsurance || !hasRib) {
+      return 1;
+    }
+
+    // Toutes les étapes sont complètes, retourner la dernière étape
+    return STEPS.length - 1;
+  };
+
+  // Initialiser currentStep avec la première étape incomplète
+  useEffect(() => {
+    const firstIncompleteStep = getFirstIncompleteStep();
+    setCurrentStep(firstIncompleteStep);
+  }, []);
+
   // Réinitialiser matrimonialRegime si familyStatus change et n'est plus MARIE
   const familyStatus = form.watch("familyStatus");
   useEffect(() => {

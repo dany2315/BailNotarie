@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,24 +10,60 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Eye, Edit, Trash2, Mail } from "lucide-react";
 import Link from "next/link";
-import { deleteClient, sendIntakeLinkToClient } from "@/lib/actions/clients";
+import { deleteClient, sendIntakeLinkToClient, getClientNameById } from "@/lib/actions/clients";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { DeleteClientDialog } from "./delete-client-dialog";
 
 export function ClientActions({ row }: { row: any }) {
   const router = useRouter();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [clientName, setClientName] = useState<string>("");
+  const [deleteError, setDeleteError] = useState<{
+    message: string;
+    blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }>;
+  } | null>(null);
 
-  const handleDelete = async () => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer ce client ?")) {
-      return;
-    }
-
+  const handleDeleteClick = async () => {
     try {
-      await deleteClient(row.id);
-      toast.success("Client supprimé avec succès");
-      router.refresh();
+      // Récupérer le nom du client pour l'afficher dans le dialog
+      const name = await getClientNameById(row.id);
+      setClientName(name);
+      setDeleteError(null);
+      setIsDeleteDialogOpen(true);
     } catch (error: any) {
-      toast.error(error.message || "Erreur lors de la suppression");
+      toast.error(error.message || "Erreur lors de la récupération du client");
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const result = await deleteClient(row.id);
+      
+      if (result.success) {
+        toast.success("Client supprimé avec succès");
+        setIsDeleteDialogOpen(false);
+        router.refresh();
+      } else {
+        // Afficher l'erreur dans le dialog avec les blockingEntities
+        setDeleteError({
+          message: result.error,
+          blockingEntities: result.blockingEntities || [],
+        });
+        // NE PAS fermer le dialog - on veut afficher l'erreur
+      }
+    } catch (error: any) {
+      // Erreur inattendue (ne devrait pas arriver maintenant)
+      console.error("Erreur inattendue:", error);
+      setDeleteError({
+        message: error.message || "Erreur lors de la suppression",
+        blockingEntities: [],
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -65,11 +102,24 @@ export function ClientActions({ row }: { row: any }) {
           <Mail className="mr-2 h-4 w-4" />
           Envoyer le formulaire
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+        <DropdownMenuItem onClick={handleDeleteClick} className="text-destructive">
           <Trash2 className="mr-2 h-4 w-4" />
           Supprimer
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <DeleteClientDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open);
+          if (!open) {
+            setDeleteError(null);
+          }
+        }}
+        clientName={clientName}
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        error={deleteError}
+      />
     </DropdownMenu>
   );
 }

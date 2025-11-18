@@ -1,25 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import { deleteLease } from "@/lib/actions/leases";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { DeleteLeaseDialog } from "./delete-lease-dialog";
 
-interface LeaseActionsProps {
-  row: { id: string; [key: string]: any };
+interface DeleteLeaseButtonProps {
+  leaseId: string;
 }
 
-export function LeaseActions({ row }: LeaseActionsProps) {
+export function DeleteLeaseButton({ leaseId }: DeleteLeaseButtonProps) {
   const router = useRouter();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -27,10 +20,6 @@ export function LeaseActions({ row }: LeaseActionsProps) {
     message: string;
     blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }>;
   } | null>(null);
-
-  if (!row || !row.id) {
-    return null;
-  }
 
   const handleDeleteClick = () => {
     setDeleteError(null);
@@ -41,22 +30,19 @@ export function LeaseActions({ row }: LeaseActionsProps) {
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      const result = await deleteLease(row.id);
+      const result = await deleteLease(leaseId);
       
       if (result.success) {
         toast.success("Bail supprimé avec succès");
         setIsDeleteDialogOpen(false);
-        router.refresh();
+        router.push("/interface/baux");
       } else {
-        // Afficher l'erreur dans le dialog avec les blockingEntities
         setDeleteError({
           message: result.error,
           blockingEntities: result.blockingEntities || [],
         });
-        // NE PAS fermer le dialog - on veut afficher l'erreur
       }
     } catch (error: any) {
-      // Erreur inattendue (ne devrait pas arriver maintenant)
       console.error("Erreur inattendue:", error);
       setDeleteError({
         message: error.message || "Erreur lors de la suppression du bail",
@@ -68,31 +54,15 @@ export function LeaseActions({ row }: LeaseActionsProps) {
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0">
-          <span className="sr-only">Ouvrir le menu</span>
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link href={`/interface/baux/${row.id}`}>
-            <Eye className="mr-2 h-4 w-4" />
-            Voir
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={`/interface/baux/${row.id}/edit`}>
-            <Edit className="mr-2 h-4 w-4" />
-            Modifier
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleDeleteClick} className="text-destructive">
-          <Trash2 className="mr-2 h-4 w-4" />
-          Supprimer
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+    <>
+      <Button
+        variant="destructive"
+        onClick={handleDeleteClick}
+        className=" sm:w-auto"
+      >
+        <Trash2 className="size-4 sm:mr-2" />
+        <span className="hidden sm:inline">Supprimer</span>
+      </Button>
       <DeleteLeaseDialog
         open={isDeleteDialogOpen}
         onOpenChange={(open) => {
@@ -101,12 +71,12 @@ export function LeaseActions({ row }: LeaseActionsProps) {
             setDeleteError(null);
           }
         }}
-        leaseId={row.id}
+        leaseId={leaseId}
         onConfirm={handleConfirmDelete}
         isLoading={isDeleting}
         error={deleteError}
       />
-    </DropdownMenu>
+    </>
   );
 }
 

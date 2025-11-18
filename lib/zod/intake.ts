@@ -5,7 +5,6 @@ export const createIntakeLinkSchema = z.object({
   propertyId: z.string().cuid().optional(),
   leaseId: z.string().cuid().optional(),
   partyId: z.string().cuid().optional(),
-  expiresAt: z.string().optional().transform((val) => val ? new Date(val) : undefined),
 });
 
 // Schéma pour le payload d'intake (flexible pour accepter toutes les données)

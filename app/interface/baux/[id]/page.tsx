@@ -3,7 +3,7 @@ import { getDocuments } from "@/lib/actions/documents";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit, FileText, Mail, Phone, MapPin, Calendar, Euro, Home, User, Building2, Download, ExternalLink, ArrowRight } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Mail, Phone, MapPin, Calendar, Euro, Home, User, Building2, Download, ExternalLink, ArrowRight, UserPlus } from "lucide-react";
 import { 
   StatusBadge, 
   PropertyTypeBadge, 
@@ -18,6 +18,9 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { DocumentsList } from "@/components/leases/documents-list";
 import { CommentsDrawer } from "@/components/comments/comments-drawer";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { TenantCreateButton } from "@/components/leases/tenant-create-button";
+import { DeleteLeaseButton } from "@/components/leases/delete-lease-button";
 
 export default async function LeaseDetailPage({
   params,
@@ -111,13 +114,17 @@ export default async function LeaseDetailPage({
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <CommentsDrawer target="BAIL" targetId={lease.id} />
-            <Link href={`/interface/baux/${lease.id}/edit`} className="flex-1 sm:flex-initial">
-              <Button className="w-full sm:w-auto">
-                <Edit className="size-4 sm:mr-2" />
-                <span className="hidden sm:inline">Modifier</span>
+            <ButtonGroup className="w-full sm:w-auto justify-end">
+              <Button asChild className=" sm:w-auto" variant="outline">
+                <Link href={`/interface/baux/${lease.id}/edit`} className=" sm:flex-initial">
+                    <Edit className="size-4 sm:mr-2" />
+                    <span className="">Modifier</span>
+                  </Link>
               </Button>
-            </Link>
+              <CommentsDrawer target="BAIL" targetId={lease.id} />
+              <DeleteLeaseButton leaseId={lease.id} />
+            </ButtonGroup>
+            
           </div>
         </div>
       </div>
@@ -353,7 +360,10 @@ export default async function LeaseDetailPage({
                 </div>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">Aucun locataire assigné</p>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">Aucun locataire assigné</p>
+                <TenantCreateButton bailId={lease.id} />
+              </div>
             )}
           </CardContent>
         </Card>

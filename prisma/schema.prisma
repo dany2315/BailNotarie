@@ -94,6 +94,13 @@ enum IntakeTarget {
   BAIL
 }
 
+enum IntakeStatus {
+  PENDING
+  SUBMITTED
+  EXPIRED
+  REVOKED
+}
+
 enum CommentTarget {
   CLIENT
   PROPERTY
@@ -364,7 +371,7 @@ model IntakeLink {
   clientId String?
   client   Client?  @relation(fields: [clientId], references: [id])
 
-  status      String    @default("PENDING") // PENDING | SUBMITTED | EXPIRED | REVOKED
+  status      IntakeStatus    @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
   submittedAt DateTime?
 
   rawPayload Json?
