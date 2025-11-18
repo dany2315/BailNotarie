@@ -22,7 +22,7 @@ export function ClientCreateButton() {
 
   return (
     <>
-      <ButtonGroup>
+      <ButtonGroup className="w-full sm:w-auto justify-end">
         <Button onClick={() => router.push("/interface/clients/new")} variant="outline" className="bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground ">
           Créer un client
         </Button>

@@ -90,33 +90,35 @@ export default async function LeaseDetailPage({
 
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start gap-3 sm:gap-4">
           <Link href="/interface/baux">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="flex-shrink-0">
               <ArrowLeft className="size-4" />
             </Button>
           </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold">Bail #{lease.id.slice(-8).toUpperCase()}</h1>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">Bail #{lease.id.slice(-8).toUpperCase()}</h1>
               <StatusBadge status={lease.status} />
             </div>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-muted-foreground mt-1 text-sm sm:text-base">
               Détails complets du bail notarié
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <CommentsDrawer target="BAIL" targetId={lease.id} />
-          <Link href={`/interface/baux/${lease.id}/edit`}>
-            <Button>
-              <Edit className="size-4 mr-2" />
-              Modifier
-            </Button>
-          </Link>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <CommentsDrawer target="BAIL" targetId={lease.id} />
+            <Link href={`/interface/baux/${lease.id}/edit`} className="flex-1 sm:flex-initial">
+              <Button className="w-full sm:w-auto">
+                <Edit className="size-4 sm:mr-2" />
+                <span className="hidden sm:inline">Modifier</span>
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -131,7 +133,7 @@ export default async function LeaseDetailPage({
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Section Type et Statut */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type de bail</p>
               <p className="text-base font-semibold">{bailTypeLabels[lease.bailType] || lease.bailType}</p>
@@ -149,7 +151,7 @@ export default async function LeaseDetailPage({
           <Separator />
 
           {/* Section Dates */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date de prise d'effet</p>
               <div className="flex items-center gap-2">
@@ -179,7 +181,7 @@ export default async function LeaseDetailPage({
           {/* Section Financière - Mise en évidence */}
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-4">Informations financières</p>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Euro className="size-4" />
@@ -211,7 +213,7 @@ export default async function LeaseDetailPage({
       </Card>
 
       {/* Parties du bail */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         {/* Locataire */}
         <Card>
           <CardHeader>
@@ -521,7 +523,7 @@ export default async function LeaseDetailPage({
           {lease.property ? (
             <>
               {/* Section Informations principales */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide"> Adresse</p>
                   <div className="flex items-start gap-2">
@@ -609,7 +611,7 @@ export default async function LeaseDetailPage({
           <CardTitle className="text-base">Métadonnées</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 text-sm">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 text-sm">
             <div>
               <p className="text-muted-foreground">Créé le</p>
               <p className="font-medium">{formatDateTime(lease.createdAt)}</p>

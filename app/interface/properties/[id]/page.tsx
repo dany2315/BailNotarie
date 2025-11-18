@@ -29,32 +29,34 @@ export default async function PropertyDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start gap-3 sm:gap-4">
           <Link href="/interface/properties">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="flex-shrink-0">
               <ArrowLeft className="size-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-3xl font-bold">{property.label || property.fullAddress}</h1>
-            <p className="text-muted-foreground mt-1">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">{property.label || property.fullAddress}</h1>
+            <p className="text-muted-foreground mt-1 text-sm sm:text-base">
               Détails du bien
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <CommentsDrawer target="PROPERTY" targetId={property.id} />
-          <Link href={`/interface/properties/${property.id}/edit`}>
-            <Button>
-              <Edit className="size-4 mr-2" />
-              Modifier
-            </Button>
-          </Link>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <CommentsDrawer target="PROPERTY" targetId={property.id} />
+            <Link href={`/interface/properties/${property.id}/edit`} className="flex-1 sm:flex-initial">
+              <Button className="w-full sm:w-auto">
+                <Edit className="size-4 sm:mr-2" />
+                <span className="hidden sm:inline">Modifier</span>
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Informations générales</CardTitle>

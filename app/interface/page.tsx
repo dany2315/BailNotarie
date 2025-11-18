@@ -51,37 +51,40 @@ export default async function InterfacePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Bienvenue, {user?.name || user?.email}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/interface/properties/new">
-            <Button size="sm">
-              <Plus className="size-4 mr-2" />
-              Créer Bien
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <Link href="/interface/properties/new" className="w-full sm:w-auto">
+            <Button size="sm" className="w-full sm:w-auto">
+              <Plus className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">Créer Bien</span>
+              <span className="sm:hidden">Bien</span>
             </Button>
           </Link>
-          <Link href="/interface/baux/new">
-            <Button size="sm">
-              <Plus className="size-4 mr-2" />
-              Créer Bail
+          <Link href="/interface/baux/new" className="w-full sm:w-auto">
+            <Button size="sm" className="w-full sm:w-auto">
+              <Plus className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">Créer Bail</span>
+              <span className="sm:hidden">Bail</span>
             </Button>
           </Link>
-          <Link href="/interface/intakes">
-            <Button size="sm" variant="outline">
-              <LinkIcon className="size-4 mr-2" />
-              Créer Intake
+          <Link href="/interface/intakes" className="w-full sm:w-auto">
+            <Button size="sm" variant="outline" className="w-full sm:w-auto">
+              <LinkIcon className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">Créer Intake</span>
+              <span className="sm:hidden">Intake</span>
             </Button>
           </Link>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
           title="Clients complets"
           value={completedClients}
@@ -108,11 +111,11 @@ export default async function InterfacePage() {
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         {/* Derniers baux modifiés */}
         <Card>
           <CardHeader>
-            <CardTitle>Derniers baux modifiés</CardTitle>
+            <CardTitle className="text-lg sm:text-xl">Derniers baux modifiés</CardTitle>
           </CardHeader>
           <CardContent>
             {recentLeases.length === 0 ? (
@@ -140,26 +143,25 @@ export default async function InterfacePage() {
                   return (
                     <div
                       key={lease.id}
-                      className="flex items-center justify-between border-b pb-3 last:border-0"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-3 last:border-0"
                     >
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <Link
                           href={`/interface/baux/${lease.id}`}
-                          className="font-medium hover:underline"
+                          className="font-medium hover:underline block truncate"
                         >
                           Bail #{lease.id.slice(-8).toUpperCase()}
                         </Link>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground truncate">
                           {displayNameTenant}
-                          
                         </p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground truncate">
                           {displayNameOwner}
                         </p>
                       </div>
-                      <div className="text-right">
+                      <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2 sm:gap-1">
                         <StatusBadge status={lease.status} />
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(lease.updatedAt)}
                         </p>
                       </div>
@@ -179,7 +181,7 @@ export default async function InterfacePage() {
         {/* Intakes récents */}
         <Card>
           <CardHeader>
-            <CardTitle>Intakes récents</CardTitle>
+            <CardTitle className="text-lg sm:text-xl">Intakes récents</CardTitle>
           </CardHeader>
           <CardContent>
             {recentIntakes.length === 0 ? (
@@ -191,19 +193,19 @@ export default async function InterfacePage() {
                 {recentIntakes.map((intake) => (
                   <div
                     key={intake.id}
-                    className="flex items-center justify-between border-b pb-3 last:border-0"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-3 last:border-0"
                   >
-                    <div className="flex-1">
-                      <p className="font-medium">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">
                         {intake.target === "OWNER" ? "Propriétaire" : "Locataire"}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground truncate">
                         {intake.property?.fullAddress || intake.bail?.id || "N/A"}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2 sm:gap-1">
                       <StatusBadge status={intake.status} />
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground whitespace-nowrap">
                         {formatDate(intake.createdAt)}
                       </p>
                     </div>
@@ -224,14 +226,17 @@ export default async function InterfacePage() {
       {readyForNotary > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>To-do Notaire</CardTitle>
+            <CardTitle className="text-lg sm:text-xl">To-do Notaire</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
               {readyForNotary} bail{readyForNotary > 1 ? "x" : ""} en attente de validation notariale
             </p>
-            <Link href="/interface/baux?status=READY_FOR_NOTARY">
-              <Button>Voir les baux prêts pour notaire</Button>
+            <Link href="/interface/baux?status=READY_FOR_NOTARY" className="block">
+              <Button className="w-full sm:w-auto">
+                <span className="hidden sm:inline">Voir les baux prêts pour notaire</span>
+                <span className="sm:hidden">Voir les baux</span>
+              </Button>
             </Link>
           </CardContent>
         </Card>

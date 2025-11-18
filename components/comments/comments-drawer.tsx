@@ -82,7 +82,7 @@ export function CommentsDrawer({ target, targetId, trigger }: CommentsDrawerProp
   const defaultTrigger = (
     <Button variant="outline" className="gap-2">
       <MessageSquare className="size-4" />
-      Commentaires
+      <span className="hidden sm:inline">Commentaires</span>
       {unreadCount > 0 ? (
         <span className="ml-1 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
           {unreadCount}
