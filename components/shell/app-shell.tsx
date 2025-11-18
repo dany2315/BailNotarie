@@ -62,7 +62,7 @@ const navigation = [
 
 function AppSidebar() {
   const pathname = usePathname();
-  const { state } = useSidebar();
+  const { state, toggleSidebar } = useSidebar();
   const { data: session, isPending } = useSession();
 
   const handleSignOut = async () => {
@@ -81,7 +81,7 @@ function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/interface">
+              <Link href="/interface" >
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden bg-sidebar-primary text-sidebar-primary-foreground ">
                   <Image src="/logoAvec.png" alt="BailNotarie" width={100} height={100} className=" w-full" />
                 </div>
@@ -108,9 +108,9 @@ function AppSidebar() {
                   isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
                 }
                 return (
-                  <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.name}>
-                      <Link href={item.href}>
+                  <SidebarMenuItem key={item.name} >
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.name} >
+                      <Link href={item.href} onClick={() => toggleSidebar()}>
                         <item.icon />
                         <span>{item.name}</span>
                       </Link>
