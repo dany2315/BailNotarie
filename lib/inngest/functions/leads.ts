@@ -8,7 +8,7 @@ export const sendLeadConversionEmail = inngest.createFunction(
   async ({ event, step }) => {
     await step.run("send-lead-conversion-email", async () => {
       await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
+        from: "contact@bailnotarie.fr",
         to: event.data.to,
         subject: event.data.subject,
         react: MailLeadConversion({

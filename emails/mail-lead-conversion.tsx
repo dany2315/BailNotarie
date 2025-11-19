@@ -65,7 +65,7 @@ export default function MailLeadConversion({
               >
                 <Img
                   src="https://www.bailnotarie.fr/logoSans.png"
-                  alt="BailNotarie"
+                  alt="BailNotarie - Plateforme de baux notariés"
                   width="40"
                   height="40"
                   style={{
