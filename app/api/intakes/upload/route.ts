@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérifier que l'intakeLink existe
+    // Vérifier que l'intakeLink existe et est valide
     const intakeLink = await prisma.intakeLink.findUnique({
       where: { token },
       include: {
@@ -62,14 +62,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Vérifier que le lien n'est pas révoqué
+    if (intakeLink.status === "REVOKED") {
+      return NextResponse.json(
+        { error: "Ce lien a été révoqué" },
+        { status: 403 }
+      );
+    }
+
+    // Vérifier que le lien n'est pas déjà soumis (on permet quand même l'upload pour les modifications)
+    // Mais on vérifie qu'il n'est pas révoqué
+
     // Utiliser les IDs de l'intakeLink si non fournis
     const finalClientId = clientId || intakeLink.clientId;
     const finalPropertyId = propertyId || intakeLink.propertyId;
     const finalBailId = bailId || intakeLink.bailId;
 
-    const uploadedDocuments: { name: string; documentId: string }[] = [];
+    // Créer un tableau de promesses pour uploader tous les fichiers en parallèle
+    const uploadPromises: Promise<{ name: string; documentId: string }>[] = [];
 
-    // Parcourir tous les fichiers dans le FormData
+    // Parcourir tous les fichiers dans le FormData et créer des promesses d'upload
     for (const [name, value] of formData.entries()) {
       // Ignorer les champs qui ne sont pas des fichiers
       if (name === "token" || name === "clientId" || name === "propertyId" || name === "bailId") {
@@ -87,54 +99,95 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      try {
-        // Générer un nom de fichier unique
-        const timestamp = Date.now();
-        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-        const fileName = `intakes/${token}/${timestamp}-${sanitizedName}`;
+      // Créer une promesse pour chaque upload (exécution en parallèle)
+      uploadPromises.push(
+        (async () => {
+          try {
+            // Générer un nom de fichier unique avec timestamp et index pour éviter les collisions
+            const timestamp = Date.now();
+            const randomSuffix = Math.random().toString(36).substring(2, 9);
+            const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+            const fileName = `intakes/${token}/${timestamp}-${randomSuffix}-${sanitizedName}`;
 
-        // Uploader le fichier vers Vercel Blob
-        const blob = await put(fileName, file, {
-          access: "public",
-          token: process.env.BLOB_READ_WRITE_TOKEN,
-        });
+            // Uploader le fichier vers Vercel Blob (en parallèle avec les autres)
+            const blob = await put(fileName, file, {
+              access: "public",
+              token: process.env.BLOB_READ_WRITE_TOKEN,
+            });
 
-        // Déterminer où attacher le document
-        let targetClientId: string | null = null;
-        let targetPropertyId: string | null = null;
-        let targetBailId: string | null = null;
+            // Déterminer où attacher le document
+            let targetClientId: string | null = null;
+            let targetPropertyId: string | null = null;
+            let targetBailId: string | null = null;
 
-        // Documents client
-        if (["kbis", "statutes", "birthCert", "idIdentity", "livretDeFamille", "contratDePacs", "insuranceTenant", "ribTenant"].includes(name)) {
-          targetClientId = finalClientId;
-        }
-        // Documents bien
-        else if (["diagnostics", "titleDeed", "reglementCopropriete", "cahierChargeLotissement", "statutAssociationSyndicale", "insuranceOwner", "ribOwner"].includes(name)) {
-          targetPropertyId = finalPropertyId;
-        }
+            // Documents client
+            if (["kbis", "statutes", "birthCert", "idIdentity", "livretDeFamille", "contratDePacs", "insuranceTenant", "ribTenant"].includes(name)) {
+              targetClientId = finalClientId;
+            }
+            // Documents bien
+            else if (["diagnostics", "titleDeed", "reglementCopropriete", "cahierChargeLotissement", "statutAssociationSyndicale", "insuranceOwner", "ribOwner"].includes(name)) {
+              targetPropertyId = finalPropertyId;
+            }
 
-        // Créer le document dans la base de données
-        const document = await prisma.document.create({
-          data: {
-            kind: documentKind,
-            label: file.name,
-            fileKey: blob.url,
-            mimeType: file.type,
-            size: file.size,
-            clientId: targetClientId,
-            propertyId: targetPropertyId,
-            bailId: targetBailId,
-          },
-        });
+            // Créer le document dans la base de données
+            const document = await prisma.document.create({
+              data: {
+                kind: documentKind,
+                label: file.name,
+                fileKey: blob.url,
+                mimeType: file.type,
+                size: file.size,
+                clientId: targetClientId,
+                propertyId: targetPropertyId,
+                bailId: targetBailId,
+              },
+            });
 
-        uploadedDocuments.push({
-          name,
-          documentId: document.id,
-        });
-      } catch (error) {
-        console.error(`Erreur lors de l'upload du fichier ${name}:`, error);
-        // Continuer avec les autres fichiers même si un échoue
+            return { name, documentId: document.id };
+          } catch (error) {
+            console.error(`Erreur lors de l'upload du fichier ${name}:`, error);
+            // Relancer l'erreur pour que Promise.allSettled puisse la capturer
+            throw { name, error };
+          }
+        })()
+      );
+    }
+
+    // Exécuter tous les uploads en parallèle
+    // Utiliser allSettled pour continuer même si certains échouent
+    const results = await Promise.allSettled(uploadPromises);
+    
+    // Filtrer les résultats réussis et gérer les erreurs
+    const uploadedDocuments: { name: string; documentId: string }[] = [];
+    const errors: { name: string; error: any }[] = [];
+
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        uploadedDocuments.push(result.value);
+      } else {
+        // result.reason contient l'erreur ou l'objet { name, error }
+        const errorInfo = result.reason?.name 
+          ? { name: result.reason.name, error: result.reason.error }
+          : { name: `fichier_${index}`, error: result.reason };
+        errors.push(errorInfo);
+        console.error(`Échec de l'upload pour ${errorInfo.name}:`, errorInfo.error);
       }
+    });
+
+    // Si tous les uploads ont échoué, retourner une erreur
+    if (uploadedDocuments.length === 0 && uploadPromises.length > 0) {
+      return NextResponse.json(
+        { 
+          error: "Tous les uploads ont échoué",
+          details: errors
+        },
+        { status: 500 }
+      );
+    }
+
+    // Si certains uploads ont échoué, retourner un avertissement mais continuer
+    if (errors.length > 0) {
+      console.warn(`${errors.length} fichier(s) n'ont pas pu être uploadés:`, errors);
     }
 
     return NextResponse.json({

@@ -4,9 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
-import { resend } from "@/lib/resend";
 import { randomBytes } from "crypto";
-import MailLeadConversion from "@/emails/mail-lead-conversion";
+import { triggerLeadConversionEmail, triggerOwnerFormEmail, triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { z } from "zod";
 import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
@@ -109,17 +108,14 @@ export async function createLead(data: unknown) {
     let emailSent = false;
     if (validated.contactType === "email" && validated.email) {
       try {
-        await resend.emails.send({
-          from: "noreply@bailnotarie.fr",
+        await triggerLeadConversionEmail({
           to: validated.email,
           subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
-          react: MailLeadConversion({
-            convertUrl,
-          }),
+          convertUrl,
         });
         emailSent = true;
       } catch (error) {
-        console.error("Erreur lors de l'envoi de l'email:", error);
+        console.error("Erreur lors du déclenchement de l'email:", error);
         // Le lead est créé mais l'email n'a pas pu être envoyé
         // On continue mais on retourne une indication que l'email a échoué
       }
@@ -250,12 +246,12 @@ export async function convertLead(data: {
       },
     });
     
-    // Créer une notification pour la conversion du lead
+    // Créer une notification pour la conversion du lead (notifier tous les utilisateurs)
     await createNotificationForAllUsers(
       NotificationType.LEAD_CONVERTED,
       "CLIENT",
       updatedClient.id,
-      intakeLink.createdById,
+      null, // Notifier tous les utilisateurs
       {
         oldProfilType: "LEAD",
         newProfilType: "PROPRIETAIRE",
@@ -281,22 +277,19 @@ export async function convertLead(data: {
       },
     });
 
-    // Envoyer l'email avec le formulaire propriétaire uniquement si le client a un email
+    // Déclencher l'envoi d'email avec le formulaire propriétaire via Inngest (asynchrone, ne bloque pas le rendu)
     const formUrl = `${baseUrl}/intakes/${ownerIntakeLink.token}`;
 
     if (intakeLink.client.email) {
       try {
-        await resend.emails.send({
-          from: "noreply@bailnotarie.fr",
+        await triggerLeadConversionEmail({
           to: intakeLink.client.email,
           subject: "Formulaire de bail notarié - Propriétaire",
-          react: MailLeadConversion({
-            convertUrl: formUrl,
-            isOwnerForm: true,
-          }),
+          convertUrl: formUrl,
+          isOwnerForm: true,
         });
       } catch (error) {
-        console.error("Erreur lors de l'envoi de l'email:", error);
+        console.error("Erreur lors du déclenchement de l'email:", error);
       }
     }
 
@@ -316,12 +309,12 @@ export async function convertLead(data: {
       },
     });
     
-    // Créer une notification pour la conversion du lead
+    // Créer une notification pour la conversion du lead (notifier tous les utilisateurs)
     await createNotificationForAllUsers(
       NotificationType.LEAD_CONVERTED,
       "CLIENT",
       updatedClient.id,
-      intakeLink.createdById,
+      null, // Notifier tous les utilisateurs
       {
         oldProfilType: "LEAD",
         newProfilType: "LOCATAIRE",
@@ -429,38 +422,32 @@ export async function convertLead(data: {
       },
     });
 
-    // Envoyer l'email au locataire avec le formulaire uniquement si le client a un email
+    // Déclencher l'envoi d'email au locataire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
     const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
     if (intakeLink.client.email) {
       try {
-        await resend.emails.send({
-          from: "noreply@bailnotarie.fr",
+        await triggerLeadConversionEmail({
           to: intakeLink.client.email,
           subject: "Formulaire de bail notarié - Locataire",
-          react: MailLeadConversion({
-            convertUrl: tenantFormUrl,
-            isTenantForm: true,
-          }),
+          convertUrl: tenantFormUrl,
+          isTenantForm: true,
         });
       } catch (error) {
-        console.error("Erreur lors de l'envoi de l'email au locataire:", error);
+        console.error("Erreur lors du déclenchement de l'email au locataire:", error);
       }
     }
 
-    // Envoyer l'email au propriétaire avec le formulaire
+    // Déclencher l'envoi d'email au propriétaire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
     const ownerFormUrl = `${baseUrl}/intakes/${ownerIntakeLink.token}`;
     try {
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
+      await triggerLeadConversionEmail({
         to: ownerEmail,
         subject: "Formulaire de bail notarié - Propriétaire",
-        react: MailLeadConversion({
-          convertUrl: ownerFormUrl,
-          isOwnerForm: true,
-        }),
+        convertUrl: ownerFormUrl,
+        isOwnerForm: true,
       });
     } catch (error) {
-      console.error("Erreur lors de l'envoi de l'email au propriétaire:", error);
+      console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
     }
 
     revalidatePath("/interface/clients");

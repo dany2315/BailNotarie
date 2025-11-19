@@ -77,6 +77,9 @@ export function ClientActions({ row }: { row: any }) {
     }
   };
 
+  // Désactiver le bouton si le client est en PENDING_CHECK ou COMPLETED
+  const isCompletionStatusBlocking = row.completionStatus === "PENDING_CHECK" || row.completionStatus === "COMPLETED";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -98,7 +101,10 @@ export function ClientActions({ row }: { row: any }) {
             Modifier
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleSendIntakeLink} disabled={!row.email}>
+        <DropdownMenuItem 
+          onClick={handleSendIntakeLink} 
+          disabled={!row.email || isCompletionStatusBlocking}
+        >
           <Mail className="mr-2 h-4 w-4" />
           Envoyer le formulaire
         </DropdownMenuItem>

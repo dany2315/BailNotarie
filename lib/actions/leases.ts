@@ -8,8 +8,7 @@ import { BailFamille, BailType, BailStatus, ProfilType, NotificationType, Client
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
-import { resend } from "@/lib/resend";
-import MailTenantForm from "@/emails/mail-tenant-form";
+import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 
 export async function createLease(data: unknown) {
   const user = await requireAuth();
@@ -151,27 +150,7 @@ export async function updateLease(data: unknown) {
     },
   });
 
-  // Créer une notification pour tous les utilisateurs (sauf celui qui a modifié le bail)
-  await createNotificationForAllUsers(
-    NotificationType.BAIL_UPDATED,
-    "BAIL",
-    id,
-    user.id
-  );
-
-  // Si le statut a changé, créer une notification supplémentaire
-  if (oldStatus && newStatus && oldStatus !== newStatus) {
-    await createNotificationForAllUsers(
-      NotificationType.BAIL_STATUS_CHANGED,
-      "BAIL",
-      id,
-      user.id,
-      {
-        oldStatus,
-        newStatus,
-      }
-    );
-  }
+  // Pas de notification pour les modifications via l'interface
 
   revalidatePath("/interface/baux");
   revalidatePath(`/interface/baux/${id}`);
@@ -211,19 +190,7 @@ export async function transitionLease(data: unknown) {
     },
   });
 
-  // Créer une notification pour le changement de statut
-  if (oldStatus && oldStatus !== nextStatus) {
-    await createNotificationForAllUsers(
-      NotificationType.BAIL_STATUS_CHANGED,
-      "BAIL",
-      id,
-      user.id,
-      {
-        oldStatus,
-        newStatus: nextStatus,
-      }
-    );
-  }
+  // Pas de notification pour les modifications via l'interface
 
   revalidatePath("/interface/baux");
   revalidatePath(`/interface/baux/${id}`);
@@ -384,7 +351,7 @@ export async function getLeases(params: {
   page?: number;
   pageSize?: number;
   search?: string;
-  status?: string;
+  status?: string | string[];
   propertyId?: string;
   tenantId?: string;
 }) {
@@ -393,7 +360,16 @@ export async function getLeases(params: {
   const where: any = {};
 
   if (params.status) {
-    where.status = params.status as BailStatus;
+    // Gérer plusieurs statuts (tableau ou chaîne séparée par des virgules)
+    const statuses = Array.isArray(params.status) 
+      ? params.status 
+      : params.status.split(",").filter(Boolean);
+    
+    if (statuses.length > 0) {
+      where.status = statuses.length === 1 
+        ? (statuses[0] as BailStatus)
+        : { in: statuses as BailStatus[] };
+    }
   }
 
   if (params.propertyId) {
@@ -443,6 +419,28 @@ export async function getLeases(params: {
     pageSize,
     totalPages: Math.ceil(total / pageSize),
   };
+}
+
+// Obtenir tous les baux (pour filtrage côté client)
+export async function getAllBails() {
+  await requireAuth();
+
+  const data = await prisma.bail.findMany({
+    include: {
+      property: {
+        include: {
+          owner: true,
+        },
+      },
+      parties: true,
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  // Sérialiser les données
+  const serializedData = JSON.parse(JSON.stringify(data));
+
+  return serializedData;
 }
 
 // Schéma pour créer un locataire avec juste l'email
@@ -543,23 +541,19 @@ export async function createTenantForLease(data: unknown) {
     });
   }
 
-  // Envoyer l'email au locataire avec le formulaire
+  // Déclencher l'envoi d'email au locataire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
   const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
 
   try {
-    await resend.emails.send({
-      from: "noreply@bailnotarie.fr",
+    await triggerTenantFormEmail({
       to: validated.email,
-      subject: "Formulaire de bail notarié - Locataire",
-      react: MailTenantForm({
-        firstName: "",
-        lastName: "",
-        formUrl: tenantFormUrl,
-      }),
+      firstName: "",
+      lastName: "",
+      formUrl: tenantFormUrl,
     });
   } catch (error) {
-    console.error("Erreur lors de l'envoi de l'email au locataire:", error);
+    console.error("Erreur lors du déclenchement de l'email au locataire:", error);
     // On continue même si l'email échoue
   }
 

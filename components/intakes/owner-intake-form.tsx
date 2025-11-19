@@ -555,10 +555,8 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       }
     });
 
-    // Rafraîchir les données après l'upload pour que les documents soient reconnus
-    await refreshIntakeLinkData();
-    
-    // Déclencher l'événement pour recharger les documents
+    // Déclencher l'événement pour recharger les documents dans les composants DocumentUploaded
+    // (pas besoin de rafraîchir toutes les données, les composants se mettront à jour via l'événement)
     window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
   };
 
@@ -586,7 +584,8 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
         payload: data,
       });
       
-      // Rafraîchir les données après la sauvegarde pour s'assurer que tout est à jour
+      // Rafraîchir les données après la sauvegarde seulement si nécessaire
+      // (pour mettre à jour les valeurs du formulaire si elles ont changé côté serveur)
       await refreshIntakeLinkData();
       
       // Mettre à jour les valeurs initiales avec les valeurs actuelles du formulaire
@@ -599,7 +598,25 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       toast.success("Données enregistrées avec succès");
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
-      toast.error(errorMessage);
+      
+      // Si l'erreur contient le message sur l'email existant, afficher un toast avec le lien
+      if (errorMessage.includes("déjà utilisé") && errorMessage.includes("/#contact")) {
+        toast.error(errorMessage.replace(" : /#contact", ""), {
+          description: (
+            <a href="/#contact" className="underline font-medium">
+              Cliquez ici pour contacter le service client
+            </a>
+          ),
+          duration: 10000, // Afficher plus longtemps pour que l'utilisateur puisse cliquer
+        });
+        // Relancer l'erreur pour que handleNext puisse la capturer et bloquer la progression
+        throw error;
+      } else {
+        toast.error(errorMessage);
+        // Pour les autres erreurs, on peut aussi les relancer si nécessaire
+        // Mais pour l'instant, on ne relance que les erreurs critiques
+      }
+      
       console.error("Erreur lors de l'enregistrement:", error);
     } finally {
       setIsSaving(false);
@@ -638,15 +655,79 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       return;
     }
     
+    // Si on est à l'étape 3 (informations du locataire), forcer la validation de tenantEmail en premier
+    if (currentStep === 3 && fieldsToValidate.includes("tenantEmail")) {
+      const tenantEmailValue = currentValues.tenantEmail;
+      if (tenantEmailValue && tenantEmailValue.trim() !== "") {
+        // Valider spécifiquement tenantEmail d'abord avec un délai pour laisser la validation asynchrone se terminer
+        const tenantEmailValid = await form.trigger("tenantEmail");
+        
+        // Attendre un peu pour s'assurer que la validation asynchrone est terminée
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Vérifier à nouveau les erreurs après le délai
+        const errorsAfterDelay = form.formState.errors;
+        
+        if (!tenantEmailValid || errorsAfterDelay.tenantEmail) {
+          const tenantEmailError = errorsAfterDelay.tenantEmail?.message || form.formState.errors.tenantEmail?.message;
+          if (tenantEmailError?.includes("déjà utilisé")) {
+            toast.error(tenantEmailError, {
+              description: (
+                <a href="/#contact" className="underline font-medium">
+                  Cliquez ici pour contacter le service client
+                </a>
+              ),
+              duration: 10000,
+            });
+            return; // Bloquer la progression si l'email est déjà utilisé
+          }
+        }
+      }
+    }
+    
     const isValid = await form.trigger(fieldsToValidate as any);
     console.log("Validation result:", isValid);
     console.log("Erreurs:", form.formState.errors);
     
+    // Vérifier à nouveau les erreurs après la validation complète
+    if (!isValid) {
+      // Vérifier spécifiquement les erreurs de validation pour tenantEmail
+      if (currentStep === 3 && form.formState.errors.tenantEmail) {
+        const tenantEmailError = form.formState.errors.tenantEmail.message;
+        if (tenantEmailError?.includes("déjà utilisé")) {
+          toast.error(tenantEmailError, {
+            description: (
+              <a href="/#contact" className="underline font-medium">
+                Cliquez ici pour contacter le service client
+              </a>
+            ),
+            duration: 10000,
+          });
+          return; // Ne pas continuer si l'email est déjà utilisé
+        }
+      }
+    }
+    
     if (isValid) {
       // Sauvegarder avant de passer à l'étape suivante (seulement si les données ont changé)
-      await saveCurrentStep(true);
-      if (currentStep < STEPS.length - 1) {
-        setCurrentStep(currentStep + 1);
+      try {
+        await saveCurrentStep(true);
+        // Si la sauvegarde réussit, passer à l'étape suivante
+        if (currentStep < STEPS.length - 1) {
+          setCurrentStep(currentStep + 1);
+        }
+      } catch (error: any) {
+        // Si la sauvegarde échoue (par exemple, email existant), ne pas passer à l'étape suivante
+        // L'erreur est déjà gérée dans saveCurrentStep avec un toast
+        const errorMessage = error?.message || error?.toString() || "";
+        if (errorMessage.includes("déjà utilisé")) {
+          // L'erreur a déjà été affichée dans saveCurrentStep, on bloque juste la progression
+          console.error("Erreur bloquante détectée:", error);
+          return; // Bloquer la progression
+        }
+        // Pour les autres erreurs, on peut continuer ou non selon le cas
+        console.error("Erreur lors de la sauvegarde:", error);
+        return; // Bloquer la progression pour toute erreur
       }
     } else {
       // Récupérer les erreurs de validation
@@ -837,23 +918,11 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
 
     setIsSubmitting(true);
     try {
-      // Uploader les fichiers avant la soumission finale
+      // Uploader les fichiers en parallèle (optimisé dans l'API route)
       await uploadFiles();
       
-      // Rafraîchir les données après l'upload pour s'assurer que tous les documents sont reconnus
-      await refreshIntakeLinkData();
-      
-      // Re-valider les fichiers après le rafraîchissement pour s'assurer que tout est présent
-      const fileValidationAfterRefresh = validateRequiredFiles();
-      if (!fileValidationAfterRefresh.isValid) {
-        toast.error("Veuillez joindre tous les documents requis", {
-          description: fileValidationAfterRefresh.errors.join(", "),
-        });
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // Soumettre les données sans les fichiers (ils sont déjà uploadés)
+      // Soumettre directement les données (les fichiers sont déjà uploadés)
+      // Pas besoin de rafraîchir les données ni de re-valider, on vient juste d'uploader
       await submitIntake({
         token: intakeLink.token,
         payload: data,
@@ -1071,9 +1140,13 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
                   international
                   countryCallingCodeEditable={false}
                   placeholder="Numéro de téléphone"
+                  disabled={!client?.email && !!client?.phone}
                 />
               )}
             />
+            {!client?.email && client?.phone && (
+              <p className="text-sm text-muted-foreground">Le téléphone ne peut pas être modifié</p>
+            )}
             {form.formState.errors.phone && (
               <p className="text-sm text-destructive">{form.formState.errors.phone.message}</p>
             )}
@@ -1084,10 +1157,12 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
               id="email" 
               type="email" 
               {...form.register("email")} 
-              disabled
-              className="bg-muted cursor-not-allowed"
+              disabled={!!client?.email}
+              className={client?.email ? "bg-muted cursor-not-allowed" : ""}
             />
-            <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
+            {client?.email && (
+              <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
+            )}
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
             )}
@@ -1282,25 +1357,76 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     </Card>
   );
 
-  const renderTenantInfo = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informations du locataire</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="tenantEmail">Email du locataire *</Label>
-          <Input id="tenantEmail" type="email" {...form.register("tenantEmail")} disabled={tenant?.email ? true : false} />
-          {form.formState.errors.tenantEmail && (
-            <p className="text-sm text-destructive">{form.formState.errors.tenantEmail.message}</p>
-          )}
-          <p className="text-sm text-muted-foreground">
-            Un email sera envoyé au locataire pour qu'il complète ses informations.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
+  const renderTenantInfo = () => {
+    // Validation asynchrone pour vérifier si l'email existe déjà
+    const validateTenantEmail = async (email: string | undefined) => {
+      if (!email || email.trim() === "") {
+        return true; // La validation requise est gérée par le schéma Zod
+      }
+
+      try {
+        const response = await fetch("/api/clients/check-email", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        });
+
+        const data = await response.json();
+
+        if (data.exists) {
+          return "Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client.";
+        }
+
+        return true;
+      } catch (error) {
+        console.error("Erreur lors de la vérification de l'email:", error);
+        return true; // En cas d'erreur, on laisse passer pour ne pas bloquer l'utilisateur
+      }
+    };
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Informations du locataire</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="tenantEmail">Email du locataire *</Label>
+            <Input 
+              id="tenantEmail" 
+              type="email" 
+              {...form.register("tenantEmail", {
+                validate: validateTenantEmail,
+                required: "L'email du locataire est requis",
+              })} 
+              onBlur={async () => {
+                // Déclencher la validation au blur
+                await form.trigger("tenantEmail");
+              }}
+              disabled={tenant?.email ? true : false} 
+            />
+            {form.formState.errors.tenantEmail && (
+              <div className="text-sm text-destructive">
+                <p>{form.formState.errors.tenantEmail.message}</p>
+                {form.formState.errors.tenantEmail.message?.includes("déjà utilisé") && (
+                  <p className="mt-1">
+                    <a href="/#contact" className="underline hover:text-destructive/80 font-medium">
+                      Cliquez ici pour contacter le service client
+                    </a>
+                  </p>
+                )}
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground">
+              Un email sera envoyé au locataire pour qu'il complète ses informations.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderDocuments = () => (
     <Card>

@@ -4,14 +4,16 @@ import * as React from "react";
 import { DataTable, Column } from "@/components/data-table/data-table";
 import { ClientProfilTypeCell, ClientNameCell, ClientDateCell, ClientCreatedByCell } from "@/components/clients/client-table-cells";
 import { ClientActions } from "@/components/clients/client-actions";
-import { ClientProfilTypeFilter } from "@/components/clients/client-profil-type-filter";
-import { ProfilType } from "@prisma/client";
+import { ClientProfilTypeMultiSelect } from "@/components/clients/client-profil-type-multi-select";
+import { CompletionStatusMultiSelect } from "@/components/shared/completion-status-multi-select";
+import { ProfilType, CompletionStatus } from "@prisma/client";
 import { ClientType } from "@prisma/client";
 
 interface Client {
   id: string;
   type: ClientType;
   profilType: ProfilType;
+  completionStatus?: CompletionStatus;
   firstName?: string | null;
   lastName?: string | null;
   legalName?: string | null;
@@ -28,7 +30,8 @@ interface ClientsTableClientProps {
 
 export function ClientsTableClient({ initialData, columns }: ClientsTableClientProps) {
   const [search, setSearch] = React.useState("");
-  const [profilTypeFilter, setProfilTypeFilter] = React.useState<ProfilType | "all">("all");
+  const [profilTypeFilter, setProfilTypeFilter] = React.useState<ProfilType[]>([]);
+  const [completionStatusFilter, setCompletionStatusFilter] = React.useState<CompletionStatus[]>([]);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
 
@@ -36,9 +39,16 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
   const filteredData = React.useMemo(() => {
     let filtered = [...initialData];
 
-    // Filtrer par profil
-    if (profilTypeFilter !== "all") {
-      filtered = filtered.filter((client) => client.profilType === profilTypeFilter);
+    // Filtrer par profil (multi-select)
+    if (profilTypeFilter.length > 0) {
+      filtered = filtered.filter((client) => profilTypeFilter.includes(client.profilType));
+    }
+
+    // Filtrer par statut de completion (multi-select)
+    if (completionStatusFilter.length > 0) {
+      filtered = filtered.filter((client) => 
+        client.completionStatus && completionStatusFilter.includes(client.completionStatus)
+      );
     }
 
     // Filtrer par recherche (nom, prénom, raison sociale, email)
@@ -62,7 +72,7 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
     }
 
     return filtered;
-  }, [initialData, profilTypeFilter, search]);
+  }, [initialData, profilTypeFilter, completionStatusFilter, search]);
 
   // Pagination côté client
   const paginatedData = React.useMemo(() => {
@@ -89,18 +99,29 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
         setPage(1);
       }}
       filters={
-        <ClientProfilTypeFilter
-          value={profilTypeFilter}
-          onValueChange={(value) => {
-            setProfilTypeFilter(value as ProfilType | "all");
-            setPage(1);
-          }}
-        />
+        <div className="flex flex-wrap gap-2">
+          <ClientProfilTypeMultiSelect
+            value={profilTypeFilter}
+            onValueChange={(value) => {
+              setProfilTypeFilter(value);
+              setPage(1);
+            }}
+          />
+          <CompletionStatusMultiSelect
+            value={completionStatusFilter}
+            onValueChange={(value) => {
+              setCompletionStatusFilter(value);
+              setPage(1);
+            }}
+            placeholder="Filtrer par statut de complétion"
+          />
+        </div>
       }
       actions={ClientActions}
     />
   );
 }
+
 
 
 

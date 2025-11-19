@@ -10,8 +10,6 @@ import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
 import { randomBytes } from "crypto";
 import { BailType, BailFamille, BailStatus, PropertyStatus, ClientType, ProfilType } from "@prisma/client";
-import { resend } from "@/lib/resend";
-import MailTenantForm from "@/emails/mail-tenant-form";
 import { 
   updateClientCompletionStatus as calculateAndUpdateClientStatus, 
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
@@ -263,8 +261,16 @@ export async function getIntakeLinks(params: {
     prisma.intakeLink.findMany({
       where,
       include: {
-        property: true,
-        bail: true,
+        property: {
+          include: {
+            owner: true,
+          },
+        },
+        bail: {
+          include: {
+            parties: true,
+          },
+        },
         client: true,
         createdBy: { select: { id: true, name: true, email: true } },
       },
@@ -353,36 +359,57 @@ export async function savePartialIntake(data: unknown) {
     let propertyId = intakeLink.propertyId;
     if (payload.propertyFullAddress || payload.propertyLabel || payload.propertySurfaceM2 || payload.propertyType || payload.propertyLegalStatus) {
       if (!propertyId) {
-        // Créer le bien
-        const propertyData: any = {
-          label: payload.propertyLabel || null,
-          fullAddress: payload.propertyFullAddress,
-          type: payload.propertyType || null,
-          legalStatus: payload.propertyLegalStatus || null,
-          status: payload.propertyStatus || PropertyStatus.NON_LOUER,
-          ownerId: intakeLink.clientId,
-        };
-        
-        // Convertir les valeurs numériques
-        if (payload.propertySurfaceM2 && payload.propertySurfaceM2 !== "") {
-          propertyData.surfaceM2 = new Decimal(payload.propertySurfaceM2);
+        // Vérifier s'il existe déjà un bien pour ce client avant d'en créer un nouveau
+        const existingProperty = await prisma.property.findFirst({
+          where: {
+            ownerId: intakeLink.clientId,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+
+        if (existingProperty) {
+          // Utiliser le bien existant
+          propertyId = existingProperty.id;
+          
+          // Mettre à jour l'intakeLink avec le propertyId existant
+          await prisma.intakeLink.update({
+            where: { id: intakeLink.id },
+            data: { propertyId: existingProperty.id },
+          });
         } else {
-          propertyData.surfaceM2 = null;
+          // Créer le bien seulement s'il n'en existe pas
+          const propertyData: any = {
+            label: payload.propertyLabel || null,
+            fullAddress: payload.propertyFullAddress,
+            type: payload.propertyType || null,
+            legalStatus: payload.propertyLegalStatus || null,
+            status: payload.propertyStatus || PropertyStatus.NON_LOUER,
+            ownerId: intakeLink.clientId,
+          };
+          
+          // Convertir les valeurs numériques
+          if (payload.propertySurfaceM2 && payload.propertySurfaceM2 !== "") {
+            propertyData.surfaceM2 = new Decimal(payload.propertySurfaceM2);
+          } else {
+            propertyData.surfaceM2 = null;
+          }
+          
+          const property = await prisma.property.create({
+            data: propertyData,
+          });
+          propertyId = property.id;
+
+          // Mettre à jour le statut de complétion
+          await calculateAndUpdatePropertyStatus(property.id);
+
+          // Mettre à jour l'intakeLink avec le propertyId
+          await prisma.intakeLink.update({
+            where: { id: intakeLink.id },
+            data: { propertyId: property.id },
+          });
         }
-        
-        const property = await prisma.property.create({
-          data: propertyData,
-        });
-        propertyId = property.id;
-
-        // Mettre à jour le statut de complétion
-        await calculateAndUpdatePropertyStatus(property.id);
-
-        // Mettre à jour l'intakeLink avec le propertyId
-        await prisma.intakeLink.update({
-          where: { id: intakeLink.id },
-          data: { propertyId: property.id },
-        });
       } else {
         // Mettre à jour le bien existant
         const updateData: any = {};
@@ -413,66 +440,87 @@ export async function savePartialIntake(data: unknown) {
     let bailId = intakeLink.bailId;
     if (payload.bailRentAmount && propertyId) {
       if (!bailId) {
-        // Créer le locataire si nécessaire
-        let tenantId = intakeLink.clientId; // Temporaire, sera mis à jour plus tard
-        if (payload.tenantEmail) {
-          const existingTenant = await prisma.client.findFirst({
-            where: { email: payload.tenantEmail, profilType: ProfilType.LOCATAIRE },
-          });
-          if (existingTenant) {
-            tenantId = existingTenant.id;
-          } else {
-            const tenant = await prisma.client.create({
-              data: {
-                type: ClientType.PERSONNE_PHYSIQUE,
-                profilType: ProfilType.LOCATAIRE,
-                email: payload.tenantEmail,
-                createdById: intakeLink?.client?.createdById,
-              },
-            });
-            tenantId = tenant.id;
-          }
-        }
-
-        // Créer le bail
-        // Convertir paymentDay en entier si fourni
-        let paymentDayValue: number | null = null;
-        if (payload.bailPaymentDay && payload.bailPaymentDay !== "") {
-          const paymentDayNum = typeof payload.bailPaymentDay === 'string' 
-            ? parseInt(payload.bailPaymentDay, 10) 
-            : payload.bailPaymentDay;
-          if (!isNaN(paymentDayNum) && paymentDayNum >= 1 && paymentDayNum <= 31) {
-            paymentDayValue = paymentDayNum;
-          }
-        }
-        
-        const bail = await prisma.bail.create({
-          data: {
-            bailType: payload.bailType || BailType.BAIL_NU_3_ANS,
-            bailFamily:  BailFamille.HABITATION,
-            status: BailStatus.DRAFT,
-            rentAmount: parseInt(payload.bailRentAmount, 10),
-            monthlyCharges: parseInt(payload.bailMonthlyCharges || "0", 10),
-            securityDeposit: parseInt(payload.bailSecurityDeposit || "0", 10),
-            effectiveDate: payload.bailEffectiveDate ? new Date(payload.bailEffectiveDate) : new Date(),
-            endDate: payload.bailEndDate ? new Date(payload.bailEndDate) : null,
-            paymentDay: paymentDayValue,
-            propertyId: propertyId!,
-            parties: {
-              connect: [
-                { id: intakeLink.clientId }, // Propriétaire
-                ...(tenantId && tenantId !== intakeLink.clientId ? [{ id: tenantId }] : []), // Locataire
-              ],
-            },
+        // Vérifier s'il existe déjà un bail pour ce bien avant d'en créer un nouveau
+        const existingBail = await prisma.bail.findFirst({
+          where: {
+            propertyId: propertyId,
+          },
+          orderBy: {
+            createdAt: "desc",
           },
         });
-        bailId = bail.id;
 
-        // Mettre à jour l'intakeLink avec le bailId
-        await prisma.intakeLink.update({
-          where: { id: intakeLink.id },
-          data: { bailId: bail.id },
-        });
+        if (existingBail) {
+          // Utiliser le bail existant
+          bailId = existingBail.id;
+          
+          // Mettre à jour l'intakeLink avec le bailId existant
+          await prisma.intakeLink.update({
+            where: { id: intakeLink.id },
+            data: { bailId: existingBail.id },
+          });
+        } else {
+          // Créer le locataire si nécessaire
+          let tenantId = intakeLink.clientId; // Temporaire, sera mis à jour plus tard
+          if (payload.tenantEmail) {
+            const existingTenant = await prisma.client.findFirst({
+              where: { email: payload.tenantEmail, profilType: ProfilType.LOCATAIRE },
+            });
+            if (existingTenant) {
+              tenantId = existingTenant.id;
+            } else {
+              const tenant = await prisma.client.create({
+                data: {
+                  type: ClientType.PERSONNE_PHYSIQUE,
+                  profilType: ProfilType.LOCATAIRE,
+                  email: payload.tenantEmail,
+                  createdById: intakeLink?.client?.createdById,
+                },
+              });
+              tenantId = tenant.id;
+            }
+          }
+
+          // Créer le bail seulement s'il n'en existe pas
+          // Convertir paymentDay en entier si fourni
+          let paymentDayValue: number | null = null;
+          if (payload.bailPaymentDay && payload.bailPaymentDay !== "") {
+            const paymentDayNum = typeof payload.bailPaymentDay === 'string' 
+              ? parseInt(payload.bailPaymentDay, 10) 
+              : payload.bailPaymentDay;
+            if (!isNaN(paymentDayNum) && paymentDayNum >= 1 && paymentDayNum <= 31) {
+              paymentDayValue = paymentDayNum;
+            }
+          }
+          
+          const bail = await prisma.bail.create({
+            data: {
+              bailType: payload.bailType || BailType.BAIL_NU_3_ANS,
+              bailFamily:  BailFamille.HABITATION,
+              status: BailStatus.DRAFT,
+              rentAmount: parseInt(payload.bailRentAmount, 10),
+              monthlyCharges: parseInt(payload.bailMonthlyCharges || "0", 10),
+              securityDeposit: parseInt(payload.bailSecurityDeposit || "0", 10),
+              effectiveDate: payload.bailEffectiveDate ? new Date(payload.bailEffectiveDate) : new Date(),
+              endDate: payload.bailEndDate ? new Date(payload.bailEndDate) : null,
+              paymentDay: paymentDayValue,
+              propertyId: propertyId!,
+              parties: {
+                connect: [
+                  { id: intakeLink.clientId }, // Propriétaire
+                  ...(tenantId && tenantId !== intakeLink.clientId ? [{ id: tenantId }] : []), // Locataire
+                ],
+              },
+            },
+          });
+          bailId = bail.id;
+
+          // Mettre à jour l'intakeLink avec le bailId
+          await prisma.intakeLink.update({
+            where: { id: intakeLink.id },
+            data: { bailId: bail.id },
+          });
+        }
       } else {
         // Mettre à jour le bail existant
         const updateData: any = {};
@@ -543,6 +591,17 @@ export async function savePartialIntake(data: unknown) {
           },
         });
       } else {
+        // Vérifier d'abord si un client avec cet email existe déjà (peu importe le profilType)
+        const existingClientWithEmail = await prisma.client.findUnique({
+          where: { 
+            email: payload.tenantEmail.trim().toLowerCase()
+          },
+        });
+
+        if (existingClientWithEmail) {
+          throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
+        }
+
         // Si aucun locataire n'est rattaché, chercher un locataire existant avec cet email
         tenant = await prisma.client.findFirst({
           where: { 

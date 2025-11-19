@@ -158,10 +158,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
     }
 
-    // Vérifier les documents du bail
-    const bailDocs = intakeLink.bail?.documents || [];
-    const hasInsurance = bailDocs.some((doc: any) => doc.kind === "INSURANCE");
-    const hasRib = bailDocs.some((doc: any) => doc.kind === "RIB");
+    // Vérifier les documents du locataire (client) - assurance et RIB
+    const clientDocs = intakeLink.client?.documents || [];
+    const hasInsurance = clientDocs.some((doc: any) => doc.kind === "INSURANCE");
+    const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB");
     
     if (!hasInsurance || !hasRib) {
       return 1;
@@ -216,11 +216,9 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         { ref: ribTenantRef, name: "ribTenant" },
       ];
 
-      // Récupérer tous les documents existants (utiliser intakeLink directement pour avoir les données à jour)
-      const existingDocuments = [
-        ...(intakeLink.client?.documents || []),
-        ...(intakeLink.bail?.documents || []),
-      ];
+      // Récupérer uniquement les documents du client (locataire)
+      // Les documents du bail sont pour le propriétaire, pas pour le locataire
+      const existingDocuments = intakeLink.client?.documents || [];
 
       // Vérifier s'il y a de nouveaux fichiers (fichiers qui n'existaient pas initialement)
       const hasNewFiles = fileRefs.some(({ ref, name }) => {
@@ -314,11 +312,9 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       ribTenant: ribTenantFile,
     };
 
-    // Récupérer tous les documents existants (utiliser intakeLink directement pour avoir les données à jour)
-    const existingDocuments = [
-      ...(intakeLink.client?.documents || []),
-      ...(intakeLink.bail?.documents || []),
-    ];
+    // Récupérer uniquement les documents du client (locataire)
+    // Les documents du bail sont pour le propriétaire, pas pour le locataire
+    const existingDocuments = intakeLink.client?.documents || [];
     
     // Créer un FormData pour les fichiers uniquement
     const filesFormData = new FormData();
@@ -420,10 +416,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       stateSetter(null);
     });
 
-    // Rafraîchir les données après l'upload pour que les documents soient reconnus
-    await refreshIntakeLinkData();
-    
-    // Déclencher l'événement pour recharger les documents
+    // Déclencher l'événement pour recharger les documents dans les composants DocumentUploaded
+    // (pas besoin de rafraîchir toutes les données, les composants se mettront à jour via l'événement)
     window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
   };
 
@@ -451,7 +445,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         payload: data,
       });
       
-      // Rafraîchir les données après la sauvegarde pour s'assurer que tout est à jour
+      // Rafraîchir les données après la sauvegarde seulement si nécessaire
+      // (pour mettre à jour les valeurs du formulaire si elles ont changé côté serveur)
       await refreshIntakeLinkData();
       
       // Mettre à jour les valeurs initiales avec les valeurs actuelles du formulaire
@@ -566,15 +561,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return true;
     }
     // Vérifier dans la base de données (utiliser intakeLink directement pour avoir les données à jour)
+    // Pour le locataire, on vérifie uniquement les documents du client
+    // Les documents du bail (assurance propriétaire, RIB propriétaire) ne concernent pas le locataire
     const clientDocs = intakeLink.client?.documents || [];
-    const bailDocs = intakeLink.bail?.documents || [];
     
-    // Vérifier dans les documents client
+    // Vérifier dans les documents client uniquement
     if (clientDocs.some((doc: any) => doc.kind === documentKind)) {
-      return true;
-    }
-    // Vérifier dans les documents du bail
-    if (bailDocs.some((doc: any) => doc.kind === documentKind)) {
       return true;
     }
     
@@ -636,23 +628,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
     setIsSubmitting(true);
     try {
-      // Uploader les fichiers avant la soumission finale
+      // Uploader les fichiers en parallèle (optimisé dans l'API route)
       await uploadFiles();
       
-      // Rafraîchir les données après l'upload pour s'assurer que tous les documents sont reconnus
-      await refreshIntakeLinkData();
-      
-      // Re-valider les fichiers après le rafraîchissement pour s'assurer que tout est présent
-      const fileValidationAfterRefresh = validateRequiredFiles();
-      if (!fileValidationAfterRefresh.isValid) {
-        toast.error("Veuillez joindre tous les documents requis", {
-          description: fileValidationAfterRefresh.errors.join(", "),
-        });
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // Soumettre les données sans les fichiers (ils sont déjà uploadés)
+      // Soumettre directement les données (les fichiers sont déjà uploadés)
+      // Pas besoin de rafraîchir les données ni de re-valider, on vient juste d'uploader
       await submitIntake({
         token: intakeLink.token,
         payload: data,
@@ -864,9 +844,13 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   international
                   countryCallingCodeEditable={false}
                   placeholder="Numéro de téléphone"
+                  disabled={!client?.email && !!client?.phone}
                 />
               )}
             />
+            {!client?.email && client?.phone && (
+              <p className="text-sm text-muted-foreground">Le téléphone ne peut pas être modifié</p>
+            )}
             {form.formState.errors.phone && (
               <p className="text-sm text-destructive">{form.formState.errors.phone.message}</p>
             )}
@@ -877,10 +861,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               id="email" 
               type="email" 
               {...form.register("email")} 
-              disabled
-              className="bg-muted cursor-not-allowed"
+              disabled={!!client?.email}
+              className={client?.email ? "bg-muted cursor-not-allowed" : ""}
             />
-            <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
+            {client?.email && (
+              <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
+            )}
             {form.formState.errors.email && (
               <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
             )}
@@ -1047,7 +1033,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
           )}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE">
+              <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE" clientId={client?.id}>
                 <FileUpload
                   label="Assurance locataire *"
                   value={insuranceTenantFile}
@@ -1064,7 +1050,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               </DocumentUploaded>
             </div>
             <div className="space-y-2">
-              <DocumentUploaded token={intakeLink.token} documentKind="RIB">
+              <DocumentUploaded token={intakeLink.token} documentKind="RIB" clientId={client?.id}>
                 <FileUpload
                   label="RIB signé locataire *"
                   value={ribTenantFile}

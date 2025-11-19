@@ -56,7 +56,7 @@ export default async function IntakesPage({
     },
     {
       id: "property",
-      header: "Bien / Bail",
+      header: "Personne concernée",
       cell: IntakePropertyCell,
     },
     {

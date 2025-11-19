@@ -1,6 +1,6 @@
 import { getAllClients } from "@/lib/actions/clients";
 import { Column } from "@/components/data-table/data-table";
-import { ClientProfilTypeCell, ClientNameCell, ClientDateCell, ClientCreatedByCell } from "@/components/clients/client-table-cells";
+import { ClientProfilTypeCell, ClientNameCell, ClientDateCell, ClientCreatedByCell, ClientCompletionStatusCell } from "@/components/clients/client-table-cells";
 import { ClientCreateButton } from "@/components/clients/client-create-button";
 import { ClientsTableClient } from "@/components/clients/clients-table-client";
 
@@ -28,6 +28,11 @@ export default async function ClientsPage() {
       id: "phone",
       header: "Téléphone",
       accessorKey: "phone",
+    },
+    {
+      id: "completionStatus",
+      header: "Statut de complétion",
+      cell: ClientCompletionStatusCell,
     },
     {
       id: "createdAt",

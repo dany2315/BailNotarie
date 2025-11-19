@@ -62,13 +62,7 @@ export async function updateProperty(data: unknown) {
   // Mettre à jour le statut de complétion
   await calculateAndUpdatePropertyStatus(id);
 
-  // Créer une notification pour tous les utilisateurs (sauf celui qui a modifié le bien)
-  await createNotificationForAllUsers(
-    NotificationType.PROPERTY_UPDATED,
-    "PROPERTY",
-    id,
-    user.id
-  );
+  // Pas de notification pour les modifications via l'interface
 
   revalidatePath("/interface/properties");
   revalidatePath(`/interface/properties/${id}`);
@@ -272,13 +266,13 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
     },
   });
 
-  // Créer une notification si le statut a changé
-  if (oldStatus && oldStatus !== completionStatus) {
+  // Notification uniquement si le statut devient COMPLETED (via interface, notifier tous les utilisateurs)
+  if (oldStatus !== completionStatus && completionStatus === CompletionStatus.COMPLETED) {
     await createNotificationForAllUsers(
       NotificationType.COMPLETION_STATUS_CHANGED,
       "PROPERTY",
       id,
-      user.id,
+      null, // Modifié via interface, notifier tous les utilisateurs
       { 
         oldStatus,
         newStatus: completionStatus,

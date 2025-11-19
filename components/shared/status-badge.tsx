@@ -86,6 +86,11 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
       label: "Prêt pour notaire",
       icon: <CheckCircle2 className="size-3" />
     },
+    SIGNED: {
+      variant: "default",
+      label: "Signé",
+      icon: <CheckCircle2 className="size-3" />
+    },
     ACTIVE: {
       variant: "default",
       label: "Actif",

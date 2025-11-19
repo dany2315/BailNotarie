@@ -2,8 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { NotificationType } from "@prisma/client";
-import { resend } from "@/lib/resend";
-import MailNotification from "@/emails/mail-notification";
+import { triggerNotificationEmail } from "@/lib/inngest/helpers";
 
 /**
  * Génère le message de notification à partir du type et des métadonnées
@@ -129,30 +128,26 @@ export async function createNotificationForAllUsers(
     })),
   });
 
-  // Envoyer un email à chaque utilisateur
+  // Déclencher l'envoi d'email à chaque utilisateur via Inngest (asynchrone, ne bloque pas le rendu)
   const emailPromises = users
     .filter((user) => user.email) // Seulement les utilisateurs avec un email
     .map(async (user) => {
       try {
-        await resend.emails.send({
-          from: "noreply@bailnotarie.fr",
+        await triggerNotificationEmail({
           to: user.email!,
-          subject: "Nouvelle notification - BailNotarie",
-          react: MailNotification({
-            userName: user.name,
-            notificationMessage,
-            interfaceUrl,
-          }),
+          userName: user.name,
+          notificationMessage,
+          interfaceUrl,
         });
       } catch (error) {
-        console.error(`Erreur lors de l'envoi de l'email à ${user.email}:`, error);
+        console.error(`Erreur lors du déclenchement de l'email à ${user.email}:`, error);
         // On continue même si l'email échoue
       }
     });
 
-  // Envoyer tous les emails en parallèle (sans attendre)
+  // Déclencher tous les emails en parallèle (sans attendre)
   Promise.all(emailPromises).catch((error) => {
-    console.error("Erreur lors de l'envoi des emails de notification:", error);
+    console.error("Erreur lors du déclenchement des emails de notification:", error);
   });
 }
 
@@ -189,24 +184,20 @@ export async function createNotificationForUser(
     },
   });
 
-  // Envoyer un email si l'utilisateur a un email
+  // Déclencher l'envoi d'email si l'utilisateur a un email (asynchrone, ne bloque pas le rendu)
   if (user.email) {
     try {
       const notificationMessage = getNotificationMessageText(type, metadata);
       const interfaceUrl = getNotificationInterfaceLink(targetType, targetId);
 
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
+      await triggerNotificationEmail({
         to: user.email,
-        subject: "Nouvelle notification - BailNotarie",
-        react: MailNotification({
-          userName: user.name,
-          notificationMessage,
-          interfaceUrl,
-        }),
+        userName: user.name,
+        notificationMessage,
+        interfaceUrl,
       });
     } catch (error) {
-      console.error(`Erreur lors de l'envoi de l'email à ${user.email}:`, error);
+      console.error(`Erreur lors du déclenchement de l'email à ${user.email}:`, error);
       // On continue même si l'email échoue
     }
   }
@@ -256,30 +247,26 @@ export async function createNotificationForUsers(
   const notificationMessage = getNotificationMessageText(type, metadata);
   const interfaceUrl = getNotificationInterfaceLink(targetType, targetId);
 
-  // Envoyer un email à chaque utilisateur
+  // Déclencher l'envoi d'email à chaque utilisateur via Inngest (asynchrone, ne bloque pas le rendu)
   const emailPromises = users
     .filter((user) => user.email) // Seulement les utilisateurs avec un email
     .map(async (user) => {
       try {
-        await resend.emails.send({
-          from: "noreply@bailnotarie.fr",
+        await triggerNotificationEmail({
           to: user.email!,
-          subject: "Nouvelle notification - BailNotarie",
-          react: MailNotification({
-            userName: user.name,
-            notificationMessage,
-            interfaceUrl,
-          }),
+          userName: user.name,
+          notificationMessage,
+          interfaceUrl,
         });
       } catch (error) {
-        console.error(`Erreur lors de l'envoi de l'email à ${user.email}:`, error);
+        console.error(`Erreur lors du déclenchement de l'email à ${user.email}:`, error);
         // On continue même si l'email échoue
       }
     });
 
-  // Envoyer tous les emails en parallèle (sans attendre)
+  // Déclencher tous les emails en parallèle (sans attendre)
   Promise.all(emailPromises).catch((error) => {
-    console.error("Erreur lors de l'envoi des emails de notification:", error);
+    console.error("Erreur lors du déclenchement des emails de notification:", error);
   });
 }
 

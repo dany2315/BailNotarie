@@ -8,45 +8,23 @@ import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { BailStatus, CompletionStatus, PropertyStatus  } from "@prisma/client";
+import { getAllClients } from "@/lib/actions/clients";
+import { getAllBails } from "@/lib/actions/leases";
+import { ClientsListDashboard } from "@/components/dashboard/clients-list-dashboard";
+import { BailsListDashboard } from "@/components/dashboard/bails-list-dashboard";
 
 export default async function InterfacePage() {
   const user = await getCurrentUser();
 
   // KPIs
-  const [completedClients, signedLeases, pendingIntakes, readyForNotary] = await Promise.all([
+  const [completedClients, signedLeases, pendingIntakes, readyForNotary, allClients, allBails] = await Promise.all([
     prisma.client.count({ where: { completionStatus: CompletionStatus.COMPLETED } }),
     prisma.bail.count({ where: { status: BailStatus.SIGNED } }),
     prisma.intakeLink.count({ where: { status: "PENDING" } }),
     prisma.bail.count({ where: { status: BailStatus.READY_FOR_NOTARY } }),
+    getAllClients(),
+    getAllBails(),
   ]);
-
-  // Derniers baux modifiés
-  const recentLeases = await prisma.bail.findMany({
-    take: 5,
-    orderBy: { updatedAt: "desc" },
-    include: {
-      property: {
-        include: {
-          owner: true,
-        },
-      },
-      parties: true,
-    },
-  });
-  // Intakes récents
-  const recentIntakes = await prisma.intakeLink.findMany({
-    take: 5,
-    orderBy: { createdAt: "desc" },
-    include: {
-      property: true,
-      client: true,
-      bail: {
-        include: {
-          parties: true,
-        },
-      },
-    },
-  });
 
 
   return (
@@ -111,115 +89,12 @@ export default async function InterfacePage() {
         />
       </div>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-        {/* Derniers baux modifiés */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg sm:text-xl">Derniers baux modifiés</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentLeases.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Aucun bail récent
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {recentLeases.map((lease) => {
-                  const tenant = lease.parties.find((p: any) => p.profilType === "LOCATAIRE") as any;
-                  const owner = lease.parties.find((p: any) => p.profilType === "PROPRIETAIRE") as any;
-                  
-                  if (!tenant || !owner) {
-                    return null;
-                  }
-                  
-                  const displayNameTenant = tenant.firstName && tenant.lastName
-                    ? `${tenant.firstName} ${tenant.lastName}`
-                    : tenant.email || tenant.legalName || "N/A";
-                  
-                  const displayNameOwner = owner.firstName && owner.lastName
-                    ? `${owner.firstName} ${owner.lastName}`
-                    : owner.email || owner.legalName || "N/A";
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+        {/* Liste des baux */}
+        <BailsListDashboard bails={allBails} />
 
-                  return (
-                    <div
-                      key={lease.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-3 last:border-0"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <Link
-                          href={`/interface/baux/${lease.id}`}
-                          className="font-medium hover:underline block truncate"
-                        >
-                          Bail #{lease.id.slice(-8).toUpperCase()}
-                        </Link>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {displayNameTenant}
-                        </p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {displayNameOwner}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2 sm:gap-1">
-                        <StatusBadge status={lease.status} />
-                        <p className="text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDate(lease.updatedAt)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-                <Link href="/interface/baux">
-                  <Button variant="outline" className="w-full">
-                    Voir tous les baux
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Intakes récents */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg sm:text-xl">Intakes récents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentIntakes.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Aucun intake récent
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {recentIntakes.map((intake) => (
-                  <div
-                    key={intake.id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-3 last:border-0"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
-                        {intake.target === "OWNER" ? "Propriétaire" : "Locataire"}
-                      </p>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {intake.property?.fullAddress || intake.bail?.id || "N/A"}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2 sm:gap-1">
-                      <StatusBadge status={intake.status} />
-                      <p className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDate(intake.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                <Link href="/interface/intakes">
-                  <Button variant="outline" className="w-full">
-                    Voir tous les intakes
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Liste des clients */}
+        <ClientsListDashboard clients={allClients} />
       </div>
 
       {/* To-do Notaire */}

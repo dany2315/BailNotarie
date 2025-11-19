@@ -2,7 +2,7 @@
 
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils/formatters";
-import { ClientType, ProfilType } from "@prisma/client";
+import { ClientType, ProfilType, CompletionStatus } from "@prisma/client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import Link from "next/link";
@@ -85,6 +85,13 @@ export function ClientCreatedByCell({ row }: ClientCellProps) {
       </TooltipContent>
     </Tooltip>
   );
+}
+
+export function ClientCompletionStatusCell({ row }: ClientCellProps) {
+  if (!row?.completionStatus) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  return <StatusBadge status={row.completionStatus as CompletionStatus} />;
 }
 
 

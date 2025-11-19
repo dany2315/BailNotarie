@@ -233,235 +233,242 @@ export default async function ClientDetailPage({
         </div>
       )}
 
+      {/* Section principale avec grille asymétrique pour desktop */}
       <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
-        {/* Informations du client - Order 1 sur mobile */}
-        <Card className="order-1 lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Informations du client
-            </CardTitle>
-            <CardDescription>Détails personnels et de contact</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-              {client.type === ClientType.PERSONNE_PHYSIQUE ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {client.firstName && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Prénom</label>
-                      <p className="mt-1 text-sm font-medium">{client.firstName}</p>
-                    </div>
-                  )}
-                  {client.lastName && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Nom</label>
-                      <p className="mt-1 text-sm font-medium">{client.lastName}</p>
-                    </div>
-                  )}
-                  {client.profession && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Profession</label>
-                      <p className="mt-1 text-sm">{client.profession}</p>
-                    </div>
-                  )}
-                  {client.familyStatus && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Statut familial</label>
-                      <div className="mt-1">
-                        <FamilyStatusBadge status={client.familyStatus} />
-                      </div>
-                    </div>
-                  )}
-                  {client.matrimonialRegime && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Régime matrimonial</label>
-                      <div className="mt-1">
-                        <MatrimonialRegimeBadge regime={client.matrimonialRegime} />
-                      </div>
-                    </div>
-                  )}
-                  {client.birthPlace && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Lieu de naissance</label>
-                      <p className="mt-1 text-sm">{client.birthPlace}</p>
-                    </div>
-                  )}
-                  {client.birthDate && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Date de naissance</label>
-                      <p className="mt-1 text-sm">{formatDate(client.birthDate)}</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {client.legalName && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Raison sociale</label>
-                      <p className="mt-1 text-sm font-medium">{client.legalName}</p>
-                    </div>
-                  )}
-                  {client.registration && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">SIREN/SIRET</label>
-                      <p className="mt-1 text-sm">{client.registration}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <Separator />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {client.email && (
-                  <div className="flex items-start gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Email</label>
-                      <p className="mt-1 text-sm">{client.email}</p>
-                    </div>
-                  </div>
-                )}
-                {client.phone && (
-                  <div className="flex items-start gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Téléphone</label>
-                      <p className="mt-1 text-sm">{client.phone}</p>
-                    </div>
-                  </div>
-                )}
-                {client.fullAddress && (
-                  <div className="flex items-start gap-2 md:col-span-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div className="flex-1">
-                      <label className="text-sm font-medium text-muted-foreground">Adresse</label>
-                      <p className="mt-1 text-sm whitespace-pre-line">{client.fullAddress}</p>
-                    </div>
-                  </div>
-                )}
-                {client.nationality && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Nationalité</label>
-                    <p className="mt-1 text-sm">{client.nationality}</p>
-                  </div>
-                )}
-              </div>
-          </CardContent>
-        </Card>
-
-        {/* Documents - Order 2 sur mobile */}
-        {client.documents && client.documents.length > 0 && (
-          <Card className="order-2 lg:col-span-2">
+        {/* Colonne gauche - Informations personnelles et Documents */}
+        <div className="flex flex-col gap-6 order-1 lg:col-span-2">
+          {/* Informations du client - Order 1 sur mobile */}
+          <Card className="order-1">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Documents ({client.documents.length})
+                <Users className="h-5 w-5" />
+                Informations du client
               </CardTitle>
-              <CardDescription>Pièces jointes du client</CardDescription>
+              <CardDescription>Détails personnels et de contact</CardDescription>
             </CardHeader>
-            <CardContent>
-              <DocumentsList
-                documents={client.documents.map((doc: any) => ({
-                  id: doc.id,
-                  kind: doc.kind,
-                  fileKey: doc.fileKey,
-                  mimeType: doc.mimeType,
-                  label: doc.label,
-                  createdAt: doc.createdAt,
-                }))}
-                documentKindLabels={{
-                  KBIS: "KBIS",
-                  STATUTES: "Statuts",
-                  INSURANCE: "Assurance",
-                  TITLE_DEED: "Titre de propriété",
-                  BIRTH_CERT: "Acte de naissance",
-                  ID_IDENTITY: "Pièce d'identité",
-                  LIVRET_DE_FAMILLE: "Livret de famille",
-                  CONTRAT_DE_PACS: "Contrat de PACS",
-                  DIAGNOSTICS: "Diagnostics",
-                  REGLEMENT_COPROPRIETE: "Règlement de copropriété",
-                  CAHIER_DE_CHARGE_LOTISSEMENT: "Cahier des charges lotissement",
-                  STATUT_DE_LASSOCIATION_SYNDICALE: "Statut de l'association syndicale",
-                  RIB: "RIB",
-                }}
-              />
+            <CardContent className="space-y-6">
+                {client.type === ClientType.PERSONNE_PHYSIQUE ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {client.firstName && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Prénom</label>
+                        <p className="mt-1 text-sm font-medium">{client.firstName}</p>
+                      </div>
+                    )}
+                    {client.lastName && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Nom</label>
+                        <p className="mt-1 text-sm font-medium">{client.lastName}</p>
+                      </div>
+                    )}
+                    {client.profession && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Profession</label>
+                        <p className="mt-1 text-sm">{client.profession}</p>
+                      </div>
+                    )}
+                    {client.familyStatus && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Statut familial</label>
+                        <div className="mt-1">
+                          <FamilyStatusBadge status={client.familyStatus} />
+                        </div>
+                      </div>
+                    )}
+                    {client.matrimonialRegime && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Régime matrimonial</label>
+                        <div className="mt-1">
+                          <MatrimonialRegimeBadge regime={client.matrimonialRegime} />
+                        </div>
+                      </div>
+                    )}
+                    {client.birthPlace && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Lieu de naissance</label>
+                        <p className="mt-1 text-sm">{client.birthPlace}</p>
+                      </div>
+                    )}
+                    {client.birthDate && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Date de naissance</label>
+                        <p className="mt-1 text-sm">{formatDate(client.birthDate)}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {client.legalName && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Raison sociale</label>
+                        <p className="mt-1 text-sm font-medium">{client.legalName}</p>
+                      </div>
+                    )}
+                    {client.registration && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">SIREN/SIRET</label>
+                        <p className="mt-1 text-sm">{client.registration}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <Separator />
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {client.email && (
+                    <div className="flex items-start gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Email</label>
+                        <p className="mt-1 text-sm">{client.email}</p>
+                      </div>
+                    </div>
+                  )}
+                  {client.phone && (
+                    <div className="flex items-start gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Téléphone</label>
+                        <p className="mt-1 text-sm">{client.phone}</p>
+                      </div>
+                    </div>
+                  )}
+                  {client.fullAddress && (
+                    <div className="flex items-start gap-2 md:col-span-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <div className="flex-1">
+                        <label className="text-sm font-medium text-muted-foreground">Adresse</label>
+                        <p className="mt-1 text-sm whitespace-pre-line">{client.fullAddress}</p>
+                      </div>
+                    </div>
+                  )}
+                  {client.nationality && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Nationalité</label>
+                      <p className="mt-1 text-sm">{client.nationality}</p>
+                    </div>
+                  )}
+                </div>
             </CardContent>
           </Card>
-        )}
 
-        {/* Biens et Baux - Order 3 sur mobile */}
-        {stats.properties > 0 && (
-          <div className="order-3 lg:col-span-2">
-            <PropertyBailsViewer properties={serializedProperties as any[]} />
-          </div>
-        )}
+          {/* Documents - Order 2 sur mobile */}
+          {client.documents && client.documents.length > 0 && (
+            <Card className="order-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Documents ({client.documents.length})
+                </CardTitle>
+                <CardDescription>Pièces jointes du client</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DocumentsList
+                  documents={client.documents.map((doc: any) => ({
+                    id: doc.id,
+                    kind: doc.kind,
+                    fileKey: doc.fileKey,
+                    mimeType: doc.mimeType,
+                    label: doc.label,
+                    createdAt: doc.createdAt,
+                  }))}
+                  documentKindLabels={{
+                    KBIS: "KBIS",
+                    STATUTES: "Statuts",
+                    INSURANCE: "Assurance",
+                    TITLE_DEED: "Titre de propriété",
+                    BIRTH_CERT: "Acte de naissance",
+                    ID_IDENTITY: "Pièce d'identité",
+                    LIVRET_DE_FAMILLE: "Livret de famille",
+                    CONTRAT_DE_PACS: "Contrat de PACS",
+                    DIAGNOSTICS: "Diagnostics",
+                    REGLEMENT_COPROPRIETE: "Règlement de copropriété",
+                    CAHIER_DE_CHARGE_LOTISSEMENT: "Cahier des charges lotissement",
+                    STATUT_DE_LASSOCIATION_SYNDICALE: "Statut de l'association syndicale",
+                    RIB: "RIB",
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
 
-        {/* Actions rapides - Order 4 sur mobile */}
-        <Card className="order-4 lg:order-2">
-          <CardHeader>
-            <CardTitle className="text-base">Actions rapides</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Link href={`/interface/clients/${client.id}/edit`} className="block">
-              <Button variant="outline" className="w-full justify-start">
-                <Edit className="h-4 w-4 mr-2" />
-                Modifier le client
-              </Button>
-            </Link>
-            <SendIntakeButton 
-              clientId={client.id}
-              hasEmail={!!client.email}
-              profilType={client.profilType}
-            />
-            {client.email && (
-              <a href={`mailto:${client.email}`} className="block">
+        {/* Colonne droite - Actions rapides et Informations système */}
+        <div className="flex flex-col gap-6 order-4 lg:col-span-1">
+          {/* Actions rapides - Order 4 sur mobile */}
+          <Card className="order-4">
+            <CardHeader>
+              <CardTitle className="text-base">Actions rapides</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Link href={`/interface/clients/${client.id}/edit`} className="block">
                 <Button variant="outline" className="w-full justify-start">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Envoyer un email
+                  <Edit className="h-4 w-4 mr-2" />
+                  Modifier le client
                 </Button>
-              </a>
-            )}
-            {client.phone && (
-              <a href={`tel:${client.phone}`} className="block">
-                <Button variant="outline" className="w-full justify-start">
-                  <Phone className="h-4 w-4 mr-2" />
-                  Appeler
-                </Button>
-              </a>
-            )}
-          </CardContent>
-        </Card>
+              </Link>
+              <SendIntakeButton 
+                clientId={client.id}
+                hasEmail={!!client.email}
+                profilType={client.profilType}
+              />
+              {client.email && (
+                <a href={`mailto:${client.email}`} className="block">
+                  <Button variant="outline" className="w-full justify-start">
+                    <Mail className="h-4 w-4 mr-2" />
+                    Envoyer un email
+                  </Button>
+                </a>
+              )}
+              {client.phone && (
+                <a href={`tel:${client.phone}`} className="block">
+                  <Button variant="outline" className="w-full justify-start">
+                    <Phone className="h-4 w-4 mr-2" />
+                    Appeler
+                  </Button>
+                </a>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Informations système - Order 5 sur mobile */}
-        <Card className="order-5 lg:order-2">
-          <CardHeader>
-            <CardTitle className="text-base">Informations système</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div>
-              <label className="text-xs text-muted-foreground">Créé le</label>
-              <p className="mt-0.5 break-words">{formatDateTime(client.createdAt)}</p>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Modifié le</label>
-              <p className="mt-0.5 break-words">{formatDateTime(client.updatedAt)}</p>
-            </div>
-            {client.createdBy && (
+          {/* Informations système - Order 5 sur mobile */}
+          <Card className="order-5">
+            <CardHeader>
+              <CardTitle className="text-base">Informations système</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
               <div>
-                <label className="text-xs text-muted-foreground">Créé par</label>
-                <p className="mt-0.5 break-words">{client.createdBy.name || client.createdBy.email}</p>
+                <label className="text-xs text-muted-foreground">Créé le</label>
+                <p className="mt-0.5 break-words">{formatDateTime(client.createdAt)}</p>
               </div>
-            )}
-            {client.updatedBy && (
               <div>
-                <label className="text-xs text-muted-foreground">Modifié par</label>
-                <p className="mt-0.5 break-words">{client.updatedBy.name || client.updatedBy.email}</p>
+                <label className="text-xs text-muted-foreground">Modifié le</label>
+                <p className="mt-0.5 break-words">{formatDateTime(client.updatedAt)}</p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {client.createdBy && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Créé par</label>
+                  <p className="mt-0.5 break-words">{client.createdBy.name || client.createdBy.email}</p>
+                </div>
+              )}
+              {client.updatedBy && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Modifié par</label>
+                  <p className="mt-0.5 break-words">{client.updatedBy.name || client.updatedBy.email}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      {/* Biens et Baux - Order 3 sur mobile, pleine largeur sur desktop */}
+      {stats.properties > 0 && (
+        <div className="order-3">
+          <PropertyBailsViewer properties={serializedProperties as any[]} />
+        </div>
+      )}
     </div>
   );
 }

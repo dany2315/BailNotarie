@@ -6,8 +6,11 @@ import {
   MatrimonialRegime, 
   BienLegalStatus,
   CompletionStatus,
-  DocumentKind 
+  DocumentKind,
+  NotificationType,
+  BailStatus
 } from "@prisma/client";
+import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 
 /**
  * Détermine les champs de données requis pour un client selon son type et profil
@@ -312,26 +315,164 @@ export async function calculatePropertyCompletionStatus(
 }
 
 /**
+ * Vérifie et met à jour le statut des baux lorsque tous les statuts de complétion sont COMPLETED
+ * (propriétaire, locataire et bien)
+ */
+async function checkAndUpdateBailStatusForClient(clientId: string): Promise<void> {
+  // Récupérer tous les baux où ce client est une partie
+  const bails = await prisma.bail.findMany({
+    where: {
+      parties: {
+        some: { id: clientId }
+      },
+      status: BailStatus.DRAFT
+    },
+    include: {
+      property: {
+        include: {
+          owner: true
+        }
+      },
+      parties: true
+    }
+  });
+
+  for (const bail of bails) {
+    await checkAndUpdateBailStatus(bail);
+  }
+}
+
+/**
+ * Vérifie et met à jour le statut des baux pour un bien
+ */
+async function checkAndUpdateBailStatusForProperty(propertyId: string): Promise<void> {
+  // Récupérer tous les baux de ce bien
+  const bails = await prisma.bail.findMany({
+    where: {
+      propertyId,
+      status: BailStatus.DRAFT
+    },
+    include: {
+      property: {
+        include: {
+          owner: true
+        }
+      },
+      parties: true
+    }
+  });
+
+  for (const bail of bails) {
+    await checkAndUpdateBailStatus(bail);
+  }
+}
+
+/**
+ * Vérifie si tous les statuts de complétion sont COMPLETED et met à jour le bail
+ */
+async function checkAndUpdateBailStatus(bail: any): Promise<void> {
+  const owner = bail.parties.find((p: any) => p.profilType === ProfilType.PROPRIETAIRE);
+  const tenant = bail.parties.find((p: any) => p.profilType === ProfilType.LOCATAIRE);
+  const property = bail.property;
+
+  // Vérifier que propriétaire, locataire et bien existent
+  if (!owner || !tenant || !property) {
+    return;
+  }
+
+  // Vérifier que tous les statuts de complétion sont COMPLETED
+  const ownerCompleted = owner.completionStatus === CompletionStatus.COMPLETED;
+  const tenantCompleted = tenant.completionStatus === CompletionStatus.COMPLETED;
+  const propertyCompleted = property.completionStatus === CompletionStatus.COMPLETED;
+
+  // Si tous sont COMPLETED et le bail est en DRAFT, passer à PENDING_VALIDATION
+  if (ownerCompleted && tenantCompleted && propertyCompleted && bail.status === BailStatus.DRAFT) {
+    await prisma.bail.update({
+      where: { id: bail.id },
+      data: { status: BailStatus.PENDING_VALIDATION }
+    });
+
+    // Notification pour le changement de statut du bail (notifier tous les utilisateurs)
+    await createNotificationForAllUsers(
+      NotificationType.BAIL_STATUS_CHANGED,
+      "BAIL",
+      bail.id,
+      null, // Changement automatique via intake, notifier tous les utilisateurs
+      {
+        oldStatus: BailStatus.DRAFT,
+        newStatus: BailStatus.PENDING_VALIDATION,
+      }
+    );
+  }
+}
+
+/**
  * Met à jour le statut de complétion d'un client
  */
 export async function updateClientCompletionStatus(clientId: string): Promise<void> {
+  // Récupérer l'ancien statut
+  const oldClient = await prisma.client.findUnique({ where: { id: clientId } });
+  const oldStatus = oldClient?.completionStatus;
+  
   const newStatus = await calculateClientCompletionStatus(clientId);
   
   await prisma.client.update({
     where: { id: clientId },
     data: { completionStatus: newStatus },
   });
+
+  // Notification uniquement si le statut devient COMPLETED (via intake, notifier tous les utilisateurs)
+  // Pas de notification pour PARTIAL -> PENDING_CHECK car déjà notifié lors de la soumission du formulaire
+  if (oldStatus !== newStatus && newStatus === CompletionStatus.COMPLETED) {
+    await createNotificationForAllUsers(
+      NotificationType.COMPLETION_STATUS_CHANGED,
+      "CLIENT",
+      clientId,
+      null, // Modifié via formulaire intake, notifier tous les utilisateurs
+      { 
+        oldStatus,
+        newStatus,
+        entityType: "CLIENT"
+      }
+    );
+  }
+
+  // Vérifier et mettre à jour les baux si nécessaire
+  await checkAndUpdateBailStatusForClient(clientId);
 }
 
 /**
  * Met à jour le statut de complétion d'un bien
  */
 export async function updatePropertyCompletionStatus(propertyId: string): Promise<void> {
+  // Récupérer l'ancien statut
+  const oldProperty = await prisma.property.findUnique({ where: { id: propertyId } });
+  const oldStatus = oldProperty?.completionStatus;
+  
   const newStatus = await calculatePropertyCompletionStatus(propertyId);
   
   await prisma.property.update({
     where: { id: propertyId },
     data: { completionStatus: newStatus },
   });
+
+  // Notification uniquement si le statut devient COMPLETED (via intake, notifier tous les utilisateurs)
+  // Pas de notification pour PARTIAL -> PENDING_CHECK car déjà notifié lors de la soumission du formulaire
+  if (oldStatus !== newStatus && newStatus === CompletionStatus.COMPLETED) {
+    await createNotificationForAllUsers(
+      NotificationType.COMPLETION_STATUS_CHANGED,
+      "PROPERTY",
+      propertyId,
+      null, // Modifié via formulaire intake, notifier tous les utilisateurs
+      { 
+        oldStatus,
+        newStatus,
+        entityType: "PROPERTY"
+      }
+    );
+  }
+
+  // Vérifier et mettre à jour les baux si nécessaire
+  await checkAndUpdateBailStatusForProperty(propertyId);
 }
 

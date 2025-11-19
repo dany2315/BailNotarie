@@ -14,6 +14,7 @@ import {
   LeaseDateCell,
   LeaseDepositCell,
 } from "@/components/leases/lease-table-cells";
+import { BailStatusFilterWrapper } from "@/components/leases/bail-status-filter-wrapper";
 
 export default async function LeasesPage({
   searchParams,
@@ -35,11 +36,16 @@ export default async function LeasesPage({
   });
   
   const params = getPaginationParams(urlParams);
+  
+  // Gérer le filtre de statut (peut être multiple via URL)
+  const statusParam = urlParams.get("status");
+  const statusFilter = statusParam || undefined;
+  
   const result = await getLeases({
     page: params.page || 1,
     pageSize: params.pageSize || 10,
     search: params.search,
-    status: urlParams.get("status") || undefined,
+    status: statusFilter,
     propertyId: urlParams.get("propertyId") || undefined,
     tenantId: urlParams.get("tenantId") || undefined,
   });
@@ -100,6 +106,7 @@ export default async function LeasesPage({
         pageSize={result.pageSize}
         totalPages={result.totalPages}
         searchPlaceholder="Rechercher par bien, locataire..."
+        filters={<BailStatusFilterWrapper />}
         actions={LeaseActions}
       />
     </div>
