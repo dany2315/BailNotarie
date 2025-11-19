@@ -30,16 +30,37 @@ export async function createBasicClient(data: unknown) {
   const user = await requireAuth();
   const validated = createBasicClientSchema.parse(data);
 
-  // Créer le client avec profilType PROPRIETAIRE (sans type, sera défini dans le formulaire)
-  const client = await prisma.client.create({
-    data: {
-      type: ClientType.PERSONNE_PHYSIQUE, // Type temporaire, sera mis à jour dans le formulaire
-      profilType: ProfilType.PROPRIETAIRE,
-      email: validated.email,
-      completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
-      createdById: user.id,
-    },
+  // Vérifier si un client avec cet email existe déjà
+  const existingClient = await prisma.client.findUnique({
+    where: { email: validated.email },
   });
+
+  if (existingClient) {
+    throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+  }
+
+  // Créer le client avec profilType PROPRIETAIRE (sans type, sera défini dans le formulaire)
+  let client;
+  try {
+    client = await prisma.client.create({
+      data: {
+        type: ClientType.PERSONNE_PHYSIQUE, // Type temporaire, sera mis à jour dans le formulaire
+        profilType: ProfilType.PROPRIETAIRE,
+        email: validated.email,
+        completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
+        createdById: user.id,
+      },
+    });
+  } catch (error: any) {
+    // Gérer les erreurs Prisma (contrainte unique, etc.)
+    if (error.code === "P2002") {
+      if (error.meta?.target?.includes("email")) {
+        throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+      }
+      throw new Error("Une erreur de contrainte unique s'est produite.");
+    }
+    throw error;
+  }
 
   // Créer un IntakeLink pour le formulaire propriétaire
   const intakeLink = await prisma.intakeLink.create({
@@ -1684,25 +1705,21 @@ export async function sendIntakeLinkToClient(clientId: string) {
   // Déclencher l'envoi d'email avec le lien du formulaire via Inngest (asynchrone, ne bloque pas le rendu)
   const formUrl = `${baseUrl}/intakes/${intakeLink.token}`;
 
-  try {
-    if (target === "OWNER") {
-      await triggerOwnerFormEmail({
-        to: client.email,
-        firstName: client.firstName || "",
-        lastName: client.lastName || "",
-        formUrl,
-      });
-    } else {
-      await triggerTenantFormEmail({
-        to: client.email,
-        firstName: client.firstName || "",
-        lastName: client.lastName || "",
-        formUrl,
-      });
-    }
-  } catch (error) {
-    console.error("Erreur lors du déclenchement de l'email:", error);
-    throw new Error("Erreur lors du déclenchement de l'email");
+  // Les erreurs Inngest sont gérées dans les helpers et ne bloquent pas l'application
+  if (target === "OWNER") {
+    await triggerOwnerFormEmail({
+      to: client.email,
+      firstName: client.firstName || "",
+      lastName: client.lastName || "",
+      formUrl,
+    });
+  } else {
+    await triggerTenantFormEmail({
+      to: client.email,
+      firstName: client.firstName || "",
+      lastName: client.lastName || "",
+      formUrl,
+    });
   }
 
   revalidatePath("/interface/clients");

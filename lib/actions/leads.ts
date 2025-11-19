@@ -129,8 +129,9 @@ export async function createLead(data: unknown) {
       user.id,
       {
         contactType: validated.contactType,
-        email: validated.email || null,
-        phone: validated.phone || null,
+        // Ne pas inclure email ou phone si ils sont null/undefined pour éviter les problèmes de sérialisation
+        ...(validated.email && { email: validated.email }),
+        ...(validated.phone && { phone: validated.phone }),
       }
     );
 
