@@ -9,7 +9,7 @@ export const sendOwnerFormEmail = inngest.createFunction(
   async ({ event, step }) => {
     await step.run("send-owner-form-email", async () => {
       const result = await resend.emails.send({
-        from: "contact@bailnotarie.fr",
+        from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.to,
         subject: "Formulaire de bail notarié - Propriétaire",
         react: MailOwnerForm({
@@ -34,7 +34,7 @@ export const sendTenantFormEmail = inngest.createFunction(
   async ({ event, step }) => {
     await step.run("send-tenant-form-email", async () => {
       const result = await resend.emails.send({
-        from: "contact@bailnotarie.fr",
+        from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.to,
         subject: "Formulaire de bail notarié - Locataire",
         react: MailTenantForm({

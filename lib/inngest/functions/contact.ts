@@ -9,7 +9,7 @@ export const sendContactConfirmationEmail = inngest.createFunction(
   async ({ event, step }) => {
     await step.run("send-confirmation-email", async () => {
       await resend.emails.send({
-        from: "contact@bailnotarie.fr",
+        from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.email,
         subject: "Confirmation de votre demande de contact",
         react: MailConfirmation({
@@ -30,7 +30,7 @@ export const sendContactNotificationEmail = inngest.createFunction(
   async ({ event, step }) => {
     await step.run("send-notification-email", async () => {
       await resend.emails.send({
-        from: "support@bailnotarie.fr",
+        from: "Support BailNotarie <support@bailnotarie.fr>",
         to: ["david@bailnotarie.fr", "shlomi@bailnotarie.fr"],
         subject: "Nouvelle demande de contact",
         react: MailNotificationEquipe({
