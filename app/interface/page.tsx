@@ -3,224 +3,115 @@ import { prisma } from "@/lib/prisma";
 import { KPICard } from "@/components/shared/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, Link as LinkIcon, AlertCircle, Plus } from "lucide-react";
+import { Building2, FileText, Link as LinkIcon, AlertCircle, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { BailStatus, CompletionStatus, PropertyStatus  } from "@prisma/client";
+import { getAllClients } from "@/lib/actions/clients";
+import { getAllBails } from "@/lib/actions/leases";
+import { ClientsListDashboard } from "@/components/dashboard/clients-list-dashboard";
+import { BailsListDashboard } from "@/components/dashboard/bails-list-dashboard";
 
 export default async function InterfacePage() {
   const user = await getCurrentUser();
 
   // KPIs
-  const [activeProperties, activeLeases, pendingIntakes, readyForNotary] = await Promise.all([
-    prisma.property.count({ where: { status: "NON_LOUER" } }),
-    prisma.bail.count({ where: { status: "ACTIVE" } }),
+  const [completedClients, signedLeases, pendingIntakes, readyForNotary, allClients, allBails] = await Promise.all([
+    prisma.client.count({ where: { completionStatus: CompletionStatus.COMPLETED } }),
+    prisma.bail.count({ where: { status: BailStatus.SIGNED } }),
     prisma.intakeLink.count({ where: { status: "PENDING" } }),
-    prisma.bail.count({ where: { status: "READY_FOR_NOTARY" } }),
+    prisma.bail.count({ where: { status: BailStatus.READY_FOR_NOTARY } }),
+    getAllClients(),
+    getAllBails(),
   ]);
 
-  // Derniers baux modifiés
-  const recentLeases = await prisma.bail.findMany({
-    take: 5,
-    orderBy: { updatedAt: "desc" },
-    include: {
-      property: {
-        include: {
-          owner: true,
-        },
-      },
-      parties: true,
-    },
-  });
-  // Intakes récents
-  const recentIntakes = await prisma.intakeLink.findMany({
-    take: 5,
-    orderBy: { createdAt: "desc" },
-    include: {
-      property: true,
-      client: true,
-      bail: {
-        include: {
-          parties: true,
-        },
-      },
-    },
-  });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Bienvenue, {user?.name || user?.email}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/interface/properties/new">
-            <Button size="sm">
-              <Plus className="size-4 mr-2" />
-              Créer Bien
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <Link href="/interface/properties/new" className="w-full sm:w-auto">
+            <Button size="sm" className="w-full sm:w-auto">
+              <Plus className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">Créer Bien</span>
+              <span className="sm:hidden">Bien</span>
             </Button>
           </Link>
-          <Link href="/interface/leases/new">
-            <Button size="sm">
-              <Plus className="size-4 mr-2" />
-              Créer Bail
+          <Link href="/interface/baux/new" className="w-full sm:w-auto">
+            <Button size="sm" className="w-full sm:w-auto">
+              <Plus className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">Créer Bail</span>
+              <span className="sm:hidden">Bail</span>
             </Button>
           </Link>
-          <Link href="/interface/intakes">
-            <Button size="sm" variant="outline">
-              <LinkIcon className="size-4 mr-2" />
-              Créer Intake
+          <Link href="/interface/intakes" className="w-full sm:w-auto">
+            <Button size="sm" variant="outline" className="w-full sm:w-auto">
+              <LinkIcon className="size-4 sm:mr-2" />
+              <span className="hidden sm:inline">Créer Intake</span>
+              <span className="sm:hidden">Intake</span>
             </Button>
           </Link>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title="Biens actifs"
-          value={activeProperties}
-          icon={Building2}
-          description="Biens en statut ACTIVE"
+          title="Clients complets"
+          value={completedClients}
+          icon={Users}
+          description=""
         />
         <KPICard
-          title="Baux actifs"
-          value={activeLeases}
+          title="Baux signés"
+          value={signedLeases}
           icon={FileText}
-          description="Baux en statut ACTIVE"
+          description=""
         />
         <KPICard
-          title="Intakes en attente"
-          value={pendingIntakes}
-          icon={LinkIcon}
-          description="Liens PENDING"
-        />
-        <KPICard
-          title="Prêts pour notaire"
+          title="Baux prêts pour notaire"
           value={readyForNotary}
           icon={AlertCircle}
-          description="Baux READY_FOR_NOTARY"
+          description=""
+        />
+        <KPICard
+          title="Liens en attente"
+          value={pendingIntakes}
+          icon={LinkIcon}
+          description=""
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Derniers baux modifiés */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Derniers baux modifiés</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentLeases.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Aucun bail récent
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {recentLeases.map((lease) => {
-                  const tenant = lease.parties.find((p: any) => p.profilType === "LOCATAIRE");
-                  const owner = lease.parties.find((p: any) => p.profilType === "PROPRIETAIRE");
-                  const displayName = tenant
-                    ? tenant.firstName && tenant.lastName
-                      ? `${tenant.firstName} ${tenant.lastName}`
-                      : tenant.email || "N/A"
-                    : owner
-                    ? owner.legalName || (owner.firstName && owner.lastName ? `${owner.firstName} ${owner.lastName}` : owner.email) || "N/A"
-                    : "N/A";
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+        {/* Liste des baux */}
+        <BailsListDashboard bails={allBails} />
 
-                  return (
-                    <div
-                      key={lease.id}
-                      className="flex items-center justify-between border-b pb-3 last:border-0"
-                    >
-                      <div className="flex-1">
-                        <Link
-                          href={`/interface/leases/${lease.id}`}
-                          className="font-medium hover:underline"
-                        >
-                          {lease.property.fullAddress}
-                        </Link>
-                        <p className="text-sm text-muted-foreground">
-                          {displayName}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <StatusBadge status={lease.status} />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDate(lease.updatedAt)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-                <Link href="/interface/leases">
-                  <Button variant="outline" className="w-full">
-                    Voir tous les baux
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Intakes récents */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Intakes récents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentIntakes.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Aucun intake récent
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {recentIntakes.map((intake) => (
-                  <div
-                    key={intake.id}
-                    className="flex items-center justify-between border-b pb-3 last:border-0"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium">
-                        {intake.target === "OWNER" ? "Propriétaire" : "Locataire"}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {intake.property?.fullAddress || intake.bail?.id || "N/A"}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <StatusBadge status={intake.status} />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatDate(intake.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                <Link href="/interface/intakes">
-                  <Button variant="outline" className="w-full">
-                    Voir tous les intakes
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Liste des clients */}
+        <ClientsListDashboard clients={allClients} />
       </div>
 
       {/* To-do Notaire */}
       {readyForNotary > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>To-do Notaire</CardTitle>
+            <CardTitle className="text-lg sm:text-xl">To-do Notaire</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
               {readyForNotary} bail{readyForNotary > 1 ? "x" : ""} en attente de validation notariale
             </p>
-            <Link href="/interface/leases?status=READY_FOR_NOTARY">
-              <Button>Voir les baux prêts pour notaire</Button>
+            <Link href="/interface/baux?status=READY_FOR_NOTARY" className="block">
+              <Button className="w-full sm:w-auto">
+                <span className="hidden sm:inline">Voir les baux prêts pour notaire</span>
+                <span className="sm:hidden">Voir les baux</span>
+              </Button>
             </Link>
           </CardContent>
         </Card>

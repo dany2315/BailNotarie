@@ -2,9 +2,11 @@
 
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils/formatters";
-import { ClientType, ProfilType } from "@prisma/client";
+import { ClientType, ProfilType, CompletionStatus } from "@prisma/client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
 interface ClientCellProps {
   row: any;
@@ -21,7 +23,10 @@ export function ClientProfilTypeCell({ row }: ClientCellProps) {
   if (!row?.profilType) {
     return <span className="text-muted-foreground">-</span>;
   }
-  return <StatusBadge status={row.profilType} />;
+  return <Link href={`/interface/clients/${row.id}`} className="flex items-center gap-2 font-medium  group">
+    <StatusBadge status={row.profilType} />
+    <ArrowRight className="size-3 -rotate-45 group-hover:text-foreground text-background transition-colors" />
+    </Link>;
 }
 
 export function ClientNameCell({ row }: ClientCellProps) {
@@ -80,6 +85,13 @@ export function ClientCreatedByCell({ row }: ClientCellProps) {
       </TooltipContent>
     </Tooltip>
   );
+}
+
+export function ClientCompletionStatusCell({ row }: ClientCellProps) {
+  if (!row?.completionStatus) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  return <StatusBadge status={row.completionStatus as CompletionStatus} />;
 }
 
 

@@ -65,7 +65,12 @@ export function IntakeActions({ row }: IntakeActionsProps) {
 
   return (
     <div className="flex items-center gap-1">
-      <Link href={`/intakes/${row.token}`} target="_blank">
+      <Link 
+        href={row.target === "LEAD" 
+          ? `/intakes/${row.token}/convert` 
+          : `/intakes/${row.token}`} 
+        target="_blank"
+      >
         <Button variant="ghost" size="icon" className="h-8 w-8" title="Voir">
           <Eye className="size-4" />
         </Button>

@@ -42,6 +42,7 @@ import Image from "next/image";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Separator } from "../ui/separator";
+import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +53,7 @@ import {
 } from "../ui/dropdown-menu";
 const navigation = [
   { name: "Dashboard", href: "/interface", icon: LayoutDashboard },
-  { name: "Baux", href: "/interface/leases", icon: FileText },
+  { name: "Baux", href: "/interface/baux", icon: FileText },
   { name: "Clients", href: "/interface/clients", icon: Users },
   { name: "Biens", href: "/interface/properties", icon: Building2 },
   { name: "Intakes", href: "/interface/intakes", icon: LinkIcon },
@@ -61,7 +62,7 @@ const navigation = [
 
 function AppSidebar() {
   const pathname = usePathname();
-  const { state } = useSidebar();
+  const { state, toggleSidebar, isMobile } = useSidebar();
   const { data: session, isPending } = useSession();
 
   const handleSignOut = async () => {
@@ -80,7 +81,7 @@ function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/interface">
+              <Link href="/interface" >
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden bg-sidebar-primary text-sidebar-primary-foreground ">
                   <Image src="/logoAvec.png" alt="BailNotarie" width={100} height={100} className=" w-full" />
                 </div>
@@ -107,9 +108,9 @@ function AppSidebar() {
                   isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
                 }
                 return (
-                  <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.name}>
-                      <Link href={item.href}>
+                  <SidebarMenuItem key={item.name} >
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.name} >
+                      <Link href={item.href} onClick={isMobile ? () => toggleSidebar() : undefined}>
                         <item.icon />
                         <span>{item.name}</span>
                       </Link>
@@ -203,12 +204,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="rounded-xl overflow-hidden shadow-4xl ">
-        <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b bg-background px-4 sm:gap-x-6 sm:px-6 lg:px-8">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical"  />
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-            <div className="flex items-center gap-x-4 lg:gap-x-6 flex-1">
-            <Breadcrumbs />
+        <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-2 sm:gap-x-4 border-b bg-background px-2 sm:px-6 lg:px-8">
+          <SidebarTrigger className="pl-4 sm:p-0 flex-shrink-0 mr-4" />
+          <Separator orientation="vertical" className=" sm:block" />
+          <div className="flex flex-1 gap-x-2 sm:gap-x-4 self-stretch lg:gap-x-6 min-w-0 ml-2">
+            <div className="flex items-center gap-x-2 sm:gap-x-4 lg:gap-x-6 flex-1 min-w-0 overflow-hidden">
+              <Breadcrumbs />
+            </div>
+            <div className="flex items-center gap-x-2 sm:gap-x-4 flex-shrink-0">
+              <NotificationsDropdown />
             </div>
           </div>
         </header>

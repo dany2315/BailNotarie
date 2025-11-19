@@ -1,6 +1,6 @@
 import { getAllClients } from "@/lib/actions/clients";
 import { Column } from "@/components/data-table/data-table";
-import { ClientProfilTypeCell, ClientNameCell, ClientDateCell, ClientCreatedByCell } from "@/components/clients/client-table-cells";
+import { ClientProfilTypeCell, ClientNameCell, ClientDateCell, ClientCreatedByCell, ClientCompletionStatusCell } from "@/components/clients/client-table-cells";
 import { ClientCreateButton } from "@/components/clients/client-create-button";
 import { ClientsTableClient } from "@/components/clients/clients-table-client";
 
@@ -30,6 +30,11 @@ export default async function ClientsPage() {
       accessorKey: "phone",
     },
     {
+      id: "completionStatus",
+      header: "Statut de complétion",
+      cell: ClientCompletionStatusCell,
+    },
+    {
       id: "createdAt",
       header: "Créé le",
       cell: ClientDateCell,
@@ -43,14 +48,16 @@ export default async function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Clients</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Clients</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Gestion des propriétaires et locataires
           </p>
         </div>
-        <ClientCreateButton />
+        <div className="flex-shrink-0">
+          <ClientCreateButton />
+        </div>
       </div>
 
       <ClientsTableClient initialData={allClients} columns={columns} />

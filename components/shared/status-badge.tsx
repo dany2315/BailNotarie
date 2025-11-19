@@ -86,6 +86,11 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
       label: "Prêt pour notaire",
       icon: <CheckCircle2 className="size-3" />
     },
+    SIGNED: {
+      variant: "default",
+      label: "Signé",
+      icon: <CheckCircle2 className="size-3" />
+    },
     ACTIVE: {
       variant: "default",
       label: "Actif",
@@ -129,17 +134,17 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
       icon: <Circle className="size-3" />
     },
     PARTIAL: { 
-      variant: "secondary", 
+      variant: "outline", 
       label: "Partiel",
       icon: <CircleDot className="size-3" />
     },
     PENDING_CHECK: { 
-      variant: "secondary", 
+      variant: "outline", 
       label: "En vérification",
       icon: <CircleDot className="size-3" />
     },
     COMPLETED: { 
-      variant: "default", 
+      variant: "outline", 
       label: "Complété",
       icon: <CheckCircle2 className="size-3" />
     },
@@ -147,8 +152,27 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
 
   const config = variants[status] || { variant: "outline" as const, label: status, icon: null };
 
+  // Classes de couleur personnalisées pour les statuts de complétion
+  const completionStatusClasses: Record<string, string> = {
+    NOT_STARTED: "!border-slate-300 !text-slate-700 !bg-slate-50 dark:!border-slate-600 dark:!text-slate-300 dark:!bg-slate-900/50",
+    PARTIAL: "!border-amber-400 !text-amber-700 !bg-amber-50 dark:!border-amber-600 dark:!text-amber-400 dark:!bg-amber-950/40",
+    PENDING_CHECK: "!border-blue-400 !text-blue-700 !bg-blue-50 dark:!border-blue-500 dark:!text-blue-300 dark:!bg-blue-950/40",
+    COMPLETED: "!border-emerald-400 !text-emerald-700 !bg-emerald-50 dark:!border-emerald-500 dark:!text-emerald-300 dark:!bg-emerald-950/40",
+  };
+
+  // Appliquer les classes personnalisées pour les statuts de complétion
+  const isCompletionStatus = ["NOT_STARTED", "PARTIAL", "PENDING_CHECK", "COMPLETED"].includes(status);
+  const customClasses = isCompletionStatus ? completionStatusClasses[status] : "";
+
   return (
-    <Badge variant={config.variant} className={cn(className)}>
+    <Badge 
+      variant={config.variant} 
+      className={cn(
+        isCompletionStatus && "font-medium",
+        customClasses,
+        className
+      )}
+    >
       {config.icon}
       {config.label}
     </Badge>

@@ -14,10 +14,21 @@ export default async function EditClientPage({
 }) {
   const resolvedParams = await params;
   const client = await getClient(resolvedParams.id);
-
   if (!client) {
     notFound();
   }
+
+  // Fonction helper pour sérialiser les Decimal
+  const serializeDecimal = (value: any): any => {
+    if (value && typeof value === 'object' && value.constructor?.name === 'Decimal') {
+      return Number(value);
+    }
+    return value;
+  };
+
+  // Sérialiser le client pour convertir les Decimal en nombres
+  // Cela évite l'erreur "Only plain objects can be passed to Client Components"
+  const serializedClient = JSON.parse(JSON.stringify(client, (key, value) => serializeDecimal(value)));
 
   const clientName = client.type === ClientType.PERSONNE_PHYSIQUE
     ? `${client.firstName || ""} ${client.lastName || ""}`.trim()
@@ -39,7 +50,7 @@ export default async function EditClientPage({
         </div>
       </div>
 
-      <EditClientForm client={client} />
+      <EditClientForm client={serializedClient} />
     </div>
   );
 }

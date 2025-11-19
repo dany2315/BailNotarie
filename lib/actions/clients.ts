@@ -13,13 +13,17 @@ import {
 } from "@/lib/zod/client";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
-import { resend } from "@/lib/resend";
-import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus } from "@prisma/client";
-import MailOwnerForm from "@/emails/mail-owner-form";
-import MailTenantForm from "@/emails/mail-tenant-form";
-import MailLeadConversion from "@/emails/mail-lead-conversion";
+import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus, CompletionStatus } from "@prisma/client";
+import { triggerOwnerFormEmail, triggerTenantFormEmail, triggerLeadConversionEmail } from "@/lib/inngest/helpers";
 import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actions/documents";
 import { randomBytes } from "crypto";
+import { 
+  updateClientCompletionStatus as calculateAndUpdateClientStatus, 
+  updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
+} from "@/lib/utils/completion-status";
+import { createNotificationForAllUsers } from "@/lib/utils/notifications";
+import { NotificationType } from "@prisma/client";
+import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -32,6 +36,7 @@ export async function createBasicClient(data: unknown) {
       type: ClientType.PERSONNE_PHYSIQUE, // Type temporaire, sera mis à jour dans le formulaire
       profilType: ProfilType.PROPRIETAIRE,
       email: validated.email,
+      completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
       createdById: user.id,
     },
   });
@@ -45,25 +50,30 @@ export async function createBasicClient(data: unknown) {
     },
   });
 
-  // Envoyer l'email avec le lien du formulaire
+  // Déclencher l'envoi d'email avec le lien du formulaire via Inngest (asynchrone, ne bloque pas le rendu)
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
   const formUrl = `${baseUrl}/intakes/${intakeLink.token}`;
 
   try {
-    await resend.emails.send({
-      from: "noreply@bailnotarie.fr",
+    await triggerOwnerFormEmail({
       to: validated.email,
-      subject: "Formulaire de bail notarié - Propriétaire",
-      react: MailOwnerForm({
-        firstName: "",
-        lastName: "",
-        formUrl,
-      }),
+      firstName: "",
+      lastName: "",
+      formUrl,
     });
   } catch (error) {
-    console.error("Erreur lors de l'envoi de l'email:", error);
+    console.error("Erreur lors du déclenchement de l'email:", error);
     // On continue même si l'email échoue
   }
+
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le client)
+  await createNotificationForAllUsers(
+    NotificationType.CLIENT_CREATED,
+    "CLIENT",
+    client.id,
+    user.id,
+    { createdByForm: false }
+  );
 
   revalidatePath("/interface/clients");
   return { client, intakeLink };
@@ -96,6 +106,7 @@ export async function createFullClient(data: unknown) {
             matrimonialRegime: validated.matrimonialRegime as MatrimonialRegime | null,
             birthPlace: validated.birthPlace,
             birthDate: validated.birthDate,
+            completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
             createdById: user.id,
 
           },
@@ -111,6 +122,7 @@ export async function createFullClient(data: unknown) {
             email: validated.email,
             fullAddress: validated.fullAddress,
             nationality: validated.nationality,
+            completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
             createdById: user.id,
           },
         });
@@ -126,6 +138,9 @@ export async function createFullClient(data: unknown) {
       throw error;
     }
 
+    // Ne pas mettre à jour le statut de complétion lors de la création manuelle
+    // Le statut reste NOT_STARTED jusqu'à ce que le client remplisse le formulaire
+
     // Créer le bien
     const property = await prisma.property.create({
       data: {
@@ -139,6 +154,9 @@ export async function createFullClient(data: unknown) {
         createdById: user.id,
       },
     });
+
+    // Mettre à jour le statut de complétion du bien
+    await calculateAndUpdatePropertyStatus(property.id);
 
     // Créer ou récupérer le locataire (seulement si email fourni)
     let tenant = null;
@@ -161,6 +179,7 @@ export async function createFullClient(data: unknown) {
               type: ClientType.PERSONNE_PHYSIQUE,
               profilType: ProfilType.LOCATAIRE,
               email: validated.tenantEmail,
+              completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
               createdById: user.id,
             },
           });
@@ -201,6 +220,15 @@ export async function createFullClient(data: unknown) {
         createdById: user.id,
       },
     });
+    
+    // Notification pour création de bail (déjà gérée dans createLease, mais on l'ajoute ici aussi pour cohérence)
+    await createNotificationForAllUsers(
+      NotificationType.BAIL_CREATED,
+      "BAIL",
+      bail.id,
+      user.id,
+      { createdByForm: false }
+    );
 
     // Créer un IntakeLink et envoyer l'email seulement si le locataire existe
     if (tenant) {
@@ -213,23 +241,19 @@ export async function createFullClient(data: unknown) {
         },
       });
 
-      // Envoyer l'email au locataire avec le formulaire
+      // Déclencher l'envoi d'email au locataire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
       const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
       const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
 
       try {
-        await resend.emails.send({
-          from: "noreply@bailnotarie.fr",
+        await triggerTenantFormEmail({
           to: validated.tenantEmail!,
-          subject: "Formulaire de bail notarié - Locataire",
-          react: MailTenantForm({
-            firstName: "",
-            lastName: "",
-            formUrl: tenantFormUrl,
-          }),
+          firstName: "",
+          lastName: "",
+          formUrl: tenantFormUrl,
         });
       } catch (error) {
-        console.error("Erreur lors de l'envoi de l'email au locataire:", error);
+        console.error("Erreur lors du déclenchement de l'email au locataire:", error);
         // On continue même si l'email échoue
       }
     }
@@ -280,6 +304,7 @@ export async function createFullClient(data: unknown) {
               matrimonialRegime: validated.matrimonialRegime as MatrimonialRegime | null,
               birthPlace: validated.birthPlace,
               birthDate: validated.birthDate,
+              completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
               createdById: user.id,
             },
             include: {
@@ -311,6 +336,7 @@ export async function createFullClient(data: unknown) {
               email: validated.email,
               fullAddress: validated.fullAddress,
               nationality: validated.nationality,
+              completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
               createdById: user.id,
             },
             include: {
@@ -318,6 +344,15 @@ export async function createFullClient(data: unknown) {
               ownedProperties: true,
             },
           });
+
+          // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le client)
+          await createNotificationForAllUsers(
+            NotificationType.CLIENT_CREATED,
+            "CLIENT",
+            client.id,
+            user.id,
+            { createdByForm: false }
+          );
 
           revalidatePath("/interface/clients");
           return client;
@@ -363,6 +398,21 @@ export async function submitOwnerForm(data: unknown) {
     throw error;
   }
 
+  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité)
+  const intakeLink = await prisma.intakeLink.findFirst({
+    where: {
+      clientId: validated.clientId,
+      target: "OWNER",
+      status: {
+        in: ["PENDING", "SUBMITTED"], // Permettre même si soumis (pour modifications)
+      },
+    },
+  });
+
+  if (!intakeLink) {
+    throw new Error("Accès non autorisé : aucun lien d'intake valide trouvé pour ce client");
+  }
+
   // Mettre à jour le client propriétaire
   const ownerUpdateData: any = {
     updatedAt: new Date(),
@@ -390,6 +440,9 @@ export async function submitOwnerForm(data: unknown) {
     where: { id: validated.clientId },
     data: ownerUpdateData,
   });
+
+  // Mettre à jour le statut de complétion
+  await calculateAndUpdateClientStatus(validated.clientId);
 
   // Récupérer l'intakeLink du propriétaire pour vérifier les objets existants
   const ownerIntakeLink = await prisma.intakeLink.findFirst({
@@ -423,6 +476,8 @@ export async function submitOwnerForm(data: unknown) {
         status: validated.propertyStatus || PropertyStatus.NON_LOUER,
       },
     });
+    // Mettre à jour le statut de complétion du bien
+    await calculateAndUpdatePropertyStatus(property.id);
   } else {
     // Créer un nouveau bien
     property = await prisma.property.create({
@@ -436,10 +491,13 @@ export async function submitOwnerForm(data: unknown) {
         ownerId: validated.clientId,
       },
     });
+    // Mettre à jour le statut de complétion du bien
+    await calculateAndUpdatePropertyStatus(property.id);
   }
 
   // Chercher ou créer le locataire (seulement si email fourni)
   let tenant = null;
+  let isTenantNewlyCreated = false; // Flag pour savoir si le locataire vient d'être créé
   const rawPayload = ownerIntakeLink?.rawPayload as any;
   
   if (validated.tenantEmail) {
@@ -478,6 +536,17 @@ export async function submitOwnerForm(data: unknown) {
           },
         });
       } else {
+        // Vérifier d'abord si un client avec cet email existe déjà (peu importe le profilType)
+        const existingClientWithEmail = await prisma.client.findUnique({
+          where: {
+            email: validated.tenantEmail.trim().toLowerCase()
+          },
+        });
+
+        if (existingClientWithEmail) {
+          throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
+        }
+
         // Si aucun locataire n'est rattaché, chercher un locataire existant avec cet email
         tenant = await prisma.client.findFirst({
           where: {
@@ -495,9 +564,21 @@ export async function submitOwnerForm(data: unknown) {
               email: validated.tenantEmail.trim().toLowerCase(),
             },
           });
+          isTenantNewlyCreated = true;
         }
       }
     } else if (!tenant) {
+      // Vérifier d'abord si un client avec cet email existe déjà (peu importe le profilType)
+      const existingClientWithEmail = await prisma.client.findUnique({
+        where: {
+          email: validated.tenantEmail.trim().toLowerCase()
+        },
+      });
+
+      if (existingClientWithEmail) {
+        throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
+      }
+
       // Si le bail n'existe pas encore, chercher ou créer le locataire
       tenant = await prisma.client.findFirst({
         where: {
@@ -514,6 +595,7 @@ export async function submitOwnerForm(data: unknown) {
             email: validated.tenantEmail.trim().toLowerCase(),
           },
         });
+        isTenantNewlyCreated = true;
       }
     }
   }
@@ -555,6 +637,7 @@ export async function submitOwnerForm(data: unknown) {
       where: { id: ownerIntakeLink.bailId },
       data: updateData,
     });
+    
   } else {
     // Créer un nouveau bail
     bail = await prisma.bail.create({
@@ -624,7 +707,7 @@ export async function submitOwnerForm(data: unknown) {
 
   // Mettre à jour l'IntakeLink du propriétaire comme soumis
   if (ownerIntakeLink) {
-    await prisma.intakeLink.update({
+    const updatedIntakeLink = await prisma.intakeLink.update({
       where: { id: ownerIntakeLink.id },
       data: {
         status: "SUBMITTED",
@@ -634,38 +717,170 @@ export async function submitOwnerForm(data: unknown) {
         bailId: bail.id,
       },
     });
+    
+    // Mettre à jour le statut de complétion du client à PENDING_CHECK après soumission
+    const currentClient = await prisma.client.findUnique({
+      where: { id: validated.clientId },
+      select: { completionStatus: true },
+    });
+    
+    if (currentClient && (currentClient.completionStatus === CompletionStatus.PARTIAL || currentClient.completionStatus === CompletionStatus.NOT_STARTED)) {
+      await prisma.client.update({
+        where: { id: validated.clientId },
+        data: {
+          completionStatus: CompletionStatus.PENDING_CHECK,
+        },
+      });
+    }
+    
   }
 
   // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
   // Plus besoin de les gérer ici
 
-  // Envoyer l'email au locataire avec le formulaire (seulement si locataire et IntakeLink existent)
-  if (tenant && tenantIntakeLink && validated.tenantEmail) {
-    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-    const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
-
-    try {
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
-        to: validated.tenantEmail!,
-        subject: "Formulaire de bail notarié - Locataire",
-        react: MailTenantForm({
-          firstName: "",
-          lastName: "",
-          formUrl: tenantFormUrl,
-        }),
+  // Envoyer l'email au locataire avec le formulaire lors de la soumission finale
+  if (tenant && validated.tenantEmail) {
+    // S'assurer que le tenantIntakeLink existe, sinon le créer
+    if (!tenantIntakeLink) {
+      tenantIntakeLink = await prisma.intakeLink.findFirst({
+        where: {
+          clientId: tenant.id,
+          bailId: bail.id,
+          target: "TENANT",
+        },
       });
-    } catch (error) {
-      console.error("Erreur lors de l'envoi de l'email au locataire:", error);
-      // On continue même si l'email échoue
+
+      if (!tenantIntakeLink) {
+        // Créer un nouvel IntakeLink pour le locataire
+        tenantIntakeLink = await prisma.intakeLink.create({
+          data: {
+            target: "TENANT",
+            clientId: tenant.id,
+            propertyId: property.id,
+            bailId: bail.id,
+          },
+        });
+      }
     }
   }
+
+  // Préparer les données pour l'envoi d'email (avant le return)
+  let emailData: { tenantEmail: string; tenantFormUrl: string; tenantFirstName: string; tenantLastName: string } | null = null;
+  
+  // Envoyer l'email au locataire avec le formulaire (en arrière-plan, après le return)
+  if (tenantIntakeLink && tenant && validated.tenantEmail) {
+    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+    const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
+    
+    emailData = {
+      tenantEmail: validated.tenantEmail,
+      tenantFormUrl,
+      tenantFirstName: tenant.firstName || "",
+      tenantLastName: tenant.lastName || "",
+    };
+  }
+
+  // Stocker les IDs nécessaires pour les notifications en arrière-plan
+  const ownerIntakeLinkId = ownerIntakeLink?.id || null;
+  const propertyId = property?.id || null;
+  const bailId = bail?.id || null;
+  const tenantId = tenant?.id || null;
+  const wasPropertyCreated = !ownerIntakeLink?.propertyId; // Si pas de propertyId dans ownerIntakeLink, c'est une création
 
   revalidatePath("/interface/clients");
   revalidatePath("/interface/properties");
   revalidatePath("/interface/bails");
 
-  return { property, bail, tenant, tenantIntakeLink };
+  // Retourner le résultat AVANT l'envoi d'email et les notifications pour que l'utilisateur voie le statut immédiatement
+  const result = { property, bail, tenant, tenantIntakeLink };
+
+  // Déclencher l'envoi d'email et les notifications en arrière-plan (après le return, ne bloque pas le rendu)
+  Promise.resolve().then(async () => {
+    try {
+      // Notification pour modification de client via formulaire intake
+      await createNotificationForAllUsers(
+        NotificationType.CLIENT_UPDATED,
+        "CLIENT",
+        validated.clientId,
+        null,
+        { createdByForm: true }
+      );
+
+      // Notification pour création/modification de bien
+      if (propertyId) {
+        const propertyNotificationType = wasPropertyCreated
+          ? NotificationType.PROPERTY_CREATED 
+          : NotificationType.PROPERTY_UPDATED;
+        await createNotificationForAllUsers(
+          propertyNotificationType,
+          "PROPERTY",
+          propertyId,
+          null,
+          { createdByForm: true }
+        );
+      }
+
+      // Notification pour modification de bail
+      if (bailId) {
+        await createNotificationForAllUsers(
+          NotificationType.BAIL_UPDATED,
+          "BAIL",
+          bailId,
+          null,
+          { createdByForm: true }
+        );
+      }
+
+      // Notification pour création de locataire (seulement si créé dans cette fonction)
+      if (tenantId && isTenantNewlyCreated) {
+        await createNotificationForAllUsers(
+          NotificationType.CLIENT_CREATED,
+          "CLIENT",
+          tenantId,
+          null,
+          { createdByForm: true }
+        );
+      }
+
+      // Notification pour soumission d'intake
+      if (ownerIntakeLinkId) {
+        await createNotificationForAllUsers(
+          NotificationType.INTAKE_SUBMITTED,
+          "INTAKE",
+          ownerIntakeLinkId,
+          null,
+          { intakeTarget: "OWNER" }
+        );
+      }
+
+      // Envoyer l'email au locataire avec le formulaire
+      if (emailData) {
+        console.log(`Déclenchement de l'envoi d'email au locataire: ${emailData.tenantEmail}`);
+        console.log(`URL du formulaire: ${emailData.tenantFormUrl}`);
+        
+        await triggerTenantFormEmail({
+          to: emailData.tenantEmail,
+          firstName: emailData.tenantFirstName,
+          lastName: emailData.tenantLastName,
+          formUrl: emailData.tenantFormUrl,
+        });
+        
+        console.log(`✅ Email déclenché pour le locataire ${emailData.tenantEmail} avec le lien ${emailData.tenantFormUrl}`);
+      } else if (!tenant || !validated.tenantEmail) {
+        console.warn("Email non envoyé au locataire :", {
+          hasTenant: !!tenant,
+          hasTenantEmail: !!validated.tenantEmail,
+        });
+      }
+    } catch (error: any) {
+      // Ne pas bloquer la soumission même si les notifications/emails échouent
+      console.error("❌ Erreur lors des notifications/emails (en arrière-plan):", error);
+    }
+  }).catch((error) => {
+    console.error("❌ Erreur lors de l'exécution asynchrone des notifications/emails:", error);
+  });
+
+  return result;
 }
 
 // Soumettre le formulaire locataire
@@ -683,6 +898,21 @@ export async function submitTenantForm(data: unknown) {
       throw new Error(errorMessages.join(", "));
     }
     throw error;
+  }
+
+  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité)
+  const intakeLink = await prisma.intakeLink.findFirst({
+    where: {
+      clientId: validated.clientId,
+      target: "TENANT",
+      status: {
+        in: ["PENDING", "SUBMITTED"], // Permettre même si soumis (pour modifications)
+      },
+    },
+  });
+
+  if (!intakeLink) {
+    throw new Error("Accès non autorisé : aucun lien d'intake valide trouvé pour ce client");
   }
 
   // Mettre à jour le client locataire
@@ -707,6 +937,9 @@ export async function submitTenantForm(data: unknown) {
     data: tenantUpdateData,
   });
 
+  // Mettre à jour le statut de complétion
+  await calculateAndUpdateClientStatus(validated.clientId);
+
   // Mettre à jour l'IntakeLink du locataire comme soumis
   const tenantIntakeLink = await prisma.intakeLink.findFirst({
     where: {
@@ -716,8 +949,10 @@ export async function submitTenantForm(data: unknown) {
     },
   });
 
+  let updatedIntakeLinkId: string | null = null;
+  
   if (tenantIntakeLink) {
-    await prisma.intakeLink.update({
+    const updatedIntakeLink = await prisma.intakeLink.update({
       where: { id: tenantIntakeLink.id },
       data: {
         status: "SUBMITTED",
@@ -725,13 +960,64 @@ export async function submitTenantForm(data: unknown) {
         rawPayload: validated as any,
       },
     });
+    
+    updatedIntakeLinkId = updatedIntakeLink.id;
+    
+    // Mettre à jour le statut de complétion du client à PENDING_CHECK après soumission
+    const currentClient = await prisma.client.findUnique({
+      where: { id: validated.clientId },
+      select: { completionStatus: true },
+    });
+    
+    if (currentClient && (currentClient.completionStatus === CompletionStatus.PARTIAL || currentClient.completionStatus === CompletionStatus.NOT_STARTED)) {
+      await prisma.client.update({
+        where: { id: validated.clientId },
+        data: {
+          completionStatus: CompletionStatus.PENDING_CHECK,
+        },
+      });
+    }
   }
 
   // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
   // Plus besoin de les gérer ici
 
   revalidatePath("/interface/clients");
-  return { success: true };
+  
+  // Retourner le résultat AVANT les notifications pour que l'utilisateur voie le statut immédiatement
+  const result = { success: true };
+
+  // Déclencher les notifications en arrière-plan (après le return, ne bloque pas le rendu)
+  Promise.resolve().then(async () => {
+    try {
+      // Notification pour modification de client via formulaire intake (notifier tous les utilisateurs)
+      await createNotificationForAllUsers(
+        NotificationType.CLIENT_UPDATED,
+        "CLIENT",
+        validated.clientId,
+        null, // Modifié par formulaire, notifier tous les utilisateurs
+        { createdByForm: true }
+      );
+
+      // Notification pour soumission d'intake via formulaire
+      if (updatedIntakeLinkId) {
+        await createNotificationForAllUsers(
+          NotificationType.INTAKE_SUBMITTED,
+          "INTAKE",
+          updatedIntakeLinkId,
+          null, // Soumis par formulaire, pas par un utilisateur
+          { intakeTarget: "TENANT" }
+        );
+      }
+    } catch (error: any) {
+      // Ne pas bloquer la soumission même si les notifications échouent
+      console.error("❌ Erreur lors des notifications (en arrière-plan):", error);
+    }
+  }).catch((error) => {
+    console.error("❌ Erreur lors de l'exécution asynchrone des notifications:", error);
+  });
+
+  return result;
 }
 
 // Mettre à jour un client
@@ -761,16 +1047,305 @@ export async function updateClient(data: unknown) {
     },
   });
 
+  // Mettre à jour le statut de complétion
+  await updateClientCompletionStatus({ id, completionStatus: client.completionStatus });
+
+  // Pas de notification pour les modifications via l'interface
+
   revalidatePath("/interface/clients");
   revalidatePath(`/interface/clients/${id}`);
   return client;
 }
 
-// Supprimer un client
-export async function deleteClient(id: string) {
+// Helper pour obtenir le nom d'un client
+function getClientName(client: { type: ClientType; firstName?: string | null; lastName?: string | null; legalName?: string | null; email?: string | null }): string {
+  if (client.type === ClientType.PERSONNE_PHYSIQUE) {
+    const name = `${client.firstName || ""} ${client.lastName || ""}`.trim();
+    return name || client.email || "Client";
+  }
+  return client.legalName || client.email || "Client";
+}
+
+// Obtenir le nom d'un client par son ID (pour le dialog de confirmation)
+export async function getClientNameById(id: string): Promise<string> {
   await requireAuth();
-  await prisma.client.delete({ where: { id } });
+  const client = await prisma.client.findUnique({
+    where: { id },
+    select: {
+      type: true,
+      firstName: true,
+      lastName: true,
+      legalName: true,
+      email: true,
+    },
+  });
+  
+  if (!client) {
+    return "Client";
+  }
+  
+  return getClientName(client);
+}
+
+// Supprimer un client
+export async function deleteClient(id: string): Promise<{ success: true } | { success: false; error: string; blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }> }> {
+  const user = await requireAuth();
+  
+  // Récupérer le client avec toutes ses relations
+  const client = await prisma.client.findUnique({
+    where: { id },
+    include: {
+      bails: {
+        include: {
+          parties: {
+            select: {
+              id: true,
+              profilType: true,
+            },
+          },
+        },
+      },
+      ownedProperties: {
+        include: {
+          bails: {
+            include: {
+              parties: {
+                select: {
+                  id: true,
+                  profilType: true,
+                  type: true,
+                  firstName: true,
+                  lastName: true,
+                  legalName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          documents: {
+            select: {
+              id: true,
+              fileKey: true,
+            },
+          },
+        },
+      },
+      documents: {
+        select: {
+          id: true,
+          fileKey: true,
+        },
+      },
+      intakeLinks: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  const clientName = getClientName(client);
+
+  // Gérer les différents cas selon le profilType
+  if (client.profilType === ProfilType.LEAD) {
+    // LEAD : Supprimer le client + son intake s'il y en a un
+    const intakeLinkIds = client.intakeLinks.map(link => link.id);
+    
+    // Supprimer les intakeLinks
+    if (intakeLinkIds.length > 0) {
+      await prisma.intakeLink.deleteMany({
+        where: { id: { in: intakeLinkIds } },
+      });
+    }
+
+    // Supprimer les documents et leurs fichiers blob
+    const documentFileKeys = client.documents.map(doc => doc.fileKey);
+    if (documentFileKeys.length > 0) {
+      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      await deleteBlobFiles(documentFileKeys);
+    }
+
+    await prisma.document.deleteMany({
+      where: { clientId: id },
+    });
+
+    // Supprimer le client
+    await prisma.client.delete({ where: { id } });
+
+  } else if (client.profilType === ProfilType.LOCATAIRE) {
+    // LOCATAIRE : Supprimer le client + ses documents (du blob aussi) + sa connexion avec le bail + les intake en relation
+    
+    // Supprimer les documents et leurs fichiers blob
+    const documentFileKeys = client.documents.map(doc => doc.fileKey);
+    if (documentFileKeys.length > 0) {
+      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      await deleteBlobFiles(documentFileKeys);
+    }
+
+    await prisma.document.deleteMany({
+      where: { clientId: id },
+    });
+
+    // Supprimer les connexions avec les baux (disconnect le locataire des baux)
+    for (const bail of client.bails) {
+      await prisma.bail.update({
+        where: { id: bail.id },
+        data: {
+          parties: {
+            disconnect: { id },
+          },
+        },
+      });
+    }
+
+    // Supprimer les intakeLinks en relation
+    await prisma.intakeLink.deleteMany({
+      where: { clientId: id },
+    });
+
+    // Supprimer le client
+    await prisma.client.delete({ where: { id } });
+
+  } else if (client.profilType === ProfilType.PROPRIETAIRE) {
+    // PROPRIETAIRE : Vérifications complexes
+    
+    // Vérifier s'il y a des baux avec des locataires
+    const blockingEntities: Array<{ id: string; name: string; type: "CLIENT" | "BAIL"; link: string }> = [];
+    
+    for (const property of client.ownedProperties) {
+      for (const bail of property.bails) {
+        // Vérifier si le bail a un locataire connecté
+        const hasTenant = bail.parties.some(party => party.profilType === ProfilType.LOCATAIRE);
+        
+        if (hasTenant) {
+          const tenant = bail.parties.find(party => party.profilType === ProfilType.LOCATAIRE);
+          if (tenant) {
+            const tenantName = tenant.type === ClientType.PERSONNE_PHYSIQUE
+              ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || "Locataire"
+              : tenant.legalName || tenant.email || "Locataire";
+            
+            blockingEntities.push({
+              id: tenant.id,
+              name: tenantName,
+              type: "CLIENT",
+              link: `/interface/clients/${tenant.id}`,
+            });
+          }
+        }
+      }
+    }
+
+    if (blockingEntities.length > 0) {
+      return {
+        success: false,
+        error: `Impossible de supprimer le propriétaire "${clientName}". ` +
+          `Il existe ${blockingEntities.length} locataire${blockingEntities.length > 1 ? 's' : ''} connecté${blockingEntities.length > 1 ? 's' : ''} à ${blockingEntities.length > 1 ? 'des baux' : 'un bail'}. ` +
+          `Vous devez d'abord supprimer le${blockingEntities.length > 1 ? 's' : ''} locataire${blockingEntities.length > 1 ? 's' : ''} concerné${blockingEntities.length > 1 ? 's' : ''}.`,
+        blockingEntities,
+      };
+    }
+
+    // Vérifier s'il y a des baux sans locataire
+    const bailsWithoutTenant: Array<{ id: string; name: string; type: "BAIL"; link: string }> = [];
+    
+    for (const property of client.ownedProperties) {
+      for (const bail of property.bails) {
+        const hasTenant = bail.parties.some(party => party.profilType === ProfilType.LOCATAIRE);
+        if (!hasTenant) {
+          bailsWithoutTenant.push({
+            id: bail.id,
+            name: `Bail #${bail.id.slice(-8).toUpperCase()}`,
+            type: "BAIL",
+            link: `/interface/baux/${bail.id}`,
+          });
+        }
+      }
+    }
+
+    if (bailsWithoutTenant.length > 0) {
+      return {
+        success: false,
+        error: `Impossible de supprimer le propriétaire "${clientName}". ` +
+          `Il existe ${bailsWithoutTenant.length} bail${bailsWithoutTenant.length > 1 ? 'x' : ''} associé${bailsWithoutTenant.length > 1 ? 's' : ''} à ses biens. ` +
+          `Vous devez d'abord supprimer le${bailsWithoutTenant.length > 1 ? 's' : ''} bail${bailsWithoutTenant.length > 1 ? 'x' : ''} concerné${bailsWithoutTenant.length > 1 ? 's' : ''}.`,
+        blockingEntities: bailsWithoutTenant,
+      };
+    }
+
+    // Si seulement un bien et ses données du client : supprimer le client + le bien + les documents du bien et du client (du blob) + les intake en relation
+    
+    // Collecter tous les documents (client + biens)
+    const allDocumentFileKeys: string[] = [];
+    
+    // Documents du client
+    allDocumentFileKeys.push(...client.documents.map(doc => doc.fileKey));
+    
+    // Documents des biens
+    for (const property of client.ownedProperties) {
+      allDocumentFileKeys.push(...property.documents.map(doc => doc.fileKey));
+    }
+
+    // Supprimer tous les fichiers blob
+    if (allDocumentFileKeys.length > 0) {
+      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      await deleteBlobFiles(allDocumentFileKeys);
+    }
+
+    // Supprimer tous les documents (client + biens)
+    await prisma.document.deleteMany({
+      where: {
+        OR: [
+          { clientId: id },
+          { propertyId: { in: client.ownedProperties.map(p => p.id) } },
+        ],
+      },
+    });
+
+    // Supprimer les intakeLinks en relation avec le client et les biens
+    await prisma.intakeLink.deleteMany({
+      where: {
+        OR: [
+          { clientId: id },
+          { propertyId: { in: client.ownedProperties.map(p => p.id) } },
+        ],
+      },
+    });
+
+    // Supprimer les baux (s'ils existent encore, normalement ils sont déjà supprimés)
+    const propertyIds = client.ownedProperties.map(p => p.id);
+    if (propertyIds.length > 0) {
+      await prisma.bail.deleteMany({
+        where: { propertyId: { in: propertyIds } },
+      });
+    }
+
+    // Supprimer les biens
+    await prisma.property.deleteMany({
+      where: { ownerId: id },
+    });
+
+    // Supprimer le client
+    await prisma.client.delete({ where: { id } });
+  } else {
+    // Cas par défaut (ne devrait pas arriver)
+    await prisma.client.delete({ where: { id } });
+  }
+  
+  // Créer une notification pour tous les utilisateurs (sauf celui qui a supprimé le client)
+  await createNotificationForAllUsers(
+    NotificationType.CLIENT_DELETED,
+    "CLIENT",
+    id,
+    user.id,
+    { clientEmail: client.email || null, clientName }
+  );
+  
   revalidatePath("/interface/clients");
+  return { success: true };
 }
 
 // Obtenir un client
@@ -833,6 +1408,9 @@ export async function getClient(id: string) {
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
       documents: {
+        orderBy: { createdAt: "desc" },
+      },
+      intakeLinks: {
         orderBy: { createdAt: "desc" },
       },
     },
@@ -949,6 +1527,11 @@ export async function sendIntakeLinkToClient(clientId: string) {
     throw new Error("Le client n'a pas d'email");
   }
 
+  // Vérifier que le client n'est pas en statut PENDING_CHECK ou COMPLETED
+  if (client.completionStatus === "PENDING_CHECK" || client.completionStatus === "COMPLETED") {
+    throw new Error("Impossible d'envoyer le formulaire : le client est en statut de vérification ou complété");
+  }
+
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
   // Si le client est un LEAD, envoyer le lien de conversion
@@ -984,17 +1567,14 @@ export async function sendIntakeLinkToClient(clientId: string) {
     const convertUrl = `${baseUrl}/intakes/${intakeLink.token}/convert`;
 
     try {
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
+      await triggerLeadConversionEmail({
         to: client.email,
         subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
-        react: MailLeadConversion({
-          convertUrl,
-        }),
+        convertUrl,
       });
     } catch (error) {
-      console.error("Erreur lors de l'envoi de l'email:", error);
-      throw new Error("Erreur lors de l'envoi de l'email");
+      console.error("Erreur lors du déclenchement de l'email:", error);
+      throw new Error("Erreur lors du déclenchement de l'email");
     }
 
     revalidatePath("/interface/clients");
@@ -1006,6 +1586,64 @@ export async function sendIntakeLinkToClient(clientId: string) {
   const target = client.profilType === ProfilType.PROPRIETAIRE ? "OWNER" : 
                  client.profilType === ProfilType.LOCATAIRE ? "TENANT" : 
                  "OWNER"; // Par défaut OWNER
+
+  // Récupérer le bien et le bail existants du client si c'est un propriétaire
+  let existingPropertyId: string | null = null;
+  let existingBailId: string | null = null;
+
+  if (target === "OWNER") {
+    // Récupérer le premier bien du propriétaire
+    const property = await prisma.property.findFirst({
+      where: {
+        ownerId: client.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    if (property) {
+      existingPropertyId = property.id;
+
+      // Récupérer le premier bail lié à ce bien
+      const bail = await prisma.bail.findFirst({
+        where: {
+          propertyId: property.id,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (bail) {
+        existingBailId = bail.id;
+      }
+    }
+  } else if (target === "TENANT") {
+    // Pour un locataire, récupérer le bail où il est partie
+    const bail = await prisma.bail.findFirst({
+      where: {
+        parties: {
+          some: {
+            id: client.id,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        property: true,
+      },
+    });
+
+    if (bail) {
+      existingBailId = bail.id;
+      if (bail.property) {
+        existingPropertyId = bail.property.id;
+      }
+    }
+  }
 
   // Vérifier s'il existe déjà un IntakeLink valide (PENDING) pour ce client et ce target
   let intakeLink = await prisma.intakeLink.findFirst({
@@ -1019,50 +1657,92 @@ export async function sendIntakeLinkToClient(clientId: string) {
     },
   });
 
-  // Si aucun lien valide n'existe, en créer un nouveau
+  // Si aucun lien valide n'existe, en créer un nouveau avec les biens/baux existants
   if (!intakeLink) {
     intakeLink = await prisma.intakeLink.create({
       data: {
         target: target as any,
         clientId: client.id,
+        propertyId: existingPropertyId,
+        bailId: existingBailId,
         createdById: user.id,
       },
     });
+  } else {
+    // Si l'IntakeLink existe mais n'a pas de propertyId/bailId, les mettre à jour
+    if ((!intakeLink.propertyId && existingPropertyId) || (!intakeLink.bailId && existingBailId)) {
+      intakeLink = await prisma.intakeLink.update({
+        where: { id: intakeLink.id },
+        data: {
+          propertyId: intakeLink.propertyId || existingPropertyId,
+          bailId: intakeLink.bailId || existingBailId,
+        },
+      });
+    }
   }
 
-  // Envoyer l'email avec le lien du formulaire
+  // Déclencher l'envoi d'email avec le lien du formulaire via Inngest (asynchrone, ne bloque pas le rendu)
   const formUrl = `${baseUrl}/intakes/${intakeLink.token}`;
 
   try {
     if (target === "OWNER") {
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
+      await triggerOwnerFormEmail({
         to: client.email,
-        subject: "Formulaire de bail notarié - Propriétaire",
-        react: MailOwnerForm({
-          firstName: client.firstName || "",
-          lastName: client.lastName || "",
-          formUrl,
-        }),
+        firstName: client.firstName || "",
+        lastName: client.lastName || "",
+        formUrl,
       });
     } else {
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
+      await triggerTenantFormEmail({
         to: client.email,
-        subject: "Formulaire de bail notarié - Locataire",
-        react: MailTenantForm({
-          firstName: client.firstName || "",
-          lastName: client.lastName || "",
-          formUrl,
-        }),
+        firstName: client.firstName || "",
+        lastName: client.lastName || "",
+        formUrl,
       });
     }
   } catch (error) {
-    console.error("Erreur lors de l'envoi de l'email:", error);
-    throw new Error("Erreur lors de l'envoi de l'email");
+    console.error("Erreur lors du déclenchement de l'email:", error);
+    throw new Error("Erreur lors du déclenchement de l'email");
   }
 
   revalidatePath("/interface/clients");
   return { intakeLink, emailSent: true };
+}
+
+// Mettre à jour le statut de complétion d'un client
+export async function updateClientCompletionStatus(data: { id: string; completionStatus: CompletionStatus }) {
+  const user = await requireAuth();
+  const { id, completionStatus } = data;
+
+  // Récupérer l'ancien statut
+  const oldClient = await prisma.client.findUnique({ where: { id } });
+  const oldStatus = oldClient?.completionStatus;
+
+  const client = await prisma.client.update({
+    where: { id },
+    data: {
+      completionStatus,
+      updatedById: user.id,
+    },
+  });
+
+  // Notification uniquement si le statut devient COMPLETED (via interface, notifier tous les utilisateurs)
+  if (oldStatus !== completionStatus && completionStatus === CompletionStatus.COMPLETED) {
+    await createNotificationForAllUsers(
+      NotificationType.COMPLETION_STATUS_CHANGED,
+      "CLIENT",
+      id,
+      null, // Modifié via interface, notifier tous les utilisateurs
+      { 
+        oldStatus,
+        newStatus: completionStatus,
+        entityType: "CLIENT"
+      }
+    );
+  }
+
+  revalidatePath("/interface/clients");
+  revalidatePath(`/interface/clients/${id}`);
+  return client;
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { signUp } from "@/lib/auth-client";
+import { signUp, useSession } from "@/lib/auth-client";
 
 const registerSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -33,6 +33,7 @@ const registerSchema = z.object({
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
+  const { data: session, isPending } = useSession();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -44,6 +45,21 @@ export default function RegisterPage() {
     name: "",
     role: "OPERATEUR",
   });
+
+  // Rediriger vers l'interface si l'utilisateur est déjà connecté
+  useEffect(() => {
+    if (session && !isPending) {
+      router.push("/interface");
+    }
+  }, [session, isPending, router]);
+
+  if (isPending) {
+    return <div>Chargement...</div>;
+  }
+
+  if (session) {
+    return null; // Retourner null pendant la redirection
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

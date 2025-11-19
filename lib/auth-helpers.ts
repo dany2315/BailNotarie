@@ -56,3 +56,28 @@ export async function requireRole(allowedRoles: string[]) {
   return user;
 }
 
+/**
+ * Vérifie qu'un clientId correspond à un IntakeLink valide (PENDING ou SUBMITTED)
+ * Utilisé pour sécuriser les actions d'intake qui ne nécessitent pas d'authentification utilisateur
+ */
+export async function verifyIntakeAccess(clientId: string, target?: "OWNER" | "TENANT" | "LEAD"): Promise<boolean> {
+  const { prisma } = await import("./prisma");
+  
+  const where: any = {
+    clientId,
+    status: {
+      in: ["PENDING"], // Permettre l'accès même si soumis (pour modifications)
+    },
+  };
+  
+  if (target) {
+    where.target = target;
+  }
+  
+  const intakeLink = await prisma.intakeLink.findFirst({
+    where,
+  });
+  
+  return !!intakeLink;
+}
+

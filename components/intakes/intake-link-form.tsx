@@ -23,7 +23,6 @@ const intakeLinkFormSchema = z.object({
   target: z.enum(["OWNER", "TENANT"]),
   propertyId: z.string().optional().or(z.literal("")),
   leaseId: z.string().optional().or(z.literal("")),
-  expiresAt: z.string().optional().or(z.literal("")),
 });
 
 type IntakeLinkFormData = z.infer<typeof intakeLinkFormSchema>;
@@ -44,7 +43,6 @@ export function IntakeLinkForm({ onSubmit, properties, leases }: IntakeLinkFormP
       target: "OWNER",
       propertyId: "",
       leaseId: "",
-      expiresAt: "",
     },
   });
 
@@ -55,7 +53,6 @@ export function IntakeLinkForm({ onSubmit, properties, leases }: IntakeLinkFormP
       formData.append("target", data.target);
       if (data.propertyId) formData.append("propertyId", data.propertyId);
       if (data.leaseId) formData.append("leaseId", data.leaseId);
-      if (data.expiresAt) formData.append("expiresAt", data.expiresAt);
       
       await onSubmit(formData);
       toast.success("Lien d'intake créé avec succès");
@@ -168,19 +165,6 @@ export function IntakeLinkForm({ onSubmit, properties, leases }: IntakeLinkFormP
                 )}
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-              <Label htmlFor="expiresAt">Date d'expiration</Label>
-            <Input
-              id="expiresAt"
-              type="datetime-local"
-              {...form.register("expiresAt")}
-              disabled={isLoading}
-            />
-            <p className="text-sm text-muted-foreground">
-              Laisser vide pour un lien sans expiration
-            </p>
           </div>
 
           <div className="flex justify-end gap-2">

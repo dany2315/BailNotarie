@@ -13,6 +13,7 @@ import { DocumentKind } from "@prisma/client";
 interface DocumentUploadedProps {
   token: string;
   documentKind: string;
+  clientId?: string; // Optionnel : pour filtrer les documents par client (utile pour le formulaire locataire)
   onDelete?: (documentId: string) => void;
   children?: ReactNode;
 }
@@ -27,7 +28,7 @@ export function invalidateDocumentCache(token: string) {
   tokenDocumentsData.delete(token);
 }
 
-export function DocumentUploaded({ token, documentKind, onDelete, children }: DocumentUploadedProps) {
+export function DocumentUploaded({ token, documentKind, clientId, onDelete, children }: DocumentUploadedProps) {
   const [document, setDocument] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
@@ -81,8 +82,12 @@ export function DocumentUploaded({ token, documentKind, onDelete, children }: Do
       // Vérifier si les documents sont déjà en cache
       if (tokenDocumentsData.has(token)) {
         const allDocs = tokenDocumentsData.get(token) || [];
-        const foundDoc = allDocs
-          .filter((doc) => doc.kind === documentKind)
+        // Filtrer par kind et optionnellement par clientId
+        let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
+        if (clientId) {
+          filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
+        }
+        const foundDoc = filteredDocs
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
         setDocument(foundDoc || null);
         setLoading(false);
@@ -95,8 +100,12 @@ export function DocumentUploaded({ token, documentKind, onDelete, children }: Do
         try {
           const allDocs = await existingPromise;
           if (allDocs) {
-            const foundDoc = allDocs
-              .filter((doc) => doc.kind === documentKind)
+            // Filtrer par kind et optionnellement par clientId
+            let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
+            if (clientId) {
+              filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
+            }
+            const foundDoc = filteredDocs
               .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
             setDocument(foundDoc || null);
           }
@@ -118,8 +127,12 @@ export function DocumentUploaded({ token, documentKind, onDelete, children }: Do
         tokenDocumentsData.set(token, allDocs);
         tokenDocumentsCache.delete(token); // Nettoyer le cache de promesses
 
-        const foundDoc = allDocs
-          .filter((doc) => doc.kind === documentKind)
+        // Filtrer par kind et optionnellement par clientId
+        let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
+        if (clientId) {
+          filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
+        }
+        const foundDoc = filteredDocs
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
         setDocument(foundDoc || null);
       } catch (error) {
@@ -132,7 +145,7 @@ export function DocumentUploaded({ token, documentKind, onDelete, children }: Do
 
     loadDocuments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, documentKind, refreshKey]);
+  }, [token, documentKind, clientId, refreshKey]);
 
   // Écouter les événements de rechargement
   useEffect(() => {

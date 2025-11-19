@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth-helpers";
+import { requireAuth } from "@/lib/auth-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    await requireAuth();
 
     const searchParams = request.nextUrl.searchParams;
     const key = searchParams.get("key");
@@ -38,10 +35,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    await requireAuth();
 
     // Stub: simuler l'upload
     // TODO: Implémenter avec votre service S3/GCS
@@ -59,6 +53,9 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+
+
 
 
 

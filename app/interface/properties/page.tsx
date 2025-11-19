@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { getPaginationParams } from "@/lib/utils/pagination";
-import { PropertyOwnerCell, PropertyStatusCell, PropertyDateCell } from "@/components/properties/property-table-cells";
+import { PropertyFullAddressCell, PropertyOwnerCell, PropertyStatusCell, PropertyDateCell } from "@/components/properties/property-table-cells";
 import { PropertyActions } from "@/components/properties/property-actions";
 
 export default async function PropertiesPage({
@@ -42,7 +42,7 @@ export default async function PropertiesPage({
     {
       id: "address",
       header: "Adresse",
-      accessorKey: "fullAddress",
+      cell: PropertyFullAddressCell,
     },
     {
       id: "owner",
@@ -63,19 +63,22 @@ export default async function PropertiesPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Biens</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Biens</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Gestion des propriétés immobilières
           </p>
         </div>
-        <Link href="/interface/properties/new">
-          <Button>
-            <Plus className="size-4 mr-2" />
-            Nouveau bien
-          </Button>
-        </Link>
+        <div className="flex-shrink-0">
+          <Link href="/interface/properties/new">
+            <Button className="w-full sm:w-auto">
+              <Plus className="size-4 mr-2" />
+              <span className="hidden sm:inline">Nouveau bien</span>
+              <span className="sm:hidden">Nouveau</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <DataTable

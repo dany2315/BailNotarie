@@ -10,7 +10,6 @@ import {
   IntakeTargetCell,
   IntakePropertyCell,
   IntakeStatusCell,
-  IntakeExpiresAtCell,
   IntakeSubmittedAtCell,
 } from "@/components/intakes/intake-table-cells";
 
@@ -57,18 +56,13 @@ export default async function IntakesPage({
     },
     {
       id: "property",
-      header: "Bien / Bail",
+      header: "Personne concernée",
       cell: IntakePropertyCell,
     },
     {
       id: "status",
       header: "Statut",
       cell: IntakeStatusCell,
-    },
-    {
-      id: "expiresAt",
-      header: "Expire le",
-      cell: IntakeExpiresAtCell,
     },
     {
       id: "submittedAt",

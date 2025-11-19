@@ -122,7 +122,7 @@ export default async function EditLeasePage({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href={`/interface/leases/${lease.id}`}>
+        <Link href={`/interface/baux/${lease.id}`}>
           <Button variant="ghost" size="icon">
             <ArrowLeft className="size-4" />
           </Button>

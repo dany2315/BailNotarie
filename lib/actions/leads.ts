@@ -3,33 +3,79 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
-import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus } from "@prisma/client";
-import { resend } from "@/lib/resend";
+import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
 import { randomBytes } from "crypto";
-import MailLeadConversion from "@/emails/mail-lead-conversion";
+import { triggerLeadConversionEmail, triggerOwnerFormEmail, triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { z } from "zod";
+import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
+import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 
 const createLeadSchema = z.object({
-  email: z.string()
-    .email("Email invalide")
-    .max(100, "L'email est trop long")
-    .toLowerCase()
-    .trim(),
-});
+  contactType: z.enum(["email", "phone"]),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.contactType === "email") {
+    if (!data.email || data.email.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "L'email est requis",
+        path: ["email"],
+      });
+    } else {
+      const emailSchema = z.string().email("Email invalide");
+      const result = emailSchema.safeParse(data.email.toLowerCase().trim());
+      if (!result.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Email invalide",
+          path: ["email"],
+        });
+      }
+    }
+  } else if (data.contactType === "phone") {
+    if (!data.phone || data.phone.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Le numéro de téléphone est requis",
+        path: ["phone"],
+      });
+    } else if (!isValidPhoneNumberSafe(data.phone)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Numéro de téléphone invalide",
+        path: ["phone"],
+      });
+    }
+  }
+}).transform((data) => ({
+  ...data,
+  email: data.email ? data.email.toLowerCase().trim() : undefined,
+}));
 
-// Créer un lead et envoyer un email avec lien de conversion
+// Créer un lead et envoyer un email avec lien de conversion (si email fourni)
 export async function createLead(data: unknown) {
   try {
     const user = await requireAuth();
     const validated = createLeadSchema.parse(data);
 
-    // Vérifier si un client avec cet email existe déjà
-    const existingClient = await prisma.client.findUnique({
-      where: { email: validated.email },
-    });
+    // Vérifier si un client avec cet email ou téléphone existe déjà
+    if (validated.contactType === "email" && validated.email) {
+      const existingClient = await prisma.client.findUnique({
+        where: { email: validated.email },
+      });
 
-    if (existingClient) {
-      throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+      if (existingClient) {
+        throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+      }
+    } else if (validated.contactType === "phone" && validated.phone) {
+      const existingClient = await prisma.client.findFirst({
+        where: { phone: validated.phone },
+      });
+
+      if (existingClient) {
+        throw new Error(`Un client avec le numéro de téléphone ${validated.phone} existe déjà.`);
+      }
     }
 
     // Créer le client avec profilType LEAD
@@ -37,7 +83,8 @@ export async function createLead(data: unknown) {
       data: { 
         type: ClientType.PERSONNE_PHYSIQUE, 
         profilType: ProfilType.LEAD,
-        email: validated.email,
+        email: validated.email || null,
+        phone: validated.phone || null,
         createdById: user.id,
       },
     });
@@ -54,26 +101,38 @@ export async function createLead(data: unknown) {
       },
     });
 
-    // Envoyer l'email avec le lien de conversion
+    // Envoyer l'email avec le lien de conversion uniquement si un email est fourni
     const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
     const convertUrl = `${baseUrl}/intakes/${token}/convert`;
 
     let emailSent = false;
-    try {
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
-        to: validated.email,
-        subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
-        react: MailLeadConversion({
+    if (validated.contactType === "email" && validated.email) {
+      try {
+        await triggerLeadConversionEmail({
+          to: validated.email,
+          subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
           convertUrl,
-        }),
-      });
-      emailSent = true;
-    } catch (error) {
-      console.error("Erreur lors de l'envoi de l'email:", error);
-      // Le lead est créé mais l'email n'a pas pu être envoyé
-      // On continue mais on retourne une indication que l'email a échoué
+        });
+        emailSent = true;
+      } catch (error) {
+        console.error("Erreur lors du déclenchement de l'email:", error);
+        // Le lead est créé mais l'email n'a pas pu être envoyé
+        // On continue mais on retourne une indication que l'email a échoué
+      }
     }
+
+    // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le lead)
+    await createNotificationForAllUsers(
+      NotificationType.LEAD_CREATED,
+      "CLIENT",
+      client.id,
+      user.id,
+      {
+        contactType: validated.contactType,
+        email: validated.email || null,
+        phone: validated.phone || null,
+      }
+    );
 
     revalidatePath("/interface/clients");
     return { client, intakeLink, emailSent };
@@ -91,6 +150,9 @@ export async function createLead(data: unknown) {
     if (error.code === "P2002") {
       if (error.meta?.target?.includes("email")) {
         throw new Error(`Un client avec l'email ${(data as any).email} existe déjà.`);
+      }
+      if (error.meta?.target?.includes("phone")) {
+        throw new Error(`Un client avec le numéro de téléphone ${(data as any).phone} existe déjà.`);
       }
       throw new Error("Une erreur de contrainte unique s'est produite.");
     }
@@ -177,12 +239,24 @@ export async function convertLead(data: {
 
   if (role === "PROPRIETAIRE") {
     // Mettre à jour le lead en PROPRIETAIRE
-    await prisma.client.update({
+    const updatedClient = await prisma.client.update({
       where: { id: intakeLink.client.id },
       data: {
         profilType: ProfilType.PROPRIETAIRE,
       },
     });
+    
+    // Créer une notification pour la conversion du lead (notifier tous les utilisateurs)
+    await createNotificationForAllUsers(
+      NotificationType.LEAD_CONVERTED,
+      "CLIENT",
+      updatedClient.id,
+      null, // Notifier tous les utilisateurs
+      {
+        oldProfilType: "LEAD",
+        newProfilType: "PROPRIETAIRE",
+      }
+    );
 
     // Créer un IntakeLink pour le formulaire propriétaire
     const ownerIntakeLink = await prisma.intakeLink.create({
@@ -203,21 +277,20 @@ export async function convertLead(data: {
       },
     });
 
-    // Envoyer l'email avec le formulaire propriétaire
+    // Déclencher l'envoi d'email avec le formulaire propriétaire via Inngest (asynchrone, ne bloque pas le rendu)
     const formUrl = `${baseUrl}/intakes/${ownerIntakeLink.token}`;
 
-    try {
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
-        to: intakeLink.client.email || "",
-        subject: "Formulaire de bail notarié - Propriétaire",
-        react: MailLeadConversion({
+    if (intakeLink.client.email) {
+      try {
+        await triggerLeadConversionEmail({
+          to: intakeLink.client.email,
+          subject: "Formulaire de bail notarié - Propriétaire",
           convertUrl: formUrl,
           isOwnerForm: true,
-        }),
-      });
-    } catch (error) {
-      console.error("Erreur lors de l'envoi de l'email:", error);
+        });
+      } catch (error) {
+        console.error("Erreur lors du déclenchement de l'email:", error);
+      }
     }
 
     revalidatePath("/interface/clients");
@@ -229,12 +302,24 @@ export async function convertLead(data: {
     }
 
     // Mettre à jour le lead en LOCATAIRE
-    await prisma.client.update({
+    const updatedClient = await prisma.client.update({
       where: { id: intakeLink.client.id },
       data: {
         profilType: ProfilType.LOCATAIRE,
       },
     });
+    
+    // Créer une notification pour la conversion du lead (notifier tous les utilisateurs)
+    await createNotificationForAllUsers(
+      NotificationType.LEAD_CONVERTED,
+      "CLIENT",
+      updatedClient.id,
+      null, // Notifier tous les utilisateurs
+      {
+        oldProfilType: "LEAD",
+        newProfilType: "LOCATAIRE",
+      }
+    );
 
     // Créer ou récupérer le client PROPRIETAIRE
     let owner = await prisma.client.findFirst({
@@ -253,6 +338,15 @@ export async function convertLead(data: {
           createdById: intakeLink.createdById,
         },
       });
+      
+      // Notification pour création de propriétaire lors de la conversion lead
+      await createNotificationForAllUsers(
+        NotificationType.CLIENT_CREATED,
+        "CLIENT",
+        owner.id,
+        intakeLink.createdById,
+        { createdByForm: true, fromLeadConversion: true }
+      );
     }
 
     // Créer un bien temporaire pour le propriétaire (sera complété lors du formulaire propriétaire)
@@ -328,36 +422,32 @@ export async function convertLead(data: {
       },
     });
 
-    // Envoyer l'email au locataire avec le formulaire
+    // Déclencher l'envoi d'email au locataire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
     const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
-    try {
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
-        to: intakeLink.client.email || "",
-        subject: "Formulaire de bail notarié - Locataire",
-        react: MailLeadConversion({
+    if (intakeLink.client.email) {
+      try {
+        await triggerLeadConversionEmail({
+          to: intakeLink.client.email,
+          subject: "Formulaire de bail notarié - Locataire",
           convertUrl: tenantFormUrl,
           isTenantForm: true,
-        }),
-      });
-    } catch (error) {
-      console.error("Erreur lors de l'envoi de l'email au locataire:", error);
+        });
+      } catch (error) {
+        console.error("Erreur lors du déclenchement de l'email au locataire:", error);
+      }
     }
 
-    // Envoyer l'email au propriétaire avec le formulaire
+    // Déclencher l'envoi d'email au propriétaire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
     const ownerFormUrl = `${baseUrl}/intakes/${ownerIntakeLink.token}`;
     try {
-      await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
+      await triggerLeadConversionEmail({
         to: ownerEmail,
         subject: "Formulaire de bail notarié - Propriétaire",
-        react: MailLeadConversion({
-          convertUrl: ownerFormUrl,
-          isOwnerForm: true,
-        }),
+        convertUrl: ownerFormUrl,
+        isOwnerForm: true,
       });
     } catch (error) {
-      console.error("Erreur lors de l'envoi de l'email au propriétaire:", error);
+      console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
     }
 
     revalidatePath("/interface/clients");

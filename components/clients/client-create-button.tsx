@@ -22,7 +22,7 @@ export function ClientCreateButton() {
 
   return (
     <>
-      <ButtonGroup>
+      <ButtonGroup className="w-full sm:w-auto justify-end">
         <Button onClick={() => router.push("/interface/clients/new")} variant="outline" className="bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground ">
           Créer un client
         </Button>
@@ -39,7 +39,7 @@ export function ClientCreateButton() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setIsDialogOpen(true)}>
               <Mail className="mr-2 h-4 w-4" />
-              Envoyer par mail le formulaire
+              Inviter le propriétaire
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/interface/clients/new">
