@@ -42,20 +42,7 @@ Tous les envois d'emails ont été migrés vers Inngest pour éviter d'encombrer
 
 ### Variables d'environnement
 
-Pour utiliser Inngest, vous devez configurer la variable d'environnement suivante :
-
-- `INNGEST_EVENT_KEY` : Clé API Inngest pour envoyer des événements (requis pour la production)
-
-**Développement local :**
-- Option 1 : Utiliser Inngest Dev Server (recommandé) - aucune clé API requise
-  ```bash
-  npx inngest-cli@latest dev
-  ```
-- Option 2 : Utiliser Inngest Cloud - définir `INNGEST_EVENT_KEY` dans votre fichier `.env`
-
-**Production :**
-- Définir `INNGEST_EVENT_KEY` dans vos variables d'environnement de production
-- Obtenez votre clé depuis le [dashboard Inngest](https://app.inngest.com)
+Aucune variable d'environnement supplémentaire n'est requise pour Inngest en développement local. Pour la production, vous devrez configurer Inngest selon leur documentation.
 
 ### Installation
 

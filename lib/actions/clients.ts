@@ -1705,21 +1705,25 @@ export async function sendIntakeLinkToClient(clientId: string) {
   // Déclencher l'envoi d'email avec le lien du formulaire via Inngest (asynchrone, ne bloque pas le rendu)
   const formUrl = `${baseUrl}/intakes/${intakeLink.token}`;
 
-  // Les erreurs Inngest sont gérées dans les helpers et ne bloquent pas l'application
-  if (target === "OWNER") {
-    await triggerOwnerFormEmail({
-      to: client.email,
-      firstName: client.firstName || "",
-      lastName: client.lastName || "",
-      formUrl,
-    });
-  } else {
-    await triggerTenantFormEmail({
-      to: client.email,
-      firstName: client.firstName || "",
-      lastName: client.lastName || "",
-      formUrl,
-    });
+  try {
+    if (target === "OWNER") {
+      await triggerOwnerFormEmail({
+        to: client.email,
+        firstName: client.firstName || "",
+        lastName: client.lastName || "",
+        formUrl,
+      });
+    } else {
+      await triggerTenantFormEmail({
+        to: client.email,
+        firstName: client.firstName || "",
+        lastName: client.lastName || "",
+        formUrl,
+      });
+    }
+  } catch (error) {
+    console.error("Erreur lors du déclenchement de l'email:", error);
+    throw new Error("Erreur lors du déclenchement de l'email");
   }
 
   revalidatePath("/interface/clients");
