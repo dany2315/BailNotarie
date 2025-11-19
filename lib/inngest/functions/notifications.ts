@@ -8,7 +8,7 @@ export const sendNotificationEmail = inngest.createFunction(
   async ({ event, step }) => {
     await step.run("send-notification-email", async () => {
       await resend.emails.send({
-        from: "noreply@bailnotarie.fr",
+        from: "support@bailnotarie.fr",
         to: event.data.to,
         subject: "Nouvelle notification - BailNotarie",
         react: MailNotification({
