@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { submitIntake, savePartialIntake, getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { DocumentUploaded } from "./document-uploaded";
 import { useRouter } from "next/navigation";
@@ -25,16 +25,20 @@ import { ownerFormSchema } from "@/lib/zod/client";
 import { ClientType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, PropertyStatus, BienType, BienLegalStatus, ProfilType } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Stepper } from "@/components/ui/stepper";
-import { ArrowLeftIcon, ArrowRightIcon, Loader2 } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, Loader2, InfoIcon, Building2, User2 } from "lucide-react";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type OwnerFormData = z.infer<typeof ownerFormSchema>;
 
 const STEPS = [
-  { title: "Informations personnelles",  },
-  { title: "Informations du bien"  },
+  { title: "Informations de base" },
+  { title: "Informations complémentaires" },
+  { title: "Informations du bien" },
   { title: "Informations du bail" },
   { title: "Informations du locataire" },
   { title: "Pièces jointes" },
@@ -132,8 +136,8 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     reglementCopropriete: (property?.documents?.find((document: any) => document.kind === "REGLEMENT_COPROPRIETE")?.file as File) || null,
     cahierChargeLotissement: (property?.documents?.find((document: any) => document.kind === "CAHIER_DE_CHARGE_LOTISSEMENT")?.file as File) || null,
     statutAssociationSyndicale: (property?.documents?.find((document: any) => document.kind === "STATUT_DE_LASSOCIATION_SYNDICALE")?.file as File) || null,
-    insuranceOwner: (bail?.documents?.find((document: any) => document.kind === "INSURANCE")?.file as File) || null,
-    ribOwner: (bail?.documents?.find((document: any) => document.kind === "RIB")?.file as File) || null,
+    insuranceOwner: (property?.documents?.find((document: any) => document.kind === "INSURANCE")?.file as File) || null,
+    ribOwner: (property?.documents?.find((document: any) => document.kind === "RIB")?.file as File) || null,
   });
 
   const form = useForm<OwnerFormData>({
@@ -152,46 +156,55 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       return val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "");
     };
     
-    // Vérifier l'étape 0: Informations personnelles
+    // Vérifier l'étape 0: Informations de base
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
       if (isEmpty(values.type) || isEmpty(values.firstName) || isEmpty(values.lastName) || 
-          isEmpty(values.email) || isEmpty(values.phone) || isEmpty(values.fullAddress) || 
-          isEmpty(values.nationality) || isEmpty(values.familyStatus) || 
-          isEmpty(values.birthPlace) || isEmpty(values.birthDate) || isEmpty(values.profession)) {
-        return 0;
-      }
-      if (values.familyStatus === FamilyStatus.MARIE && isEmpty(values.matrimonialRegime)) {
+          isEmpty(values.email) || isEmpty(values.phone) || isEmpty(values.fullAddress)) {
         return 0;
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
       if (isEmpty(values.type) || isEmpty(values.legalName) || isEmpty(values.email) || 
-          isEmpty(values.phone) || isEmpty(values.fullAddress) || 
-          isEmpty(values.nationality) || isEmpty(values.registration)) {
+          isEmpty(values.phone) || isEmpty(values.fullAddress)) {
         return 0;
       }
     } else {
       return 0; // Type non défini
     }
 
-    // Vérifier l'étape 1: Informations du bien
-    if (isEmpty(values.propertyFullAddress) || isEmpty(values.propertySurfaceM2) || 
-        isEmpty(values.propertyType) || isEmpty(values.propertyLegalStatus)) {
-      return 1;
+    // Vérifier l'étape 1: Informations complémentaires
+    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
+      if (isEmpty(values.profession) || isEmpty(values.familyStatus) || 
+          isEmpty(values.birthPlace) || isEmpty(values.birthDate) || isEmpty(values.nationality)) {
+        return 1;
+      }
+      if (values.familyStatus === FamilyStatus.MARIE && isEmpty(values.matrimonialRegime)) {
+        return 1;
+      }
+    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
+      if (isEmpty(values.registration) || isEmpty(values.nationality)) {
+        return 1;
+      }
     }
 
-    // Vérifier l'étape 2: Informations du bail
-    if (isEmpty(values.bailType) || isEmpty(values.bailRentAmount) || 
-        isEmpty(values.bailEffectiveDate) || isEmpty(values.bailMonthlyCharges) || 
-        isEmpty(values.bailSecurityDeposit) || isEmpty(values.bailPaymentDay)) {
+    // Vérifier l'étape 2: Informations du bien
+    if (isEmpty(values.propertyFullAddress) || isEmpty(values.propertySurfaceM2) || 
+        isEmpty(values.propertyType) || isEmpty(values.propertyLegalStatus)) {
       return 2;
     }
 
-    // Vérifier l'étape 3: Informations du locataire
-    if (isEmpty(values.tenantEmail)) {
+    // Vérifier l'étape 3: Informations du bail
+    if (isEmpty(values.bailType) || isEmpty(values.bailRentAmount) || 
+        isEmpty(values.bailEffectiveDate) || isEmpty(values.bailMonthlyCharges) || 
+        isEmpty(values.bailSecurityDeposit) || isEmpty(values.bailPaymentDay)) {
       return 3;
     }
 
-    // Vérifier l'étape 4: Pièces jointes
+    // Vérifier l'étape 4: Informations du locataire
+    if (isEmpty(values.tenantEmail)) {
+      return 4;
+    }
+
+    // Vérifier l'étape 5: Pièces jointes
     // Utiliser intakeLink directement pour avoir les données à jour
     // Vérifier les documents selon le type de client
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
@@ -200,19 +213,19 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       const hasIdIdentity = clientDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
       
       if (!hasBirthCert || !hasIdIdentity) {
-        return 4;
+        return 5;
       }
       
       if (values.familyStatus === FamilyStatus.MARIE) {
         const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE");
         if (!hasLivret) {
-          return 4;
+          return 5;
         }
       }
       if (values.familyStatus === FamilyStatus.PACS) {
         const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS");
         if (!hasPacs) {
-          return 4;
+          return 5;
         }
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
@@ -221,7 +234,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       const hasStatutes = clientDocs.some((doc: any) => doc.kind === "STATUTES");
       
       if (!hasKbis || !hasStatutes) {
-        return 4;
+        return 5;
       }
     }
 
@@ -231,20 +244,20 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     const hasTitleDeed = propertyDocs.some((doc: any) => doc.kind === "TITLE_DEED");
     
     if (!hasDiagnostics || !hasTitleDeed) {
-      return 4;
+      return 5;
     }
 
     // Vérifier les documents selon le statut légal du bien
     if (values.propertyLegalStatus === BienLegalStatus.CO_PROPRIETE) {
       const hasReglement = propertyDocs.some((doc: any) => doc.kind === "REGLEMENT_COPROPRIETE");
       if (!hasReglement) {
-        return 4;
+        return 5;
       }
     } else if (values.propertyLegalStatus === BienLegalStatus.LOTISSEMENT) {
       const hasCahier = propertyDocs.some((doc: any) => doc.kind === "CAHIER_DE_CHARGE_LOTISSEMENT");
       const hasStatut = propertyDocs.some((doc: any) => doc.kind === "STATUT_DE_LASSOCIATION_SYNDICALE");
       if (!hasCahier || !hasStatut) {
-        return 4;
+        return 5;
       }
     }
 
@@ -254,7 +267,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     const hasRib = bailDocs.some((doc: any) => doc.kind === "RIB");
     
     if (!hasInsurance || !hasRib) {
-      return 4;
+      return 5;
     }
 
     // Toutes les étapes sont complètes, retourner la dernière étape
@@ -285,8 +298,8 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     const currentValues = form.getValues();
     const initial = initialValues.current;
 
-    // Pour le step 4 (Pièces jointes), vérifier uniquement les fichiers
-    if (step === 4) {
+    // Pour le step 5 (Pièces jointes), vérifier uniquement les fichiers
+    if (step === 5) {
       // Mapper les noms de fichiers aux types de documents
       const fileToDocumentKind: Record<string, string> = {
         kbis: "KBIS",
@@ -324,7 +337,6 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       const existingDocuments = [
         ...(client?.documents || []),
         ...(property?.documents || []),
-        ...(bail?.documents || []),
       ];
 
       // Vérifier s'il y a de nouveaux fichiers (fichiers qui n'existaient pas initialement)
@@ -370,7 +382,6 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     return false; // Aucun changement détecté
   };
 
-  // Fonction pour uploader les fichiers via l'API route
   // Fonction pour rafraîchir les données après l'upload
   const refreshIntakeLinkData = async () => {
     try {
@@ -383,7 +394,8 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     }
   };
 
-  const uploadFiles = async (): Promise<void> => {
+  // Fonction pour uploader les fichiers via l'API route
+  const uploadFiles = async (shouldDispatchEvent: boolean = true): Promise<void> => {
     const fileRefs = [
       { ref: kbisRef, name: "kbis" },
       { ref: statutesRef, name: "statutes" },
@@ -438,7 +450,6 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     const existingDocuments = [
       ...(client?.documents || []),
       ...(property?.documents || []),
-      ...(bail?.documents || []),
     ];
     
     // Créer un FormData pour les fichiers uniquement
@@ -556,8 +567,10 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     });
 
     // Déclencher l'événement pour recharger les documents dans les composants DocumentUploaded
-    // (pas besoin de rafraîchir toutes les données, les composants se mettront à jour via l'événement)
-    window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
+    // (seulement lors de l'enregistrement, pas lors de la soumission finale)
+    if (shouldDispatchEvent) {
+      window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
+    }
   };
 
   const saveCurrentStep = async (skipIfUnchanged: boolean = false) => {
@@ -569,10 +582,36 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
 
     setIsSaving(true);
     try {
+      // Si on est à l'étape 0 et que l'email doit être validé, vérifier avant de sauvegarder
+      if (currentStep === 0 && !client?.email && client?.phone) {
+        const emailValue = form.getValues("email");
+        if (emailValue && emailValue.trim() !== "") {
+          // Valider l'email avant de sauvegarder
+          const emailValid = await form.trigger("email");
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          if (!emailValid || form.formState.errors.email) {
+            const emailError = form.formState.errors.email?.message;
+            if (emailError?.includes("déjà utilisé")) {
+              toast.error(emailError, {
+                description: (
+                  <a href="/#contact" className="underline font-medium">
+                    Cliquez ici pour contacter le service client
+                  </a>
+                ),
+                duration: 10000,
+              });
+              setIsSaving(false);
+              throw new Error(emailError);
+            }
+          }
+        }
+      }
+      
       const data = form.getValues();
       
-      // Si on est sur l'étape des documents (step 4), uploader les fichiers
-      if (currentStep === 4) {
+      // Si on est sur l'étape des documents (step 5), uploader les fichiers
+      if (currentStep === 5) {
         await uploadFiles();
         // Déclencher l'événement pour recharger les documents après l'upload
         window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
@@ -596,31 +635,31 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       });
       
       toast.success("Données enregistrées avec succès");
-    } catch (error: any) {
-      const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
-      
-      // Si l'erreur contient le message sur l'email existant, afficher un toast avec le lien
-      if (errorMessage.includes("déjà utilisé") && errorMessage.includes("/#contact")) {
-        toast.error(errorMessage.replace(" : /#contact", ""), {
-          description: (
-            <a href="/#contact" className="underline font-medium">
-              Cliquez ici pour contacter le service client
-            </a>
-          ),
-          duration: 10000, // Afficher plus longtemps pour que l'utilisateur puisse cliquer
-        });
-        // Relancer l'erreur pour que handleNext puisse la capturer et bloquer la progression
-        throw error;
-      } else {
-        toast.error(errorMessage);
-        // Pour les autres erreurs, on peut aussi les relancer si nécessaire
-        // Mais pour l'instant, on ne relance que les erreurs critiques
+      } catch (error: any) {
+        const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
+        
+        // Si l'erreur contient le message sur l'email existant, afficher un toast avec le lien
+        if (errorMessage.includes("déjà utilisé")) {
+          toast.error(errorMessage.replace(" : /#contact", "").replace(" /#contact", ""), {
+            description: (
+              <a href="/#contact" className="underline font-medium">
+                Cliquez ici pour contacter le service client
+              </a>
+            ),
+            duration: 10000, // Afficher plus longtemps pour que l'utilisateur puisse cliquer
+          });
+          // Relancer l'erreur pour que handleNext puisse la capturer et bloquer la progression
+          throw error;
+        } else {
+          toast.error(errorMessage);
+          // Pour les autres erreurs, on peut aussi les relancer si nécessaire
+          // Mais pour l'instant, on ne relance que les erreurs critiques
+        }
+        
+        console.error("Erreur lors de l'enregistrement:", error);
+      } finally {
+        setIsSaving(false);
       }
-      
-      console.error("Erreur lors de l'enregistrement:", error);
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleNext = async () => {
@@ -655,15 +694,45 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       return;
     }
     
-    // Si on est à l'étape 3 (informations du locataire), forcer la validation de tenantEmail en premier
-    if (currentStep === 3 && fieldsToValidate.includes("tenantEmail")) {
+    // Si on est à l'étape 0 (informations personnelles), forcer la validation de l'email du propriétaire en premier
+    if (currentStep === 0 && fieldsToValidate.includes("email") && !client?.email && client?.phone) {
+      const emailValue = currentValues.email;
+      if (emailValue && emailValue.trim() !== "") {
+        // Valider spécifiquement l'email d'abord avec un délai pour laisser la validation asynchrone se terminer
+        const emailValid = await form.trigger("email");
+        
+        // Attendre un peu pour s'assurer que la validation asynchrone est terminée
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Vérifier à nouveau les erreurs après le délai
+        const errorsAfterDelay = form.formState.errors;
+        
+        if (!emailValid || errorsAfterDelay.email) {
+          const emailError = errorsAfterDelay.email?.message || form.formState.errors.email?.message;
+          if (emailError?.includes("déjà utilisé")) {
+            toast.error(emailError, {
+              description: (
+                <a href="/#contact" className="underline font-medium">
+                  Cliquez ici pour contacter le service client
+                </a>
+              ),
+              duration: 10000,
+            });
+            return; // Bloquer la progression si l'email est déjà utilisé
+          }
+        }
+      }
+    }
+    
+    // Si on est à l'étape 4 (informations du locataire), forcer la validation de tenantEmail en premier
+    if (currentStep === 4 && fieldsToValidate.includes("tenantEmail")) {
       const tenantEmailValue = currentValues.tenantEmail;
       if (tenantEmailValue && tenantEmailValue.trim() !== "") {
         // Valider spécifiquement tenantEmail d'abord avec un délai pour laisser la validation asynchrone se terminer
         const tenantEmailValid = await form.trigger("tenantEmail");
         
         // Attendre un peu pour s'assurer que la validation asynchrone est terminée
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
         
         // Vérifier à nouveau les erreurs après le délai
         const errorsAfterDelay = form.formState.errors;
@@ -689,11 +758,33 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     console.log("Validation result:", isValid);
     console.log("Erreurs:", form.formState.errors);
     
-    // Vérifier à nouveau les erreurs après la validation complète
-    if (!isValid) {
-      // Vérifier spécifiquement les erreurs de validation pour tenantEmail
-      if (currentStep === 3 && form.formState.errors.tenantEmail) {
-        const tenantEmailError = form.formState.errors.tenantEmail.message;
+    // Attendre un peu pour s'assurer que toutes les validations asynchrones sont terminées
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Vérifier à nouveau les erreurs après la validation complète - IMPORTANT: même si isValid est true
+    // Vérifier spécifiquement les erreurs de validation pour l'email du propriétaire
+    if (currentStep === 0 && !client?.email && client?.phone) {
+      const emailErrors = form.formState.errors.email;
+      if (emailErrors) {
+        const emailError = emailErrors.message;
+        if (emailError?.includes("déjà utilisé")) {
+          toast.error(emailError, {
+            description: (
+              <a href="/#contact" className="underline font-medium">
+                Cliquez ici pour contacter le service client
+              </a>
+            ),
+            duration: 10000,
+          });
+          return; // Ne pas continuer si l'email est déjà utilisé
+        }
+      }
+    }
+    // Vérifier spécifiquement les erreurs de validation pour tenantEmail
+    if (currentStep === 4) {
+      const tenantEmailErrors = form.formState.errors.tenantEmail;
+      if (tenantEmailErrors) {
+        const tenantEmailError = tenantEmailErrors.message;
         if (tenantEmailError?.includes("déjà utilisé")) {
           toast.error(tenantEmailError, {
             description: (
@@ -706,6 +797,34 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
           return; // Ne pas continuer si l'email est déjà utilisé
         }
       }
+    }
+    
+    if (!isValid) {
+      // Récupérer les erreurs de validation
+      const errors = form.formState.errors;
+      const errorFields = Object.keys(errors).filter(key => 
+        fieldsToValidate.includes(key as keyof OwnerFormData)
+      );
+      
+      if (errorFields.length > 0) {
+        const firstErrorKey = errorFields[0];
+        const firstError = errors[firstErrorKey as keyof OwnerFormData];
+        let errorMessage = "Veuillez remplir tous les champs requis avant de passer à l'étape suivante";
+        
+        if (firstError) {
+          if (typeof firstError === 'object' && firstError !== null && 'message' in firstError) {
+            const msg = (firstError as { message?: string }).message;
+            if (typeof msg === 'string') {
+              errorMessage = msg;
+            }
+          }
+        }
+        
+        toast.error(errorMessage);
+      } else {
+        toast.error("Veuillez remplir tous les champs requis avant de passer à l'étape suivante");
+      }
+      return;
     }
     
     if (isValid) {
@@ -765,25 +884,30 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
 
   const getFieldsForStep = (step: number): (keyof OwnerFormData)[] => {
     switch (step) {
-      case 0: // Informations personnelles
+      case 0: // Informations de base
         if (clientType === ClientType.PERSONNE_PHYSIQUE) {
-          const baseFields = ["type", "firstName", "lastName", "email", "phone", "fullAddress", "nationality", "familyStatus", "birthPlace", "birthDate", "profession"] as any;
+          return ["type", "firstName", "lastName", "email", "phone", "fullAddress"];
+        }
+        return ["type", "legalName", "email", "phone", "fullAddress"];
+      case 1: // Informations complémentaires
+        if (clientType === ClientType.PERSONNE_PHYSIQUE) {
+          const baseFields = ["profession", "familyStatus", "birthPlace", "birthDate", "nationality"] as any;
           // Ajouter matrimonialRegime seulement si familyStatus est MARIE
           if (form.getValues("familyStatus") === FamilyStatus.MARIE) {
             baseFields.push("matrimonialRegime");
           }
           return baseFields;
         }
-        return ["type", "legalName", "email", "phone", "fullAddress", "nationality", "registration"];
-      case 1: // Informations du bien
+        return ["registration", "nationality"];
+      case 2: // Informations du bien
         return ["propertyFullAddress", "propertySurfaceM2", "propertyType", "propertyLegalStatus"];
-      case 2: // Informations du bail
+      case 3: // Informations du bail
         return ["bailType", "bailRentAmount", "bailEffectiveDate", "bailMonthlyCharges", "bailSecurityDeposit", "bailPaymentDay"];
-      case 3: // Informations du locataire
+      case 4: // Informations du locataire
         return ["tenantEmail"];
-      case 4: // Pièces jointes
+      case 5: // Pièces jointes
       if (clientType === ClientType.PERSONNE_PHYSIQUE) {
-        const baseFields = ["birthCert", "idIdentity", "diagnostics", "titleDeed"];
+        const baseFields = ["birthCert", "idIdentity", "diagnostics", "titleDeed", "insuranceOwner", "ribOwner"];
         if (form.getValues("familyStatus") === FamilyStatus.MARIE) {
           baseFields.push("livretDeFamille");
           baseFields.push("contratDePacs");
@@ -796,7 +920,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
         }
         return baseFields as any;
       } else if (clientType === ClientType.PERSONNE_MORALE) {
-        const baseFields = ["kbis", "statutes", "titleDeed"];
+        const baseFields = ["kbis", "statutes", "titleDeed", "insuranceOwner", "ribOwner"];
         if (form.getValues("propertyLegalStatus") === BienLegalStatus.CO_PROPRIETE) {
           baseFields.push("reglementCopropriete");
         } else if (form.getValues("propertyLegalStatus") === BienLegalStatus.LOTISSEMENT) {
@@ -823,7 +947,6 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     // Vérifier dans la base de données (utiliser intakeLink directement pour avoir les données à jour)
     const clientDocs = intakeLink.client?.documents || [];
     const propertyDocs = intakeLink.property?.documents || [];
-    const bailDocs = intakeLink.bail?.documents || [];
     
     // Vérifier dans les documents client
     if (clientDocs.some((doc: any) => doc.kind === documentKind)) {
@@ -831,10 +954,6 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     }
     // Vérifier dans les documents du bien
     if (propertyDocs.some((doc: any) => doc.kind === documentKind)) {
-      return true;
-    }
-    // Vérifier dans les documents du bail
-    if (bailDocs.some((doc: any) => doc.kind === documentKind)) {
       return true;
     }
     
@@ -877,6 +996,12 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     if (!hasDocument(titleDeedRef, titleDeedFile, "TITLE_DEED")) {
       errors.push("Le titre de propriété est requis");
     }
+    if (!hasDocument(insuranceOwnerRef, insuranceOwnerFile, "INSURANCE")) {
+      errors.push("L'assurance propriétaire est requise");
+    }
+    if (!hasDocument(ribOwnerRef, ribOwnerFile, "RIB")) {
+      errors.push("Le RIB signé propriétaire est requis");
+    }
 
     // Validation selon le statut légal du bien
     if (propertyLegalStatus === BienLegalStatus.CO_PROPRIETE && !hasDocument(reglementCoproprieteRef, reglementCoproprieteFile, "REGLEMENT_COPROPRIETE")) {
@@ -889,14 +1014,6 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       if (!hasDocument(statutAssociationSyndicaleRef, null, "STATUT_DE_LASSOCIATION_SYNDICALE")) {
         errors.push("Le statut de l'association syndicale est requis");
       }
-    }
-
-    // Validation des documents du bail (toujours requis)
-    if (!hasDocument(insuranceOwnerRef, insuranceOwnerFile, "INSURANCE")) {
-      errors.push("L'assurance propriétaire est requise");
-    }
-    if (!hasDocument(ribOwnerRef, ribOwnerFile, "RIB")) {
-      errors.push("Le RIB signé propriétaire est requis");
     }
 
     return {
@@ -919,7 +1036,8 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     setIsSubmitting(true);
     try {
       // Uploader les fichiers en parallèle (optimisé dans l'API route)
-      await uploadFiles();
+      // Ne pas déclencher l'événement car on va rediriger vers la page success
+      await uploadFiles(false);
       
       // Soumettre directement les données (les fichiers sont déjà uploadés)
       // Pas besoin de rafraîchir les données ni de re-valider, on vient juste d'uploader
@@ -964,48 +1082,89 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
-        return renderPersonalInfo();
+        return renderBasicInfo();
       case 1:
-        return renderPropertyInfo();
+        return renderAdditionalInfo();
       case 2:
-        return renderBailInfo();
+        return renderPropertyInfo();
       case 3:
-        return renderTenantInfo();
+        return renderBailInfo();
       case 4:
+        return renderTenantInfo();
+      case 5:
         return renderDocuments();
       default:
         return null;
     }
   };
 
-  const renderPersonalInfo = () => (
+  // Validation asynchrone pour vérifier si l'email du propriétaire existe déjà
+  const validateOwnerEmail = async (email: string | undefined) => {
+    // Si l'email est déjà défini côté client, pas besoin de valider
+    if (client?.email) {
+      return true;
+    }
+    
+    // Si pas d'email ou email vide, la validation requise est gérée par le schéma Zod
+    if (!email || email.trim() === "") {
+      return true;
+    }
+
+    try {
+      const response = await fetch("/api/clients/check-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (data.exists) {
+        return "Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client.";
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Erreur lors de la vérification de l'email:", error);
+      return true; // En cas d'erreur, on laisse passer pour ne pas bloquer l'utilisateur
+    }
+  };
+
+  const renderBasicInfo = () => (
     <Card>
       <CardHeader>
-        <CardTitle>Informations propriétaire</CardTitle>
+        <CardTitle>Informations propriétaire - Informations de base</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-8">
         <div className="space-y-2">
           <Label htmlFor="type">Type de client *</Label>
+
           <Controller
             name="type"
             control={form.control}
             render={({ field }) => (
-              <Select
+             <RadioGroup
                 value={field.value || undefined}
                 onValueChange={(value) => {
                   const selectedType = value as ClientType;
                   field.onChange(selectedType);
                   setClientType(selectedType);
                 }}
+                className="flex flex-row space-x-3 w-full items-center justify-between"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner le type de client" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ClientType.PERSONNE_PHYSIQUE}>Personne physique</SelectItem>
-                  <SelectItem value={ClientType.PERSONNE_MORALE}>Personne morale</SelectItem>
-                </SelectContent>
-              </Select>
+                <Label htmlFor="personnePhysique" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_PHYSIQUE ? "bg-accent" : ""}`}>
+                  <RadioGroupItem value={ClientType.PERSONNE_PHYSIQUE} className="hidden" id="personnePhysique"/>
+                  <User2 className="size-5 text-muted-foreground" />
+                  <div className="text-sm font-medium">Personne physique</div>
+                </Label>
+                <Label htmlFor="personneMorale" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_MORALE ? "bg-accent" : ""}`}>
+                  <RadioGroupItem value={ClientType.PERSONNE_MORALE} className="hidden" id="personneMorale"/>
+                  <Building2 className="size-5 text-muted-foreground" />
+                  <div className="text-sm font-medium">Personne morale</div>
+                </Label>
+              </RadioGroup>
             )}
           />
           {form.formState.errors.type && (
@@ -1014,119 +1173,41 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
         </div>
 
         {clientType === ClientType.PERSONNE_PHYSIQUE ? (
-          <>
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">Prénom *</Label>
-                <Input id="firstName" {...form.register("firstName")} />
-                {form.formState.errors.firstName && (
-                  <p className="text-sm text-destructive">{form.formState.errors.firstName.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Nom *</Label>
-                <Input id="lastName" {...form.register("lastName")} />
-                {form.formState.errors.lastName && (
-                  <p className="text-sm text-destructive">{form.formState.errors.lastName.message}</p>
-                )}
-              </div>
+          <div className="grid gap-3 sm:gap-4 grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="firstName">Prénom *</Label>
+              <Input id="firstName" {...form.register("firstName")} />
+              {form.formState.errors.firstName && (
+                <p className="text-sm text-destructive">{form.formState.errors.firstName.message}</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="profession">Profession *</Label>
-              <Input id="profession" {...form.register("profession")} />
-              {form.formState.errors.profession && (
-                <p className="text-sm text-destructive">{form.formState.errors.profession.message}</p>
+              <Label htmlFor="lastName">Nom *</Label>
+              <Input id="lastName" {...form.register("lastName")} />
+              {form.formState.errors.lastName && (
+                <p className="text-sm text-destructive">{form.formState.errors.lastName.message}</p>
               )}
             </div>
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="familyStatus">Situation familiale *</Label>
-                <Controller
-                  name="familyStatus"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select value={field.value || undefined} onValueChange={field.onChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(FamilyStatus).map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status.replace(/_/g, " ")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {form.formState.errors.familyStatus && (
-                  <p className="text-sm text-destructive">{form.formState.errors.familyStatus.message}</p>
-                )}
-              </div>
-              {form.watch("familyStatus") === FamilyStatus.MARIE && (
-                <div className="space-y-2">
-                  <Label htmlFor="matrimonialRegime">Régime matrimonial *</Label>
-                  <Controller
-                    name="matrimonialRegime"
-                    control={form.control}
-                    render={({ field }) => (
-                      <Select value={field.value || undefined} onValueChange={field.onChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sélectionner" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.values(MatrimonialRegime).map((regime) => (
-                            <SelectItem key={regime} value={regime}>
-                              {regime.replace(/_/g, " ")}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {form.formState.errors.matrimonialRegime && (
-                    <p className="text-sm text-destructive">{form.formState.errors.matrimonialRegime.message}</p>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="birthPlace">Lieu de naissance *</Label>
-                <Input id="birthPlace" {...form.register("birthPlace")} />
-                {form.formState.errors.birthPlace && (
-                  <p className="text-sm text-destructive">{form.formState.errors.birthPlace.message}</p>
-                )}
-              </div>
-             
-              <div className="space-y-2">
-                <Label htmlFor="birthDate">Date de naissance *</Label>
-                <Input id="birthDate" type="date" {...form.register("birthDate")} />
-                
-                {form.formState.errors.birthDate && (
-                  <p className="text-sm text-destructive">{form.formState.errors.birthDate.message}</p>
-                )}  
-              </div>
-             
-            </div>
-          </>
+          </div>
         ) : (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="legalName">Raison sociale *</Label>
-              <Input id="legalName" {...form.register("legalName")} />
-              {form.formState.errors.legalName && (
-                <p className="text-sm text-destructive">{form.formState.errors.legalName.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="registration">SIREN/SIRET *</Label>
-              <Input id="registration" {...form.register("registration")} />
-            </div>
-          </>
+          <div className="space-y-2">
+            <Label htmlFor="legalName">Raison sociale *</Label>
+            <Input id="legalName" {...form.register("legalName")} />
+            {form.formState.errors.legalName && (
+              <p className="text-sm text-destructive">{form.formState.errors.legalName.message}</p>
+            )}
+          </div>
         )}
 
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="fullAddress">Adresse complète *</Label>
+          <Textarea id="fullAddress" {...form.register("fullAddress")} />
+          {form.formState.errors.fullAddress && (
+            <p className="text-sm text-destructive">{form.formState.errors.fullAddress.message}</p>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:gap-4 grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="phone">Téléphone *</Label>
             <Controller
@@ -1156,43 +1237,195 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
             <Input 
               id="email" 
               type="email" 
-              {...form.register("email")} 
+              {...form.register("email", {
+                validate: validateOwnerEmail,
+                required: "L'email est requis",
+              })} 
               disabled={!!client?.email}
               className={client?.email ? "bg-muted cursor-not-allowed" : ""}
+              onBlur={async () => {
+                // Déclencher la validation au blur seulement si l'email n'est pas déjà défini
+                if (!client?.email) {
+                  await form.trigger("email");
+                }
+              }}
             />
             {client?.email && (
               <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
             )}
             {form.formState.errors.email && (
-              <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+              <div className="text-sm text-destructive">
+                <p>{form.formState.errors.email.message}</p>
+                {form.formState.errors.email.message?.includes("déjà utilisé") && (
+                  <p className="mt-1">
+                    <a href="/#contact" className="underline hover:text-destructive/80 font-medium">
+                      Cliquez ici pour contacter le service client
+                    </a>
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="fullAddress">Adresse complète *</Label>
-          <Textarea id="fullAddress" {...form.register("fullAddress")} />
-          {form.formState.errors.fullAddress && (
-            <p className="text-sm text-destructive">{form.formState.errors.fullAddress.message}</p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="nationality">Nationalité *</Label>
-          <Controller
-            name="nationality"
-            control={form.control}
-            render={({ field }) => (
-              <NationalitySelect
-                value={field.value || ""}
-                onValueChange={field.onChange}
-                disabled={form.formState.isSubmitting}
-                placeholder="Sélectionner la nationalité"
+
+      </CardContent>
+    </Card>
+  );
+
+  const renderAdditionalInfo = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Informations propriétaire - Informations complémentaires</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-8">
+        {clientType === ClientType.PERSONNE_PHYSIQUE ? (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="profession">Profession *</Label>
+              <Input id="profession" {...form.register("profession")} />
+              {form.formState.errors.profession && (
+                <p className="text-sm text-destructive">{form.formState.errors.profession.message}</p>
+              )}
+            </div>
+            <div className={`grid gap-4 sm:gap-4  ${form.watch("familyStatus") === FamilyStatus.MARIE ? "grid-cols-2" : "grid-cols-1"}`}>
+              <div className="space-y-2">
+                <Label htmlFor="familyStatus">Situation familiale *</Label>
+                <Controller
+                  name="familyStatus"
+                  control={form.control}
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.values(FamilyStatus).map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.replace(/_/g, " ")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {form.formState.errors.familyStatus && (
+                  <p className="text-sm text-destructive">{form.formState.errors.familyStatus.message}</p>
+                )}
+              </div>
+              {form.watch("familyStatus") === FamilyStatus.MARIE && (
+                <div className="space-y-2">
+                  <Label htmlFor="matrimonialRegime">Régime matrimonial *</Label>
+                  <Controller
+                    name="matrimonialRegime"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select value={field.value || undefined} onValueChange={field.onChange}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Sélectionner" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.values(MatrimonialRegime).map((regime) => (
+                            <SelectItem key={regime} value={regime}>
+                              {regime.replace(/_/g, " ")}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {form.formState.errors.matrimonialRegime && (
+                    <p className="text-sm text-destructive">{form.formState.errors.matrimonialRegime.message}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="grid gap-3 sm:gap-4 grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="birthPlace">Lieu de naissance *</Label>
+                <Input id="birthPlace" {...form.register("birthPlace")} />
+                {form.formState.errors.birthPlace && (
+                  <p className="text-sm text-destructive">{form.formState.errors.birthPlace.message}</p>
+                )}
+              </div>
+             
+              <div className="space-y-2">
+                <Label htmlFor="birthDate">Date de naissance *</Label>
+                <Controller
+                  name="birthDate"
+                  control={form.control}
+                  render={({ field }) => (
+                    <DatePicker
+                      id="birthDate"
+                      value={field.value ? (typeof field.value === 'string' ? field.value : field.value.toISOString().split('T')[0]) : undefined}
+                      onChange={(date) => {
+                        if (date) {
+                          // Convertir en format string YYYY-MM-DD pour le formulaire
+                          const dateString = date.toISOString().split('T')[0]
+                          field.onChange(dateString)
+                        } else {
+                          field.onChange(undefined)
+                        }
+                      }}
+                      placeholder="Sélectionner la date de naissance"
+                      fromYear={1900}
+                      toYear={new Date().getFullYear()}
+                    />
+                  )}
+                />
+                {form.formState.errors.birthDate && (
+                  <p className="text-sm text-destructive">{form.formState.errors.birthDate.message}</p>
+                )}  
+              </div>
+             
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nationality">Nationalité *</Label>
+              <Controller
+                name="nationality"
+                control={form.control}
+                render={({ field }) => (
+                  <NationalitySelect
+                    value={field.value || ""}
+                    onValueChange={field.onChange}
+                    disabled={form.formState.isSubmitting}
+                    placeholder="Sélectionner la nationalité"
+                  />
+                )}
               />
-            )}
-          />
-          {form.formState.errors.nationality && (
-            <p className="text-sm text-destructive">{form.formState.errors.nationality.message}</p>
-          )}
-        </div>
+              {form.formState.errors.nationality && (
+                <p className="text-sm text-destructive">{form.formState.errors.nationality.message}</p>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="registration">SIREN/SIRET *</Label>
+              <Input id="registration" {...form.register("registration")} />
+              {form.formState.errors.registration && (
+                <p className="text-sm text-destructive">{form.formState.errors.registration.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nationality">Nationalité *</Label>
+              <Controller
+                name="nationality"
+                control={form.control}
+                render={({ field }) => (
+                  <NationalitySelect
+                    value={field.value || ""}
+                    onValueChange={field.onChange}
+                    disabled={form.formState.isSubmitting}
+                    placeholder="Sélectionner la nationalité"
+                  />
+                )}
+              />
+              {form.formState.errors.nationality && (
+                <p className="text-sm text-destructive">{form.formState.errors.nationality.message}</p>
+              )}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -1214,57 +1447,101 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
             <p className="text-sm text-destructive">{form.formState.errors.propertyFullAddress.message}</p>
           )}
         </div>
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 ">
           <div className="space-y-2">
-            <Label htmlFor="propertyType">Type de bien *</Label>
+            <div className="flex items-center gap-2 pb-2">
+              <Label htmlFor="propertyType">Type d'habitat *</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="inline-flex items-center">
+                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Une maison est un immeuble individuel</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
             <Controller
               name="propertyType"
               control={form.control}
-              render={({ field }) => (                
-                  <Select value={field.value || undefined} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner le type de bien" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BienType && Object.values(BienType).map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type.replace(/_/g, " ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )
-              }
+              render={({ field }) => (
+               <RadioGroup
+                value={field.value || undefined}
+                onValueChange={(value) => {
+                  const selectedType = value as BienType;
+                  field.onChange(selectedType);
+                }}
+                className="flex flex-row space-x-3 w-full items-center justify-between "
+              >
+                
+                <Label htmlFor="appartement" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === BienType.APPARTEMENT ? "bg-accent" : ""}`}>
+                  <RadioGroupItem value={BienType.APPARTEMENT} className="hidden" id="appartement"/>
+                  <Building2 className="size-5 text-muted-foreground" />
+                  <div className="text-sm font-medium">Immeuble collectif</div>
+                </Label>
+
+                <Label htmlFor="maison" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === BienType.MAISON ? "bg-accent" : ""}`}>
+                  <RadioGroupItem value={BienType.MAISON} className="hidden" id="maison"/>
+                  <Building2 className="size-5 text-muted-foreground" />
+                  <div className="text-sm font-medium">Immeuble individuel</div>
+                </Label>
+              </RadioGroup>
+            )}
             />
             {form.formState.errors.propertyType && (
               <p className="text-sm text-destructive">{form.formState.errors.propertyType.message}</p>
             )}
           </div>
+
+        </div>
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 ">
           <div className="space-y-2">
-            <Label htmlFor="propertySurfaceM2">Surface *</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="propertySurfaceM2">Surface *</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="inline-flex items-center">
+                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Surface privative selon diagnostic Loi Carrez</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <NumberInputGroup field={form.register("propertySurfaceM2")} min={0} unit="m²" step={0.01} isDecimal={true} />
             {form.formState.errors.propertySurfaceM2 && (
               <p className="text-sm text-destructive">{form.formState.errors.propertySurfaceM2.message}</p>
             )}
           </div>
-        </div>
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="propertyLegalStatus">Statut légal *</Label>
+            <Label htmlFor="propertyLegalStatus">Régime juridique *</Label>
             <Controller
               name="propertyLegalStatus"
               control={form.control}
               render={({ field }) => (
                 <Select value={field.value ?? undefined} onValueChange={field.onChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner le statut légal" />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Sélectionner le régime juridique" />
                   </SelectTrigger>
                   <SelectContent>
-                    {BienLegalStatus && Object.values(BienLegalStatus).map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status.replace(/_/g, " ")}
-                      </SelectItem>
-                    ))}
+                    {BienLegalStatus && Object.values(BienLegalStatus).map((status) => {
+                      let displayName = "";
+                      if (status === BienLegalStatus.PLEIN_PROPRIETE) {
+                        displayName = "Monopropriété";
+                      } else if(status === BienLegalStatus.CO_PROPRIETE) {
+                        displayName = "Copropriété";
+                      } else if(status === BienLegalStatus.LOTISSEMENT) {
+                        displayName = "Lotissement";
+                      }
+                      return (
+                        <SelectItem key={status} value={status}>
+                          {displayName}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               )}
@@ -1282,62 +1559,138 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     <Card>
       <CardHeader>
         <CardTitle>Informations du bail</CardTitle>
+        <CardDescription>
+          Remplissez les informations en rapport avec le bail.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="bailType">Type de bail *</Label>
-          <Controller
-            name="bailType"
-            control={form.control}
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(BailType).map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type.replace(/_/g, " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-          {form.formState.errors.bailType && (
-            <p className="text-sm text-destructive">{form.formState.errors.bailType.message}</p>
-          )}
-        </div>
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+      <CardContent className="space-y-10">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="bailRentAmount">Montant du loyer *</Label>
+            <Label htmlFor="bailType">Type de bail *</Label>
+            <Controller
+              name="bailType"
+              control={form.control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(BailType).map((type) => {
+                      let displayName = "";
+                      if (type === BailType.BAIL_MEUBLE_9_MOIS) {
+                        displayName = "Bail étudiant (9 mois, meublé)";
+                      } else if (type === BailType.BAIL_NU_6_ANS) {
+                        displayName = "Bail nu 6 ans (SCI)";
+                      } if(type === BailType.BAIL_NU_3_ANS){
+                        displayName = "Bail nu 3 ans ";
+                      } if(type === BailType.BAIL_MEUBLE_1_ANS){
+                        displayName = "Bail meublé 1 an";
+                      }
+                      return (
+                        <SelectItem key={type} value={type}>
+                          {displayName}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {form.formState.errors.bailType && (
+              <p className="text-sm text-destructive">{form.formState.errors.bailType.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+              <Label htmlFor="bailPaymentDay">Jour de paiement *</Label>
+              <NumberInputGroup field={form.register("bailPaymentDay")} min={1} max={31} />
+              {form.formState.errors.bailPaymentDay && (
+                <p className="text-sm text-destructive">{form.formState.errors.bailPaymentDay.message}</p>
+              )}
+          </div>
+        </div>
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 ">
+
+          <div className="space-y-2">
+            <Label htmlFor="bailEffectiveDate">Date de prise d'effet *</Label>
+            <Controller
+              name="bailEffectiveDate"
+              control={form.control}
+              render={({ field }) => (
+                <DatePicker
+                  id="bailEffectiveDate"
+                  value={field.value || undefined}
+                  onChange={(date) => {
+                    if (date) {
+                      // Convertir en format string YYYY-MM-DD pour le formulaire
+                      const dateString = date.toISOString().split('T')[0]
+                      field.onChange(dateString)
+                    } else {
+                      field.onChange("")
+                    }
+                  }}
+                  placeholder="Sélectionner la date de prise d'effet"
+                />
+              )}
+            />
+            {form.formState.errors.bailEffectiveDate && (
+              <p className="text-sm text-destructive">{form.formState.errors.bailEffectiveDate.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bailEndDate">Date de fin du bail</Label>
+            <Controller
+              name="bailEndDate"
+              control={form.control}
+              render={({ field }) => (
+                <DatePicker
+                  id="bailEndDate"
+                  value={field.value || undefined}
+                  onChange={(date) => {
+                    if (date) {
+                      // Convertir en format string YYYY-MM-DD pour le formulaire
+                      const dateString = date.toISOString().split('T')[0]
+                      field.onChange(dateString)
+                    } else {
+                      field.onChange("")
+                    }
+                  }}
+                  placeholder="(optionnel)"
+                />
+              )}
+            />
+          </div>
+
+        </div>
+        <div className="grid gap-3 sm:gap-4 grid-cols-2">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="bailRentAmount">Montant du loyer HC *</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="inline-flex items-center">
+                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="mb-2">LIMITATIONS DES LOYERS</p>
+                  <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
+                  <a 
+                    href="https://www.service-public.fr/simulateur/calcul/zones-tendues" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-primary underline hover:text-primary/80"
+                  >
+                    https://www.service-public.fr/simulateur/calcul/zones-tendues
+                  </a>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <NumberInputGroup field={form.register("bailRentAmount")} min={0} unit="€" />
             {form.formState.errors.bailRentAmount && (
               <p className="text-sm text-destructive">{form.formState.errors.bailRentAmount.message}</p>
             )}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="bailEffectiveDate">Date de prise d'effet *</Label>
-            <Input id="bailEffectiveDate" type="date" {...form.register("bailEffectiveDate")} />
-            {form.formState.errors.bailEffectiveDate && (
-              <p className="text-sm text-destructive">{form.formState.errors.bailEffectiveDate.message}</p>
-            )}
-          </div>
-        </div>
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="bailEndDate">Date de fin</Label>
-            <Input id="bailEndDate" type="date" {...form.register("bailEndDate")} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="bailPaymentDay">Jour de paiement *</Label>
-            <NumberInputGroup field={form.register("bailPaymentDay")} min={1} max={31} />
-            {form.formState.errors.bailPaymentDay && (
-              <p className="text-sm text-destructive">{form.formState.errors.bailPaymentDay.message}</p>
-            )}
-          </div>
-        </div>
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="bailMonthlyCharges">Charges mensuelles *</Label>
             <NumberInputGroup field={form.register("bailMonthlyCharges")} min={0} unit="€" />
@@ -1345,14 +1698,27 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
               <p className="text-sm text-destructive">{form.formState.errors.bailMonthlyCharges.message}</p>
             )}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="bailSecurityDeposit">Dépôt de garantie *</Label>
+        </div>
+        <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="bailSecurityDeposit">Dépôt de garantie *</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="inline-flex items-center">
+                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Bail meublé → 2 mois de loyer hors charges maximum</p>
+                  <p>Bail nu → 1 mois de loyer hors charges maximum</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <NumberInputGroup field={form.register("bailSecurityDeposit")} min={0} unit="€" />
             {form.formState.errors.bailSecurityDeposit && (
               <p className="text-sm text-destructive">{form.formState.errors.bailSecurityDeposit.message}</p>
             )}
           </div>
-        </div>
       </CardContent>
     </Card>
   );
@@ -1551,48 +1917,48 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
               )}
             </div>
           )}
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-            <div className="space-y-2">
-              <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE">
-                <FileUpload
-                  label="Assurance propriétaire *"
-                  value={insuranceOwnerFile}
-                  onChange={(file) => {
-                    setInsuranceOwnerFile(file);
-                    if (insuranceOwnerRef.current) {
-                      const dataTransfer = new DataTransfer();
-                      if (file) dataTransfer.items.add(file);
-                      insuranceOwnerRef.current.files = dataTransfer.files;
-                    }
-                  }}
-                  disabled={isSubmitting}
-                />
-              </DocumentUploaded>
-            </div>
-            <div className="space-y-2">
-              <DocumentUploaded token={intakeLink.token} documentKind="RIB">
-                <FileUpload
-                  label="RIB signé propriétaire *"
-                  value={ribOwnerFile}
-                  onChange={(file) => {
-                    setRibOwnerFile(file);
-                    if (ribOwnerRef.current) {
-                      const dataTransfer = new DataTransfer();
-                      if (file) dataTransfer.items.add(file);
-                      ribOwnerRef.current.files = dataTransfer.files;
-                    }
-                  }}
-                  disabled={isSubmitting}
-                />
-              </DocumentUploaded>
-            </div>
-          </div>
+
         </div>
 
         {/* Pièces jointes - Bien */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">Documents du bien</h3>
           <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+
+                  <div className="space-y-2">
+                    <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE">
+                      <FileUpload
+                        label="Assurance propriétaire *"
+                        value={insuranceOwnerFile}
+                        onChange={(file) => {
+                          setInsuranceOwnerFile(file);
+                          if (insuranceOwnerRef.current) {
+                            const dataTransfer = new DataTransfer();
+                            if (file) dataTransfer.items.add(file);
+                            insuranceOwnerRef.current.files = dataTransfer.files;
+                          }
+                        }}
+                        disabled={isSubmitting}
+                      />
+                    </DocumentUploaded>
+                  </div>
+                  <div className="space-y-2">
+                    <DocumentUploaded token={intakeLink.token} documentKind="RIB">
+                      <FileUpload
+                        label="RIB signé propriétaire *"
+                        value={ribOwnerFile}
+                        onChange={(file) => {
+                          setRibOwnerFile(file);
+                          if (ribOwnerRef.current) {
+                            const dataTransfer = new DataTransfer();
+                            if (file) dataTransfer.items.add(file);
+                            ribOwnerRef.current.files = dataTransfer.files;
+                          }
+                        }}
+                        disabled={isSubmitting}
+                      />
+                    </DocumentUploaded>
+                  </div>
 
                 <div className="space-y-2">
                   <DocumentUploaded token={intakeLink.token} documentKind="DIAGNOSTICS">

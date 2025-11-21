@@ -326,11 +326,33 @@ export async function savePartialIntake(data: unknown) {
 
   // Si c'est un formulaire propriétaire avec clientId, mettre à jour le client partiellement
   if (intakeLink.target === "OWNER" && intakeLink.clientId) {
+    // Récupérer le client actuel pour vérifier si l'email existe déjà
+    const currentClient = await prisma.client.findUnique({
+      where: { id: intakeLink.clientId },
+      select: { email: true },
+    });
+
+    // Si l'email est fourni et que le client n'a pas encore d'email, vérifier qu'il n'existe pas déjà
+    if (payload.email && !currentClient?.email) {
+      const emailToCheck = payload.email.trim().toLowerCase();
+      const existingClientWithEmail = await prisma.client.findUnique({
+        where: { email: emailToCheck },
+      });
+
+      if (existingClientWithEmail && existingClientWithEmail.id !== intakeLink.clientId) {
+        throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
+      }
+    }
+
     const updateData: any = {};
     if (payload.type) updateData.type = payload.type;
     if (payload.firstName) updateData.firstName = payload.firstName;
     if (payload.lastName) updateData.lastName = payload.lastName;
     if (payload.phone) updateData.phone = payload.phone;
+    // Mettre à jour l'email seulement si le client n'en a pas encore
+    if (payload.email && !currentClient?.email) {
+      updateData.email = payload.email.trim().toLowerCase();
+    }
     if (payload.fullAddress) updateData.fullAddress = payload.fullAddress;
     if (payload.nationality) updateData.nationality = payload.nationality;
     if (payload.profession) updateData.profession = payload.profession;
@@ -661,10 +683,32 @@ export async function savePartialIntake(data: unknown) {
 
   // Si c'est un formulaire locataire avec clientId, mettre à jour le client partiellement
   if (intakeLink.target === "TENANT" && intakeLink.clientId) {
+    // Récupérer le client actuel pour vérifier si l'email existe déjà
+    const currentClient = await prisma.client.findUnique({
+      where: { id: intakeLink.clientId },
+      select: { email: true },
+    });
+
+    // Si l'email est fourni et que le client n'a pas encore d'email, vérifier qu'il n'existe pas déjà
+    if (payload.email && !currentClient?.email) {
+      const emailToCheck = payload.email.trim().toLowerCase();
+      const existingClientWithEmail = await prisma.client.findUnique({
+        where: { email: emailToCheck },
+      });
+
+      if (existingClientWithEmail && existingClientWithEmail.id !== intakeLink.clientId) {
+        throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
+      }
+    }
+
     const updateData: any = {};
     if (payload.firstName) updateData.firstName = payload.firstName;
     if (payload.lastName) updateData.lastName = payload.lastName;
     if (payload.phone) updateData.phone = payload.phone;
+    // Mettre à jour l'email seulement si le client n'en a pas encore
+    if (payload.email && !currentClient?.email) {
+      updateData.email = payload.email.trim().toLowerCase();
+    }
     if (payload.fullAddress) updateData.fullAddress = payload.fullAddress;
     if (payload.nationality) updateData.nationality = payload.nationality;
     if (payload.profession) updateData.profession = payload.profession;

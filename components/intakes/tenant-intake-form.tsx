@@ -24,15 +24,18 @@ import { tenantFormSchema } from "@/lib/zod/client";
 import { FamilyStatus, MatrimonialRegime, ClientType } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Stepper } from "@/components/ui/stepper";
-import { ArrowLeftIcon, ArrowRightIcon, Loader2 } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, Loader2, Building2, User2 } from "lucide-react";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type TenantFormData = z.infer<typeof tenantFormSchema>;
 
 const STEPS = [
-  { title: "Informations personnelles" },
+  { title: "Informations de base" },
+  { title: "Informations complémentaires" },
   { title: "Pièces jointes" },
 ];
 
@@ -103,28 +106,37 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "");
     };
     
-    // Vérifier l'étape 0: Informations personnelles
+    // Vérifier l'étape 0: Informations de base
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
       if (isEmpty(values.type) || isEmpty(values.firstName) || isEmpty(values.lastName) || 
-          isEmpty(values.email) || isEmpty(values.phone) || isEmpty(values.fullAddress) || 
-          isEmpty(values.nationality) || isEmpty(values.familyStatus) || 
-          isEmpty(values.birthPlace) || isEmpty(values.birthDate) || isEmpty(values.profession)) {
-        return 0;
-      }
-      if (values.familyStatus === FamilyStatus.MARIE && isEmpty(values.matrimonialRegime)) {
+          isEmpty(values.email) || isEmpty(values.phone) || isEmpty(values.fullAddress)) {
         return 0;
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
       if (isEmpty(values.type) || isEmpty(values.legalName) || isEmpty(values.email) || 
-          isEmpty(values.phone) || isEmpty(values.fullAddress) || 
-          isEmpty(values.nationality) || isEmpty(values.registration)) {
+          isEmpty(values.phone) || isEmpty(values.fullAddress)) {
         return 0;
       }
     } else {
       return 0; // Type non défini
     }
 
-    // Vérifier l'étape 1: Pièces jointes
+    // Vérifier l'étape 1: Informations complémentaires
+    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
+      if (isEmpty(values.profession) || isEmpty(values.familyStatus) || 
+          isEmpty(values.birthPlace) || isEmpty(values.birthDate) || isEmpty(values.nationality)) {
+        return 1;
+      }
+      if (values.familyStatus === FamilyStatus.MARIE && isEmpty(values.matrimonialRegime)) {
+        return 1;
+      }
+    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
+      if (isEmpty(values.registration) || isEmpty(values.nationality)) {
+        return 1;
+      }
+    }
+
+    // Vérifier l'étape 2: Pièces jointes
     // Utiliser intakeLink directement pour avoir les données à jour
     // Vérifier les documents selon le type de client
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
@@ -133,19 +145,19 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const hasIdIdentity = clientDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
       
       if (!hasBirthCert || !hasIdIdentity) {
-        return 1;
+        return 2;
       }
       
       if (values.familyStatus === FamilyStatus.MARIE) {
         const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE");
         if (!hasLivret) {
-          return 1;
+          return 2;
         }
       }
       if (values.familyStatus === FamilyStatus.PACS) {
         const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS");
         if (!hasPacs) {
-          return 1;
+          return 2;
         }
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
@@ -154,7 +166,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const hasStatutes = clientDocs.some((doc: any) => doc.kind === "STATUTES");
       
       if (!hasKbis || !hasStatutes) {
-        return 1;
+        return 2;
       }
     }
 
@@ -164,7 +176,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB");
     
     if (!hasInsurance || !hasRib) {
-      return 1;
+      return 2;
     }
 
     // Toutes les étapes sont complètes, retourner la dernière étape
@@ -191,8 +203,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     const currentValues = form.getValues();
     const initial = initialValues.current;
 
-    // Pour le step 1 (Pièces jointes), vérifier uniquement les fichiers
-    if (step === 1) {
+    // Pour le step 2 (Pièces jointes), vérifier uniquement les fichiers
+    if (step === 2) {
       // Mapper les noms de fichiers aux types de documents
       const fileToDocumentKind: Record<string, string> = {
         kbis: "KBIS",
@@ -276,7 +288,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   };
 
   // Fonction pour uploader les fichiers via l'API route
-  const uploadFiles = async (): Promise<void> => {
+  const uploadFiles = async (shouldDispatchEvent: boolean = true): Promise<void> => {
     const fileRefs = [
       { ref: kbisRef, name: "kbis" },
       { ref: statutesRef, name: "statutes" },
@@ -417,8 +429,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     });
 
     // Déclencher l'événement pour recharger les documents dans les composants DocumentUploaded
-    // (pas besoin de rafraîchir toutes les données, les composants se mettront à jour via l'événement)
-    window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
+    // (seulement lors de l'enregistrement, pas lors de la soumission finale)
+    if (shouldDispatchEvent) {
+      window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
+    }
   };
 
   const saveCurrentStep = async (skipIfUnchanged: boolean = false) => {
@@ -430,10 +444,36 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
     setIsSaving(true);
     try {
+      // Si on est à l'étape 0 et que l'email doit être validé, vérifier avant de sauvegarder
+      if (currentStep === 0 && !client?.email && client?.phone) {
+        const emailValue = form.getValues("email");
+        if (emailValue && emailValue.trim() !== "") {
+          // Valider l'email avant de sauvegarder
+          const emailValid = await form.trigger("email");
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          if (!emailValid || form.formState.errors.email) {
+            const emailError = form.formState.errors.email?.message;
+            if (emailError?.includes("déjà utilisé")) {
+              toast.error(emailError, {
+                description: (
+                  <a href="/#contact" className="underline font-medium">
+                    Cliquez ici pour contacter le service client
+                  </a>
+                ),
+                duration: 10000,
+              });
+              setIsSaving(false);
+              throw new Error(emailError);
+            }
+          }
+        }
+      }
+      
       const data = form.getValues();
       
-      // Si on est sur l'étape des documents (step 1), uploader les fichiers
-      if (currentStep === 1) {
+      // Si on est sur l'étape des documents (step 2), uploader les fichiers
+      if (currentStep === 2) {
         await uploadFiles();
         // Déclencher l'événement pour recharger les documents après l'upload
         window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
@@ -459,7 +499,25 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       toast.success("Données enregistrées avec succès");
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
-      toast.error(errorMessage);
+      
+      // Si l'erreur contient le message sur l'email existant, afficher un toast avec le lien
+      if (errorMessage.includes("déjà utilisé")) {
+        toast.error(errorMessage.replace(" : /#contact", "").replace(" /#contact", ""), {
+          description: (
+            <a href="/#contact" className="underline font-medium">
+              Cliquez ici pour contacter le service client
+            </a>
+          ),
+          duration: 10000, // Afficher plus longtemps pour que l'utilisateur puisse cliquer
+        });
+        // Relancer l'erreur pour que handleNext puisse la capturer et bloquer la progression
+        throw error;
+      } else {
+        toast.error(errorMessage);
+        // Pour les autres erreurs, on peut aussi les relancer si nécessaire
+        // Mais pour l'instant, on ne relance que les erreurs critiques
+      }
+      
       console.error("Erreur lors de l'enregistrement:", error);
     } finally {
       setIsSaving(false);
@@ -492,13 +550,108 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return;
     }
     
+    // Si on est à l'étape 0 (informations personnelles), forcer la validation de l'email du locataire en premier
+    if (currentStep === 0 && fieldsToValidate.includes("email") && !client?.email && client?.phone) {
+      const emailValue = currentValues.email;
+      if (emailValue && emailValue.trim() !== "") {
+        // Valider spécifiquement l'email d'abord avec un délai pour laisser la validation asynchrone se terminer
+        const emailValid = await form.trigger("email");
+        
+        // Attendre un peu pour s'assurer que la validation asynchrone est terminée
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Vérifier à nouveau les erreurs après le délai
+        const errorsAfterDelay = form.formState.errors;
+        
+        if (!emailValid || errorsAfterDelay.email) {
+          const emailError = errorsAfterDelay.email?.message || form.formState.errors.email?.message;
+          if (emailError?.includes("déjà utilisé")) {
+            toast.error(emailError, {
+              description: (
+                <a href="/#contact" className="underline font-medium">
+                  Cliquez ici pour contacter le service client
+                </a>
+              ),
+              duration: 10000,
+            });
+            return; // Bloquer la progression si l'email est déjà utilisé
+          }
+        }
+      }
+    }
+    
     const isValid = await form.trigger(fieldsToValidate as any);
+    
+    // Attendre un peu pour s'assurer que toutes les validations asynchrones sont terminées
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Vérifier à nouveau les erreurs après la validation complète - IMPORTANT: même si isValid est true
+    // Vérifier spécifiquement les erreurs de validation pour l'email du locataire
+    if (currentStep === 0 && !client?.email && client?.phone) {
+      const emailErrors = form.formState.errors.email;
+      if (emailErrors) {
+        const emailError = emailErrors.message;
+        if (emailError?.includes("déjà utilisé")) {
+          toast.error(emailError, {
+            description: (
+              <a href="/#contact" className="underline font-medium">
+                Cliquez ici pour contacter le service client
+              </a>
+            ),
+            duration: 10000,
+          });
+          return; // Ne pas continuer si l'email est déjà utilisé
+        }
+      }
+    }
+    
+    if (!isValid) {
+      // Récupérer les erreurs de validation
+      const errors = form.formState.errors;
+      const errorFields = Object.keys(errors).filter(key => 
+        fieldsToValidate.includes(key as keyof TenantFormData)
+      );
+      
+      if (errorFields.length > 0) {
+        const firstErrorKey = errorFields[0];
+        const firstError = errors[firstErrorKey as keyof TenantFormData];
+        let errorMessage = "Veuillez remplir tous les champs requis avant de passer à l'étape suivante";
+        
+        if (firstError) {
+          if (typeof firstError === 'object' && firstError !== null && 'message' in firstError) {
+            const msg = (firstError as { message?: string }).message;
+            if (typeof msg === 'string') {
+              errorMessage = msg;
+            }
+          }
+        }
+        
+        toast.error(errorMessage);
+      } else {
+        toast.error("Veuillez remplir tous les champs requis avant de passer à l'étape suivante");
+      }
+      return;
+    }
     
     if (isValid) {
       // Sauvegarder avant de passer à l'étape suivante (seulement si les données ont changé)
-      await saveCurrentStep(true);
-      if (currentStep < STEPS.length - 1) {
-        setCurrentStep(currentStep + 1);
+      try {
+        await saveCurrentStep(true);
+        if (currentStep < STEPS.length - 1) {
+          setCurrentStep(currentStep + 1);
+        }
+      } catch (error: any) {
+        // Si la sauvegarde échoue (par exemple, email existant), ne pas passer à l'étape suivante
+        // L'erreur est déjà gérée dans saveCurrentStep avec un toast
+        const errorMessage = error?.message || error?.toString() || "";
+        if (errorMessage.includes("déjà utilisé")) {
+          // L'erreur a déjà été affichée dans saveCurrentStep, on bloque juste la progression
+          console.error("Erreur bloquante détectée:", error);
+          return; // Bloquer la progression
+        }
+        // Pour les autres erreurs, on peut continuer ou non selon le cas
+        console.error("Erreur lors de la sauvegarde:", error);
+        return; // Bloquer la progression pour toute erreur
       }
     } else {
       // Récupérer les erreurs de validation
@@ -536,14 +689,22 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
   const getFieldsForStep = (step: number): (keyof TenantFormData)[] => {
     switch (step) {
-      case 0: // Informations personnelles
-        const baseFields = ["firstName", "lastName", "email", "phone", "fullAddress", "nationality", "profession", "familyStatus", "birthPlace", "birthDate"] as any;
-        // Ajouter matrimonialRegime seulement si familyStatus est MARIE
-        if (form.getValues("familyStatus") === FamilyStatus.MARIE) {
-          baseFields.push("matrimonialRegime");
+      case 0: // Informations de base
+        if (clientType === ClientType.PERSONNE_PHYSIQUE) {
+          return ["type", "firstName", "lastName", "email", "phone", "fullAddress"];
         }
-        return baseFields;
-      case 1: // Pièces jointes
+        return ["type", "legalName", "email", "phone", "fullAddress"];
+      case 1: // Informations complémentaires
+        if (clientType === ClientType.PERSONNE_PHYSIQUE) {
+          const baseFields = ["profession", "familyStatus", "birthPlace", "birthDate", "nationality"] as any;
+          // Ajouter matrimonialRegime seulement si familyStatus est MARIE
+          if (form.getValues("familyStatus") === FamilyStatus.MARIE) {
+            baseFields.push("matrimonialRegime");
+          }
+          return baseFields;
+        }
+        return ["registration", "nationality"];
+      case 2: // Pièces jointes
         return [];
       default:
         return [];
@@ -629,7 +790,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     setIsSubmitting(true);
     try {
       // Uploader les fichiers en parallèle (optimisé dans l'API route)
-      await uploadFiles();
+      // Ne pas déclencher l'événement car on va rediriger vers la page success
+      await uploadFiles(false);
       
       // Soumettre directement les données (les fichiers sont déjà uploadés)
       // Pas besoin de rafraîchir les données ni de re-valider, on vient juste d'uploader
@@ -671,45 +833,86 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     }
   };
 
+  // Validation asynchrone pour vérifier si l'email du locataire existe déjà
+  const validateTenantEmail = async (email: string | undefined) => {
+    // Si l'email est déjà défini côté client, pas besoin de valider
+    if (client?.email) {
+      return true;
+    }
+    
+    // Si pas d'email ou email vide, la validation requise est gérée par le schéma Zod
+    if (!email || email.trim() === "") {
+      return true;
+    }
+
+    try {
+      const response = await fetch("/api/clients/check-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (data.exists) {
+        return "Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client.";
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Erreur lors de la vérification de l'email:", error);
+      return true; // En cas d'erreur, on laisse passer pour ne pas bloquer l'utilisateur
+    }
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
-        return renderPersonalInfo();
+        return renderBasicInfo();
       case 1:
+        return renderAdditionalInfo();
+      case 2:
         return renderDocuments();
       default:
         return null;
     }
   };
 
-  const renderPersonalInfo = () => (
+  const renderBasicInfo = () => (
     <Card>
       <CardHeader>
-        <CardTitle>Informations propriétaire</CardTitle>
+        <CardTitle>Informations locataire - Informations de base</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-8">
         <div className="space-y-2">
           <Label htmlFor="type">Type de client *</Label>
+
           <Controller
             name="type"
             control={form.control}
             render={({ field }) => (
-              <Select
+             <RadioGroup
                 value={field.value || undefined}
                 onValueChange={(value) => {
                   const selectedType = value as ClientType;
                   field.onChange(selectedType);
                   setClientType(selectedType);
                 }}
+                className="flex flex-row space-x-3 w-full items-center justify-between"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner le type de client" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ClientType.PERSONNE_PHYSIQUE}>Personne physique</SelectItem>
-                  <SelectItem value={ClientType.PERSONNE_MORALE}>Personne morale</SelectItem>
-                </SelectContent>
-              </Select>
+                <Label htmlFor="personnePhysique" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_PHYSIQUE ? "bg-accent" : ""}`}>
+                  <RadioGroupItem value={ClientType.PERSONNE_PHYSIQUE} className="hidden" id="personnePhysique"/>
+                  <User2 className="size-5 text-muted-foreground" />
+                  <div className="text-sm font-medium">Personne physique</div>
+                </Label>
+                <Label htmlFor="personneMorale" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_MORALE ? "bg-accent" : ""}`}>
+                  <RadioGroupItem value={ClientType.PERSONNE_MORALE} className="hidden" id="personneMorale"/>
+                  <Building2 className="size-5 text-muted-foreground" />
+                  <div className="text-sm font-medium">Personne morale</div>
+                </Label>
+              </RadioGroup>
             )}
           />
           {form.formState.errors.type && (
@@ -718,119 +921,41 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         </div>
 
         {clientType === ClientType.PERSONNE_PHYSIQUE ? (
-          <>
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">Prénom *</Label>
-                <Input id="firstName" {...form.register("firstName")} />
-                {form.formState.errors.firstName && (
-                  <p className="text-sm text-destructive">{form.formState.errors.firstName.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Nom *</Label>
-                <Input id="lastName" {...form.register("lastName")} />
-                {form.formState.errors.lastName && (
-                  <p className="text-sm text-destructive">{form.formState.errors.lastName.message}</p>
-                )}
-              </div>
+          <div className="grid gap-3 sm:gap-4 grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="firstName">Prénom *</Label>
+              <Input id="firstName" {...form.register("firstName")} />
+              {form.formState.errors.firstName && (
+                <p className="text-sm text-destructive">{form.formState.errors.firstName.message}</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="profession">Profession *</Label>
-              <Input id="profession" {...form.register("profession")} />
-              {form.formState.errors.profession && (
-                <p className="text-sm text-destructive">{form.formState.errors.profession.message}</p>
+              <Label htmlFor="lastName">Nom *</Label>
+              <Input id="lastName" {...form.register("lastName")} />
+              {form.formState.errors.lastName && (
+                <p className="text-sm text-destructive">{form.formState.errors.lastName.message}</p>
               )}
             </div>
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="familyStatus">Situation familiale *</Label>
-                <Controller
-                  name="familyStatus"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select value={field.value || undefined} onValueChange={field.onChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(FamilyStatus).map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status.replace(/_/g, " ")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {form.formState.errors.familyStatus && (
-                  <p className="text-sm text-destructive">{form.formState.errors.familyStatus.message}</p>
-                )}
-              </div>
-              {form.watch("familyStatus") === FamilyStatus.MARIE && (
-                <div className="space-y-2">
-                  <Label htmlFor="matrimonialRegime">Régime matrimonial *</Label>
-                  <Controller
-                    name="matrimonialRegime"
-                    control={form.control}
-                    render={({ field }) => (
-                      <Select value={field.value || undefined} onValueChange={field.onChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sélectionner" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.values(MatrimonialRegime).map((regime) => (
-                            <SelectItem key={regime} value={regime}>
-                              {regime.replace(/_/g, " ")}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {form.formState.errors.matrimonialRegime && (
-                    <p className="text-sm text-destructive">{form.formState.errors.matrimonialRegime.message}</p>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="birthPlace">Lieu de naissance *</Label>
-                <Input id="birthPlace" {...form.register("birthPlace")} />
-                {form.formState.errors.birthPlace && (
-                  <p className="text-sm text-destructive">{form.formState.errors.birthPlace.message}</p>
-                )}
-              </div>
-             
-              <div className="space-y-2">
-                <Label htmlFor="birthDate">Date de naissance *</Label>
-                <Input id="birthDate" type="date" {...form.register("birthDate")} />
-                
-                {form.formState.errors.birthDate && (
-                  <p className="text-sm text-destructive">{form.formState.errors.birthDate.message}</p>
-                )}  
-              </div>
-             
-            </div>
-          </>
+          </div>
         ) : (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="legalName">Raison sociale *</Label>
-              <Input id="legalName" {...form.register("legalName")} />
-              {form.formState.errors.legalName && (
-                <p className="text-sm text-destructive">{form.formState.errors.legalName.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="registration">SIREN/SIRET *</Label>
-              <Input id="registration" {...form.register("registration")} />
-            </div>
-          </>
+          <div className="space-y-2">
+            <Label htmlFor="legalName">Raison sociale *</Label>
+            <Input id="legalName" {...form.register("legalName")} />
+            {form.formState.errors.legalName && (
+              <p className="text-sm text-destructive">{form.formState.errors.legalName.message}</p>
+            )}
+          </div>
         )}
 
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="fullAddress">Adresse complète *</Label>
+          <Textarea id="fullAddress" {...form.register("fullAddress")} />
+          {form.formState.errors.fullAddress && (
+            <p className="text-sm text-destructive">{form.formState.errors.fullAddress.message}</p>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:gap-4 grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="phone">Téléphone *</Label>
             <Controller
@@ -860,43 +985,194 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             <Input 
               id="email" 
               type="email" 
-              {...form.register("email")} 
+              {...form.register("email", {
+                validate: validateTenantEmail,
+                required: "L'email est requis",
+              })} 
               disabled={!!client?.email}
               className={client?.email ? "bg-muted cursor-not-allowed" : ""}
+              onBlur={async () => {
+                // Déclencher la validation au blur seulement si l'email n'est pas déjà défini
+                if (!client?.email) {
+                  await form.trigger("email");
+                }
+              }}
             />
             {client?.email && (
               <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
             )}
             {form.formState.errors.email && (
-              <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+              <div className="text-sm text-destructive">
+                <p>{form.formState.errors.email.message}</p>
+                {form.formState.errors.email.message?.includes("déjà utilisé") && (
+                  <p className="mt-1">
+                    <a href="/#contact" className="underline hover:text-destructive/80 font-medium">
+                      Cliquez ici pour contacter le service client
+                    </a>
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="fullAddress">Adresse complète *</Label>
-          <Textarea id="fullAddress" {...form.register("fullAddress")} />
-          {form.formState.errors.fullAddress && (
-            <p className="text-sm text-destructive">{form.formState.errors.fullAddress.message}</p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="nationality">Nationalité *</Label>
-          <Controller
-            name="nationality"
-            control={form.control}
-            render={({ field }) => (
-              <NationalitySelect
-                value={field.value || ""}
-                onValueChange={field.onChange}
-                disabled={form.formState.isSubmitting}
-                placeholder="Sélectionner la nationalité"
+      </CardContent>
+    </Card>
+  );
+
+  const renderAdditionalInfo = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Informations locataire - Informations complémentaires</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-8">
+        {clientType === ClientType.PERSONNE_PHYSIQUE ? (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="profession">Profession *</Label>
+              <Input id="profession" {...form.register("profession")} />
+              {form.formState.errors.profession && (
+                <p className="text-sm text-destructive">{form.formState.errors.profession.message}</p>
+              )}
+            </div>
+            <div className={`grid gap-4 sm:gap-4  ${form.watch("familyStatus") === FamilyStatus.MARIE ? "grid-cols-2" : "grid-cols-1"}`}>
+              <div className="space-y-2">
+                <Label htmlFor="familyStatus">Situation familiale *</Label>
+                <Controller
+                  name="familyStatus"
+                  control={form.control}
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.values(FamilyStatus).map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.replace(/_/g, " ")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {form.formState.errors.familyStatus && (
+                  <p className="text-sm text-destructive">{form.formState.errors.familyStatus.message}</p>
+                )}
+              </div>
+              {form.watch("familyStatus") === FamilyStatus.MARIE && (
+                <div className="space-y-2">
+                  <Label htmlFor="matrimonialRegime">Régime matrimonial *</Label>
+                  <Controller
+                    name="matrimonialRegime"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select value={field.value || undefined} onValueChange={field.onChange}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Sélectionner" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.values(MatrimonialRegime).map((regime) => (
+                            <SelectItem key={regime} value={regime}>
+                              {regime.replace(/_/g, " ")}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {form.formState.errors.matrimonialRegime && (
+                    <p className="text-sm text-destructive">{form.formState.errors.matrimonialRegime.message}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="grid gap-3 sm:gap-4 grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="birthPlace">Lieu de naissance *</Label>
+                <Input id="birthPlace" {...form.register("birthPlace")} />
+                {form.formState.errors.birthPlace && (
+                  <p className="text-sm text-destructive">{form.formState.errors.birthPlace.message}</p>
+                )}
+              </div>
+             
+              <div className="space-y-2">
+                <Label htmlFor="birthDate">Date de naissance *</Label>
+                <Controller
+                  name="birthDate"
+                  control={form.control}
+                  render={({ field }) => (
+                    <DatePicker
+                      id="birthDate"
+                      value={field.value ? (typeof field.value === 'string' ? field.value : field.value.toISOString().split('T')[0]) : undefined}
+                      onChange={(date) => {
+                        if (date) {
+                          // Convertir en format string YYYY-MM-DD pour le formulaire
+                          const dateString = date.toISOString().split('T')[0]
+                          field.onChange(dateString)
+                        } else {
+                          field.onChange(undefined)
+                        }
+                      }}
+                      placeholder="Sélectionner la date de naissance"
+                      fromYear={1900}
+                      toYear={new Date().getFullYear()}
+                    />
+                  )}
+                />
+                {form.formState.errors.birthDate && (
+                  <p className="text-sm text-destructive">{form.formState.errors.birthDate.message}</p>
+                )}  
+              </div>
+             
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nationality">Nationalité *</Label>
+              <Controller
+                name="nationality"
+                control={form.control}
+                render={({ field }) => (
+                  <NationalitySelect
+                    value={field.value || ""}
+                    onValueChange={field.onChange}
+                    disabled={form.formState.isSubmitting}
+                    placeholder="Sélectionner la nationalité"
+                  />
+                )}
               />
-            )}
-          />
-          {form.formState.errors.nationality && (
-            <p className="text-sm text-destructive">{form.formState.errors.nationality.message}</p>
-          )}
-        </div>
+              {form.formState.errors.nationality && (
+                <p className="text-sm text-destructive">{form.formState.errors.nationality.message}</p>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="registration">SIREN/SIRET *</Label>
+              <Input id="registration" {...form.register("registration")} />
+              {form.formState.errors.registration && (
+                <p className="text-sm text-destructive">{form.formState.errors.registration.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nationality">Nationalité *</Label>
+              <Controller
+                name="nationality"
+                control={form.control}
+                render={({ field }) => (
+                  <NationalitySelect
+                    value={field.value || ""}
+                    onValueChange={field.onChange}
+                    disabled={form.formState.isSubmitting}
+                    placeholder="Sélectionner la nationalité"
+                  />
+                )}
+              />
+              {form.formState.errors.nationality && (
+                <p className="text-sm text-destructive">{form.formState.errors.nationality.message}</p>
+              )}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

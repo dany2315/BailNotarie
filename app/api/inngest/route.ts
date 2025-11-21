@@ -4,6 +4,11 @@ import { sendContactConfirmationEmail, sendContactNotificationEmail } from "@/li
 import { sendNotificationEmail } from "@/lib/inngest/functions/notifications";
 import { sendOwnerFormEmail, sendTenantFormEmail } from "@/lib/inngest/functions/intake-forms";
 import { sendLeadConversionEmail } from "@/lib/inngest/functions/leads";
+import { 
+  calculateClientCompletionStatus, 
+  calculatePropertyCompletionStatus,
+  calculateCompletionStatuses 
+} from "@/lib/inngest/functions/completion-status";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -14,6 +19,9 @@ export const { GET, POST, PUT } = serve({
     sendOwnerFormEmail,
     sendTenantFormEmail,
     sendLeadConversionEmail,
+    calculateClientCompletionStatus,
+    calculatePropertyCompletionStatus,
+    calculateCompletionStatuses,
   ],
 });
 

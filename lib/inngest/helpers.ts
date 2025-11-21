@@ -94,3 +94,36 @@ export async function triggerLeadConversionEmail(data: {
   });
 }
 
+/**
+ * Déclenche le calcul et la mise à jour du statut de complétion d'un client
+ */
+export async function triggerClientCompletionStatusCalculation(clientId: string) {
+  await inngest.send({
+    name: "completion-status/client.calculate",
+    data: { clientId },
+  });
+}
+
+/**
+ * Déclenche le calcul et la mise à jour du statut de complétion d'un bien
+ */
+export async function triggerPropertyCompletionStatusCalculation(propertyId: string) {
+  await inngest.send({
+    name: "completion-status/property.calculate",
+    data: { propertyId },
+  });
+}
+
+/**
+ * Déclenche le calcul et la mise à jour des statuts de complétion d'un client et d'un bien
+ */
+export async function triggerCompletionStatusesCalculation(data: {
+  clientId?: string;
+  propertyId?: string;
+}) {
+  await inngest.send({
+    name: "completion-status/calculate-multiple",
+    data,
+  });
+}
+
