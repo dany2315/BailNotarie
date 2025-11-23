@@ -80,7 +80,7 @@ function TooltipTrigger({
   const isMobile = context?.isMobile ?? false
   
   // Sur mobile, gérer le click pour ouvrir/fermer le tooltip
-  const handleClick = React.useCallback((e: React.MouseEvent) => {
+  const handleClick = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (isMobile && context) {
       // Toggle l'état ouvert/fermé
       context.setOpen(!context.open)
@@ -88,7 +88,7 @@ function TooltipTrigger({
     onClick?.(e)
   }, [isMobile, context, onClick])
 
-  const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
+  const handlePointerDown = React.useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     if (isMobile && context) {
       // Toggle l'état ouvert/fermé
       context.setOpen(!context.open)
