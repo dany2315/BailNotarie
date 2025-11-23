@@ -14,13 +14,14 @@ import {
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
 import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus, CompletionStatus } from "@prisma/client";
-import { triggerOwnerFormEmail, triggerTenantFormEmail, triggerLeadConversionEmail } from "@/lib/inngest/helpers";
+import { 
+  triggerOwnerFormEmail, 
+  triggerTenantFormEmail, 
+  triggerLeadConversionEmail,
+  triggerCompletionStatusesCalculation
+} from "@/lib/inngest/helpers";
 import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actions/documents";
 import { randomBytes } from "crypto";
-import { 
-  updateClientCompletionStatus as calculateAndUpdateClientStatus, 
-  updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
-} from "@/lib/utils/completion-status";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { NotificationType } from "@prisma/client";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
@@ -176,8 +177,10 @@ export async function createFullClient(data: unknown) {
       },
     });
 
-    // Mettre à jour le statut de complétion du bien
-    await calculateAndUpdatePropertyStatus(property.id);
+    // Déclencher le calcul du statut de complétion du bien en arrière-plan (non bloquant)
+    triggerCompletionStatusesCalculation({ propertyId: property.id }).catch((error) => {
+      console.error("Erreur lors du déclenchement du calcul de statut bien:", error);
+    });
 
     // Créer ou récupérer le locataire (seulement si email fourni)
     let tenant = null;
@@ -462,9 +465,6 @@ export async function submitOwnerForm(data: unknown) {
     data: ownerUpdateData,
   });
 
-  // Mettre à jour le statut de complétion
-  await calculateAndUpdateClientStatus(validated.clientId);
-
   // Récupérer l'intakeLink du propriétaire pour vérifier les objets existants
   const ownerIntakeLink = await prisma.intakeLink.findFirst({
     where: {
@@ -497,8 +497,6 @@ export async function submitOwnerForm(data: unknown) {
         status: validated.propertyStatus || PropertyStatus.NON_LOUER,
       },
     });
-    // Mettre à jour le statut de complétion du bien
-    await calculateAndUpdatePropertyStatus(property.id);
   } else {
     // Créer un nouveau bien
     property = await prisma.property.create({
@@ -512,8 +510,6 @@ export async function submitOwnerForm(data: unknown) {
         ownerId: validated.clientId,
       },
     });
-    // Mettre à jour le statut de complétion du bien
-    await calculateAndUpdatePropertyStatus(property.id);
   }
 
   // Chercher ou créer le locataire (seulement si email fourni)
@@ -815,6 +811,15 @@ export async function submitOwnerForm(data: unknown) {
   // Retourner le résultat AVANT l'envoi d'email et les notifications pour que l'utilisateur voie le statut immédiatement
   const result = { property, bail, tenant, tenantIntakeLink };
 
+  // Déclencher les calculs de statut de complétion en arrière-plan (non bloquant)
+  // Calculer les statuts du client et du bien ensemble pour optimiser
+  triggerCompletionStatusesCalculation({
+    clientId: validated.clientId,
+    propertyId: property?.id,
+  }).catch((error) => {
+    console.error("Erreur lors du déclenchement des calculs de statut:", error);
+  });
+
   // Déclencher l'envoi d'email et les notifications en arrière-plan (après le return, ne bloque pas le rendu)
   Promise.resolve().then(async () => {
     try {
@@ -958,8 +963,10 @@ export async function submitTenantForm(data: unknown) {
     data: tenantUpdateData,
   });
 
-  // Mettre à jour le statut de complétion
-  await calculateAndUpdateClientStatus(validated.clientId);
+  // Déclencher le calcul du statut de complétion en arrière-plan (non bloquant)
+  triggerCompletionStatusesCalculation({ clientId: validated.clientId }).catch((error) => {
+    console.error("Erreur lors du déclenchement du calcul de statut client:", error);
+  });
 
   // Mettre à jour l'IntakeLink du locataire comme soumis
   const tenantIntakeLink = await prisma.intakeLink.findFirst({
@@ -1728,6 +1735,229 @@ export async function sendIntakeLinkToClient(clientId: string) {
 
   revalidatePath("/interface/clients");
   return { intakeLink, emailSent: true };
+}
+
+// Régénérer l'intakeLink d'un client (remet en PENDING et génère un nouveau token)
+export async function regenerateClientIntakeLink(clientId: string) {
+  const user = await requireAuth();
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  let target: string;
+  if (client.profilType === ProfilType.LEAD) {
+    target = "LEAD";
+  } else if (client.profilType === ProfilType.PROPRIETAIRE) {
+    target = "OWNER";
+  } else if (client.profilType === ProfilType.LOCATAIRE) {
+    target = "TENANT";
+  } else {
+    throw new Error("Type de client non supporté");
+  }
+
+  // Trouver l'intakeLink existant
+  const intakeLink = await prisma.intakeLink.findFirst({
+    where: {
+      clientId: client.id,
+      target: target as any,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (!intakeLink) {
+    throw new Error("Aucun lien de formulaire trouvé pour ce client");
+  }
+
+  // Régénérer le token et remettre en PENDING
+  const newToken = randomBytes(32).toString("hex");
+  const updatedIntakeLink = await prisma.intakeLink.update({
+    where: { id: intakeLink.id },
+    data: {
+      token: newToken,
+      status: "PENDING",
+      submittedAt: null,
+    },
+  });
+
+  revalidatePath("/interface/clients");
+  return updatedIntakeLink;
+}
+
+// Vérifier si un client a un lien de formulaire disponible
+export async function hasIntakeLink(clientId: string): Promise<{ hasLink: boolean; isSubmitted: boolean }> {
+  await requireAuth();
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+  });
+
+  if (!client) {
+    return { hasLink: false, isSubmitted: false };
+  }
+
+  if (client.profilType === ProfilType.LEAD) {
+    const intakeLink = await prisma.intakeLink.findFirst({
+      where: {
+        clientId: client.id,
+        target: "LEAD",
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return {
+      hasLink: !!intakeLink,
+      isSubmitted: intakeLink?.status === "SUBMITTED" || false,
+    };
+  }
+
+  const target = client.profilType === ProfilType.PROPRIETAIRE ? "OWNER" : 
+                 client.profilType === ProfilType.LOCATAIRE ? "TENANT" : 
+                 null;
+
+  if (!target) {
+    return { hasLink: false, isSubmitted: false };
+  }
+
+  const intakeLink = await prisma.intakeLink.findFirst({
+    where: {
+      clientId: client.id,
+      target: target as any,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return {
+    hasLink: !!intakeLink,
+    isSubmitted: intakeLink?.status === "SUBMITTED" || false,
+  };
+}
+
+// Obtenir le lien du formulaire pour un client (sans envoyer d'email)
+export async function getIntakeLinkUrl(clientId: string): Promise<string> {
+  const user = await requireAuth();
+
+  // Récupérer le client
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+
+  // Si le client est un LEAD, retourner le lien de conversion existant uniquement
+  if (client.profilType === ProfilType.LEAD) {
+    // Vérifier s'il existe déjà un IntakeLink de conversion
+    const intakeLink = await prisma.intakeLink.findFirst({
+      where: {
+        clientId: client.id,
+        target: "LEAD",
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    if (!intakeLink) {
+      throw new Error("Aucun lien de formulaire disponible pour ce lead");
+    }
+
+    return `${baseUrl}/intakes/${intakeLink.token}/convert`;
+  }
+
+  // Pour les autres profils (PROPRIETAIRE ou LOCATAIRE)
+  // Déterminer le target selon le profilType
+  const target = client.profilType === ProfilType.PROPRIETAIRE ? "OWNER" : 
+                 client.profilType === ProfilType.LOCATAIRE ? "TENANT" : 
+                 "OWNER"; // Par défaut OWNER
+
+  // Récupérer le bien et le bail existants du client si c'est un propriétaire
+  let existingPropertyId: string | null = null;
+  let existingBailId: string | null = null;
+
+  if (target === "OWNER") {
+    // Récupérer le premier bien du propriétaire
+    const property = await prisma.property.findFirst({
+      where: {
+        ownerId: client.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    if (property) {
+      existingPropertyId = property.id;
+
+      // Récupérer le premier bail lié à ce bien
+      const bail = await prisma.bail.findFirst({
+        where: {
+          propertyId: property.id,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (bail) {
+        existingBailId = bail.id;
+      }
+    }
+  } else if (target === "TENANT") {
+    // Pour un locataire, récupérer le bail où il est partie
+    const bail = await prisma.bail.findFirst({
+      where: {
+        parties: {
+          some: {
+            id: client.id,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        property: true,
+      },
+    });
+
+    if (bail) {
+      existingBailId = bail.id;
+      if (bail.property) {
+        existingPropertyId = bail.property.id;
+      }
+    }
+  }
+
+  // Vérifier s'il existe déjà un IntakeLink pour ce client et ce target (ne pas en créer un nouveau)
+  const intakeLink = await prisma.intakeLink.findFirst({
+    where: {
+      clientId: client.id,
+      target: target as any,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (!intakeLink) {
+    throw new Error("Aucun lien de formulaire disponible pour ce client");
+  }
+
+  return `${baseUrl}/intakes/${intakeLink.token}`;
 }
 
 // Mettre à jour le statut de complétion d'un client

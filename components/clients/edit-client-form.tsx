@@ -95,7 +95,7 @@ export function EditClientForm({ client }: EditClientFormProps) {
     watchedMatrimonialRegime
   ).requiredDocuments;
 
-  // Vérifier quels documents requis sont présents
+  // Fonction pour déterminer quels documents doivent être affichés (uniquement pour l'affichage, ne bloque pas la soumission)
   const hasRequiredDocument = (kind: DocumentKind) => {
     return documents.some((doc) => doc.kind === kind);
   };
@@ -115,6 +115,13 @@ export function EditClientForm({ client }: EditClientFormProps) {
   useEffect(() => {
     refreshDocuments();
   }, []);
+
+  // Réinitialiser le régime matrimonial si le statut familial change et n'est plus MARIE
+  useEffect(() => {
+    if (watchedFamilyStatus !== FamilyStatus.MARIE && watchedMatrimonialRegime) {
+      form.setValue("matrimonialRegime", undefined);
+    }
+  }, [watchedFamilyStatus, watchedMatrimonialRegime]);
 
   const handleDeleteDocument = async (documentId: string) => {
     try {
@@ -166,19 +173,46 @@ export function EditClientForm({ client }: EditClientFormProps) {
   const handleSubmit = async (data: any) => {
     setIsLoading(true);
     try {
+      console.log("Données soumises:", data);
       await updateClient(data);
       toast.success("Client modifié avec succès");
       router.push(`/interface/clients/${client.id}`);
       router.refresh();
     } catch (error: any) {
+      console.error("Erreur lors de la modification:", error);
       toast.error(error.message || "Erreur lors de la modification");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const onError = (errors: any) => {
+    // Afficher les erreurs de validation avec des toasts
+    const errorMessages: string[] = [];
+    
+    Object.keys(errors).forEach((key) => {
+      const error = errors[key];
+      if (error?.message) {
+        errorMessages.push(`${key}: ${error.message}`);
+      }
+    });
+
+    if (errorMessages.length > 0) {
+      // Afficher la première erreur ou toutes les erreurs
+      if (errorMessages.length === 1) {
+        toast.error(errorMessages[0]);
+      } else {
+        toast.error(`${errorMessages.length} erreurs de validation`, {
+          description: errorMessages.slice(0, 3).join(", ") + (errorMessages.length > 3 ? "..." : ""),
+        });
+      }
+    } else {
+      toast.error("Veuillez corriger les erreurs du formulaire");
+    }
+  };
+
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+    <form onSubmit={form.handleSubmit(handleSubmit, onError)} className="space-y-6">
       <Tabs value={clientType} onValueChange={(value) => {
         setClientType(value as ClientType);
         form.setValue("type", value as ClientType);
@@ -285,27 +319,29 @@ export function EditClientForm({ client }: EditClientFormProps) {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="matrimonialRegime">Régime matrimonial</Label>
-                    <Controller
-                      name="matrimonialRegime"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Select value={field.value || ""} onValueChange={field.onChange} disabled={isLoading}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner le régime matrimonial" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.values(MatrimonialRegime).map((regime) => (
-                              <SelectItem key={regime} value={regime}>
-                                {regime.replace(/_/g, " ")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
+                  {watchedFamilyStatus === FamilyStatus.MARIE && (
+                    <div className="space-y-2">
+                      <Label htmlFor="matrimonialRegime">Régime matrimonial</Label>
+                      <Controller
+                        name="matrimonialRegime"
+                        control={form.control}
+                        render={({ field }) => (
+                          <Select value={field.value || ""} onValueChange={field.onChange} disabled={isLoading}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner le régime matrimonial" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.values(MatrimonialRegime).map((regime) => (
+                                <SelectItem key={regime} value={regime}>
+                                  {regime.replace(/_/g, " ")}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">

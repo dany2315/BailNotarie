@@ -427,11 +427,11 @@ export async function convertLead(data: {
     const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
     if (intakeLink.client.email) {
       try {
-        await triggerLeadConversionEmail({
+        await triggerTenantFormEmail({
           to: intakeLink.client.email,
-          subject: "Formulaire de bail notarié - Locataire",
-          convertUrl: tenantFormUrl,
-          isTenantForm: true,
+          firstName: intakeLink.client.firstName,
+          lastName: intakeLink.client.lastName,
+          formUrl: tenantFormUrl,
         });
       } catch (error) {
         console.error("Erreur lors du déclenchement de l'email au locataire:", error);
@@ -441,11 +441,11 @@ export async function convertLead(data: {
     // Déclencher l'envoi d'email au propriétaire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
     const ownerFormUrl = `${baseUrl}/intakes/${ownerIntakeLink.token}`;
     try {
-      await triggerLeadConversionEmail({
+      await triggerOwnerFormEmail({
         to: ownerEmail,
-        subject: "Formulaire de bail notarié - Propriétaire",
-        convertUrl: ownerFormUrl,
-        isOwnerForm: true,
+        firstName: owner.firstName,
+        lastName: owner.lastName,
+        formUrl: ownerFormUrl,
       });
     } catch (error) {
       console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);

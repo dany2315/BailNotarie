@@ -130,9 +130,6 @@ export function NumberInputGroup({
 
   return (
     <InputGroup className={className}>
-        <InputGroupAddon align="inline-start">
-            <InputGroupText>{unit}</InputGroupText>
-        </InputGroupAddon>
       <InputGroupInput
         type="number"
         value={internalValue}
@@ -143,23 +140,11 @@ export function NumberInputGroup({
         disabled={disabled}
         placeholder={placeholder}
         {...fieldProps}
+        className="text-right"
       />
-        <InputGroupAddon align="inline-end">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <InputGroupButton
-                variant="ghost"
-                aria-label="Info"
-                size="icon-xs"
-              >
-                <InfoIcon />
-              </InputGroupButton>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Password must be at least 8 characters</p>
-            </TooltipContent>
-          </Tooltip>
-        </InputGroupAddon>
+      <InputGroupAddon align="inline-start" className={` ${unit ? "border-r-1 pr-3 bg-accent" : ""}`}>
+            <InputGroupText>{unit}</InputGroupText>
+      </InputGroupAddon>
     </InputGroup>
   )
 }

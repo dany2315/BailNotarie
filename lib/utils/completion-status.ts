@@ -61,9 +61,7 @@ export function getRequiredClientFields(
 
   // Champs communs selon le profil
   if (profilType === ProfilType.PROPRIETAIRE) {
-    requiredFields.push("phone", "fullAddress");
-    // Documents requis pour propriétaire (personne physique ou morale)
-    requiredDocuments.push(DocumentKind.INSURANCE, DocumentKind.RIB);
+    requiredFields.push("phone", "fullAddress")
   } else if (profilType === ProfilType.LOCATAIRE) {
     requiredFields.push("phone", "fullAddress");
     requiredDocuments.push(DocumentKind.INSURANCE, DocumentKind.RIB);
@@ -87,7 +85,9 @@ export function getRequiredPropertyFields(
   const requiredFields: string[] = ["fullAddress"];
   const requiredDocuments: DocumentKind[] = [
     DocumentKind.DIAGNOSTICS,
-    DocumentKind.TITLE_DEED
+    DocumentKind.TITLE_DEED,
+    DocumentKind.INSURANCE,
+    DocumentKind.RIB,
   ];
 
   // Documents conditionnels selon le statut légal

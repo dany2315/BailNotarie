@@ -268,6 +268,25 @@ export async function handleOwnerFormDocuments(
     }
   }
 
+  // Pièces jointes - Bien (propriétaire) - Assurance et RIB
+  const insuranceOwner = formData.get("insuranceOwner") as File | null;
+  if (insuranceOwner && insuranceOwner.size > 0) {
+    const doc = await uploadFileAndCreateDocument(insuranceOwner, DocumentKind.INSURANCE, {
+      propertyId,  // ← Changer de clientId à propertyId
+      label: "Assurance propriétaire",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  const ribOwner = formData.get("ribOwner") as File | null;
+  if (ribOwner && ribOwner.size > 0) {
+    const doc = await uploadFileAndCreateDocument(ribOwner, DocumentKind.RIB, {
+      propertyId,  // ← Changer de clientId à propertyId
+      label: "RIB propriétaire",
+    });
+    if (doc) documents.push(doc);
+  }
+
   // Pièces jointes - Bien (propriétaire uniquement)
   const diagnostics = formData.get("diagnostics") as File | null;
   if (diagnostics && diagnostics.size > 0) {
@@ -306,20 +325,20 @@ export async function handleOwnerFormDocuments(
   }
 
   // Pièces jointes - Bail (propriétaire)
-  const insuranceOwner = formData.get("insuranceOwner") as File | null;
-  if (insuranceOwner && insuranceOwner.size > 0) {
-    const doc = await uploadFileAndCreateDocument(insuranceOwner, DocumentKind.INSURANCE, {
+  const insuranceTenant = formData.get("insuranceTenant") as File | null;
+  if (insuranceTenant && insuranceTenant.size > 0) {
+    const doc = await uploadFileAndCreateDocument(insuranceTenant, DocumentKind.INSURANCE, {
       clientId,
-      label: "Assurance propriétaire",
+      label: "Assurance locataire",
     });
     if (doc) documents.push(doc);
   }
 
-  const ribOwner = formData.get("ribOwner") as File | null;
-  if (ribOwner && ribOwner.size > 0) {
-    const doc = await uploadFileAndCreateDocument(ribOwner, DocumentKind.RIB, {
+  const ribTenant = formData.get("ribTenant") as File | null;
+  if (ribTenant && ribTenant.size > 0) {
+    const doc = await uploadFileAndCreateDocument(ribTenant, DocumentKind.RIB, {
       clientId,
-      label: "RIB propriétaire",
+      label: "RIB locataire",
     });
     if (doc) documents.push(doc);
   }

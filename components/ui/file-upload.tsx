@@ -85,39 +85,74 @@ export function FileUpload({
           )}
         </div>
       ) : (
-        <div
-          className={cn(
-            "border-2 border-dashed rounded-md p-6 text-center transition-colors",
-            isDragging && "border-primary bg-primary/5",
-            disabled && "opacity-50 cursor-not-allowed",
-            !disabled && "cursor-pointer hover:border-primary/50"
-          )}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onClick={() => !disabled && inputRef.current?.click()}
-        >
-          <Input
-            ref={inputRef}
-            type="file"
-            accept={accept}
-            onChange={handleFileChange}
-            disabled={disabled}
-            className="hidden"
-          />
-          <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            Cliquez ou glissez-déposez un fichier
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            PDF, DOC, DOCX, JPG, PNG (max 10MB)
-          </p>
-        </div>
+        <>
+          {/* Desktop & Tablet */}
+          <div
+            className={cn(
+              "hidden sm:block border-2 border-dashed rounded-md p-6 text-center transition-colors",
+              isDragging && "border-primary bg-primary/5",
+              disabled && "opacity-50 cursor-not-allowed",
+              !disabled && "cursor-pointer hover:border-primary/50"
+            )}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => !disabled && inputRef.current?.click()}
+          >
+            <Input
+              ref={inputRef}
+              type="file"
+              accept={accept}
+              onChange={handleFileChange}
+              disabled={disabled}
+              className="hidden"
+            />
+            <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Cliquez ou glissez-déposez un fichier
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              PDF, DOC, DOCX, JPG, PNG (max 10MB)
+            </p>
+          </div>
+          {/* Mobile - plus fin */}
+          <div
+            className={cn(
+              "block sm:hidden border border-dashed rounded-md p-3 text-center transition-colors",
+              isDragging && "border-primary bg-primary/5",
+              disabled && "opacity-50 cursor-not-allowed",
+              !disabled && "cursor-pointer hover:border-primary/50"
+            )}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => !disabled && inputRef.current?.click()}
+          >
+            <Input
+              ref={inputRef}
+              type="file"
+              accept={accept}
+              onChange={handleFileChange}
+              disabled={disabled}
+              className="hidden"
+            />
+            <Upload className="size-6 mx-auto mb-1 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">
+              Cliquez ou glissez-déposez
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              PDF, DOC, JPG, PNG (max 10MB)
+            </p>
+          </div>
+        </>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }
+
+
+
 
 
 

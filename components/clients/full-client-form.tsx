@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -83,6 +83,16 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
       tenantEmail: "",
     },
   });
+
+  // Observer le statut familial pour conditionner l'affichage du régime matrimonial
+  const watchedFamilyStatus = form.watch("familyStatus");
+
+  // Réinitialiser le régime matrimonial si le statut familial change et n'est plus MARIE
+  useEffect(() => {
+    if (watchedFamilyStatus !== FamilyStatus.MARIE && form.getValues("matrimonialRegime")) {
+      form.setValue("matrimonialRegime", undefined);
+    }
+  }, [watchedFamilyStatus, form]);
 
   const handleSubmit = async (data: any) => {
     setIsLoading(true);
@@ -220,27 +230,29 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                     )}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="matrimonialRegime">Régime matrimonial</Label>
-                  <Controller
-                    name="matrimonialRegime"
-                    control={form.control}
-                    render={({ field }) => (
-                      <Select value={field.value || ""} onValueChange={field.onChange} disabled={isLoading}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sélectionner" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.values(MatrimonialRegime).map((regime) => (
-                            <SelectItem key={regime} value={regime}>
-                              {regime.replace(/_/g, " ")}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
+                {watchedFamilyStatus === FamilyStatus.MARIE && (
+                  <div className="space-y-2">
+                    <Label htmlFor="matrimonialRegime">Régime matrimonial</Label>
+                    <Controller
+                      name="matrimonialRegime"
+                      control={form.control}
+                      render={({ field }) => (
+                        <Select value={field.value || ""} onValueChange={field.onChange} disabled={isLoading}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.values(MatrimonialRegime).map((regime) => (
+                              <SelectItem key={regime} value={regime}>
+                                {regime.replace(/_/g, " ")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                )}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">

@@ -836,29 +836,41 @@ export const updateClientSchema = z.object({
   id: z.string().cuid("ID invalide"),
   type: z.nativeEnum(ClientType).optional(),
   profilType: z.nativeEnum(ProfilType).optional(),
-  firstName: z.string()
-    .min(1, "Le prénom est requis")
-    .max(100, "Le prénom est trop long")
-    .trim()
-    .optional(),
-  lastName: z.string()
-    .min(1, "Le nom est requis")
-    .max(100, "Le nom est trop long")
-    .trim()
-    .optional(),
-  profession: z.string()
-    .max(200, "La profession est trop longue")
-    .trim()
-    .optional(),
-  legalName: z.string()
-    .min(1, "La raison sociale est requise")
-    .max(200, "La raison sociale est trop longue")
-    .trim()
-    .optional(),
-  registration: z.string()
-    .max(50, "Le numéro d'enregistrement est trop long")
-    .trim()
-    .optional(),
+  firstName: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.string()
+      .max(100, "Le prénom est trop long")
+      .trim()
+      .optional()
+  ),
+  lastName: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.string()
+      .max(100, "Le nom est trop long")
+      .trim()
+      .optional()
+  ),
+  profession: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.string()
+      .max(200, "La profession est trop longue")
+      .trim()
+      .optional()
+  ),
+  legalName: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.string()
+      .max(200, "La raison sociale est trop longue")
+      .trim()
+      .optional()
+  ),
+  registration: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.string()
+      .max(50, "Le numéro d'enregistrement est trop long")
+      .trim()
+      .optional()
+  ),
   phone: z.string()
     .trim()
     .optional()
@@ -887,18 +899,44 @@ export const updateClientSchema = z.object({
     },
     z.nativeEnum(MatrimonialRegime).optional()
   ),
-  birthPlace: z.string()
-    .max(200, "Le lieu de naissance est trop long")
-    .trim()
-    .optional(),
-  birthDate: z.string()
-    .optional()
-    .transform((val) => {
-      if (!val) return undefined;
-      const date = new Date(val);
-      if (isNaN(date.getTime())) return undefined;
-      return date;
-    }),
+  birthPlace: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.string()
+      .max(200, "Le lieu de naissance est trop long")
+      .trim()
+      .optional()
+  ),
+  birthDate: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      return String(val);
+    },
+    z.string()
+      .optional()
+      .transform((val) => {
+        if (!val || val === "") return undefined;
+        const date = new Date(val);
+        if (isNaN(date.getTime())) return undefined;
+        return date;
+      })
+      .optional()
+  ),
+}).superRefine((data, ctx) => {
+  // Validation conditionnelle selon le type de client
+  // Si le type n'est pas fourni, on ne fait pas de validation conditionnelle
+  if (!data.type) {
+    return;
+  }
+
+  if (data.type === ClientType.PERSONNE_PHYSIQUE) {
+    // Pour personne physique : on ne valide pas legalName et registration
+    // Ces champs ne doivent pas être présents ou doivent être undefined/null
+    // Pas besoin de validation supplémentaire car ils sont optionnels
+  } else if (data.type === ClientType.PERSONNE_MORALE) {
+    // Pour personne morale : on ne valide pas firstName, lastName, etc.
+    // Ces champs ne doivent pas être présents ou doivent être undefined/null
+    // Pas besoin de validation supplémentaire car ils sont optionnels
+  }
 });
 
 // ============================================================================
