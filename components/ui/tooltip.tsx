@@ -5,6 +5,13 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { cn } from "@/lib/utils"
 
+// Contexte pour partager l'état mobile entre Tooltip et TooltipTrigger
+const TooltipMobileContext = React.createContext<{
+  isMobile: boolean
+  open: boolean
+  setOpen: (open: boolean) => void
+} | null>(null)
+
 function TooltipProvider({
   delayDuration = 0,
   ...props
@@ -18,20 +25,92 @@ function TooltipProvider({
   )
 }
 
+// Hook pour détecter si on est sur mobile
+function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState(false)
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(max-width: 1060px)')
+      setIsMobile(mediaQuery.matches)
+
+      const handleResize = () => setIsMobile(mediaQuery.matches)
+      mediaQuery.addEventListener('change', handleResize)
+
+      return () => {
+        mediaQuery.removeEventListener('change', handleResize)
+      }
+    }
+  }, [])
+
+  return isMobile
+}
+
 function Tooltip({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  const isMobile = useIsMobile()
+  const [open, setOpen] = React.useState(false)
+
+  // Sur mobile, utiliser un état contrôlé pour gérer l'ouverture au click
+  // Sur desktop, laisser le comportement par défaut (hover)
+  const tooltipProps = isMobile
+    ? {
+        ...props,
+        open: open,
+        onOpenChange: setOpen,
+      }
+    : props
+
   return (
     <TooltipProvider>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+      <TooltipMobileContext.Provider value={{ isMobile, open, setOpen }}>
+        <TooltipPrimitive.Root data-slot="tooltip" {...tooltipProps} />
+      </TooltipMobileContext.Provider>
     </TooltipProvider>
   )
 }
 
 function TooltipTrigger({
+  onClick,
+  onPointerDown,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  const context = React.useContext(TooltipMobileContext)
+  const isMobile = context?.isMobile ?? false
+  
+  // Sur mobile, gérer le click pour ouvrir/fermer le tooltip
+  const handleClick = React.useCallback((e: React.MouseEvent) => {
+    if (isMobile && context) {
+      // Toggle l'état ouvert/fermé
+      context.setOpen(!context.open)
+    }
+    onClick?.(e)
+  }, [isMobile, context, onClick])
+
+  const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
+    if (isMobile && context) {
+      // Toggle l'état ouvert/fermé
+      context.setOpen(!context.open)
+    }
+    onPointerDown?.(e)
+  }, [isMobile, context, onPointerDown])
+
+  // Sur mobile, utiliser onClick et onPointerDown pour toggle
+  // Sur desktop, laisser le comportement par défaut (hover)
+  const triggerProps = isMobile
+    ? {
+        ...props,
+        onClick: handleClick,
+        onPointerDown: handlePointerDown,
+      }
+    : {
+        ...props,
+        onClick,
+        onPointerDown,
+      }
+
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...triggerProps} />
 }
 
 function TooltipContent({

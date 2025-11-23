@@ -32,6 +32,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DatePicker } from "@/components/ui/date-picker";
+import useIsMobile from "@/hooks/useIsMobile";
 
 type OwnerFormData = z.infer<typeof ownerFormSchema>;
 
@@ -49,6 +50,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const isMobile = useIsMobile();
   
   // États pour stocker les données qui peuvent être rafraîchies après l'upload
   const [intakeLink, setIntakeLink] = useState(initialIntakeLink);
@@ -1157,12 +1159,12 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
                 <Label htmlFor="personnePhysique" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_PHYSIQUE ? "bg-accent" : ""}`}>
                   <RadioGroupItem value={ClientType.PERSONNE_PHYSIQUE} className="hidden" id="personnePhysique"/>
                   <User2 className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium">Personne physique</div>
+                  <div className="text-sm font-medium text-center">Personne {isMobile ? <br /> : ""} physique</div>
                 </Label>
                 <Label htmlFor="personneMorale" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_MORALE ? "bg-accent" : ""}`}>
                   <RadioGroupItem value={ClientType.PERSONNE_MORALE} className="hidden" id="personneMorale"/>
                   <Building2 className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium">Personne morale</div>
+                  <div className="text-sm font-medium text-center">Personne {isMobile ? <br /> : ""} morale</div>
                 </Label>
               </RadioGroup>
             )}
@@ -1479,13 +1481,13 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
                 <Label htmlFor="appartement" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === BienType.APPARTEMENT ? "bg-accent" : ""}`}>
                   <RadioGroupItem value={BienType.APPARTEMENT} className="hidden" id="appartement"/>
                   <Building2 className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium">Immeuble collectif</div>
+                  <div className="text-sm font-medium text-center">Immeuble {isMobile ? <br /> : ""} collectif</div>
                 </Label>
 
                 <Label htmlFor="maison" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === BienType.MAISON ? "bg-accent" : ""}`}>
                   <RadioGroupItem value={BienType.MAISON} className="hidden" id="maison"/>
                   <Building2 className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium">Immeuble individuel</div>
+                  <div className="text-sm font-medium text-center">Immeuble {isMobile ? <br /> : ""} individuel</div>
                 </Label>
               </RadioGroup>
             )}
