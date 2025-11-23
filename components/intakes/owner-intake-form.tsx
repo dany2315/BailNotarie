@@ -25,7 +25,7 @@ import { ownerFormSchema } from "@/lib/zod/client";
 import { ClientType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, PropertyStatus, BienType, BienLegalStatus, ProfilType } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Stepper } from "@/components/ui/stepper";
-import { ArrowLeftIcon, ArrowRightIcon, Loader2, InfoIcon, Building2, User2 } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, Loader2, InfoIcon, Building2, User2, Building } from "lucide-react";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -1486,7 +1486,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
 
                 <Label htmlFor="maison" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === BienType.MAISON ? "bg-accent" : ""}`}>
                   <RadioGroupItem value={BienType.MAISON} className="hidden" id="maison"/>
-                  <Building2 className="size-5 text-muted-foreground" />
+                  <Building className="size-5 text-muted-foreground" />
                   <div className="text-sm font-medium text-center">Immeuble {isMobile ? <br /> : ""} individuel</div>
                 </Label>
               </RadioGroup>
