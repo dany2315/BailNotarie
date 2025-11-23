@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { submitIntake, savePartialIntake, getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { DocumentUploaded } from "./document-uploaded";
 import { useRouter } from "next/navigation";
@@ -30,7 +30,7 @@ import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DatePicker } from "@/components/ui/date-picker";
-
+import useIsMobile from "@/hooks/useIsMobile";
 type TenantFormData = z.infer<typeof tenantFormSchema>;
 
 const STEPS = [
@@ -44,6 +44,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const isMobile = useIsMobile(); 
   
   // États pour stocker les données qui peuvent être rafraîchies après l'upload
   const [intakeLink, setIntakeLink] = useState(initialIntakeLink);
@@ -883,7 +884,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const renderBasicInfo = () => (
     <Card>
       <CardHeader>
-        <CardTitle>Informations locataire - Informations de base</CardTitle>
+        <CardTitle>Informations locataire</CardTitle>
+        <CardDescription>Remplissez les informations de base</CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
         <div className="space-y-2">
@@ -904,13 +906,13 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               >
                 <Label htmlFor="personnePhysique" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_PHYSIQUE ? "bg-accent" : ""}`}>
                   <RadioGroupItem value={ClientType.PERSONNE_PHYSIQUE} className="hidden" id="personnePhysique"/>
-                  <User2 className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium">Personne physique</div>
+                  <User2 className="size-5 text-muted-foreground " />
+                  <div className="text-sm font-medium text-center">Personne {isMobile ? <br /> : ""} physique</div>
                 </Label>
                 <Label htmlFor="personneMorale" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_MORALE ? "bg-accent" : ""}`}>
                   <RadioGroupItem value={ClientType.PERSONNE_MORALE} className="hidden" id="personneMorale"/>
                   <Building2 className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium">Personne morale</div>
+                  <div className="text-sm font-medium text-center">Personne {isMobile ? <br /> : ""} morale</div>
                 </Label>
               </RadioGroup>
             )}
@@ -1022,7 +1024,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const renderAdditionalInfo = () => (
     <Card>
       <CardHeader>
-        <CardTitle>Informations locataire - Informations complémentaires</CardTitle>
+        <CardTitle>Informations locataire</CardTitle>
+        <CardDescription>Remplissez les informations complémentaires</CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
         {clientType === ClientType.PERSONNE_PHYSIQUE ? (
@@ -1188,6 +1191,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     <Card>
       <CardHeader>
         <CardTitle>Pièces jointes</CardTitle>
+        <CardDescription>Remplissez les pièces jointes du locataire.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Pièces jointes - Client */}
@@ -1398,12 +1402,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         className="space-y-18 "
       >
       {/* Stepper fixe */}
-      <div className="fixed pt-4 top-27 sm:top-40 left-0 right-0 bg-background border-b border-border/40 z-40 pb-2 sm:pb-4">
-        <div className="max-w-2xl mx-auto px-3 sm:px-4">
+      <div className="fixed top-27 sm:top-40 left-0 right-0 bg-background border-b border-border/40 z-40 pb-4 sm:pb-6">
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 pt-4">
           <Stepper 
             steps={STEPS} 
             currentStep={currentStep}
-            className="flex flex-row justify-between items-center w-full ml-8 sm:ml-16"
             onStepClick={(step) => {
               // Permettre de revenir en arrière seulement
               if (step < currentStep) {
@@ -1416,7 +1419,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       
       {/* Espace pour le stepper fixe */}
       
-      <div className="mt-40 sm:mt-72">     
+      <div className="mt-32 sm:mt-48">     
         {renderStepContent()}
       </div> 
       {/* Inputs file cachés pour les refs */}

@@ -49,14 +49,15 @@ export default async function IntakePage({
           </div>
         </div>
 
-        <div className="text-center space-y-1 sm:space-y-2">
+        <div className="text-center space-y-3 sm:space-y-2 pb-4">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold px-2">
                 Formulaire bail notarié {intakeLink.target === "OWNER" ? "Propriétaire" : "Locataire"}
               </h1>
-              <p className="text-sm sm:text-base text-muted-foreground px-2">
+
+              <p className="text-sm sm:text-base text-muted-foreground  pt-2">
                 Veuillez remplir le formulaire ci-dessous
               </p>
-            </div>
+        </div>
       </header>
 
       <div className="p-3 sm:p-4">

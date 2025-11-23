@@ -29,7 +29,7 @@ import { ArrowLeftIcon, ArrowRightIcon, Loader2, InfoIcon, Building2, User2, Bui
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DatePicker } from "@/components/ui/date-picker";
 import useIsMobile from "@/hooks/useIsMobile";
@@ -1137,7 +1137,8 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
   const renderBasicInfo = () => (
     <Card>
       <CardHeader>
-        <CardTitle>Informations propriétaire - Informations de base</CardTitle>
+        <CardTitle>Informations propriétaire</CardTitle>
+        <CardDescription>Remplissez les informations de base</CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
         <div className="space-y-2">
@@ -1277,7 +1278,8 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
   const renderAdditionalInfo = () => (
     <Card>
       <CardHeader>
-        <CardTitle>Informations propriétaire - Informations complémentaires</CardTitle>
+        <CardTitle>Informations propriétaire</CardTitle>
+        <CardDescription>Remplissez les informations complémentaires</CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
         {clientType === ClientType.PERSONNE_PHYSIQUE ? (
@@ -1436,6 +1438,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     <Card>
       <CardHeader>
         <CardTitle>Informations du bien</CardTitle>
+        <CardDescription>Remplissez les informations en rapport avec le bien.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -1453,16 +1456,11 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
           <div className="space-y-2">
             <div className="flex items-center gap-2 pb-2">
               <Label htmlFor="propertyType">Type d'habitat *</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="inline-flex items-center">
-                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Une maison est un immeuble individuel</p>
-                </TooltipContent>
-              </Tooltip>
+              <InfoTooltip content={<p>Une maison est un immeuble individuel</p>} className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}>
+                <button type="button" className="inline-flex items-center">
+                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </InfoTooltip>
             </div>
 
             <Controller
@@ -1502,16 +1500,11 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Label htmlFor="propertySurfaceM2">Surface *</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="inline-flex items-center">
-                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Surface privative selon diagnostic Loi Carrez</p>
-                </TooltipContent>
-              </Tooltip>
+              <InfoTooltip content={<p>Surface privative selon diagnostic Loi Carrez</p>} className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}>
+                <button type="button" className="inline-flex items-center">
+                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </InfoTooltip>
             </div>
             <NumberInputGroup field={form.register("propertySurfaceM2")} min={0} unit="m²" step={0.01} isDecimal={true} />
             {form.formState.errors.propertySurfaceM2 && (
@@ -1667,26 +1660,28 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
         <div className="grid gap-3 sm:gap-4 grid-cols-2">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Label htmlFor="bailRentAmount">Montant du loyer HC *</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="inline-flex items-center">
-                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="mb-2">LIMITATIONS DES LOYERS</p>
-                  <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
-                  <a 
-                    href="https://www.service-public.fr/simulateur/calcul/zones-tendues" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary underline hover:text-primary/80"
-                  >
-                    https://www.service-public.fr/simulateur/calcul/zones-tendues
-                  </a>
-                </TooltipContent>
-              </Tooltip>
+              <Label htmlFor="bailRentAmount">Montant du loyer HC*</Label>
+              <InfoTooltip 
+                content={
+                  <div className="max-w-xs">
+                    <p className="mb-2">LIMITATIONS DES LOYERS</p>
+                    <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
+                    <a 
+                      href="https://www.service-public.fr/simulateur/calcul/zones-tendues" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-primary underline hover:text-primary/80"
+                    >
+                      https://www.service-public.fr/simulateur/calcul/zones-tendues
+                    </a>
+                  </div>
+                }
+                className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+              >
+                <button type="button" className="inline-flex items-center">
+                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </InfoTooltip>
             </div>
             <NumberInputGroup field={form.register("bailRentAmount")} min={0} unit="€" />
             {form.formState.errors.bailRentAmount && (
@@ -1704,17 +1699,19 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
         <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Label htmlFor="bailSecurityDeposit">Dépôt de garantie *</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="inline-flex items-center">
-                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Bail meublé → 2 mois de loyer hors charges maximum</p>
-                  <p>Bail nu → 1 mois de loyer hors charges maximum</p>
-                </TooltipContent>
-              </Tooltip>
+              <InfoTooltip 
+                content={
+                  <>
+                    <p>Bail meublé → 2 mois de loyer hors charges maximum</p>
+                    <p>Bail nu → 1 mois de loyer hors charges maximum</p>
+                  </>
+                }
+                className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+              >
+                <button type="button" className="inline-flex items-center">
+                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </InfoTooltip>
             </div>
             <NumberInputGroup field={form.register("bailSecurityDeposit")} min={0} unit="€" />
             {form.formState.errors.bailSecurityDeposit && (
@@ -1758,6 +1755,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       <Card>
         <CardHeader>
           <CardTitle>Informations du locataire</CardTitle>
+          <CardDescription>Remplissez les informations en rapport avec le locataire.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -1800,6 +1798,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     <Card>
       <CardHeader>
         <CardTitle>Pièces jointes</CardTitle>
+        <CardDescription>Remplissez les pièces jointes en rapport avec le client et le bien.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Pièces jointes - Client */}
@@ -2118,12 +2117,11 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
         className="space-y-18 "
       >
       {/* Stepper fixe */}
-      <div className="fixed top-27 sm:top-40  left-0 right-0 bg-background border-b border-border/40 z-40 pb-2 sm:pb-4">
-        <div className="max-w-2xl mx-auto px-3 sm:px-4">
+      <div className="fixed top-27 sm:top-40 left-0 right-0 bg-background border-b border-border/40 z-40 pb-4 sm:pb-6">
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 pt-4">
           <Stepper 
             steps={STEPS} 
             currentStep={currentStep}
-            className="flex flex-row justify-between items-center w-full"
             onStepClick={(step) => {
               // Permettre de revenir en arrière seulement
               if (step < currentStep) {
@@ -2136,7 +2134,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       
       {/* Espace pour le stepper fixe */}
       
-      <div className="mt-40 sm:mt-72">     
+      <div className="mt-32 sm:mt-48">     
         {renderStepContent()}
       </div> 
       {/* Inputs file cachés pour les refs */}
