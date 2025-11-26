@@ -7,16 +7,10 @@ import { Button } from "./ui/button";
 export function StatsSection() {
   const mainStats = [
     {
-      number: "2000+",
+      number: "200+",
       label: "Clients satisfaits",
       icon: Users,
       color: "text-blue-600"
-    },
-    {
-      number: "5000+",
-      label: "Baux notariés",
-      icon: FileCheck,
-      color: "text-green-600"
     },
     {
       number: "48h",
@@ -85,51 +79,6 @@ export function StatsSection() {
           ))}
         </div>
 
-        {/* Section avec image et badges */}
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-          <div className="grid lg:grid-cols-2">
-            {/* Image */}
-            <div className="relative h-64 lg:h-auto">
-              <Image
-                src="https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800"
-                alt="Bureau notarial moderne"
-                fill
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-transparent"></div>
-            </div>
-            
-            {/* Contenu */}
-            <div className="px-8 py-6 lg:p-12 flex flex-col justify-center">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                Pourquoi nous choisir ?
-              </h3>
-              
-              <div className="flex flex-wrap justify-center gap-4 mb-8">
-                {achievements.map((achievement, index) => (
-                  <div key={index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-full hover:bg-blue-50 transition-colors duration-200 pr-4">
-                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-full">
-                      <achievement.icon className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <span className="font-medium text-gray-800">{achievement.text}</span>
-                  </div>
-                ))}
-              </div>
-              <h3 className="text-xl text-center font-medium text-gray-900 mb-4">
-            Rejoignez nos 2000+ clients satisfaits
-          </h3>
-            <Button 
-            className="bg-green-600 hover:bg-green-700 cursor-pointer"
-            onClick={() => {
-              window.location.href = "tel:0749387756";
-            }}
-            >
-            Faire parti de nos clients satisfaits
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
   );

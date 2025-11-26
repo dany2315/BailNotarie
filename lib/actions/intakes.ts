@@ -16,6 +16,7 @@ import {
 } from "@/lib/utils/completion-status";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { NotificationType } from "@prisma/client";
+import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 
 export async function createIntakeLink(data: unknown) {
   const user = await requireAuth();
@@ -231,8 +232,6 @@ export async function submitIntake(data: unknown) {
     null, // Soumis par formulaire, pas par un utilisateur
     { intakeTarget: intakeLink.target }
   );
-
-  revalidatePath(`/intakes/${token}`);
   return updated;
 }
 
@@ -603,20 +602,47 @@ export async function savePartialIntake(data: unknown) {
       // Chercher le locataire existant rattaché au bail
       const existingTenant = bail.parties.find(party => party.profilType === ProfilType.LOCATAIRE);
       
+      // Stocker l'email précédent pour vérifier s'il a changé
+      const previousTenantEmail = existingTenant?.email || null;
+      const newTenantEmail = payload.tenantEmail.trim().toLowerCase();
+      const isEmailNewOrChanged = !previousTenantEmail || previousTenantEmail !== newTenantEmail;
+      
       let tenant;
+      let isTenantNewlyCreated = false; // Flag pour savoir si le locataire vient d'être créé
       if (existingTenant) {
         // Si un locataire est déjà rattaché au bail, mettre à jour son email
-        tenant = await prisma.client.update({
+        await prisma.client.update({
           where: { id: existingTenant.id },
           data: {
-            email: payload.tenantEmail.trim().toLowerCase(),
+            email: newTenantEmail,
           },
         });
+        
+        // Récupérer le tenant avec createdAt pour vérifier s'il vient d'être créé
+        tenant = await prisma.client.findUnique({
+          where: { id: existingTenant.id },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            createdAt: true,
+          },
+        });
+        
+        // Vérifier si le locataire vient d'être créé (dans les 5 dernières minutes)
+        // Cela peut arriver si le locataire a été créé lors de la création du bail juste avant
+        if (tenant) {
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+          if (tenant.createdAt && tenant.createdAt > fiveMinutesAgo) {
+            isTenantNewlyCreated = true;
+          }
+        }
       } else {
         // Vérifier d'abord si un client avec cet email existe déjà (peu importe le profilType)
         const existingClientWithEmail = await prisma.client.findUnique({
           where: { 
-            email: payload.tenantEmail.trim().toLowerCase()
+            email: newTenantEmail
           },
         });
 
@@ -627,7 +653,7 @@ export async function savePartialIntake(data: unknown) {
         // Si aucun locataire n'est rattaché, chercher un locataire existant avec cet email
         tenant = await prisma.client.findFirst({
           where: { 
-            email: payload.tenantEmail.trim().toLowerCase(), 
+            email: newTenantEmail, 
             profilType: ProfilType.LOCATAIRE 
           },
         });
@@ -638,9 +664,10 @@ export async function savePartialIntake(data: unknown) {
             data: {
               type: ClientType.PERSONNE_PHYSIQUE,
               profilType: ProfilType.LOCATAIRE,
-              email: payload.tenantEmail.trim().toLowerCase(),
+              email: newTenantEmail,
             },
           });
+          isTenantNewlyCreated = true;
         }
 
         // Rattacher le locataire au bail
@@ -657,15 +684,15 @@ export async function savePartialIntake(data: unknown) {
       // Vérifier si un IntakeLink existe déjà pour ce locataire et ce bail
       let tenantIntakeLink = await prisma.intakeLink.findFirst({
         where: {
-          clientId: tenant.id,
+          clientId: tenant?.id,
           bailId: bailId,
           target: "TENANT",
         },
       });
 
-      // Si l'IntakeLink n'existe pas, le créer (sans envoyer d'email ici)
-      // L'email sera envoyé uniquement lors de la soumission finale dans submitOwnerForm
+      // Si l'IntakeLink n'existe pas, le créer
       if (!tenantIntakeLink) {
+        if (tenant) {
         tenantIntakeLink = await prisma.intakeLink.create({
           data: {
             target: "TENANT",
@@ -674,6 +701,37 @@ export async function savePartialIntake(data: unknown) {
             bailId: bailId,
           },
         });
+        }
+      }
+
+      // Envoyer l'email au locataire si l'email vient d'être renseigné ou modifié
+      if (isEmailNewOrChanged && tenantIntakeLink) {
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+        const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
+        
+        try {
+          await triggerTenantFormEmail({
+            to: newTenantEmail,
+            firstName: tenant?.firstName || "",
+            lastName: tenant?.lastName || "",
+            formUrl: tenantFormUrl,
+          });
+          console.log(`✅ Email déclenché pour le locataire ${newTenantEmail} avec le lien ${tenantFormUrl}`);
+          
+          // Notification pour création de locataire (seulement si créé dans cette fonction et email envoyé)
+          if (isTenantNewlyCreated && tenant) {
+            await createNotificationForAllUsers(
+              NotificationType.CLIENT_CREATED,
+              "CLIENT",
+              tenant.id,
+              null,
+              { createdByForm: true ,profileType: ProfilType.LOCATAIRE }
+            );
+          }
+        } catch (error) {
+          console.error("Erreur lors du déclenchement de l'email au locataire:", error);
+          // Ne pas bloquer la sauvegarde si l'email échoue
+        }
       }
     }
 

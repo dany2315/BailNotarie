@@ -19,9 +19,9 @@ const progressPercentage = Math.min(rawProgress, 95);
   return (
     <div className={cn("w-full text-center", className)}>
       {/* Barre de progression globale */}
-      <div className="relative h-2 bg-accent rounded-full overflow-hidden">
+      <div className="relative h-2 bg-accent  overflow-hidden">
         <div
-          className=" h-full bg-primary/80  transition-all duration-500 ease-out rounded-full"
+          className=" h-full bg-[#4373f5]  transition-all duration-500 ease-out "
           style={{ width: `${progressPercentage}%` }}
         />
       </div>

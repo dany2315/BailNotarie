@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, Scale, X, Home, Briefcase, Settings, BookOpen, Mail, HelpCircle } from "lucide-react";
+import { Menu, Scale, X, Home, Settings, BookOpen, Mail, HelpCircle , FileText, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { Separator } from "@/components/ui/separator";
@@ -21,10 +21,10 @@ export function Header() {
 
   const menuItems = [
     { href: "/", label: "Accueil", icon: Home },
-    { href: "#services", label: "Services", icon: Briefcase },
-    { href: "#process", label: "Processus", icon: Settings },
+    { href: "/commencer", label: "Créer un bail", icon: FileText },
+    { href: "/#avantages", label: "Nos avantages", icon: Workflow },
     { href: "/blog", label: "Blog", icon: BookOpen },
-    { href: "#faq", label: "FAQ", icon: HelpCircle },
+    { href: "/#faq", label: "FAQ", icon: HelpCircle },
     { href: "/#contact", label: "Contact", icon: Mail },
   ];
 
@@ -46,16 +46,17 @@ export function Header() {
             <Link href="/" className="text-gray-700 hover:text-blue-600 transition-colors">
               Accueil
             </Link>
-            <Link href="#services" className="text-gray-700 hover:text-blue-600 transition-colors">
-              Services
+
+            <Link href="/#avantages" className="text-gray-700 hover:text-blue-600 transition-colors">
+            Nos avantages
             </Link>
-            <Link href="#process" className="text-gray-700 hover:text-blue-600 transition-colors">
-              Processus
+            <Link href="/commencer" className="text-gray-700 hover:text-blue-600 transition-colors">
+              Créer un bail
             </Link>
             <Link href="/blog" className="text-gray-700 hover:text-blue-600 transition-colors">
               Blog
             </Link>
-            <Link href="#faq" className="text-gray-700 hover:text-blue-600 transition-colors">
+            <Link href="/#faq" className="text-gray-700 hover:text-blue-600 transition-colors">
               FAQ
             </Link>
             <Link href="/#contact" className="text-gray-700 hover:text-blue-600 transition-colors">
@@ -95,9 +96,9 @@ export function Header() {
                       key={item.href}
                       href={item.href}
                       onClick={handleMenuClick}
-                      className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 group"
+                      className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group"
                     >
-                      <item.icon className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                      <item.icon className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
                       <span className="font-medium">{item.label}</span>
                     </Link>
                   ))}

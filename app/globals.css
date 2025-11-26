@@ -33,6 +33,28 @@
   .shadcn-input-style {
     @apply w-full border border-input bg-background rounded-md px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
+
+  /* Flip Card 3D Animation */
+  .perspective-2000 {
+    perspective: 2000px;
+  }
+
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+
+  .backface-hidden {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  .rotate-y-180 {
+    transform: rotateY(180deg);
+  }
+
+  .group-hover\:rotate-y-180:hover {
+    transform: rotateY(180deg);
+  }
 }
 
 html {
@@ -245,4 +267,18 @@ html {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
   }
+}
+
+/* Animations personnalisées */
+@keyframes shine {
+  0% {
+    transform: translateX(-100%) translateY(-50%) rotate(45deg);
+  }
+  100% {
+    transform: translateX(200%) translateY(-50%) rotate(45deg);
+  }
+}
+
+.animate-shine {
+  animation: shine 3s ease-in-out infinite;
 }

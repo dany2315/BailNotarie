@@ -361,7 +361,7 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-muted-foreground">
-              Êtes-vous sûr de vouloir supprimer le document "{documentToDelete?.label || `Document ${documentToDelete?.kind}`}" ?
+              Êtes-vous sûr de vouloir supprimer le document <span className="font-bold">{documentToDelete?.kind}</span> "{documentToDelete?.label || `Document ${documentToDelete?.kind}`}" ?
               Cette action est irréversible.
             </p>
           </div>
