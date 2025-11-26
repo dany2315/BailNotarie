@@ -74,7 +74,7 @@ export function BenefitsNewSection() {
               {
                 value: "rapide",
                 icon: <Clock className="h-auto w-4 shrink-0" />,
-                label: "Bail en 48h",
+                label: "En 48h",
                 content: {
                   badge: "Délai garanti",
                   title: "Bail notarié en 48h",
@@ -88,7 +88,7 @@ export function BenefitsNewSection() {
               {
                 value: "securise",
                 icon: <Shield className="h-auto w-4 shrink-0" />,
-                label: "Force exécutoire",
+                label: "Exécutoire",
                 content: {
                   badge: "Acte authentique",
                   title: "Force exécutoire immédiate",
