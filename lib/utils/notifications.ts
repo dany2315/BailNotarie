@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { NotificationType } from "@prisma/client";
+import { NotificationType, ProfilType } from "@prisma/client";
 import { triggerNotificationEmail } from "@/lib/inngest/helpers";
 
 /**
@@ -21,18 +21,34 @@ function getNotificationMessageText(
     }
     case "CLIENT_CREATED":
       return meta.createdByForm 
-        ? "Nouveau client créé via formulaire" 
-        : "Nouveau client créé";
+        ? meta.profileType === ProfilType.LOCATAIRE 
+          ? "Nouveau locataire créé via formulaire" 
+          : "Nouveau propriétaire créé via formulaire" 
+        : meta.profileType === ProfilType.LOCATAIRE 
+          ? "Nouveau locataire créé"
+          : "Nouveau propriétaire créé";
+    case "CLIENT_CREATED_FROM_LANDING_PAGE":
+      return meta.profileType === ProfilType.LOCATAIRE 
+        ? "Nouveau locataire créé depuis la landing page"
+        : "Nouveau propriétaire créé depuis la landing page";
     case "CLIENT_UPDATED":
-      return "Client modifié";
+      return meta.createdByForm 
+        ? meta.profileType === ProfilType.LOCATAIRE 
+          ? "Locataire modifié via formulaire"
+          : "Propriétaire modifié via formulaire"
+        : meta.profileType === ProfilType.LOCATAIRE 
+          ? "Locataire modifié"
+          : "Propriétaire modifié";
     case "CLIENT_DELETED":
       return "Client supprimé";
     case "PROPERTY_CREATED":
       return meta.createdByForm 
-        ? "Nouveau bien créé via formulaire" 
-        : "Nouveau bien créé";
+        ? "Nouveau bien créé par le propriétaire" 
+        : "Nouveau bien créé ";
     case "PROPERTY_UPDATED":
-      return "Bien modifié";
+      return meta.createdByForm 
+        ? "Bien modifié par le propriétaire" 
+        : "Bien modifié ";
     case "PROPERTY_DELETED":
       return "Bien supprimé";
     case "BAIL_CREATED":
@@ -40,7 +56,9 @@ function getNotificationMessageText(
         ? "Nouveau bail créé via formulaire" 
         : "Nouveau bail créé";
     case "BAIL_UPDATED":
-      return "Bail modifié";
+      return meta.createdByForm 
+        ? "Bail modifié par le propriétaire" 
+        : "Bail modifié ";
     case "BAIL_DELETED":
       return "Bail supprimé";
     case "BAIL_STATUS_CHANGED":

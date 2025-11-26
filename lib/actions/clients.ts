@@ -94,7 +94,7 @@ export async function createBasicClient(data: unknown) {
     "CLIENT",
     client.id,
     user.id,
-    { createdByForm: false }
+    { createdByForm: false ,profileType: ProfilType.PROPRIETAIRE }
   );
 
   revalidatePath("/interface/clients");
@@ -375,7 +375,7 @@ export async function createFullClient(data: unknown) {
             "CLIENT",
             client.id,
             user.id,
-            { createdByForm: false }
+            { createdByForm: false ,profileType: ProfilType.PROPRIETAIRE }
           );
 
           revalidatePath("/interface/clients");
@@ -514,7 +514,6 @@ export async function submitOwnerForm(data: unknown) {
 
   // Chercher ou créer le locataire (seulement si email fourni)
   let tenant = null;
-  let isTenantNewlyCreated = false; // Flag pour savoir si le locataire vient d'être créé
   const rawPayload = ownerIntakeLink?.rawPayload as any;
   
   if (validated.tenantEmail) {
@@ -581,7 +580,6 @@ export async function submitOwnerForm(data: unknown) {
               email: validated.tenantEmail.trim().toLowerCase(),
             },
           });
-          isTenantNewlyCreated = true;
         }
       }
     } else if (!tenant) {
@@ -612,7 +610,6 @@ export async function submitOwnerForm(data: unknown) {
             email: validated.tenantEmail.trim().toLowerCase(),
           },
         });
-        isTenantNewlyCreated = true;
       }
     }
   }
@@ -781,32 +778,11 @@ export async function submitOwnerForm(data: unknown) {
     }
   }
 
-  // Préparer les données pour l'envoi d'email (avant le return)
-  let emailData: { tenantEmail: string; tenantFormUrl: string; tenantFirstName: string; tenantLastName: string } | null = null;
-  
-  // Envoyer l'email au locataire avec le formulaire (en arrière-plan, après le return)
-  if (tenantIntakeLink && tenant && validated.tenantEmail) {
-    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-    const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
-    
-    emailData = {
-      tenantEmail: validated.tenantEmail,
-      tenantFormUrl,
-      tenantFirstName: tenant.firstName || "",
-      tenantLastName: tenant.lastName || "",
-    };
-  }
+  // L'email au locataire est maintenant envoyé lors de la sauvegarde de l'étape 4 dans savePartialIntake
+  // Plus besoin d'envoyer l'email lors de la soumission finale
 
   // Stocker les IDs nécessaires pour les notifications en arrière-plan
   const ownerIntakeLinkId = ownerIntakeLink?.id || null;
-  const propertyId = property?.id || null;
-  const bailId = bail?.id || null;
-  const tenantId = tenant?.id || null;
-  const wasPropertyCreated = !ownerIntakeLink?.propertyId; // Si pas de propertyId dans ownerIntakeLink, c'est une création
-
-  revalidatePath("/interface/clients");
-  revalidatePath("/interface/properties");
-  revalidatePath("/interface/bails");
 
   // Retourner le résultat AVANT l'envoi d'email et les notifications pour que l'utilisateur voie le statut immédiatement
   const result = { property, bail, tenant, tenantIntakeLink };
@@ -823,51 +799,6 @@ export async function submitOwnerForm(data: unknown) {
   // Déclencher l'envoi d'email et les notifications en arrière-plan (après le return, ne bloque pas le rendu)
   Promise.resolve().then(async () => {
     try {
-      // Notification pour modification de client via formulaire intake
-      await createNotificationForAllUsers(
-        NotificationType.CLIENT_UPDATED,
-        "CLIENT",
-        validated.clientId,
-        null,
-        { createdByForm: true }
-      );
-
-      // Notification pour création/modification de bien
-      if (propertyId) {
-        const propertyNotificationType = wasPropertyCreated
-          ? NotificationType.PROPERTY_CREATED 
-          : NotificationType.PROPERTY_UPDATED;
-        await createNotificationForAllUsers(
-          propertyNotificationType,
-          "PROPERTY",
-          propertyId,
-          null,
-          { createdByForm: true }
-        );
-      }
-
-      // Notification pour modification de bail
-      if (bailId) {
-        await createNotificationForAllUsers(
-          NotificationType.BAIL_UPDATED,
-          "BAIL",
-          bailId,
-          null,
-          { createdByForm: true }
-        );
-      }
-
-      // Notification pour création de locataire (seulement si créé dans cette fonction)
-      if (tenantId && isTenantNewlyCreated) {
-        await createNotificationForAllUsers(
-          NotificationType.CLIENT_CREATED,
-          "CLIENT",
-          tenantId,
-          null,
-          { createdByForm: true }
-        );
-      }
-
       // Notification pour soumission d'intake
       if (ownerIntakeLinkId) {
         await createNotificationForAllUsers(
@@ -875,29 +806,12 @@ export async function submitOwnerForm(data: unknown) {
           "INTAKE",
           ownerIntakeLinkId,
           null,
-          { intakeTarget: "OWNER" }
+          { intakeTarget: "OWNER"}
         );
       }
 
-      // Envoyer l'email au locataire avec le formulaire
-      if (emailData) {
-        console.log(`Déclenchement de l'envoi d'email au locataire: ${emailData.tenantEmail}`);
-        console.log(`URL du formulaire: ${emailData.tenantFormUrl}`);
-        
-        await triggerTenantFormEmail({
-          to: emailData.tenantEmail,
-          firstName: emailData.tenantFirstName,
-          lastName: emailData.tenantLastName,
-          formUrl: emailData.tenantFormUrl,
-        });
-        
-        console.log(`✅ Email déclenché pour le locataire ${emailData.tenantEmail} avec le lien ${emailData.tenantFormUrl}`);
-      } else if (!tenant || !validated.tenantEmail) {
-        console.warn("Email non envoyé au locataire :", {
-          hasTenant: !!tenant,
-          hasTenantEmail: !!validated.tenantEmail,
-        });
-      }
+      // L'email au locataire est maintenant envoyé lors de la sauvegarde de l'étape 4 dans savePartialIntake
+      // Plus besoin d'envoyer l'email lors de la soumission finale
     } catch (error: any) {
       // Ne pas bloquer la soumission même si les notifications/emails échouent
       console.error("❌ Erreur lors des notifications/emails (en arrière-plan):", error);
@@ -1006,26 +920,13 @@ export async function submitTenantForm(data: unknown) {
       });
     }
   }
-
-  // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
-  // Plus besoin de les gérer ici
-
-  revalidatePath("/interface/clients");
   
   // Retourner le résultat AVANT les notifications pour que l'utilisateur voie le statut immédiatement
   const result = { success: true };
 
   // Déclencher les notifications en arrière-plan (après le return, ne bloque pas le rendu)
   Promise.resolve().then(async () => {
-    try {
-      // Notification pour modification de client via formulaire intake (notifier tous les utilisateurs)
-      await createNotificationForAllUsers(
-        NotificationType.CLIENT_UPDATED,
-        "CLIENT",
-        validated.clientId,
-        null, // Modifié par formulaire, notifier tous les utilisateurs
-        { createdByForm: true }
-      );
+    try {    
 
       // Notification pour soumission d'intake via formulaire
       if (updatedIntakeLinkId) {
@@ -1034,7 +935,7 @@ export async function submitTenantForm(data: unknown) {
           "INTAKE",
           updatedIntakeLinkId,
           null, // Soumis par formulaire, pas par un utilisateur
-          { intakeTarget: "TENANT" }
+          { intakeTarget: "TENANT"}
         );
       }
     } catch (error: any) {

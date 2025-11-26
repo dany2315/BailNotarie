@@ -19,19 +19,19 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { submitIntake, savePartialIntake, getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { DocumentUploaded } from "./document-uploaded";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { ownerFormSchema } from "@/lib/zod/client";
 import { ClientType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, PropertyStatus, BienType, BienLegalStatus, ProfilType } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Stepper } from "@/components/ui/stepper";
-import { ArrowLeftIcon, ArrowRightIcon, Loader2, InfoIcon, Building2, User2, Building } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, Loader2, InfoIcon, Building2, User2, Building, EditIcon } from "lucide-react";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DatePicker, formatDateToLocalString } from "@/components/ui/date-picker";
 import useIsMobile from "@/hooks/useIsMobile";
 
 type OwnerFormData = z.infer<typeof ownerFormSchema>;
@@ -47,10 +47,17 @@ const STEPS = [
 
 export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink: any }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const isMobile = useIsMobile();
+  
+  // États pour gérer le mode d'affichage (lecture seule ou édition) pour les steps 0, 1, 2 et 3
+  const [isStep0ReadOnly, setIsStep0ReadOnly] = useState(false);
+  const [isStep1ReadOnly, setIsStep1ReadOnly] = useState(false);
+  const [isStep2ReadOnly, setIsStep2ReadOnly] = useState(false);
+  const [isStep3ReadOnly, setIsStep3ReadOnly] = useState(false);
   
   // États pour stocker les données qui peuvent être rafraîchies après l'upload
   const [intakeLink, setIntakeLink] = useState(initialIntakeLink);
@@ -276,10 +283,66 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     return STEPS.length - 1;
   };
 
+  // Fonction pour vérifier si un step est complet
+  const isStepComplete = (step: number): boolean => {
+    const values = form.getValues();
+    const isEmpty = (val: any): boolean => {
+      return val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "");
+    };
+    
+    if (step === 0) {
+      // Vérifier l'étape 0: Informations de base
+      if (values.type === ClientType.PERSONNE_PHYSIQUE) {
+        return !isEmpty(values.type) && !isEmpty(values.firstName) && !isEmpty(values.lastName) && 
+               !isEmpty(values.email) && !isEmpty(values.phone) && !isEmpty(values.fullAddress);
+      } else if (values.type === ClientType.PERSONNE_MORALE) {
+        return !isEmpty(values.type) && !isEmpty(values.legalName) && !isEmpty(values.email) && 
+               !isEmpty(values.phone) && !isEmpty(values.fullAddress);
+      }
+      return false;
+    }
+    
+    if (step === 1) {
+      // Vérifier l'étape 1: Informations complémentaires
+      if (values.type === ClientType.PERSONNE_PHYSIQUE) {
+        const baseComplete = !isEmpty(values.profession) && !isEmpty(values.familyStatus) && 
+                            !isEmpty(values.birthPlace) && !isEmpty(values.birthDate) && !isEmpty(values.nationality);
+        if (values.familyStatus === FamilyStatus.MARIE) {
+          return baseComplete && !isEmpty(values.matrimonialRegime);
+        }
+        return baseComplete;
+      } else if (values.type === ClientType.PERSONNE_MORALE) {
+        return !isEmpty(values.registration) && !isEmpty(values.nationality);
+      }
+      return false;
+    }
+    
+    if (step === 2) {
+      // Vérifier l'étape 2: Informations du bien
+      return !isEmpty(values.propertyFullAddress) && !isEmpty(values.propertySurfaceM2) && 
+             !isEmpty(values.propertyType) && !isEmpty(values.propertyLegalStatus);
+    }
+    
+    if (step === 3) {
+      // Vérifier l'étape 3: Informations du bail
+      return !isEmpty(values.bailType) && !isEmpty(values.bailRentAmount) && 
+             !isEmpty(values.bailEffectiveDate) && !isEmpty(values.bailMonthlyCharges) && 
+             !isEmpty(values.bailSecurityDeposit) && !isEmpty(values.bailPaymentDay);
+    }
+    
+    return false;
+  };
+
   // Initialiser currentStep avec la première étape incomplète
   useEffect(() => {
     const firstIncompleteStep = getFirstIncompleteStep();
     setCurrentStep(firstIncompleteStep);
+    
+    // Initialiser les modes lecture seule pour les steps 0, 1, 2 et 3 si les données sont complètes
+    setIsStep0ReadOnly(isStepComplete(0));
+    setIsStep1ReadOnly(isStepComplete(1));
+    setIsStep2ReadOnly(isStepComplete(2));
+    setIsStep3ReadOnly(isStepComplete(3));
   }, []);
 
   // Réinitialiser matrimonialRegime si familyStatus change et n'est plus MARIE
@@ -636,7 +699,28 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
         (initialValues.current as any)[key] = currentFormValues[key as keyof OwnerFormData];
       });
       
+      // Si on vient de sauvegarder un step et qu'il est maintenant complet, passer en mode lecture seule
+      if (currentStep === 0 && isStepComplete(0)) {
+        setIsStep0ReadOnly(true);
+      } else if (currentStep === 1 && isStepComplete(1)) {
+        setIsStep1ReadOnly(true);
+      } else if (currentStep === 2 && isStepComplete(2)) {
+        setIsStep2ReadOnly(true);
+      } else if (currentStep === 3 && isStepComplete(3)) {
+        setIsStep3ReadOnly(true);
+      }
+      
       toast.success("Données enregistrées avec succès");
+      
+      // Rediriger vers la page reminder appropriée uniquement si c'est un enregistrement explicite (pas automatique)
+      if (!skipIfUnchanged) {
+        const isFromCommencer = pathname?.includes("/commencer/proprietaire");
+        if (isFromCommencer) {
+          router.push(`/commencer/reminder?token=${intakeLink.token}`);
+        } else {
+          router.push(`/intakes/${intakeLink.token}/reminder`);
+        }
+      }
       } catch (error: any) {
         const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
         
@@ -1047,8 +1131,11 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
         token: intakeLink.token,
         payload: data,
       });
-      toast.success("Formulaire soumis avec succès");
-      router.push(`/intakes/${intakeLink.token}/success`);
+      if(window.location.pathname.includes("/commencer")) {
+        router.push(`/commencer/success?token=${intakeLink.token}`);
+      } else {
+        router.push(`/intakes/${intakeLink.token}/success`);
+      }
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Erreur lors de la soumission";
       toast.error(errorMessage);
@@ -1081,15 +1168,336 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
     }
   };
 
+  // Vue en lecture seule pour le step 0
+  const renderBasicInfoReadOnly = () => {
+    const values = form.getValues();
+    const currentClientType = values.type || clientType;
+    
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Informations propriétaire</CardTitle>
+              <CardDescription>Informations de base</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsStep0ReadOnly(false)}
+              className="flex items-center gap-2"
+            >
+              <EditIcon className="h-4 w-4" />
+              Modifier
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label>Type de client</Label>
+            <div className="text-sm font-medium">
+              {currentClientType === ClientType.PERSONNE_PHYSIQUE ? "Personne physique" : "Personne morale"}
+            </div>
+          </div>
+          
+          {currentClientType === ClientType.PERSONNE_PHYSIQUE ? (
+            <div className="grid gap-4 grid-cols-2">
+              <div className="space-y-2">
+                <Label>Prénom</Label>
+                <div className="text-sm">{values.firstName || "-"}</div>
+              </div>
+              <div className="space-y-2">
+                <Label>Nom</Label>
+                <div className="text-sm">{values.lastName || "-"}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Raison sociale</Label>
+              <div className="text-sm">{values.legalName || "-"}</div>
+            </div>
+          )}
+          
+          <div className="space-y-2">
+            <Label>Adresse complète</Label>
+            <div className="text-sm whitespace-pre-line">{values.fullAddress || "-"}</div>
+          </div>
+          
+          <div className="grid gap-4 grid-cols-2">
+            <div className="space-y-2">
+              <Label>Téléphone</Label>
+              <div className="text-sm">{values.phone || "-"}</div>
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <div className="text-sm">{values.email || "-"}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Vue en lecture seule pour le step 1
+  const renderAdditionalInfoReadOnly = () => {
+    const values = form.getValues();
+    const currentClientType = values.type || clientType;
+    
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Informations propriétaire</CardTitle>
+              <CardDescription>Informations complémentaires</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsStep1ReadOnly(false)}
+              className="flex items-center gap-2"
+            >
+              <EditIcon className="h-4 w-4" />
+              Modifier
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {currentClientType === ClientType.PERSONNE_PHYSIQUE ? (
+            <>
+              <div className="space-y-2">
+                <Label>Profession</Label>
+                <div className="text-sm">{values.profession || "-"}</div>
+              </div>
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Situation familiale</Label>
+                  <div className="text-sm">
+                    {values.familyStatus ? values.familyStatus.replace(/_/g, " ") : "-"}
+                  </div>
+                </div>
+                {values.familyStatus === FamilyStatus.MARIE && (
+                  <div className="space-y-2">
+                    <Label>Régime matrimonial</Label>
+                    <div className="text-sm">
+                      {values.matrimonialRegime ? values.matrimonialRegime.replace(/_/g, " ") : "-"}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Lieu de naissance</Label>
+                  <div className="text-sm">{values.birthPlace || "-"}</div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Date de naissance</Label>
+                  <div className="text-sm">
+                    {values.birthDate 
+                      ? new Date(values.birthDate).toLocaleDateString('fr-FR', { 
+                          day: '2-digit', 
+                          month: '2-digit', 
+                          year: 'numeric' 
+                        })
+                      : "-"}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Nationalité</Label>
+                <div className="text-sm">{values.nationality || "-"}</div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label>SIREN/SIRET</Label>
+                <div className="text-sm">{values.registration || "-"}</div>
+              </div>
+              <div className="space-y-2">
+                <Label>Nationalité</Label>
+                <div className="text-sm">{values.nationality || "-"}</div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Vue en lecture seule pour le step 2
+  const renderPropertyInfoReadOnly = () => {
+    const values = form.getValues();
+    
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Informations du bien</CardTitle>
+              <CardDescription>Informations du bien</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsStep2ReadOnly(false)}
+              className="flex items-center gap-2"
+            >
+              <EditIcon className="h-4 w-4" />
+              Modifier
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {values.propertyLabel && (
+            <div className="space-y-2">
+              <Label>Libellé</Label>
+              <div className="text-sm">{values.propertyLabel}</div>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label>Adresse complète du bien</Label>
+            <div className="text-sm whitespace-pre-line">{values.propertyFullAddress || "-"}</div>
+          </div>
+          <div className="grid gap-4 grid-cols-2">
+            <div className="space-y-2">
+              <Label>Type d'habitat</Label>
+              <div className="text-sm">
+                {values.propertyType === BienType.APPARTEMENT ? "Immeuble collectif" : 
+                 values.propertyType === BienType.MAISON ? "Immeuble individuel" : "-"}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Surface</Label>
+              <div className="text-sm">{values.propertySurfaceM2 ? `${values.propertySurfaceM2} m²` : "-"}</div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Régime juridique</Label>
+            <div className="text-sm">
+              {values.propertyLegalStatus === BienLegalStatus.PLEIN_PROPRIETE ? "Monopropriété" :
+               values.propertyLegalStatus === BienLegalStatus.CO_PROPRIETE ? "Copropriété" :
+               values.propertyLegalStatus === BienLegalStatus.LOTISSEMENT ? "Lotissement" : "-"}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Vue en lecture seule pour le step 3
+  const renderBailInfoReadOnly = () => {
+    const values = form.getValues();
+    
+    const getBailTypeDisplay = (type: BailType | undefined) => {
+      if (!type) return "-";
+      if (type === BailType.BAIL_MEUBLE_9_MOIS) return "Bail étudiant (9 mois, meublé)";
+      if (type === BailType.BAIL_NU_6_ANS) return "Bail nu 6 ans (SCI)";
+      if (type === BailType.BAIL_NU_3_ANS) return "Bail nu 3 ans";
+      if (type === BailType.BAIL_MEUBLE_1_ANS) return "Bail meublé 1 an";
+      return type;
+    };
+    
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Informations du bail</CardTitle>
+              <CardDescription>Informations du bail</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsStep3ReadOnly(false)}
+              className="flex items-center gap-2"
+            >
+              <EditIcon className="h-4 w-4" />
+              Modifier
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 grid-cols-2">
+            <div className="space-y-2">
+              <Label>Type de bail</Label>
+              <div className="text-sm">{getBailTypeDisplay(values.bailType)}</div>
+            </div>
+            <div className="space-y-2">
+              <Label>Jour de paiement</Label>
+              <div className="text-sm">{values.bailPaymentDay || "-"}</div>
+            </div>
+          </div>
+          <div className="grid gap-4 grid-cols-2">
+            <div className="space-y-2">
+              <Label>Date de prise d'effet</Label>
+              <div className="text-sm">
+                {values.bailEffectiveDate 
+                  ? new Date(values.bailEffectiveDate).toLocaleDateString('fr-FR', { 
+                      day: '2-digit', 
+                      month: '2-digit', 
+                      year: 'numeric' 
+                    })
+                  : "-"}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Date de fin du bail</Label>
+              <div className="text-sm">
+                {values.bailEndDate 
+                  ? new Date(values.bailEndDate).toLocaleDateString('fr-FR', { 
+                      day: '2-digit', 
+                      month: '2-digit', 
+                      year: 'numeric' 
+                    })
+                  : "-"}
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-4 grid-cols-2">
+            <div className="space-y-2">
+              <Label>Montant du loyer HC</Label>
+              <div className="text-sm">{values.bailRentAmount ? `${values.bailRentAmount} €` : "-"}</div>
+            </div>
+            <div className="space-y-2">
+              <Label>Charges mensuelles</Label>
+              <div className="text-sm">{values.bailMonthlyCharges ? `${values.bailMonthlyCharges} €` : "-"}</div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Dépôt de garantie</Label>
+            <div className="text-sm">{values.bailSecurityDeposit ? `${values.bailSecurityDeposit} €` : "-"}</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
+        // Si le step 0 est complet et en mode lecture seule, afficher la vue lecture seule
+        if (isStepComplete(0) && isStep0ReadOnly) {
+          return renderBasicInfoReadOnly();
+        }
         return renderBasicInfo();
       case 1:
+        // Si le step 1 est complet et en mode lecture seule, afficher la vue lecture seule
+        if (isStepComplete(1) && isStep1ReadOnly) {
+          return renderAdditionalInfoReadOnly();
+        }
         return renderAdditionalInfo();
       case 2:
+        // Si le step 2 est complet et en mode lecture seule, afficher la vue lecture seule
+        if (isStepComplete(2) && isStep2ReadOnly) {
+          return renderPropertyInfoReadOnly();
+        }
         return renderPropertyInfo();
       case 3:
+        // Si le step 3 est complet et en mode lecture seule, afficher la vue lecture seule
+        if (isStepComplete(3) && isStep3ReadOnly) {
+          return renderBailInfoReadOnly();
+        }
         return renderBailInfo();
       case 4:
         return renderTenantInfo();
@@ -1360,17 +1768,17 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
                   render={({ field }) => (
                     <DatePicker
                       id="birthDate"
-                      value={field.value ? (typeof field.value === 'string' ? field.value : field.value.toISOString().split('T')[0]) : undefined}
+                      value={field.value ? (typeof field.value === 'string' ? field.value : formatDateToLocalString(field.value)) : undefined}
                       onChange={(date) => {
                         if (date) {
-                          // Convertir en format string YYYY-MM-DD pour le formulaire
-                          const dateString = date.toISOString().split('T')[0]
+                          // Convertir en format string YYYY-MM-DD en heure locale
+                          const dateString = formatDateToLocalString(date)
                           field.onChange(dateString)
                         } else {
                           field.onChange(undefined)
                         }
                       }}
-                      placeholder="Sélectionner la date de naissance"
+                      placeholder="Date de naissance"
                       fromYear={1900}
                       toYear={new Date().getFullYear()}
                     />
@@ -1617,14 +2025,14 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
                   value={field.value || undefined}
                   onChange={(date) => {
                     if (date) {
-                      // Convertir en format string YYYY-MM-DD pour le formulaire
-                      const dateString = date.toISOString().split('T')[0]
+                      // Convertir en format string YYYY-MM-DD en heure locale
+                      const dateString = formatDateToLocalString(date)
                       field.onChange(dateString)
                     } else {
                       field.onChange("")
                     }
                   }}
-                  placeholder="Sélectionner la date de prise d'effet"
+                  placeholder="Date de prise d'effet"
                 />
               )}
             />
@@ -1643,8 +2051,8 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
                   value={field.value || undefined}
                   onChange={(date) => {
                     if (date) {
-                      // Convertir en format string YYYY-MM-DD pour le formulaire
-                      const dateString = date.toISOString().split('T')[0]
+                      // Convertir en format string YYYY-MM-DD en heure locale
+                      const dateString = formatDateToLocalString(date)
                       field.onChange(dateString)
                     } else {
                       field.onChange("")
@@ -2069,6 +2477,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
   };
 
   return (
+
     <div className="relative">
       {/* Loader overlay */}
       {(isSaving || isSubmitting) && (
@@ -2114,11 +2523,11 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       <form 
         onSubmit={form.handleSubmit(onSubmit, onError)} 
         onKeyDown={handleFormKeyDown}
-        className="space-y-18 "
+        className="space-y-4"
       >
       {/* Stepper fixe */}
-      <div className="fixed top-27 sm:top-40 left-0 right-0 bg-background border-b border-border/40 z-40 pb-4 sm:pb-6">
-        <div className="max-w-2xl mx-auto px-3 sm:px-4 pt-4">
+      <div className="fixed top-18 left-0 right-0 bg-background border-b border-border/40 z-40 w-full ">
+        <div className="w-full">
           <Stepper 
             steps={STEPS} 
             currentStep={currentStep}
@@ -2134,7 +2543,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       
       {/* Espace pour le stepper fixe */}
       
-      <div className="mt-32 sm:mt-48">     
+      <div >     
         {renderStepContent()}
       </div> 
       {/* Inputs file cachés pour les refs */}
@@ -2151,7 +2560,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
       <input type="file" ref={insuranceOwnerRef} name="insuranceOwner" className="hidden" />
       <input type="file" ref={ribOwnerRef} name="ribOwner" className="hidden" />
 
-      <div className="fixed bottom-0 left-0 right-0  p-3 sm:p-4 z-50">
+      <div className=" p-3 sm:p-4 z-50">
         <div className="max-w-2xl mx-auto flex flex-row justify-between gap-3 sm:gap-4">
           <div>
             {currentStep > 0 && (
@@ -2201,7 +2610,7 @@ export function OwnerIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink:
         </div>
       </div>
       {/* Espace pour éviter que le contenu soit caché sous les boutons fixes */}
-      <div className="h-20 sm:h-24" />
+      <div className="h-10" />
       </form>
     </div>
   );

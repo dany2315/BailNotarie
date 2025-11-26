@@ -10,7 +10,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import { Star, Quote, MapPin, Calendar, ThumbsUp, Award, Phone } from "lucide-react";
+import { Star, Quote, MapPin, Calendar, ThumbsUp, Award, Phone, Clock } from "lucide-react";
 import Image from "next/image";
 
 export function TestimonialsSection() {
@@ -87,8 +87,9 @@ export function TestimonialsSection() {
 
   const stats = [
     { number: "4.9/5", label: "Note moyenne", icon: Star },
-    { number: "2000+", label: "Avis clients", icon: ThumbsUp },
-    { number: "98%", label: "Recommandent", icon: Award }
+    { number: "200+", label: "Avis clients", icon: ThumbsUp },
+    { number: "98%", label: "Recommandent", icon: Award },
+    { number: "48h", label: "Delai moyen", icon: Clock }
   ];
 
   return (
@@ -212,7 +213,7 @@ export function TestimonialsSection() {
               Rejoignez nos clients satisfaits
             </h3>
             <p className="text-gray-600 mb-6">
-              Plus de 2000 propriétaires nous font déjà confiance pour sécuriser leurs locations
+              Plus de 200 propriétaires nous font déjà confiance pour sécuriser leurs locations
             </p>
             <Button 
               onClick={() => window.location.href = 'tel:0749387756'}

@@ -127,3 +127,22 @@ export async function triggerCompletionStatusesCalculation(data: {
   });
 }
 
+/**
+ * Déclenche l'envoi d'un email de suivi de demande
+ */
+export async function triggerRequestStatusEmail(data: {
+  to: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  currentStep: string;
+  status: string;
+  propertyAddress?: string | null;
+  profilType: string;
+  intakeLinkToken?: string | null;
+}) {
+  await inngest.send({
+    name: "email/request-status.send",
+    data,
+  });
+}
+

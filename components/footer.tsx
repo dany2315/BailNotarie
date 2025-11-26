@@ -15,10 +15,13 @@ export function Footer() {
             <Link href="/" className=" w-auto rounded-lg overflow-hidden bg-white ">
               <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} className="  w-30" />
             </Link>
-            <p className="text-gray-400 text-sm">
+            <div className="text-gray-400 text-sm">
               Votre partenaire de confiance pour la création de baux notariés 
               sécurisés et authentiques.
-            </p>
+              <br />
+              <br />
+              <p>Bailnotarie n'est pas un notaire, nous sommes un service de facilitation pour les notaires.</p>
+            </div>
           </div>
 
           {/* Services */}

@@ -29,7 +29,7 @@ import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DatePicker, formatDateToLocalString } from "@/components/ui/date-picker";
 import useIsMobile from "@/hooks/useIsMobile";
 type TenantFormData = z.infer<typeof tenantFormSchema>;
 
@@ -498,6 +498,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       });
       
       toast.success("Données enregistrées avec succès");
+      
+      // Rediriger vers la page reminder uniquement si c'est un enregistrement explicite (pas automatique)
+      if (!skipIfUnchanged) {
+        router.push(`/intakes/${intakeLink.token}/reminder`);
+      }
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
       
@@ -800,7 +805,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         token: intakeLink.token,
         payload: data,
       });
-      toast.success("Formulaire soumis avec succès");
       router.push(`/intakes/${intakeLink.token}/success`);
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Erreur lors de la soumission";
@@ -867,6 +871,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return true; // En cas d'erreur, on laisse passer pour ne pas bloquer l'utilisateur
     }
   };
+
+  console.log("form.formState.defaultValues", form.formState.defaultValues);
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -1106,11 +1112,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   render={({ field }) => (
                     <DatePicker
                       id="birthDate"
-                      value={field.value ? (typeof field.value === 'string' ? field.value : field.value.toISOString().split('T')[0]) : undefined}
+                      value={field.value ? (typeof field.value === 'string' ? field.value : formatDateToLocalString(field.value)) : undefined}
                       onChange={(date) => {
                         if (date) {
-                          // Convertir en format string YYYY-MM-DD pour le formulaire
-                          const dateString = date.toISOString().split('T')[0]
+                          // Convertir en format string YYYY-MM-DD en heure locale
+                          const dateString = formatDateToLocalString(date)
                           field.onChange(dateString)
                         } else {
                           field.onChange(undefined)
@@ -1399,11 +1405,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       <form 
         onSubmit={form.handleSubmit(onSubmit, onError)} 
         onKeyDown={handleFormKeyDown}
-        className="space-y-18 "
+        className="space-y-4"
       >
       {/* Stepper fixe */}
-      <div className="fixed top-27 sm:top-40 left-0 right-0 bg-background border-b border-border/40 z-40 pb-4 sm:pb-6">
-        <div className="max-w-2xl mx-auto px-3 sm:px-4 pt-4">
+      <div className="fixed top-18 left-0 right-0 bg-background border-b border-border/40 z-40 ">
+        <div className="w-full">
           <Stepper 
             steps={STEPS} 
             currentStep={currentStep}
@@ -1419,7 +1425,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       
       {/* Espace pour le stepper fixe */}
       
-      <div className="mt-32 sm:mt-48">     
+      <div >     
         {renderStepContent()}
       </div> 
       {/* Inputs file cachés pour les refs */}
@@ -1432,7 +1438,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       <input type="file" ref={insuranceTenantRef} name="insuranceTenant" className="hidden" />
       <input type="file" ref={ribTenantRef} name="ribTenant" className="hidden" />
 
-      <div className="fixed bottom-0 left-0 right-0  p-3 sm:p-4 z-50">
+      <div className="p-3 sm:p-4 z-50">
         <div className="max-w-2xl mx-auto flex flex-row justify-between gap-3 sm:gap-4">
           <div>
             {currentStep > 0 && (
@@ -1482,7 +1488,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         </div>
       </div>
       {/* Espace pour éviter que le contenu soit caché sous les boutons fixes */}
-      <div className="h-20 sm:h-24" />
+      <div className="h-10" />
       </form>
     </div>
   );

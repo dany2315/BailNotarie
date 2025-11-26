@@ -16,6 +16,8 @@
     "update-images": "node update-articles-images.js",
     "migrate:deploy": "npx prisma migrate deploy",
     "prisma:generate": "npx prisma generate",
+
+    
     "vercel-build": "npm run migrate:deploy && npm run prisma:generate && npm run build"
   },
   "dependencies": {

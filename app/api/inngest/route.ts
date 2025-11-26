@@ -2,7 +2,7 @@ import { serve } from "inngest/next";
 import { inngest } from "@/lib/inngest/client";
 import { sendContactConfirmationEmail, sendContactNotificationEmail } from "@/lib/inngest/functions/contact";
 import { sendNotificationEmail } from "@/lib/inngest/functions/notifications";
-import { sendOwnerFormEmail, sendTenantFormEmail } from "@/lib/inngest/functions/intake-forms";
+import { sendOwnerFormEmail, sendTenantFormEmail, sendRequestStatusEmail } from "@/lib/inngest/functions/intake-forms";
 import { sendLeadConversionEmail } from "@/lib/inngest/functions/leads";
 import { 
   calculateClientCompletionStatus, 
@@ -18,6 +18,7 @@ export const { GET, POST, PUT } = serve({
     sendNotificationEmail,
     sendOwnerFormEmail,
     sendTenantFormEmail,
+    sendRequestStatusEmail,
     sendLeadConversionEmail,
     calculateClientCompletionStatus,
     calculatePropertyCompletionStatus,

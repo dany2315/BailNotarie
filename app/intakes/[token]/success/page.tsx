@@ -4,6 +4,8 @@ import { CheckCircle2, Mail } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Header } from "@/components/header";
+import { Footer } from "@/components/footer";
 
 export default async function IntakeSuccessPage({
   params,
@@ -20,6 +22,8 @@ export default async function IntakeSuccessPage({
   // Vérifier que le formulaire a bien été soumis
   if (intakeLink.status !== "SUBMITTED") {
     return (
+      <div className="min-h-screen bg-background">
+      <Header />
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <Card className="max-w-md w-full">
           <CardContent className="pt-6">
@@ -32,6 +36,8 @@ export default async function IntakeSuccessPage({
           </CardContent>
         </Card>
       </div>
+      <Footer />
+    </div>
     );
   }
 
@@ -42,21 +48,7 @@ export default async function IntakeSuccessPage({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header discret avec logo */}
-      <header className="border-b border-border/40 pt-4 px-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-center">
-            <Image
-              src="/logoLarge.png"
-              alt="BailNotarie"
-              width={120}
-              height={36}
-              className="h-20 w-auto opacity-80"
-              priority
-            />
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <div className="flex items-center justify-center p-4 min-h-[calc(100vh-80px)]">
         <Card className="max-w-2xl w-full">
@@ -82,38 +74,36 @@ export default async function IntakeSuccessPage({
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   {isOwner ? (
                     <>
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
+                      <li className="flex flex-row items-center justify-start  gap-3">
+                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">1</div>
                         <span>Vos informations ont été enregistrées avec succès.</span>
                       </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
-                        <span>Les informations de votre bien immobilier ont été créées.</span>
+                      <li className="flex flex-row items-center justify-start  gap-3">
+                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">2</div>
+                        <span>Un email a été envoyé au locataire pour qu'il remplisse son formulaire.</span>
                       </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
-                        <span>Un bail a été créé avec les informations fournies.</span>
+                      <li className="flex flex-row items-center justify-start  gap-3">
+                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">3</div>
+                        <span>Nous procédons à la vérification de vos informations et des pièces transmises.En cas de document manquant, nous vous en informerons.</span>
                       </li>
-                      {intakeLink.bail && (
-                        <li className="flex items-start gap-2">
-                          <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
-                          <span>Un email a été envoyé au locataire pour qu'il remplisse son formulaire.</span>
-                        </li>
-                      )}
+                      <li className="flex flex-row items-center justify-start  gap-3">
+                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">4</div>
+                        <span>Un rendez‑vous en visioconférence avec un notaire partenaire vous sera proposé pour la signature de votre acte authentique avec votre locataire</span>
+                      </li>
                     </>
                   ) : (
                     <>
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
+                      <li className="flex flex-row items-center justify-start  gap-3">
+                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">1</div>
                         <span>Vos informations ont été enregistrées avec succès.</span>
                       </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
-                        <span>Vos documents ont été téléchargés et sont en cours de traitement.</span>
+                      <li className="flex flex-row items-center justify-start  gap-3">
+                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">2</div>
+                        <span>Nous procédons à la vérification de vos informations et des pièces transmises.En cas de document manquant, nous vous en informerons.</span>
                       </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
-                        <span>Votre dossier de location est maintenant complet.</span>
+                      <li className="flex flex-row items-center justify-start  gap-3">
+                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">3</div>
+                        <span>Un rendez‑vous en visioconférence avec un notaire partenaire vous sera proposé pour la signature de votre acte authentique avec votre propriétaire</span>
                       </li>
                     </>
                   )}
@@ -132,7 +122,7 @@ export default async function IntakeSuccessPage({
             <div className="flex flex-col gap-2">
 
               <Button asChild >
-                <a href="mailto:contact@bailnotarie.fr" target="_blank">
+                <a href="mailto:contact@bailnotarie.fr" target="_blank" className="flex flex-row items-center justify-center  gap-2">
                   <Mail className="size-4" />
                   Contacter nous
                 </a>  
@@ -149,6 +139,7 @@ export default async function IntakeSuccessPage({
         </CardContent>
       </Card>
       </div>
+      <Footer />
     </div>
   );
 }

@@ -11,7 +11,7 @@ export function CTASection() {
   };
 
   return (
-    <section className="py-20 bg-gradient-to-br from-blue-600 to-indigo-700 relative overflow-hidden">
+    <section className="py-20 bg-gradient-to-br from-[#4373f5] to-[#658bf0] relative overflow-hidden">
       {/* Image de fond avec overlay */}
       <div className="absolute inset-0 z-0">
         <Image
@@ -20,7 +20,7 @@ export function CTASection() {
           fill
           className="object-cover "
         />
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/80 to-indigo-700/80"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-[#4373f5]/80 to-[#658bf0]/80"></div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -45,24 +45,24 @@ export function CTASection() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
+
+            <Button  
+              size="lg"
+              onClick={scrollToContact}
+              className="bg-[#4373f5] hover:bg-blue-500 text-white sm:text-lg text-md px-8 py-3 h-auto rounded-xl shadow-md transition-all duration-200"
+            >
+              Constituer mon dossier gratuitement
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
             <PhoneButton 
               phoneNumber="07 49 38 77 56" 
               size="lg"
-              className="text-lg px-8 py-4 bg-green-600 hover:bg-green-700 cursor-pointer"
+              className="sm:text-lg text-md px-8 py-3 h-auto border-2 border-blue-200/60 bg-white shadow-md text-[#4373f5] rounded-xl hover:bg-blue-100 transition-all duration-200"
             />
-            <Button 
-              variant="outline" 
-              size="lg"
-              onClick={scrollToContact}
-              className="text-lg px-8 py-4 border-2 cursor-pointer border-white  hover:bg-white text-blue-600 hover:text-blue-800 transition-all duration-300"
-            >
-              Demander un devis gratuit
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
           </div>
 
           <p className="text-sm opacity-75 mt-6">
-            Devis gratuit • Sans engagement • Réponse sous 24h
+            Constitution gratuite • Sans engagement • Réponse sous 24h
           </p>
         </div>
       </div>

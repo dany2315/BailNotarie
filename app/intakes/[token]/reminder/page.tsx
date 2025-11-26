@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
+import { Header } from "@/components/header";
+import { Footer } from "@/components/footer";
 
 export default async function IntakeReminderPage({
   params,
@@ -22,21 +24,7 @@ export default async function IntakeReminderPage({
   if (intakeLink.status === "SUBMITTED") {
     return (
       <div className="min-h-screen bg-background">
-        {/* Header discret avec logo */}
-        <header className="border-b border-border/40 py-4 px-4">
-          <div className="max-w-md mx-auto">
-            <div className="flex items-center justify-center">
-              <Image
-                src="/logoSans.png"
-                alt="BailNotarie"
-                width={120}
-                height={36}
-                className="h-8 w-auto opacity-80"
-                priority
-              />
-            </div>
-          </div>
-        </header>
+      <Header />
 
         <div className="flex items-center justify-center p-4 min-h-[calc(100vh-80px)]">
           <Card className="max-w-md w-full">
@@ -60,6 +48,7 @@ export default async function IntakeReminderPage({
           </CardContent>
         </Card>
         </div>
+        <Footer />
       </div>
     );
   }
@@ -71,29 +60,15 @@ export default async function IntakeReminderPage({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header discret avec logo */}
-      <header className="border-b border-border/40 pt-4 px-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-center">
-            <Image
-              src="/logoLarge.png"
-              alt="BailNotarie"
-              width={120}
-              height={36}
-              className="h-20 w-auto opacity-80"
-              priority
-            />
-          </div>
-        </div>
-      </header>
+      <Header />
 
-      <div className="flex items-center justify-center p-4 min-h-[calc(100vh-80px)]">
+      <div className="flex items-center justify-center px-4 py-8 h-auto">
         <Card className="max-w-2xl w-full">
           <CardContent className="pt-6">
-            <div className="text-center space-y-6">
+            <div className="text-center space-y-4">
               <div className="flex justify-center">
                 <div className="rounded-full bg-amber-100 dark:bg-amber-900/20 p-4">
-                  <AlertCircle className="size-12 text-amber-600 dark:text-amber-400" />
+                  <AlertCircle className="size-8 text-amber-600 dark:text-amber-400" />
                 </div>
               </div>
 
@@ -104,34 +79,25 @@ export default async function IntakeReminderPage({
               </p>
             </div>
 
-            <div className="bg-muted/50 rounded-lg p-6 space-y-4 text-left">
+            <div className="bg-muted/50 rounded-lg p-6 space-y-4 text-left mb-0">
               <div>
                 <h2 className="font-semibold mb-3 text-lg">⚠️ Important : Terminez votre formulaire</h2>
                 <p className="text-sm text-muted-foreground mb-4">
                   Pour que nous puissions traiter votre demande de bail notarié, il est essentiel que vous complétiez tous les champs du formulaire et que vous soumettiez le formulaire final.
                 </p>
                 
-                <div className="space-y-3">
-                  <h3 className="font-medium">Ce qu'il vous reste à faire :</h3>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
-                      <span>Compléter tous les champs obligatoires du formulaire</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
-                      <span>Vérifier que tous vos documents sont bien téléchargés</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
-                      <span>Cliquer sur le bouton "Soumettre" pour finaliser votre demande</span>
-                    </li>
-                  </ul>
-                </div>
               </div>
             </div>
 
             <div className="pt-4 space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-900 dark:text-blue-100 font-bold mb-1">
+                  💡 Pour continuer plus tard
+                </p>
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  Vous pouvez reprendre votre formulaire à tout moment en utilisant <span className="font-bold">le lien que vous avez reçu par email</span>. Vos données sont sauvegardées et seront conservées.
+                </p>
+              </div>
               <p className="text-sm text-muted-foreground">
                 Une fois le formulaire complété et soumis, nous pourrons commencer le traitement de votre demande de bail notarié.
               </p>
@@ -145,6 +111,7 @@ export default async function IntakeReminderPage({
         </CardContent>
       </Card>
       </div>
+      <Footer />
     </div>
   );
 }

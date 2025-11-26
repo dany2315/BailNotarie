@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "postgresql" 
   url      = env("DATABASE_URL_PRISMA_DATABASE_URL")
 }
 
@@ -113,6 +113,7 @@ enum CommentTarget {
 enum NotificationType {
   COMMENT_CREATED
   CLIENT_CREATED
+  CLIENT_CREATED_FROM_LANDING_PAGE
   CLIENT_UPDATED
   CLIENT_DELETED
   PROPERTY_CREATED
