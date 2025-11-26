@@ -4,6 +4,7 @@ import * as React from "react";
 import { ArrowRight, LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CardFlipProps {
   title: string;
@@ -33,15 +34,52 @@ export function CardFlip({
   handleStart,
 }: CardFlipProps) {
   const [isFlipped, setIsFlipped] = React.useState(false);
+  const [isHovered, setIsHovered] = React.useState(false);
+  const [isVisible, setIsVisible] = React.useState(false);
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+
+  // Intersection Observer pour détecter la visibilité sur mobile
+  React.useEffect(() => {
+    if (!isMobile) return;
+    
+    const cardElement = cardRef.current;
+    if (!cardElement) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.intersectionRatio >= 0.8);
+      },
+      {
+        threshold: 0.8, // ✅ 3/4 visibles avant activation
+      }
+    );
+
+    observer.observe(cardElement);
+
+    return () => {
+      observer.unobserve(cardElement);
+    };
+  }, [isMobile]);
+
+  // Logique de flip : sur mobile basée sur la visibilité, sur desktop basée sur le hover
+  React.useEffect(() => {
+    if (isMobile) {
+      setIsFlipped(isVisible);
+    } else {
+      setIsFlipped(isHovered);
+    }
+  }, [isMobile, isVisible, isHovered]);
 
   return (
     <div 
+      ref={cardRef}
       className="perspective-2000 h-[520px] sm:h-[520px] w-full "
-      onMouseEnter={() => setIsFlipped(true)}
-      onMouseLeave={() => setIsFlipped(false)}
+      onMouseEnter={() => !isMobile && setIsHovered(true)}
+      onMouseLeave={() => !isMobile && setIsHovered(false)}
     >
       <div 
-        className="relative h-full w-full preserve-3d transition-transform duration-700"
+        className="relative h-full w-full preserve-3d transition-transform duration-1000 sm:duration-700 ease-out"
         style={{
           transformStyle: "preserve-3d",
           transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
@@ -49,7 +87,7 @@ export function CardFlip({
       >
         {/* Front of card */}
         <div className="absolute inset-0 backface-hidden rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-white to-gray-50 p-8 shadow-lg">
-          <div className="flex h-full flex-col items-center justify-center text-center">
+          <div className="relative flex h-full flex-col items-center justify-center text-center">
             <div 
               className={cn("mb-6 flex h-24 w-24 items-center justify-center rounded-2xl shadow-md transition-transform duration-300", iconBg)}
               style={{
@@ -67,6 +105,9 @@ export function CardFlip({
             <p className="text-lg text-gray-600">
               {subtitle}
             </p>
+            <div className={`absolute bottom-0 right-0 bg-accent p-2 rounded-4xl ${iconBg}`}>
+                <ArrowRight className=" h-5 w-5" />
+            </div>
           </div>
         </div>
 
