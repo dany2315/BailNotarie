@@ -89,9 +89,7 @@ export function HeroSectionNew() {
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-2xl font-bold text-gray-900">Processus simplifié</h3>
-                  <Badge className="bg-green-100 text-green-700 border-0">
-                    Gratuit
-                  </Badge>
+                 
                 </div>
 
                 <div className="space-y-4">
