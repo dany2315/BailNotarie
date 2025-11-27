@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
-    default: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
+    default: "BailNotarie - Procédure de bail notarié en ligne, avec force exécutoire immédiate",
     template: "%s | BailNotarie"
   },
   description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",

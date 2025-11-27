@@ -39,16 +39,15 @@ export function HeroSectionNew() {
                 id="hero-bail-notarie-title"
                 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight"
               >
-                Votre bail notarié en
-                <span className="text-[#4373f5]"> 48h</span>{" "}
-                <span className="text-[#4373f5]">100% en ligne</span>
+                Procédure de bail notarié
+                <span className="text-[#4373f5]"> 100% en ligne</span>
               </h1>
 
               {/* Phrase SEO */}
               <p className="text-lg md:text-2xl text-gray-700 leading-relaxed">
                 Service dédié aux{" "}
                 <strong className="font-semibold text-gray-900">
-                 propriétaire, locataire
+                 propriétaires
                 </strong>{" "}
                 pour sécuriser leur{" "}
                 <strong className="font-semibold text-gray-900">
@@ -58,7 +57,7 @@ export function HeroSectionNew() {
 
               {/* Phrase action / UX */}
               <p className="text-lg text-gray-600 leading-relaxed">
-                Constitution de dossier{" "}
+                Constitution du dossier{" "}
                 <strong className="font-semibold text-gray-900">100% en ligne</strong>,{" "}
                 transmission au{" "}
                 <strong className="font-semibold text-gray-900">notaire</strong> et{" "}
