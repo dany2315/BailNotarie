@@ -66,18 +66,18 @@ export function Blog1Content() {
             <div className="bg-white rounded-lg p-4 border border-gray-200">
               <h4 className="font-semibold text-gray-900 mb-2">Pour le locataire</h4>
               <ul className="space-y-1 text-sm text-gray-700">
-                <li>• Certitude sur le statut légal du bail</li>
-                <li>• Bonne rédaction du contrat</li>
-                <li>• Transparence totale</li>
+                <li>Certitude sur le statut légal du bail</li>
+                <li>Bonne rédaction du contrat</li>
+                <li>Transparence totale</li>
               </ul>
             </div>
             
             <div className="bg-white rounded-lg p-4 border border-gray-200">
               <h4 className="font-semibold text-gray-900 mb-2">Pour le bailleur</h4>
               <ul className="space-y-1 text-sm text-gray-700">
-                <li>• Obligations respectées</li>
-                <li>• Clauses bien formalisées</li>
-                <li>• Protection contre contestations</li>
+                <li>Obligations respectées</li>
+                <li>Clauses bien formalisées</li>
+                <li>Protection contre contestations</li>
               </ul>
             </div>
           </div>

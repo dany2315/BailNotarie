@@ -39,7 +39,9 @@ export function Blog4Content() {
           <div className="grid grid-cols-1 gap-12 items-center">
             {/* Tableau de comparaison */}
               <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                <table className="w-full border-collapse" role="table" aria-label="Tableau comparatif entre bail notarié renforcé et bail classique">
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle">
+                    <table className="w-full border-collapse min-w-[400px]" role="table" aria-label="Tableau comparatif entre bail notarié renforcé et bail classique">
                   <caption className="sr-only">Comparaison détaillée des caractéristiques entre le bail notarié renforcé et le bail classique</caption>
                   <thead>
                     <tr className="bg-gray-50">
@@ -92,6 +94,8 @@ export function Blog4Content() {
                     })}
                   </tbody>
                 </table>
+                  </div>
+                </div>
               </div>
 
 
