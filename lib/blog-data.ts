@@ -51,8 +51,8 @@ export const blogData = [
         content: "", // Le contenu est maintenant géré par le composant React
         readTime: 5, // Temps de lecture estimé en minutes
         metaTitle: "Bail Notarié : Qu'est-ce que c'est et pourquoi le choisir ?",
-        metaDescription: "Découvrez les avantages du bail notarié et pourquoi il peut être un choix judicieux pour sécuriser votre location immobilière.",
-        metaKeywords: "bail notarié, avantages, sécurité, location immobilière, notaire",
+        metaDescription: "Découvrez ce qu’est un bail notarié, sa valeur juridique et pourquoi il sécurise votre location grâce à l’acte authentique et à la force exécutoire.",
+        metaKeywords: "bail notarié définition, qu’est-ce qu’un bail notarié, contrat de location notarié, bail signé chez notaire, valeur juridique bail notarié, force exécutoire bail, sécurité juridique location, acte authentique location, bail notarié France",
         imageUrl: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-01"),
@@ -66,9 +66,8 @@ export const blogData = [
         content: "", // Le contenu est maintenant géré par le composant React
         readTime: 6, // Temps de lecture estimé en minutes
         metaTitle: "Les étapes pour établir un bail notarié : guide complet",
-        metaDescription: "Guide étape par étape pour établir un bail notarié, de la préparation des documents à la signature chez le notaire.",
-        metaKeywords: "bail notarié, étapes, guide, notaire, préparation, documents",
-        imageUrl: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=400&fit=crop",
+        metaDescription: "Toutes les étapes pour créer un bail notarié : dossier, documents, procédure chez le notaire et signature. Guide clair pour sécuriser votre location.",
+        metaKeywords: "étapes bail notarié, comment faire un bail notarié, procédure bail notarié, dossier bail notarié, documents bail notarié, signature bail chez notaire, créer un bail notarié en ligne, bail notarié processus, bail authentique démarches",        imageUrl: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-10"),
         categoryId: "1",
@@ -81,8 +80,8 @@ export const blogData = [
         content: "", // Le contenu est maintenant géré par le composant React
         readTime: 4, // Temps de lecture estimé en minutes
         metaTitle: "Force exécutoire : l'avantage majeur du bail notarié",
-        metaDescription: "Comprendre la force exécutoire du bail notarié et ses implications concrètes en cas de litige locatif.",
-        metaKeywords: "bail notarié, force exécutoire, propriétaire, locataire, notaire",
+        metaDescription: "Découvrez comment le bail notarié permet d’agir sans jugement en cas d’impayés grâce à la force exécutoire et au titre exécutoire du notaire.",
+        metaKeywords: "force exécutoire bail notarié, bail ayant valeur de jugement, saisie loyers impayés, recouvrement par acte notarié, procédure sans juge loyer, titre exécutoire notaire, efficacité bail notarié, impayés locatifs solution",
         imageUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-15"),
@@ -111,8 +110,8 @@ export const blogData = [
         content: "", // Le contenu est maintenant géré par le composant React
         readTime: 6, // Temps de lecture estimé en minutes
         metaTitle: "Les obligations légales dans un bail notarié",
-        metaDescription: "Découvrez les obligations légales spécifiques au bail notarié et comment elles protègent propriétaire et locataire.",
-        metaKeywords: "bail notarié, obligations légales, propriétaire, locataire, notaire",
+        metaDescription: "Clauses obligatoires, règles légales, devoirs du bailleur et droits du locataire : tout savoir pour un bail notarié juridiquement conforme.",
+        metaKeywords: "obligations bail notarié, clauses obligatoires bail, mentions légales bail, règles du bail notarié, conformité bail notaire, devoirs bailleur, droits locataire bail notarié, erreurs fréquemment bail, validité contrat de location",
         imageUrl: "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-25"),
