@@ -45,7 +45,7 @@ export function HeroSectionNew() {
               </h1>
 
               {/* Phrase SEO */}
-              <p className="text-xl md:text-2xl text-gray-700 leading-relaxed">
+              <p className="text-lg md:text-2xl text-gray-700 leading-relaxed">
                 Service dédié aux{" "}
                 <strong className="font-semibold text-gray-900">
                   propriétaires bailleurs
@@ -82,7 +82,7 @@ export function HeroSectionNew() {
                   onClick={handleStart}
                   className="bg-[#4373f5] hover:bg-blue-700 text-white sm:text-lg text-md px-8 py-3 h-auto rounded-xl shadow-md transition-all duration-200"
                 >
-                  Constituer mon dossier de bail notarié
+                  Constituer mon dossier 
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </div>
@@ -91,7 +91,7 @@ export function HeroSectionNew() {
               <div className="flex flex-wrap justify-center sm:justify-start items-center gap-6 text-sm text-gray-600">
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-[#4373f5]" />
-                  <span>Bail juridiquement sécurisé</span>
+                  <span>Bail sécurisé</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#4373f5]" />
@@ -99,7 +99,7 @@ export function HeroSectionNew() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Globe className="w-4 h-4 text-green-600" />
-                  <span>100% à distance</span>
+                  <span>100% en ligne</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-600" />
