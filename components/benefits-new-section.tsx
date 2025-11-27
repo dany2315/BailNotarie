@@ -111,7 +111,7 @@ export function BenefitsNewSection() {
           transition={{ duration: 0.6 }}
           className="text-center"
         >
-          <div className="relative overflow-hidden rounded-3xl  border-0  p-8 md:p-12">
+          <div className="relative overflow-hidden rounded-3xl  border-0  py-8 md:p-12">
             {/* Effet de brillance animé */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 animate-shine" />
             
