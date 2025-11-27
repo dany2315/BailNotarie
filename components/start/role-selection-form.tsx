@@ -64,7 +64,7 @@ export function RoleSelectionForm({ onOwnerSelected, onTenantSelected }: RoleSel
                 <RadioGroup
                   value={field.value}
                   onValueChange={field.onChange}
-                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                  className="grid grid-cols-2 gap-4"
                 >
                   <Label
                     htmlFor="proprietaire"
@@ -79,8 +79,8 @@ export function RoleSelectionForm({ onOwnerSelected, onTenantSelected }: RoleSel
                       id="proprietaire"
                       className="hidden"
                     />
-                    <Building2 className="h-12 w-12 mb-3 text-primary" />
-                    <span className="text-lg font-semibold">Propriétaire</span>
+                    <Building2 className="h-8 w-8 sm:h-12 sm:w-12 mb-3 text-primary" />
+                    <span className="text-md sm:text-lg font-semibold">Propriétaire</span>
                     <span className="text-sm text-muted-foreground text-center mt-2">
                       Je souhaite louer mon bien
                     </span>
@@ -99,8 +99,8 @@ export function RoleSelectionForm({ onOwnerSelected, onTenantSelected }: RoleSel
                       id="locataire"
                       className="hidden"
                     />
-                    <User2 className="h-12 w-12 mb-3 text-primary" />
-                    <span className="text-lg font-semibold">Locataire</span>
+                    <User2 className="h-8 w-8 sm:h-12 sm:w-12 mb-3 text-primary" />
+                    <span className="text-md sm:text-lg font-semibold">Locataire</span>
                     <span className="text-sm text-muted-foreground text-center mt-2">
                       Je souhaite louer un bien
                     </span>

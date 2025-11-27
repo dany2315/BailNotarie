@@ -1,6 +1,4 @@
 /* eslint-disable no-console */
-const { PrismaClient } = require("@prisma/client");
-
 /** @type {import('next-sitemap').IConfig} */
 module.exports = {
   siteUrl: process.env.SITE_URL || "https://www.bailnotarie.fr",
@@ -16,56 +14,6 @@ module.exports = {
     additionalSitemaps: [
       "https://www.bailnotarie.fr/sitemap.xml",
     ],
-  },
-
-  // -----------------------------
-  // 🔥 Génération dynamique des URLs
-  // -----------------------------
-  additionalPaths: async (config) => {
-    const prisma = new PrismaClient();
-
-    try {
-      // 1) Home
-      const homepage = [
-        {
-          loc: "/",
-          changefreq: "weekly",
-          priority: 1.0,
-          lastmod: new Date().toISOString(),
-        },
-      ];
-
-      // 2) Récupérer articles du blog
-      const articles = await prisma.article.findMany({
-        select: { slug: true, updatedAt: true },
-        orderBy: { updatedAt: "desc" },
-      });
-
-      console.log("[sitemap] Articles trouvés :", articles.length);
-
-      const blogPaths = articles.map((article) => ({
-        loc: `/blog/${article.slug}`,
-        changefreq: "weekly",
-        priority: 0.9,
-        lastmod: article.updatedAt.toISOString(),
-      }));
-
-      return [...homepage, ...blogPaths];
-    } catch (err) {
-      console.error("Erreur lors de la génération du sitemap:", err);
-
-      // ⚠️ En cas d’erreur, renvoyer au moins la homepage
-      return [
-        {
-          loc: "/",
-          changefreq: "weekly",
-          priority: 1.0,
-          lastmod: new Date().toISOString(),
-        },
-      ];
-    } finally {
-      await prisma.$disconnect();
-    }
   },
 
   // -----------------------------
@@ -88,5 +36,22 @@ module.exports = {
       priority: customPriority[path] || 0.5,
       lastmod: new Date().toISOString(),
     };
+  },
+
+  additionalPaths: async () => {
+    return [
+      {
+        loc: `/`,
+        lastmod: new Date().toISOString(),
+        changefreq: "weekly",
+        priority: 1.0,
+      },
+      {
+        loc: `/commencer`,
+        lastmod: new Date().toISOString(),
+        changefreq: "weekly",
+        priority: 0.8,
+      },
+    ];  
   },
 };

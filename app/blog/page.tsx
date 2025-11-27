@@ -6,33 +6,36 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Calendar, Clock, ArrowRight } from "lucide-react";
 import { CallButton, ContactButton } from "@/components/ui/action-buttons";
-import { prisma } from '@/lib/prisma';
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
+import { blogData, blogCategories } from "@/lib/blog-data";
+import Image from "next/image";
 
 export const metadata: Metadata = generateDynamicMetadata({ page: 'blog' });
 
-// Fonction pour récupérer les articles depuis Prisma
-async function getArticles() {
-  return await prisma.article.findMany({
-    include: { category: true },
-    orderBy: { createdAt: 'desc' }
-  });
+// Fonction pour récupérer les articles depuis blog-data.ts
+function getArticles() {
+  return blogData
+    .map(article => ({
+      ...article,
+      category: blogCategories.find(cat => cat.id === article.categoryId) || blogCategories[0],
+      comments: [] // Les commentaires sont chargés dynamiquement
+    }))
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 // Fonction pour récupérer les catégories
-async function getCategories() {
-  return await prisma.category.findMany({
-    include: {
-      _count: {
-        select: { articles: true }
-      }
+function getCategories() {
+  return blogCategories.map(category => ({
+    ...category,
+    _count: {
+      articles: blogData.filter(article => article.categoryId === category.id).length
     }
-  });
+  }));
 }
 
-export default async function BlogPage() {
-  const articles = await getArticles();
-  const categories = await getCategories();
+export default function BlogPage() {
+  const articles = getArticles();
+  const categories = getCategories();
 
   // Formatage de la date
   const formatDate = (date: Date) => {
@@ -48,8 +51,6 @@ export default async function BlogPage() {
     const wordCount = content.split(' ').length;
     return Math.ceil(wordCount / 200); // 200 mots par minute
   };
-
-  console.log(articles);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -100,7 +101,9 @@ export default async function BlogPage() {
             {articles.map((article) => (
               <Card key={article.id} className="py-0 overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <div className="aspect-video bg-gray-200 overflow-hidden">
-                  <img 
+                  <Image
+                    width={800}
+                    height={400}
                     src={article.imageUrl || "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800"}
                     alt={article.title}
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
@@ -118,7 +121,7 @@ export default async function BlogPage() {
                       </div>
                       <div className="flex items-center space-x-1">
                         <Clock className="h-4 w-4" />
-                        <span>{calculateReadTime(article.content)} min</span>
+                        <span>{article.readTime} min</span>
                       </div>
                     </div>
                   </div>

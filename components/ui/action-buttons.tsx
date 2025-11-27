@@ -6,7 +6,8 @@ import { Phone } from "lucide-react";
 export function CallButton() {
   return (
     <Button 
-      className="bg-blue-600 hover:bg-blue-700 text-white w-full"
+      variant="outline"
+      className="text-[#4373f5] w-full space-x-2"
       onClick={() => window.location.href = 'tel:0749387756'}
     >
       <Phone className="size-4" />
@@ -18,13 +19,12 @@ export function CallButton() {
 export function ContactButton() {
   return (
     <Button 
-      variant="outline"
       className="w-full"
       onClick={() => {
-        window.location.href = '/#contact';
+        window.location.href = '/commencer';
       }}
     >
-      <span>Demander un devis</span>
+      <span>Créer mon bail notarié</span>
     </Button>
   );
 }

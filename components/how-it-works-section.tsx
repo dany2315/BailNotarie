@@ -76,7 +76,7 @@ export function HowItWorksSection() {
             <span className="text-[#4373f5]">3 étapes simples</span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Un processus 100% digital, rapide et sécurisé. 
+            Un processus 100% en ligne, rapide et sécurisé. 
             De la constitution de votre dossier à la signature, tout se fait en ligne.
           </p>
         </div>

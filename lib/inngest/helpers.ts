@@ -146,3 +146,20 @@ export async function triggerRequestStatusEmail(data: {
   });
 }
 
+/**
+ * Déclenche l'envoi d'un email de notification pour un nouveau commentaire de blog
+ */
+export async function triggerBlogCommentNotificationEmail(data: {
+  commenterName: string;
+  commenterEmail: string;
+  commentContent: string;
+  articleTitle: string;
+  articleUrl: string;
+  commentDate: string;
+}) {
+  await inngest.send({
+    name: "email/blog-comment.notification",
+    data,
+  });
+}
+

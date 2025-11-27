@@ -156,37 +156,6 @@ enum DocumentKind {
 }
 
 
-model Category {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  slug      String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  articles  Article[]
-
-  @@map("categories")
-}
-
-model Article {
-  id              String    @id @default(cuid())
-  title           String
-  slug            String    @unique
-  description     String
-  content         String
-  imageUrl        String?
-  metaTitle       String?
-  metaDescription String?
-  metaKeywords    String?
-  ogImage         String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  categoryId      String
-  category        Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  comments        Comment[]
-
-  @@map("articles")
-}
-
 model Comment {
   id         String   @id @default(cuid())
   name       String
@@ -196,8 +165,8 @@ model Comment {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   articleId  String
-  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-
+ 
+  @@index([articleId])
   @@map("comments")
 }
 

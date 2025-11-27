@@ -1,5 +1,29 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+// Page d'inscription temporairement désactivée
+export default function RegisterPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Rediriger automatiquement vers la page d'accueil
+    router.push("/");
+  }, [router]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="text-center">
+        <p className="text-muted-foreground">Redirection en cours...</p>
+      </div>
+    </div>
+  );
+}
+
+/* 
+// Code commenté - Page d'inscription temporairement désactivée
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
@@ -260,5 +284,6 @@ export default function RegisterPage() {
     </div>
   );
 }
+*/
 
 

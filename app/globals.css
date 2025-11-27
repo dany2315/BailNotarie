@@ -26,6 +26,13 @@
     @apply list-disc list-inside mb-4 space-y-2;
   }
 
+  .bg-logo{
+    background: image-set(url("/logoAvec.png") 1x, url("/logoAvec@2x.png") 2x);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
   .prose ol {
     @apply list-decimal list-inside mb-4 space-y-2;
   }
