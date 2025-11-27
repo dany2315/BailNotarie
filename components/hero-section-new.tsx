@@ -71,7 +71,7 @@ export function HeroSectionNew() {
 
 
             {/* CTA + social proof + garanties */}
-            <div className="flex flex-col gap-4 pt-2">
+            <div className="flex flex-col gap-4 pt-6">
               {/* Social proof au-dessus du CTA */}
               <SocialProof />
 
