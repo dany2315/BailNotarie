@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, Scale, X, Home, Settings, BookOpen, Mail, HelpCircle , FileText, Workflow, ChevronDown } from "lucide-react";
+import { Menu, Scale, X, Home, Settings, BookOpen, Mail, HelpCircle , FileText, Workflow, ChevronDown, StarIcon, ShieldCheck, PenTool } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { Separator } from "@/components/ui/separator";
@@ -68,14 +68,18 @@ export function Header() {
 
 
               <NavigationMenuItem>
-                <NavigationMenuTrigger>Bail Notarié <Badge className="bg-[#4373f5] text-white border-0 px-2 py-1 ml-3 text-xs font-medium">En ligne</Badge></NavigationMenuTrigger>
+                <NavigationMenuTrigger>
+                  Bail Notarié 
+                  <Badge className="bg-[#4373f5] text-white border-0 px-1 py-1 ml-3 text-xs font-medium">
+                    <StarIcon className="w-4 h-4" />
+                  </Badge>
+                </NavigationMenuTrigger>
                 <NavigationMenuContent>
                 <ul className="grid gap-2 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
                       <li className="row-span-3 bg-logo ">
                         <NavigationMenuLink asChild>
                           <div
                             className="bg-logo  flex h-full w-full flex-col justify-end rounded-lg  p-4 no-underline outline-hidden overflow-hidden transition-all duration-200 select-none focus:shadow-md md:p-6 relative"
-                            
                           >
                           </div>
                         </NavigationMenuLink>
@@ -165,8 +169,11 @@ export function Header() {
                       className="flex items-center justify-between px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group"
                     >
                       <div className="flex items-center space-x-3">
-                        <FileText className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
+                        <PenTool className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
                         <span className="font-medium">Bail Notarié</span>
+                        <Badge className="bg-[#4373f5] text-white border-0 px-1 py-1 ml-3 text-xs font-medium">
+                          <StarIcon className="w-4 h-4" />
+                        </Badge>
                       </div>
                       <ChevronDown 
                         className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${

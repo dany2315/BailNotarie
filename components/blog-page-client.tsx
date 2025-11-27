@@ -11,6 +11,16 @@ import { CommentButton } from '@/components/comment-button';
 import { CommentsSection, CommentsSectionRef } from '@/components/comments-section';
 import { CallButton, ContactButton } from '@/components/ui/action-buttons';
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
+import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content } from '@/components/blog-content';
+
+// Mapping des composants de contenu par ID d'article
+const contentComponents: Record<string, React.ComponentType> = {
+  'blog-1': Blog1Content,
+  'blog-2': Blog2Content,
+  'blog-3': Blog3Content,
+  'blog-4': Blog4Content,
+  'blog-5': Blog5Content,
+};
 import useIsMobile from '@/hooks/useIsMobile';
 
 interface BlogPageClientProps {
@@ -20,7 +30,8 @@ interface BlogPageClientProps {
 
 export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps) {
   const commentsSectionRef = useRef<CommentsSectionRef>(null);
-  const readTime = calculateReadTime(article.content);
+  // Utiliser readTime de l'article si disponible, sinon calculer depuis content ou description
+  const readTime = (article as any).readTime || calculateReadTime(article.content || article.description || '');
   const isMobile = useIsMobile();
   const handleCommentClick = () => {
     commentsSectionRef.current?.openModal();
@@ -104,10 +115,36 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
             {/* Contenu de l'article */}
             <div className="lg:col-span-2">
               <article className="prose prose-lg max-w-none">
-                <div 
-                  className="bg-white rounded-lg shadow-sm pt-4 pb-8 px-6"
-                  dangerouslySetInnerHTML={{ __html: article.content }}
-                />
+                <div className="bg-white rounded-lg shadow-sm pt-4 pb-8 px-6">
+                  {(() => {
+                    // Récupérer le composant depuis le mapping côté client
+                    const articleId = article.id;
+                    const ContentComponent = contentComponents[articleId];
+                    
+                    // Debug
+                    if (typeof window !== 'undefined') {
+                      console.log('🔍 Debug rendu contenu:', { 
+                        articleId, 
+                        hasComponent: !!ContentComponent,
+                        availableIds: Object.keys(contentComponents),
+                        componentType: ContentComponent ? typeof ContentComponent : 'undefined',
+                        article: article
+                      });
+                    }
+                    
+                    if (ContentComponent) {
+                      // Rendre le composant React
+                      const Component = ContentComponent;
+                      return <Component />;
+                    }
+                    
+                    // Fallback vers HTML si pas de composant
+                    if (typeof window !== 'undefined') {
+                      console.warn('⚠️ Aucun composant trouvé pour article.id:', articleId);
+                    }
+                    return <div dangerouslySetInnerHTML={{ __html: article.content || '' }} />;
+                  })()}
+                </div>
               </article>
               
               {/* Actions */}

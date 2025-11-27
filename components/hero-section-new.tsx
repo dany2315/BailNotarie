@@ -25,7 +25,7 @@ export function HeroSectionNew() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full py-10 sm:py-20">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Colonne gauche : contenu principal */}
-          <div className="space-y-10 sm:space-y-8">
+          <div className="space-y-8 sm:space-y-10">
             {/* Badge contexte */}
             <Badge className="bg-[#4373f5] text-white border-0 px-4 py-1.5 text-sm font-medium">
               <Globe className="w-4 h-4 mr-2" />
@@ -39,16 +39,16 @@ export function HeroSectionNew() {
                 id="hero-bail-notarie-title"
                 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight"
               >
-                Bail notarié en ligne en{" "}
-                <span className="text-[#4373f5]">48h</span> avec{" "}
-                <span className="text-[#4373f5]">bailNotarie.fr</span>
+                Votre bail notarié en
+                <span className="text-[#4373f5]"> 48h</span>{" "}
+                <span className="text-[#4373f5]">100% en ligne</span>
               </h1>
 
               {/* Phrase SEO */}
               <p className="text-lg md:text-2xl text-gray-700 leading-relaxed">
                 Service dédié aux{" "}
                 <strong className="font-semibold text-gray-900">
-                  propriétaires bailleurs
+                 propriétaire, locataire
                 </strong>{" "}
                 pour sécuriser leur{" "}
                 <strong className="font-semibold text-gray-900">
@@ -58,21 +58,21 @@ export function HeroSectionNew() {
 
               {/* Phrase action / UX */}
               <p className="text-lg text-gray-600 leading-relaxed">
-                Dossier{" "}
+                Constitution de dossier{" "}
                 <strong className="font-semibold text-gray-900">100% en ligne</strong>,{" "}
                 transmission au{" "}
                 <strong className="font-semibold text-gray-900">notaire</strong> et{" "}
                 <strong className="font-semibold text-gray-900">signature à distance</strong>.
                 Simple, rapide et{" "}
                 <strong className="font-semibold text-gray-900">
-                  juridiquement sécurisé
+                  force exécutoire
                 </strong>.
               </p>
             </header>
 
 
             {/* CTA + social proof + garanties */}
-            <div className="flex flex-col gap-4 pt-4">
+            <div className="flex flex-col gap-4 pt-2">
               {/* Social proof au-dessus du CTA */}
               <SocialProof />
 
@@ -188,7 +188,7 @@ export function HeroSectionNew() {
             </Card>
 
             {/* Badge flottant de social proof */}
-            <div className="absolute -top-4 -right-4 bg-[#4373f5] text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
+            <div className="absolute -top-4 -right-2 bg-[#4373f5] text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
               +200 dossiers constitués
             </div>
           </div>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { blogData } from '@/lib/blog-data';
 import { z } from 'zod';
+import { triggerBlogCommentNotificationEmail } from '@/lib/inngest/helpers';
 
 // Schéma de validation pour les commentaires
 const commentSchema = z.object({
@@ -13,19 +15,15 @@ const commentSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('📝 Début de la création d\'un commentaire...');
     
     const body = await request.json();
-    console.log('📋 Données reçues:', { ...body, email: '[MASKED]' });
     
     // Validation des données
     const validatedData = commentSchema.parse(body);
-    console.log('✅ Données validées avec succès');
     
     // Vérification du reCAPTCHA
     const recaptchaSecretKey = process.env.RECAPTCHA_SECRET_KEY;
     if (!recaptchaSecretKey) {
-      console.log('❌ Clé secrète reCAPTCHA manquante');
       return NextResponse.json(
         { error: 'Configuration reCAPTCHA manquante' },
         { status: 500 }
@@ -46,28 +44,22 @@ export async function POST(request: NextRequest) {
     const recaptchaData = await recaptchaResponse.json();
     
     if (!recaptchaData.success) {
-      console.log('❌ reCAPTCHA invalide:', recaptchaData['error-codes']);
       return NextResponse.json(
         { error: 'Vérification reCAPTCHA échouée. Veuillez réessayer.' },
         { status: 400 }
       );
     }
-    console.log('✅ reCAPTCHA validé');
     
-    // Vérifier que l'article existe
-    const article = await prisma.article.findUnique({
-      where: { id: validatedData.articleId }
-    });
+    // Vérifier que l'article existe dans blog-data.ts
+    const article = blogData.find(a => a.id === validatedData.articleId);
     
     if (!article) {
-      console.log('❌ Article non trouvé:', validatedData.articleId);
       return NextResponse.json(
         { error: 'Article non trouvé' },
         { status: 404 }
       );
     }
     
-    console.log('✅ Article trouvé:', article.title);
     
     // Créer le commentaire
     const comment = await prisma.comment.create({
@@ -80,7 +72,33 @@ export async function POST(request: NextRequest) {
       },
     });
     
-    console.log('✅ Commentaire créé avec succès:', comment.id);
+    
+    // Envoyer un email de notification aux administrateurs
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://www.bailnotarie.fr';
+      const articleUrl = `${baseUrl.replace(/\/$/, '')}/blog/${article.slug}`;
+      const commentDate = new Date(comment.createdAt).toLocaleDateString('fr-FR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      await triggerBlogCommentNotificationEmail({
+        commenterName: validatedData.name,
+        commenterEmail: validatedData.email,
+        commentContent: validatedData.content,
+        articleTitle: article.title,
+        articleUrl: articleUrl,
+        commentDate: commentDate,
+      });
+      
+      console.log('✅ Email de notification déclenché');
+    } catch (emailError) {
+      // Ne pas bloquer la création du commentaire si l'email échoue
+      console.error('⚠️ Erreur lors de l\'envoi de l\'email de notification:', emailError);
+    }
     
     return NextResponse.json(
       { 

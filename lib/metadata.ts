@@ -14,22 +14,26 @@ export interface PageMetadata {
 export const defaultMetadata: Metadata = {
   metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
-    default: "BailNotarie - Bail Notarié avec Force Exécutoire Renforcée | Expert Notaire",
+    default: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
     template: "%s | BailNotarie",
   },
   description:
-    "Profitez des nouveaux avantages du bail notarié : force exécutoire immédiate, procédures simplifiées, protection maximale. +2000 clients satisfaits, devis gratuit.",
+    "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
   keywords: [
     "bail notarié",
-    "bail notaire",
+    "bail notarié en ligne",
+    "bail notarié France",
+    "bail notarié en 48h",
+    "bail location notarié",
+    "notaire bail habitation",
+    "contrat de location notarié",
     "bail",
     "bail location",
+    "contrat location",
     "bail location notarié",
     "force exécutoire",
     "procédures simplifiées",
-    "protection renforcée",
-    "expulsion rapide",
-    "impayés loyer",
+    "protection juridique",
     "acte authentique",
     "notaire bail",
   ],
@@ -73,23 +77,23 @@ export const defaultMetadata: Metadata = {
     locale: "fr_FR",
     url: "/", // ✅ aligne avec canonical
     siteName: "BailNotarie",
-    title: "BailNotarie - Bail Notarié avec Force Exécutoire Renforcée",
+    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
     description:
-      "Profitez des nouveaux avantages du bail notarié : force exécutoire immédiate, procédures simplifiées, protection maximale.",
+      "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     images: [
       {
         url: "/og-cover-v2.png",
         width: 1200,
         height: 630,
-        alt: "BailNotarie - Expert en bail notarié avec force exécutoire renforcée",
+        alt: "BailNotarie - Expert en bail notarié en ligne, en 48h avec force exécutoire immédiate",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "BailNotarie - Bail Notarié avec Force Exécutoire Renforcée",
+    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
     description:
-      "Profitez des nouveaux avantages du bail notarié : force exécutoire immédiate, procédures simplifiées, protection maximale.",
+      "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
     images: ["/og-cover-v2.png"],
@@ -165,22 +169,24 @@ export function generatePageMetadata(pageData: PageMetadata): Metadata {
 export const pageMetadata = {
   home: {
     title:
-      "BailNotarie - Bail Notarié avec Force Exécutoire Renforcée | Expert Notaire",
+      "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate | Expert Notaire",
     description:
-      "Profitez des nouveaux avantages du bail notarié : force exécutoire immédiate, procédures simplifiées, protection maximale. +2000 clients satisfaits, devis gratuit.",
+      "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     keywords: [
       "bail notarié",
-      "bail notaire",
+      "bail notarié en ligne",
+      "bail notarié France",
+      "bail notarié en 48h",
+      "bail location notarié",
+      "notaire bail habitation",
+      "contrat de location notarié",
       "bail",
       "bail location",
       "bail location notarié",
       "force exécutoire",
       "procédures simplifiées",
-      "protection renforcée",
-      "expulsion rapide",
-      "impayés loyer",
+      "protection juridique",
       "acte authentique",
-      "notaire bail",
     ],
     canonical: "/",                // ✅ pas de "#"
     ogImage: "/og-cover-v2.png",
@@ -188,87 +194,11 @@ export const pageMetadata = {
     noIndex: false,
   },
 
-  services: {
-    title: "Services Bail Notarié - Force Exécutoire Renforcée | BailNotarie",
-    description:
-      "Découvrez nos services de bail notarié avec force exécutoire renforcée. Procédures simplifiées, protection juridique maximale, accompagnement par notaires certifiés.",
-    keywords: [
-      "services bail notarié",
-      "création bail notarié",
-      "accompagnement notaire",
-      "force exécutoire renforcée",
-      "procédures simplifiées",
-      "protection juridique",
-      "notaire certifié",
-      "bail sécurisé",
-    ],
-    canonical: "/",                // ✅ section interne → canonical sur "/"
-    ogImage: "/og-cover-v2.png",
-    ogType: "website" as const,
-    noIndex: false,
-  },
-
-  process: {
-    title: "Processus Bail Notarié - Comment Créer Votre Bail | BailNotarie",
-    description:
-      "Découvrez notre processus simplifié pour créer votre bail notarié. Étapes claires, accompagnement expert, délais optimisés pour une protection maximale.",
-    keywords: [
-      "processus bail notarié",
-      "comment créer bail notarié",
-      "étapes bail notarié",
-      "délai création bail",
-      "processus simplifié",
-      "accompagnement création",
-      "procédure bail notaire",
-    ],
-    canonical: "/",                // ✅
-    ogImage: "/og-cover-v2.png",
-    ogType: "website" as const,
-    noIndex: false,
-  },
-
-  faq: {
-    title: "FAQ Bail Notarié - Questions Fréquentes | BailNotarie",
-    description:
-      "Trouvez les réponses à vos questions sur le bail notarié. Avantages, coûts, délais, sécurité juridique. Expert notaire à votre service.",
-    keywords: [
-      "faq bail notarié",
-      "questions bail notarié",
-      "avantages bail notarié",
-      "coût bail notarié",
-      "délai bail notarié",
-      "sécurité bail notarié",
-      "questions fréquentes",
-    ],
-    canonical: "/",                // ✅
-    ogImage: "/og-cover-v2.png",
-    ogType: "website" as const,
-    noIndex: false,
-  },
-
-  contact: {
-    title: "Contact BailNotarie - Devis Gratuit Bail Notarié | Expert Notaire",
-    description:
-      "Contactez nos experts pour un devis gratuit de bail notarié. Force exécutoire renforcée, procédures simplifiées. Réponse sous 24h.",
-    keywords: [
-      "contact bail notarié",
-      "devis gratuit bail",
-      "expert notaire",
-      "conseil bail notarié",
-      "devis personnalisé",
-      "accompagnement juridique",
-      "consultation gratuite",
-    ],
-    canonical: "/",                // ✅
-    ogImage: "/og-cover-v2.png",
-    ogType: "website" as const,
-    noIndex: false,
-  },
 
   blog: {
-    title: "Blog Bail Notarié - Actualités et Conseils | BailNotarie",
+    title: "Blog Bail Notarié - Actualités et Conseils - BailNotarie",
     description:
-      "Découvrez nos articles sur le bail notarié : actualités juridiques, conseils pratiques, nouvelles réglementations. Expert notaire à votre service.",
+      "Découvrez nos articles sur le bail notarié : actualités juridiques, conseils pratiques, nouvelles réglementations. Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     keywords: [
       "blog bail notarié",
       "actualités bail notarié",
@@ -294,6 +224,28 @@ export const pageMetadata = {
     ogType: "website" as const,
     noIndex: true,
   },
+  creerBailNotarié: {
+    title: "Créer un bail notarié en ligne, en 48h avec force exécutoire immédiate - BailNotarie",
+    description:
+      "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+    keywords: [
+      "créer un bail notarié en ligne",
+      "créer un bail notarié en 48h",
+      "bail notarié en ligne",
+      "bail notarié en 48h",
+      "bail location notarié",
+      "notaire bail habitation",
+      "contrat de location notarié",
+      "bail",
+      "bail location",
+      "bail location notarié",
+    ],
+    canonical: "/commencer",
+    ogImage: "/og-cover-v2.png",
+    ogType: "website" as const,
+    noIndex: false,
+  },
+
 };
 
 export default { generatePageMetadata, pageMetadata, defaultMetadata };

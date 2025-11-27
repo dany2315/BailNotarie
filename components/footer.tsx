@@ -16,8 +16,8 @@ export function Footer() {
               <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} className="  w-30" />
             </Link>
             <div className="text-gray-400 text-sm">
-              Votre partenaire de confiance pour la création de baux notariés 
-              sécurisés et authentiques.
+              Bailnotarie est une plateforme de constitution de dossier de bail notarié en ligne, en 48h avec force exécutoire immédiate, pour les propriétaires bailleurs.
+
               <br />
               <br />
               <p>Bailnotarie n'est pas un notaire, nous sommes un service de facilitation pour les notaires.</p>
@@ -29,10 +29,11 @@ export function Footer() {
             <h3 className="font-semibold mb-4">Services</h3>
             <ul className="space-y-2 text-sm text-gray-400">
               <li><Link href="/" className="hover:text-white transition-colors">Accueil</Link></li>
-              <li><Link href="/#services" className="hover:text-white transition-colors">Services</Link></li>
+              <li><Link href="/commencer" className="hover:text-white transition-colors">Créer un bail notarié</Link></li>
               <li><Link href="/#process" className="hover:text-white transition-colors">Processus</Link></li>
               {/*<li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>*/}
-              <li><Link href="/#contact" className="hover:text-white transition-colors">Devis gratuit</Link></li>
+              <li><Link href="/#avantages" className="hover:text-white transition-colors">Nos avantages</Link></li>
+              <li><Link href="/#contact" className="hover:text-white transition-colors">Contact</Link></li>
             </ul>
           </div>
 
@@ -43,7 +44,7 @@ export function Footer() {
               <li><Link href="/mentions-legales" className="hover:text-white transition-colors">Mentions légales</Link></li>
               <li><Link href="/politique-confidentialite" className="hover:text-white transition-colors">Politique de confidentialité</Link></li>
               <li><Link href="/cgv" className="hover:text-white transition-colors">CGV</Link></li>
-              <li><Link href="/faq" className="hover:text-white transition-colors">FAQ</Link></li>
+              <li><Link href="/#faq" className="hover:text-white transition-colors">FAQ</Link></li>
             </ul>
           </div>
 
@@ -64,8 +65,8 @@ export function Footer() {
         </div>
 
         <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
-          <p>&copy; 2024 BailNotarie. Tous droits réservés.</p>
-        </div>
+          <p>&copy; 2025 BailNotarie. Tous droits réservés.</p>
+        </div>  
       </div>
     </footer>
   );

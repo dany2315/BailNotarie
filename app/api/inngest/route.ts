@@ -4,6 +4,7 @@ import { sendContactConfirmationEmail, sendContactNotificationEmail } from "@/li
 import { sendNotificationEmail } from "@/lib/inngest/functions/notifications";
 import { sendOwnerFormEmail, sendTenantFormEmail, sendRequestStatusEmail } from "@/lib/inngest/functions/intake-forms";
 import { sendLeadConversionEmail } from "@/lib/inngest/functions/leads";
+import { sendBlogCommentNotificationEmail } from "@/lib/inngest/functions/blog-comments";
 import { 
   calculateClientCompletionStatus, 
   calculatePropertyCompletionStatus,
@@ -20,6 +21,7 @@ export const { GET, POST, PUT } = serve({
     sendTenantFormEmail,
     sendRequestStatusEmail,
     sendLeadConversionEmail,
+    sendBlogCommentNotificationEmail,
     calculateClientCompletionStatus,
     calculatePropertyCompletionStatus,
     calculateCompletionStatuses,
