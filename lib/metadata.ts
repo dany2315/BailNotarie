@@ -14,11 +14,11 @@ export interface PageMetadata {
 export const defaultMetadata: Metadata = {
   metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
-    default: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
+    default: "BailNotarie - Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate",
     template: "%s | BailNotarie",
   },
   description:
-    "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+    "Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
   keywords: [
     "bail notarié",
     "bail notarié en ligne",
@@ -77,23 +77,23 @@ export const defaultMetadata: Metadata = {
     locale: "fr_FR",
     url: "/", // ✅ aligne avec canonical
     siteName: "BailNotarie",
-    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
+    title: "BailNotarie - Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate",
     description:
-      "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+      "Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     images: [
       {
         url: "/og-cover-v2.png",
         width: 1200,
         height: 630,
-        alt: "BailNotarie - Expert en bail notarié en ligne, en 48h avec force exécutoire immédiate",
+        alt: "BailNotarie - Expert en procédure de bail notarié 100% en ligne, avec force exécutoire immédiate",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
+    title: "BailNotarie - Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate",
     description:
-      "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+      "Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
     images: ["/og-cover-v2.png"],
@@ -169,9 +169,9 @@ export function generatePageMetadata(pageData: PageMetadata): Metadata {
 export const pageMetadata = {
   home: {
     title:
-      "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate | Expert Notaire",
+      "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
     description:
-      "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+      "Procédure de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     keywords: [
       "bail notarié",
       "bail notarié en ligne",
@@ -225,9 +225,9 @@ export const pageMetadata = {
     noIndex: true,
   },
   creerBailNotarié: {
-    title: "Créer un bail notarié en ligne, en 48h avec force exécutoire immédiate - BailNotarie",
+    title: "Effectuer votre procédure de bail notarié en ligne, avec force exécutoire immédiate - BailNotarie",
     description:
-      "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+      "Procédure de bail notarié en ligne, avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     keywords: [
       "créer un bail notarié en ligne",
       "créer un bail notarié en 48h",
