@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { FcGoogle } from "react-icons/fc";
+import { SocialProof } from "./ui/socialProof";
 
 export function HeroSectionNew() {
   const handleStart = () => {
@@ -23,7 +25,7 @@ export function HeroSectionNew() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full py-10 sm:py-20">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Contenu principal */}
-          <div className="space-y-14 sm:space-y-8">
+          <div className="space-y-20 sm:space-y-8">
             {/* Badge */}
             <Badge className="bg-[#4373f5] text-white border-0 px-4 py-1.5 text-sm font-medium">
               <Sparkles className="w-3 h-3 mr-2" />
@@ -39,14 +41,20 @@ export function HeroSectionNew() {
               </h1>
               <p className="text-xl md:text-2xl text-gray-600 leading-relaxed">
                 Constituer votre dossier{" "}
-                <span className="font-semibold text-gray-900">en ligne</span> , 
-                transmission automatique au notaire, signature digitale. 
-                Simple, rapide et sécurisé.
+                <span className="font-semibold text-gray-900">en ligne</span>, 
+                <span className="font-semibold text-gray-900"> sans engagement</span>, 
+                transmission automatique au notaire, signature en ligne par visioconférence avec le notaire. 
+                <span className="font-semibold text-gray-900"> Simple</span>,
+                <span className="font-semibold text-gray-900"> rapide</span> et
+                <span className="font-semibold text-gray-900"> sécurisé</span>.
               </p>
             </div>
 
             {/* CTA */}
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            <div className="flex flex-col  gap-4 pt-4">
+
+              <SocialProof />
+
               <Button
                 size="lg"
                 onClick={handleStart}
@@ -55,15 +63,9 @@ export function HeroSectionNew() {
                 Constituer mon dossier
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
-              <PhoneButton
-                phoneNumber="07 49 38 77 56"
-                size="lg"
-                className="sm:text-lg text-md px-8 py-3 h-auto border-2 border-blue-200/60 bg-white shadow-md text-[#4373f5] rounded-xl hover:bg-blue-100 transition-all duration-200"
-              />
-            </div>
 
-            {/* Garanties */}
-            <div className="flex flex-wrap justify-center items-center gap-6 pt-4 text-sm text-gray-600">
+                          {/* Garanties */}
+            <div className="flex flex-wrap justify-center items-center gap-6  text-sm text-gray-600">
               <div className="flex  items-center gap-2">
                 <Shield className="w-4 h-4 text-[#4373f5]" />
                 <span>Sécurisé</span>
@@ -81,10 +83,14 @@ export function HeroSectionNew() {
                 <span>Sans engagement</span>
               </div>
             </div>
+             
+            </div>
+
+
           </div>
 
           {/* Carte visuelle */}
-          <div className="relative">
+          <div className="relative mt-20 sm:mt-0">
             <Card className="p-8 bg-white/80 backdrop-blur-sm border-2 border-blue-100 shadow-2xl">
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
