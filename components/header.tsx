@@ -140,8 +140,8 @@ export function Header() {
                 </SheetDescription>
               </SheetHeader>
               
-              <div className="flex flex-col h-full justify-between">
-                <nav className="flex flex-col space-y-2 ">
+              <div className="flex flex-col h-full justify-between overflow-y-auto">
+                <nav className="flex flex-col space-y-2  ">
                   {/* Accueil */}
                   <Link
                     href="/"
@@ -164,9 +164,9 @@ export function Header() {
 
                   {/* Bail Notarié avec sous-menu */}
                   <div className="flex flex-col">
-                    <button
+                    <div
                       onClick={() => setIsBailNotarieOpen(!isBailNotarieOpen)}
-                      className="flex items-center justify-between px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group"
+                      className="flex items-center justify-between px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group cursor-pointer"
                     >
                       <div className="flex items-center space-x-3">
                         <PenTool className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
@@ -180,7 +180,7 @@ export function Header() {
                           isBailNotarieOpen ? 'rotate-180' : ''
                         }`} 
                       />
-                    </button>
+                    </div>
                     {isBailNotarieOpen && (
                       <div className="ml-4 mt-2 space-y-1 border-l-2 border-blue-100 pl-4">
                         {bailNotarieSubItems.map((subItem) => (
