@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, Scale, X, Home, Settings, BookOpen, Mail, HelpCircle , FileText, Workflow, ChevronDown, StarIcon, ShieldCheck, PenTool } from "lucide-react";
+import { Menu, Scale, X, Home, Settings, BookOpen, Mail, HelpCircle , FileText, Workflow, ChevronDown, StarIcon, ShieldCheck, PenTool, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { Separator } from "@/components/ui/separator";
@@ -13,6 +13,7 @@ import {
   SheetTitle,
   SheetTrigger,
   SheetDescription,
+  SheetFooter,
 } from "@/components/ui/sheet";
 import Image from "next/image";
 import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, navigationMenuTriggerStyle } from "@/components/ui/navigation-menu";
@@ -230,12 +231,12 @@ export function Header() {
                   </Link>
                 </nav>
                 </div>
-                <div className="  ">
-                  <Separator className="mb-6" />
+                <SheetFooter >
+                  <Separator className="mb-4" />
                   
                   {/* Section contact */}
-                  <div className="space-y-6">
-                    <div className="px-4">
+                  <div className="space-y-6 w-full px-4">
+                    
                       <h3 className="text-sm font-semibold text-gray-900 mb-3">Contactez-nous</h3>
 
                         <Button variant="link" className="flex items-center space-x-2 text-gray-600 cursor-pointer !pl-0 m-0" onClick={() => {
@@ -245,26 +246,24 @@ export function Header() {
                           <span>contact@bailnotarie.fr</span>
                         </Button>
 
-                    </div>
-                    
-                    <div className="px-4">
-                      <PhoneButton 
-                        phoneNumber="07 49 38 77 56" 
-                        className="w-full justify-center cursor-pointer sm:text-lg text-md px-5 py-3 h-auto border-2 border-blue-200/60 bg-background shadow-md text-[#4373f5] rounded-xl hover:bg-blue-200 transition-all duration-200"
-                        onClick={handleMenuClick}
-                      />
-                    </div>
+                        <Button variant="link" className="flex items-center space-x-2 text-gray-600 cursor-pointer !pl-0 m-0" onClick={() => {
+                          window.open("tel:0749387756", "_blank");
+                        }}>
+                          <Phone className="h-4 w-4" />
+                          <span>07 49 38 77 56</span>
+                        </Button>                   
+                  
                   </div>
                   
                   {/* Footer du menu */}
-                  <div className=" py-6 border-t border-gray-200 mt-6">
+                  <div className=" pt-4 pb-2 border-t border-gray-200 mt-2 w-full">
                     <div className="px-4 text-center">
                       <p className="text-xs text-gray-500">
-                        © 2024 BailNotarie. Tous droits réservés.
+                        © 2025 BailNotarie. Tous droits réservés.
                       </p>
                     </div>
                   </div>
-                </div>
+                </SheetFooter>
 
             </SheetContent>
           </Sheet>
