@@ -8,7 +8,7 @@ export function SocialProof() {
 
     const isMobile = useIsMobile();
   return (
-    <div className="inline-flex items-center gap-3 rounded-full border   px-4 py-2 shadow-2xl backdrop-blur-3xl bg-white/50">
+    <div className="inline-flex items-center gap-3 rounded-full border   px-2 py-1 shadow-2xl backdrop-blur-3xl bg-white/50">
       {/* Bloc Google + note */}
       <div className="flex items-center gap-2 border-r pr-3">
         <div className="flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-semibold shadow-sm">
