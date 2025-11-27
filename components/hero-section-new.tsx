@@ -49,9 +49,9 @@ export function HeroSectionNew() {
                 <strong className="font-semibold text-gray-900">
                  propriétaires
                 </strong>{" "}
-                pour sécuriser leur{" "}
+                pour constituer leur dossier de{" "}
                 <strong className="font-semibold text-gray-900">
-                  bail d’habitation en France
+                  bail notarié d’habitation en France
                 </strong>.
               </p>
 
