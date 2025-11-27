@@ -25,11 +25,11 @@ export function HeroSectionNew() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full py-10 sm:py-20">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Contenu principal */}
-          <div className="space-y-20 sm:space-y-8">
+          <div className="space-y-12 sm:space-y-8">
             {/* Badge */}
             <Badge className="bg-[#4373f5] text-white border-0 px-4 py-1.5 text-sm font-medium">
-              <Sparkles className="w-3 h-3 mr-2" />
-              Solution 100% digitale
+              <Globe className="w-4 h-4 mr-2" />
+              100% En Ligne
             </Badge>
 
             {/* Titre principal */}
