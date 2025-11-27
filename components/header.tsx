@@ -140,7 +140,8 @@ export function Header() {
                 </SheetDescription>
               </SheetHeader>
               
-              <div className="flex flex-col h-full justify-between overflow-y-auto">
+              
+                <div className="overflow-y-auto h-auto">
                 <nav className="flex flex-col space-y-2  ">
                   {/* Accueil */}
                   <Link
@@ -228,8 +229,9 @@ export function Header() {
                     <span className="font-medium">Contact</span>
                   </Link>
                 </nav>
+                </div>
                 <div className="  ">
-                  <Separator className="my-6" />
+                  <Separator className="mb-6" />
                   
                   {/* Section contact */}
                   <div className="space-y-6">
@@ -264,7 +266,6 @@ export function Header() {
                   </div>
                 </div>
 
-              </div>
             </SheetContent>
           </Sheet>
         </div>
