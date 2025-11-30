@@ -12,14 +12,11 @@ import { Label } from "@/components/ui/label";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { Mail, Phone, Send, CheckCircle } from "lucide-react";
 import { sendMail } from "@/app/action";
+import { contactFormSchema } from "@/lib/zod/contact";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { Controller } from "react-hook-form";
 
-const formSchema = z.object({
-  firstName: z.string().min(2, "Le prénom doit contenir au moins 2 caractères"),
-  lastName: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
-  email: z.string().email("Adresse email invalide"),
-  phone: z.string().min(10, "Numéro de téléphone invalide"),
-  message: z.string().min(10, "Le message doit contenir au moins 10 caractères"),
-});
+const formSchema = contactFormSchema;
 
 type FormData = z.infer<typeof formSchema>;
 
@@ -30,6 +27,7 @@ export function ContactForm() {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
     reset,
   } = useForm<FormData>({
@@ -76,7 +74,7 @@ export function ContactForm() {
       {/* Formulaire */}
       <Card className="p-8">
         <h3 className="text-2xl font-semibold text-gray-900 mb-6">
-          Demander un devis gratuit
+          Vous avez des questions ?
         </h3>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid sm:grid-cols-2 gap-4">
@@ -122,22 +120,21 @@ export function ContactForm() {
 
           <div>
             <Label htmlFor="phone">Téléphone *</Label>
-            <Input
-              id="phone"
-              type="tel"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              autoComplete="tel"
-              minLength={10}
-              maxLength={10}
-              onKeyPress={(e) => {
-                if (!/[0-9]/.test(e.key)) {
-                  e.preventDefault();
-                }
-              }}
-              {...register("phone")}
-              className="mt-1"
-              placeholder="01 23 45 67 89"
+            <Controller
+              name="phone"
+              control={control}
+              render={({ field }) => (
+                <div className="mt-1">
+                  <PhoneInput
+                    value={field.value || undefined}
+                    onChange={field.onChange}
+                    defaultCountry="FR"
+                    international
+                    countryCallingCodeEditable={false}
+                    placeholder="Numéro de téléphone"
+                  />
+                </div>
+              )}
             />
             {errors.phone && (
               <p className="text-red-600 text-sm mt-1">{errors.phone.message}</p>

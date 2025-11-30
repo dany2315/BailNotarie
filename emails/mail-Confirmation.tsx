@@ -48,11 +48,14 @@ export default function MailConfirmation({
           {/* Header avec logo */}
           <Section style={{ 
             background: "linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)",
-            padding: "32px 24px",
+            paddingTop: "32px",
+            paddingBottom: "32px",
+            paddingLeft: "24px",
+            paddingRight: "24px",
             textAlign: "start"
           }}>
               <Link
-              href="https://bailnotarie.fr"
+              href="https://www.bailnotarie.fr"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -62,8 +65,8 @@ export default function MailConfirmation({
               }}
             >
               <Img
-                src="https://bailnotarie.fr/logoSans.png"
-                alt="BailNotarie"
+                src="https://www.bailnotarie.fr/logoSans.png"
+                alt="BailNotarie - Plateforme de baux notariés"
                 width="40"
                 height="40"
                 style={{
@@ -95,7 +98,7 @@ export default function MailConfirmation({
           </Section>
 
           {/* Contenu principal */}
-          <Section style={{ padding: "40px 24px" }}>
+          <Section style={{ paddingTop: "40px", paddingBottom: "40px", paddingLeft: "24px", paddingRight: "24px" }}>
             <Heading style={{ 
               color: "#1f2937",
               fontSize: "24px",
@@ -249,7 +252,7 @@ export default function MailConfirmation({
             {/* CTA principal */}
             <Section style={{ textAlign: "center", margin: "32px 0" }}>
               <Button
-                href="https://bailnotarie.fr"
+                href="https://www.bailnotarie.fr"
                 style={{ 
                   backgroundColor: "#2563eb",
                   color: "#ffffff",
@@ -274,7 +277,10 @@ export default function MailConfirmation({
 
           {/* Footer */}
           <Section style={{ 
-            padding: "24px",
+            paddingTop: "24px",
+            paddingBottom: "24px",
+            paddingLeft: "24px",
+            paddingRight: "24px",
             textAlign: "center",
             backgroundColor: "#f9fafb"
           }}>
@@ -290,14 +296,14 @@ export default function MailConfirmation({
               fontSize: "12px",
               margin: "0 0 8px 0"
             }}>
-              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href="https://bailnotarie.fr" style={{ color: "#6b7280", textDecoration: "none" }}>🌐 bailnotarie.fr</Link>
+              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href="https://www.bailnotarie.fr" style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
             </Text>
             <Text style={{ 
               color: "#9ca3af",
               fontSize: "12px",
               margin: 0
             }}>
-              Cet email a été envoyé automatiquement suite à votre demande sur notre site.
+              Cet email a été envoyé automatiquement, merci de ne pas y répondre directement.
             </Text>
           </Section>
         </Container>

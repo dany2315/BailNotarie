@@ -1,59 +1,517 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("PRISMA_DATABASE_URL")
+  provider = "postgresql" 
+  url      = env("DATABASE_URL_PRISMA_DATABASE_URL")
 }
 
-model Category {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  articles  Article[]
+/**
+ * ---------------------- Enums ----------------------
+ */
 
-  @@map("categories")
+enum Role {
+  ADMINISTRATEUR
+  NOTAIRE
+  OPERATEUR
+  REVIEWER
 }
 
-model Article {
-  id          String   @id @default(cuid())
-  title       String
-  slug        String   @unique
-  description String
-  content     String
-  imageUrl    String?  // URL de l'image de l'article
-  metaTitle   String?  // Titre SEO personnalisé
-  metaDescription String? // Description SEO personnalisée
-  metaKeywords String? // Mots-clés SEO
-  ogImage     String?  // Image Open Graph personnalisée
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  comments    Comment[]
-
-  @@map("articles")
+enum ClientType {
+  PERSONNE_PHYSIQUE
+  PERSONNE_MORALE
 }
+
+enum ProfilType {
+  PROPRIETAIRE
+  LOCATAIRE
+  LEAD
+}
+
+enum FamilyStatus {
+  CELIBATAIRE
+  MARIE
+  DIVORCE
+  VEUF
+  PACS
+}
+
+enum MatrimonialRegime {
+  COMMUNAUTE_REDUITE
+  SEPARATION_DE_BIENS
+  PARTICIPATION_AUX_AQUETS
+  COMMUNAUTE_UNIVERSELLE
+}
+
+enum CompletionStatus {
+  NOT_STARTED      // aucune donnée encore envoyée
+  PARTIAL          // certaines données envoyées par le formulaire
+  PENDING_CHECK    // données envoyées par le client, en attente de vérification par nous 
+  COMPLETED        // toutes les données requises sont conformes et verifier par nous 
+}
+
+enum PropertyStatus {
+  LOUER
+  NON_LOUER
+}
+
+enum BienType {
+  APPARTEMENT
+  MAISON
+}
+
+enum BienLegalStatus {
+  PLEIN_PROPRIETE
+  CO_PROPRIETE
+  LOTISSEMENT
+}
+
+enum BailType {
+  BAIL_NU_3_ANS
+  BAIL_NU_6_ANS
+  BAIL_MEUBLE_1_ANS
+  BAIL_MEUBLE_9_MOIS
+}
+
+enum BailFamille {
+  HABITATION
+}
+
+enum BailStatus {
+  DRAFT // brouillon, pas toute les données sont remplies
+  PENDING_VALIDATION // en attente de validation par bailnotarie si toute les donne sont remplies
+  READY_FOR_NOTARY // prêt pour notaire
+  SIGNED // signé
+  TERMINATED // terminé
+}
+
+enum IntakeTarget {
+  OWNER
+  TENANT
+  LEAD
+  PROPERTY
+  BAIL
+}
+
+enum IntakeStatus {
+  PENDING
+  SUBMITTED
+  EXPIRED
+  REVOKED
+}
+
+enum CommentTarget {
+  CLIENT
+  PROPERTY
+  BAIL
+  DOCUMENT
+  INTAKE
+  LEAD
+}
+
+enum NotificationType {
+  COMMENT_CREATED
+  CLIENT_CREATED
+  CLIENT_CREATED_FROM_LANDING_PAGE
+  CLIENT_UPDATED
+  CLIENT_DELETED
+  PROPERTY_CREATED
+  PROPERTY_UPDATED
+  PROPERTY_DELETED
+  BAIL_CREATED
+  BAIL_UPDATED
+  BAIL_DELETED
+  BAIL_STATUS_CHANGED
+  INTAKE_SUBMITTED
+  INTAKE_REVOKED
+  COMPLETION_STATUS_CHANGED
+  LEAD_CREATED
+  LEAD_CONVERTED
+}
+
+enum DocumentKind {
+  // morale
+  KBIS
+  STATUTES
+
+
+  INSURANCE
+  TITLE_DEED
+
+
+  BIRTH_CERT
+  ID_IDENTITY
+  LIVRET_DE_FAMILLE
+  CONTRAT_DE_PACS
+
+  //biens
+  DIAGNOSTICS
+  REGLEMENT_COPROPRIETE
+  CAHIER_DE_CHARGE_LOTISSEMENT
+  STATUT_DE_LASSOCIATION_SYNDICALE
+
+  RIB
+
+}
+
 
 model Comment {
-  id        String   @id @default(cuid())
-  name      String
-  email     String
-  content   String
+  id         String   @id @default(cuid())
+  name       String
+  email      String
+  content    String
   isApproved Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  articleId String
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  articleId  String
+ 
+  @@index([articleId])
   @@map("comments")
 }
+
+/**
+ * ---------------------- Users/Auth -----------------
+ */
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified Boolean  
+  name          String?
+  image         String?
+  role          Role      @default(ADMINISTRATEUR)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Better Auth relations
+  sessions Session[]
+  accounts Account[]
+
+  // Back-relations nommées
+  comments           CommentInterface[] @relation("CommentCreatedBy")
+  commentsRead       CommentRead[]      @relation("CommentReadByUser")
+  uploadedDocuments  Document[]         @relation("DocumentUploadedBy")
+  clientsCreated     Client[]            @relation("ClientCreatedBy") 
+  clientsUpdated     Client[]            @relation("ClientUpdatedBy")
+  propertiesCreated  Property[]         @relation("PropertyCreatedBy")
+  propertiesUpdated  Property[]         @relation("PropertyUpdatedBy")
+  bailsCreated      Bail[]            @relation("BailCreatedBy") 
+  bailsUpdated      Bail[]            @relation("BailUpdatedBy")
+  intakeLinksCreated IntakeLink[]       @relation("IntakeLinkCreatedBy")
+  notificationsCreated Notification[]   @relation("NotificationCreatedBy")
+  notificationsReceived Notification[]  @relation("NotificationReceivedBy")
+}
+
+/**
+ * ---------------------- Parties --------------------
+ */
+
+model Client {
+  id      String    @id @default(cuid())
+  type    ClientType
+  // Sous-profils (1-1)
+  profilType  ProfilType
+
+  firstName     String?
+  lastName      String?
+  profession    String?
+
+  legalName     String?
+  registration  String?
+
+  phone       String?
+  email       String? @unique
+  fullAddress String?
+  nationality String?
+
+
+  familyStatus      FamilyStatus?
+  matrimonialRegime MatrimonialRegime?
+  birthPlace        String?
+  birthDate         DateTime?
+
+  completionStatus CompletionStatus @default(NOT_STARTED)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+  createdBy   User?    @relation("ClientCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?    @relation("ClientUpdatedBy", fields: [updatedById], references: [id])
+
+  ownedProperties Property[] @relation("OwnerProperties")
+  
+  bails       Bail[]     @relation("BailClients")
+
+  documents   Document[]
+  intakeLinks IntakeLink[]
+
+  @@index([email])
+  @@index([type])
+}
+
+/**
+ * ---------------------- Properties -----------------
+ */
+
+model Property {
+  id          String         @id @default(cuid())
+  label       String?
+  fullAddress String
+  surfaceM2   Decimal?       @db.Decimal(12, 2)
+  type        BienType?
+  legalStatus BienLegalStatus?
+  status      PropertyStatus @default(NON_LOUER)
+
+  ownerId String
+  owner   Client  @relation("OwnerProperties", fields: [ownerId], references: [id])
+
+  completionStatus CompletionStatus @default(NOT_STARTED)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+  createdBy   User?    @relation("PropertyCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?    @relation("PropertyUpdatedBy", fields: [updatedById], references: [id])
+
+  documents   Document[]
+  intakes IntakeLink[] @relation("PropertyIntakes")
+  bails Bail[] @relation("PropertyBails")
+  
+  @@index([status])
+  @@index([ownerId])
+
+}
+
+/**
+ * ---------------------- Bails ---------------------
+ */
+
+model Bail {
+  id        String      @id @default(cuid())
+  bailType  BailType   @default(BAIL_NU_3_ANS)
+  bailFamily BailFamille @default(HABITATION)
+  status    BailStatus @default(DRAFT)
+
+  // Montants « figés »
+  rentAmount      Int
+  monthlyCharges  Int @default(0)
+  securityDeposit Int @default(0)
+
+  effectiveDate DateTime
+  endDate       DateTime?
+  paymentDay    Int?
+
+  propertyId String
+  property   Property @relation("PropertyBails", fields: [propertyId], references: [id])
+
+
+  parties     Client[]   @relation("BailClients")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+  createdBy   User?    @relation("BailCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?    @relation("BailUpdatedBy", fields: [updatedById], references: [id])
+
+  documents   Document[]
+  intakes IntakeLink[] @relation("BailIntakes")
+
+  @@index([status])
+  @@index([propertyId])
+  @@index([effectiveDate])
+}
+/**
+ * ---------------------- Intake Links ---------------
+ */
+
+model IntakeLink {
+  id     String       @id @default(cuid())
+  token  String       @unique @default(uuid())
+  target IntakeTarget
+
+  propertyId String?
+  property   Property? @relation("PropertyIntakes", fields: [propertyId], references: [id])
+
+  bailId String?
+  bail   Bail?  @relation("BailIntakes", fields: [bailId], references: [id]) 
+
+  clientId String?
+  client   Client?  @relation(fields: [clientId], references: [id])
+
+  status      IntakeStatus    @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
+  submittedAt DateTime?
+
+  rawPayload Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("IntakeLinkCreatedBy", fields: [createdById], references: [id])
+
+  @@index([target])
+  @@index([status])
+  @@index([propertyId])
+  @@index([bailId])
+  @@index([clientId])
+}
+
+/**
+ * ---------------------- Documents ------------------
+ */
+
+model Document {
+  id       String       @id @default(cuid())
+  kind     DocumentKind @default(BIRTH_CERT)
+  label    String?
+  fileKey  String // clé S3/GCS
+  mimeType String?
+  size     Int?
+
+  clientId String?
+  client   Client?  @relation(fields: [clientId], references: [id])
+
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
+
+  bailId String?
+  bail   Bail?  @relation(fields: [bailId], references: [id])
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  uploadedById String?
+  uploadedBy   User?    @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([kind])
+  @@index([clientId])
+  @@index([propertyId])
+  @@index([bailId])
+  @@index([uploadedById])
+  @@index([fileKey])
+}
+
+/**
+ * ---------------------- Comments (polymorphe) ------
+ */
+
+model CommentInterface {
+  id       String        @id @default(cuid())
+  target   CommentTarget
+  targetId String // id de Party/Property/Lease/Document/IntakeLink
+  body     String
+
+  createdAt   DateTime @default(now())
+  createdById String
+  createdBy   User     @relation("CommentCreatedBy", fields: [createdById], references: [id])
+  
+  // Relation pour suivre quels utilisateurs ont lu ce commentaire
+  readBy       CommentRead[]
+
+  @@index([target, targetId])
+  @@index([createdById])
+}
+
+/**
+ * ---------------------- Comment Read Status ------
+ * Table de jointure pour suivre quels commentaires ont été lus par quels utilisateurs
+ */
+
+model CommentRead {
+  id        String   @id @default(cuid())
+  commentId String
+  comment   CommentInterface @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("CommentReadByUser", fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime @default(now())
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+  @@index([readAt])
+}
+
+/**
+ * ---------------------- Notifications ------------------
+ */
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  
+  // Données polymorphes pour identifier l'entité concernée
+  targetType String?         // CLIENT, PROPERTY, BAIL, INTAKE, COMMENT
+  targetId   String?         // ID de l'entité concernée
+  
+  // Métadonnées supplémentaires (JSON pour flexibilité)
+  metadata   Json?           // Ex: { oldStatus, newStatus, createdByForm, etc. }
+  
+  // Relations
+  createdById String?        // Utilisateur qui a déclenché l'événement (peut être null si créé par formulaire)
+  createdBy   User?          @relation("NotificationCreatedBy", fields: [createdById], references: [id])
+  
+  recipientId String         // Utilisateur qui reçoit la notification
+  recipient   User           @relation("NotificationReceivedBy", fields: [recipientId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime       @default(now())
+  readAt      DateTime?
+  
+  @@index([recipientId])
+  @@index([isRead])
+  @@index([type])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+/**
+ * ---------------------- Better Auth Models ----------
+ */
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, value])
+}
+

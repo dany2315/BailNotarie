@@ -6,7 +6,7 @@ Allow: /
 User-agent: *
 Disallow: /api/
 Disallow: /_next/
-Disallow: /admin/
+Disallow: /interface/
 
 # Host
 Host: https://www.bailnotarie.fr

@@ -48,6 +48,7 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const recaptchaRef = useRef<ReCAPTCHA>(null);
   const [localComments, setLocalComments] = useState(comments);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -135,8 +136,12 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
     approvedCommentsCount: approvedComments.length
   });
 
-  // Rafraîchissement automatique des commentaires toutes les 30 secondes
+  // Charger les commentaires au montage du composant
   useEffect(() => {
+    // Charger immédiatement les commentaires au montage
+    refreshComments();
+    
+    // Rafraîchissement automatique des commentaires toutes les 30 secondes
     const interval = setInterval(() => {
       refreshComments();
     }, 30000); // 30 secondes
@@ -226,14 +231,19 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
 
   // Fonction pour rafraîchir les commentaires depuis le serveur
   const refreshComments = async () => {
+    setIsLoadingComments(true);
     try {
-      const response = await fetch(`/api/comments?articleId=${articleId}`);
+      const response = await fetch(`/api/comments?articleId=${articleId}`, {
+        cache: 'no-store', // Toujours récupérer les données fraîches
+      });
       if (response.ok) {
         const data = await response.json();
-        setLocalComments(data.comments);
+        setLocalComments(data.comments || []);
       }
     } catch (error) {
       console.error('Erreur lors du rafraîchissement des commentaires:', error);
+    } finally {
+      setIsLoadingComments(false);
     }
   };
 
@@ -287,18 +297,6 @@ export const CommentsSection = forwardRef<CommentsSectionRef, CommentsSectionPro
     const validationErrors = validateForm();
     if (validationErrors.length > 0) {
       alert(`Erreurs de validation:\n${validationErrors.join('\n')}`);
-      return;
-    }
-
-    // Confirmation avant envoi
-    const confirmSend = confirm(
-      `Confirmer l'envoi du commentaire ?\n\n` +
-      `Nom: ${formData.name}\n` +
-      `Email: ${formData.email}\n` +
-      `Commentaire: ${formData.content.substring(0, 100)}${formData.content.length > 100 ? '...' : ''}`
-    );
-
-    if (!confirmSend) {
       return;
     }
 

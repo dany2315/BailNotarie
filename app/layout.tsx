@@ -3,17 +3,32 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
 import { StructuredData } from "@/components/seo/structured-data";
+import { Toaster } from "@/components/shared/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
-    default: "BailNotarie - Bail Notarié Simple et Sécurisé | Expert en Acte Authentique",
+    default: "BailNotarie - Procédure de bail notarié en ligne, avec force exécutoire immédiate",
     template: "%s | BailNotarie"
   },
-  description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
+  description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
   keywords: [
     "bail notarié",
+    "bail notarié en ligne",
+    "bail notarié France",
+    "bail notarié en 48h",
+    "bail location notarié",
+    "notaire bail habitation",
+    "contrat de location notarié",
+    "bail",
+    "bail location",
+    "contrat location",
+    "bail location notarié",
+    "force exécutoire",
+    "procédures simplifiées",
+    "protection juridique",
     "acte authentique",
     "notaire location",
     "contrat bail notarié",
@@ -78,8 +93,8 @@ export const metadata: Metadata = {
     locale: "fr_FR",
     url: "https://www.bailnotarie.fr",
     siteName: "BailNotarie",
-    title: "BailNotarie - Bail Notarié Simple et Sécurisé | Expert en Acte Authentique",
-    description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
+    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
+    description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
     images: [
       { 
         url: "https://www.bailnotarie.fr/og-cover-v2.png",
@@ -91,8 +106,8 @@ export const metadata: Metadata = {
   },
   twitter: {  
     card: "summary_large_image",
-    title: "BailNotarie - Bail Notarié Simple et Sécurisé",
-    description: "Créez votre bail notarié en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
+    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
+    description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
     images: ["https://www.bailnotarie.fr/og-cover-v2.png"],
@@ -136,6 +151,8 @@ export default function RootLayout({
       
       {/* Données structurées SEO optimisées */}
       <StructuredData />
+      {/* Toaster pour les notifications */}
+      <Toaster />
       </body>
     </html>
   );
