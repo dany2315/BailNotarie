@@ -325,9 +325,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       ribTenant: ribTenantFile,
     };
 
-    // Récupérer uniquement les documents du client (locataire)
-    // Les documents du bail sont pour le propriétaire, pas pour le locataire
-    const existingDocuments = intakeLink.client?.documents || [];
+    // Récupérer tous les documents du client (locataire)
+    // Documents client (livret de famille, PACS)
+    const clientDocs = intakeLink.client?.documents || [];
+    // Documents des personnes (BIRTH_CERT, ID_IDENTITY)
+    const personDocs = intakeLink.client?.persons?.flatMap((p: any) => p.documents || []) || [];
+    // Documents de l'entreprise (KBIS, STATUTES)
+    const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
+    // Tous les documents existants
+    const existingDocuments = [...clientDocs, ...personDocs, ...entrepriseDocs];
     
     // Créer un FormData pour les fichiers uniquement
     const filesFormData = new FormData();
@@ -728,12 +734,23 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return true;
     }
     // Vérifier dans la base de données (utiliser intakeLink directement pour avoir les données à jour)
-    // Pour le locataire, on vérifie uniquement les documents du client
-    // Les documents du bail (assurance propriétaire, RIB propriétaire) ne concernent pas le locataire
+    // Documents client (livret de famille, PACS)
     const clientDocs = intakeLink.client?.documents || [];
     
-    // Vérifier dans les documents client uniquement
+    // Documents des personnes (BIRTH_CERT, ID_IDENTITY)
+    const personDocs = intakeLink.client?.persons?.flatMap((p: any) => p.documents || []) || [];
+    
+    // Documents de l'entreprise (KBIS, STATUTES)
+    const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
+    
+    // Vérifier dans tous les documents
     if (clientDocs.some((doc: any) => doc.kind === documentKind)) {
+      return true;
+    }
+    if (personDocs.some((doc: any) => doc.kind === documentKind)) {
+      return true;
+    }
+    if (entrepriseDocs.some((doc: any) => doc.kind === documentKind)) {
       return true;
     }
     

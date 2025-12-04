@@ -10,10 +10,10 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
-    default: "BailNotarie - Procédure de bail notarié en ligne, avec force exécutoire immédiate",
+    default: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
     template: "%s | BailNotarie"
   },
-  description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
+  description: "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
   keywords: [
     "bail notarié",
     "bail notarié en ligne",
@@ -64,9 +64,9 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://www.bailnotarie.fr",
+    canonical: "/",
     languages: {
-      'fr-FR': 'https://www.bailnotarie.fr',
+      'fr-FR': '/',
     },
   },
   verification: {
@@ -91,26 +91,26 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "fr_FR",
-    url: "https://www.bailnotarie.fr",
+    url: "/",
     siteName: "BailNotarie",
-    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
-    description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
+    title: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
+    description: "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     images: [
       { 
-        url: "https://www.bailnotarie.fr/og-cover-v2.png",
+        url: "/og-cover-v2.png",
         width: 1200,
         height: 630,
-        alt: "BailNotarie - Expert en bail notarié avec force exécutoire immédiate",
+        alt: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
       },
     ],
   },
   twitter: {  
     card: "summary_large_image",
-    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
-    description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
+    title: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
+    description: "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
-    images: ["https://www.bailnotarie.fr/og-cover-v2.png"],
+    images: ["/og-cover-v2.png"],
   },
   manifest: '/site.webmanifest',
 };
@@ -127,27 +127,43 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+
+  const isProd = process.env.NEXT_PUBLIC_ENV === "production";
+  const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID;
   return (
     <html lang="fr">
       <head>
         <link rel="preconnect" href="https://images.pexels.com" />
         <link rel="dns-prefetch" href="https://images.pexels.com" />
+        {isProd && GTM_ID && (
+          <Script
+            id="gtm-init"
+            strategy="afterInteractive"
+            dangerouslySetInnerHTML={{
+              __html: `
+                (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+                new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+                j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+                'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+                })(window,document,'script','dataLayer','${GTM_ID}');
+              `,
+            }}
+          />
+        )}
       </head>
       <body className={inter.className}>{children}
       
       {/* Google Analytics */}
-      <Script
-        src="https://www.googletagmanager.com/gtag/js?id=G-TZ7DF5J0XW"
-        strategy="afterInteractive"
-      />
-      <Script id="google-analytics" strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', 'G-TZ7DF5J0XW');
-        `}
-      </Script>
+      {isProd && GTM_ID && (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+              height="0"
+              width="0"
+              style={{ display: "none", visibility: "hidden" }}
+            />
+          </noscript>
+        )}
       
       {/* Données structurées SEO optimisées */}
       <StructuredData />

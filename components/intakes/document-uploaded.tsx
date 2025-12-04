@@ -14,6 +14,7 @@ interface DocumentUploadedProps {
   token: string;
   documentKind: string;
   clientId?: string; // Optionnel : pour filtrer les documents par client (utile pour le formulaire locataire)
+  personIndex?: number; // Optionnel : pour filtrer les documents par personne (index dans le tableau persons)
   onDelete?: (documentId: string) => void;
   children?: ReactNode;
 }
@@ -28,7 +29,7 @@ export function invalidateDocumentCache(token: string) {
   tokenDocumentsData.delete(token);
 }
 
-export function DocumentUploaded({ token, documentKind, clientId, onDelete, children }: DocumentUploadedProps) {
+export function DocumentUploaded({ token, documentKind, clientId, personIndex, onDelete, children }: DocumentUploadedProps) {
   const [document, setDocument] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
@@ -78,15 +79,18 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
     // Réinitialiser hasLoadedRef si refreshKey change
     hasLoadedRef.current = false;
 
-    const loadDocuments = async () => {
+      const loadDocuments = async () => {
       // Vérifier si les documents sont déjà en cache
       if (tokenDocumentsData.has(token)) {
         const allDocs = tokenDocumentsData.get(token) || [];
-        // Filtrer par kind et optionnellement par clientId
+        // Filtrer par kind et optionnellement par clientId ou personIndex
         let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
         if (clientId) {
           filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
         }
+        // Si personIndex est fourni, on doit récupérer l'intakeLink pour obtenir la personne correspondante
+        // Pour l'instant, on filtre par personId si présent dans le document
+        // (on supposera que les documents sont déjà filtrés correctement par getIntakeDocuments)
         const foundDoc = filteredDocs
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
         setDocument(foundDoc || null);
@@ -100,11 +104,13 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
         try {
           const allDocs = await existingPromise;
           if (allDocs) {
-            // Filtrer par kind et optionnellement par clientId
+            // Filtrer par kind et optionnellement par clientId ou personIndex
             let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
             if (clientId) {
               filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
             }
+            // Note: personIndex sera géré côté serveur via getIntakeLinkByToken qui inclut les personnes
+            // Ici on filtre seulement par kind et clientId
             const foundDoc = filteredDocs
               .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
             setDocument(foundDoc || null);
@@ -132,6 +138,8 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
         if (clientId) {
           filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
         }
+        // Note: personIndex sera géré côté serveur via getIntakeLinkByToken qui inclut les personnes
+        // Ici on filtre seulement par kind et clientId
         const foundDoc = filteredDocs
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
         setDocument(foundDoc || null);
@@ -145,7 +153,7 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
 
     loadDocuments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, documentKind, clientId, refreshKey]);
+  }, [token, documentKind, clientId, personIndex, refreshKey]);
 
   // Écouter les événements de rechargement
   useEffect(() => {

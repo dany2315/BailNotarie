@@ -194,6 +194,10 @@ model User {
   uploadedDocuments  Document[]         @relation("DocumentUploadedBy")
   clientsCreated     Client[]            @relation("ClientCreatedBy") 
   clientsUpdated     Client[]            @relation("ClientUpdatedBy")
+  personsCreated     Person[]            @relation("PersonCreatedBy")
+  personsUpdated     Person[]            @relation("PersonUpdatedBy")
+  entreprisesCreated Entreprise[]        @relation("EntrepriseCreatedBy")
+  entreprisesUpdated Entreprise[]        @relation("EntrepriseUpdatedBy")
   propertiesCreated  Property[]         @relation("PropertyCreatedBy")
   propertiesUpdated  Property[]         @relation("PropertyUpdatedBy")
   bailsCreated      Bail[]            @relation("BailCreatedBy") 
@@ -213,24 +217,6 @@ model Client {
   // Sous-profils (1-1)
   profilType  ProfilType
 
-  firstName     String?
-  lastName      String?
-  profession    String?
-
-  legalName     String?
-  registration  String?
-
-  phone       String?
-  email       String? @unique
-  fullAddress String?
-  nationality String?
-
-
-  familyStatus      FamilyStatus?
-  matrimonialRegime MatrimonialRegime?
-  birthPlace        String?
-  birthDate         DateTime?
-
   completionStatus CompletionStatus @default(NOT_STARTED)
 
   createdAt   DateTime @default(now())
@@ -240,15 +226,80 @@ model Client {
   createdBy   User?    @relation("ClientCreatedBy", fields: [createdById], references: [id])
   updatedBy   User?    @relation("ClientUpdatedBy", fields: [updatedById], references: [id])
 
+  persons Person[]
+  entreprise Entreprise?
+
   ownedProperties Property[] @relation("OwnerProperties")
-  
+
+  documents Document[]
+
   bails       Bail[]     @relation("BailClients")
 
-  documents   Document[]
   intakeLinks IntakeLink[]
 
-  @@index([email])
   @@index([type])
+}
+
+model Person {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  firstName  String?
+  lastName   String?
+  profession String?
+
+  phone      String?
+  email      String? @unique
+  fullAddress String?
+  nationality String?
+
+  familyStatus      FamilyStatus?
+  matrimonialRegime MatrimonialRegime?
+  birthPlace        String?
+  birthDate         DateTime?
+
+  isPrimary Boolean @default(false)
+
+  documents Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  updatedById String?
+  createdBy   User?    @relation("PersonCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?    @relation("PersonUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([clientId])
+  @@index([email])
+}
+
+model Entreprise {
+  id String @id @default(cuid())
+
+  clientId String @unique
+  client Client @relation(fields: [clientId], references: [id])
+
+  registration String
+  legalName String
+
+  name String
+  email String @unique
+  phone String?
+  fullAddress String?
+
+  documents Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdById String?
+  updatedById String?
+  createdBy   User?    @relation("EntrepriseCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?    @relation("EntrepriseUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([clientId])
+  @@index([email])
 }
 
 /**
@@ -370,8 +421,14 @@ model Document {
   mimeType String?
   size     Int?
 
+  personId String?
+  person   Person? @relation(fields: [personId], references: [id])
+
+  entrepriseId String?
+  entreprise   Entreprise? @relation(fields: [entrepriseId], references: [id])
+
   clientId String?
-  client   Client?  @relation(fields: [clientId], references: [id])
+  client   Client? @relation(fields: [clientId], references: [id])
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id])
@@ -385,7 +442,8 @@ model Document {
   uploadedBy   User?    @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
 
   @@index([kind])
-  @@index([clientId])
+  @@index([personId])
+  @@index([entrepriseId])
   @@index([propertyId])
   @@index([bailId])
   @@index([uploadedById])

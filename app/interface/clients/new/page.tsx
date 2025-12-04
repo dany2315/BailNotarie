@@ -31,6 +31,7 @@ async function handleSubmit(data: FormData) {
   formData.propertyLabel = data.get("propertyLabel") || undefined;
   formData.propertyFullAddress = data.get("propertyFullAddress") || undefined;
   formData.propertySurfaceM2 = data.get("propertySurfaceM2") || undefined;
+  formData.propertyType = data.get("propertyType") || undefined;
   formData.propertyLegalStatus = data.get("propertyLegalStatus") || undefined;
   formData.propertyStatus = data.get("propertyStatus") || undefined;
   formData.bailType = data.get("bailType") || undefined;
@@ -42,6 +43,19 @@ async function handleSubmit(data: FormData) {
   formData.bailEndDate = data.get("bailEndDate") || undefined;
   formData.bailPaymentDay = data.get("bailPaymentDay") || undefined;
   formData.tenantEmail = data.get("tenantEmail") || undefined;
+  
+  // Parser le champ persons depuis JSON string
+  const personsString = data.get("persons");
+  if (personsString && typeof personsString === "string") {
+    try {
+      formData.persons = JSON.parse(personsString);
+    } catch (error) {
+      // En cas d'erreur de parsing, on ignore le champ persons
+      formData.persons = undefined;
+    }
+  } else {
+    formData.persons = undefined;
+  }
 
   try {
     // Essayer avec le schéma complet (avec bien, bail, locataire)

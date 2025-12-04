@@ -113,7 +113,16 @@ export async function checkClientCompletion(clientId: string): Promise<{
   const client = await prisma.client.findUnique({
     where: { id: clientId },
     include: {
-      documents: true,
+      persons: {
+        include: {
+          documents: true,
+        },
+      },
+      entreprise: {
+        include: {
+          documents: true,
+        },
+      },
     },
   });
 
@@ -126,27 +135,109 @@ export async function checkClientCompletion(clientId: string): Promise<{
     };
   }
 
+  // Récupérer la personne principale ou l'entreprise pour obtenir familyStatus et matrimonialRegime
+  const primaryPerson = client.persons?.find((p) => p.isPrimary);
+  const entreprise = client.entreprise;
+  
+  // Récupérer familyStatus et matrimonialRegime depuis la personne principale
+  const familyStatus = primaryPerson?.familyStatus || null;
+  const matrimonialRegime = primaryPerson?.matrimonialRegime || null;
+
   const { requiredFields, requiredDocuments } = getRequiredClientFields(
     client.type,
     client.profilType,
-    client.familyStatus,
-    client.matrimonialRegime
+    familyStatus,
+    matrimonialRegime
   );
+
+  // Agréger tous les documents depuis persons et entreprise
+  const allDocuments: any[] = [];
+  // Documents des personnes
+  if (client.persons) {
+    for (const person of client.persons) {
+      if (person.documents) {
+        allDocuments.push(...person.documents);
+      }
+    }
+  }
+  // Documents de l'entreprise
+  if (client.entreprise?.documents) {
+    allDocuments.push(...client.entreprise.documents);
+  }
+  // Documents du client (livret de famille, contrat PACS)
+  if (client.documents) {
+    allDocuments.push(...client.documents);
+  }
 
   // Vérifier les champs requis
   const missingFields: string[] = [];
   for (const field of requiredFields) {
-    const value = (client as any)[field];
+    let value: any = null;
+    
+    // Les champs sont dans Person ou Entreprise selon le type
+    if (client.type === ClientType.PERSONNE_PHYSIQUE && primaryPerson) {
+      value = (primaryPerson as any)[field];
+    } else if (client.type === ClientType.PERSONNE_MORALE && entreprise) {
+      value = (entreprise as any)[field];
+    }
+    
     if (!value || (typeof value === "string" && value.trim() === "")) {
       missingFields.push(field);
     }
   }
 
   // Vérifier les documents requis
-  const clientDocumentKinds = client.documents.map((doc) => doc.kind);
-  const missingDocuments = requiredDocuments.filter(
-    (kind) => !clientDocumentKinds.includes(kind)
+  // Pour PERSONNE_PHYSIQUE: BIRTH_CERT et ID_IDENTITY requis pour CHAQUE personne
+  // Pour PERSONNE_MORALE: KBIS et STATUTES requis pour l'entreprise
+  // LIVRET_DE_FAMILLE et CONTRAT_DE_PACS requis au niveau client (une seule fois)
+  const missingDocuments: DocumentKind[] = [];
+  
+  if (client.type === ClientType.PERSONNE_PHYSIQUE) {
+    // Vérifier que chaque personne a BIRTH_CERT et ID_IDENTITY
+    for (const person of client.persons || []) {
+      const personDocKinds = (person.documents || []).map((d: any) => d.kind);
+      if (!personDocKinds.includes(DocumentKind.BIRTH_CERT)) {
+        missingDocuments.push(DocumentKind.BIRTH_CERT);
+      }
+      if (!personDocKinds.includes(DocumentKind.ID_IDENTITY)) {
+        missingDocuments.push(DocumentKind.ID_IDENTITY);
+      }
+    }
+    
+    // Vérifier les documents client (livret de famille, PACS)
+    const clientDocKinds = (client.documents || []).map((d: any) => d.kind);
+    if (familyStatus === FamilyStatus.MARIE && !clientDocKinds.includes(DocumentKind.LIVRET_DE_FAMILLE)) {
+      missingDocuments.push(DocumentKind.LIVRET_DE_FAMILLE);
+    }
+    if (familyStatus === FamilyStatus.PACS && !clientDocKinds.includes(DocumentKind.CONTRAT_DE_PACS)) {
+      missingDocuments.push(DocumentKind.CONTRAT_DE_PACS);
+    }
+  } else if (client.type === ClientType.PERSONNE_MORALE && entreprise) {
+    // Vérifier les documents entreprise
+    const entrepriseDocKinds = (entreprise.documents || []).map((d: any) => d.kind);
+    if (!entrepriseDocKinds.includes(DocumentKind.KBIS)) {
+      missingDocuments.push(DocumentKind.KBIS);
+    }
+    if (!entrepriseDocKinds.includes(DocumentKind.STATUTES)) {
+      missingDocuments.push(DocumentKind.STATUTES);
+    }
+  }
+  
+  // Vérifier les autres documents requis (assurance, RIB pour locataire)
+  const allDocKinds = allDocuments.map((doc) => doc.kind);
+  const otherRequiredDocs = requiredDocuments.filter(
+    (kind) => kind !== DocumentKind.BIRTH_CERT && 
+              kind !== DocumentKind.ID_IDENTITY && 
+              kind !== DocumentKind.KBIS && 
+              kind !== DocumentKind.STATUTES &&
+              kind !== DocumentKind.LIVRET_DE_FAMILLE &&
+              kind !== DocumentKind.CONTRAT_DE_PACS
   );
+  for (const kind of otherRequiredDocs) {
+    if (!allDocKinds.includes(kind)) {
+      missingDocuments.push(kind);
+    }
+  }
 
   return {
     hasAllFields: missingFields.length === 0,

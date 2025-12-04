@@ -31,25 +31,38 @@ export async function createBasicClient(data: unknown) {
   const user = await requireAuth();
   const validated = createBasicClientSchema.parse(data);
 
-  // Vérifier si un client avec cet email existe déjà
-  const existingClient = await prisma.client.findUnique({
-    where: { email: validated.email },
-  });
+  const email = validated.email.toLowerCase().trim();
 
-  if (existingClient) {
-    throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+  const [existingPerson, existingEntreprise] = await Promise.all([
+    prisma.person.findUnique({
+      where: { email: email },
+    }),
+    prisma.entreprise.findUnique({
+      where: { email: email },
+    })
+  ]);
+  
+  if (existingPerson || existingEntreprise) {
+    throw new Error("Cet email est déjà utilisé par un client, une personne ou une entreprise.");
   }
-
+  
   // Créer le client avec profilType PROPRIETAIRE (sans type, sera défini dans le formulaire)
+  // Créer aussi une Person avec l'email
   let client;
   try {
     client = await prisma.client.create({
       data: {
         type: ClientType.PERSONNE_PHYSIQUE, // Type temporaire, sera mis à jour dans le formulaire
         profilType: ProfilType.PROPRIETAIRE,
-        email: validated.email,
         completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
         createdById: user.id,
+        persons: {
+          create: {
+            email: email,
+            isPrimary: true,
+            createdById: user.id,
+          },
+        },
       },
     });
   } catch (error: any) {
@@ -69,6 +82,16 @@ export async function createBasicClient(data: unknown) {
       target: "OWNER",
       clientId: client.id,
       createdById: user.id,
+      rawPayload: {
+        type: ClientType.PERSONNE_PHYSIQUE,
+        email: email,
+        persons: [
+          {
+            email: email,
+            isPrimary: true,
+          },
+        ],
+      },
     },
   });
 
@@ -108,15 +131,14 @@ export async function createFullClient(data: unknown) {
   // Essayer d'abord avec le schéma complet (avec bien, bail, locataire)
   try {
     const validated = createFullClientWithPropertySchema.parse(data);
-    
-    // Créer le client propriétaire
-    let client;
-    try {
-      if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
-        client = await prisma.client.create({
-          data: {
-            type: ClientType.PERSONNE_PHYSIQUE,
-            profilType: ProfilType.PROPRIETAIRE,
+
+    const providedPersons = Array.isArray((validated as any).persons)
+      ? ((validated as any).persons as any[])
+      : [];
+
+    const fallbackPerson =
+      validated.type === ClientType.PERSONNE_PHYSIQUE
+        ? {
             firstName: validated.firstName,
             lastName: validated.lastName,
             profession: validated.profession,
@@ -124,37 +146,40 @@ export async function createFullClient(data: unknown) {
             email: validated.email,
             fullAddress: validated.fullAddress,
             nationality: validated.nationality,
-            familyStatus: validated.familyStatus as FamilyStatus | null,
-            matrimonialRegime: validated.matrimonialRegime as MatrimonialRegime | null,
+            familyStatus: validated.familyStatus,
+            matrimonialRegime: validated.matrimonialRegime,
             birthPlace: validated.birthPlace,
             birthDate: validated.birthDate,
-            completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
-            createdById: user.id,
+            isPrimary: true,
+          }
+        : undefined;
 
-          },
-        });
-      } else {
-        client = await prisma.client.create({
-          data: {
-            type: ClientType.PERSONNE_MORALE,
-            profilType: ProfilType.PROPRIETAIRE,
-            legalName: validated.legalName,
-            registration: validated.registration,
-            phone: validated.phone,
-            email: validated.email,
-            fullAddress: validated.fullAddress,
-            nationality: validated.nationality,
-            completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
-            createdById: user.id,
-          },
-        });
-      }
+    const personsToCreate =
+      providedPersons.length > 0
+        ? providedPersons.map((person, index) => ({
+            ...person,
+            isPrimary: person.isPrimary ?? index === 0,
+          }))
+        : fallbackPerson
+          ? [fallbackPerson]
+          : [];
+
+    const primaryPerson = personsToCreate[0];
+
+    // Créer le client propriétaire (sans champs personnels, ceux-ci vont dans Person ou Entreprise)
+    let client;
+    try {
+      client = await prisma.client.create({
+        data: {
+          type: validated.type,
+          profilType: ProfilType.PROPRIETAIRE,
+          completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
+          createdById: user.id,
+        },
+      });
     } catch (error: any) {
       // Gérer les erreurs Prisma (contrainte unique, etc.)
       if (error.code === "P2002") {
-        if (error.meta?.target?.includes("email")) {
-          throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
-        }
         throw new Error("Une erreur de contrainte unique s'est produite.");
       }
       throw error;
@@ -162,6 +187,56 @@ export async function createFullClient(data: unknown) {
 
     // Ne pas mettre à jour le statut de complétion lors de la création manuelle
     // Le statut reste NOT_STARTED jusqu'à ce que le client remplisse le formulaire
+
+    // Pour PERSONNE_PHYSIQUE: créer les Person(s)
+    if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
+      if (personsToCreate.length > 0) {
+        await prisma.person.createMany({
+          data: personsToCreate.map((person, index) => ({
+            clientId: client.id,
+            firstName: person.firstName ?? null,
+            lastName: person.lastName ?? null,
+            profession: person.profession ?? null,
+            phone: person.phone ?? null,
+            email: person.email ?? null,
+            fullAddress: person.fullAddress ?? null,
+            nationality: person.nationality ?? null,
+            familyStatus: (person.familyStatus as any) ?? null,
+            matrimonialRegime: (person.matrimonialRegime as any) ?? null,
+            birthPlace: person.birthPlace ?? null,
+            birthDate: person.birthDate ? new Date(person.birthDate) : null,
+            isPrimary: person.isPrimary ?? index === 0,
+          })),
+        });
+      }
+    } else {
+      // Pour PERSONNE_MORALE: créer l'Entreprise
+      try {
+        await prisma.entreprise.create({
+          data: {
+            clientId: client.id,
+            legalName: validated.legalName!,
+            registration: validated.registration ?? "",
+            name: validated.legalName!, // Utiliser legalName comme name par défaut
+            email: validated.email!,
+            phone: validated.phone ?? null,
+            fullAddress: validated.fullAddress ?? null,
+            createdById: user.id,
+          },
+        });
+      } catch (error: any) {
+        // Gérer les erreurs Prisma (contrainte unique, etc.)
+        if (error.code === "P2002") {
+          if (error.meta?.target?.includes("email")) {
+            throw new Error(`Une entreprise avec l'email ${validated.email} existe déjà.`);
+          }
+          throw new Error("Une erreur de contrainte unique s'est produite.");
+        }
+        throw error;
+      }
+
+
+    }
 
     // Créer le bien
     const property = await prisma.property.create({
@@ -187,9 +262,10 @@ export async function createFullClient(data: unknown) {
     let tenantIntakeLink = null;
     
     if (validated.tenantEmail) {
+      const email = validated.tenantEmail.toLowerCase().trim();
       // Vérifier si un locataire avec cet email existe déjà
-      const existingTenant = await prisma.client.findUnique({
-        where: { email: validated.tenantEmail },
+      const existingTenant = await prisma.person.findUnique({
+        where: { email },
       });
 
       if (existingTenant) {
@@ -202,9 +278,14 @@ export async function createFullClient(data: unknown) {
             data: {
               type: ClientType.PERSONNE_PHYSIQUE,
               profilType: ProfilType.LOCATAIRE,
-              email: validated.tenantEmail,
               completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
               createdById: user.id,
+              persons: {
+                create: {
+                  email: validated.tenantEmail,
+                },
+              },
+
             },
           });
         } catch (error: any) {
@@ -311,12 +392,13 @@ export async function createFullClient(data: unknown) {
     try {
       const validated = createFullClientSchema.parse(data);
 
-      if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
-        try {
-          const client = await prisma.client.create({
-            data: {
-              type: ClientType.PERSONNE_PHYSIQUE,
-              profilType: ProfilType.PROPRIETAIRE,
+      const providedPersons = Array.isArray((validated as any).persons)
+        ? ((validated as any).persons as any[])
+        : [];
+
+      const fallbackPerson =
+        validated.type === ClientType.PERSONNE_PHYSIQUE
+          ? {
               firstName: validated.firstName,
               lastName: validated.lastName,
               profession: validated.profession,
@@ -324,71 +406,109 @@ export async function createFullClient(data: unknown) {
               email: validated.email,
               fullAddress: validated.fullAddress,
               nationality: validated.nationality,
-              familyStatus: validated.familyStatus as FamilyStatus | null,
-              matrimonialRegime: validated.matrimonialRegime as MatrimonialRegime | null,
+              familyStatus: validated.familyStatus,
+              matrimonialRegime: validated.matrimonialRegime,
               birthPlace: validated.birthPlace,
               birthDate: validated.birthDate,
-              completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
-              createdById: user.id,
-            },
-            include: {
-              bails: true,
-              ownedProperties: true,
-            },
-          });
-
-          revalidatePath("/interface/clients");
-          return client;
-        } catch (createError: any) {
-          if (createError.code === "P2002") {
-            if (createError.meta?.target?.includes("email")) {
-              throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+              isPrimary: true,
             }
-            throw new Error("Une erreur de contrainte unique s'est produite.");
+          : undefined;
+
+      const personsToCreate =
+        providedPersons.length > 0
+          ? providedPersons.map((person, index) => ({
+              ...person,
+              isPrimary: person.isPrimary ?? index === 0,
+            }))
+          : fallbackPerson
+            ? [fallbackPerson]
+            : [];
+
+      const primaryPerson = personsToCreate[0];
+
+      // Créer le client propriétaire (sans champs personnels, ceux-ci vont dans Person ou Entreprise)
+      try {
+        const client = await prisma.client.create({
+          data: {
+            type: validated.type,
+            profilType: ProfilType.PROPRIETAIRE,
+            completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
+            createdById: user.id,
+          },
+          include: {
+            bails: true,
+            ownedProperties: true,
+          },
+        });
+
+        // Pour PERSONNE_PHYSIQUE: créer les Person(s)
+        if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
+          if (personsToCreate.length > 0) {
+            await prisma.person.createMany({
+              data: personsToCreate.map((person, index) => ({
+                clientId: client.id,
+                firstName: person.firstName ?? null,
+                lastName: person.lastName ?? null,
+                profession: person.profession ?? null,
+                phone: person.phone ?? null,
+                email: person.email ?? null,
+                fullAddress: person.fullAddress ?? null,
+                nationality: person.nationality ?? null,
+                familyStatus: (person.familyStatus as any) ?? null,
+                matrimonialRegime: (person.matrimonialRegime as any) ?? null,
+                birthPlace: person.birthPlace ?? null,
+                birthDate: person.birthDate ? new Date(person.birthDate) : null,
+                isPrimary: person.isPrimary ?? index === 0,
+                createdById: user.id,
+              })),
+            });
           }
-          throw createError;
-        }
-      } else {
-        try {
-          const client = await prisma.client.create({
-            data: {
-              type: ClientType.PERSONNE_MORALE,
-              profilType: ProfilType.PROPRIETAIRE,
-              legalName: validated.legalName,
-              registration: validated.registration,
-              phone: validated.phone,
-              email: validated.email,
-              fullAddress: validated.fullAddress,
-              nationality: validated.nationality,
-              completionStatus: CompletionStatus.NOT_STARTED, // Statut par défaut lors de la création manuelle
-              createdById: user.id,
-            },
-            include: {
-              bails: true,
-              ownedProperties: true,
-            },
-          });
-
-          // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le client)
-          await createNotificationForAllUsers(
-            NotificationType.CLIENT_CREATED,
-            "CLIENT",
-            client.id,
-            user.id,
-            { createdByForm: false ,profileType: ProfilType.PROPRIETAIRE }
-          );
-
-          revalidatePath("/interface/clients");
-          return client;
-        } catch (createError: any) {
-          if (createError.code === "P2002") {
-            if (createError.meta?.target?.includes("email")) {
-              throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+        } else {
+          // Pour PERSONNE_MORALE: créer l'Entreprise
+          try {
+            await prisma.entreprise.create({
+              data: {
+                clientId: client.id,
+                legalName: validated.legalName!,
+                registration: validated.registration ?? "",
+                name: validated.legalName!, // Utiliser legalName comme name par défaut
+                email: validated.email!,
+                phone: validated.phone ?? null,
+                fullAddress: validated.fullAddress ?? null,
+                createdById: user.id,
+              },
+            });
+          } catch (entrepriseError: any) {
+            // Gérer les erreurs Prisma (contrainte unique, etc.)
+            if (entrepriseError.code === "P2002") {
+              if (entrepriseError.meta?.target?.includes("email")) {
+                throw new Error(`Une entreprise avec l'email ${validated.email} existe déjà.`);
+              }
+              throw new Error("Une erreur de contrainte unique s'est produite.");
             }
-            throw new Error("Une erreur de contrainte unique s'est produite.");
+            throw entrepriseError;
           }
-          throw createError;
         }
+
+        // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le client)
+        await createNotificationForAllUsers(
+          NotificationType.CLIENT_CREATED,
+          "CLIENT",
+          client.id,
+          user.id,
+          { createdByForm: false, profileType: ProfilType.PROPRIETAIRE }
+        );
+
+        revalidatePath("/interface/clients");
+        return client;
+      } catch (createError: any) {
+        if (createError.code === "P2002") {
+          if (createError.meta?.target?.includes("email")) {
+            throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
+          }
+          throw new Error("Une erreur de contrainte unique s'est produite.");
+        }
+        throw createError;
       }
     } catch (parseError: any) {
       // Si c'est une erreur Zod, formater les messages d'erreur
@@ -437,33 +557,236 @@ export async function submitOwnerForm(data: unknown) {
     throw new Error("Accès non autorisé : aucun lien d'intake valide trouvé pour ce client");
   }
 
-  // Mettre à jour le client propriétaire
-  const ownerUpdateData: any = {
-    updatedAt: new Date(),
-  };
-
-  if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
-    if (validated.firstName) ownerUpdateData.firstName = validated.firstName;
-    if (validated.lastName) ownerUpdateData.lastName = validated.lastName;
-    if (validated.profession) ownerUpdateData.profession = validated.profession;
-    if (validated.familyStatus) ownerUpdateData.familyStatus = validated.familyStatus;
-    if (validated.matrimonialRegime) ownerUpdateData.matrimonialRegime = validated.matrimonialRegime;
-    if (validated.birthPlace) ownerUpdateData.birthPlace = validated.birthPlace;
-    if (validated.birthDate) ownerUpdateData.birthDate = validated.birthDate;
-  } else {
-    if (validated.legalName) ownerUpdateData.legalName = validated.legalName;
-    if (validated.registration) ownerUpdateData.registration = validated.registration;
-  }
-
-  if (validated.phone) ownerUpdateData.phone = validated.phone;
-  if (validated.email) ownerUpdateData.email = validated.email;
-  if (validated.fullAddress) ownerUpdateData.fullAddress = validated.fullAddress;
-  if (validated.nationality) ownerUpdateData.nationality = validated.nationality;
-
+  // Mettre à jour le type du client si nécessaire
   await prisma.client.update({
     where: { id: validated.clientId },
-    data: ownerUpdateData,
+    data: {
+      type: validated.type,
+      updatedAt: new Date(),
+    },
   });
+
+  // Créer ou mettre à jour la Person ou l'Entreprise selon le type
+  if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
+    // Récupérer toutes les personnes existantes
+    const existingPersons = await prisma.person.findMany({
+      where: {
+        clientId: validated.clientId,
+      },
+    });
+
+    const existingPrimaryPerson = existingPersons.find(p => p.isPrimary);
+    const existingNonPrimaryPersons = existingPersons.filter(p => !p.isPrimary);
+
+    // Récupérer toutes les personnes du payload
+    const allPersons = (validated as any).persons || [];
+    console.log("🔍 submitOwnerForm - Toutes les personnes reçues:", allPersons.length);
+    console.log("🔍 submitOwnerForm - Personnes existantes en base:", existingPersons.length);
+
+    if (allPersons.length === 0) {
+      throw new Error("Au moins une personne est requise");
+    }
+
+    // Traiter toutes les personnes du payload
+    const processedPersonIds: string[] = [];
+
+    // La première personne est la personne primaire
+    const primaryPersonData = allPersons[0];
+    
+    const primaryPersonDataToUpdate: any = {};
+    if (primaryPersonData.firstName) primaryPersonDataToUpdate.firstName = primaryPersonData.firstName;
+    if (primaryPersonData.lastName) primaryPersonDataToUpdate.lastName = primaryPersonData.lastName;
+    if (primaryPersonData.profession) primaryPersonDataToUpdate.profession = primaryPersonData.profession;
+    if (primaryPersonData.phone) primaryPersonDataToUpdate.phone = primaryPersonData.phone;
+    if (primaryPersonData.email) primaryPersonDataToUpdate.email = primaryPersonData.email.trim().toLowerCase();
+    if (primaryPersonData.fullAddress) primaryPersonDataToUpdate.fullAddress = primaryPersonData.fullAddress;
+    if (primaryPersonData.nationality) primaryPersonDataToUpdate.nationality = primaryPersonData.nationality;
+    if (primaryPersonData.familyStatus) primaryPersonDataToUpdate.familyStatus = primaryPersonData.familyStatus;
+    if (primaryPersonData.matrimonialRegime) primaryPersonDataToUpdate.matrimonialRegime = primaryPersonData.matrimonialRegime;
+    if (primaryPersonData.birthPlace) primaryPersonDataToUpdate.birthPlace = primaryPersonData.birthPlace;
+    if (primaryPersonData.birthDate) primaryPersonDataToUpdate.birthDate = primaryPersonData.birthDate;
+
+    // Mettre à jour ou créer la personne primaire
+    if (existingPrimaryPerson) {
+      await prisma.person.update({
+        where: { id: existingPrimaryPerson.id },
+        data: primaryPersonDataToUpdate,
+      });
+      processedPersonIds.push(existingPrimaryPerson.id);
+    } else {
+      const newPrimaryPerson = await prisma.person.create({
+        data: {
+          ...primaryPersonDataToUpdate,
+          clientId: validated.clientId,
+          isPrimary: true,
+        },
+      });
+      processedPersonIds.push(newPrimaryPerson.id);
+    }
+
+    // Traiter les personnes supplémentaires (toutes sauf la première)
+    const additionalPersonsFromPayload = allPersons.slice(1);
+    
+    for (const personData of additionalPersonsFromPayload) {
+      // Vérifier si une personne avec cet email existe déjà
+      if (personData.email) {
+        const emailNormalized = personData.email.trim().toLowerCase();
+        const existingPersonByEmail = await prisma.person.findFirst({
+          where: { 
+            email: emailNormalized,
+            clientId: validated.clientId,
+            isPrimary: false,
+          },
+        });
+
+        if (existingPersonByEmail) {
+          // Mettre à jour la personne existante
+          await prisma.person.update({
+            where: { id: existingPersonByEmail.id },
+            data: {
+              firstName: personData.firstName || null,
+              lastName: personData.lastName || null,
+              profession: personData.profession || null,
+              phone: personData.phone || null,
+              email: emailNormalized,
+              fullAddress: personData.fullAddress || null,
+              nationality: personData.nationality || null,
+              familyStatus: personData.familyStatus || null,
+              matrimonialRegime: personData.matrimonialRegime || null,
+              birthPlace: personData.birthPlace || null,
+              birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
+            },
+          });
+          processedPersonIds.push(existingPersonByEmail.id);
+        } else {
+          // Vérifier si l'email existe déjà pour un autre client
+          const existingPersonWithEmail = await prisma.person.findUnique({
+            where: { email: emailNormalized },
+          });
+          
+          if (existingPersonWithEmail && existingPersonWithEmail.clientId !== validated.clientId) {
+            throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
+          }
+          
+          // Créer une nouvelle personne
+          const newPerson = await prisma.person.create({
+            data: {
+              clientId: validated.clientId,
+              firstName: personData.firstName || null,
+              lastName: personData.lastName || null,
+              profession: personData.profession || null,
+              phone: personData.phone || null,
+              email: emailNormalized,
+              fullAddress: personData.fullAddress || null,
+              nationality: personData.nationality || null,
+              familyStatus: personData.familyStatus || null,
+              matrimonialRegime: personData.matrimonialRegime || null,
+              birthPlace: personData.birthPlace || null,
+              birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
+              isPrimary: false,
+            },
+          });
+          processedPersonIds.push(newPerson.id);
+        }
+      } else {
+        // Si pas d'email, créer quand même si on a au moins un prénom ou nom
+        if (personData.firstName || personData.lastName) {
+          const newPerson = await prisma.person.create({
+            data: {
+              clientId: validated.clientId,
+              firstName: personData.firstName || null,
+              lastName: personData.lastName || null,
+              profession: personData.profession || null,
+              phone: personData.phone || null,
+              fullAddress: personData.fullAddress || null,
+              nationality: personData.nationality || null,
+              familyStatus: personData.familyStatus || null,
+              matrimonialRegime: personData.matrimonialRegime || null,
+              birthPlace: personData.birthPlace || null,
+              birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
+              isPrimary: false,
+            },
+          });
+          processedPersonIds.push(newPerson.id);
+        }
+      }
+    }
+
+    // Supprimer uniquement les personnes qui ne sont pas dans la liste traitée
+    const personsToDelete = existingNonPrimaryPersons.filter(
+      (p) => !processedPersonIds.includes(p.id)
+    );
+
+    console.log("🔍 Personnes à supprimer potentielles:", personsToDelete.length);
+    console.log("🔍 Personnes traitées (IDs):", processedPersonIds);
+    console.log("🔍 Personnes supplémentaires dans le payload:", additionalPersonsFromPayload.length);
+
+    // Ne supprimer que les personnes qui ne sont pas dans la liste traitée
+    // Comparer avec toutes les personnes du payload (sauf la première qui est primaire)
+    for (const personToDelete of personsToDelete) {
+      // Vérifier si la personne correspond à une personne du payload (par email ou par prénom/nom)
+      const matchesPayload = additionalPersonsFromPayload.some((p: any) => {
+        // Comparaison par email si les deux ont un email
+        if (personToDelete.email && p.email) {
+          return personToDelete.email.trim().toLowerCase() === p.email.trim().toLowerCase();
+        }
+        // Comparaison par prénom/nom si pas d'email dans le payload mais la personne en base a un email
+        // On ne supprime pas dans ce cas pour éviter les suppressions accidentelles
+        if (personToDelete.email && !p.email) {
+          return false; // Ne pas supprimer si la personne en base a un email mais pas dans le payload
+        }
+        // Comparaison par prénom/nom si aucun n'a d'email
+        if (!personToDelete.email && !p.email) {
+          const personNameMatch = 
+            (personToDelete.firstName || "").trim().toLowerCase() === (p.firstName || "").trim().toLowerCase() &&
+            (personToDelete.lastName || "").trim().toLowerCase() === (p.lastName || "").trim().toLowerCase();
+          return personNameMatch;
+        }
+        return false;
+      });
+      
+      // Ne supprimer que si la personne ne correspond à aucune personne du payload
+      if (!matchesPayload) {
+        console.log("🗑️ Suppression de la personne:", personToDelete.id, personToDelete.email || `${personToDelete.firstName} ${personToDelete.lastName}`);
+        await prisma.person.delete({
+          where: { id: personToDelete.id },
+        });
+      }
+    }
+  } else {
+    // Pour PERSONNE_MORALE: créer ou mettre à jour l'Entreprise
+    const existingEntreprise = await prisma.entreprise.findUnique({
+      where: { clientId: validated.clientId },
+    });
+
+    const entrepriseData: any = {};
+    if (validated.entreprise?.legalName) entrepriseData.legalName = validated.entreprise.legalName;
+    if (validated.entreprise?.registration) entrepriseData.registration = validated.entreprise.registration;
+    if (validated.entreprise?.phone) entrepriseData.phone = validated.entreprise.phone;
+    if (validated.entreprise?.email) entrepriseData.email = validated.entreprise.email.trim().toLowerCase();
+    if (validated.entreprise?.fullAddress) entrepriseData.fullAddress = validated.entreprise.fullAddress;
+    if (validated.entreprise?.name) entrepriseData.name = validated.entreprise.name; // Utiliser legalName comme name
+
+    if (existingEntreprise) {
+      // Mettre à jour l'entreprise existante
+      await prisma.entreprise.update({
+        where: { id: existingEntreprise.id },
+        data: entrepriseData,
+      });
+    } else {
+      // Créer une nouvelle entreprise
+      await prisma.entreprise.create({
+        data: {
+          ...entrepriseData,
+          clientId: validated.clientId,
+          legalName: validated.legalName || "",
+          registration: validated.registration || "",
+          name: validated.legalName || "",
+          email: validated.email?.trim().toLowerCase() || "",
+        },
+      });
+    }
+  }
 
   // Récupérer l'intakeLink du propriétaire pour vérifier les objets existants
   const ownerIntakeLink = await prisma.intakeLink.findFirst({
@@ -517,20 +840,35 @@ export async function submitOwnerForm(data: unknown) {
   const rawPayload = ownerIntakeLink?.rawPayload as any;
   
   if (validated.tenantEmail) {
+    const tenantEmail = validated.tenantEmail.trim().toLowerCase();
+    
     // D'abord, vérifier si un locataire est lié via le rawPayload (cas de conversion lead)
     if (rawPayload?.relatedTenantId) {
       // Si un locataire est lié via le rawPayload, l'utiliser
       tenant = await prisma.client.findUnique({
         where: { id: rawPayload.relatedTenantId },
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+        },
       });
       
       if (tenant) {
-        // Mettre à jour l'email si nécessaire
-        if (tenant.email !== validated.tenantEmail.trim().toLowerCase()) {
-          tenant = await prisma.client.update({
-            where: { id: tenant.id },
+        // Mettre à jour l'email de la personne primaire si nécessaire
+        const primaryPerson = tenant.persons?.find(p => p.isPrimary) || tenant.persons?.[0];
+        if (primaryPerson && primaryPerson.email !== tenantEmail) {
+          await prisma.person.update({
+            where: { id: primaryPerson.id },
+            data: { email: tenantEmail },
+          });
+        } else if (!primaryPerson) {
+          // Créer une personne primaire si elle n'existe pas
+          await prisma.person.create({
             data: {
-              email: validated.tenantEmail.trim().toLowerCase(),
+              clientId: tenant.id,
+              email: tenantEmail,
+              isPrimary: true,
             },
           });
         }
@@ -544,73 +882,85 @@ export async function submitOwnerForm(data: unknown) {
       );
       
       if (existingTenant) {
-        // Si un locataire est déjà rattaché au bail, mettre à jour son email
-        tenant = await prisma.client.update({
+        // Récupérer le tenant avec ses persons
+        tenant = await prisma.client.findUnique({
           where: { id: existingTenant.id },
-          data: {
-            email: validated.tenantEmail.trim().toLowerCase(),
+          include: {
+            persons: {
+              orderBy: { isPrimary: 'desc' },
+            },
           },
         });
-      } else {
-        // Vérifier d'abord si un client avec cet email existe déjà (peu importe le profilType)
-        const existingClientWithEmail = await prisma.client.findUnique({
-          where: {
-            email: validated.tenantEmail.trim().toLowerCase()
-          },
-        });
-
-        if (existingClientWithEmail) {
-          throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
-        }
-
-        // Si aucun locataire n'est rattaché, chercher un locataire existant avec cet email
-        tenant = await prisma.client.findFirst({
-          where: {
-            email: validated.tenantEmail.trim().toLowerCase(),
-            profilType: ProfilType.LOCATAIRE,
-          },
-        });
-
-        if (!tenant) {
-          // Si le locataire n'existe pas, le créer
-          tenant = await prisma.client.create({
+        
+        if (tenant) {
+          // Mettre à jour l'email de la personne primaire si nécessaire
+          const primaryPerson = tenant.persons?.find((p: any) => p.isPrimary) || tenant.persons?.[0];
+        if (primaryPerson && primaryPerson.email !== tenantEmail) {
+          await prisma.person.update({
+            where: { id: primaryPerson.id },
+            data: { email: tenantEmail },
+          });
+        } else if (!primaryPerson) {
+          await prisma.person.create({
             data: {
-              type: ClientType.PERSONNE_PHYSIQUE,
-              profilType: ProfilType.LOCATAIRE,
-              email: validated.tenantEmail.trim().toLowerCase(),
+              clientId: tenant.id,
+              email: tenantEmail,
+              isPrimary: true,
             },
           });
         }
-      }
-    } else if (!tenant) {
-      // Vérifier d'abord si un client avec cet email existe déjà (peu importe le profilType)
-      const existingClientWithEmail = await prisma.client.findUnique({
-        where: {
-          email: validated.tenantEmail.trim().toLowerCase()
-        },
-      });
+        }
+      } else {
+        // Vérifier d'abord si une personne ou entreprise avec cet email existe déjà
+        const [existingPerson, existingEntreprise] = await Promise.all([
+          prisma.person.findUnique({ where: { email: tenantEmail } }),
+          prisma.entreprise.findUnique({ where: { email: tenantEmail } }),
+        ]);
 
-      if (existingClientWithEmail) {
-        throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
-      }
+        if (existingPerson || existingEntreprise) {
+          throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
+        }
 
-      // Si le bail n'existe pas encore, chercher ou créer le locataire
-      tenant = await prisma.client.findFirst({
-        where: {
-          email: validated.tenantEmail.trim().toLowerCase(),
-          profilType: ProfilType.LOCATAIRE,
-        },
-      });
-
-      if (!tenant) {
+        // Si le locataire n'existe pas, le créer avec une Person
         tenant = await prisma.client.create({
           data: {
             type: ClientType.PERSONNE_PHYSIQUE,
             profilType: ProfilType.LOCATAIRE,
-            email: validated.tenantEmail.trim().toLowerCase(),
+            completionStatus: CompletionStatus.NOT_STARTED,
+            persons: {
+              create: {
+                email: tenantEmail,
+                isPrimary: true,
+              },
+            },
           },
         });
       }
+    } else if (!tenant) {
+      // Vérifier d'abord si une personne ou entreprise avec cet email existe déjà
+      const [existingPerson, existingEntreprise] = await Promise.all([
+        prisma.person.findUnique({ where: { email: tenantEmail } }),
+        prisma.entreprise.findUnique({ where: { email: tenantEmail } }),
+      ]);
+
+      if (existingPerson || existingEntreprise) {
+        throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
+      }
+      
+      // Créer le locataire avec une Person
+      tenant = await prisma.client.create({
+        data: {
+          type: ClientType.PERSONNE_PHYSIQUE,
+          profilType: ProfilType.LOCATAIRE,
+          completionStatus: CompletionStatus.NOT_STARTED,
+          persons: {
+            create: {
+              email: tenantEmail,
+              isPrimary: true,
+            },
+          },
+        },
+      });
     }
   }
 
@@ -810,6 +1160,66 @@ export async function submitOwnerForm(data: unknown) {
         );
       }
 
+      // Envoyer l'email de confirmation au propriétaire après soumission
+      let ownerEmail: string | null = null;
+      let ownerFirstName: string | null = null;
+      let ownerLastName: string | null = null;
+
+      if (validated.type === ClientType.PERSONNE_PHYSIQUE) {
+        // Pour personne physique : récupérer l'email de la personne primaire
+        const primaryPerson = await prisma.person.findFirst({
+          where: {
+            clientId: validated.clientId,
+            isPrimary: true,
+          },
+          select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        });
+        
+        if (primaryPerson?.email) {
+          ownerEmail = primaryPerson.email;
+          ownerFirstName = primaryPerson.firstName || null;
+          ownerLastName = primaryPerson.lastName || null;
+        }
+      } else if (validated.type === ClientType.PERSONNE_MORALE) {
+        // Pour personne morale : récupérer l'email de l'entreprise
+        const entreprise = await prisma.entreprise.findUnique({
+          where: { clientId: validated.clientId },
+          select: {
+            email: true,
+            legalName: true,
+          },
+        });
+        
+        if (entreprise?.email) {
+          ownerEmail = entreprise.email;
+          ownerFirstName = entreprise.legalName || null;
+          ownerLastName = null;
+        }
+      }
+
+      // Envoyer l'email de confirmation au propriétaire si l'email existe
+      if (ownerEmail && ownerIntakeLink) {
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+        const ownerFormUrl = `${baseUrl}/intakes/${ownerIntakeLink.token}`;
+        
+        try {
+          await triggerOwnerFormEmail({
+            to: ownerEmail,
+            firstName: ownerFirstName || "",
+            lastName: ownerLastName || "",
+            formUrl: ownerFormUrl,
+          });
+          console.log(`✅ Email de confirmation envoyé au propriétaire ${ownerEmail}`);
+        } catch (emailError) {
+          console.error("❌ Erreur lors de l'envoi d'email au propriétaire:", emailError);
+          // Ne pas bloquer la soumission même si l'email échoue
+        }
+      }
+
       // L'email au locataire est maintenant envoyé lors de la sauvegarde de l'étape 4 dans savePartialIntake
       // Plus besoin d'envoyer l'email lors de la soumission finale
     } catch (error: any) {
@@ -957,24 +1367,166 @@ export async function updateClient(data: unknown) {
 
   const existing = await prisma.client.findUnique({
     where: { id },
-    include: { bails: true, ownedProperties: true },
+    include: { 
+      persons: {
+        orderBy: { isPrimary: 'desc' },
+      },
+      entreprise: true,
+      bails: true, 
+      ownedProperties: true 
+    },
   });
 
   if (!existing) {
     throw new Error("Client introuvable");
   }
 
+  // Séparer les données du Client des données de Person/Entreprise
+  const {
+    type,
+    profilType,
+    persons,
+    legalName,
+    registration,
+    name,
+    phone,
+    email,
+    fullAddress,
+    ...clientOnlyData
+  } = updateData;
+
+  // Mettre à jour le Client (seulement les champs qui lui appartiennent)
+  // Note: profilType n'est pas modifiable dans l'édition
   const client = await prisma.client.update({
     where: { id },
     data: {
-      ...updateData,
+      ...(type !== undefined && { type }),
+      // profilType n'est pas modifiable, on ne le met pas à jour
+      ...clientOnlyData,
       updatedById: user.id,
     },
     include: {
+      persons: {
+        orderBy: { isPrimary: 'desc' },
+      },
+      entreprise: true,
       bails: true,
       ownedProperties: true,
     },
   });
+
+  // Mettre à jour Person ou Entreprise selon le type
+  // Note: Si le type change de PERSONNE_PHYSIQUE à PERSONNE_MORALE, on ne met pas à jour les personnes
+  const finalType = type !== undefined ? type : existing.type;
+  
+  if (finalType === ClientType.PERSONNE_PHYSIQUE && persons && persons.length > 0) {
+    // Gérer plusieurs personnes
+    const existingPersonIds = existing.persons?.map(p => p.id) || [];
+    const submittedPersonIds = persons.filter(p => p.id).map(p => p.id!);
+    
+    // Supprimer les personnes qui ne sont plus dans le tableau
+    const personsToDelete = existingPersonIds.filter(id => !submittedPersonIds.includes(id));
+    if (personsToDelete.length > 0) {
+      await prisma.person.deleteMany({
+        where: {
+          id: { in: personsToDelete },
+          clientId: id,
+        },
+      });
+    }
+
+    // Mettre à jour ou créer les personnes
+    for (const personData of persons) {
+      const personUpdateData: any = {
+        ...(personData.firstName !== undefined && { firstName: personData.firstName }),
+        ...(personData.lastName !== undefined && { lastName: personData.lastName }),
+        ...(personData.profession !== undefined && { profession: personData.profession }),
+        ...(personData.phone !== undefined && { phone: personData.phone }),
+        ...(personData.email !== undefined && { email: personData.email }),
+        ...(personData.fullAddress !== undefined && { fullAddress: personData.fullAddress }),
+        ...(personData.nationality !== undefined && { nationality: personData.nationality }),
+        ...(personData.familyStatus !== undefined && { familyStatus: personData.familyStatus }),
+        ...(personData.matrimonialRegime !== undefined && { matrimonialRegime: personData.matrimonialRegime }),
+        ...(personData.birthPlace !== undefined && { birthPlace: personData.birthPlace }),
+        ...(personData.birthDate !== undefined && { birthDate: personData.birthDate ? new Date(personData.birthDate) : null }),
+        ...(personData.isPrimary !== undefined && { isPrimary: personData.isPrimary }),
+        updatedById: user.id,
+      };
+
+      if (personData.id) {
+        // Mettre à jour la personne existante
+        await prisma.person.update({
+          where: { id: personData.id },
+          data: personUpdateData,
+        });
+      } else {
+        // Créer une nouvelle personne
+        await prisma.person.create({
+          data: {
+            clientId: id,
+            ...personUpdateData,
+            isPrimary: personData.isPrimary || false,
+            createdById: user.id,
+          },
+        });
+      }
+    }
+
+    // S'assurer qu'une seule personne est primaire
+    const primaryPersons = persons.filter(p => p.isPrimary);
+    if (primaryPersons.length > 1) {
+      // Si plusieurs personnes sont marquées comme primaires, ne garder que la première
+      const firstPrimary = primaryPersons[0];
+      for (let i = 1; i < primaryPersons.length; i++) {
+        if (primaryPersons[i].id) {
+          await prisma.person.update({
+            where: { id: primaryPersons[i].id },
+            data: { isPrimary: false },
+          });
+        }
+      }
+    } else if (primaryPersons.length === 0 && persons.length > 0) {
+      // Si aucune personne n'est primaire, marquer la première comme primaire
+      const firstPerson = persons[0];
+      if (firstPerson.id) {
+        await prisma.person.update({
+          where: { id: firstPerson.id },
+          data: { isPrimary: true },
+        });
+      }
+    }
+  } else if (finalType === ClientType.PERSONNE_MORALE) {
+    // PERSONNE_MORALE - Mettre à jour Entreprise
+    if (existing.entreprise) {
+      await prisma.entreprise.update({
+        where: { id: existing.entreprise.id },
+        data: {
+          ...(legalName !== undefined && { legalName }),
+          ...(registration !== undefined && { registration }),
+          ...(name !== undefined && { name: name || legalName || existing.entreprise.name }),
+          ...(email !== undefined && { email }),
+          ...(phone !== undefined && { phone }),
+          ...(fullAddress !== undefined && { fullAddress }),
+          updatedById: user.id,
+        },
+      });
+    } else {
+      // Créer l'entreprise si elle n'existe pas
+      await prisma.entreprise.create({
+        data: {
+          clientId: id,
+          legalName: legalName || "",
+          registration: registration || "",
+          name: name || legalName || "",
+          email: email || "",
+          phone: phone || null,
+          fullAddress: fullAddress || null,
+          createdById: user.id,
+          updatedById: user.id,
+        },
+      });
+    }
+  }
 
   // Mettre à jour le statut de complétion
   await updateClientCompletionStatus({ id, completionStatus: client.completionStatus });
@@ -983,16 +1535,30 @@ export async function updateClient(data: unknown) {
 
   revalidatePath("/interface/clients");
   revalidatePath(`/interface/clients/${id}`);
-  return client;
+  
+  // Récupérer le client mis à jour avec toutes ses relations
+  return await getClient(id);
 }
 
 // Helper pour obtenir le nom d'un client
-function getClientName(client: { type: ClientType; firstName?: string | null; lastName?: string | null; legalName?: string | null; email?: string | null }): string {
+function getClientName(client: { 
+  type: ClientType; 
+  persons?: Array<{ firstName?: string | null; lastName?: string | null; email?: string | null; isPrimary: boolean }>; 
+  entreprise?: { legalName?: string | null; name?: string | null; email?: string | null } | null;
+}): string {
   if (client.type === ClientType.PERSONNE_PHYSIQUE) {
-    const name = `${client.firstName || ""} ${client.lastName || ""}`.trim();
-    return name || client.email || "Client";
+    const primaryPerson = client.persons?.find(p => p.isPrimary) || client.persons?.[0];
+    if (primaryPerson) {
+      const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+      return name || primaryPerson.email || "Client";
+    }
+    return "Client";
   }
-  return client.legalName || client.email || "Client";
+  // PERSONNE_MORALE
+  if (client.entreprise) {
+    return client.entreprise.legalName || client.entreprise.name || client.entreprise.email || "Client";
+  }
+  return "Client";
 }
 
 // Obtenir le nom d'un client par son ID (pour le dialog de confirmation)
@@ -1002,10 +1568,22 @@ export async function getClientNameById(id: string): Promise<string> {
     where: { id },
     select: {
       type: true,
-      firstName: true,
-      lastName: true,
-      legalName: true,
-      email: true,
+      persons: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+          isPrimary: true,
+        },
+        orderBy: { isPrimary: 'desc' },
+      },
+      entreprise: {
+        select: {
+          legalName: true,
+          name: true,
+          email: true,
+        },
+      },
     },
   });
   
@@ -1024,12 +1602,50 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
+      persons: {
+        orderBy: { isPrimary: 'desc' },
+        include: {
+          documents: {
+            select: {
+              id: true,
+              fileKey: true,
+            },
+          },
+        },
+      },
+      entreprise: {
+        include: {
+          documents: {
+            select: {
+              id: true,
+              fileKey: true,
+            },
+          },
+        },
+      },
       bails: {
         include: {
           parties: {
             select: {
               id: true,
               profilType: true,
+              type: true,
+              persons: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                  isPrimary: true,
+                },
+                orderBy: { isPrimary: 'desc' },
+              },
+              entreprise: {
+                select: {
+                  legalName: true,
+                  name: true,
+                  email: true,
+                },
+              },
             },
           },
         },
@@ -1043,10 +1659,22 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
                   id: true,
                   profilType: true,
                   type: true,
-                  firstName: true,
-                  lastName: true,
-                  legalName: true,
-                  email: true,
+                  persons: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      email: true,
+                      isPrimary: true,
+                    },
+                    orderBy: { isPrimary: 'desc' },
+                  },
+                  entreprise: {
+                    select: {
+                      legalName: true,
+                      name: true,
+                      email: true,
+                    },
+                  },
                 },
               },
             },
@@ -1057,12 +1685,6 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
               fileKey: true,
             },
           },
-        },
-      },
-      documents: {
-        select: {
-          id: true,
-          fileKey: true,
         },
       },
       intakeLinks: {
@@ -1091,16 +1713,24 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
       });
     }
 
-    // Supprimer les documents et leurs fichiers blob
-    const documentFileKeys = client.documents.map(doc => doc.fileKey);
-    if (documentFileKeys.length > 0) {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
-      await deleteBlobFiles(documentFileKeys);
+    // Collecter tous les documents depuis persons et entreprise
+    const allDocumentFileKeys: string[] = [];
+    client.persons?.forEach((person: any) => {
+      if (person.documents) {
+        allDocumentFileKeys.push(...person.documents.map((doc: any) => doc.fileKey));
+      }
+    });
+    if (client.entreprise?.documents) {
+      allDocumentFileKeys.push(...client.entreprise.documents.map((doc: any) => doc.fileKey));
     }
 
-    await prisma.document.deleteMany({
-      where: { clientId: id },
-    });
+    // Supprimer les documents et leurs fichiers blob
+    if (allDocumentFileKeys.length > 0) {
+      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      await deleteBlobFiles(allDocumentFileKeys);
+    }
+
+    // Les documents seront supprimés automatiquement via cascade quand Person/Entreprise seront supprimés
 
     // Supprimer le client
     await prisma.client.delete({ where: { id } });
@@ -1108,16 +1738,24 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
   } else if (client.profilType === ProfilType.LOCATAIRE) {
     // LOCATAIRE : Supprimer le client + ses documents (du blob aussi) + sa connexion avec le bail + les intake en relation
     
-    // Supprimer les documents et leurs fichiers blob
-    const documentFileKeys = client.documents.map(doc => doc.fileKey);
-    if (documentFileKeys.length > 0) {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
-      await deleteBlobFiles(documentFileKeys);
+    // Collecter tous les documents depuis persons et entreprise
+    const allDocumentFileKeys: string[] = [];
+    client.persons?.forEach((person: any) => {
+      if (person.documents) {
+        allDocumentFileKeys.push(...person.documents.map((doc: any) => doc.fileKey));
+      }
+    });
+    if (client.entreprise?.documents) {
+      allDocumentFileKeys.push(...client.entreprise.documents.map((doc: any) => doc.fileKey));
     }
 
-    await prisma.document.deleteMany({
-      where: { clientId: id },
-    });
+    // Supprimer les documents et leurs fichiers blob
+    if (allDocumentFileKeys.length > 0) {
+      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      await deleteBlobFiles(allDocumentFileKeys);
+    }
+
+    // Les documents seront supprimés automatiquement via cascade quand Person/Entreprise seront supprimés
 
     // Supprimer les connexions avec les baux (disconnect le locataire des baux)
     for (const bail of client.bails) {
@@ -1153,13 +1791,11 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
         if (hasTenant) {
           const tenant = bail.parties.find(party => party.profilType === ProfilType.LOCATAIRE);
           if (tenant) {
-            const tenantName = tenant.type === ClientType.PERSONNE_PHYSIQUE
-              ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || "Locataire"
-              : tenant.legalName || tenant.email || "Locataire";
+            const tenantName = getClientName(tenant);
             
             blockingEntities.push({
               id: tenant.id,
-              name: tenantName,
+              name: tenantName || "Locataire",
               type: "CLIENT",
               link: `/interface/clients/${tenant.id}`,
             });
@@ -1210,8 +1846,15 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
     // Collecter tous les documents (client + biens)
     const allDocumentFileKeys: string[] = [];
     
-    // Documents du client
-    allDocumentFileKeys.push(...client.documents.map(doc => doc.fileKey));
+    // Documents du client (depuis persons et entreprise)
+    client.persons?.forEach(person => {
+      if (person.documents) {
+        allDocumentFileKeys.push(...person.documents.map(doc => doc.fileKey));
+      }
+    });
+    if (client.entreprise?.documents) {
+      allDocumentFileKeys.push(...client.entreprise.documents.map(doc => doc.fileKey));
+    }
     
     // Documents des biens
     for (const property of client.ownedProperties) {
@@ -1224,13 +1867,11 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
       await deleteBlobFiles(allDocumentFileKeys);
     }
 
-    // Supprimer tous les documents (client + biens)
+    // Supprimer tous les documents (biens)
+    // Les documents du client seront supprimés automatiquement via cascade quand Person/Entreprise seront supprimés
     await prisma.document.deleteMany({
       where: {
-        OR: [
-          { clientId: id },
-          { propertyId: { in: client.ownedProperties.map(p => p.id) } },
-        ],
+        propertyId: { in: client.ownedProperties.map(p => p.id) },
       },
     });
 
@@ -1264,13 +1905,18 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
     await prisma.client.delete({ where: { id } });
   }
   
+  // Obtenir l'email du client pour la notification
+  const clientEmail = client.type === ClientType.PERSONNE_PHYSIQUE
+    ? client.persons?.find(p => p.isPrimary)?.email || client.persons?.[0]?.email || null
+    : client.entreprise?.email || null;
+
   // Créer une notification pour tous les utilisateurs (sauf celui qui a supprimé le client)
   await createNotificationForAllUsers(
     NotificationType.CLIENT_DELETED,
     "CLIENT",
     id,
     user.id,
-    { clientEmail: client.email || null, clientName }
+    { clientEmail, clientName }
   );
   
   revalidatePath("/interface/clients");
@@ -1283,6 +1929,17 @@ export async function getClient(id: string) {
   return prisma.client.findUnique({
     where: { id },
     include: {
+      persons: { 
+        orderBy: { isPrimary: 'desc' },
+        include: {
+          documents: { orderBy: { createdAt: "desc" } },
+        },
+      },
+      entreprise: {
+        include: {
+          documents: { orderBy: { createdAt: "desc" } },
+        },
+      },
       bails: {
         include: {
           property: {
@@ -1290,11 +1947,6 @@ export async function getClient(id: string) {
               owner: {
                 select: {
                   id: true,
-                  firstName: true,
-                  lastName: true,
-                  legalName: true,
-                  type: true,
-                  email: true,
                 },
               },
             },
@@ -1302,12 +1954,17 @@ export async function getClient(id: string) {
           parties: {
             select: {
               id: true,
-              firstName: true,
-              lastName: true,
-              legalName: true,
-              type: true,
-              email: true,
               profilType: true,
+              persons: {
+                include: {
+                  documents: { orderBy: { createdAt: "desc" } },
+                },
+              },
+              entreprise: {
+                include: {
+                  documents: { orderBy: { createdAt: "desc" } },
+                },
+              },
             },
           },
         },
@@ -1320,12 +1977,17 @@ export async function getClient(id: string) {
               parties: {
                 select: {
                   id: true,
-                  firstName: true,
-                  lastName: true,
-                  legalName: true,
-                  type: true,
-                  email: true,
                   profilType: true,
+                  persons: {
+                    include: {
+                      documents: { orderBy: { createdAt: "desc" } },
+                    },
+                  },
+                  entreprise: {
+                    include: {
+                     documents: { orderBy: { createdAt: "desc" } },
+                    },
+                  },
                 },
               },
             },
@@ -1336,9 +1998,6 @@ export async function getClient(id: string) {
       },
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
-      documents: {
-        orderBy: { createdAt: "desc" },
-      },
       intakeLinks: {
         orderBy: { createdAt: "desc" },
       },
@@ -1368,11 +2027,29 @@ export async function getClients(params: {
 
   if (params.search) {
     where.OR = [
-      { email: { contains: params.search, mode: "insensitive" } },
-      { phone: { contains: params.search, mode: "insensitive" } },
-      { firstName: { contains: params.search, mode: "insensitive" } },
-      { lastName: { contains: params.search, mode: "insensitive" } },
-      { legalName: { contains: params.search, mode: "insensitive" } },
+      {
+        persons: {
+          some: {
+            OR: [
+              { email: { contains: params.search, mode: "insensitive" } },
+              { phone: { contains: params.search, mode: "insensitive" } },
+              { firstName: { contains: params.search, mode: "insensitive" } },
+              { lastName: { contains: params.search, mode: "insensitive" } },
+            ],
+          },
+        },
+      },
+      {
+        entreprise: {
+          OR: [
+            { email: { contains: params.search, mode: "insensitive" } },
+            { phone: { contains: params.search, mode: "insensitive" } },
+            { legalName: { contains: params.search, mode: "insensitive" } },
+            { name: { contains: params.search, mode: "insensitive" } },
+            { registration: { contains: params.search, mode: "insensitive" } },
+          ],
+        },
+      },
     ];
   }
 
@@ -1383,6 +2060,10 @@ export async function getClients(params: {
     prisma.client.findMany({
       where,
       include: {
+        persons: {
+          orderBy: { isPrimary: 'desc' },
+        },
+        entreprise: true,
         ownedProperties: true,
         bails: true,
         createdBy: {
@@ -1419,6 +2100,10 @@ export async function getAllClients() {
 
   const data = await prisma.client.findMany({
     include: {
+      persons: {
+        orderBy: { isPrimary: 'desc' },
+      },
+      entreprise: true,
       ownedProperties: true,
       bails: true,
       createdBy: {
@@ -1443,18 +2128,37 @@ export async function getAllClients() {
 export async function sendIntakeLinkToClient(clientId: string) {
   const user = await requireAuth();
 
-  // Récupérer le client
+  // Récupérer le client avec persons et entreprise
   const client = await prisma.client.findUnique({
     where: { id: clientId },
+    include: {
+      persons: {
+        orderBy: { isPrimary: 'desc' },
+      },
+      entreprise: true,
+    },
   });
 
   if (!client) {
     throw new Error("Client introuvable");
   }
 
-  if (!client.email) {
+  // Obtenir l'email depuis Person ou Entreprise
+  const clientEmail = client.type === ClientType.PERSONNE_PHYSIQUE
+    ? client.persons?.find(p => p.isPrimary)?.email || client.persons?.[0]?.email
+    : client.entreprise?.email;
+
+  if (!clientEmail) {
     throw new Error("Le client n'a pas d'email");
   }
+
+  // Obtenir le prénom et nom pour l'email
+  const primaryPerson = client.type === ClientType.PERSONNE_PHYSIQUE
+    ? client.persons?.find(p => p.isPrimary) || client.persons?.[0]
+    : null;
+  
+  const firstName = primaryPerson?.firstName || "";
+  const lastName = primaryPerson?.lastName || "";
 
   // Vérifier que le client n'est pas en statut PENDING_CHECK ou COMPLETED
   if (client.completionStatus === "PENDING_CHECK" || client.completionStatus === "COMPLETED") {
@@ -1497,7 +2201,7 @@ export async function sendIntakeLinkToClient(clientId: string) {
 
     try {
       await triggerLeadConversionEmail({
-        to: client.email,
+        to: clientEmail,
         subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
         convertUrl,
       });
@@ -1616,16 +2320,16 @@ export async function sendIntakeLinkToClient(clientId: string) {
   try {
     if (target === "OWNER") {
       await triggerOwnerFormEmail({
-        to: client.email,
-        firstName: client.firstName || "",
-        lastName: client.lastName || "",
+        to: clientEmail,
+        firstName: firstName,
+        lastName: lastName,
         formUrl,
       });
     } else {
       await triggerTenantFormEmail({
-        to: client.email,
-        firstName: client.firstName || "",
-        lastName: client.lastName || "",
+        to: clientEmail,
+        firstName: firstName,
+        lastName: lastName,
         formUrl,
       });
     }

@@ -117,11 +117,46 @@ export async function POST(request: NextRequest) {
 
             // Déterminer où attacher le document
             let targetClientId: string | null = null;
+            let targetPersonId: string | null = null;
+            let targetEntrepriseId: string | null = null;
             let targetPropertyId: string | null = null;
             let targetBailId: string | null = null;
 
-            // Documents client
-            if (["kbis", "statutes", "birthCert", "idIdentity", "livretDeFamille", "contratDePacs", "insuranceTenant", "ribTenant"].includes(name)) {
+            // Récupérer le client avec ses personnes et entreprise
+            const client = finalClientId ? await prisma.client.findUnique({
+              where: { id: finalClientId },
+              include: {
+                persons: true,
+                entreprise: true,
+              },
+            }) : null;
+
+            // Documents par personne (BIRTH_CERT et ID_IDENTITY)
+            if (name === "birthCert" || name === "idIdentity") {
+              // Si le nom contient un index (ex: "birthCert_0"), utiliser cet index
+              // Sinon, utiliser la première personne (personne principale)
+              const match = name.match(/_(\d+)$/);
+              const personIndex = match ? parseInt(match[1], 10) : 0;
+              
+              if (client && client.persons && client.persons.length > personIndex) {
+                targetPersonId = client.persons[personIndex].id;
+              } else if (client && client.persons && client.persons.length > 0) {
+                // Fallback: utiliser la première personne si l'index n'existe pas
+                targetPersonId = client.persons[0].id;
+              }
+            }
+            // Documents entreprise (KBIS et STATUTES)
+            else if (name === "kbis" || name === "statutes") {
+              if (client && client.entreprise) {
+                targetEntrepriseId = client.entreprise.id;
+              }
+            }
+            // Documents client communs (LIVRET_DE_FAMILLE et CONTRAT_DE_PACS)
+            else if (["livretDeFamille", "contratDePacs"].includes(name)) {
+              targetClientId = finalClientId;
+            }
+            // Documents bail (locataire)
+            else if (["insuranceTenant", "ribTenant"].includes(name)) {
               targetClientId = finalClientId;
             }
             // Documents bien
@@ -138,6 +173,8 @@ export async function POST(request: NextRequest) {
                 mimeType: file.type,
                 size: file.size,
                 clientId: targetClientId,
+                personId: targetPersonId,
+                entrepriseId: targetEntrepriseId,
                 propertyId: targetPropertyId,
                 bailId: targetBailId,
               },

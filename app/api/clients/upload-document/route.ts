@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
     
     const file = formData.get("file") as File | null;
     const kind = formData.get("kind") as string | null;
-    const clientId = formData.get("clientId") as string | null;
+    const personId = formData.get("personId") as string | null;
+    const entrepriseId = formData.get("entrepriseId") as string | null;
 
     if (!file || file.size === 0) {
       return NextResponse.json(
@@ -34,19 +35,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!clientId) {
+    if (!personId && !entrepriseId) {
       return NextResponse.json(
-        { error: "ID client manquant" },
+        { error: "ID personne ou entreprise manquant" },
         { status: 400 }
       );
     }
 
-    // Vérifier que le client existe
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-    });
+    // Récupérer le clientId depuis Person ou Entreprise
+    let clientId: string | null = null;
+    
+    if (personId) {
+      const person = await prisma.person.findUnique({
+        where: { id: personId },
+        select: { clientId: true },
+      });
+      if (!person) {
+        return NextResponse.json(
+          { error: "Personne introuvable" },
+          { status: 404 }
+        );
+      }
+      clientId = person.clientId;
+    } else if (entrepriseId) {
+      const entreprise = await prisma.entreprise.findUnique({
+        where: { id: entrepriseId },
+        select: { clientId: true },
+      });
+      if (!entreprise) {
+        return NextResponse.json(
+          { error: "Entreprise introuvable" },
+          { status: 404 }
+        );
+      }
+      clientId = entreprise.clientId;
+    }
 
-    if (!client) {
+    if (!clientId) {
       return NextResponse.json(
         { error: "Client introuvable" },
         { status: 404 }
@@ -72,7 +97,8 @@ export async function POST(request: NextRequest) {
         fileKey: blob.url,
         mimeType: file.type,
         size: file.size,
-        clientId: clientId,
+        ...(personId && { personId }),
+        ...(entrepriseId && { entrepriseId }),
         uploadedById: user.id,
       },
     });

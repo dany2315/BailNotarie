@@ -34,9 +34,32 @@ export default async function ClientDetailPage({
     notFound();
   }
 
+  // Obtenir les données principales depuis Person (personne primaire) ou Entreprise
+  const primaryPerson = client.persons?.find(p => p.isPrimary) || client.persons?.[0];
+  const entreprise = client.entreprise;
+
+  // Obtenir le nom du client
   const clientName = client.type === ClientType.PERSONNE_PHYSIQUE
-    ? `${client.firstName || ""} ${client.lastName || ""}`.trim()
-    : client.legalName || "";
+    ? primaryPerson
+      ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
+      : "Client"
+    : entreprise?.legalName || entreprise?.name || "Client";
+
+  // Obtenir l'email et le téléphone
+  const clientEmail = client.type === ClientType.PERSONNE_PHYSIQUE
+    ? primaryPerson?.email
+    : entreprise?.email;
+  
+  const clientPhone = client.type === ClientType.PERSONNE_PHYSIQUE
+    ? primaryPerson?.phone
+    : entreprise?.phone;
+
+  // Collecter tous les documents depuis persons, entreprise et client
+  const allDocuments = [
+    ...(client.persons?.flatMap(p => p.documents || []) || []),
+    ...(client.entreprise?.documents || []),
+    ...(client.documents || []), // Documents client (livret de famille, PACS)
+  ];
 
   // Fonction helper pour sérialiser les Decimal
   const serializeDecimal = (value: any): any => {
@@ -117,7 +140,7 @@ export default async function ClientDetailPage({
             <CommentsDrawer target="CLIENT" targetId={client.id} />
             <ClientActionsDropdown
               clientId={client.id}
-              hasEmail={!!client.email}
+              hasEmail={!!clientEmail}
               profilType={client.profilType}
               intakeLinks={serializedIntakeLinks}
             />
@@ -172,8 +195,8 @@ export default async function ClientDetailPage({
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{client.documents?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Pièce{client.documents && client.documents.length > 1 ? "s" : ""} jointe{client.documents && client.documents.length > 1 ? "s" : ""}</p>
+              <div className="text-2xl font-bold">{allDocuments.length}</div>
+              <p className="text-xs text-muted-foreground">Pièce{allDocuments.length > 1 ? "s" : ""} jointe{allDocuments.length > 1 ? "s" : ""}</p>
             </CardContent>
           </Card>
         </div>
@@ -211,8 +234,8 @@ export default async function ClientDetailPage({
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{client.documents?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Pièce{client.documents && client.documents.length > 1 ? "s" : ""} jointe{client.documents && client.documents.length > 1 ? "s" : ""}</p>
+              <div className="text-2xl font-bold">{allDocuments.length}</div>
+              <p className="text-xs text-muted-foreground">Pièce{allDocuments.length > 1 ? "s" : ""} jointe{allDocuments.length > 1 ? "s" : ""}</p>
             </CardContent>
           </Card>
         </div>
@@ -226,8 +249,8 @@ export default async function ClientDetailPage({
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{client.documents?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Pièce{client.documents && client.documents.length > 1 ? "s" : ""} jointe{client.documents && client.documents.length > 1 ? "s" : ""}</p>
+              <div className="text-2xl font-bold">{allDocuments.length}</div>
+              <p className="text-xs text-muted-foreground">Pièce{allDocuments.length > 1 ? "s" : ""} jointe{allDocuments.length > 1 ? "s" : ""}</p>
             </CardContent>
           </Card>
         </div>
@@ -248,124 +271,174 @@ export default async function ClientDetailPage({
             </CardHeader>
             <CardContent className="space-y-6">
                 {client.type === ClientType.PERSONNE_PHYSIQUE ? (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {client.firstName && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Prénom</label>
-                        <p className="mt-1 text-sm font-medium">{client.firstName}</p>
+                  <>
+                    {/* Afficher toutes les personnes */}
+                    {client.persons && client.persons.length > 0 && (
+                      <div className="space-y-6">
+                        {client.persons.map((person, index) => (
+                          <div key={person.id} className="space-y-4">
+                            {client.persons && client.persons.length > 1 && (
+                              <div className="flex items-center gap-2">
+                                <Badge variant={person.isPrimary ? "default" : "outline"}>
+                                  {person.isPrimary ? "Personne principale" : `Personne ${index + 1}`}
+                                </Badge>
+                              </div>
+                            )}
+                            <div className="grid gap-4 md:grid-cols-2">
+                              {person.firstName && (
+                                <div>
+                                  <label className="text-sm font-medium text-muted-foreground">Prénom</label>
+                                  <p className="mt-1 text-sm font-medium">{person.firstName}</p>
+                                </div>
+                              )}
+                              {person.lastName && (
+                                <div>
+                                  <label className="text-sm font-medium text-muted-foreground">Nom</label>
+                                  <p className="mt-1 text-sm font-medium">{person.lastName}</p>
+                                </div>
+                              )}
+                              {person.profession && (
+                                <div>
+                                  <label className="text-sm font-medium text-muted-foreground">Profession</label>
+                                  <p className="mt-1 text-sm">{person.profession}</p>
+                                </div>
+                              )}
+                              {person.familyStatus && (
+                                <div>
+                                  <label className="text-sm font-medium text-muted-foreground">Statut familial</label>
+                                  <div className="mt-1">
+                                    <FamilyStatusBadge status={person.familyStatus} />
+                                  </div>
+                                </div>
+                              )}
+                              {person.matrimonialRegime && (
+                                <div>
+                                  <label className="text-sm font-medium text-muted-foreground">Régime matrimonial</label>
+                                  <div className="mt-1">
+                                    <MatrimonialRegimeBadge regime={person.matrimonialRegime} />
+                                  </div>
+                                </div>
+                              )}
+                              {person.birthPlace && (
+                                <div>
+                                  <label className="text-sm font-medium text-muted-foreground">Lieu de naissance</label>
+                                  <p className="mt-1 text-sm">{person.birthPlace}</p>
+                                </div>
+                              )}
+                              {person.birthDate && (
+                                <div>
+                                  <label className="text-sm font-medium text-muted-foreground">Date de naissance</label>
+                                  <p className="mt-1 text-sm">{formatDate(person.birthDate)}</p>
+                                </div>
+                              )}
+                              {person.email && (
+                                <div className="flex items-start gap-2">
+                                  <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Email</label>
+                                    <p className="mt-1 text-sm">{person.email}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {person.phone && (
+                                <div className="flex items-start gap-2">
+                                  <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Téléphone</label>
+                                    <p className="mt-1 text-sm">{person.phone}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {person.fullAddress && (
+                                <div className="flex items-start gap-2 md:col-span-2">
+                                  <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                  <div className="flex-1">
+                                    <label className="text-sm font-medium text-muted-foreground">Adresse</label>
+                                    <p className="mt-1 text-sm whitespace-pre-line">{person.fullAddress}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {person.nationality && (
+                                <div>
+                                  <label className="text-sm font-medium text-muted-foreground">Nationalité</label>
+                                  <p className="mt-1 text-sm">{person.nationality}</p>
+                                </div>
+                              )}
+                            </div>
+                            {index < (client.persons?.length || 0) - 1 && <Separator />}
+                          </div>
+                        ))}
                       </div>
                     )}
-                    {client.lastName && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Nom</label>
-                        <p className="mt-1 text-sm font-medium">{client.lastName}</p>
-                      </div>
-                    )}
-                    {client.profession && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Profession</label>
-                        <p className="mt-1 text-sm">{client.profession}</p>
-                      </div>
-                    )}
-                    {client.familyStatus && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Statut familial</label>
-                        <div className="mt-1">
-                          <FamilyStatusBadge status={client.familyStatus} />
-                        </div>
-                      </div>
-                    )}
-                    {client.matrimonialRegime && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Régime matrimonial</label>
-                        <div className="mt-1">
-                          <MatrimonialRegimeBadge regime={client.matrimonialRegime} />
-                        </div>
-                      </div>
-                    )}
-                    {client.birthPlace && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Lieu de naissance</label>
-                        <p className="mt-1 text-sm">{client.birthPlace}</p>
-                      </div>
-                    )}
-                    {client.birthDate && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Date de naissance</label>
-                        <p className="mt-1 text-sm">{formatDate(client.birthDate)}</p>
-                      </div>
-                    )}
-                  </div>
+                  </>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {client.legalName && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Raison sociale</label>
-                        <p className="mt-1 text-sm font-medium">{client.legalName}</p>
-                      </div>
-                    )}
-                    {client.registration && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">SIREN/SIRET</label>
-                        <p className="mt-1 text-sm">{client.registration}</p>
-                      </div>
-                    )}
-                  </div>
+                  entreprise && (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {entreprise.legalName && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Raison sociale</label>
+                          <p className="mt-1 text-sm font-medium">{entreprise.legalName}</p>
+                        </div>
+                      )}
+                      {entreprise.name && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Nom commercial</label>
+                          <p className="mt-1 text-sm font-medium">{entreprise.name}</p>
+                        </div>
+                      )}
+                      {entreprise.registration && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">SIREN/SIRET</label>
+                          <p className="mt-1 text-sm">{entreprise.registration}</p>
+                        </div>
+                      )}
+                      <Separator className="md:col-span-2" />
+                      {entreprise.email && (
+                        <div className="flex items-start gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Email</label>
+                            <p className="mt-1 text-sm">{entreprise.email}</p>
+                          </div>
+                        </div>
+                      )}
+                      {entreprise.phone && (
+                        <div className="flex items-start gap-2">
+                          <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Téléphone</label>
+                            <p className="mt-1 text-sm">{entreprise.phone}</p>
+                          </div>
+                        </div>
+                      )}
+                      {entreprise.fullAddress && (
+                        <div className="flex items-start gap-2 md:col-span-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div className="flex-1">
+                            <label className="text-sm font-medium text-muted-foreground">Adresse</label>
+                            <p className="mt-1 text-sm whitespace-pre-line">{entreprise.fullAddress}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
                 )}
-
-                <Separator />
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  {client.email && (
-                    <div className="flex items-start gap-2">
-                      <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Email</label>
-                        <p className="mt-1 text-sm">{client.email}</p>
-                      </div>
-                    </div>
-                  )}
-                  {client.phone && (
-                    <div className="flex items-start gap-2">
-                      <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Téléphone</label>
-                        <p className="mt-1 text-sm">{client.phone}</p>
-                      </div>
-                    </div>
-                  )}
-                  {client.fullAddress && (
-                    <div className="flex items-start gap-2 md:col-span-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div className="flex-1">
-                        <label className="text-sm font-medium text-muted-foreground">Adresse</label>
-                        <p className="mt-1 text-sm whitespace-pre-line">{client.fullAddress}</p>
-                      </div>
-                    </div>
-                  )}
-                  {client.nationality && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Nationalité</label>
-                      <p className="mt-1 text-sm">{client.nationality}</p>
-                    </div>
-                  )}
-                </div>
             </CardContent>
           </Card>
 
           {/* Documents - Order 2 sur mobile */}
-          {client.documents && client.documents.length > 0 && (
+          {allDocuments.length > 0 && (
             <Card className="order-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Documents ({client.documents.length})
+                  Documents ({allDocuments.length})
                 </CardTitle>
                 <CardDescription>Pièces jointes du client</CardDescription>
               </CardHeader>
               <CardContent>
                 <DocumentsList
-                  documents={client.documents.map((doc: any) => ({
+                  documents={allDocuments.map((doc: any) => ({
                     id: doc.id,
                     kind: doc.kind,
                     fileKey: doc.fileKey,
@@ -410,19 +483,19 @@ export default async function ClientDetailPage({
               </Link>
               <SendIntakeButton 
                 clientId={client.id}
-                hasEmail={!!client.email}
+                hasEmail={!!clientEmail}
                 profilType={client.profilType}
               />
-              {client.email && (
-                <a href={`mailto:${client.email}`} className="block">
+              {clientEmail && (
+                <a href={`mailto:${clientEmail}`} className="block">
                   <Button variant="outline" className="w-full justify-start">
                     <Mail className="h-4 w-4 mr-2" />
                     Envoyer un email
                   </Button>
                 </a>
               )}
-              {client.phone && (
-                <a href={`tel:${client.phone}`} className="block">
+              {clientPhone && (
+                <a href={`tel:${clientPhone}`} className="block">
                   <Button variant="outline" className="w-full justify-start">
                     <Phone className="h-4 w-4 mr-2" />
                     Appeler

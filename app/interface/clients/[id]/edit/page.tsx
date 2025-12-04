@@ -18,6 +18,17 @@ export default async function EditClientPage({
     notFound();
   }
 
+  // Obtenir les données principales depuis Person (personne primaire) ou Entreprise
+  const primaryPerson = client.persons?.find(p => p.isPrimary) || client.persons?.[0];
+  const entreprise = client.entreprise;
+
+  // Obtenir le nom du client
+  const clientName = client.type === ClientType.PERSONNE_PHYSIQUE
+    ? primaryPerson
+      ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
+      : "Client"
+    : entreprise?.legalName || entreprise?.name || "Client";
+
   // Fonction helper pour sérialiser les Decimal
   const serializeDecimal = (value: any): any => {
     if (value && typeof value === 'object' && value.constructor?.name === 'Decimal') {
@@ -29,10 +40,6 @@ export default async function EditClientPage({
   // Sérialiser le client pour convertir les Decimal en nombres
   // Cela évite l'erreur "Only plain objects can be passed to Client Components"
   const serializedClient = JSON.parse(JSON.stringify(client, (key, value) => serializeDecimal(value)));
-
-  const clientName = client.type === ClientType.PERSONNE_PHYSIQUE
-    ? `${client.firstName || ""} ${client.lastName || ""}`.trim()
-    : client.legalName || "";
 
   return (
     <div className="space-y-6">

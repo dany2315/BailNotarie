@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma  } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
 import { createIntakeLinkSchema, submitIntakeSchema } from "@/lib/zod/intake";
 import { ownerFormSchema, tenantFormSchema } from "@/lib/zod/client";
@@ -9,7 +9,7 @@ import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actio
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
 import { randomBytes } from "crypto";
-import { BailType, BailFamille, BailStatus, PropertyStatus, ClientType, ProfilType } from "@prisma/client";
+import { BailType, BailFamille, BailStatus, PropertyStatus, ClientType, ProfilType, IntakeTarget } from "@prisma/client";
 import { 
   updateClientCompletionStatus as calculateAndUpdateClientStatus, 
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
@@ -85,12 +85,27 @@ export async function getIntakeLinkByToken(token: string) {
       },
       bail: {
         include: {
-          parties: true,
+          parties: {
+            include: {
+              persons: true,
+              documents: true,
+            },
+          },
           documents: true,
         },
       },
       client: {
         include: {
+          persons: {
+            include: {
+              documents: true,
+            },
+          },
+          entreprise: {
+            include: {
+              documents: true,
+            },
+          },
           documents: true,
         },
       },
@@ -131,15 +146,22 @@ export async function getIntakeLinkByToken(token: string) {
       createdAt: intakeLink.bail.createdAt.toISOString(),
       updatedAt: intakeLink.bail.updatedAt.toISOString(),
       documents: intakeLink.bail.documents || [],
+      parties: intakeLink.bail.parties ? intakeLink.bail.parties.map((party: any) => ({
+        ...party,
+        createdAt: party.createdAt.toISOString(),
+        updatedAt: party.updatedAt.toISOString(),
+        persons: party.persons || [],
+      })) : [],
     } : null,
     client: intakeLink.client ? {
       ...intakeLink.client,
-      birthDate: intakeLink.client.birthDate?.toISOString().split('T')[0] || null,
       createdAt: intakeLink.client.createdAt.toISOString(),
       updatedAt: intakeLink.client.updatedAt.toISOString(),
+      persons: intakeLink.client.persons || [],
+      entreprise: intakeLink.client.entreprise || null,
       documents: intakeLink.client.documents || [],
     } : null,
-  };
+  };  
 
   return serialized;
 }
@@ -295,15 +317,22 @@ export async function getIntakeLinks(params: {
 // Sauvegarder partiellement les données du formulaire (sans validation complète)
 export async function savePartialIntake(data: unknown) {
   const validated = submitIntakeSchema.parse(data);
-  const { token, payload } = validated;
-  // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
-  // formData n'est plus nécessaire ici
+  const { token, payload } = validated as { token: string; payload: any };
+
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     include: {
-      client: true,
-      property: true,
-      bail: true,
+      client: {
+        include: {
+          persons: {
+            where: { isPrimary: true },
+            select: { email: true },
+          },
+          entreprise: {
+            select: { email: true },
+          },
+        },
+      },
     },
   });
 
@@ -315,495 +344,185 @@ export async function savePartialIntake(data: unknown) {
     throw new Error("Ce lien a été révoqué");
   }
 
-  // Sauvegarder les données partiellement dans rawPayload
+  if (intakeLink.status === "EXPIRED") {
+    throw new Error("Ce lien a expiré");
+  }
+
+  const clientId = intakeLink.clientId;
+  const targetType = intakeLink.target as IntakeTarget
+
+  // 🔁 Normalisation : pour OWNER, on force payload.email à suivre entreprise / personne principale
+  let normalizedPayload: any = payload;
+
+  if (targetType === "OWNER") {
+    const ownerType = normalizedPayload.type as ClientType | undefined;
+
+    if (ownerType === ClientType.PERSONNE_MORALE && normalizedPayload.entreprise) {
+      normalizedPayload = {
+        ...normalizedPayload,
+        email:
+          normalizedPayload.entreprise.email ??
+          normalizedPayload.email ??
+          null,
+      };
+    }
+
+    if (
+      ownerType === ClientType.PERSONNE_PHYSIQUE &&
+      Array.isArray(normalizedPayload.persons) &&
+      normalizedPayload.persons.length > 0
+    ) {
+      const primary = normalizedPayload.persons[0];
+      normalizedPayload = {
+        ...normalizedPayload,
+        email: primary?.email ?? normalizedPayload.email ?? null,
+      };
+    }
+  }
+
+  // À partir d'ici on ne travaille plus qu'avec effectivePayload
+  const effectivePayload: any =
+    targetType === "OWNER" ? normalizedPayload : payload;
+
+  /**
+   * 1) Vérif email OWNER (personne ou entreprise)
+   */
+  if (targetType === "OWNER" && clientId) {
+    const currentClient = intakeLink.client;
+    const currentEmail =
+      currentClient?.persons?.[0]?.email || currentClient?.entreprise?.email || null;
+
+    if (effectivePayload.email && typeof effectivePayload.email === "string") {
+      const emailToCheck = effectivePayload.email.trim().toLowerCase();
+
+      // Si le client a déjà cet email, on ne vérifie pas plus loin
+      if (!currentEmail || currentEmail.trim().toLowerCase() !== emailToCheck) {
+        const [existingPersonWithEmail, existingEntrepriseWithEmail] =
+          await Promise.all([
+            prisma.person.findFirst({
+              where: { email: emailToCheck },
+              include: { client: { select: { id: true } } },
+            }),
+            prisma.entreprise.findFirst({
+              where: { email: emailToCheck },
+              include: { client: { select: { id: true } } },
+            }),
+          ]);
+
+        const existingClientId =
+          existingPersonWithEmail?.client?.id ||
+          existingEntrepriseWithEmail?.client?.id;
+
+        if (existingClientId && existingClientId !== clientId) {
+          throw new Error(
+            "Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact"
+          );
+        }
+      }
+    }
+
+    /**
+     * 2) Vérif email locataire renseigné dans le formulaire propriétaire (tenantEmail)
+     *    On bloque si l'email existe déjà pour un client qui n'est PAS LOCATAIRE.
+     *    Si déjà utilisé par un LOCATAIRE, on laisse passer.
+     */
+    if (
+      effectivePayload.tenantEmail &&
+      typeof effectivePayload.tenantEmail === "string"
+    ) {
+      const tenantEmailToCheck =
+        effectivePayload.tenantEmail.trim().toLowerCase();
+
+      const [existingPersonTenant, existingEntrepriseTenant] =
+        await Promise.all([
+          prisma.person.findFirst({
+            where: { email: tenantEmailToCheck },
+            include: { client: { select: { id: true, profilType: true } } },
+          }),
+          prisma.entreprise.findFirst({
+            where: { email: tenantEmailToCheck },
+            include: { client: { select: { id: true, profilType: true } } },
+          }),
+        ]);
+
+      const existingTenantClient =
+        existingPersonTenant?.client || existingEntrepriseTenant?.client;
+
+      if (
+        existingTenantClient &&
+        existingTenantClient.profilType !== ProfilType.LOCATAIRE
+      ) {
+        throw new Error(
+          "Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact"
+        );
+      }
+    }
+  }
+
+  /**
+   * 3) Vérif email pour un formulaire LOCATAIRE (target === TENANT)
+   *    On applique la même logique que pour OWNER: email pas déjà utilisé par un autre client.
+   */
+  if (targetType === "TENANT" && clientId) {
+    const currentClient = intakeLink.client;
+    const currentEmail =
+      currentClient?.persons?.[0]?.email || currentClient?.entreprise?.email || null;
+
+    if (effectivePayload.email && typeof effectivePayload.email === "string") {
+      const emailToCheck = effectivePayload.email.trim().toLowerCase();
+
+      if (!currentEmail || currentEmail.trim().toLowerCase() !== emailToCheck) {
+        const [existingPersonWithEmail, existingEntrepriseWithEmail] =
+          await Promise.all([
+            prisma.person.findFirst({
+              where: { email: emailToCheck },
+              include: { client: { select: { id: true } } },
+            }),
+            prisma.entreprise.findFirst({
+              where: { email: emailToCheck },
+              include: { client: { select: { id: true } } },
+            }),
+          ]);
+
+        const existingClientId =
+          existingPersonWithEmail?.client?.id ||
+          existingEntrepriseWithEmail?.client?.id;
+
+        if (existingClientId && existingClientId !== clientId) {
+          throw new Error(
+            "Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact"
+          );
+        }
+      }
+    }
+  }
+
+  // 4) Sauvegarder les données partiellement dans rawPayload (brouillon)
   await prisma.intakeLink.update({
     where: { token },
     data: {
-      rawPayload: payload as any,
+      rawPayload: effectivePayload as any,
     },
   });
 
-  // Si c'est un formulaire propriétaire avec clientId, mettre à jour le client partiellement
-  if (intakeLink.target === "OWNER" && intakeLink.clientId) {
-    // Récupérer le client actuel pour vérifier si l'email existe déjà
-    const currentClient = await prisma.client.findUnique({
-      where: { id: intakeLink.clientId },
-      select: { email: true },
-    });
-
-    // Si l'email est fourni et que le client n'a pas encore d'email, vérifier qu'il n'existe pas déjà
-    if (payload.email && !currentClient?.email) {
-      const emailToCheck = payload.email.trim().toLowerCase();
-      const existingClientWithEmail = await prisma.client.findUnique({
-        where: { email: emailToCheck },
-      });
-
-      if (existingClientWithEmail && existingClientWithEmail.id !== intakeLink.clientId) {
-        throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
-      }
-    }
-
-    const updateData: any = {};
-    if (payload.type) updateData.type = payload.type;
-    if (payload.firstName) updateData.firstName = payload.firstName;
-    if (payload.lastName) updateData.lastName = payload.lastName;
-    if (payload.phone) updateData.phone = payload.phone;
-    // Mettre à jour l'email seulement si le client n'en a pas encore
-    if (payload.email && !currentClient?.email) {
-      updateData.email = payload.email.trim().toLowerCase();
-    }
-    if (payload.fullAddress) updateData.fullAddress = payload.fullAddress;
-    if (payload.nationality) updateData.nationality = payload.nationality;
-    if (payload.profession) updateData.profession = payload.profession;
-    if (payload.familyStatus) updateData.familyStatus = payload.familyStatus;
-    if (payload.matrimonialRegime) updateData.matrimonialRegime = payload.matrimonialRegime;
-    if (payload.birthPlace) updateData.birthPlace = payload.birthPlace;
-    if (payload.birthDate) {
-      const date = new Date(payload.birthDate);
-      if (!isNaN(date.getTime())) {
-        updateData.birthDate = date;
-      }
-    }
-    if (payload.legalName) updateData.legalName = payload.legalName;
-    if (payload.registration) updateData.registration = payload.registration;
-
-    if (Object.keys(updateData).length > 0) {
-      await prisma.client.update({
-        where: { id: intakeLink.clientId },
-        data: updateData,
-      });
-      // Mettre à jour le statut de complétion
-      await calculateAndUpdateClientStatus(intakeLink.clientId);
-    }
-
-    // Créer ou mettre à jour le bien si les données sont disponibles
-    let propertyId = intakeLink.propertyId;
-    if (payload.propertyFullAddress || payload.propertyLabel || payload.propertySurfaceM2 || payload.propertyType || payload.propertyLegalStatus) {
-      if (!propertyId) {
-        // Vérifier s'il existe déjà un bien pour ce client avant d'en créer un nouveau
-        const existingProperty = await prisma.property.findFirst({
-          where: {
-            ownerId: intakeLink.clientId,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-
-        if (existingProperty) {
-          // Utiliser le bien existant
-          propertyId = existingProperty.id;
-          
-          // Mettre à jour l'intakeLink avec le propertyId existant
-          await prisma.intakeLink.update({
-            where: { id: intakeLink.id },
-            data: { propertyId: existingProperty.id },
-          });
-        } else {
-          // Créer le bien seulement s'il n'en existe pas
-          const propertyData: any = {
-            label: payload.propertyLabel || null,
-            fullAddress: payload.propertyFullAddress,
-            type: payload.propertyType || null,
-            legalStatus: payload.propertyLegalStatus || null,
-            status: payload.propertyStatus || PropertyStatus.NON_LOUER,
-            ownerId: intakeLink.clientId,
-          };
-          
-          // Convertir les valeurs numériques
-          if (payload.propertySurfaceM2 && payload.propertySurfaceM2 !== "") {
-            propertyData.surfaceM2 = new Decimal(payload.propertySurfaceM2);
-          } else {
-            propertyData.surfaceM2 = null;
-          }
-          
-          const property = await prisma.property.create({
-            data: propertyData,
-          });
-          propertyId = property.id;
-
-          // Mettre à jour le statut de complétion
-          await calculateAndUpdatePropertyStatus(property.id);
-
-          // Mettre à jour l'intakeLink avec le propertyId
-          await prisma.intakeLink.update({
-            where: { id: intakeLink.id },
-            data: { propertyId: property.id },
-          });
-        }
-      } else {
-        // Mettre à jour le bien existant
-        const updateData: any = {};
-        
-        if (payload.propertyLabel !== undefined) updateData.label = payload.propertyLabel || null;
-        if (payload.propertyFullAddress !== undefined) updateData.fullAddress = payload.propertyFullAddress;
-        if (payload.propertySurfaceM2 !== undefined && payload.propertySurfaceM2 !== null && payload.propertySurfaceM2 !== "") {
-          updateData.surfaceM2 = new Decimal(payload.propertySurfaceM2);
-        } else if (payload.propertySurfaceM2 === "") {
-          updateData.surfaceM2 = null;
-        }
-        if (payload.propertyType !== undefined) updateData.type = payload.propertyType || null;
-        if (payload.propertyLegalStatus !== undefined) updateData.legalStatus = payload.propertyLegalStatus || null;
-        if (payload.propertyStatus !== undefined) updateData.status = payload.propertyStatus;
-        
-        if (Object.keys(updateData).length > 0) {
-          await prisma.property.update({
-            where: { id: propertyId },
-            data: updateData,
-          });
-          // Mettre à jour le statut de complétion
-          await calculateAndUpdatePropertyStatus(propertyId);
-        }
-      }
-    }
-
-    // Créer ou mettre à jour le bail si les données sont disponibles
-    let bailId = intakeLink.bailId;
-    if (payload.bailRentAmount && propertyId) {
-      if (!bailId) {
-        // Vérifier s'il existe déjà un bail pour ce bien avant d'en créer un nouveau
-        const existingBail = await prisma.bail.findFirst({
-          where: {
-            propertyId: propertyId,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-
-        if (existingBail) {
-          // Utiliser le bail existant
-          bailId = existingBail.id;
-          
-          // Mettre à jour l'intakeLink avec le bailId existant
-          await prisma.intakeLink.update({
-            where: { id: intakeLink.id },
-            data: { bailId: existingBail.id },
-          });
-        } else {
-          // Créer le locataire si nécessaire
-          let tenantId = intakeLink.clientId; // Temporaire, sera mis à jour plus tard
-          if (payload.tenantEmail) {
-            const existingTenant = await prisma.client.findFirst({
-              where: { email: payload.tenantEmail, profilType: ProfilType.LOCATAIRE },
-            });
-            if (existingTenant) {
-              tenantId = existingTenant.id;
-            } else {
-              const tenant = await prisma.client.create({
-                data: {
-                  type: ClientType.PERSONNE_PHYSIQUE,
-                  profilType: ProfilType.LOCATAIRE,
-                  email: payload.tenantEmail,
-                  createdById: intakeLink?.client?.createdById,
-                },
-              });
-              tenantId = tenant.id;
-            }
-          }
-
-          // Créer le bail seulement s'il n'en existe pas
-          // Convertir paymentDay en entier si fourni
-          let paymentDayValue: number | null = null;
-          if (payload.bailPaymentDay && payload.bailPaymentDay !== "") {
-            const paymentDayNum = typeof payload.bailPaymentDay === 'string' 
-              ? parseInt(payload.bailPaymentDay, 10) 
-              : payload.bailPaymentDay;
-            if (!isNaN(paymentDayNum) && paymentDayNum >= 1 && paymentDayNum <= 31) {
-              paymentDayValue = paymentDayNum;
-            }
-          }
-          
-          const bail = await prisma.bail.create({
-            data: {
-              bailType: payload.bailType || BailType.BAIL_NU_3_ANS,
-              bailFamily:  BailFamille.HABITATION,
-              status: BailStatus.DRAFT,
-              rentAmount: parseInt(payload.bailRentAmount, 10),
-              monthlyCharges: parseInt(payload.bailMonthlyCharges || "0", 10),
-              securityDeposit: parseInt(payload.bailSecurityDeposit || "0", 10),
-              effectiveDate: payload.bailEffectiveDate ? new Date(payload.bailEffectiveDate) : new Date(),
-              endDate: payload.bailEndDate ? new Date(payload.bailEndDate) : null,
-              paymentDay: paymentDayValue,
-              propertyId: propertyId!,
-              parties: {
-                connect: [
-                  { id: intakeLink.clientId }, // Propriétaire
-                  ...(tenantId && tenantId !== intakeLink.clientId ? [{ id: tenantId }] : []), // Locataire
-                ],
-              },
-            },
-          });
-          bailId = bail.id;
-
-          // Mettre à jour l'intakeLink avec le bailId
-          await prisma.intakeLink.update({
-            where: { id: intakeLink.id },
-            data: { bailId: bail.id },
-          });
-        }
-      } else {
-        // Mettre à jour le bail existant
-        const updateData: any = {};
-        
-        if (payload.bailType !== undefined) updateData.bailType = payload.bailType;
-        if (payload.bailFamily !== undefined) updateData.bailFamily = payload.bailFamily;
-        if (payload.bailRentAmount !== undefined && payload.bailRentAmount !== null && payload.bailRentAmount !== "") {
-          updateData.rentAmount = parseInt(payload.bailRentAmount, 10);
-        }
-        if (payload.bailMonthlyCharges !== undefined && payload.bailMonthlyCharges !== null && payload.bailMonthlyCharges !== "") {
-          updateData.monthlyCharges = parseInt(payload.bailMonthlyCharges, 10);
-        }
-        if (payload.bailSecurityDeposit !== undefined && payload.bailSecurityDeposit !== null && payload.bailSecurityDeposit !== "") {
-          updateData.securityDeposit = parseInt(payload.bailSecurityDeposit, 10);
-        }
-        if (payload.bailEffectiveDate !== undefined && payload.bailEffectiveDate !== null && payload.bailEffectiveDate !== "") {
-          updateData.effectiveDate = new Date(payload.bailEffectiveDate);
-        }
-        if (payload.bailEndDate !== undefined && payload.bailEndDate !== null && payload.bailEndDate !== "") {
-          updateData.endDate = new Date(payload.bailEndDate);
-        } else if (payload.bailEndDate === "") {
-          updateData.endDate = null;
-        }
-        if (payload.bailPaymentDay !== undefined && payload.bailPaymentDay !== null && payload.bailPaymentDay !== "") {
-          const paymentDayNum = typeof payload.bailPaymentDay === 'string' 
-            ? parseInt(payload.bailPaymentDay, 10) 
-            : payload.bailPaymentDay;
-          if (!isNaN(paymentDayNum) && paymentDayNum >= 1 && paymentDayNum <= 31) {
-            updateData.paymentDay = paymentDayNum;
-          } else {
-            updateData.paymentDay = null;
-          }
-        } else if (payload.bailPaymentDay === "") {
-          updateData.paymentDay = null;
-        }
-        
-        if (Object.keys(updateData).length > 0) {
-          await prisma.bail.update({
-            where: { id: bailId },
-            data: updateData,
-          });
-        }
-      }
-    }
-
-    // Gérer le locataire : mettre à jour ou créer, rattacher au bail
-    if (payload.tenantEmail && payload.tenantEmail.trim() !== "" && bailId) {
-      // Récupérer le bail avec ses parties
-      const bail = await prisma.bail.findUnique({
-        where: { id: bailId },
-        include: { parties: true },
-      });
-
-      if (!bail) {
-        return; // Bail introuvable, on ne peut pas continuer
-      }
-
-      // Chercher le locataire existant rattaché au bail
-      const existingTenant = bail.parties.find(party => party.profilType === ProfilType.LOCATAIRE);
-      
-      // Stocker l'email précédent pour vérifier s'il a changé
-      const previousTenantEmail = existingTenant?.email || null;
-      const newTenantEmail = payload.tenantEmail.trim().toLowerCase();
-      const isEmailNewOrChanged = !previousTenantEmail || previousTenantEmail !== newTenantEmail;
-      
-      let tenant;
-      let isTenantNewlyCreated = false; // Flag pour savoir si le locataire vient d'être créé
-      if (existingTenant) {
-        // Si un locataire est déjà rattaché au bail, mettre à jour son email
-        await prisma.client.update({
-          where: { id: existingTenant.id },
-          data: {
-            email: newTenantEmail,
-          },
-        });
-        
-        // Récupérer le tenant avec createdAt pour vérifier s'il vient d'être créé
-        tenant = await prisma.client.findUnique({
-          where: { id: existingTenant.id },
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            createdAt: true,
-          },
-        });
-        
-        // Vérifier si le locataire vient d'être créé (dans les 5 dernières minutes)
-        // Cela peut arriver si le locataire a été créé lors de la création du bail juste avant
-        if (tenant) {
-          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-          if (tenant.createdAt && tenant.createdAt > fiveMinutesAgo) {
-            isTenantNewlyCreated = true;
-          }
-        }
-      } else {
-        // Vérifier d'abord si un client avec cet email existe déjà (peu importe le profilType)
-        const existingClientWithEmail = await prisma.client.findUnique({
-          where: { 
-            email: newTenantEmail
-          },
-        });
-
-        if (existingClientWithEmail) {
-          throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
-        }
-
-        // Si aucun locataire n'est rattaché, chercher un locataire existant avec cet email
-        tenant = await prisma.client.findFirst({
-          where: { 
-            email: newTenantEmail, 
-            profilType: ProfilType.LOCATAIRE 
-          },
-        });
-
-        // Si le locataire n'existe pas, le créer
-        if (!tenant) {
-          tenant = await prisma.client.create({
-            data: {
-              type: ClientType.PERSONNE_PHYSIQUE,
-              profilType: ProfilType.LOCATAIRE,
-              email: newTenantEmail,
-            },
-          });
-          isTenantNewlyCreated = true;
-        }
-
-        // Rattacher le locataire au bail
-        await prisma.bail.update({
-          where: { id: bailId },
-          data: {
-            parties: {
-              connect: { id: tenant.id },
-            },
-          },
-        });
-      }
-
-      // Vérifier si un IntakeLink existe déjà pour ce locataire et ce bail
-      let tenantIntakeLink = await prisma.intakeLink.findFirst({
-        where: {
-          clientId: tenant?.id,
-          bailId: bailId,
-          target: "TENANT",
-        },
-      });
-
-      // Si l'IntakeLink n'existe pas, le créer
-      if (!tenantIntakeLink) {
-        if (tenant) {
-        tenantIntakeLink = await prisma.intakeLink.create({
-          data: {
-            target: "TENANT",
-            clientId: tenant.id,
-            propertyId: propertyId || null,
-            bailId: bailId,
-          },
-        });
-        }
-      }
-
-      // Envoyer l'email au locataire si l'email vient d'être renseigné ou modifié
-      if (isEmailNewOrChanged && tenantIntakeLink) {
-        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-        const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
-        
-        try {
-          await triggerTenantFormEmail({
-            to: newTenantEmail,
-            firstName: tenant?.firstName || "",
-            lastName: tenant?.lastName || "",
-            formUrl: tenantFormUrl,
-          });
-          console.log(`✅ Email déclenché pour le locataire ${newTenantEmail} avec le lien ${tenantFormUrl}`);
-          
-          // Notification pour création de locataire (seulement si créé dans cette fonction et email envoyé)
-          if (isTenantNewlyCreated && tenant) {
-            await createNotificationForAllUsers(
-              NotificationType.CLIENT_CREATED,
-              "CLIENT",
-              tenant.id,
-              null,
-              { createdByForm: true ,profileType: ProfilType.LOCATAIRE }
-            );
-          }
-        } catch (error) {
-          console.error("Erreur lors du déclenchement de l'email au locataire:", error);
-          // Ne pas bloquer la sauvegarde si l'email échoue
-        }
-      }
-    }
-
-    // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
-    // Plus besoin de les gérer ici
-  }
-
-  // Si c'est un formulaire locataire avec clientId, mettre à jour le client partiellement
-  if (intakeLink.target === "TENANT" && intakeLink.clientId) {
-    // Récupérer le client actuel pour vérifier si l'email existe déjà
-    const currentClient = await prisma.client.findUnique({
-      where: { id: intakeLink.clientId },
-      select: { email: true },
-    });
-
-    // Si l'email est fourni et que le client n'a pas encore d'email, vérifier qu'il n'existe pas déjà
-    if (payload.email && !currentClient?.email) {
-      const emailToCheck = payload.email.trim().toLowerCase();
-      const existingClientWithEmail = await prisma.client.findUnique({
-        where: { email: emailToCheck },
-      });
-
-      if (existingClientWithEmail && existingClientWithEmail.id !== intakeLink.clientId) {
-        throw new Error("Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact");
-      }
-    }
-
-    const updateData: any = {};
-    if (payload.firstName) updateData.firstName = payload.firstName;
-    if (payload.lastName) updateData.lastName = payload.lastName;
-    if (payload.phone) updateData.phone = payload.phone;
-    // Mettre à jour l'email seulement si le client n'en a pas encore
-    if (payload.email && !currentClient?.email) {
-      updateData.email = payload.email.trim().toLowerCase();
-    }
-    if (payload.fullAddress) updateData.fullAddress = payload.fullAddress;
-    if (payload.nationality) updateData.nationality = payload.nationality;
-    if (payload.profession) updateData.profession = payload.profession;
-    if (payload.familyStatus) updateData.familyStatus = payload.familyStatus;
-    if (payload.matrimonialRegime) updateData.matrimonialRegime = payload.matrimonialRegime;
-    if (payload.birthPlace) updateData.birthPlace = payload.birthPlace;
-    if (payload.birthDate) {
-      const date = new Date(payload.birthDate);
-      if (!isNaN(date.getTime())) {
-        updateData.birthDate = date;
-      }
-    }
-    if (payload.legalName) updateData.legalName = payload.legalName;
-    if (payload.registration) updateData.registration = payload.registration;
-
-    if (Object.keys(updateData).length > 0) {
-      await prisma.client.update({
-        where: { id: intakeLink.clientId },
-        data: updateData,
-      });
-      // Mettre à jour le statut de complétion
-      await calculateAndUpdateClientStatus(intakeLink.clientId);
-    }
-
-    // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
-    // Plus besoin de les gérer ici
-  }
+  // On ne touche pas à Client / Person / Property / Bail ici.
+  // Toute la cuisine lourde se fait dans submitOwnerForm (à la soumission finale).
 
   return { success: true };
 }
+
 
 // Récupérer les documents déjà uploadés pour un intake (sans authentification, accessible via token)
 export async function getIntakeDocuments(token: string) {
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     include: {
-      client: true,
+      client: {
+        include: {
+          persons: true,
+          entreprise: true,
+        },
+      },
       property: true,
       bail: true,
     },
@@ -815,13 +534,33 @@ export async function getIntakeDocuments(token: string) {
 
   const documents: any[] = [];
 
-  // Récupérer les documents du client
+  // Récupérer les documents du client (livret de famille, PACS)
   if (intakeLink.clientId) {
     const clientDocs = await prisma.document.findMany({
       where: { clientId: intakeLink.clientId },
       orderBy: { createdAt: "desc" },
     });
     documents.push(...clientDocs);
+  }
+
+  // Récupérer les documents des personnes (BIRTH_CERT, ID_IDENTITY)
+  if (intakeLink.client?.persons) {
+    for (const person of intakeLink.client.persons) {
+      const personDocs = await prisma.document.findMany({
+        where: { personId: person.id },
+        orderBy: { createdAt: "desc" },
+      });
+      documents.push(...personDocs);
+    }
+  }
+
+  // Récupérer les documents de l'entreprise (KBIS, STATUTES)
+  if (intakeLink.client?.entreprise) {
+    const entrepriseDocs = await prisma.document.findMany({
+      where: { entrepriseId: intakeLink.client.entreprise.id },
+      orderBy: { createdAt: "desc" },
+    });
+    documents.push(...entrepriseDocs);
   }
 
   // Récupérer les documents de la propriété
@@ -845,5 +584,39 @@ export async function getIntakeDocuments(token: string) {
   return documents;
 }
 
+// Supprimer une personne supplémentaire d'un client
+export async function deletePersonFromClient(data: {
+  clientId: string;
+  personEmail: string;
+}) {
+  const { clientId, personEmail } = data;
 
+  if (!clientId || !personEmail) {
+    throw new Error("clientId et personEmail sont requis");
+  }
+
+  // Trouver la personne par email et clientId
+  const person = await prisma.person.findFirst({
+    where: {
+      email: personEmail.trim().toLowerCase(),
+      clientId: clientId,
+      isPrimary: false, // Ne pas permettre la suppression de la personne primaire
+    },
+  });
+
+  if (!person) {
+    // La personne n'existe pas en base, c'est OK (elle n'a peut-être pas encore été sauvegardée)
+    return { success: true, deleted: false };
+  }
+
+  // Supprimer la personne
+  await prisma.person.delete({
+    where: { id: person.id },
+  });
+
+  // Mettre à jour le statut de complétion du client
+  await calculateAndUpdateClientStatus(clientId);
+
+  return { success: true, deleted: true };
+}
 

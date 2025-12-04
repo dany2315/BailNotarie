@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, FileText, Trash2, Upload, Eye, Download } from "lucide-react";
+import { Loader2, FileText, Trash2, Upload, Eye, Download, Plus, User } from "lucide-react";
 import { updateClientSchema } from "@/lib/zod/client";
 import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, DocumentKind } from "@prisma/client";
 import { updateClient } from "@/lib/actions/clients";
@@ -53,7 +54,50 @@ export function EditClientForm({ client }: EditClientFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [clientType, setClientType] = useState<ClientType>(client.type || ClientType.PERSONNE_PHYSIQUE);
-  const [documents, setDocuments] = useState<any[]>(client.documents || []);
+  
+  // Obtenir les données depuis Person ou Entreprise
+  const entreprise = client.entreprise;
+  
+  // Préparer les personnes pour le formulaire
+  const initialPersons = client.persons && client.persons.length > 0
+    ? client.persons.map((p: any) => ({
+        id: p.id,
+        firstName: p.firstName || "",
+        lastName: p.lastName || "",
+        profession: p.profession || "",
+        phone: p.phone || "",
+        email: p.email || "",
+        fullAddress: p.fullAddress || "",
+        nationality: p.nationality || "",
+        familyStatus: p.familyStatus || undefined,
+        matrimonialRegime: p.matrimonialRegime || undefined,
+        birthPlace: p.birthPlace || "",
+        birthDate: p.birthDate ? new Date(p.birthDate).toISOString().split("T")[0] : "",
+        isPrimary: p.isPrimary || false,
+      }))
+    : [{
+        id: undefined,
+        firstName: "",
+        lastName: "",
+        profession: "",
+        phone: "",
+        email: "",
+        fullAddress: "",
+        nationality: "",
+        familyStatus: undefined,
+        matrimonialRegime: undefined,
+        birthPlace: "",
+        birthDate: "",
+        isPrimary: true,
+      }];
+  
+  // Collecter tous les documents depuis persons et entreprise
+  const allDocuments = [
+    ...(client.persons?.flatMap((p: any) => p.documents || []) || []),
+    ...(client.entreprise?.documents || []),
+  ];
+  
+  const [documents, setDocuments] = useState<any[]>(allDocuments);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   const [uploadingDocumentKind, setUploadingDocumentKind] = useState<DocumentKind | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState<Record<string, File | null>>({});
@@ -64,28 +108,37 @@ export function EditClientForm({ client }: EditClientFormProps) {
     defaultValues: {
       id: client.id,
       type: client.type,
+      // profilType n'est pas modifiable, mais on le garde pour la validation
       profilType: client.profilType,
-      firstName: client.firstName || "",
-      lastName: client.lastName || "",
-      profession: client.profession || "",
-      legalName: client.legalName || "",
-      registration: client.registration || "",
-      phone: client.phone || "",
-      email: client.email || "",
-      fullAddress: client.fullAddress || "",
-      nationality: client.nationality || "",
-      familyStatus: client.familyStatus || undefined,
-      matrimonialRegime: client.matrimonialRegime || undefined,
-      birthPlace: client.birthPlace || "",
-      birthDate: client.birthDate ? new Date(client.birthDate).toISOString().split("T")[0] : "",
+      // Tableau de personnes pour PERSONNE_PHYSIQUE
+      persons: initialPersons,
+      // Données depuis Entreprise pour PERSONNE_MORALE
+      legalName: entreprise?.legalName || "",
+      registration: entreprise?.registration || "",
+      name: entreprise?.name || entreprise?.legalName || "", // name est requis dans le schéma
+      phone: entreprise?.phone || "",
+      email: entreprise?.email || "",
+      fullAddress: entreprise?.fullAddress || "",
     },
+  });
+
+  // Gérer le tableau de personnes
+  const { fields: personFields, append: appendPerson, remove: removePerson } = useFieldArray({
+    control: form.control,
+    name: "persons",
   });
 
   // Observer les valeurs du formulaire pour calculer les documents requis
   const watchedType = form.watch("type") || clientType;
   const watchedProfilType = form.watch("profilType") || client.profilType;
-  const watchedFamilyStatus = form.watch("familyStatus");
-  const watchedMatrimonialRegime = form.watch("matrimonialRegime");
+  // Pour les personnes physiques, utiliser la personne primaire pour les documents requis
+  const primaryPersonIndex = personFields.findIndex((_, i) => form.watch(`persons.${i}.isPrimary`));
+  const watchedFamilyStatus = primaryPersonIndex >= 0 
+    ? form.watch(`persons.${primaryPersonIndex}.familyStatus`)
+    : undefined;
+  const watchedMatrimonialRegime = primaryPersonIndex >= 0
+    ? form.watch(`persons.${primaryPersonIndex}.matrimonialRegime`)
+    : undefined;
   
   // Calculer les documents requis en fonction des données du formulaire
   const requiredDocuments = getRequiredClientFields(
@@ -103,8 +156,9 @@ export function EditClientForm({ client }: EditClientFormProps) {
   const refreshDocuments = async () => {
     setIsLoadingDocuments(true);
     try {
-      const docs = await getDocuments({ clientId: client.id });
-      setDocuments(docs);
+      // Recharger la page pour obtenir les documents à jour
+      router.refresh();
+      // Les documents seront mis à jour via le re-render du composant
     } catch (error) {
       console.error("Erreur lors du chargement des documents:", error);
     } finally {
@@ -118,10 +172,10 @@ export function EditClientForm({ client }: EditClientFormProps) {
 
   // Réinitialiser le régime matrimonial si le statut familial change et n'est plus MARIE
   useEffect(() => {
-    if (watchedFamilyStatus !== FamilyStatus.MARIE && watchedMatrimonialRegime) {
-      form.setValue("matrimonialRegime", undefined);
+    if (primaryPersonIndex >= 0 && watchedFamilyStatus !== FamilyStatus.MARIE && watchedMatrimonialRegime) {
+      form.setValue(`persons.${primaryPersonIndex}.matrimonialRegime`, undefined);
     }
-  }, [watchedFamilyStatus, watchedMatrimonialRegime]);
+  }, [watchedFamilyStatus, watchedMatrimonialRegime, primaryPersonIndex, form]);
 
   const handleDeleteDocument = async (documentId: string) => {
     try {
@@ -146,7 +200,23 @@ export function EditClientForm({ client }: EditClientFormProps) {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("kind", kind);
-      formData.append("clientId", client.id);
+      // Déterminer si on doit utiliser personId ou entrepriseId
+      if (client.type === ClientType.PERSONNE_PHYSIQUE) {
+        // Utiliser la personne primaire pour l'upload de documents
+        const primaryPersonIndex = personFields.findIndex((_, i) => form.watch(`persons.${i}.isPrimary`));
+        if (primaryPersonIndex >= 0) {
+          const primaryPersonId = form.watch(`persons.${primaryPersonIndex}.id`) || 
+            client.persons?.find((p: any) => p.isPrimary)?.id || 
+            client.persons?.[0]?.id;
+          if (primaryPersonId) {
+            formData.append("personId", primaryPersonId);
+          }
+        }
+      } else {
+        if (client.entreprise) {
+          formData.append("entrepriseId", client.entreprise.id);
+        }
+      }
 
       const response = await fetch("/api/clients/upload-document", {
         method: "POST",
@@ -230,142 +300,284 @@ export function EditClientForm({ client }: EditClientFormProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Afficher le profilType en lecture seule */}
             <div className="space-y-2">
-              <Label htmlFor="profilType">Profil *</Label>
-              <Controller
-                name="profilType"
-                control={form.control}
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange} disabled={isLoading}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner le profil" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.values(ProfilType).map((profil) => (
-                        <SelectItem key={profil} value={profil}>
-                          {profil.replace(/_/g, " ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+              <Label>Profil</Label>
+              <div className="px-3 py-2 border rounded-md bg-muted/50">
+                <p className="text-sm font-medium">{client.profilType.replace(/_/g, " ")}</p>
+              </div>
             </div>
 
             {clientType === ClientType.PERSONNE_PHYSIQUE ? (
-              <>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">Prénom *</Label>
-                    <Input
-                      id="firstName"
-                      {...form.register("firstName")}
-                      placeholder="Prénom"
-                      disabled={isLoading}
-                    />
-                    {form.formState.errors.firstName && (
-                      <p className="text-sm text-destructive">
-                        {form.formState.errors.firstName.message as string}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Nom *</Label>
-                    <Input
-                      id="lastName"
-                      {...form.register("lastName")}
-                      placeholder="Nom"
-                      disabled={isLoading}
-                    />
-                    {form.formState.errors.lastName && (
-                      <p className="text-sm text-destructive">
-                        {form.formState.errors.lastName.message as string}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="profession">Profession</Label>
-                  <Input
-                    id="profession"
-                    {...form.register("profession")}
-                    placeholder="Profession"
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">Personnes</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => appendPerson({
+                      id: undefined,
+                      firstName: "",
+                      lastName: "",
+                      profession: "",
+                      phone: "",
+                      email: "",
+                      fullAddress: "",
+                      nationality: "",
+                      familyStatus: undefined,
+                      matrimonialRegime: undefined,
+                      birthPlace: "",
+                      birthDate: "",
+                      isPrimary: false,
+                    })}
                     disabled={isLoading}
-                  />
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Ajouter une personne
+                  </Button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="familyStatus">Statut familial</Label>
-                    <Controller
-                      name="familyStatus"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Select value={field.value || ""} onValueChange={field.onChange} disabled={isLoading}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner le statut familial" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.values(FamilyStatus).map((status) => (
-                              <SelectItem key={status} value={status}>
-                                {status.replace(/_/g, " ")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
+                {personFields.map((field, index) => {
+                  const watchedFamilyStatus = form.watch(`persons.${index}.familyStatus`);
+                  const isPrimary = form.watch(`persons.${index}.isPrimary`);
+                  
+                  return (
+                    <Card key={field.id} className="relative">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2">
+                            <User className="h-5 w-5" />
+                            {isPrimary ? (
+                              <Badge variant="default">Personne principale</Badge>
+                            ) : (
+                              <span>Personne {index + 1}</span>
+                            )}
+                          </CardTitle>
+                          <div className="flex items-center gap-2">
+                            <Controller
+                              name={`persons.${index}.isPrimary`}
+                              control={form.control}
+                              render={({ field }) => (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`isPrimary-${index}`}
+                                    checked={field.value || false}
+                                    onChange={(e) => {
+                                      // Si on coche cette personne comme primaire, décocher les autres
+                                      if (e.target.checked) {
+                                        personFields.forEach((_, i) => {
+                                          if (i !== index) {
+                                            form.setValue(`persons.${i}.isPrimary`, false);
+                                          }
+                                        });
+                                      }
+                                      field.onChange(e.target.checked);
+                                    }}
+                                    className="rounded"
+                                  />
+                                  <Label htmlFor={`isPrimary-${index}`} className="text-sm font-normal cursor-pointer">
+                                    Personne principale
+                                  </Label>
+                                </div>
+                              )}
+                            />
+                            {personFields.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  // Si on supprime la personne primaire, marquer la première comme primaire
+                                  if (isPrimary && personFields.length > 1) {
+                                    const nextIndex = index === 0 ? 1 : 0;
+                                    form.setValue(`persons.${nextIndex}.isPrimary`, true);
+                                  }
+                                  removePerson(index);
+                                }}
+                                disabled={isLoading}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor={`persons.${index}.firstName`}>Prénom</Label>
+                            <Input
+                              {...form.register(`persons.${index}.firstName`)}
+                              placeholder="Prénom"
+                              disabled={isLoading}
+                            />
+                            {form.formState.errors.persons?.[index]?.firstName && (
+                              <p className="text-sm text-destructive">
+                                {form.formState.errors.persons[index]?.firstName?.message as string}
+                              </p>
+                            )}
+                          </div>
 
-                  {watchedFamilyStatus === FamilyStatus.MARIE && (
-                    <div className="space-y-2">
-                      <Label htmlFor="matrimonialRegime">Régime matrimonial</Label>
-                      <Controller
-                        name="matrimonialRegime"
-                        control={form.control}
-                        render={({ field }) => (
-                          <Select value={field.value || ""} onValueChange={field.onChange} disabled={isLoading}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Sélectionner le régime matrimonial" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.values(MatrimonialRegime).map((regime) => (
-                                <SelectItem key={regime} value={regime}>
-                                  {regime.replace(/_/g, " ")}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                  )}
-                </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`persons.${index}.lastName`}>Nom</Label>
+                            <Input
+                              {...form.register(`persons.${index}.lastName`)}
+                              placeholder="Nom"
+                              disabled={isLoading}
+                            />
+                            {form.formState.errors.persons?.[index]?.lastName && (
+                              <p className="text-sm text-destructive">
+                                {form.formState.errors.persons[index]?.lastName?.message as string}
+                              </p>
+                            )}
+                          </div>
+                        </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="birthPlace">Lieu de naissance</Label>
-                    <Input
-                      id="birthPlace"
-                      {...form.register("birthPlace")}
-                      placeholder="Lieu de naissance"
-                      disabled={isLoading}
-                    />
-                  </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`persons.${index}.profession`}>Profession</Label>
+                          <Input
+                            {...form.register(`persons.${index}.profession`)}
+                            placeholder="Profession"
+                            disabled={isLoading}
+                          />
+                        </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="birthDate">Date de naissance</Label>
-                    <Input
-                      id="birthDate"
-                      type="date"
-                      {...form.register("birthDate")}
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-              </>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor={`persons.${index}.familyStatus`}>Statut familial</Label>
+                            <Controller
+                              name={`persons.${index}.familyStatus`}
+                              control={form.control}
+                              render={({ field }) => (
+                                <Select value={field.value || ""} onValueChange={field.onChange} disabled={isLoading}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Sélectionner le statut familial" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Object.values(FamilyStatus).map((status) => (
+                                      <SelectItem key={status} value={status}>
+                                        {status.replace(/_/g, " ")}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
+                          </div>
+
+                          {watchedFamilyStatus === FamilyStatus.MARIE && (
+                            <div className="space-y-2">
+                              <Label htmlFor={`persons.${index}.matrimonialRegime`}>Régime matrimonial</Label>
+                              <Controller
+                                name={`persons.${index}.matrimonialRegime`}
+                                control={form.control}
+                                render={({ field }) => (
+                                  <Select value={field.value || ""} onValueChange={field.onChange} disabled={isLoading}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Sélectionner le régime matrimonial" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {Object.values(MatrimonialRegime).map((regime) => (
+                                        <SelectItem key={regime} value={regime}>
+                                          {regime.replace(/_/g, " ")}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor={`persons.${index}.birthPlace`}>Lieu de naissance</Label>
+                            <Input
+                              {...form.register(`persons.${index}.birthPlace`)}
+                              placeholder="Lieu de naissance"
+                              disabled={isLoading}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor={`persons.${index}.birthDate`}>Date de naissance</Label>
+                            <Input
+                              type="date"
+                              {...form.register(`persons.${index}.birthDate`)}
+                              disabled={isLoading}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor={`persons.${index}.email`}>Email</Label>
+                            <Input
+                              type="email"
+                              {...form.register(`persons.${index}.email`)}
+                              placeholder="Email"
+                              disabled={isLoading}
+                            />
+                            {form.formState.errors.persons?.[index]?.email && (
+                              <p className="text-sm text-destructive">
+                                {form.formState.errors.persons[index]?.email?.message as string}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor={`persons.${index}.phone`}>Téléphone</Label>
+                            <Controller
+                              name={`persons.${index}.phone`}
+                              control={form.control}
+                              render={({ field }) => (
+                                <PhoneInput
+                                  value={field.value || undefined}
+                                  onChange={field.onChange}
+                                  defaultCountry="FR"
+                                  international
+                                  countryCallingCodeEditable={false}
+                                  placeholder="Numéro de téléphone"
+                                  disabled={isLoading}
+                                />
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`persons.${index}.fullAddress`}>Adresse complète</Label>
+                          <Textarea
+                            {...form.register(`persons.${index}.fullAddress`)}
+                            placeholder="Adresse complète"
+                            disabled={isLoading}
+                            rows={3}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`persons.${index}.nationality`}>Nationalité</Label>
+                          <Controller
+                            name={`persons.${index}.nationality`}
+                            control={form.control}
+                            render={({ field }) => (
+                              <NationalitySelect
+                                value={field.value || undefined}
+                                onValueChange={field.onChange}
+                                disabled={isLoading}
+                                placeholder="Sélectionner la nationalité"
+                              />
+                            )}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             ) : (
               <>
                 <div className="space-y-2">
@@ -384,85 +596,93 @@ export function EditClientForm({ client }: EditClientFormProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="registration">Numéro d'enregistrement (SIREN/SIRET)</Label>
+                  <Label htmlFor="name">Nom commercial</Label>
+                  <Input
+                    id="name"
+                    {...form.register("name")}
+                    placeholder="Nom commercial"
+                    disabled={isLoading}
+                  />
+                  {form.formState.errors.name && (
+                    <p className="text-sm text-destructive">
+                      {form.formState.errors.name.message as string}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="registration">Numéro d'enregistrement (SIREN/SIRET) *</Label>
                   <Input
                     id="registration"
                     {...form.register("registration")}
                     placeholder="Numéro d'enregistrement"
                     disabled={isLoading}
                   />
+                  {form.formState.errors.registration && (
+                    <p className="text-sm text-destructive">
+                      {form.formState.errors.registration.message as string}
+                    </p>
+                  )}
                 </div>
               </>
             )}
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  {...form.register("email")}
-                  placeholder="Email"
-                  disabled={isLoading}
-                />
-                {form.formState.errors.email && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.email.message as string}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Téléphone</Label>
-                <Controller
-                  name="phone"
-                  control={form.control}
-                  render={({ field }) => (
-                    <PhoneInput
-                      value={field.value || undefined}
-                      onChange={field.onChange}
-                      defaultCountry="FR"
-                      international
-                      countryCallingCodeEditable={false}
-                      placeholder="Numéro de téléphone"
+            {clientType === ClientType.PERSONNE_MORALE && (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      {...form.register("email")}
+                      placeholder="Email"
                       disabled={isLoading}
                     />
-                  )}
-                />
-                {form.formState.errors.phone && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.phone.message as string}
-                  </p>
-                )}
-              </div>
-            </div>
+                    {form.formState.errors.email && (
+                      <p className="text-sm text-destructive">
+                        {form.formState.errors.email.message as string}
+                      </p>
+                    )}
+                  </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="fullAddress">Adresse complète</Label>
-              <Textarea
-                id="fullAddress"
-                {...form.register("fullAddress")}
-                placeholder="Adresse complète"
-                disabled={isLoading}
-                rows={3}
-              />
-            </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Téléphone</Label>
+                    <Controller
+                      name="phone"
+                      control={form.control}
+                      render={({ field }) => (
+                        <PhoneInput
+                          value={field.value || undefined}
+                          onChange={field.onChange}
+                          defaultCountry="FR"
+                          international
+                          countryCallingCodeEditable={false}
+                          placeholder="Numéro de téléphone"
+                          disabled={isLoading}
+                        />
+                      )}
+                    />
+                    {form.formState.errors.phone && (
+                      <p className="text-sm text-destructive">
+                        {form.formState.errors.phone.message as string}
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="nationality">Nationalité</Label>
-              <Controller
-                name="nationality"
-                control={form.control}
-                render={({ field }) => (
-                  <NationalitySelect
-                    value={field.value || undefined}
-                    onValueChange={field.onChange}
+                <div className="space-y-2">
+                  <Label htmlFor="fullAddress">Adresse complète</Label>
+                  <Textarea
+                    id="fullAddress"
+                    {...form.register("fullAddress")}
+                    placeholder="Adresse complète"
                     disabled={isLoading}
-                    placeholder="Sélectionner la nationalité"
+                    rows={3}
                   />
-                )}
-              />
-            </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </Tabs>
