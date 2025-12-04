@@ -127,7 +127,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  console.log("process.env.VERCEL_ENV", process.env.VERCEL_ENV);
   const isProd = process.env.VERCEL_ENV === "production";
   const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID;
 
