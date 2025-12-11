@@ -117,4 +117,23 @@ export const blogData = [
         createdAt: new Date("2025-05-25"),
         categoryId: "1",
       },
+      {
+        id: "blog-6",
+        title: "Coût d’un bail de location notarié : tarifs, partage des frais et exemples concrets",
+        slug: generateSlug("Coût d’un bail de location notarié : tarifs, partage des frais et exemples concrets"),
+        description:
+          "Tarifs réglementés, estimation du coût d’un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
+        content: "",
+        readTime: 6,
+        metaTitle: "Coût d’un bail de location notarié : tarifs, partage des frais et exemples concrets",
+        metaDescription:
+          "Tarifs réglementés, estimation du coût d’un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
+        metaKeywords:
+          "coût bail de location notarié, coût bail notarié, frais bail de location notarié, frais bail notarié, tarif notaire bail habitation, emolument bail notarié, moitié loyer hors charges, procuration authentique à distance, copies formalités notaire, débours bail notarié",
+        imageUrl:
+          "https://images.pexels.com/photos/3943745/pexels-photo-3943745.jpeg",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2025-06-01"),
+        categoryId: "1",
+      },
 ]
