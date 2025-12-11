@@ -70,8 +70,12 @@ export function generateArticleMetadata(article: Article) {
   const keywords = article.metaKeywords 
     ? article.metaKeywords.split(',').map(k => k.trim())
     : [
-        "bail notarié",
-        "location immobilière",
+       "bail notarié",
+        "bail de location",
+        "bail location",
+        "bail de location notarié",
+        "bail de location notarié en ligne",
+
         article.category.name.toLowerCase(),
         ...article.title.toLowerCase().split(' ').filter(word => word.length > 3)
       ];
