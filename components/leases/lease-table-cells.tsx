@@ -53,14 +53,27 @@ export function LeaseTenantCell({ row }: LeaseCellProps) {
   
   // Afficher le nom selon le type de client
   if (tenant.type === "PERSONNE_PHYSIQUE") {
-    const name = `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim();
-    return <>
-    <Link href={`/interface/clients/${tenant.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
-      <User className="size-4 text-muted-foreground" />
-      {name || tenant.email || "-"}
-      <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background " />
-    </Link>
-    </>;
+    const primaryPerson = tenant.persons?.find((p: any) => p.isPrimary) || tenant.persons?.[0];
+    const name = primaryPerson
+      ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
+      : `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim();
+    const email = primaryPerson?.email || tenant.email;
+    const hasMultiplePersons = tenant.persons && tenant.persons.length > 1;
+    
+    return (
+      <div className="flex flex-col gap-1">
+        <Link href={`/interface/clients/${tenant.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
+          <User className="size-4 text-muted-foreground" />
+          <span>{name || email || "-"}</span>
+          <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background" />
+        </Link>
+        {hasMultiplePersons && (
+          <span className="text-xs text-muted-foreground ml-6">
+            +{tenant.persons.length - 1} autre{tenant.persons.length - 1 > 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+    );
   }
   
   if (tenant.type === "PERSONNE_MORALE") {
@@ -91,24 +104,37 @@ export function LeaseOwnerCell({ row }: LeaseCellProps) {
     
     // Afficher le nom selon le type de client
     if (owner.type === "PERSONNE_PHYSIQUE") {
-      const name = `${owner.firstName || ""} ${owner.lastName || ""}`.trim();
-      return <>
-      <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
-        <User className="size-4 text-muted-foreground" />
-        {name || owner.email || "-"}
-        <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background " />
-      </Link>
-      </>;
+      const primaryPerson = owner.persons?.find((p: any) => p.isPrimary) || owner.persons?.[0];
+      const name = primaryPerson
+        ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
+        : `${owner.firstName || ""} ${owner.lastName || ""}`.trim();
+      const email = primaryPerson?.email || owner.email;
+      const hasMultiplePersons = owner.persons && owner.persons.length > 1;
+      
+      return (
+        <div className="flex flex-col gap-1">
+          <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
+            <User className="size-4 text-muted-foreground" />
+            <span>{name || email || "-"}</span>
+            <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background" />
+          </Link>
+          {hasMultiplePersons && (
+            <span className="text-xs text-muted-foreground ml-6">
+              +{owner.persons.length - 1} autre{owner.persons.length - 1 > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      );
     }
     
     if (owner.type === "PERSONNE_MORALE") {
-      return <>
-      <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
-        <Building2 className="size-4 text-muted-foreground" />
-        {owner.legalName || "-"}
-        <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background " />
-      </Link>
-      </>;
+      return (
+        <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
+          <Building2 className="size-4 text-muted-foreground" />
+          {owner.entreprise?.legalName || owner.entreprise?.name || owner.legalName || "-"}
+          <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background" />
+        </Link>
+      );
     }
     
     return <span className="text-muted-foreground">-</span>;
@@ -118,24 +144,37 @@ export function LeaseOwnerCell({ row }: LeaseCellProps) {
   
   // Afficher le nom selon le type de client
   if (owner.type === "PERSONNE_PHYSIQUE") {
-    const name = `${owner.firstName || ""} ${owner.lastName || ""}`.trim();
-    return <>
-    <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
-      <User className="size-4 text-muted-foreground" />
-      {name || owner.email || "-"}
-      <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background " />
-    </Link>
-    </>;
+    const primaryPerson = owner.persons?.find((p: any) => p.isPrimary) || owner.persons?.[0];
+    const name = primaryPerson
+      ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
+      : `${owner.firstName || ""} ${owner.lastName || ""}`.trim();
+    const email = primaryPerson?.email || owner.email;
+    const hasMultiplePersons = owner.persons && owner.persons.length > 1;
+    
+    return (
+      <div className="flex flex-col gap-1">
+        <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
+          <User className="size-4 text-muted-foreground" />
+          <span>{name || email || "-"}</span>
+          <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background" />
+        </Link>
+        {hasMultiplePersons && (
+          <span className="text-xs text-muted-foreground ml-6">
+            +{owner.persons.length - 1} autre{owner.persons.length - 1 > 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+    );
   }
   
   if (owner.type === "PERSONNE_MORALE") {
-    return <>
-    <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
-      <Building2 className="size-4 text-muted-foreground" />
-      {owner.legalName || "-"}
-      <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background " />
-    </Link>
-    </>;
+    return (
+      <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
+        <Building2 className="size-4 text-muted-foreground" />
+        {owner.entreprise?.legalName || owner.entreprise?.name || owner.legalName || "-"}
+        <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background" />
+      </Link>
+    );
   }
   
   return <span className="text-muted-foreground">-</span>;

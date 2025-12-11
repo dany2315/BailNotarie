@@ -15,6 +15,23 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { DeleteClientDialog } from "./delete-client-dialog";
 import { RegenerateIntakeLinkDialog } from "./regenerate-intake-link-dialog";
+import { ClientType } from "@prisma/client";
+
+// Helper pour obtenir l'email du client
+function getClientEmail(row: any): string | null {
+  if (!row) return null;
+  
+  if (row.type === ClientType.PERSONNE_PHYSIQUE) {
+    const primaryPerson = row.persons?.find((p: any) => p.isPrimary) || row.persons?.[0];
+    return primaryPerson?.email || row.email || null;
+  }
+  
+  if (row.type === ClientType.PERSONNE_MORALE) {
+    return row.entreprise?.email || row.email || null;
+  }
+  
+  return row.email || null;
+}
 
 export function ClientActions({ row }: { row: any }) {
   const router = useRouter();
@@ -29,6 +46,11 @@ export function ClientActions({ row }: { row: any }) {
     message: string;
     blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }>;
   } | null>(null);
+
+  // Vérification de sécurité après les hooks
+  if (!row || !row.id) {
+    return null;
+  }
 
   const handleDeleteClick = async () => {
     try {
@@ -74,6 +96,11 @@ export function ClientActions({ row }: { row: any }) {
 
   const handleSendIntakeLink = async () => {
     try {
+      const clientEmail = getClientEmail(row);
+      if (!clientEmail) {
+        toast.error("Le client n'a pas d'email");
+        return;
+      }
       await sendIntakeLinkToClient(row.id);
       toast.success("Lien du formulaire envoyé avec succès");
       router.refresh();
@@ -84,6 +111,8 @@ export function ClientActions({ row }: { row: any }) {
 
   // Vérifier si le client a un lien disponible au chargement
   useEffect(() => {
+    if (!row?.id) return;
+    
     const checkLinkAvailability = async () => {
       try {
         const linkInfo = await hasIntakeLink(row.id);
@@ -99,7 +128,7 @@ export function ClientActions({ row }: { row: any }) {
     if (row.profilType === "LEAD" || row.profilType === "PROPRIETAIRE" || row.profilType === "LOCATAIRE") {
       checkLinkAvailability();
     }
-  }, [row.id, row.profilType]);
+  }, [row?.id, row?.profilType]);
 
   const handleCopyIntakeLink = async () => {
     try {
@@ -134,7 +163,7 @@ export function ClientActions({ row }: { row: any }) {
   };
 
   // Désactiver le bouton si le client est en PENDING_CHECK ou COMPLETED
-  const isCompletionStatusBlocking = row.completionStatus === "PENDING_CHECK" || row.completionStatus === "COMPLETED";
+  const isCompletionStatusBlocking = row?.completionStatus === "PENDING_CHECK" || row?.completionStatus === "COMPLETED";
 
   return (
     <DropdownMenu>
@@ -159,12 +188,12 @@ export function ClientActions({ row }: { row: any }) {
         </DropdownMenuItem>
         <DropdownMenuItem 
           onClick={handleSendIntakeLink} 
-          disabled={!row.email || isCompletionStatusBlocking}
+          disabled={!getClientEmail(row) || isCompletionStatusBlocking || hasSubmittedLink}
         >
           <Mail className="mr-2 h-4 w-4" />
           Envoyer le formulaire
         </DropdownMenuItem>
-        {(row.profilType === "PROPRIETAIRE" || row.profilType === "LOCATAIRE" || row.profilType === "LEAD") && (
+        {(row?.profilType === "PROPRIETAIRE" || row?.profilType === "LOCATAIRE" || row?.profilType === "LEAD") && (
           <DropdownMenuItem 
             onClick={handleCopyIntakeLink}
             disabled={canCopyLink === false}
@@ -173,7 +202,7 @@ export function ClientActions({ row }: { row: any }) {
             Copier le lien du formulaire
           </DropdownMenuItem>
         )}
-        {(row.profilType === "PROPRIETAIRE" || row.profilType === "LOCATAIRE" || row.profilType === "LEAD") && hasSubmittedLink && (
+        {(row?.profilType === "PROPRIETAIRE" || row?.profilType === "LOCATAIRE" || row?.profilType === "LEAD") && hasSubmittedLink && (
           <DropdownMenuItem 
             onClick={handleRegenerateIntakeLinkClick}
             disabled={isRegenerating}

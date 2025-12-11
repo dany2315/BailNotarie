@@ -75,9 +75,13 @@ export function PropertyBailsViewer({ properties }: PropertyBailsViewerProps) {
 
   const getPartyName = (party: Party) => {
     if (party.type === ClientType.PERSONNE_PHYSIQUE) {
+      const primaryPerson = party.persons?.find((p: any) => p.isPrimary) || party.persons?.[0];
+      if (primaryPerson) {
+        return `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || primaryPerson.email || "N/A";
+      }
       return `${party.firstName || ""} ${party.lastName || ""}`.trim() || party.email || "N/A";
     }
-    return party.legalName || party.email || "N/A";
+    return party.entreprise?.legalName || party.entreprise?.name || party.legalName || party.email || "N/A";
   };
 
   if (properties.length === 0) {

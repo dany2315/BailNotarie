@@ -20,6 +20,7 @@ import { CommentsDrawer } from "@/components/comments/comments-drawer";
 import { DocumentsList } from "@/components/leases/documents-list";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { DeletePropertyButton } from "@/components/properties/delete-property-button";
+import { documentKindLabels } from "@/lib/utils/document-labels";
 
 export default async function PropertyDetailPage({
   params,
@@ -50,9 +51,13 @@ export default async function PropertyDetailPage({
   // Sérialiser les baux pour convertir les Decimal en nombres
   const serializedBails = property.bails ? JSON.parse(JSON.stringify(property.bails, (key, value) => serializeDecimal(value))) : [];
 
+  // Obtenir le nom du propriétaire depuis la personne principale ou l'entreprise
+  const primaryPerson = property.owner.persons?.find((p: any) => p.isPrimary) || property.owner.persons?.[0];
   const ownerName = property.owner.type === ClientType.PERSONNE_PHYSIQUE
-    ? `${property.owner.firstName || ""} ${property.owner.lastName || ""}`.trim()
-    : property.owner.legalName || "";
+    ? primaryPerson
+      ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
+      : `${property.owner.firstName || ""} ${property.owner.lastName || ""}`.trim()
+    : property.owner.entreprise?.legalName || property.owner.entreprise?.name || property.owner.legalName || "";
 
   // Statistiques
   const stats = {
@@ -80,21 +85,7 @@ export default async function PropertyDetailPage({
     OTHER: "Autre",
   };
 
-  const documentKindLabels: Record<string, string> = {
-    KBIS: "KBIS",
-    STATUTES: "Statuts",
-    INSURANCE: "Assurance",
-    TITLE_DEED: "Titre de propriété",
-    BIRTH_CERT: "Acte de naissance",
-    ID_IDENTITY: "Pièce d'identité",
-    LIVRET_DE_FAMILLE: "Livret de famille",
-    CONTRAT_DE_PACS: "Contrat de PACS",
-    DIAGNOSTICS: "Diagnostics",
-    REGLEMENT_COPROPRIETE: "Règlement de copropriété",
-    CAHIER_DE_CHARGE_LOTISSEMENT: "Cahier des charges lotissement",
-    STATUT_DE_LASSOCIATION_SYNDICALE: "Statut de l'association syndicale",
-    RIB: "RIB",
-  };
+  import { documentKindLabels } from "@/lib/utils/document-labels";
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -291,32 +282,46 @@ export default async function PropertyDetailPage({
           <Separator />
 
           {/* Section Contact */}
-          {(property.owner.email || property.owner.phone || property.owner.fullAddress) && (
-            <div className="space-y-3">
-              {property.owner.email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="size-4 text-muted-foreground" />
-                  <a href={`mailto:${property.owner.email}`} className="text-sm hover:underline">
-                    {property.owner.email}
-                  </a>
-                </div>
-              )}
-              {property.owner.phone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="size-4 text-muted-foreground" />
-                  <a href={`tel:${property.owner.phone}`} className="text-sm hover:underline">
-                    {property.owner.phone}
-                  </a>
-                </div>
-              )}
-              {property.owner.fullAddress && (
-                <div className="flex items-start gap-2">
-                  <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                  <p className="text-sm">{property.owner.fullAddress}</p>
-                </div>
-              )}
-            </div>
-          )}
+          {(() => {
+            const ownerEmail = property.owner.type === ClientType.PERSONNE_PHYSIQUE
+              ? primaryPerson?.email || property.owner.email
+              : property.owner.entreprise?.email || property.owner.email;
+            const ownerPhone = property.owner.type === ClientType.PERSONNE_PHYSIQUE
+              ? primaryPerson?.phone || property.owner.phone
+              : property.owner.entreprise?.phone || property.owner.phone;
+            const ownerAddress = property.owner.type === ClientType.PERSONNE_PHYSIQUE
+              ? primaryPerson?.fullAddress || property.owner.fullAddress
+              : property.owner.entreprise?.fullAddress || property.owner.fullAddress;
+
+            if (!ownerEmail && !ownerPhone && !ownerAddress) return null;
+
+            return (
+              <div className="space-y-3">
+                {ownerEmail && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="size-4 text-muted-foreground" />
+                    <a href={`mailto:${ownerEmail}`} className="text-sm hover:underline">
+                      {ownerEmail}
+                    </a>
+                  </div>
+                )}
+                {ownerPhone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="size-4 text-muted-foreground" />
+                    <a href={`tel:${ownerPhone}`} className="text-sm hover:underline">
+                      {ownerPhone}
+                    </a>
+                  </div>
+                )}
+                {ownerAddress && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <p className="text-sm">{ownerAddress}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Section Détails Personnels */}
           {property.owner.type === "PERSONNE_PHYSIQUE" && (
@@ -407,10 +412,13 @@ export default async function PropertyDetailPage({
             <div className="space-y-4">
               {serializedBails.map((bail: any) => {
                 const tenant = bail.parties?.find((p: any) => p.profilType === ProfilType.LOCATAIRE);
+                const tenantPrimaryPerson = tenant?.persons?.find((p: any) => p.isPrimary) || tenant?.persons?.[0];
                 const tenantName = tenant
                   ? tenant.type === ClientType.PERSONNE_PHYSIQUE
-                    ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || ""
-                    : tenant.legalName || ""
+                    ? tenantPrimaryPerson
+                      ? `${tenantPrimaryPerson.firstName || ""} ${tenantPrimaryPerson.lastName || ""}`.trim() || tenantPrimaryPerson.email || ""
+                      : `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || ""
+                    : tenant.entreprise?.legalName || tenant.entreprise?.name || tenant.legalName || ""
                   : "";
 
                 return (

@@ -21,6 +21,7 @@ import { CommentsDrawer } from "@/components/comments/comments-drawer";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { TenantCreateButton } from "@/components/leases/tenant-create-button";
 import { DeleteLeaseButton } from "@/components/leases/delete-lease-button";
+import { documentKindLabels } from "@/lib/utils/document-labels";
 
 export default async function LeaseDetailPage({
   params,
@@ -46,17 +47,24 @@ export default async function LeaseDetailPage({
     getDocuments({ bailId: lease.id }),
   ]);
 
-  // Formater les noms
+  // Formater les noms en utilisant les personnes principales
+  const tenantPrimaryPerson = tenant?.persons?.find((p: any) => p.isPrimary) || tenant?.persons?.[0];
+  const ownerPrimaryPerson = owner?.persons?.find((p: any) => p.isPrimary) || owner?.persons?.[0];
+  
   const tenantName = tenant
     ? tenant.type === "PERSONNE_PHYSIQUE"
-      ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || ""
-      : tenant.legalName || ""
+      ? tenantPrimaryPerson
+        ? `${tenantPrimaryPerson.firstName || ""} ${tenantPrimaryPerson.lastName || ""}`.trim() || tenantPrimaryPerson.email || ""
+        : `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || ""
+      : tenant.entreprise?.legalName || tenant.entreprise?.name || tenant.legalName || ""
     : "";
 
   const ownerName = owner
     ? owner.type === "PERSONNE_PHYSIQUE"
-      ? `${owner.firstName || ""} ${owner.lastName || ""}`.trim() || owner.email || ""
-      : owner.legalName || ""
+      ? ownerPrimaryPerson
+        ? `${ownerPrimaryPerson.firstName || ""} ${ownerPrimaryPerson.lastName || ""}`.trim() || ownerPrimaryPerson.email || ""
+        : `${owner.firstName || ""} ${owner.lastName || ""}`.trim() || owner.email || ""
+      : owner.entreprise?.legalName || owner.entreprise?.name || owner.legalName || ""
     : "";
 
   const bailFamilyLabels: Record<string, string> = {
@@ -73,22 +81,6 @@ export default async function LeaseDetailPage({
     BAIL_NU_6_ANS: "Bail nu 6 ans",
     BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
     BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
-  };
-
-  const documentKindLabels: Record<string, string> = {
-    KBIS: "KBIS",
-    STATUTES: "Statuts",
-    INSURANCE: "Assurance",
-    TITLE_DEED: "Titre de propriété",
-    BIRTH_CERT: "Acte de naissance",
-    ID_IDENTITY: "Pièce d'identité",
-    LIVRET_DE_FAMILLE: "Livret de famille",
-    CONTRAT_DE_PACS: "Contrat de PACS",
-    DIAGNOSTICS: "Diagnostics",
-    REGLEMENT_COPROPRIETE: "Règlement de copropriété",
-    CAHIER_DE_CHARGE_LOTISSEMENT: "Cahier des charges lotissement",
-    STATUT_DE_LASSOCIATION_SYNDICALE: "Statut de l'association syndicale",
-    RIB: "RIB",
   };
 
 
@@ -431,55 +423,69 @@ export default async function LeaseDetailPage({
                   </div>
                 )}
 
-                {/* Section Détails Personnels */}
-                {owner.type === "PERSONNE_PHYSIQUE" && (
+                {/* Section Détails Personnels - Afficher toutes les personnes si personne physique */}
+                {owner.type === "PERSONNE_PHYSIQUE" && owner.persons && owner.persons.length > 0 && (
                   <>
-                    {(owner.birthDate || owner.birthPlace || owner.nationality || owner.profession || owner.familyStatus) && (
-                      <>
-                        <Separator />
-                        <div className="space-y-3">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations personnelles</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {owner.birthDate && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Date de naissance</p>
-                                <p className="text-sm">{formatDate(owner.birthDate)}</p>
+                    <Separator />
+                    <div className="space-y-6">
+                      {owner.persons.map((person: any, index: number) => (
+                        <div key={person.id} className="space-y-3">
+                          {owner.persons && owner.persons.length > 1 && (
+                            <div className="flex items-center gap-2">
+                              <Badge variant={person.isPrimary ? "default" : "outline"}>
+                                {person.isPrimary ? "Personne principale" : `Personne ${index + 1}`}
+                              </Badge>
+                            </div>
+                          )}
+                          {(person.birthDate || person.birthPlace || person.nationality || person.profession || person.familyStatus) && (
+                            <div className="space-y-3">
+                              {owner.persons.length > 1 && index === 0 && (
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations personnelles</p>
+                              )}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {person.birthDate && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Date de naissance</p>
+                                    <p className="text-sm">{formatDate(person.birthDate)}</p>
+                                  </div>
+                                )}
+                                {person.birthPlace && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Lieu de naissance</p>
+                                    <p className="text-sm">{person.birthPlace}</p>
+                                  </div>
+                                )}
+                                {person.nationality && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Nationalité</p>
+                                    <p className="text-sm">{person.nationality}</p>
+                                  </div>
+                                )}
+                                {person.profession && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Profession</p>
+                                    <p className="text-sm">{person.profession}</p>
+                                  </div>
+                                )}
+                                {person.familyStatus && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Statut familial</p>
+                                    <FamilyStatusBadge status={person.familyStatus} />
+                                  </div>
+                                )}
+                                {person.familyStatus === "MARIE" && person.matrimonialRegime && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Régime matrimonial</p>
+                                    <MatrimonialRegimeBadge regime={person.matrimonialRegime} />
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {owner.birthPlace && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Lieu de naissance</p>
-                                <p className="text-sm">{owner.birthPlace}</p>
-                              </div>
-                            )}
-                            {owner.nationality && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Nationalité</p>
-                                <p className="text-sm">{owner.nationality}</p>
-                              </div>
-                            )}
-                            {owner.profession && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Profession</p>
-                                <p className="text-sm">{owner.profession}</p>
-                              </div>
-                            )}
-                            {owner.familyStatus && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Statut familial</p>
-                                <FamilyStatusBadge status={owner.familyStatus} />
-                              </div>
-                            )}
-                            {owner.familyStatus === "MARIE" && owner.matrimonialRegime && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Régime matrimonial</p>
-                                <MatrimonialRegimeBadge regime={owner.matrimonialRegime} />
-                              </div>
-                            )}
-                          </div>
+                            </div>
+                          )}
+                          {index < (owner.persons?.length || 0) - 1 && <Separator />}
                         </div>
-                      </>
-                    )}
+                      ))}
+                    </div>
                   </>
                 )}
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useForm, Controller } from "react-hook-form";
+import React from "react";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRef, useState, useEffect, useMemo } from "react";
@@ -21,7 +22,7 @@ import { DocumentUploaded } from "./document-uploaded";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { tenantFormSchema } from "@/lib/zod/client";
-import { FamilyStatus, MatrimonialRegime, ClientType } from "@prisma/client";
+import { FamilyStatus, MatrimonialRegime, ClientType, DocumentKind } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Stepper } from "@/components/ui/stepper";
 import { ArrowLeftIcon, ArrowRightIcon, Loader2, Building2, User2 } from "lucide-react";
@@ -31,38 +32,258 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DatePicker, formatDateToLocalString } from "@/components/ui/date-picker";
 import useIsMobile from "@/hooks/useIsMobile";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { AlertCircle, Trash2 } from "lucide-react";
+
 type TenantFormData = z.infer<typeof tenantFormSchema>;
 
+type PersonForm = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  fullAddress: string;
+  profession: string;
+  nationality: string;
+  familyStatus?: FamilyStatus;
+  matrimonialRegime?: MatrimonialRegime;
+  birthPlace: string;
+  birthDate: Date | undefined;
+  documents: RawDocumentMeta[];
+};
+
+type EntrepriseForm = {
+  legalName: string;
+  registration: string;
+  name: string;
+  email: string;
+  phone: string;
+  fullAddress: string;
+  nationality: string;
+  documents: RawDocumentMeta[];
+};
+
+type RawDocumentMeta = {
+  kind: DocumentKind;
+  fileKey: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  label?: string;
+};
+
+type FormWithPersons = TenantFormData & { 
+  persons: PersonForm[];
+  entreprise?: EntrepriseForm;
+  clientDocuments?: RawDocumentMeta[];
+};
+
+const emptyPerson: PersonForm = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  fullAddress: "",
+  profession: "",
+  nationality: "",
+  familyStatus: undefined,
+  matrimonialRegime: undefined,
+  birthPlace: "",
+  birthDate: undefined,
+  documents: [],
+};
+
+const toDateValue = (value?: string | Date | null) => {
+  if (!value) return undefined;
+  if (typeof value === "string") {
+    return value.includes("T") ? value.split("T")[0] : value;
+  }
+  return value.toISOString().split("T")[0];
+};
+
+const buildDefaultValues = (intakeLink: any): FormWithPersons => {
+  const client = intakeLink.client;
+
+  const mapToPersonForm = (p: any): PersonForm => ({
+    firstName: p.firstName || "",
+    lastName: p.lastName || "",
+    email: p.email || "",
+    phone: p.phone || "",
+    fullAddress: p.fullAddress || "",
+    profession: p.profession || "",
+    nationality: p.nationality || "",
+    familyStatus: p.familyStatus || undefined,
+    matrimonialRegime: p.matrimonialRegime || undefined,
+    birthPlace: p.birthPlace || "",
+    birthDate: p.birthDate
+      ? p.birthDate instanceof Date
+        ? p.birthDate
+        : new Date(p.birthDate)
+      : undefined,
+    documents: (p.documents || []).map((doc: any) => ({
+      kind: doc.kind,
+      fileKey: doc.fileKey,
+      fileName: doc.label || doc.fileKey,
+      mimeType: doc.mimeType || "",
+      size: doc.size || 0,
+      label: doc.label,
+    })),
+  });
+
+  const clientType: ClientType | "" =
+    (client?.type as ClientType | "") || "";
+
+  const primaryPerson = client?.persons?.[0];
+  const entreprise = client?.entreprise;
+
+  // Mail / téléphone "racine" : depuis la base de données
+  const rootEmail =
+    (entreprise?.email as string | undefined) ??
+    (primaryPerson?.email as string | undefined) ??
+    "";
+
+  const rootPhone =
+    (entreprise?.phone as string | undefined) ??
+    (primaryPerson?.phone as string | undefined) ??
+    "";
+
+  const clientDocuments = (client?.documents || []).map((doc: any) => ({
+    kind: doc.kind,
+    fileKey: doc.fileKey,
+    fileName: doc.label || doc.fileKey,
+    mimeType: doc.mimeType || "",
+    size: doc.size || 0,
+    label: doc.label,
+  }));
+
+  // ---------- 1) CAS ENTREPRISE (PERSONNE_MORALE) ----------
+  if (clientType === ClientType.PERSONNE_MORALE && entreprise) {
+    const entrepriseForm: EntrepriseForm = {
+      legalName: entreprise.legalName ?? "",
+      registration: entreprise.registration ?? "",
+      name: entreprise.name ?? entreprise.legalName ?? "",
+      email: rootEmail,
+      phone: rootPhone,
+      fullAddress: entreprise.fullAddress ?? "",
+      nationality: entreprise.nationality ?? "",
+      documents: (entreprise.documents || []).map((doc: any) => ({
+        kind: doc.kind,
+        fileKey: doc.fileKey,
+        fileName: doc.label || doc.fileKey,
+        mimeType: doc.mimeType || "",
+        size: doc.size || 0,
+        label: doc.label,
+      })),
+    };
+
+    return {
+      clientId: intakeLink.clientId,
+      type: clientType,
+      email: rootEmail,
+      phone: rootPhone,
+      persons: [],
+      entreprise: entrepriseForm,
+      clientDocuments,
+    } as FormWithPersons;
+  }
+
+  // ---------- 2) CAS PERSONNE_PHYSIQUE ou type vide ----------
+  const allPersons = client?.persons || [];
+  const persons = allPersons.length > 0
+    ? allPersons.map(mapToPersonForm)
+    : [{ ...emptyPerson, email: rootEmail, phone: rootPhone }];
+
+  // Forcer la personne principale à suivre le mail / téléphone racine
+  if (persons.length > 0) {
+    persons[0] = {
+      ...persons[0],
+      email: rootEmail,
+      phone: rootPhone,
+    };
+  }
+
+  return {
+    clientId: intakeLink.clientId,
+    type: (clientType || ClientType.PERSONNE_PHYSIQUE) as ClientType,
+    email: rootEmail,
+    phone: rootPhone,
+    persons: persons as any,
+    entreprise: undefined,
+    clientDocuments,
+  } as FormWithPersons;
+};
+
 const STEPS = [
-  { title: "Informations de base" },
-  { title: "Informations complémentaires" },
-  { title: "Pièces jointes" },
+  { id: "clientType", title: "Type de client" },
+  { id: "clientInfo", title: "Informations client" },
+  { id: "documents", title: "Pièces jointes" },
 ];
+
+type StepId = (typeof STEPS)[number]["id"];
 
 export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink: any }) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [isFileUploading, setIsFileUploading] = useState(false);
+  const [submissionProgress, setSubmissionProgress] = useState({
+    step: 0,
+    totalSteps: 4,
+    currentStepName: "",
+  });
   const isMobile = useIsMobile(); 
   
   // États pour stocker les données qui peuvent être rafraîchies après l'upload
   const [intakeLink, setIntakeLink] = useState(initialIntakeLink);
+
+  // Fonction pour gérer les changements d'état d'upload
+  const handleUploadStateChange = (isUploading: boolean) => {
+    setIsFileUploading(isUploading);
+  };
   
-  // Recalculer client et bail quand intakeLink change
+  // Recalculer client quand intakeLink change
   const client = useMemo(() => intakeLink.client, [intakeLink]);
-  const bail = useMemo(() => intakeLink.bail, [intakeLink]);
-  const [clientType, setClientType] = useState<ClientType | "">(client?.type || ClientType.PERSONNE_PHYSIQUE);
+  
+  const defaultValues = useMemo(
+    () => buildDefaultValues(intakeLink),
+    [intakeLink]
+  );
+
+  const [clientType, setClientType] = useState<ClientType | "">(
+    defaultValues.type || ClientType.PERSONNE_PHYSIQUE
+  );
+
+  // On garde une photo des dernières valeurs sauvegardées
+  const lastSavedValues = useRef<FormWithPersons>(defaultValues);
+
+  const [openAccordionValue, setOpenAccordionValue] = useState<string>(`person-0`);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [personToDeleteIndex, setPersonToDeleteIndex] = useState<number | null>(null);
 
   // Refs pour les fichiers
   const kbisRef = useRef<HTMLInputElement>(null);
   const statutesRef = useRef<HTMLInputElement>(null);
-  const birthCertRef = useRef<HTMLInputElement>(null);
-  const idIdentityRef = useRef<HTMLInputElement>(null);
   const livretDeFamilleRef = useRef<HTMLInputElement>(null);
   const contratDePacsRef = useRef<HTMLInputElement>(null);
   const insuranceTenantRef = useRef<HTMLInputElement>(null);
   const ribTenantRef = useRef<HTMLInputElement>(null);
+
+  // Refs dynamiques pour les documents de chaque personne
+  const personDocumentRefs = useRef<Record<number, { birthCert: React.RefObject<HTMLInputElement | null>; idIdentity: React.RefObject<HTMLInputElement | null> }>>({});
 
   // États pour les fichiers sélectionnés
   const [kbisFile, setKbisFile] = useState<File | null>(null);
@@ -74,32 +295,98 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const [insuranceTenantFile, setInsuranceTenantFile] = useState<File | null>(null);
   const [ribTenantFile, setRibTenantFile] = useState<File | null>(null);
 
-  const initialValues = useRef<TenantFormData>({
-    clientId: intakeLink.clientId,
-    type: client?.type || ("" as any),
-    firstName: client?.firstName || "",
-    lastName: client?.lastName || "",
-    email: client?.email || "",
-    phone: client?.phone || "",
-    fullAddress: client?.fullAddress || "",
-    nationality: client?.nationality || "",
-    profession: client?.profession || "",
-    familyStatus: client?.familyStatus || undefined,
-    matrimonialRegime: client?.matrimonialRegime || undefined,
-    birthPlace: client?.birthPlace || "",
-    birthDate: client?.birthDate ? client?.birthDate?.split('T')[0] : undefined,
-    legalName: client?.legalName || "",
-    registration: client?.registration || "",
+  // États dynamiques pour les documents de chaque personne
+  const [personDocumentFiles, setPersonDocumentFiles] = useState<Record<number, { birthCert: File | null; idIdentity: File | null }>>({});
+
+  const form = useForm<FormWithPersons>({
+    resolver: zodResolver(tenantFormSchema) as any,
+    defaultValues,
   });
 
-  const form = useForm<TenantFormData>({
-    resolver: zodResolver(tenantFormSchema) as any,
-    defaultValues: initialValues.current,
+  const { control, trigger, getValues, setValue, watch } = form;
+  const { fields: personFields, append: appendPerson, remove: removePerson } = useFieldArray({
+    control,
+    name: "persons",
   });
+
+  const personsWatch = watch("persons");
+  const entrepriseWatch = watch("entreprise");
+  const typeWatch = watch("type");
+
+  // Synchroniser persons avec les champs racine (PERSONNE_PHYSIQUE)
+  useEffect(() => {
+    if (typeWatch !== ClientType.PERSONNE_PHYSIQUE) return;
+    
+    if (!personsWatch || personsWatch.length === 0) return;
+    const primary = personsWatch[0];
+
+    const set = (field: keyof FormWithPersons, value: any) =>
+      setValue(field, value as any, { shouldDirty: false, shouldValidate: false });
+    
+    set("email", primary.email || "");
+    set("phone", primary.phone || "");
+  }, [personsWatch, typeWatch, setValue]);
+
+  // Synchroniser entreprise avec les champs racine (PERSONNE_MORALE)
+  useEffect(() => {
+    if (typeWatch !== ClientType.PERSONNE_MORALE) return;
+    if (!entrepriseWatch) return;
+
+    const set = (field: keyof FormWithPersons, value: any) =>
+      setValue(field, value as any, { shouldDirty: false, shouldValidate: false });
+
+    set("email", entrepriseWatch.email || "");
+    set("phone", entrepriseWatch.phone || "");
+  }, [entrepriseWatch, typeWatch, setValue]);
+
+  // Fonction pour supprimer une personne
+  const handleRemovePerson = async (index: number) => {
+    removePerson(index);
+    // Nettoyer les refs et fichiers pour la personne supprimée
+    if (personDocumentRefs.current[index]) {
+      delete personDocumentRefs.current[index];
+    }
+    setPersonDocumentFiles(prev => {
+      const newState = { ...prev };
+      delete newState[index];
+      return newState;
+    });
+  };
+
+  // Initialiser les refs pour les personnes existantes
+  useEffect(() => {
+    const persons = personsWatch || [];
+    persons.forEach((_, index) => {
+      if (!personDocumentRefs.current[index]) {
+        personDocumentRefs.current[index] = {
+          birthCert: React.createRef<HTMLInputElement | null>() as any,
+          idIdentity: React.createRef<HTMLInputElement | null>() as any,
+        };
+      }
+      if (!personDocumentFiles[index]) {
+        setPersonDocumentFiles(prev => ({
+          ...prev,
+          [index]: { birthCert: null, idIdentity: null }
+        }));
+      }
+    });
+    // Nettoyer les refs pour les personnes supprimées
+    Object.keys(personDocumentRefs.current).forEach(key => {
+      const index = parseInt(key);
+      if (index >= persons.length) {
+        delete personDocumentRefs.current[index];
+        setPersonDocumentFiles(prev => {
+          const newState = { ...prev };
+          delete newState[index];
+          return newState;
+        });
+      }
+    });
+  }, [personsWatch, personDocumentFiles]);
 
   // Fonction pour déterminer la première étape incomplète
   const getFirstIncompleteStep = (): number => {
-    const values = initialValues.current;
+    const values = getValues();
     const currentClientType = values.type;
     
     // Fonction helper pour vérifier si une valeur est vide
@@ -107,64 +394,101 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "");
     };
     
-    // Vérifier l'étape 0: Informations de base
-    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      if (isEmpty(values.type) || isEmpty(values.firstName) || isEmpty(values.lastName) || 
-          isEmpty(values.email) || isEmpty(values.phone) || isEmpty(values.fullAddress)) {
-        return 0;
+    // Fonction helper pour vérifier si l'étape 1 (informations client) a des données
+    const hasClientInfoData = (): boolean => {
+      if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
+        const primaryPerson = values.persons?.[0];
+        return !!(primaryPerson && 
+          !isEmpty(primaryPerson.firstName) && !isEmpty(primaryPerson.lastName) && 
+          !isEmpty(primaryPerson.email) && !isEmpty(primaryPerson.phone) && !isEmpty(primaryPerson.fullAddress));
+      } else if (currentClientType === ClientType.PERSONNE_MORALE) {
+        return !!(values.entreprise && 
+          !isEmpty(values.entreprise.legalName) && !isEmpty(values.entreprise.email) && 
+          !isEmpty(values.entreprise.phone) && !isEmpty(values.entreprise.fullAddress));
       }
-    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      if (isEmpty(values.type) || isEmpty(values.legalName) || isEmpty(values.email) || 
-          isEmpty(values.phone) || isEmpty(values.fullAddress)) {
-        return 0;
-      }
-    } else {
-      return 0; // Type non défini
+      return false;
+    };
+    
+    // Vérifier l'étape 0: Type de client
+    // Si le type est vide OU si aucune donnée n'a été saisie dans les étapes suivantes, commencer à l'étape 0
+    // Cela permet à l'utilisateur de voir et modifier le type même s'il est prérempli
+    if (isEmpty(values.type) || !hasClientInfoData()) {
+      return 0;
     }
 
-    // Vérifier l'étape 1: Informations complémentaires
+    // Vérifier l'étape 1: Informations client
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      if (isEmpty(values.profession) || isEmpty(values.familyStatus) || 
-          isEmpty(values.birthPlace) || isEmpty(values.birthDate) || isEmpty(values.nationality)) {
+      const primaryPerson = values.persons?.[0];
+      if (!primaryPerson || 
+          isEmpty(primaryPerson.firstName) || isEmpty(primaryPerson.lastName) || 
+          isEmpty(primaryPerson.email) || isEmpty(primaryPerson.phone) || isEmpty(primaryPerson.fullAddress) ||
+          isEmpty(primaryPerson.profession) || !primaryPerson.familyStatus || 
+          isEmpty(primaryPerson.birthPlace) || !primaryPerson.birthDate || isEmpty(primaryPerson.nationality)) {
         return 1;
       }
-      if (values.familyStatus === FamilyStatus.MARIE && isEmpty(values.matrimonialRegime)) {
+      if (primaryPerson.familyStatus === FamilyStatus.MARIE && !primaryPerson.matrimonialRegime) {
         return 1;
+      }
+      // Vérifier toutes les personnes
+      if (values.persons && values.persons.length > 1) {
+        for (let i = 1; i < values.persons.length; i++) {
+          const person = values.persons[i];
+          if (!person || isEmpty(person.firstName) || isEmpty(person.lastName) || 
+              isEmpty(person.email) || isEmpty(person.phone) || isEmpty(person.fullAddress) ||
+              isEmpty(person.profession) || !person.familyStatus || 
+              isEmpty(person.birthPlace) || !person.birthDate || isEmpty(person.nationality)) {
+            return 1;
+          }
+          if (person.familyStatus === FamilyStatus.MARIE && !person.matrimonialRegime) {
+            return 1;
+          }
+        }
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      if (isEmpty(values.registration) || isEmpty(values.nationality)) {
+      if (!values.entreprise ||
+          isEmpty(values.entreprise.legalName) || isEmpty(values.entreprise.email) || 
+          isEmpty(values.entreprise.phone) || isEmpty(values.entreprise.fullAddress) ||
+          isEmpty(values.entreprise.registration) || isEmpty(values.entreprise.nationality)) {
         return 1;
       }
     }
 
     // Vérifier l'étape 2: Pièces jointes
     // Utiliser intakeLink directement pour avoir les données à jour
-    // Vérifier les documents selon le type de client
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      const clientDocs = intakeLink.client?.documents || [];
-      const hasBirthCert = clientDocs.some((doc: any) => doc.kind === "BIRTH_CERT");
-      const hasIdIdentity = clientDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
-      
-      if (!hasBirthCert || !hasIdIdentity) {
-        return 2;
+      // Vérifier les documents pour chaque personne
+      if (values.persons) {
+        for (let i = 0; i < values.persons.length; i++) {
+          const person = values.persons[i];
+          const personDocs = intakeLink.client?.persons?.[i]?.documents || [];
+          const hasBirthCert = personDocs.some((doc: any) => doc.kind === "BIRTH_CERT");
+          const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
+          
+          if (!hasBirthCert || !hasIdIdentity) {
+            return 2;
+          }
+        }
       }
       
-      if (values.familyStatus === FamilyStatus.MARIE) {
+      // Vérifier les documents communs (livret de famille, PACS)
+      const primaryPerson = values.persons?.[0];
+      const clientDocs = intakeLink.client?.documents || [];
+      if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
         const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE");
         if (!hasLivret) {
           return 2;
         }
       }
-      if (values.familyStatus === FamilyStatus.PACS) {
+      if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
         const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS");
         if (!hasPacs) {
           return 2;
         }
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      const clientDocs = intakeLink.client?.documents || [];
-      const hasKbis = clientDocs.some((doc: any) => doc.kind === "KBIS");
-      const hasStatutes = clientDocs.some((doc: any) => doc.kind === "STATUTES");
+      const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
+      const hasKbis = entrepriseDocs.some((doc: any) => doc.kind === "KBIS");
+      const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES");
       
       if (!hasKbis || !hasStatutes) {
         return 2;
@@ -186,23 +510,184 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
   // Initialiser currentStep avec la première étape incomplète
   useEffect(() => {
+    lastSavedValues.current = defaultValues as FormWithPersons;
     const firstIncompleteStep = getFirstIncompleteStep();
     setCurrentStep(firstIncompleteStep);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Réinitialiser matrimonialRegime si familyStatus change et n'est plus MARIE
-  const familyStatus = form.watch("familyStatus");
+  const primaryPersonFamilyStatus = personsWatch?.[0]?.familyStatus;
   useEffect(() => {
-    if (familyStatus !== FamilyStatus.MARIE) {
-      form.setValue("matrimonialRegime", undefined as any);
+    if (primaryPersonFamilyStatus !== FamilyStatus.MARIE && personsWatch?.[0]) {
+      setValue(`persons.0.matrimonialRegime`, undefined as any);
     }
-  }, [familyStatus, form]);
+  }, [primaryPersonFamilyStatus, personsWatch, setValue]);
+
+  // Fonction pour normaliser une valeur pour la comparaison
+  const normalizeValue = (val: any): string => {
+    if (val === undefined || val === null || val === "") return "";
+    if (val && typeof val === 'object' && 'toISOString' in val && typeof val.toISOString === 'function') {
+      return val.toISOString().split('T')[0];
+    }
+    if (Array.isArray(val)) {
+      // Pour les tableaux, normaliser chaque élément individuellement
+      return JSON.stringify(val.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          // Normaliser les objets dans le tableau
+          const normalized: any = {};
+          for (const key in item) {
+            if (item.hasOwnProperty(key)) {
+              const value = item[key];
+              if (value && typeof value === 'object' && 'toISOString' in value && typeof value.toISOString === 'function') {
+                normalized[key] = value.toISOString().split('T')[0];
+              } else if (Array.isArray(value)) {
+                normalized[key] = value.map((v: any) => 
+                  typeof v === 'object' && v !== null && 'toISOString' in v 
+                    ? v.toISOString().split('T')[0] 
+                    : v
+                );
+              } else {
+                normalized[key] = value;
+              }
+            }
+          }
+          return normalized;
+        }
+        return item;
+      }));
+    }
+    if (typeof val === 'object' && val !== null) {
+      // Normaliser les objets en normalisant les dates
+      const normalized: any = {};
+      for (const key in val) {
+        if (val.hasOwnProperty(key)) {
+          const value = val[key];
+          if (value && typeof value === 'object' && 'toISOString' in value && typeof value.toISOString === 'function') {
+            normalized[key] = value.toISOString().split('T')[0];
+          } else if (Array.isArray(value)) {
+            normalized[key] = value.map((v: any) => 
+              typeof v === 'object' && v !== null && 'toISOString' in v 
+                ? v.toISOString().split('T')[0] 
+                : v
+            );
+          } else {
+            normalized[key] = value;
+          }
+        }
+      }
+      return JSON.stringify(normalized);
+    }
+    return String(val).trim();
+  };
+
+  // Fonction pour comparer deux tableaux de personnes en profondeur
+  const comparePersonsArrays = (current: any[], initial: any[]): boolean => {
+    // Vérifier que les deux sont des tableaux
+    if (!Array.isArray(current) || !Array.isArray(initial)) {
+      return normalizeValue(current) !== normalizeValue(initial);
+    }
+    
+    // Si les longueurs diffèrent, il y a eu un changement
+    if (current.length !== initial.length) {
+      return true;
+    }
+    
+    // Comparer chaque personne individuellement
+    for (let i = 0; i < current.length; i++) {
+      const currentPerson = current[i];
+      const initialPerson = initial[i];
+      
+      // Si l'une des deux personnes est null/undefined
+      if (!currentPerson || !initialPerson) {
+        if (normalizeValue(currentPerson) !== normalizeValue(initialPerson)) {
+          return true;
+        }
+        continue;
+      }
+      
+      // Liste complète de tous les champs à comparer
+      const personFields = [
+        'firstName', 
+        'lastName', 
+        'email', 
+        'phone', 
+        'fullAddress', 
+        'profession', 
+        'nationality', 
+        'familyStatus', 
+        'matrimonialRegime', 
+        'birthPlace', 
+        'birthDate',
+        'isPrimary' // Ajouter isPrimary si présent
+      ];
+      
+      // Comparer tous les champs de la personne
+      for (const field of personFields) {
+        const currentFieldValue = currentPerson[field];
+        const initialFieldValue = initialPerson[field];
+        
+        // Normaliser et comparer
+        const normalizedCurrent = normalizeValue(currentFieldValue);
+        const normalizedInitial = normalizeValue(initialFieldValue);
+        
+        if (normalizedCurrent !== normalizedInitial) {
+          return true; // Un champ a changé
+        }
+      }
+      
+      // Comparer les documents de manière plus robuste
+      const currentDocs = currentPerson.documents || [];
+      const initialDocs = initialPerson.documents || [];
+      
+      // Si les longueurs diffèrent, il y a un changement
+      if (currentDocs.length !== initialDocs.length) {
+        return true;
+      }
+      
+      // Comparer chaque document individuellement
+      if (currentDocs.length > 0 || initialDocs.length > 0) {
+        // Créer des maps pour comparer plus facilement
+        const currentDocsMap = new Map<string, RawDocumentMeta>(
+          currentDocs.map((doc: RawDocumentMeta) => [`${doc.kind}_${doc.fileKey || ''}`, doc])
+        );
+        const initialDocsMap = new Map<string, RawDocumentMeta>(
+          initialDocs.map((doc: RawDocumentMeta) => [`${doc.kind}_${doc.fileKey || ''}`, doc])
+        );
+        
+        // Vérifier si tous les documents actuels existent dans les initiaux
+        for (const [key, currentDoc] of currentDocsMap.entries()) {
+          const initialDoc = initialDocsMap.get(key);
+          if (!initialDoc) {
+            return true; // Nouveau document
+          }
+          // Comparer les propriétés du document
+          if (
+            normalizeValue(currentDoc.fileKey) !== normalizeValue(initialDoc.fileKey) ||
+            normalizeValue(currentDoc.fileName) !== normalizeValue(initialDoc.fileName) ||
+            normalizeValue(currentDoc.kind) !== normalizeValue(initialDoc.kind)
+          ) {
+            return true; // Document modifié
+          }
+        }
+        
+        // Vérifier si un document initial a été supprimé
+        for (const key of initialDocsMap.keys()) {
+          if (!currentDocsMap.has(key)) {
+            return true; // Document supprimé
+          }
+        }
+      }
+    }
+    
+    return false; // Aucun changement détecté
+  };
 
   // Fonction pour vérifier si les données d'un step ont changé
   const hasStepDataChanged = (step: number): boolean => {
     const fieldsToCheck = getFieldsForStep(step);
     const currentValues = form.getValues();
-    const initial = initialValues.current;
+    const initial = lastSavedValues.current;
 
     // Pour le step 2 (Pièces jointes), vérifier uniquement les fichiers
     if (step === 2) {
@@ -210,8 +695,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const fileToDocumentKind: Record<string, string> = {
         kbis: "KBIS",
         statutes: "STATUTES",
-        birthCert: "BIRTH_CERT",
-        idIdentity: "ID_IDENTITY",
         livretDeFamille: "LIVRET_DE_FAMILLE",
         contratDePacs: "CONTRAT_DE_PACS",
         insuranceTenant: "INSURANCE",
@@ -221,32 +704,51 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const fileRefs = [
         { ref: kbisRef, name: "kbis" },
         { ref: statutesRef, name: "statutes" },
-        { ref: birthCertRef, name: "birthCert" },
-        { ref: idIdentityRef, name: "idIdentity" },
         { ref: livretDeFamilleRef, name: "livretDeFamille" },
         { ref: contratDePacsRef, name: "contratDePacs" },
         { ref: insuranceTenantRef, name: "insuranceTenant" },
         { ref: ribTenantRef, name: "ribTenant" },
       ];
 
-      // Récupérer uniquement les documents du client (locataire)
-      // Les documents du bail sont pour le propriétaire, pas pour le locataire
-      const existingDocuments = intakeLink.client?.documents || [];
+      // Récupérer tous les documents existants
+      const clientDocs = intakeLink.client?.documents || [];
+      const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
 
       // Vérifier s'il y a de nouveaux fichiers (fichiers qui n'existaient pas initialement)
       const hasNewFiles = fileRefs.some(({ ref, name }) => {
-        // Si un fichier est présent dans le ref
         if (ref.current?.files && ref.current.files[0]) {
-          // Vérifier si un document de ce type existait déjà
           const documentKind = fileToDocumentKind[name];
           if (documentKind) {
-            const documentExists = existingDocuments.some((doc: any) => doc.kind === documentKind);
-            // Si le document n'existait pas, c'est un nouveau fichier = changement
+            const documentExists = (name === "kbis" || name === "statutes")
+              ? entrepriseDocs.some((doc: any) => doc.kind === documentKind)
+              : clientDocs.some((doc: any) => doc.kind === documentKind);
             return !documentExists;
           }
         }
         return false;
       });
+
+      // Vérifier aussi les documents par personne
+      const persons = personsWatch || [];
+      for (let i = 0; i < persons.length; i++) {
+        const personRefs = personDocumentRefs.current[i];
+        const personFiles = personDocumentFiles[i];
+        const personDocs = intakeLink.client?.persons?.[i]?.documents || [];
+        
+        if (personRefs?.birthCert.current?.files?.[0] || personFiles?.birthCert) {
+          const hasBirthCert = personDocs.some((doc: any) => doc.kind === "BIRTH_CERT");
+          if (!hasBirthCert) {
+            return true; // Nouveau fichier détecté
+          }
+        }
+        
+        if (personRefs?.idIdentity.current?.files?.[0] || personFiles?.idIdentity) {
+          const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
+          if (!hasIdIdentity) {
+            return true; // Nouveau fichier détecté
+          }
+        }
+      }
 
       return hasNewFiles;
     }
@@ -256,15 +758,30 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const currentValue = currentValues[field];
       const initialValue = initial[field];
 
-      // Normaliser les valeurs pour la comparaison
-      const normalizeValue = (val: any): string => {
-        if (val === undefined || val === null || val === "") return "";
-        if (val && typeof val === 'object' && 'toISOString' in val && typeof val.toISOString === 'function') {
-          return val.toISOString().split('T')[0];
+      // Cas spécial pour le champ "persons" : comparaison approfondie
+      if (field === "persons") {
+        // Si les deux sont des tableaux, comparer en profondeur
+        if (Array.isArray(currentValue) && Array.isArray(initialValue)) {
+          if (comparePersonsArrays(currentValue, initialValue)) {
+            return true; // Des changements ont été détectés dans les personnes
+          }
+        } 
+        // Si l'un est un tableau et l'autre non, ou si les longueurs diffèrent, il y a un changement
+        else if (Array.isArray(currentValue) || Array.isArray(initialValue)) {
+          return true; // Changement de structure
         }
-        return String(val).trim();
-      };
+        // Si aucun n'est un tableau, comparer normalement
+        else {
+          const normalizedCurrent = normalizeValue(currentValue);
+          const normalizedInitial = normalizeValue(initialValue);
+          if (normalizedCurrent !== normalizedInitial) {
+            return true;
+          }
+        }
+        continue; // Passer au champ suivant
+      }
 
+      // Pour les autres champs, utiliser la normalisation standard
       const normalizedCurrent = normalizeValue(currentValue);
       const normalizedInitial = normalizeValue(initialValue);
 
@@ -282,19 +799,20 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const refreshed = await getIntakeLinkByToken(intakeLink.token);
       if (refreshed) {
         setIntakeLink(refreshed);
+        return refreshed;
       }
+      return null;
     } catch (error) {
       console.error("Erreur lors du rafraîchissement des données:", error);
+      return null;
     }
   };
 
   // Fonction pour uploader les fichiers via l'API route
-  const uploadFiles = async (shouldDispatchEvent: boolean = true): Promise<void> => {
+  const uploadFiles = async (shouldDispatchEvent: boolean = true): Promise<FormWithPersons | null> => {
     const fileRefs = [
       { ref: kbisRef, name: "kbis" },
       { ref: statutesRef, name: "statutes" },
-      { ref: birthCertRef, name: "birthCert" },
-      { ref: idIdentityRef, name: "idIdentity" },
       { ref: livretDeFamilleRef, name: "livretDeFamille" },
       { ref: contratDePacsRef, name: "contratDePacs" },
       { ref: insuranceTenantRef, name: "insuranceTenant" },
@@ -305,8 +823,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     const fileToDocumentKind: Record<string, string> = {
       kbis: "KBIS",
       statutes: "STATUTES",
-      birthCert: "BIRTH_CERT",
-      idIdentity: "ID_IDENTITY",
       livretDeFamille: "LIVRET_DE_FAMILLE",
       contratDePacs: "CONTRAT_DE_PACS",
       insuranceTenant: "INSURANCE",
@@ -317,32 +833,37 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     const fileStateMap: Record<string, File | null> = {
       kbis: kbisFile,
       statutes: statutesFile,
-      birthCert: birthCertFile,
-      idIdentity: idIdentityFile,
       livretDeFamille: livretDeFamilleFile,
       contratDePacs: contratDePacsFile,
       insuranceTenant: insuranceTenantFile,
       ribTenant: ribTenantFile,
     };
 
+    // Récupérer les valeurs actuelles du formulaire pour vérifier les documents existants
+    const currentValues = getValues() as FormWithPersons;
+    
     // Récupérer tous les documents du client (locataire)
-    // Documents client (livret de famille, PACS)
+    // Documents client (livret de famille, PACS, assurance, RIB)
     const clientDocs = intakeLink.client?.documents || [];
-    // Documents des personnes (BIRTH_CERT, ID_IDENTITY)
-    const personDocs = intakeLink.client?.persons?.flatMap((p: any) => p.documents || []) || [];
     // Documents de l'entreprise (KBIS, STATUTES)
     const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
-    // Tous les documents existants
-    const existingDocuments = [...clientDocs, ...personDocs, ...entrepriseDocs];
+    
+    // Vérifier les documents existants dans les valeurs du formulaire
+    const existingDocsInValues = [
+      ...(currentValues.clientDocuments || []),
+      ...(currentValues.persons?.flatMap((p: any) => p.documents || []) || []),
+      ...(currentValues.entreprise?.documents || []),
+    ];
+    
+    const allExistingDocs = [...existingDocsInValues];
     
     // Créer un FormData pour les fichiers uniquement
     const filesFormData = new FormData();
     filesFormData.append("token", intakeLink.token);
     
-    // Ajouter les IDs si disponibles (l'API route les récupérera depuis l'intakeLink si non fournis)
+    // Ajouter les IDs si disponibles
     const data = form.getValues();
     if (data.clientId) filesFormData.append("clientId", data.clientId);
-    // bailId sera récupéré par l'API route depuis l'intakeLink
     
     // Liste des fichiers uploadés pour nettoyer les refs et états après
     const uploadedFiles: Array<{ ref: React.RefObject<HTMLInputElement | null>, stateSetter: (file: File | null) => void, name: string }> = [];
@@ -352,20 +873,16 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const documentKind = fileToDocumentKind[name];
       if (!documentKind) return;
 
-      // Vérifier si un document de ce type existe déjà
-      const documentExists = existingDocuments.some((doc: any) => doc.kind === documentKind);
-      
-      if (documentExists) {
+      // Vérifier si un document avec ce kind existe déjà ET a un fileKey (donc déjà uploadé)
+      const alreadyUploaded = allExistingDocs.some((doc: any) => doc.kind === documentKind && doc.fileKey);
+      if (alreadyUploaded) {
         // Le document existe déjà, ne pas l'uploader
-        // Nettoyer le ref et l'état pour éviter les ré-uploads
         if (ref.current) {
           ref.current.value = "";
         }
         const stateSetter = {
           kbis: setKbisFile,
           statutes: setStatutesFile,
-          birthCert: setBirthCertFile,
-          idIdentity: setIdIdentityFile,
           livretDeFamille: setLivretDeFamilleFile,
           contratDePacs: setContratDePacsFile,
           insuranceTenant: setInsuranceTenantFile,
@@ -382,19 +899,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const fileFromRef = ref.current?.files?.[0];
       
       if (fileFromState || fileFromRef) {
-        // Prioriser l'état du fichier s'il existe, sinon utiliser le ref
         if (fileFromState) {
           filesFormData.append(name, fileFromState);
         } else if (fileFromRef) {
           filesFormData.append(name, fileFromRef);
         }
         
-        // Ajouter à la liste pour nettoyer après l'upload
         const stateSetter = {
           kbis: setKbisFile,
           statutes: setStatutesFile,
-          birthCert: setBirthCertFile,
-          idIdentity: setIdIdentityFile,
           livretDeFamille: setLivretDeFamilleFile,
           contratDePacs: setContratDePacsFile,
           insuranceTenant: setInsuranceTenantFile,
@@ -407,13 +920,39 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
     });
 
+    // Gérer les documents par personne (BIRTH_CERT, ID_IDENTITY)
+    const persons = personsWatch || [];
+    persons.forEach((_, personIndex) => {
+      const personRefs = personDocumentRefs.current[personIndex];
+      const personFiles = personDocumentFiles[personIndex] || { birthCert: null, idIdentity: null };
+      
+      // Vérifier si les documents existent déjà dans les valeurs
+      const personDocsInValues = currentValues.persons?.[personIndex]?.documents || [];
+      const personDocs = [...personDocsInValues];
+
+      // Traiter birthCert
+      if (!personDocs.some((d: any) => d.kind === "BIRTH_CERT")) {
+        const birthCertFile = personFiles.birthCert || personRefs?.birthCert?.current?.files?.[0];
+        if (birthCertFile) {
+          filesFormData.append(`birthCert_${personIndex}`, birthCertFile);
+        }
+      }
+
+      // Traiter idIdentity
+      if (!personDocs.some((d: any) => d.kind === "ID_IDENTITY")) {
+        const idIdentityFile = personFiles.idIdentity || personRefs?.idIdentity?.current?.files?.[0];
+        if (idIdentityFile) {
+          filesFormData.append(`idIdentity_${personIndex}`, idIdentityFile);
+        }
+      }
+    });
+
     // Si aucun fichier à uploader, ne rien faire
-    // Vérifier si le FormData contient des fichiers (plus que juste le token)
     const formDataKeys = Array.from(filesFormData.keys());
-    const hasFilesToUpload = formDataKeys.some(key => key !== "token" && key !== "clientId");
+    const fileKeys = formDataKeys.filter((key) => key !== "token" && key !== "clientId");
     
-    if (!hasFilesToUpload) {
-      return; // Pas de fichiers à uploader
+    if (fileKeys.length === 0) {
+      return null;
     }
 
     // Uploader les fichiers via l'API route
@@ -427,369 +966,462 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       throw new Error(error.error || "Erreur lors de l'upload des fichiers");
     }
 
-    // Nettoyer les refs et les états après un upload réussi
-    uploadedFiles.forEach(({ ref, stateSetter }) => {
-      if (ref.current) {
-        ref.current.value = "";
-      }
-      stateSetter(null);
-    });
+    const result = await response.json();
+    const uploadedDocuments = result.documents || [];
+    
+    console.log("[uploadFiles] Documents uploadés:", uploadedDocuments.length, uploadedDocuments);
 
-    // Déclencher l'événement pour recharger les documents dans les composants DocumentUploaded
-    // (seulement lors de l'enregistrement, pas lors de la soumission finale)
+    // Ajouter les métadonnées des documents uploadés au payload
+    if (uploadedDocuments.length > 0) {
+      const currentPayload = { ...currentValues };
+      
+      // Initialiser les tableaux de documents s'ils n'existent pas
+      if (!currentPayload.clientDocuments) currentPayload.clientDocuments = [];
+      
+      // Traiter chaque document uploadé
+      uploadedDocuments.forEach((doc: any) => {
+        const documentMeta: RawDocumentMeta = {
+          kind: doc.kind as DocumentKind,
+          fileKey: doc.fileKey,
+          fileName: doc.fileName,
+          mimeType: doc.mimeType,
+          size: doc.size,
+          label: doc.label || doc.fileName,
+        };
+
+        // Ajouter le document au bon endroit selon sa cible
+        if (doc.target === 'person' && doc.personIndex !== undefined) {
+          // Document de personne
+          if (!currentPayload.persons) currentPayload.persons = [];
+          if (!currentPayload.persons[doc.personIndex]) { 
+            currentPayload.persons[doc.personIndex] = { ...emptyPerson } as any;
+          }
+          if (!currentPayload.persons[doc.personIndex].documents) {
+            currentPayload.persons[doc.personIndex].documents = [];
+          }
+          // Vérifier si le document n'existe pas déjà
+          if (!currentPayload.persons[doc.personIndex].documents.some((d: any) => d.kind === doc.kind)) {
+            currentPayload.persons[doc.personIndex].documents.push(documentMeta);
+          }
+        } else if (doc.target === 'entreprise') {
+          // Document d'entreprise
+          if (!currentPayload.entreprise) {
+            currentPayload.entreprise = {
+              legalName: "",
+              registration: "",
+              name: "",
+              email: "",
+              phone: "",
+              fullAddress: "",
+              nationality: "",
+              documents: [],
+            };
+          }
+          if (!currentPayload.entreprise.documents) {
+            currentPayload.entreprise.documents = [];
+          }
+          // Vérifier si le document n'existe pas déjà
+          if (!currentPayload.entreprise.documents.some((d: any) => d.kind === doc.kind)) {
+            currentPayload.entreprise.documents.push(documentMeta);
+          }
+        } else if (doc.target === 'client') {
+          // Document client (livret de famille, PACS, assurance, RIB)
+          if (!currentPayload.clientDocuments) {
+            currentPayload.clientDocuments = [];
+          }
+          if (!currentPayload.clientDocuments.some((d: any) => d.kind === doc.kind)) {
+            currentPayload.clientDocuments.push(documentMeta);
+          }
+        }
+      });
+
+      // Nettoyer les refs et les états après un upload réussi
+      uploadedFiles.forEach(({ ref, stateSetter }) => {
+        if (ref.current) {
+          ref.current.value = "";
+        }
+        stateSetter(null);
+      });
+
+      // Nettoyer les documents par personne
+      persons.forEach((_, personIndex) => {
+        const personRefs = personDocumentRefs.current[personIndex];
+        if (personRefs?.birthCert.current) {
+          personRefs.birthCert.current.value = "";
+        }
+        if (personRefs?.idIdentity.current) {
+          personRefs.idIdentity.current.value = "";
+        }
+        setPersonDocumentFiles(prev => ({
+          ...prev,
+          [personIndex]: { birthCert: null, idIdentity: null }
+        }));
+      });
+
+      // Retourner le payload mis à jour avec les métadonnées des documents
+      if (shouldDispatchEvent) {
+        window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
+      }
+
+      console.log("[uploadFiles] Payload retourné avec documents:", {
+        persons: currentPayload.persons?.map((p: any) => ({ documents: p.documents?.length || 0 })),
+        entreprise: currentPayload.entreprise?.documents?.length || 0,
+        clientDocuments: currentPayload.clientDocuments?.length || 0,
+      });
+      return currentPayload;
+    }
+
+    // Si aucun document n'a été uploadé, retourner null
     if (shouldDispatchEvent) {
       window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
     }
+
+    return null;
   };
 
-  const saveCurrentStep = async (skipIfUnchanged: boolean = false) => {
+  const saveCurrentStep = async (redirectAfterSave: boolean, skipIfUnchanged: boolean = false) => {
     // Si skipIfUnchanged est true, vérifier si les données ont changé
     if (skipIfUnchanged && !hasStepDataChanged(currentStep)) {
       // Les données n'ont pas changé, pas besoin de sauvegarder
       return;
     }
 
+    const stepId = STEPS[currentStep]?.id;
+    const allValues = getValues() as FormWithPersons;
+    
+    // Construire un payload minimal pour l'étape actuelle uniquement
+    const stepPayload = buildStepPayload(currentStep, allValues);
+    
+    // Pour les étapes qui nécessitent la transformation complète (clientInfo avec persons/entreprise)
+    // on garde la structure complète pour garantir la cohérence
+    let payload: any;
+    if (stepId === "clientInfo") {
+      // Pour clientInfo, on doit inclure les champs racine (email, phone) pour la synchronisation
+      payload = {
+        ...stepPayload,
+        // S'assurer que email et phone sont inclus si présents dans les valeurs complètes
+        email: allValues.email || stepPayload.email,
+        phone: allValues.phone || stepPayload.phone,
+      };
+    } else {
+      // Pour les autres étapes, utiliser le payload minimal
+      payload = stepPayload;
+    }
+    
     setIsSaving(true);
     try {
-      // Si on est à l'étape 0 et que l'email doit être validé, vérifier avant de sauvegarder
-      if (currentStep === 0 && !client?.email && client?.phone) {
-        const emailValue = form.getValues("email");
-        if (emailValue && emailValue.trim() !== "") {
-          // Valider l'email avant de sauvegarder
-          const emailValid = await form.trigger("email");
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          if (!emailValid || form.formState.errors.email) {
-            const emailError = form.formState.errors.email?.message;
-            if (emailError?.includes("déjà utilisé")) {
-              toast.error(emailError, {
-                description: (
-                  <a href="/#contact" className="underline font-medium">
-                    Cliquez ici pour contacter le service client
-                  </a>
-                ),
-                duration: 10000,
-              });
-              setIsSaving(false);
-              throw new Error(emailError);
-            }
-          }
-        }
+      // Rafraîchir les données uniquement si on est sur l'étape documents ou si on vient de passer à cette étape
+      // Cela évite des appels API inutiles pour les autres étapes
+      const stepId = STEPS[currentStep]?.id;
+      if (stepId === "documents") {
+        await refreshIntakeLinkData();
       }
       
-      const data = form.getValues();
-      
-      // Si on est sur l'étape des documents (step 2), uploader les fichiers
-      if (currentStep === 2) {
-        await uploadFiles();
-        // Déclencher l'événement pour recharger les documents après l'upload
-        window.dispatchEvent(new CustomEvent(`document-uploaded-${intakeLink.token}`));
-      }
-      
-      // Sauvegarder les données sans les fichiers
+      // Sauvegarder les données avec le stepId
       await savePartialIntake({
         token: intakeLink.token,
-        payload: data,
+        payload,
+        stepId: stepId, // Envoyer l'ID de l'étape pour que le backend sache quelle étape traiter
       });
+
+      // Rafraîchir les données pour obtenir les valeurs réellement sauvegardées
+      const refreshed = await refreshIntakeLinkData();
       
-      // Rafraîchir les données après la sauvegarde seulement si nécessaire
-      // (pour mettre à jour les valeurs du formulaire si elles ont changé côté serveur)
-      await refreshIntakeLinkData();
-      
-      // Mettre à jour les valeurs initiales avec les valeurs actuelles du formulaire
-      // pour que la comparaison fonctionne correctement lors des prochains changements d'étape
-      const currentFormValues = form.getValues();
-      Object.keys(currentFormValues).forEach((key) => {
-        (initialValues.current as any)[key] = currentFormValues[key as keyof TenantFormData];
-      });
-      
+      // Mettre à jour lastSavedValues avec les valeurs réelles de la base de données
+      if (refreshed) {
+        const refreshedValues = buildDefaultValues(refreshed);
+        lastSavedValues.current = refreshedValues as FormWithPersons;
+      } else {
+        // Fallback : utiliser les valeurs du payload si le rafraîchissement échoue
+        lastSavedValues.current = payload as FormWithPersons;
+      }
+
       toast.success("Données enregistrées avec succès");
-      
-      // Rediriger vers la page reminder uniquement si c'est un enregistrement explicite (pas automatique)
-      if (!skipIfUnchanged) {
+
+      if (redirectAfterSave) {
         router.push(`/intakes/${intakeLink.token}/reminder`);
       }
     } catch (error: any) {
-      const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
+      const message =
+        error?.message ||
+        error?.toString() ||
+        "Erreur lors de l'enregistrement";
       
-      // Si l'erreur contient le message sur l'email existant, afficher un toast avec le lien
-      if (errorMessage.includes("déjà utilisé")) {
-        toast.error(errorMessage.replace(" : /#contact", "").replace(" /#contact", ""), {
-          description: (
-            <a href="/#contact" className="underline font-medium">
-              Cliquez ici pour contacter le service client
-            </a>
-          ),
-          duration: 10000, // Afficher plus longtemps pour que l'utilisateur puisse cliquer
-        });
-        // Relancer l'erreur pour que handleNext puisse la capturer et bloquer la progression
-        throw error;
-      } else {
-        toast.error(errorMessage);
-        // Pour les autres erreurs, on peut aussi les relancer si nécessaire
-        // Mais pour l'instant, on ne relance que les erreurs critiques
-      }
-      
-      console.error("Erreur lors de l'enregistrement:", error);
+      // Ne pas afficher l'erreur ici si elle concerne un email déjà utilisé
+      // Elle sera affichée dans le catch de handleNext ou handleManualSave
+      // On relance juste l'erreur pour qu'elle soit gérée par l'appelant
+      throw error;
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleNext = async () => {
-    // Valider les champs de l'étape actuelle
-    const fieldsToValidate = getFieldsForStep(currentStep);
-    const currentValues = form.getValues();
-    
-    // Validation manuelle pour vérifier les valeurs vides
-    const hasEmptyFields = fieldsToValidate.some((field) => {
-      const value = currentValues[field];
-      // Pour les champs string, vérifier si c'est vide
-      if (typeof value === 'string' && value.trim() === '') {
-        return true;
-      }
-      // Pour les enums, vérifier si c'est undefined
-      if (value === undefined || value === null) {
-        return true;
-      }
-      return false;
-    });
-    
-    if (hasEmptyFields) {
-      toast.error("Veuillez remplir tous les champs requis avant de passer à l'étape suivante");
-      // Déclencher la validation pour afficher les erreurs sous les champs
-      await form.trigger(fieldsToValidate as any);
+    const stepId = STEPS[currentStep].id;
+  
+    // Si on est sur l'étape "summary", pas besoin de sauvegarder, c'est juste une étape de visionnage
+    if (stepId === "summary") {
+      const nextStep = Math.min(currentStep + 1, STEPS.length - 1);
+      setCurrentStep(nextStep);
       return;
     }
-    
-    // Si on est à l'étape 0 (informations personnelles), forcer la validation de l'email du locataire en premier
-    if (currentStep === 0 && fieldsToValidate.includes("email") && !client?.email && client?.phone) {
-      const emailValue = currentValues.email;
-      if (emailValue && emailValue.trim() !== "") {
-        // Valider spécifiquement l'email d'abord avec un délai pour laisser la validation asynchrone se terminer
-        const emailValid = await form.trigger("email");
-        
-        // Attendre un peu pour s'assurer que la validation asynchrone est terminée
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        // Vérifier à nouveau les erreurs après le délai
-        const errorsAfterDelay = form.formState.errors;
-        
-        if (!emailValid || errorsAfterDelay.email) {
-          const emailError = errorsAfterDelay.email?.message || form.formState.errors.email?.message;
-          if (emailError?.includes("déjà utilisé")) {
-            toast.error(emailError, {
-              description: (
-                <a href="/#contact" className="underline font-medium">
-                  Cliquez ici pour contacter le service client
-                </a>
-              ),
-              duration: 10000,
-            });
-            return; // Bloquer la progression si l'email est déjà utilisé
-          }
-        }
-      }
-    }
-    
-    const isValid = await form.trigger(fieldsToValidate as any);
-    
-    // Attendre un peu pour s'assurer que toutes les validations asynchrones sont terminées
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // Vérifier à nouveau les erreurs après la validation complète - IMPORTANT: même si isValid est true
-    // Vérifier spécifiquement les erreurs de validation pour l'email du locataire
-    if (currentStep === 0 && !client?.email && client?.phone) {
-      const emailErrors = form.formState.errors.email;
-      if (emailErrors) {
-        const emailError = emailErrors.message;
-        if (emailError?.includes("déjà utilisé")) {
-          toast.error(emailError, {
-            description: (
-              <a href="/#contact" className="underline font-medium">
-                Cliquez ici pour contacter le service client
-              </a>
-            ),
-            duration: 10000,
-          });
-          return; // Ne pas continuer si l'email est déjà utilisé
-        }
-      }
-    }
-    
-    if (!isValid) {
-      // Récupérer les erreurs de validation
-      const errors = form.formState.errors;
-      const errorFields = Object.keys(errors).filter(key => 
-        fieldsToValidate.includes(key as keyof TenantFormData)
-      );
-      
-      if (errorFields.length > 0) {
-        const firstErrorKey = errorFields[0];
-        const firstError = errors[firstErrorKey as keyof TenantFormData];
-        let errorMessage = "Veuillez remplir tous les champs requis avant de passer à l'étape suivante";
-        
-        if (firstError) {
-          if (typeof firstError === 'object' && firstError !== null && 'message' in firstError) {
-            const msg = (firstError as { message?: string }).message;
-            if (typeof msg === 'string') {
-              errorMessage = msg;
-            }
-          }
-        }
-        
-        toast.error(errorMessage);
-      } else {
-        toast.error("Veuillez remplir tous les champs requis avant de passer à l'étape suivante");
-      }
-      return;
-    }
-    
-    if (isValid) {
-      // Sauvegarder avant de passer à l'étape suivante (seulement si les données ont changé)
-      try {
-        await saveCurrentStep(true);
-        if (currentStep < STEPS.length - 1) {
-          setCurrentStep(currentStep + 1);
-        }
-      } catch (error: any) {
-        // Si la sauvegarde échoue (par exemple, email existant), ne pas passer à l'étape suivante
-        // L'erreur est déjà gérée dans saveCurrentStep avec un toast
-        const errorMessage = error?.message || error?.toString() || "";
-        if (errorMessage.includes("déjà utilisé")) {
-          // L'erreur a déjà été affichée dans saveCurrentStep, on bloque juste la progression
-          console.error("Erreur bloquante détectée:", error);
-          return; // Bloquer la progression
-        }
-        // Pour les autres erreurs, on peut continuer ou non selon le cas
-        console.error("Erreur lors de la sauvegarde:", error);
-        return; // Bloquer la progression pour toute erreur
+  
+    // 1. Validation
+    if (stepId === "documents") {
+      const filesCheck = validateRequiredFiles();
+      if (!filesCheck.isValid) {
+        toast.error("Veuillez joindre tous les documents requis", {
+          description: filesCheck.errors.join(", "),
+        });
+        return;
       }
     } else {
-      // Récupérer les erreurs de validation
-      const errors = form.formState.errors;
-      const errorFields = Object.keys(errors).filter(key => 
-        fieldsToValidate.includes(key as keyof TenantFormData)
-      );
-      
-      if (errorFields.length > 0) {
-        const firstErrorKey = errorFields[0];
-        const firstError = errors[firstErrorKey as keyof TenantFormData];
-        let errorMessage = "Veuillez remplir tous les champs requis avant de passer à l'étape suivante";
-        
-        if (firstError) {
-          if (typeof firstError === 'object' && firstError !== null && 'message' in firstError) {
-            const msg = (firstError as { message?: string }).message;
-            if (typeof msg === 'string') {
-              errorMessage = msg;
+      const fields = getRequiredFields(stepId, clientType);
+  
+      // Cas particulier : clientInfo avec plusieurs personnes
+      if (stepId === "clientInfo" && clientType === ClientType.PERSONNE_PHYSIQUE) {
+        const persons = form.watch("persons") || [];
+        const personsFields = persons.map((_, index) => `persons.${index}` as const);
+        const allFields = [...fields, ...personsFields];
+
+        const valid = await trigger(allFields as any);
+        if (!valid) {
+          const errors = form.formState.errors;
+
+          const personsErrors = errors.persons;
+          if (Array.isArray(personsErrors)) {
+            const indexWithError = personsErrors.findIndex(
+              (personError) => personError && Object.keys(personError).length > 0
+            );
+
+            if (indexWithError !== -1) {
+              setOpenAccordionValue(`person-${indexWithError}`);
             }
           }
+
+          return;
         }
-        
-        toast.error(errorMessage);
       } else {
-        toast.error("Veuillez remplir tous les champs requis avant de passer à l'étape suivante");
+        // Validation classique pour les autres steps
+        const valid = await trigger(fields as any);
+        if (!valid) return;
       }
+    }
+  
+    // 2. Calcul du step suivant (sans encore modifier l'UI)
+    const summaryIndex = STEPS.findIndex((s) => s.id === "summary");
+    const nextStep =
+      stepId === "clientInfo" && summaryIndex !== -1
+        ? summaryIndex
+        : Math.min(currentStep + 1, STEPS.length - 1);
+  
+    // 3. Sauvegarde (seulement si les données ont changé)
+    try {
+      await saveCurrentStep(false, true); // skipIfUnchanged = true
+      
+      if (stepId === "documents") {
+        // Refresh pour que validateRequiredFiles/hasDocument voient bien les docs
+        await refreshIntakeLinkData();
+      }
+  
+      // On ne passe à l'étape suivante qu'après un save OK (ou si rien n'a changé)
+      setCurrentStep(nextStep);
+    } catch (error: any) {
+      console.error("Erreur lors de la sauvegarde:", error);
+      const message =
+        error?.message ||
+        error?.toString() ||
+        "Erreur lors de l'enregistrement";
+      
+      // Si l'erreur concerne un email déjà utilisé, afficher un message avec lien vers le service client
+      if (message.includes("déjà utilisé") || message.includes("email")) {
+        toast.error(message, {
+          description: message.includes("/#contact") ? undefined : (
+            <a href="/#contact" className="underline font-medium">
+              Cliquez ici pour contacter le service client
+            </a>
+          ),
+          duration: 10000,
+        });
+      } else {
+        toast.error(message);
+      }
+      // On reste sur l'étape actuelle si erreur
     }
   };
 
   const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  };
+
+  const handleManualSave = async () => {
+    try {
+      await saveCurrentStep(true, false); // redirectAfterSave = true, skipIfUnchanged = false (forcer la sauvegarde)
+    } catch (error: any) {
+      const message =
+        error?.message ||
+        error?.toString() ||
+        "Erreur lors de l'enregistrement";
+      
+      // Si l'erreur concerne un email déjà utilisé, afficher un message avec lien vers le service client
+      if (message.includes("déjà utilisé") || message.includes("email")) {
+        toast.error(message, {
+          description: message.includes("/#contact") ? undefined : (
+            <a href="/#contact" className="underline font-medium">
+              Cliquez ici pour contacter le service client
+            </a>
+          ),
+          duration: 10000,
+        });
+      } else {
+        toast.error(message);
+      }
     }
   };
 
-  const getFieldsForStep = (step: number): (keyof TenantFormData)[] => {
-    switch (step) {
-      case 0: // Informations de base
+  const getRequiredFields = (
+    stepId: StepId,
+    clientType: ClientType | ""
+  ): (keyof FormWithPersons)[] => {
+    switch (stepId) {
+      case "clientType":
+        return ["type"];
+      case "clientInfo":
         if (clientType === ClientType.PERSONNE_PHYSIQUE) {
-          return ["type", "firstName", "lastName", "email", "phone", "fullAddress"];
+          return [
+            "persons",
+          ];
         }
-        return ["type", "legalName", "email", "phone", "fullAddress"];
-      case 1: // Informations complémentaires
-        if (clientType === ClientType.PERSONNE_PHYSIQUE) {
-          const baseFields = ["profession", "familyStatus", "birthPlace", "birthDate", "nationality"] as any;
-          // Ajouter matrimonialRegime seulement si familyStatus est MARIE
-          if (form.getValues("familyStatus") === FamilyStatus.MARIE) {
-            baseFields.push("matrimonialRegime");
-          }
-          return baseFields;
-        }
-        return ["registration", "nationality"];
-      case 2: // Pièces jointes
+        return [
+          "entreprise",
+        ];
+      case "documents":
         return [];
       default:
         return [];
     }
   };
 
-  // Fonction helper pour vérifier si un document existe (dans les refs, états ou DB)
-  const hasDocument = (ref: React.RefObject<HTMLInputElement | null>, stateFile: File | null, documentKind: string): boolean => {
-    // Vérifier dans les refs (nouveau fichier sélectionné)
-    if (ref.current?.files?.[0]) {
-      return true;
-    }
-    // Vérifier dans les états (nouveau fichier sélectionné)
-    if (stateFile) {
-      return true;
-    }
-    // Vérifier dans la base de données (utiliser intakeLink directement pour avoir les données à jour)
-    // Documents client (livret de famille, PACS)
-    const clientDocs = intakeLink.client?.documents || [];
-    
-    // Documents des personnes (BIRTH_CERT, ID_IDENTITY)
-    const personDocs = intakeLink.client?.persons?.flatMap((p: any) => p.documents || []) || [];
-    
-    // Documents de l'entreprise (KBIS, STATUTES)
-    const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
-    
-    // Vérifier dans tous les documents
-    if (clientDocs.some((doc: any) => doc.kind === documentKind)) {
-      return true;
-    }
-    if (personDocs.some((doc: any) => doc.kind === documentKind)) {
-      return true;
-    }
-    if (entrepriseDocs.some((doc: any) => doc.kind === documentKind)) {
-      return true;
-    }
-    
-    return false;
+  const getFieldsForStep = (step: number): (keyof FormWithPersons)[] => {
+    const stepId = STEPS[step]?.id;
+    return getRequiredFields(stepId as StepId, clientType);
   };
+
+  // Fonction pour construire un payload minimal basé uniquement sur les champs de l'étape actuelle
+  const buildStepPayload = (step: number, allValues: FormWithPersons): Partial<FormWithPersons> => {
+    const fieldsToInclude = getFieldsForStep(step);
+    const stepPayload: Partial<FormWithPersons> = {
+      clientId: allValues.clientId, // Toujours inclure clientId
+    };
+
+    // Pour chaque champ de l'étape, l'inclure dans le payload
+    fieldsToInclude.forEach((field) => {
+      const value = allValues[field];
+      if (value !== undefined && value !== null) {
+        // Pour les champs spéciaux comme "persons" ou "entreprise", inclure toute la structure
+        if (field === "persons" && Array.isArray(value)) {
+          stepPayload.persons = value as any;
+          // Inclure aussi email et phone au niveau racine pour la synchronisation
+          if (value.length > 0 && value[0]) {
+            stepPayload.email = (value[0] as any).email || allValues.email;
+            stepPayload.phone = (value[0] as any).phone || allValues.phone;
+          }
+        } else if (field === "entreprise" && typeof value === "object") {
+          stepPayload.entreprise = value as any;
+          // Inclure aussi email et phone au niveau racine pour la synchronisation
+          if ((value as any).email) {
+            stepPayload.email = (value as any).email;
+          }
+          if ((value as any).phone) {
+            stepPayload.phone = (value as any).phone;
+          }
+        } else {
+          (stepPayload as any)[field] = value;
+        }
+      }
+    });
+
+    // Pour l'étape clientType, inclure aussi le type
+    if (STEPS[step]?.id === "clientType") {
+      stepPayload.type = allValues.type;
+    }
+
+    return stepPayload;
+  };
+
 
   const validateRequiredFiles = (): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
     const currentClientType = clientType;
-    const familyStatus = form.getValues("familyStatus");
+    const values = getValues();
+    const persons = values.persons || [];
 
     // Validation selon le type de client
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      if (!hasDocument(birthCertRef, birthCertFile, "BIRTH_CERT")) {
-        errors.push("L'acte de naissance est requis");
+      // Vérifier les documents pour chaque personne
+      persons.forEach((person, index) => {
+        const personRef = personDocumentRefs.current[index];
+        const personFiles = personDocumentFiles[index];
+        const personDocs = intakeLink.client?.persons?.[index]?.documents || [];
+        
+        const hasBirthCert = personDocs.some((doc: any) => doc.kind === "BIRTH_CERT") ||
+          personRef?.birthCert.current?.files?.[0] || personFiles?.birthCert;
+        const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
+          personRef?.idIdentity.current?.files?.[0] || personFiles?.idIdentity;
+        
+        if (!hasBirthCert) {
+          errors.push(`L'acte de naissance de la personne ${person.firstName} ${person.lastName} est requis`);
+        }
+        if (!hasIdIdentity) {
+          errors.push(`La pièce d'identité de la personne ${person.firstName} ${person.lastName} est requise`);
+        }
+      });
+
+      // Vérifier les documents communs (livret de famille, PACS)
+      const primaryPerson = persons[0];
+      const familyStatus = primaryPerson?.familyStatus;
+      const clientDocs = intakeLink.client?.documents || [];
+      
+      if (familyStatus === FamilyStatus.MARIE) {
+        const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
+          livretDeFamilleRef.current?.files?.[0] || livretDeFamilleFile;
+        if (!hasLivret) {
+          errors.push("Le livret de famille est requis");
+        }
       }
-      if (!hasDocument(idIdentityRef, idIdentityFile, "ID_IDENTITY")) {
-        errors.push("La pièce d'identité est requise");
-      }
-      if (familyStatus === FamilyStatus.MARIE && !hasDocument(livretDeFamilleRef, livretDeFamilleFile, "LIVRET_DE_FAMILLE")) {
-        errors.push("Le livret de famille est requis");
-      }
-      if (familyStatus === FamilyStatus.PACS && !hasDocument(contratDePacsRef, contratDePacsFile, "CONTRAT_DE_PACS")) {
-        errors.push("Le contrat de PACS est requis");
+      if (familyStatus === FamilyStatus.PACS) {
+        const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
+          contratDePacsRef.current?.files?.[0] || contratDePacsFile;
+        if (!hasPacs) {
+          errors.push("Le contrat de PACS est requis");
+        }
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      if (!hasDocument(kbisRef, kbisFile, "KBIS")) {
+      const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
+      const hasKbis = entrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
+        kbisRef.current?.files?.[0] || kbisFile;
+      const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
+        statutesRef.current?.files?.[0] || statutesFile;
+      
+      if (!hasKbis) {
         errors.push("Le KBIS est requis");
       }
-      if (!hasDocument(statutesRef, statutesFile, "STATUTES")) {
+      if (!hasStatutes) {
         errors.push("Les statuts sont requis");
       }
     }
 
-    // Validation des documents du bail (toujours requis)
-    if (!hasDocument(insuranceTenantRef, insuranceTenantFile, "INSURANCE")) {
+    // Validation des documents du client (assurance et RIB - toujours requis)
+    const clientDocs = intakeLink.client?.documents || [];
+    const hasInsurance = clientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
+      insuranceTenantRef.current?.files?.[0] || insuranceTenantFile;
+    const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB") ||
+      ribTenantRef.current?.files?.[0] || ribTenantFile;
+    
+    if (!hasInsurance) {
       errors.push("L'assurance locataire est requise");
     }
-    if (!hasDocument(ribTenantRef, ribTenantFile, "RIB")) {
+    if (!hasRib) {
       errors.push("Le RIB signé locataire est requis");
     }
 
@@ -799,34 +1431,58 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     };
   };
 
-  const onSubmit = async (data: TenantFormData) => {
-    // Valider les fichiers requis avant de soumettre
-    const fileValidation = validateRequiredFiles();
-    if (!fileValidation.isValid) {
-      toast.error("Veuillez joindre tous les documents requis", {
-        description: fileValidation.errors.join(", "),
-      });
-      setIsSubmitting(false);
-      return;
-    }
-
+  const onSubmit = async (data: FormWithPersons) => {
     setIsSubmitting(true);
     try {
-      // Uploader les fichiers en parallèle (optimisé dans l'API route)
-      // Ne pas déclencher l'événement car on va rediriger vers la page success
-      await uploadFiles(false);
+      // Étape 1: Rafraîchir les données pour avoir les documents à jour
+      setSubmissionProgress({
+        step: 1,
+        totalSteps: 3,
+        currentStepName: "Vérification des données",
+      });
       
-      // Soumettre directement les données (les fichiers sont déjà uploadés)
-      // Pas besoin de rafraîchir les données ni de re-valider, on vient juste d'uploader
+      await refreshIntakeLinkData();
+      
+      // Étape 2: Validation des documents
+      const fileValidation = validateRequiredFiles();
+      if (!fileValidation.isValid) {
+        toast.error("Veuillez joindre tous les documents requis", {
+          description: fileValidation.errors.join(", "),
+        });
+        setSubmissionProgress({ step: 0, totalSteps: 3, currentStepName: "" });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Étape 3: Soumission du formulaire
+      setSubmissionProgress({
+        step: 2,
+        totalSteps: 3,
+        currentStepName: "Soumission du formulaire",
+      });
+      
+      // Soumettre les données (les documents sont déjà uploadés via file-upload.tsx)
       await submitIntake({
         token: intakeLink.token,
         payload: data,
       });
+      
+      // Étape 4: Redirection
+      setSubmissionProgress({
+        step: 3,
+        totalSteps: 3,
+        currentStepName: "Redirection...",
+      });
+      
+      // Petit délai pour afficher la dernière étape
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       router.push(`/intakes/${intakeLink.token}/success`);
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || "Erreur lors de la soumission";
       toast.error(errorMessage);
       console.error("Erreur lors de la soumission du formulaire:", error);
+      setSubmissionProgress({ step: 0, totalSteps: 3, currentStepName: "" });
     } finally {
       setIsSubmitting(false);
     }
@@ -856,7 +1512,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   };
 
   // Validation asynchrone pour vérifier si l'email du locataire existe déjà
-  const validateTenantEmail = async (email: string | undefined) => {
+  const validateTenantEmail = async (email: string | undefined): Promise<string | true> => {
     // Si l'email est déjà défini côté client, pas besoin de valider
     if (client?.email) {
       return true;
@@ -889,272 +1545,238 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     }
   };
 
-  console.log("form.formState.defaultValues", form.formState.defaultValues);
-
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
-        return renderBasicInfo();
-      case 1:
-        return renderAdditionalInfo();
-      case 2:
-        return renderDocuments();
-      default:
-        return null;
+  // Fonction pour valider tous les emails (entreprise et personnes) lors du nextStep ou save
+  const validateAllEmails = async (): Promise<{ isValid: boolean; error?: string }> => {
+    const values = form.getValues();
+    
+    // Si l'email est déjà défini côté client, pas besoin de valider
+    if (client?.email) {
+      return { isValid: true };
     }
+
+    // Valider l'email de l'entreprise si PERSONNE_MORALE
+    if (clientType === ClientType.PERSONNE_MORALE && values.entreprise?.email) {
+      const result = await validateTenantEmail(values.entreprise.email);
+      if (result !== true) {
+        return { isValid: false, error: result };
+      }
+    }
+
+    // Valider les emails des personnes si PERSONNE_PHYSIQUE
+    if (clientType === ClientType.PERSONNE_PHYSIQUE && values.persons) {
+      for (let i = 0; i < values.persons.length; i++) {
+        const person = values.persons[i];
+        if (person?.email) {
+          const result = await validateTenantEmail(person.email);
+          if (result !== true) {
+            return { isValid: false, error: result };
+          }
+        }
+      }
+    }
+
+    return { isValid: true };
   };
 
-  const renderBasicInfo = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informations locataire</CardTitle>
-        <CardDescription>Remplissez les informations de base</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-8">
-        <div className="space-y-2">
-          <Label htmlFor="type">Type de client *</Label>
 
-          <Controller
-            name="type"
-            control={form.control}
-            render={({ field }) => (
-             <RadioGroup
-                value={field.value || undefined}
-                onValueChange={(value) => {
-                  const selectedType = value as ClientType;
-                  field.onChange(selectedType);
-                  setClientType(selectedType);
-                }}
-                className="flex flex-row space-x-3 w-full items-center justify-between"
-              >
-                <Label htmlFor="personnePhysique" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_PHYSIQUE ? "bg-accent" : ""}`}>
-                  <RadioGroupItem value={ClientType.PERSONNE_PHYSIQUE} className="hidden" id="personnePhysique"/>
-                  <User2 className="size-5 text-muted-foreground " />
-                  <div className="text-sm font-medium text-center">Personne {isMobile ? <br /> : ""} physique</div>
-                </Label>
-                <Label htmlFor="personneMorale" className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${field.value === ClientType.PERSONNE_MORALE ? "bg-accent" : ""}`}>
-                  <RadioGroupItem value={ClientType.PERSONNE_MORALE} className="hidden" id="personneMorale"/>
-                  <Building2 className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium text-center">Personne {isMobile ? <br /> : ""} morale</div>
-                </Label>
-              </RadioGroup>
-            )}
-          />
-          {form.formState.errors.type && (
-            <p className="text-sm text-destructive">{form.formState.errors.type.message}</p>
-          )}
-        </div>
-
-        {clientType === ClientType.PERSONNE_PHYSIQUE ? (
-          <div className="grid gap-3 sm:gap-4 grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="firstName">Prénom *</Label>
-              <Input id="firstName" {...form.register("firstName")} />
-              {form.formState.errors.firstName && (
-                <p className="text-sm text-destructive">{form.formState.errors.firstName.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName">Nom *</Label>
-              <Input id="lastName" {...form.register("lastName")} />
-              {form.formState.errors.lastName && (
-                <p className="text-sm text-destructive">{form.formState.errors.lastName.message}</p>
-              )}
-            </div>
-          </div>
-        ) : (
+  const renderClientTypeStep = () => {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Qui êtes-vous ?</CardTitle>
+          <CardDescription>Choisissez votre profil.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-8">
           <div className="space-y-2">
-            <Label htmlFor="legalName">Raison sociale *</Label>
-            <Input id="legalName" {...form.register("legalName")} />
-            {form.formState.errors.legalName && (
-              <p className="text-sm text-destructive">{form.formState.errors.legalName.message}</p>
-            )}
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <Label htmlFor="fullAddress">Adresse complète *</Label>
-          <Textarea id="fullAddress" {...form.register("fullAddress")} />
-          {form.formState.errors.fullAddress && (
-            <p className="text-sm text-destructive">{form.formState.errors.fullAddress.message}</p>
-          )}
-        </div>
-
-        <div className="grid gap-3 sm:gap-4 grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="phone">Téléphone *</Label>
             <Controller
-              name="phone"
+              name="type"
               control={form.control}
               render={({ field }) => (
-                <PhoneInput
+                <RadioGroup
                   value={field.value || undefined}
-                  onChange={field.onChange}
-                  defaultCountry="FR"
-                  international
-                  countryCallingCodeEditable={false}
-                  placeholder="Numéro de téléphone"
-                  disabled={!client?.email && !!client?.phone}
-                />
+                  onValueChange={(value) => {
+                    const selectedType = value as ClientType;
+                    field.onChange(selectedType);
+                    setClientType(selectedType);
+                  }}
+                  className="flex flex-row space-x-3 w-full items-center justify-between"
+                >
+                  <Label
+                    htmlFor="personnePhysique"
+                    className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
+                      clientType === ClientType.PERSONNE_PHYSIQUE ? "bg-accent" : ""
+                    }`}
+                  >
+                    <RadioGroupItem
+                      value={ClientType.PERSONNE_PHYSIQUE}
+                      className="hidden"
+                      id="personnePhysique"
+                    />
+                    <User2 className="size-5 text-muted-foreground" />
+                    <div className="text-sm font-medium text-center">
+                      Particulier
+                    </div>
+                  </Label>
+                  <Label
+                    htmlFor="personneMorale"
+                    className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
+                      clientType === ClientType.PERSONNE_MORALE ? "bg-accent" : ""
+                    }`}
+                  >
+                    <RadioGroupItem
+                      value={ClientType.PERSONNE_MORALE}
+                      className="hidden"
+                      id="personneMorale"
+                    />
+                    <Building2 className="size-5 text-muted-foreground" />
+                    <div className="text-sm font-medium text-center">
+                    Entreprise
+                    </div>
+                  </Label>
+                </RadioGroup>
               )}
             />
-            {!client?.email && client?.phone && (
-              <p className="text-sm text-muted-foreground">Le téléphone ne peut pas être modifié</p>
-            )}
-            {form.formState.errors.phone && (
-              <p className="text-sm text-destructive">{form.formState.errors.phone.message}</p>
+            {form.formState.errors.type && (
+              <p className="text-sm text-destructive">{form.formState.errors.type.message}</p>
             )}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
-            <Input 
-              id="email" 
-              type="email" 
-              {...form.register("email", {
-                validate: validateTenantEmail,
-                required: "L'email est requis",
-              })} 
-              disabled={!!client?.email}
-              className={client?.email ? "bg-muted cursor-not-allowed" : ""}
-              onBlur={async () => {
-                // Déclencher la validation au blur seulement si l'email n'est pas déjà défini
-                if (!client?.email) {
-                  await form.trigger("email");
-                }
-              }}
-            />
-            {client?.email && (
-              <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
-            )}
-            {form.formState.errors.email && (
-              <div className="text-sm text-destructive">
-                <p>{form.formState.errors.email.message}</p>
-                {form.formState.errors.email.message?.includes("déjà utilisé") && (
-                  <p className="mt-1">
-                    <a href="/#contact" className="underline hover:text-destructive/80 font-medium">
-                      Cliquez ici pour contacter le service client
-                    </a>
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
-  const renderAdditionalInfo = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informations locataire</CardTitle>
-        <CardDescription>Remplissez les informations complémentaires</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-8">
-        {clientType === ClientType.PERSONNE_PHYSIQUE ? (
-          <>
+  const renderClientInfoStep = () => {
+    const primaryPerson = personsWatch?.find((person) => person.isPrimary);
+    const rootEmail = entrepriseWatch?.email || primaryPerson?.email || "";
+    const rootPhone = entrepriseWatch?.phone || primaryPerson?.phone || "";
+    const isEmailLocked = !!rootEmail;
+    const isPhoneLocked = !rootEmail && !!rootPhone;
+    const watchedFamilyStatuses = personFields.map((_, index) => 
+      form.watch(`persons.${index}.familyStatus` as any)
+    );
+    
+    // Fonction pour vérifier si une personne a des erreurs
+    const hasPersonErrors = (index: number): boolean => {
+      const errors = form.formState.errors;
+      const personErrors = errors.persons?.[index];
+      if (!personErrors) return false;
+      return Object.keys(personErrors).length > 0;
+    };
+    
+    // Fonction pour obtenir le message d'erreur principal d'une personne
+    const getPersonMainError = (index: number): string | null => {
+      const errors = form.formState.errors;
+      const personErrors = errors.persons?.[index];
+      if (!personErrors) return null;
+      
+      const errorFields = ['firstName', 'lastName', 'email', 'phone', 'fullAddress', 'profession', 'nationality', 'familyStatus', 'birthPlace', 'birthDate'];
+      for (const field of errorFields) {
+        const fieldError = personErrors[field as keyof typeof personErrors];
+        if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
+          return (fieldError as { message?: string }).message || null;
+        }
+      }
+      return null;
+    };
+
+    if (clientType === ClientType.PERSONNE_MORALE) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Informations de l'entreprise</CardTitle>
+            <CardDescription>
+              Renseignez les informations concernant votre société.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="profession">Profession *</Label>
-              <Input id="profession" {...form.register("profession")} />
-              {form.formState.errors.profession && (
-                <p className="text-sm text-destructive">{form.formState.errors.profession.message}</p>
+              <Label htmlFor="entreprise.legalName">Raison sociale *</Label>
+              <Input 
+                id="entreprise.legalName" 
+                {...form.register("entreprise.legalName")} 
+              />
+              {form.formState.errors.entreprise?.legalName && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.entreprise.legalName.message}
+                </p>
               )}
             </div>
-            <div className={`grid gap-4 sm:gap-4  ${form.watch("familyStatus") === FamilyStatus.MARIE ? "grid-cols-2" : "grid-cols-1"}`}>
-              <div className="space-y-2">
-                <Label htmlFor="familyStatus">Situation familiale *</Label>
-                <Controller
-                  name="familyStatus"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select value={field.value || undefined} onValueChange={field.onChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Sélectionner" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(FamilyStatus).map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status.replace(/_/g, " ")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {form.formState.errors.familyStatus && (
-                  <p className="text-sm text-destructive">{form.formState.errors.familyStatus.message}</p>
-                )}
-              </div>
-              {form.watch("familyStatus") === FamilyStatus.MARIE && (
-                <div className="space-y-2">
-                  <Label htmlFor="matrimonialRegime">Régime matrimonial *</Label>
-                  <Controller
-                    name="matrimonialRegime"
-                    control={form.control}
-                    render={({ field }) => (
-                      <Select value={field.value || undefined} onValueChange={field.onChange}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Sélectionner" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.values(MatrimonialRegime).map((regime) => (
-                            <SelectItem key={regime} value={regime}>
-                              {regime.replace(/_/g, " ")}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {form.formState.errors.matrimonialRegime && (
-                    <p className="text-sm text-destructive">{form.formState.errors.matrimonialRegime.message}</p>
-                  )}
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="entreprise.registration">SIREN/SIRET *</Label>
+              <Input 
+                id="entreprise.registration" 
+                {...form.register("entreprise.registration")} 
+              />
+              {form.formState.errors.entreprise?.registration && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.entreprise.registration.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="entreprise.fullAddress">Adresse complète *</Label>
+              <Textarea 
+                id="entreprise.fullAddress" 
+                {...form.register("entreprise.fullAddress")} 
+              />
+              {form.formState.errors.entreprise?.fullAddress && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.entreprise.fullAddress.message}
+                </p>
               )}
             </div>
             <div className="grid gap-3 sm:gap-4 grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="birthPlace">Lieu de naissance *</Label>
-                <Input id="birthPlace" {...form.register("birthPlace")} />
-                {form.formState.errors.birthPlace && (
-                  <p className="text-sm text-destructive">{form.formState.errors.birthPlace.message}</p>
-                )}
-              </div>
-             
-              <div className="space-y-2">
-                <Label htmlFor="birthDate">Date de naissance *</Label>
+                <Label htmlFor="entreprise.phone">Téléphone *</Label>
                 <Controller
-                  name="birthDate"
+                  name="entreprise.phone"
                   control={form.control}
                   render={({ field }) => (
-                    <DatePicker
-                      id="birthDate"
-                      value={field.value ? (typeof field.value === 'string' ? field.value : formatDateToLocalString(field.value)) : undefined}
-                      onChange={(date) => {
-                        if (date) {
-                          // Convertir en format string YYYY-MM-DD en heure locale
-                          const dateString = formatDateToLocalString(date)
-                          field.onChange(dateString)
-                        } else {
-                          field.onChange(undefined)
-                        }
-                      }}
-                      placeholder="Sélectionner la date de naissance"
-                      fromYear={1900}
-                      toYear={new Date().getFullYear()}
+                    <PhoneInput
+                      value={field.value || undefined}
+                      onChange={field.onChange}
+                      defaultCountry="FR"
+                      international
+                      countryCallingCodeEditable={false}
+                      placeholder="Numéro de téléphone"
+                      disabled={isPhoneLocked}
                     />
                   )}
                 />
-                {form.formState.errors.birthDate && (
-                  <p className="text-sm text-destructive">{form.formState.errors.birthDate.message}</p>
-                )}  
+                {form.formState.errors.entreprise?.phone && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.entreprise.phone.message}
+                  </p>
+                )}
               </div>
-             
+              <div className="space-y-2">
+                <Label htmlFor="entreprise.email">Email *</Label>
+                <Input 
+                  id="entreprise.email" 
+                  type="email" 
+                  {...form.register("entreprise.email", {
+                    required: "L'email est requis",
+                  })} 
+                  disabled={isEmailLocked}
+                />
+                {form.formState.errors.entreprise?.email && (
+                  <div className="text-sm text-destructive">
+                    <p>{form.formState.errors.entreprise.email.message}</p>
+                    {form.formState.errors.entreprise.email.message?.includes("déjà utilisé") && (
+                      <p className="mt-1">
+                        <a href="/#contact" className="underline hover:text-destructive/80 font-medium">
+                          Cliquez ici pour contacter le service client
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="nationality">Nationalité *</Label>
+              <Label htmlFor="entreprise.nationality">Nationalité *</Label>
               <Controller
-                name="nationality"
+                name="entreprise.nationality"
                 control={form.control}
                 render={({ field }) => (
                   <NationalitySelect
@@ -1165,43 +1787,359 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   />
                 )}
               />
-              {form.formState.errors.nationality && (
-                <p className="text-sm text-destructive">{form.formState.errors.nationality.message}</p>
+              {form.formState.errors.entreprise?.nationality && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.entreprise.nationality.message}
+                </p>
               )}
             </div>
-          </>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="registration">SIREN/SIRET *</Label>
-              <Input id="registration" {...form.register("registration")} />
-              {form.formState.errors.registration && (
-                <p className="text-sm text-destructive">{form.formState.errors.registration.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nationality">Nationalité *</Label>
-              <Controller
-                name="nationality"
-                control={form.control}
-                render={({ field }) => (
-                  <NationalitySelect
-                    value={field.value || ""}
-                    onValueChange={field.onChange}
-                    disabled={form.formState.isSubmitting}
-                    placeholder="Sélectionner la nationalité"
-                  />
-                )}
-              />
-              {form.formState.errors.nationality && (
-                <p className="text-sm text-destructive">{form.formState.errors.nationality.message}</p>
-              )}
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Informations du ou des locataires</CardTitle>
+          <CardDescription>
+            Renseignez les informations concernant le ou les locataires.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Accordion 
+            type="single" 
+            className="w-full" 
+            collapsible
+            value={openAccordionValue}
+            onValueChange={(value) => setOpenAccordionValue(value || `person-0`)}
+          >
+            {personFields.map((field, index) => {
+              const person = personsWatch?.[index];
+              return (
+                <AccordionItem key={field.id} value={`person-${index}`}>
+                  <AccordionTrigger className="flex flex-row items-start gap-2 py-4">
+                    <div className="flex flex-row items-center justify-between w-full pr-4">
+                      <div className="flex flex-row items-center gap-4">
+                        <div className="flex flex-col items-start">
+                          <div className="flex flex-row items-center gap-2">
+                            {form.watch(`persons.${index}.firstName`) && form.watch(`persons.${index}.lastName`) 
+                              ? form.watch(`persons.${index}.firstName`) + " " + form.watch(`persons.${index}.lastName`) 
+                              : "Personne " + (index + 1)}
+                            {index === 0 && " (Principale)"}
+                            {hasPersonErrors(index) && (
+                              <AlertCircle className="size-4 text-destructive shrink-0" />
+                            )}
+                            {index > 0 && (
+                              <div
+                                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-10 w-10 shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPersonToDeleteIndex(index);
+                                  setDeleteDialogOpen(true);
+                                }}
+                              >
+                                <Trash2 className="size-4 text-red-400" />
+                              </div>
+                            )}
+                          </div>
+                          {hasPersonErrors(index) && getPersonMainError(index) && (
+                            <p className="text-sm text-destructive w-full text-left pr-4">
+                              Erreurs détectées.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-4">
+                    {/* Informations de base */}
+                    <div className="grid gap-4 grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`persons.${index}.firstName`}>Prénom *</Label>
+                        <Input
+                          {...form.register(`persons.${index}.firstName` as any)}
+                        />
+                        {form.formState.errors.persons?.[index]?.firstName && (
+                          <p className="text-sm text-destructive">
+                            {form.formState.errors.persons[index]?.firstName?.message}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`persons.${index}.lastName`}>Nom *</Label>
+                        <Input
+                          {...form.register(`persons.${index}.lastName` as any)}
+                        />
+                        {form.formState.errors.persons?.[index]?.lastName && (
+                          <p className="text-sm text-destructive">
+                            {form.formState.errors.persons[index]?.lastName?.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid gap-4 grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`persons.${index}.email`}>Email *</Label>
+                        <Input
+                          type="email"
+                          {...form.register(`persons.${index}.email` as any, {
+                            required: "L'email est requis",
+                          })}
+                          disabled={isEmailLocked && index === 0}
+                          className={isEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}
+                        />
+                        {isEmailLocked && index === 0 && (
+                          <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
+                        )}
+                        {form.formState.errors.persons?.[index]?.email && (
+                          <div className="text-sm text-destructive">
+                            <p>{form.formState.errors.persons[index]?.email?.message}</p>
+                            {form.formState.errors.persons[index]?.email?.message?.includes("déjà utilisé") && (
+                              <p className="mt-1">
+                                <a href="/#contact" className="underline hover:text-destructive/80 font-medium">
+                                  Cliquez ici pour contacter le service client
+                                </a>
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`persons.${index}.phone`}>Téléphone *</Label>
+                        <Controller
+                          name={`persons.${index}.phone` as any}
+                          control={form.control}
+                          render={({ field }) => (
+                            <PhoneInput
+                              value={field.value || undefined}
+                              onChange={field.onChange}
+                              defaultCountry="FR"
+                              international
+                              countryCallingCodeEditable={false}
+                              placeholder="Numéro de téléphone"
+                              disabled={isPhoneLocked && index === 0}
+                            />
+                          )}
+                        />
+                        {isPhoneLocked && index === 0 && (
+                          <p className="text-sm text-muted-foreground">Le téléphone ne peut pas être modifié</p>
+                        )}
+                        {form.formState.errors.persons?.[index]?.phone && (
+                          <p className="text-sm text-destructive">
+                            {form.formState.errors.persons[index]?.phone?.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`persons.${index}.fullAddress`}>Adresse complète *</Label>
+                      <Textarea
+                        {...form.register(`persons.${index}.fullAddress` as any)}
+                      />
+                      {form.formState.errors.persons?.[index]?.fullAddress && (
+                        <p className="text-sm text-destructive">
+                          {form.formState.errors.persons[index]?.fullAddress?.message}
+                        </p>
+                      )}
+                    </div>
+                    {/* Informations complémentaires */}
+                    <div className="space-y-2">
+                      <Label htmlFor={`persons.${index}.profession`}>Profession *</Label>
+                      <Input
+                        {...form.register(`persons.${index}.profession` as any)}
+                      />
+                      {form.formState.errors.persons?.[index]?.profession && (
+                        <p className="text-sm text-destructive">
+                          {form.formState.errors.persons[index]?.profession?.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="grid gap-4 grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`persons.${index}.nationality`}>Nationalité *</Label>
+                        <Controller
+                          name={`persons.${index}.nationality` as any}
+                          control={form.control}
+                          render={({ field }) => (
+                            <NationalitySelect
+                              value={field.value || undefined}
+                              onValueChange={field.onChange}
+                            />
+                          )}
+                        />
+                        {form.formState.errors.persons?.[index]?.nationality && (
+                          <p className="text-sm text-destructive">
+                            {form.formState.errors.persons[index]?.nationality?.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className={`grid gap-4 ${watchedFamilyStatuses[index] === FamilyStatus.MARIE ? "grid-cols-2" : "grid-cols-1"}`}>
+                      <div className="space-y-2">
+                        <Label htmlFor={`persons.${index}.familyStatus`}>Statut familial *</Label>
+                        <Controller
+                          name={`persons.${index}.familyStatus` as any}
+                          control={form.control}
+                          render={({ field }) => (
+                            <Select
+                              value={field.value ?? undefined}
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                                if (value !== FamilyStatus.MARIE) {
+                                  form.setValue(`persons.${index}.matrimonialRegime` as any, undefined);
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Sélectionner" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.values(FamilyStatus).map((status) => (
+                                  <SelectItem key={status} value={status}>
+                                    {status.replace(/_/g, " ")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        {form.formState.errors.persons?.[index]?.familyStatus && (
+                          <p className="text-sm text-destructive">
+                            {form.formState.errors.persons[index]?.familyStatus?.message}
+                          </p>
+                        )}
+                      </div>
+                      {watchedFamilyStatuses[index] === FamilyStatus.MARIE && (
+                        <div className="space-y-2">
+                          <Label htmlFor={`persons.${index}.matrimonialRegime`}>Régime matrimonial *</Label>
+                          <Controller
+                            name={`persons.${index}.matrimonialRegime` as any}
+                            control={form.control}
+                            render={({ field }) => (
+                              <Select
+                                value={field.value ?? undefined}
+                                onValueChange={field.onChange}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Sélectionner" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Object.values(MatrimonialRegime).map((regime) => (
+                                    <SelectItem key={regime} value={regime}>
+                                      {regime.replace(/_/g, " ")}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                          {form.formState.errors.persons?.[index]?.matrimonialRegime && (
+                            <p className="text-sm text-destructive">
+                              {form.formState.errors.persons[index]?.matrimonialRegime?.message}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid gap-4 grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`persons.${index}.birthPlace`}>Lieu de naissance *</Label>
+                        <Input
+                          {...form.register(`persons.${index}.birthPlace` as any)}
+                        />
+                        {form.formState.errors.persons?.[index]?.birthPlace && (
+                          <p className="text-sm text-destructive">
+                            {form.formState.errors.persons[index]?.birthPlace?.message}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`persons.${index}.birthDate`}>Date de naissance *</Label>
+                        <Controller
+                          name={`persons.${index}.birthDate` as any}
+                          control={form.control}
+                          render={({ field }) => (
+                            <DatePicker
+                              value={field.value ? toDateValue(field.value as any) : undefined}
+                              onChange={(val) =>
+                                field.onChange(toDateValue(val as any) || undefined)
+                              }
+                            />
+                          )}
+                        />
+                        {form.formState.errors.persons?.[index]?.birthDate && (
+                          <p className="text-sm text-destructive">
+                            {form.formState.errors.persons[index]?.birthDate?.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
+          {personFields.length < 2 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                appendPerson({ ...emptyPerson } as any);
+                const newIndex = personFields.length;
+                setOpenAccordionValue(`person-${newIndex}`);
+              }}
+              className="w-full"
+            >
+              Ajouter une personne
+            </Button>
+          )}
+
+          <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirmer la suppression</DialogTitle>
+                <DialogDescription>
+                  {personToDeleteIndex !== null && (() => {
+                    const person = form.watch(`persons.${personToDeleteIndex}` as any);
+                    const personName = person?.firstName && person?.lastName 
+                      ? `${person.firstName} ${person.lastName}`
+                      : person?.email || "Cette personne";
+                    return `Êtes-vous sûr de vouloir supprimer ${personName} ?`;
+                  })()}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteDialogOpen(false);
+                    setPersonToDeleteIndex(null);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={async () => {
+                    if (personToDeleteIndex === null) return;
+                    await handleRemovePerson(personToDeleteIndex);
+                    toast.success("Personne supprimée");
+                    setDeleteDialogOpen(false);
+                    setPersonToDeleteIndex(null);
+                  }}
+                >
+                  Confirmer
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
     // Empêcher la soumission automatique avec Entrée sauf si on est sur le dernier step et qu'on clique explicitement sur Soumettre
@@ -1210,20 +2148,20 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     }
   };
 
-  const renderDocuments = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Pièces jointes</CardTitle>
-        <CardDescription>Remplissez les pièces jointes du locataire.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Pièces jointes - Client */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Documents client *</h3>
-          
-          {clientType === ClientType.PERSONNE_MORALE ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
+  const renderDocuments = () => {
+    const persons = personsWatch || [];
+    
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Pièces jointes</CardTitle>
+          <CardDescription>Ajoutez les documents obligatoires.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Documents client *</h3>
+            {clientType === ClientType.PERSONNE_MORALE ? (
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
                 <DocumentUploaded token={intakeLink.token} documentKind="KBIS">
                   <FileUpload
                     label="KBIS *"
@@ -1231,16 +2169,18 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     onChange={(file) => {
                       setKbisFile(file);
                       if (kbisRef.current) {
-                        const dataTransfer = new DataTransfer();
-                        if (file) dataTransfer.items.add(file);
-                        kbisRef.current.files = dataTransfer.files;
+                        const dt = new DataTransfer();
+                        if (file) dt.items.add(file);
+                        kbisRef.current.files = dt.files;
                       }
                     }}
                     disabled={isSubmitting}
+                    uploadToken={intakeLink.token}
+                    documentKind="KBIS"
+                    clientId={client?.id}
+                    onUploadStateChange={handleUploadStateChange}
                   />
                 </DocumentUploaded>
-              </div>
-              <div className="space-y-2">
                 <DocumentUploaded token={intakeLink.token} documentKind="STATUTES">
                   <FileUpload
                     label="Statuts *"
@@ -1248,94 +2188,152 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     onChange={(file) => {
                       setStatutesFile(file);
                       if (statutesRef.current) {
-                        const dataTransfer = new DataTransfer();
-                        if (file) dataTransfer.items.add(file);
-                        statutesRef.current.files = dataTransfer.files;
+                        const dt = new DataTransfer();
+                        if (file) dt.items.add(file);
+                        statutesRef.current.files = dt.files;
                       }
                     }}
                     disabled={isSubmitting}
+                    uploadToken={intakeLink.token}
+                    documentKind="STATUTES"
+                    clientId={client?.id}
+                    onUploadStateChange={handleUploadStateChange}
                   />
                 </DocumentUploaded>
               </div>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <DocumentUploaded token={intakeLink.token} documentKind="BIRTH_CERT">
-                  <FileUpload
-                    label="Acte de naissance *"
-                    value={birthCertFile}
-                    onChange={(file) => {
-                      setBirthCertFile(file);
-                      if (birthCertRef.current) {
-                        const dataTransfer = new DataTransfer();
-                        if (file) dataTransfer.items.add(file);
-                        birthCertRef.current.files = dataTransfer.files;
-                      }
-                    }}
-                    disabled={isSubmitting}
-                  />
-                </DocumentUploaded>
-              </div>
-              <div className="space-y-2">
-                <DocumentUploaded token={intakeLink.token} documentKind="ID_IDENTITY">
-                  <FileUpload
-                    label="Pièce d'identité *"
-                    value={idIdentityFile}
-                    onChange={(file) => {
-                      setIdIdentityFile(file);
-                      if (idIdentityRef.current) {
-                        const dataTransfer = new DataTransfer();
-                        if (file) dataTransfer.items.add(file);
-                        idIdentityRef.current.files = dataTransfer.files;
-                      }
-                    }}
-                    disabled={isSubmitting}
-                  />
-                </DocumentUploaded>
-              </div>
-              {form.watch("familyStatus") === FamilyStatus.MARIE && (
-                <div className="space-y-2">
-                  <DocumentUploaded token={intakeLink.token} documentKind="LIVRET_DE_FAMILLE">
-                    <FileUpload
-                      label="Livret de famille *"
-                      value={livretDeFamilleFile}
-                      onChange={(file) => {
-                        setLivretDeFamilleFile(file);
-                        if (livretDeFamilleRef.current) {
-                          const dataTransfer = new DataTransfer();
-                          if (file) dataTransfer.items.add(file);
-                          livretDeFamilleRef.current.files = dataTransfer.files;
-                        }
-                      }}
-                      disabled={isSubmitting}
-                    />
-                  </DocumentUploaded>
-                </div>
-              )}
-              {form.watch("familyStatus") === FamilyStatus.PACS && (
-                <div className="space-y-2">
-                  <DocumentUploaded token={intakeLink.token} documentKind="CONTRAT_DE_PACS">
-                    <FileUpload
-                      label="Contrat de PACS *"
-                      value={contratDePacsFile}
-                      onChange={(file) => {
-                        setContratDePacsFile(file);
-                        if (contratDePacsRef.current) {
-                          const dataTransfer = new DataTransfer();
-                          if (file) dataTransfer.items.add(file);
-                          contratDePacsRef.current.files = dataTransfer.files;
-                        }
-                      }}
-                      disabled={isSubmitting}
-                    />
-                  </DocumentUploaded>
-                </div>
-              )}
-            </div>
-          )}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
+            ) : (
+              <>
+                {/* Documents pour chaque personne */}
+                {persons.map((person, index) => {
+                  const personName = person.firstName && person.lastName
+                    ? `${person.firstName} ${person.lastName}`
+                    : `Personne ${index + 1}`;
+                  const personRefs = personDocumentRefs.current[index];
+                  const personFiles = personDocumentFiles[index] || { birthCert: null, idIdentity: null };
+                  
+                  return (
+                    <div key={index} className="space-y-4 border rounded-lg p-4">
+                      <h4 className="text-md font-medium">
+                        Documents de {personName} {index === 0 && "(Principale)"} *
+                      </h4>
+                      <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                        <DocumentUploaded 
+                          token={intakeLink.token} 
+                          documentKind="BIRTH_CERT"
+                          personIndex={index}
+                        >
+                          <FileUpload
+                            label="Acte de naissance *"
+                            value={personFiles.birthCert}
+                            onChange={(file) => {
+                              setPersonDocumentFiles(prev => ({
+                                ...prev,
+                                [index]: { ...prev[index], birthCert: file }
+                              }));
+                              if (personRefs?.birthCert.current) {
+                                const dt = new DataTransfer();
+                                if (file) dt.items.add(file);
+                                personRefs.birthCert.current.files = dt.files;
+                              }
+                            }}
+                            disabled={isSubmitting}
+                            uploadToken={intakeLink.token}
+                            documentKind="BIRTH_CERT"
+                            clientId={client?.id}
+                            personIndex={index}
+                            onUploadStateChange={handleUploadStateChange}
+                          />
+                        </DocumentUploaded>
+                        <DocumentUploaded 
+                          token={intakeLink.token} 
+                          documentKind="ID_IDENTITY"
+                          personIndex={index}
+                        >
+                          <FileUpload
+                            label="Pièce d'identité *"
+                            value={personFiles.idIdentity}
+                            onChange={(file) => {
+                              setPersonDocumentFiles(prev => ({
+                                ...prev,
+                                [index]: { ...prev[index], idIdentity: file }
+                              }));
+                              if (personRefs?.idIdentity.current) {
+                                const dt = new DataTransfer();
+                                if (file) dt.items.add(file);
+                                personRefs.idIdentity.current.files = dt.files;
+                              }
+                            }}
+                            disabled={isSubmitting}
+                            uploadToken={intakeLink.token}
+                            documentKind="ID_IDENTITY"
+                            clientId={client?.id}
+                            personIndex={index}
+                            onUploadStateChange={handleUploadStateChange}
+                          />
+                        </DocumentUploaded>
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {/* Documents communs au client (livret de famille, PACS) */}
+                {persons.length > 0 && (
+                  <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                    {form.watch(`persons.0.familyStatus`) === FamilyStatus.MARIE && (
+                      <DocumentUploaded
+                        token={intakeLink.token}
+                        documentKind="LIVRET_DE_FAMILLE"
+                      >
+                        <FileUpload
+                          label="Livret de famille *"
+                          value={livretDeFamilleFile}
+                          onChange={(file) => {
+                            setLivretDeFamilleFile(file);
+                            if (livretDeFamilleRef.current) {
+                              const dt = new DataTransfer();
+                              if (file) dt.items.add(file);
+                              livretDeFamilleRef.current.files = dt.files;
+                            }
+                          }}
+                          disabled={isSubmitting}
+                          uploadToken={intakeLink.token}
+                          documentKind="LIVRET_DE_FAMILLE"
+                          clientId={client?.id}
+                          onUploadStateChange={handleUploadStateChange}
+                        />
+                      </DocumentUploaded>
+                    )}
+                    {form.watch(`persons.0.familyStatus`) === FamilyStatus.PACS && (
+                      <DocumentUploaded
+                        token={intakeLink.token}
+                        documentKind="CONTRAT_DE_PACS"
+                      >
+                        <FileUpload
+                          label="Contrat de PACS *"
+                          value={contratDePacsFile}
+                          onChange={(file) => {
+                            setContratDePacsFile(file);
+                            if (contratDePacsRef.current) {
+                              const dt = new DataTransfer();
+                              if (file) dt.items.add(file);
+                              contratDePacsRef.current.files = dt.files;
+                            }
+                          }}
+                          disabled={isSubmitting}
+                          uploadToken={intakeLink.token}
+                          documentKind="CONTRAT_DE_PACS"
+                          clientId={client?.id}
+                          onUploadStateChange={handleUploadStateChange}
+                        />
+                      </DocumentUploaded>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            
+            {/* Documents du locataire (assurance et RIB) */}
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
               <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE" clientId={client?.id}>
                 <FileUpload
                   label="Assurance locataire *"
@@ -1343,16 +2341,18 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   onChange={(file) => {
                     setInsuranceTenantFile(file);
                     if (insuranceTenantRef.current) {
-                      const dataTransfer = new DataTransfer();
-                      if (file) dataTransfer.items.add(file);
-                      insuranceTenantRef.current.files = dataTransfer.files;
+                      const dt = new DataTransfer();
+                      if (file) dt.items.add(file);
+                      insuranceTenantRef.current.files = dt.files;
                     }
                   }}
                   disabled={isSubmitting}
+                  uploadToken={intakeLink.token}
+                  documentKind="INSURANCE"
+                  clientId={client?.id}
+                  onUploadStateChange={handleUploadStateChange}
                 />
               </DocumentUploaded>
-            </div>
-            <div className="space-y-2">
               <DocumentUploaded token={intakeLink.token} documentKind="RIB" clientId={client?.id}>
                 <FileUpload
                   label="RIB signé locataire *"
@@ -1360,29 +2360,45 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   onChange={(file) => {
                     setRibTenantFile(file);
                     if (ribTenantRef.current) {
-                      const dataTransfer = new DataTransfer();
-                      if (file) dataTransfer.items.add(file);
-                      ribTenantRef.current.files = dataTransfer.files;
+                      const dt = new DataTransfer();
+                      if (file) dt.items.add(file);
+                      ribTenantRef.current.files = dt.files;
                     }
                   }}
                   disabled={isSubmitting}
+                  uploadToken={intakeLink.token}
+                  documentKind="RIB"
+                  clientId={client?.id}
+                  onUploadStateChange={handleUploadStateChange}
                 />
               </DocumentUploaded>
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
-      </CardContent>
-    </Card>
-  );
+  const renderStepContent = () => {
+    const stepId = STEPS[currentStep]?.id;
+    switch (stepId) {
+      case "clientType":
+        return renderClientTypeStep();
+      case "clientInfo":
+        return renderClientInfoStep();
+      case "documents":
+        return renderDocuments();
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="relative">
       {/* Loader overlay */}
       {(isSaving || isSubmitting) && (
-        <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-[100] flex items-center justify-center animate-in fade-in duration-300">
-          <div className="flex flex-col items-center gap-6">
-            {/* Logo avec animation pulse */}
+        <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-100 flex items-center justify-center animate-in fade-in duration-300">
+          <div className="flex flex-col items-center gap-8 w-full max-w-md px-6">
             <div className="relative animate-pulse">
               <Image
                 src="/logoLarge.png"
@@ -1394,27 +2410,95 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               />
             </div>
             
-            {/* Spinner avec animation */}
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <div className="flex flex-col items-center gap-1">
-                <p className="text-sm font-medium text-foreground">
-                  {isSubmitting ? "Envoi en cours..." : "Enregistrement en cours..."}
-                </p>
-                <p className="text-xs text-muted-foreground text-center max-w-xs px-4">
-                  {isSubmitting 
-                    ? "Veuillez patienter pendant la soumission de votre formulaire" 
-                    : "Vos données sont en cours d'enregistrement, veuillez patienter"}
-                </p>
+            {isSubmitting ? (
+              <>
+                {/* Barre de progression */}
+                <div className="w-full space-y-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-foreground">
+                      {submissionProgress.currentStepName || "Traitement en cours..."}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {submissionProgress.step}/{submissionProgress.totalSteps}
+                    </span>
+                  </div>
+                  
+                  {/* Barre de progression principale */}
+                  <div className="relative h-3 bg-accent rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-500 ease-out rounded-full"
+                      style={{
+                        width: `${(submissionProgress.step / submissionProgress.totalSteps) * 100}%`,
+                      }}
+                    />
+                    <div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                      style={{
+                        backgroundSize: "200% 100%",
+                        animation: "shimmer 2s infinite",
+                        backgroundPosition: "200% 0",
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Étapes détaillées */}
+                  <div className="space-y-2 mt-4">
+                    {[
+                      { id: 1, name: "Vérification des données", icon: "✓" },
+                      { id: 2, name: "Soumission du formulaire", icon: "📝" },
+                      { id: 3, name: "Redirection...", icon: "→" },
+                    ].map((step) => {
+                      const isCompleted = step.id < submissionProgress.step;
+                      const isCurrent = step.id === submissionProgress.step;
+                      
+                      return (
+                        <div
+                          key={step.id}
+                          className={`flex items-center gap-3 text-sm transition-all duration-300 ${
+                            isCompleted
+                              ? "text-foreground"
+                              : isCurrent
+                              ? "text-primary font-medium"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          <div
+                            className={`flex items-center justify-center w-6 h-6 rounded-full border-2 transition-all duration-300 ${
+                              isCompleted
+                                ? "bg-primary border-primary text-primary-foreground"
+                                : isCurrent
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-muted bg-background text-muted-foreground"
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <span className="text-xs">✓</span>
+                            ) : isCurrent ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <span className="text-xs">{step.id}</span>
+                            )}
+                          </div>
+                          <span>{step.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <div className="flex flex-col items-center gap-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Enregistrement en cours...
+                  </p>
+                  <p className="text-xs text-muted-foreground text-center max-w-xs px-4">
+                    Vos données sont en cours d'enregistrement, veuillez patienter
+                  </p>
+                </div>
               </div>
-            </div>
-            
-            {/* Animation de points de chargement */}
-            <div className="flex gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0s' }}></div>
-              <div className="h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              <div className="h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -1431,8 +2515,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             steps={STEPS} 
             currentStep={currentStep}
             onStepClick={(step) => {
-              // Permettre de revenir en arrière seulement
-              if (step < currentStep) {
+              // Permettre de revenir en arrière OU de cliquer sur l'étape 0 (Type de client) pour permettre de le modifier
+              if (step < currentStep || step === 0) {
                 setCurrentStep(step);
               }
             }}
@@ -1448,12 +2532,20 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       {/* Inputs file cachés pour les refs */}
       <input type="file" ref={kbisRef} name="kbis" className="hidden" />
       <input type="file" ref={statutesRef} name="statutes" className="hidden" />
-      <input type="file" ref={birthCertRef} name="birthCert" className="hidden" />
-      <input type="file" ref={idIdentityRef} name="idIdentity" className="hidden" />
       <input type="file" ref={livretDeFamilleRef} name="livretDeFamille" className="hidden" />
       <input type="file" ref={contratDePacsRef} name="contratDePacs" className="hidden" />
       <input type="file" ref={insuranceTenantRef} name="insuranceTenant" className="hidden" />
       <input type="file" ref={ribTenantRef} name="ribTenant" className="hidden" />
+      {/* Inputs file cachés pour les documents par personne */}
+      {personsWatch?.map((_, index) => {
+        const personRefs = personDocumentRefs.current[index];
+        return (
+          <React.Fragment key={index}>
+            <input type="file" ref={personRefs?.birthCert} name={`person_${index}_birthCert`} className="hidden" />
+            <input type="file" ref={personRefs?.idIdentity} name={`person_${index}_idIdentity`} className="hidden" />
+          </React.Fragment>
+        );
+      })}
 
       <div className="p-3 sm:p-4 z-50">
         <div className="max-w-2xl mx-auto flex flex-row justify-between gap-3 sm:gap-4">
@@ -1463,7 +2555,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 type="button"
                 variant="outline"
                 onClick={handlePrevious}
-                disabled={isSubmitting || isSaving}
+                disabled={isSubmitting || isSaving || isFileUploading}
                 size="icon"
                 className="h-10 w-10"
               >
@@ -1475,8 +2567,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             <Button
               type="button"
               variant="outline"
-              onClick={() => saveCurrentStep(false)}
-              disabled={isSubmitting || isSaving}
+              onClick={handleManualSave}
+              disabled={isSubmitting || isSaving || isFileUploading}
               className="sm:w-auto h-10"
             >
               {isSaving ? "Enregistrement..." : "Enregistrer"}
@@ -1485,7 +2577,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               <Button
                 type="button"
                 onClick={handleNext}
-                disabled={isSubmitting || isSaving}
+                disabled={isSubmitting || isSaving || isFileUploading}
                 size="icon"
                 className="h-10 w-10"
               >
@@ -1495,7 +2587,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               <Button 
                 type="button" 
                 onClick={() => form.handleSubmit(onSubmit, onError)()}
-                disabled={isSubmitting || isSaving}
+                disabled={isSubmitting || isSaving || isFileUploading}
                 className="sm:w-auto"
               >
                 {isSubmitting ? "Envoi en cours..." : "Soumettre"}

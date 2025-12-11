@@ -61,9 +61,21 @@ export default async function IntakeReminderPage({
   }
 
   const isOwner = intakeLink.target === "OWNER";
-  const clientName = intakeLink.client
-    ? `${intakeLink.client.firstName || ""} ${intakeLink.client.lastName || ""}`.trim() || (intakeLink.client.email || "Client")
-    : "Client";
+  
+  // Obtenir le nom du client depuis Person ou Entreprise
+  let clientName = "Client";
+  if (intakeLink.client) {
+    const client = intakeLink.client;
+    if (client.type === "PERSONNE_PHYSIQUE" && client.persons && client.persons.length > 0) {
+      const primaryPerson = client.persons.find((p: any) => p.isPrimary) || client.persons[0];
+      if (primaryPerson) {
+        const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+        clientName = name || primaryPerson.email || "Client";
+      }
+    } else if (client.type === "PERSONNE_MORALE" && client.entreprise) {
+      clientName = client.entreprise.legalName || client.entreprise.name || client.entreprise.email || "Client";
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">

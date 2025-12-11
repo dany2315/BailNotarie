@@ -35,12 +35,32 @@ export function ClientNameCell({ row }: ClientCellProps) {
   }
   
   if (row.type === ClientType.PERSONNE_PHYSIQUE) {
+    // Utiliser les données de la première personne (personne principale) si disponibles
+    const primaryPerson = row.persons?.find((p: any) => p.isPrimary) || row.persons?.[0];
+    
+    if (primaryPerson) {
+      const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+      const hasMultiplePersons = row.persons && row.persons.length > 1;
+      
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="font-medium">{name || "-"}</span>
+          {hasMultiplePersons && (
+            <span className="text-xs text-muted-foreground">
+              +{row.persons.length - 1} autre{row.persons.length - 1 > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      );
+    }
+    
+    // Fallback sur les champs du client si pas de personne
     const name = `${row.firstName || ""} ${row.lastName || ""}`.trim();
     return <>{name || "-"}</>;
   }
   
   if (row.type === ClientType.PERSONNE_MORALE) {
-    return <>{row.legalName || "-"}</>;
+    return <>{row.legalName || row.entreprise?.legalName || row.entreprise?.name || "-"}</>;
   }
   
   return <span className="text-muted-foreground">-</span>;
@@ -92,6 +112,40 @@ export function ClientCompletionStatusCell({ row }: ClientCellProps) {
     return <span className="text-muted-foreground">-</span>;
   }
   return <StatusBadge status={row.completionStatus as CompletionStatus} />;
+}
+
+export function ClientEmailCell({ row }: ClientCellProps) {
+  if (!row) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  
+  if (row.type === ClientType.PERSONNE_PHYSIQUE) {
+    const primaryPerson = row.persons?.find((p: any) => p.isPrimary) || row.persons?.[0];
+    return <span>{primaryPerson?.email || row.email || "-"}</span>;
+  }
+  
+  if (row.type === ClientType.PERSONNE_MORALE) {
+    return <span>{row.entreprise?.email || row.email || "-"}</span>;
+  }
+  
+  return <span>{row.email || "-"}</span>;
+}
+
+export function ClientPhoneCell({ row }: ClientCellProps) {
+  if (!row) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  
+  if (row.type === ClientType.PERSONNE_PHYSIQUE) {
+    const primaryPerson = row.persons?.find((p: any) => p.isPrimary) || row.persons?.[0];
+    return <span>{primaryPerson?.phone || row.phone || "-"}</span>;
+  }
+  
+  if (row.type === ClientType.PERSONNE_MORALE) {
+    return <span>{row.entreprise?.phone || row.phone || "-"}</span>;
+  }
+  
+  return <span>{row.phone || "-"}</span>;
 }
 
 

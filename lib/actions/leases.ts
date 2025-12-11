@@ -207,26 +207,21 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
       property: {
         include: {
           owner: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              legalName: true,
-              type: true,
-              email: true,
+            include: {
+              persons: {
+                orderBy: { isPrimary: 'desc' },
+              },
+              entreprise: true,
             },
           },
         },
       },
       parties: {
-        select: {
-          id: true,
-          profilType: true,
-          firstName: true,
-          lastName: true,
-          legalName: true,
-          type: true,
-          email: true,
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
         },
       },
       documents: {
@@ -247,6 +242,23 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
     return { success: false, error: "Bail introuvable" };
   }
 
+  // Helper pour obtenir le nom d'un client
+  const getClientName = (client: any): string => {
+    if (client.type === ClientType.PERSONNE_PHYSIQUE) {
+      const primaryPerson = client.persons?.find((p: any) => p.isPrimary) || client.persons?.[0];
+      if (primaryPerson) {
+        const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+        return name || primaryPerson.email || "Client";
+      }
+      return client.email || "Client";
+    }
+    // PERSONNE_MORALE
+    if (client.entreprise) {
+      return client.entreprise.legalName || client.entreprise.name || client.entreprise.email || "Client";
+    }
+    return client.legalName || client.email || "Client";
+  };
+
   // Vérifier s'il y a un locataire connecté au bail
   const hasTenant = bail.parties.some(party => party.profilType === ProfilType.LOCATAIRE);
   
@@ -254,9 +266,7 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
     // Trouver le nom du locataire pour le message d'erreur
     const tenant = bail.parties.find(party => party.profilType === ProfilType.LOCATAIRE);
     if (tenant) {
-      const tenantName = tenant.type === ClientType.PERSONNE_PHYSIQUE
-        ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || "Locataire"
-        : tenant.legalName || tenant.email || "Locataire";
+      const tenantName = getClientName(tenant);
       
       return {
         success: false,
@@ -336,10 +346,24 @@ export async function getLease(id: string) {
     include: {
       property: {
         include: {
-          owner: true,
+          owner: {
+            include: {
+              persons: {
+                orderBy: { isPrimary: 'desc' },
+              },
+              entreprise: true,
+            },
+          },
         },
       },
-      parties: true,
+      parties: {
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
+        },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
       documents: true,
@@ -399,8 +423,26 @@ export async function getLeases(params: {
     prisma.bail.findMany({
       where,
       include: {
-        property: { include: { owner: true } },
-        parties: true,
+        property: { 
+          include: { 
+            owner: {
+              include: {
+                persons: {
+                  orderBy: { isPrimary: 'desc' },
+                },
+                entreprise: true,
+              },
+            },
+          },
+        },
+        parties: {
+          include: {
+            persons: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            entreprise: true,
+          },
+        },
       },
       skip: (page - 1) * pageSize,
       take: pageSize,

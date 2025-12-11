@@ -395,8 +395,6 @@ model IntakeLink {
   status      IntakeStatus    @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
   submittedAt DateTime?
 
-  rawPayload Json?
-
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?

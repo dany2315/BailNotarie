@@ -317,6 +317,12 @@ export async function calculateClientCompletionStatus(
   if (client.completionStatus === CompletionStatus.COMPLETED) {
     return CompletionStatus.COMPLETED;
   }
+  
+  // Si le statut est PENDING_CHECK, on ne le change pas automatiquement
+  // (le client a soumis son formulaire et attend une vérification)
+  if (client.completionStatus === CompletionStatus.PENDING_CHECK) {
+    return CompletionStatus.PENDING_CHECK;
+  }
 
   const completion = await checkClientCompletion(clientId);
 

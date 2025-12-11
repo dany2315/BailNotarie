@@ -40,6 +40,14 @@ const contactFieldsSchema = {
     .trim()
     .optional(),
 };
+const documentMetaSchema = z.object({
+  kind: z.nativeEnum(DocumentKind),
+  fileKey: z.string(),
+  fileName: z.string(),
+  mimeType: z.string(),
+  size: z.number(),
+  label: z.string().optional(),
+});
 
 const personFieldsSchema = {
   firstName: z.preprocess(
@@ -122,6 +130,7 @@ const personFieldsSchema = {
       })
   ),
   isPrimary: z.boolean().optional(),
+  documents: z.array(documentMetaSchema).optional(),
 };
 
 const personsArraySchema = z.preprocess(
@@ -462,16 +471,17 @@ export const ownerFormSchema = z
     type: z.nativeEnum(ClientType),
 
     // 🌟 SEULS CHAMPS "IDENTITÉ" EN RACINE → email + téléphone
+    // Le téléphone peut venir de persons[0].phone pour PERSONNE_PHYSIQUE
     phone: z.preprocess(
       (val) =>
         val === "" || val === null || val === undefined ? undefined : val,
       z
-        .string("Le numéro de téléphone est requis")
-        .min(1, "Le numéro de téléphone est requis")
+        .string()
         .max(15, "Le numéro de téléphone est trop long")
         .refine((val) => !val || isValidPhoneNumberSafe(val), {
           message: "Numéro de téléphone invalide",
         })
+        .optional()
     ),
     email: z
       .string()
@@ -485,6 +495,10 @@ export const ownerFormSchema = z
 
     // Données du bail
     ...bailFieldsSchema,
+
+    clientDocuments: z.array(documentMetaSchema).optional(),
+    propertyDocuments: z.array(documentMetaSchema).optional(),
+    bailDocuments: z.array(documentMetaSchema).optional(),
 
     // Données du locataire (email uniquement)
     tenantEmail: z.preprocess(
@@ -538,6 +552,7 @@ export const ownerFormSchema = z
           .trim(),
       })
       .optional(),
+    documents: z.array(documentMetaSchema).optional(),
 
     // Personnes (personne principale + autres)
     // 👉 Contient TOUTES les infos perso (nom, prénom, naissance, etc.)
@@ -658,6 +673,19 @@ export const ownerFormSchema = z
           });
         }
       });
+      
+      // Vérifier que le téléphone est présent (soit au niveau racine, soit dans persons[0])
+      const primaryPerson = data.persons[0];
+      const hasPhoneAtRoot = data.phone && data.phone.trim() !== "";
+      const hasPhoneInPerson = primaryPerson?.phone && primaryPerson.phone.trim() !== "";
+      
+      if (!hasPhoneAtRoot && !hasPhoneInPerson) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["phone"],
+          message: "Le numéro de téléphone est requis",
+        });
+      }
     }
 
     // ------------------------------------------------------------------
@@ -676,105 +704,226 @@ export const ownerFormSchema = z
 
 
 // Schéma pour formulaire locataire complet (tous les champs requis)
-export const tenantFormSchema = z.object({
-  clientId: z.string().cuid("ID client invalide"),
-  // Champs personne physique (tous requis)
-  type: z.nativeEnum(ClientType),
-  firstName: z.preprocess(
-    (val) => (val === "" || val === null || val === undefined ? undefined : val),
-    z.string("le prénom est requis")
-      .max(100, "Le prénom est trop long")
-      .trim()
-  ),
-  lastName: z.preprocess(
-    (val) => (val === "" || val === null || val === undefined ? undefined : val),
-    z.string("le nom est requis")
-      .max(100, "Le nom est trop long")
-      .trim()
-  ),
-    profession: z.preprocess(
-      (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string("le profession est requis")
-        .max(200, "La profession est trop longue")
-        .trim()
-    ),
-  familyStatus: z.nativeEnum(FamilyStatus, {
-      error:"La situation familiale est requise"
-    }),
-  matrimonialRegime: z.nativeEnum(MatrimonialRegime, {
-      error: "Le régime matrimonial est requis",
-    }).optional(),
-    birthPlace: z.preprocess(
-      (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string("le lieu de naissance est requis")
-        .max(200, "Le lieu de naissance est trop long")
-        .trim()
-    ),
-    birthDate: z.preprocess(
-      (val) => {
-        if (val === "" || val === null || val === undefined) return "";
-        return String(val);
-      },
-      z.string()
-        .min(1, "La date de naissance est requise")
-        .transform((val) => {
-          const date = new Date(val);
-          if (isNaN(date.getTime())) {
-            throw new z.ZodError([{
-              code: z.ZodIssueCode.custom,
-              path: ["birthDate"],
-              message: "Date de naissance invalide",
-            }]);
-          }
-          return date;
+// Utilise la même structure que ownerFormSchema avec persons/entreprise
+export const tenantFormSchema = z
+  .object({
+    // Données client locataire
+    clientId: z.string().cuid("ID client invalide"),
+    type: z.nativeEnum(ClientType),
+
+    // 🌟 SEULS CHAMPS "IDENTITÉ" EN RACINE → email + téléphone
+    // Le téléphone peut venir de persons[0].phone pour PERSONNE_PHYSIQUE
+    phone: z.preprocess(
+      (val) =>
+        val === "" || val === null || val === undefined ? undefined : val,
+      z
+        .string()
+        .max(15, "Le numéro de téléphone est trop long")
+        .refine((val) => !val || isValidPhoneNumberSafe(val), {
+          message: "Numéro de téléphone invalide",
         })
+        .optional()
     ),
-  // Champs de contact (tous requis)
-  phone: z.preprocess(
-    (val) => (val === "" || val === null || val === undefined ? undefined : val),
-    z.string("le numéro de téléphone est requis")
-      .min(1, "Le numéro de téléphone est requis")
-      .max(15, "Le numéro de téléphone est trop long")
-      .refine((val) => !val || isValidPhoneNumberSafe(val), {
-        message: "Numéro de téléphone invalide",
+    email: z
+      .string()
+      .email("Email invalide")
+      .max(100, "L'email est trop long")
+      .toLowerCase()
+      .trim(), // Email requis et non modifiable
+
+    // Documents du client (assurance, RIB)
+    clientDocuments: z.array(documentMetaSchema).optional(),
+
+    // Bloc entreprise (pour PERSONNE_MORALE)
+    entreprise: z
+      .object({
+        legalName: z
+          .string()
+          .min(1, "La raison sociale est requise")
+          .max(200, "La raison sociale est trop longue")
+          .trim(),
+        registration: z
+          .string()
+          .min(1, "Le numéro d'enregistrement est requis")
+          .max(50, "Le numéro d'enregistrement est trop long")
+          .trim(),
+        name: z
+          .string()
+          .min(1, "Le nom commercial est requis")
+          .max(200, "Le nom commercial est trop long")
+          .trim(),
+        email: z
+          .string()
+          .email("Email invalide")
+          .max(100, "L'email est trop long")
+          .toLowerCase()
+          .trim(),
+        phone: z
+          .string()
+          .min(1, "Le numéro de téléphone est requis")
+          .max(15, "Le numéro de téléphone est trop long")
+          .trim(),
+        fullAddress: z
+          .string()
+          .min(1, "L'adresse est requise")
+          .max(500, "L'adresse est trop longue")
+          .trim(),
+        nationality: z
+          .string()
+          .min(1, "La nationalité est requise")
+          .max(100, "La nationalité est trop longue")
+          .trim(),
       })
-  ),
-  email: z.string()
-    .email("Email invalide")
-    .max(100, "L'email est trop long")
-    .toLowerCase()
-    .trim(), // Email requis et non modifiable
-  fullAddress: z.preprocess(
-    (val) => (val === "" || val === null || val === undefined ? undefined : val),
-    z.string("l'adresse est requis")
-      .max(500, "L'adresse est trop longue")
-      .trim()
-  ),
-  legalName: z.preprocess(
-      (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string()
-        .max(200, "La raison sociale est trop longue")
-        .trim()
-        .optional()
-    ),
-   registration: z.preprocess(
-      (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string()
-        .max(50, "Le numéro d'enregistrement est trop long")
-        .trim()
-        .optional()
-    ),
-    nationality: z.preprocess(
-      (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string("la nationalité est requis")
-        .min(1, "La nationalité est requise")
-        .max(100, "La nationalité est trop longue")
-        .trim()
-        .refine((val) => val !== undefined, {
-          message: "La nationalité est requise",
-        })
-    ),
-});
+      .optional(),
+    documents: z.array(documentMetaSchema).optional(),
+
+    // Personnes (personne principale + autres)
+    // 👉 Contient TOUTES les infos perso (nom, prénom, naissance, etc.)
+    persons: personsArraySchema,
+  })
+  .superRefine((data, ctx) => {
+    // ------------------------------------------------------------------
+    // PERSONNE PHYSIQUE → tout doit venir de persons[]
+    // ------------------------------------------------------------------
+    if (data.type === ClientType.PERSONNE_PHYSIQUE) {
+      if (!data.persons || data.persons.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["persons"],
+          message: "Au moins une personne est requise",
+        });
+        return;
+      }
+
+      const isEmpty = (val: unknown) =>
+        val === undefined ||
+        val === null ||
+        (typeof val === "string" && val.trim() === "");
+
+      data.persons.forEach((person, index) => {
+        const basePath: (string | number)[] = ["persons", index];
+
+        if (isEmpty(person.firstName)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "firstName"],
+            message: "Le prénom est requis",
+          });
+        }
+
+        if (isEmpty(person.lastName)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "lastName"],
+            message: "Le nom est requis",
+          });
+        }
+
+        if (isEmpty(person.email)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "email"],
+            message: "L'email est requis",
+          });
+        }
+
+        if (isEmpty(person.phone)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "phone"],
+            message: "Le téléphone est requis",
+          });
+        }
+
+        if (isEmpty(person.fullAddress)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "fullAddress"],
+            message: "L'adresse est requise",
+          });
+        }
+
+        if (isEmpty(person.profession)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "profession"],
+            message: "La profession est requise",
+          });
+        }
+
+        if (isEmpty(person.nationality)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "nationality"],
+            message: "La nationalité est requise",
+          });
+        }
+
+        if (!person.familyStatus) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "familyStatus"],
+            message: "La situation familiale est requise",
+          });
+        }
+
+        if (isEmpty(person.birthPlace)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "birthPlace"],
+            message: "Le lieu de naissance est requis",
+          });
+        }
+
+        if (!person.birthDate) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "birthDate"],
+            message: "La date de naissance est requise",
+          });
+        }
+
+        // Régime matrimonial requis uniquement si statut familial = MARIE
+        if (
+          person.familyStatus === FamilyStatus.MARIE &&
+          !person.matrimonialRegime
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...basePath, "matrimonialRegime"],
+            message:
+              "Le régime matrimonial est requis lorsque le statut familial est marié",
+          });
+        }
+      });
+      
+      // Vérifier que le téléphone est présent (soit au niveau racine, soit dans persons[0])
+      const primaryPerson = data.persons[0];
+      const hasPhoneAtRoot = data.phone && data.phone.trim() !== "";
+      const hasPhoneInPerson = primaryPerson?.phone && primaryPerson.phone.trim() !== "";
+      
+      if (!hasPhoneAtRoot && !hasPhoneInPerson) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["phone"],
+          message: "Le numéro de téléphone est requis",
+        });
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // PERSONNE MORALE → tout doit venir de entreprise
+    // ------------------------------------------------------------------
+    if (data.type === ClientType.PERSONNE_MORALE) {
+      if (!data.entreprise) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["entreprise"],
+          message: "Les informations de l'entreprise sont requises",
+        });
+      }
+    }
+  });
 
 // ============================================================================
 // SCHÉMAS DE CRÉATION COMPLÈTE AVEC BIEN ET BAIL
@@ -1017,12 +1166,15 @@ const updatePersonSchema = z.object({
     .refine((val) => !val || isValidPhoneNumberSafe(val), {
       message: "Numéro de téléphone invalide",
     }),
-  email: z.string()
-    .email("Email invalide")
-    .max(100, "L'email est trop long")
-    .toLowerCase()
-    .trim()
-    .optional(),
+  email: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.string()
+      .email("Email invalide")
+      .max(100, "L'email est trop long")
+      .toLowerCase()
+      .trim()
+      .optional()
+  ),
   fullAddress: z.string()
     .max(500, "L'adresse est trop longue")
     .trim()

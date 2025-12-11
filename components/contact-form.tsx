@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { PhoneButton } from "@/components/ui/phone-button";
-import { Mail, Phone, Send, CheckCircle } from "lucide-react";
+import { Mail, Phone, Send, CheckCircle, MapPin } from "lucide-react";
 import { sendMail } from "@/app/action";
 import { contactFormSchema } from "@/lib/zod/contact";
 import { PhoneInput } from "@/components/ui/phone-input";

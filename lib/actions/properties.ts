@@ -189,10 +189,28 @@ export async function getProperty(id: string) {
   return prisma.property.findUnique({
     where: { id },
     include: {
-      owner: true,
+      owner: {
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
+        },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
-      bails: { include: { parties: true } },
+      bails: { 
+        include: { 
+          parties: {
+            include: {
+              persons: {
+                orderBy: { isPrimary: 'desc' },
+              },
+              entreprise: true,
+            },
+          },
+        },
+      },
       documents: true,
     },
   });
@@ -228,7 +246,14 @@ export async function getProperties(params: {
     prisma.property.findMany({
       where,
       include: {
-        owner: true,
+        owner: {
+          include: {
+            persons: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            entreprise: true,
+          },
+        },
       },
       skip: (page - 1) * pageSize,
       take: pageSize,

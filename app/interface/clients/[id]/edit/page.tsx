@@ -18,33 +18,84 @@ export default async function EditClientPage({
     notFound();
   }
 
-  // Obtenir les données principales depuis Person (personne primaire) ou Entreprise
-  const primaryPerson = client.persons?.find(p => p.isPrimary) || client.persons?.[0];
-  const entreprise = client.entreprise;
+  // Fonction helper récursive pour sérialiser les Decimal de Prisma
+  const serializeDecimal = (obj: any): any => {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+    
+    // Détecter et convertir les Decimal de Prisma
+    if (obj && typeof obj === 'object') {
+      // Vérifier si c'est un Decimal de Prisma
+      const isDecimal = 
+        obj.constructor?.name === 'Decimal' ||
+        (typeof obj.toNumber === 'function' && 
+         typeof obj.toString === 'function' && 
+         !Array.isArray(obj) && 
+         !(obj instanceof Date) &&
+         obj.constructor !== Object &&
+         obj.constructor !== RegExp);
+      
+      if (isDecimal) {
+        try {
+          if (typeof obj.toNumber === 'function') {
+            const num = obj.toNumber();
+            return isNaN(num) ? null : num;
+          }
+          const num = Number(obj);
+          return isNaN(num) ? null : num;
+        } catch {
+          try {
+            return parseFloat(obj.toString()) || null;
+          } catch {
+            return null;
+          }
+        }
+      }
+      
+      // Gérer les Date
+      if (obj instanceof Date) {
+        return obj.toISOString();
+      }
+      
+      // Gérer les tableaux
+      if (Array.isArray(obj)) {
+        return obj.map(serializeDecimal);
+      }
+      
+      // Gérer les objets (récursivement)
+      const serialized: any = {};
+      for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          serialized[key] = serializeDecimal(obj[key]);
+        }
+      }
+      return serialized;
+    }
+    
+    return obj;
+  };
+
+  // Sérialiser le client IMMÉDIATEMENT pour convertir les Decimal en nombres
+  // Parcourir récursivement tous les objets pour convertir tous les Decimal
+  // Cela évite l'erreur "Only plain objects can be passed to Client Components"
+  const serializedClient = serializeDecimal(client);
+
+  // Obtenir les données principales depuis le client sérialisé
+  const primaryPerson = serializedClient.persons?.find((p: any) => p.isPrimary) || serializedClient.persons?.[0];
+  const entreprise = serializedClient.entreprise;
 
   // Obtenir le nom du client
-  const clientName = client.type === ClientType.PERSONNE_PHYSIQUE
+  const clientName = serializedClient.type === ClientType.PERSONNE_PHYSIQUE
     ? primaryPerson
       ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
       : "Client"
     : entreprise?.legalName || entreprise?.name || "Client";
 
-  // Fonction helper pour sérialiser les Decimal
-  const serializeDecimal = (value: any): any => {
-    if (value && typeof value === 'object' && value.constructor?.name === 'Decimal') {
-      return Number(value);
-    }
-    return value;
-  };
-
-  // Sérialiser le client pour convertir les Decimal en nombres
-  // Cela évite l'erreur "Only plain objects can be passed to Client Components"
-  const serializedClient = JSON.parse(JSON.stringify(client, (key, value) => serializeDecimal(value)));
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href={`/interface/clients/${client.id}`}>
+        <Link href={`/interface/clients/${serializedClient.id}`}>
           <Button variant="ghost" size="icon">
             <ArrowLeft className="size-4" />
           </Button>

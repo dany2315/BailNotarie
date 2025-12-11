@@ -9,7 +9,7 @@ import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actio
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
 import { randomBytes } from "crypto";
-import { BailType, BailFamille, BailStatus, PropertyStatus, ClientType, ProfilType, IntakeTarget } from "@prisma/client";
+import { BailType, BailFamille, BailStatus, PropertyStatus, ClientType, ProfilType, IntakeTarget, CompletionStatus, DocumentKind } from "@prisma/client";
 import { 
   updateClientCompletionStatus as calculateAndUpdateClientStatus, 
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
@@ -17,6 +17,19 @@ import {
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { NotificationType } from "@prisma/client";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
+import {
+  handleTenantClientTypeStep,
+  handleTenantClientInfoStep,
+  handleTenantDocumentsStep,
+  handleTenantLegacySave,
+  handleOwnerClientTypeStep,
+  handleOwnerClientInfoStep,
+  handleOwnerPropertyStep,
+  handleOwnerBailStep,
+  handleOwnerTenantStep,
+  handleOwnerDocumentsStep,
+  handleOwnerLegacySave,
+} from "./intake-handlers";
 
 export async function createIntakeLink(data: unknown) {
   const user = await requireAuth();
@@ -236,13 +249,12 @@ export async function submitIntake(data: unknown) {
     }
   }
 
-  // Fallback pour l'ancien système
+  // Fallback pour l'ancien système (ne devrait plus être utilisé)
   const updated = await prisma.intakeLink.update({
     where: { token },
     data: {
       status: "SUBMITTED",
       submittedAt: new Date(),
-      rawPayload: payload as any,
     },
   });
 
@@ -315,21 +327,29 @@ export async function getIntakeLinks(params: {
 }
 
 // Sauvegarder partiellement les données du formulaire (sans validation complète)
+// Sauvegarde directement en base de données pour optimiser les performances
 export async function savePartialIntake(data: unknown) {
   const validated = submitIntakeSchema.parse(data);
-  const { token, payload } = validated as { token: string; payload: any };
+  const { token, payload, stepId } = validated as { token: string; payload: any; stepId?: string };
 
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     include: {
       client: {
         include: {
-          persons: {
-            where: { isPrimary: true },
-            select: { email: true },
-          },
-          entreprise: {
-            select: { email: true },
+          persons: true,
+          entreprise: true,
+        },
+      },
+      property: true,
+      bail: {
+        include: {
+          parties: {
+            include: {
+              persons: {
+                where: { isPrimary: true },
+              },
+            },
           },
         },
       },
@@ -349,171 +369,286 @@ export async function savePartialIntake(data: unknown) {
   }
 
   const clientId = intakeLink.clientId;
-  const targetType = intakeLink.target as IntakeTarget
+  if (!clientId) {
+    throw new Error("ClientId manquant dans l'intakeLink");
+  }
 
-  // 🔁 Normalisation : pour OWNER, on force payload.email à suivre entreprise / personne principale
+  const targetType = intakeLink.target as IntakeTarget;
+
+  // Normaliser le payload
   let normalizedPayload: any = payload;
+  const clientType = normalizedPayload.type as ClientType | undefined;
 
-  if (targetType === "OWNER") {
-    const ownerType = normalizedPayload.type as ClientType | undefined;
-
-    if (ownerType === ClientType.PERSONNE_MORALE && normalizedPayload.entreprise) {
-      normalizedPayload = {
-        ...normalizedPayload,
-        email:
-          normalizedPayload.entreprise.email ??
-          normalizedPayload.email ??
-          null,
-      };
-    }
-
-    if (
-      ownerType === ClientType.PERSONNE_PHYSIQUE &&
-      Array.isArray(normalizedPayload.persons) &&
-      normalizedPayload.persons.length > 0
-    ) {
-      const primary = normalizedPayload.persons[0];
-      normalizedPayload = {
-        ...normalizedPayload,
-        email: primary?.email ?? normalizedPayload.email ?? null,
-      };
-    }
+  if (clientType === ClientType.PERSONNE_MORALE && normalizedPayload.entreprise) {
+    normalizedPayload = {
+      ...normalizedPayload,
+      email: normalizedPayload.entreprise.email ?? normalizedPayload.email ?? null,
+    };
   }
 
-  // À partir d'ici on ne travaille plus qu'avec effectivePayload
-  const effectivePayload: any =
-    targetType === "OWNER" ? normalizedPayload : payload;
+  if (
+    clientType === ClientType.PERSONNE_PHYSIQUE &&
+    Array.isArray(normalizedPayload.persons) &&
+    normalizedPayload.persons.length > 0
+  ) {
+    const primary = normalizedPayload.persons[0];
+    normalizedPayload = {
+      ...normalizedPayload,
+      email: primary?.email ?? normalizedPayload.email ?? null,
+    };
+  }
 
-  /**
-   * 1) Vérif email OWNER (personne ou entreprise)
-   */
-  if (targetType === "OWNER" && clientId) {
-    const currentClient = intakeLink.client;
-    const currentEmail =
-      currentClient?.persons?.[0]?.email || currentClient?.entreprise?.email || null;
+  const effectivePayload: any = normalizedPayload;
 
-    if (effectivePayload.email && typeof effectivePayload.email === "string") {
-      const emailToCheck = effectivePayload.email.trim().toLowerCase();
+  // Router vers la fonction appropriée selon le target
+  if (targetType === "TENANT") {
+    return await savePartialTenantIntake(intakeLink, effectivePayload, stepId);
+  } else if (targetType === "OWNER") {
+    return await savePartialOwnerIntake(intakeLink, effectivePayload, stepId);
+  }
 
-      // Si le client a déjà cet email, on ne vérifie pas plus loin
-      if (!currentEmail || currentEmail.trim().toLowerCase() !== emailToCheck) {
-        const [existingPersonWithEmail, existingEntrepriseWithEmail] =
-          await Promise.all([
-            prisma.person.findFirst({
-              where: { email: emailToCheck },
-              include: { client: { select: { id: true } } },
-            }),
-            prisma.entreprise.findFirst({
-              where: { email: emailToCheck },
-              include: { client: { select: { id: true } } },
-            }),
-          ]);
+  throw new Error("Type d'intake non supporté");
+}
 
-        const existingClientId =
-          existingPersonWithEmail?.client?.id ||
-          existingEntrepriseWithEmail?.client?.id;
 
-        if (existingClientId && existingClientId !== clientId) {
-          throw new Error(
-            "Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact"
-          );
+// Sauvegarder partiellement les données du formulaire TENANT par step
+async function savePartialTenantIntake(
+  intakeLink: any,
+  payload: any,
+  stepId: string | undefined,
+) {
+  const clientId = intakeLink.clientId;
+  if (!clientId) {
+    throw new Error("ClientId manquant dans l'intakeLink");
+  }
+
+  // Switch case pour gérer chaque step
+  switch (stepId) {
+    case "clientType":
+      return await handleTenantClientTypeStep(intakeLink, payload, clientId);
+    
+    case "clientInfo":
+      return await handleTenantClientInfoStep(intakeLink, payload, clientId);
+    
+    case "documents":
+      return await handleTenantDocumentsStep(intakeLink, payload, clientId);
+    
+    default:
+      // Si pas de stepId, utiliser l'ancien comportement pour compatibilité
+      return await handleTenantLegacySave(intakeLink, payload, clientId);
+  }
+}
+
+// Sauvegarder partiellement les données du formulaire OWNER par step
+async function savePartialOwnerIntake(
+  intakeLink: any,
+  payload: any,
+  stepId: string | undefined,
+) {
+  const clientId = intakeLink.clientId;
+  if (!clientId) {
+    throw new Error("ClientId manquant dans l'intakeLink");
+  }
+
+  // Switch case pour gérer chaque step
+  switch (stepId) {
+    case "clientType":
+      return await handleOwnerClientTypeStep(intakeLink, payload, clientId);
+    
+    case "clientInfo":
+      return await handleOwnerClientInfoStep(intakeLink, payload, clientId);
+    
+    case "property":
+      return await handleOwnerPropertyStep(intakeLink, payload, clientId);
+    
+    case "bail":
+      return await handleOwnerBailStep(intakeLink, payload, clientId);
+    
+    case "tenant":
+      return await handleOwnerTenantStep(intakeLink, payload, clientId);
+    
+    case "documents":
+      return await handleOwnerDocumentsStep(intakeLink, payload, clientId);
+    
+    default:
+      // Si pas de stepId, utiliser l'ancien comportement pour compatibilité
+      return await handleOwnerLegacySave(intakeLink, payload, clientId);
+  }
+}
+
+// ✅ OPTIMISATION 6: Fonction helper optimisée pour gérer les documents dans une transaction
+export async function handleDocumentsInTransaction(
+  tx: any,
+  payload: any,
+  clientId: string,
+  intakeLink: any,
+) {
+  // Documents des personnes
+  if (payload.persons && Array.isArray(payload.persons)) {
+    const allPersons = await tx.person.findMany({
+      where: { clientId },
+      orderBy: { isPrimary: 'desc' },
+    });
+
+    // Préparer toutes les opérations de documents en parallèle
+    const documentOperations: Promise<void>[] = [];
+
+    for (let i = 0; i < payload.persons.length; i++) {
+      const personData = payload.persons[i];
+      const personId = allPersons[i]?.id;
+      
+      if (personId && personData?.documents && Array.isArray(personData.documents)) {
+        for (const docMeta of personData.documents) {
+          if (docMeta.fileKey) {
+            documentOperations.push(
+              tx.document.findFirst({
+                where: {
+                  personId,
+                  fileKey: docMeta.fileKey,
+                },
+              }).then(async (existingDoc: any) => {
+                if (existingDoc && !existingDoc.uploadedById) {
+                  await tx.document.update({
+                    where: { id: existingDoc.id },
+                    data: {
+                      ...(docMeta.label && { label: docMeta.label }),
+                      ...(docMeta.mimeType && { mimeType: docMeta.mimeType }),
+                      ...(docMeta.size && { size: docMeta.size }),
+                    },
+                  });
+                } else if (!existingDoc) {
+                  console.warn(`[handleDocumentsInTransaction] Document NON trouvé pour person ${i}, fileKey: ${docMeta.fileKey}`);
+                }
+              })
+            );
+          }
         }
       }
     }
 
-    /**
-     * 2) Vérif email locataire renseigné dans le formulaire propriétaire (tenantEmail)
-     *    On bloque si l'email existe déjà pour un client qui n'est PAS LOCATAIRE.
-     *    Si déjà utilisé par un LOCATAIRE, on laisse passer.
-     */
-    if (
-      effectivePayload.tenantEmail &&
-      typeof effectivePayload.tenantEmail === "string"
-    ) {
-      const tenantEmailToCheck =
-        effectivePayload.tenantEmail.trim().toLowerCase();
-
-      const [existingPersonTenant, existingEntrepriseTenant] =
-        await Promise.all([
-          prisma.person.findFirst({
-            where: { email: tenantEmailToCheck },
-            include: { client: { select: { id: true, profilType: true } } },
-          }),
-          prisma.entreprise.findFirst({
-            where: { email: tenantEmailToCheck },
-            include: { client: { select: { id: true, profilType: true } } },
-          }),
-        ]);
-
-      const existingTenantClient =
-        existingPersonTenant?.client || existingEntrepriseTenant?.client;
-
-      if (
-        existingTenantClient &&
-        existingTenantClient.profilType !== ProfilType.LOCATAIRE
-      ) {
-        throw new Error(
-          "Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact"
-        );
-      }
-    }
+    await Promise.all(documentOperations);
   }
 
-  /**
-   * 3) Vérif email pour un formulaire LOCATAIRE (target === TENANT)
-   *    On applique la même logique que pour OWNER: email pas déjà utilisé par un autre client.
-   */
-  if (targetType === "TENANT" && clientId) {
-    const currentClient = intakeLink.client;
-    const currentEmail =
-      currentClient?.persons?.[0]?.email || currentClient?.entreprise?.email || null;
-
-    if (effectivePayload.email && typeof effectivePayload.email === "string") {
-      const emailToCheck = effectivePayload.email.trim().toLowerCase();
-
-      if (!currentEmail || currentEmail.trim().toLowerCase() !== emailToCheck) {
-        const [existingPersonWithEmail, existingEntrepriseWithEmail] =
-          await Promise.all([
-            prisma.person.findFirst({
-              where: { email: emailToCheck },
-              include: { client: { select: { id: true } } },
-            }),
-            prisma.entreprise.findFirst({
-              where: { email: emailToCheck },
-              include: { client: { select: { id: true } } },
-            }),
-          ]);
-
-        const existingClientId =
-          existingPersonWithEmail?.client?.id ||
-          existingEntrepriseWithEmail?.client?.id;
-
-        if (existingClientId && existingClientId !== clientId) {
-          throw new Error(
-            "Cet email est déjà utilisé. Impossible d'utiliser cet email. Veuillez contacter le service client : /#contact"
-          );
-        }
-      }
-    }
-  }
-
-  // 4) Sauvegarder les données partiellement dans rawPayload (brouillon)
-  await prisma.intakeLink.update({
-    where: { token },
-    data: {
-      rawPayload: effectivePayload as any,
-    },
+  // Documents de l'entreprise
+  const entreprise = await tx.entreprise.findUnique({
+    where: { clientId },
   });
 
-  // On ne touche pas à Client / Person / Property / Bail ici.
-  // Toute la cuisine lourde se fait dans submitOwnerForm (à la soumission finale).
+  if (entreprise && payload.entreprise?.documents && Array.isArray(payload.entreprise.documents)) {
+    const entrepriseDocOperations = payload.entreprise.documents
+      .filter((docMeta: any) => docMeta.fileKey)
+      .map((docMeta: any) =>
+        tx.document.findFirst({
+          where: {
+            entrepriseId: entreprise.id,
+            fileKey: docMeta.fileKey,
+          },
+        }).then(async (existingDoc: any) => {
+          if (existingDoc && !existingDoc.uploadedById) {
+            await tx.document.update({
+              where: { id: existingDoc.id },
+              data: {
+                ...(docMeta.label && { label: docMeta.label }),
+                ...(docMeta.mimeType && { mimeType: docMeta.mimeType }),
+                ...(docMeta.size && { size: docMeta.size }),
+              },
+            });
+          }
+        })
+      );
 
-  return { success: true };
+    await Promise.all(entrepriseDocOperations);
+  }
+
+  // Documents client
+  if (payload.clientDocuments && Array.isArray(payload.clientDocuments)) {
+    const clientDocOperations = payload.clientDocuments
+      .filter((docMeta: any) => docMeta.fileKey)
+      .map((docMeta: any) =>
+        tx.document.findFirst({
+          where: {
+            clientId,
+            personId: null,
+            entrepriseId: null,
+            fileKey: docMeta.fileKey,
+          },
+        }).then(async (existingDoc: any) => {
+          if (existingDoc && !existingDoc.uploadedById) {
+            await tx.document.update({
+              where: { id: existingDoc.id },
+              data: {
+                ...(docMeta.label && { label: docMeta.label }),
+                ...(docMeta.mimeType && { mimeType: docMeta.mimeType }),
+                ...(docMeta.size && { size: docMeta.size }),
+              },
+            });
+          }
+        })
+      );
+
+    await Promise.all(clientDocOperations);
+  }
+
+  // Documents de la propriété
+  if (intakeLink.propertyId && payload.propertyDocuments && Array.isArray(payload.propertyDocuments)) {
+    const propertyDocOperations = payload.propertyDocuments
+      .filter((docMeta: any) => docMeta.fileKey)
+      .map((docMeta: any) =>
+        tx.document.findFirst({
+          where: {
+            propertyId: intakeLink.propertyId,
+            fileKey: docMeta.fileKey,
+          },
+        }).then(async (existingDoc: any) => {
+          if (existingDoc && !existingDoc.uploadedById) {
+            await tx.document.update({
+              where: { id: existingDoc.id },
+              data: {
+                ...(docMeta.label && { label: docMeta.label }),
+                ...(docMeta.mimeType && { mimeType: docMeta.mimeType }),
+                ...(docMeta.size && { size: docMeta.size }),
+              },
+            });
+          }
+        })
+      );
+
+    await Promise.all(propertyDocOperations);
+  }
+
+  // Documents du bail
+  if (intakeLink.bailId && payload.bailDocuments && Array.isArray(payload.bailDocuments)) {
+    const bailDocOperations = payload.bailDocuments
+      .filter((docMeta: any) => docMeta.fileKey)
+      .map((docMeta: any) =>
+        tx.document.findFirst({
+          where: {
+            bailId: intakeLink.bailId,
+            fileKey: docMeta.fileKey,
+          },
+        }).then(async (existingDoc: any) => {
+          if (existingDoc && !existingDoc.uploadedById) {
+            await tx.document.update({
+              where: { id: existingDoc.id },
+              data: {
+                ...(docMeta.label && { label: docMeta.label }),
+                ...(docMeta.mimeType && { mimeType: docMeta.mimeType }),
+                ...(docMeta.size && { size: docMeta.size }),
+              },
+            });
+          }
+        })
+      );
+
+    await Promise.all(bailDocOperations);
+  }
 }
 
 
 // Récupérer les documents déjà uploadés pour un intake (sans authentification, accessible via token)
+// Les documents sont maintenant stockés directement en base de données
 export async function getIntakeDocuments(token: string) {
+  console.log("[getIntakeDocuments] Récupération des documents pour token:", token);
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     include: {
@@ -535,9 +670,14 @@ export async function getIntakeDocuments(token: string) {
   const documents: any[] = [];
 
   // Récupérer les documents du client (livret de famille, PACS)
+  // Ce sont les documents qui ont un clientId mais pas de personId ni entrepriseId
   if (intakeLink.clientId) {
     const clientDocs = await prisma.document.findMany({
-      where: { clientId: intakeLink.clientId },
+      where: { 
+        clientId: intakeLink.clientId,
+        personId: null,
+        entrepriseId: null,
+      },
       orderBy: { createdAt: "desc" },
     });
     documents.push(...clientDocs);
@@ -550,7 +690,13 @@ export async function getIntakeDocuments(token: string) {
         where: { personId: person.id },
         orderBy: { createdAt: "desc" },
       });
-      documents.push(...personDocs);
+      // Ajouter personIndex pour faciliter le filtrage
+      personDocs.forEach((doc, index) => {
+        documents.push({
+          ...doc,
+          personIndex: intakeLink.client?.persons?.indexOf(person) || 0,
+        });
+      });
     }
   }
 
@@ -581,7 +727,121 @@ export async function getIntakeDocuments(token: string) {
     documents.push(...bailDocs);
   }
 
+  console.log("[getIntakeDocuments] Total documents récupérés:", documents.length, documents.map(d => ({ kind: d.kind, fileKey: d.fileKey?.substring(0, 50) })));
   return documents;
+}
+
+// Supprimer un document directement depuis la base de données
+export async function deleteDocumentFromRawPayload(data: {
+  token: string;
+  fileKey: string;
+  kind: DocumentKind | string;
+  personIndex?: number;
+}) {
+  const { token, fileKey, kind, personIndex } = data;
+
+  const intakeLink = await prisma.intakeLink.findUnique({
+    where: { token },
+    include: {
+      client: {
+        include: {
+          persons: true,
+          entreprise: true,
+        },
+      },
+    },
+  });
+
+  if (!intakeLink) {
+    throw new Error("Lien d'intake introuvable");
+  }
+
+  // Supprimer le fichier du blob si il existe
+  try {
+    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    await deleteBlobFiles([fileKey]);
+  } catch (error) {
+    // Ne pas faire échouer la suppression si le fichier blob n'existe pas
+    console.error(`Erreur lors de la suppression du fichier blob ${fileKey}:`, error);
+  }
+
+  let deleted = false;
+  let documentToDelete = null;
+
+  // Trouver le document à supprimer en cherchant dans tous les emplacements possibles
+  if (personIndex !== undefined && intakeLink.client?.persons) {
+    const person = intakeLink.client.persons[personIndex];
+    if (person) {
+      documentToDelete = await prisma.document.findFirst({
+        where: {
+          personId: person.id,
+          fileKey,
+          kind: kind as any,
+        },
+      });
+    }
+  }
+
+  if (!documentToDelete && intakeLink.client?.entreprise) {
+    documentToDelete = await prisma.document.findFirst({
+      where: {
+        entrepriseId: intakeLink.client.entreprise.id,
+        fileKey,
+        kind: kind as any,
+      },
+    });
+  }
+
+  if (!documentToDelete && intakeLink.clientId) {
+    documentToDelete = await prisma.document.findFirst({
+      where: {
+        clientId: intakeLink.clientId,
+        fileKey,
+        kind: kind as any,
+      },
+    });
+  }
+
+  if (!documentToDelete && intakeLink.propertyId) {
+    documentToDelete = await prisma.document.findFirst({
+      where: {
+        propertyId: intakeLink.propertyId,
+        fileKey,
+        kind: kind as any,
+      },
+    });
+  }
+
+  if (!documentToDelete && intakeLink.bailId) {
+    documentToDelete = await prisma.document.findFirst({
+      where: {
+        bailId: intakeLink.bailId,
+        fileKey,
+        kind: kind as any,
+      },
+    });
+  }
+
+  // Si le document existe, le supprimer
+  if (documentToDelete) {
+    // Supprimer le fichier du blob si il existe
+    try {
+      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      await deleteBlobFiles([documentToDelete.fileKey]);
+    } catch (error) {
+      // Ne pas faire échouer la suppression si le fichier blob n'existe pas
+      console.error(`Erreur lors de la suppression du fichier blob ${documentToDelete.fileKey}:`, error);
+    }
+
+    // Supprimer le document de la base de données
+    await prisma.document.delete({
+      where: { id: documentToDelete.id },
+    });
+    
+    deleted = true;
+  }
+
+  return { success: true, deleted };
 }
 
 // Supprimer une personne supplémentaire d'un client

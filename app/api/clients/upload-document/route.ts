@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
 import { put } from "@vercel/blob";
 import { DocumentKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -8,18 +7,19 @@ import {
 } from "@/lib/utils/completion-status";
 import { revalidatePath } from "next/cache";
 
-export const maxDuration = 60;
-export const runtime = 'nodejs';
+// Configuration pour accepter les fichiers volumineux
+export const maxDuration = 300; // 5 minutes pour les uploads volumineux (multipart)
+export const runtime = 'nodejs'; // Utiliser Node.js runtime pour les uploads
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth();
     const formData = await request.formData();
     
     const file = formData.get("file") as File | null;
     const kind = formData.get("kind") as string | null;
     const personId = formData.get("personId") as string | null;
     const entrepriseId = formData.get("entrepriseId") as string | null;
+    const clientIdParam = formData.get("clientId") as string | null;
 
     if (!file || file.size === 0) {
       return NextResponse.json(
@@ -35,17 +35,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!personId && !entrepriseId) {
+    if (!personId && !entrepriseId && !clientIdParam) {
       return NextResponse.json(
-        { error: "ID personne ou entreprise manquant" },
+        { error: "ID personne, entreprise ou client manquant" },
         { status: 400 }
       );
     }
 
-    // Récupérer le clientId depuis Person ou Entreprise
+    // Récupérer le clientId depuis Person, Entreprise ou directement depuis le paramètre
     let clientId: string | null = null;
     
-    if (personId) {
+    if (clientIdParam) {
+      // Vérifier que le client existe
+      const client = await prisma.client.findUnique({
+        where: { id: clientIdParam },
+        select: { id: true },
+      });
+      if (!client) {
+        return NextResponse.json(
+          { error: "Client introuvable" },
+          { status: 404 }
+        );
+      }
+      clientId = clientIdParam;
+    } else if (personId) {
       const person = await prisma.person.findUnique({
         where: { id: personId },
         select: { clientId: true },
@@ -78,15 +91,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Générer un nom de fichier unique
+    // Générer un nom de fichier unique avec timestamp pour tri chronologique
     const timestamp = Date.now();
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const fileName = `documents/${clientId}/${timestamp}-${sanitizedName}`;
 
     // Uploader le fichier vers Vercel Blob
+    // La fonction put() gère automatiquement les multipart uploads pour fichiers > 100MB
+    // selon la documentation Vercel Blob: https://vercel.com/docs/vercel-blob
     const blob = await put(fileName, file, {
       access: "public",
       token: process.env.BLOB_READ_WRITE_TOKEN,
+      contentType: file.type || "application/octet-stream", // S'assurer que le Content-Type est défini
     });
 
     // Créer le document dans la base de données
@@ -99,7 +115,7 @@ export async function POST(request: NextRequest) {
         size: file.size,
         ...(personId && { personId }),
         ...(entrepriseId && { entrepriseId }),
-        uploadedById: user.id,
+        ...(clientIdParam && { clientId: clientIdParam }),
       },
     });
 

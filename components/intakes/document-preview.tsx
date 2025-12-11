@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { File, Eye, Download, Image, ImageDown, ImageIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getIntakeDocuments } from "@/lib/actions/intakes";
+import { getDocumentLabel } from "@/lib/utils/document-labels";
 
 interface DocumentPreviewProps {
   token: string;
@@ -146,7 +147,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
                     {getDocumentIcon(doc.mimeType)}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
-                        {doc.label || `Document ${doc.kind}`}
+                        {doc.label || getDocumentLabel(doc.kind)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {formatFileSize(doc.size)} • {new Date(doc.createdAt).toLocaleDateString()}
