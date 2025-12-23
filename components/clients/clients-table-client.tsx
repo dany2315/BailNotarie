@@ -29,16 +29,33 @@ interface ClientsTableClientProps {
   columns: Column<Client>[];
 }
 
+// Hook pour debouncer les valeurs
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = React.useState(value);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export function ClientsTableClient({ initialData, columns }: ClientsTableClientProps) {
   const [search, setSearch] = React.useState("");
+  const debouncedSearch = useDebouncedValue(search, 300); // Debounce 300ms
   const [profilTypeFilter, setProfilTypeFilter] = React.useState<ProfilType[]>([]);
   const [completionStatusFilter, setCompletionStatusFilter] = React.useState<CompletionStatus[]>([]);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
+  const [isPending, startTransition] = React.useTransition();
 
-  // Filtrer les données côté client
+  // Filtrer les données côté client - utilise debouncedSearch pour éviter les re-renders à chaque frappe
   const filteredData = React.useMemo(() => {
-    let filtered = [...initialData];
+    let filtered = initialData;
 
     // Filtrer par profil (multi-select)
     if (profilTypeFilter.length > 0) {
@@ -52,9 +69,9 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
       );
     }
 
-    // Filtrer par recherche (nom, prénom, raison sociale, email)
-    if (search.trim()) {
-      const searchLower = search.toLowerCase().trim();
+    // Filtrer par recherche (nom, prénom, raison sociale, email) - DEBOUNCED
+    if (debouncedSearch.trim()) {
+      const searchLower = debouncedSearch.toLowerCase().trim();
       filtered = filtered.filter((client) => {
         const firstName = (client.firstName || "").toLowerCase();
         const lastName = (client.lastName || "").toLowerCase();
@@ -73,7 +90,7 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
     }
 
     return filtered;
-  }, [initialData, profilTypeFilter, completionStatusFilter, search]);
+  }, [initialData, profilTypeFilter, completionStatusFilter, debouncedSearch]);
 
   // Calculer les connexions AVANT la pagination pour pouvoir réorganiser
   const connectionsMap = React.useMemo(() => {
@@ -183,37 +200,26 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
   const tableContainerRef = React.useRef<HTMLDivElement>(null);
   const [connectionLines, setConnectionLines] = React.useState<Array<{ from: string; to: string; fromTop: number; toTop: number }>>([]);
 
-  // Calculer les positions des lignes pour les flèches
+  // Calculer les positions des lignes pour les flèches - optimisé avec requestAnimationFrame
   React.useEffect(() => {
-    if (rowRefs.current.size === 0 || !tableContainerRef.current) {
-      // Réessayer après un court délai pour laisser le DOM se mettre à jour
-      const timer = setTimeout(() => {
-        if (rowRefs.current.size > 0 && tableContainerRef.current) {
-          calculateLines();
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-    
-    calculateLines();
+    let rafId: number;
+    let mounted = true;
     
     function calculateLines() {
-      if (!tableContainerRef.current) return;
+      if (!mounted || !tableContainerRef.current || rowRefs.current.size === 0) return;
       
       const lines: Array<{ from: string; to: string; fromTop: number; toTop: number }> = [];
       const tableElement = tableContainerRef.current.querySelector('table');
       if (!tableElement) return;
       
-      const tableRect = tableElement.getBoundingClientRect();
       const containerRect = tableContainerRef.current.getBoundingClientRect();
-      const offsetTop = tableRect.top - containerRect.top;
       
       connections.forEach((connectedIds, clientId) => {
         const fromRow = rowRefs.current.get(clientId);
         if (!fromRow) return;
         
         const fromRect = fromRow.getBoundingClientRect();
-        const fromCenterY = fromRect.top - containerRect.top + fromRect.height / 2 + 10
+        const fromCenterY = fromRect.top - containerRect.top + fromRect.height / 2 + 10;
         
         connectedIds.forEach((connectedId) => {
           const toRow = rowRefs.current.get(connectedId);
@@ -231,8 +237,18 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
         });
       });
       
-      setConnectionLines(lines);
+      if (mounted) {
+        setConnectionLines(lines);
+      }
     }
+    
+    // Utiliser requestAnimationFrame pour ne pas bloquer l'UI
+    rafId = requestAnimationFrame(calculateLines);
+    
+    return () => {
+      mounted = false;
+      cancelAnimationFrame(rafId);
+    };
   }, [connections, paginatedData]);
 
   return (
@@ -256,15 +272,19 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
             <ClientProfilTypeMultiSelect
               value={profilTypeFilter}
               onValueChange={(value) => {
-                setProfilTypeFilter(value);
-                setPage(1);
+                startTransition(() => {
+                  setProfilTypeFilter(value);
+                  setPage(1);
+                });
               }}
             />
             <CompletionStatusMultiSelect
               value={completionStatusFilter}
               onValueChange={(value) => {
-                setCompletionStatusFilter(value);
-                setPage(1);
+                startTransition(() => {
+                  setCompletionStatusFilter(value);
+                  setPage(1);
+                });
               }}
             />
           </>

@@ -5,7 +5,11 @@ import Script from "next/script";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Toaster } from "@/components/shared/toaster";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ 
+  subsets: ["latin"],
+  display: "swap", // Empêche le blocage du rendu
+  preload: true,
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.bailnotarie.fr"),
