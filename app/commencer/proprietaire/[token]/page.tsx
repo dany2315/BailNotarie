@@ -92,7 +92,12 @@ export default async function OwnerFormPage({
       <main className="py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           <div className="mt-5 sm:mt-10 text-[#4373f5] text-center">
-            <h1 className="text-2xl font-bold"> Formulaire bail notarié </h1>
+          <h1 className="text-2xl font-bold"> Formulaire bail notarié
+              <br />
+              <span className="">
+                {intakeLink.target === "OWNER" ? "Propriétaire" : "Locataire"}
+              </span>
+            </h1>
             <p className="text-muted-foreground"> Complétez votre dossier en quelques étapes simples </p>
           </div>
           <div className="mt-10">

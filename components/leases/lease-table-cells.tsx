@@ -56,8 +56,8 @@ export function LeaseTenantCell({ row }: LeaseCellProps) {
     const primaryPerson = tenant.persons?.find((p: any) => p.isPrimary) || tenant.persons?.[0];
     const name = primaryPerson
       ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
-      : `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim();
-    const email = primaryPerson?.email || tenant.email;
+      : "";
+    const email = primaryPerson?.email || "";
     const hasMultiplePersons = tenant.persons && tenant.persons.length > 1;
     
     return (
@@ -77,13 +77,14 @@ export function LeaseTenantCell({ row }: LeaseCellProps) {
   }
   
   if (tenant.type === "PERSONNE_MORALE") {
-    return <>
-    <Link href={`/interface/clients/${tenant.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
-      <Building2 className="size-4 text-muted-foreground" />
-      {tenant.legalName || "-"}
-      <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background " />
-    </Link>
-    </>;
+    const entrepriseName = tenant.entreprise?.legalName || tenant.entreprise?.name || "-";
+    return (
+      <Link href={`/interface/clients/${tenant.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
+        <Building2 className="size-4 text-muted-foreground" />
+        {entrepriseName}
+        <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background " />
+      </Link>
+    );
   }
   
   return <span className="text-muted-foreground">-</span>;
@@ -107,8 +108,8 @@ export function LeaseOwnerCell({ row }: LeaseCellProps) {
       const primaryPerson = owner.persons?.find((p: any) => p.isPrimary) || owner.persons?.[0];
       const name = primaryPerson
         ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
-        : `${owner.firstName || ""} ${owner.lastName || ""}`.trim();
-      const email = primaryPerson?.email || owner.email;
+        : "";
+      const email = primaryPerson?.email || "";
       const hasMultiplePersons = owner.persons && owner.persons.length > 1;
       
       return (
@@ -128,10 +129,11 @@ export function LeaseOwnerCell({ row }: LeaseCellProps) {
     }
     
     if (owner.type === "PERSONNE_MORALE") {
+      const entrepriseName = owner.entreprise?.legalName || owner.entreprise?.name || "-";
       return (
         <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
           <Building2 className="size-4 text-muted-foreground" />
-          {owner.entreprise?.legalName || owner.entreprise?.name || owner.legalName || "-"}
+          {entrepriseName}
           <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background" />
         </Link>
       );
@@ -147,8 +149,8 @@ export function LeaseOwnerCell({ row }: LeaseCellProps) {
     const primaryPerson = owner.persons?.find((p: any) => p.isPrimary) || owner.persons?.[0];
     const name = primaryPerson
       ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
-      : `${owner.firstName || ""} ${owner.lastName || ""}`.trim();
-    const email = primaryPerson?.email || owner.email;
+      : "";
+    const email = primaryPerson?.email || "";
     const hasMultiplePersons = owner.persons && owner.persons.length > 1;
     
     return (
@@ -168,10 +170,11 @@ export function LeaseOwnerCell({ row }: LeaseCellProps) {
   }
   
   if (owner.type === "PERSONNE_MORALE") {
+    const entrepriseName = owner.entreprise?.legalName || owner.entreprise?.name || "-";
     return (
       <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-medium hover:underline group w-full">
         <Building2 className="size-4 text-muted-foreground" />
-        {owner.entreprise?.legalName || owner.entreprise?.name || owner.legalName || "-"}
+        {entrepriseName}
         <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background" />
       </Link>
     );

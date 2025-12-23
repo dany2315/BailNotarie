@@ -3,6 +3,8 @@ import { resend } from "@/lib/resend";
 import MailOwnerForm from "@/emails/mail-owner-form";
 import MailTenantForm from "@/emails/mail-tenant-form";
 import MailRequestStatus from "@/emails/mail-request-status";
+import MailConfirmation from "@/emails/mail-Confirmation";
+import MailTenantSubmitted from "@/emails/mail-tenant-submitted";
 
 export const sendOwnerFormEmail = inngest.createFunction(
   { id: "send-owner-form-email" },
@@ -71,6 +73,61 @@ export const sendRequestStatusEmail = inngest.createFunction(
           propertyAddress: event.data.propertyAddress,
           profilType: event.data.profilType,
           intakeLinkToken: event.data.intakeLinkToken,
+        }),
+      });
+      
+      if (result.error) {
+        throw new Error(`Erreur Resend: ${result.error.message}`);
+      }
+      
+      return result;
+    });
+  }
+);
+
+export const sendIntakeConfirmationEmail = inngest.createFunction(
+  { id: "send-intake-confirmation-email" },
+  { event: "email/intake.confirmation" },
+  async ({ event, step }) => {
+    await step.run("send-intake-confirmation-email", async () => {
+      const result = await resend.emails.send({
+        from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
+        to: event.data.email,
+        subject: "Confirmation de votre demande de bail notarié",
+        react: MailConfirmation({
+          firstName: event.data.firstName,
+          lastName: event.data.lastName,
+          email: event.data.email,
+          phone: event.data.phone || "",
+          role: event.data.role,
+        }),
+      });
+      
+      if (result.error) {
+        throw new Error(`Erreur Resend: ${result.error.message}`);
+      }
+      
+      return result;
+    });
+  }
+);
+
+export const sendTenantSubmittedNotificationEmail = inngest.createFunction(
+  { id: "send-tenant-submitted-notification-email" },
+  { event: "email/intake.tenant-submitted" },
+  async ({ event, step }) => {
+    await step.run("send-tenant-submitted-notification-email", async () => {
+      const result = await resend.emails.send({
+        from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
+        to: event.data.ownerEmail,
+        subject: "Votre locataire a soumis son formulaire",
+        react: MailTenantSubmitted({
+          ownerFirstName: event.data.ownerFirstName || "",
+          ownerLastName: event.data.ownerLastName || "",
+          tenantFirstName: event.data.tenantFirstName || "",
+          tenantLastName: event.data.tenantLastName || "",
+          propertyAddress: event.data.propertyAddress,
+          interfaceUrl: event.data.interfaceUrl,
         }),
       });
       

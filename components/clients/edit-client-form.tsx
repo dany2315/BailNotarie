@@ -195,8 +195,8 @@ export function EditClientForm({ client }: EditClientFormProps) {
     watchedMatrimonialRegime
   );
   
-  // Documents requis pour chaque personne (BIRTH_CERT, ID_IDENTITY)
-  const personRequiredDocuments = [DocumentKind.BIRTH_CERT, DocumentKind.ID_IDENTITY];
+  // Documents requis pour chaque personne (ID_IDENTITY)
+  const personRequiredDocuments = [DocumentKind.ID_IDENTITY];
   
   // Documents requis pour l'entreprise (KBIS, STATUTES)
   const entrepriseRequiredDocuments = [DocumentKind.KBIS, DocumentKind.STATUTES];
@@ -366,8 +366,8 @@ export function EditClientForm({ client }: EditClientFormProps) {
         form.setValue("type", value as ClientType);
       }}>
         <TabsList className="grid w-full grid-cols-2 border rounded-lg mb-6" >
-          <TabsTrigger value={ClientType.PERSONNE_PHYSIQUE} disabled={isLoading}>Personne physique</TabsTrigger>
-          <TabsTrigger value={ClientType.PERSONNE_MORALE} disabled={isLoading}>Personne morale</TabsTrigger>
+          <TabsTrigger value={ClientType.PERSONNE_PHYSIQUE} disabled={isLoading}>Particulier</TabsTrigger>
+          <TabsTrigger value={ClientType.PERSONNE_MORALE} disabled={isLoading}>Entreprise</TabsTrigger>
         </TabsList>
 
         <Card>

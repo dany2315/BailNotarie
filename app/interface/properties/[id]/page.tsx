@@ -56,8 +56,8 @@ export default async function PropertyDetailPage({
   const ownerName = property.owner.type === ClientType.PERSONNE_PHYSIQUE
     ? primaryPerson
       ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
-      : `${property.owner.firstName || ""} ${property.owner.lastName || ""}`.trim()
-    : property.owner.entreprise?.legalName || property.owner.entreprise?.name || property.owner.legalName || "";
+      : ""
+    : property.owner.entreprise?.legalName || property.owner.entreprise?.name || "";
 
   // Statistiques
   const stats = {
@@ -85,15 +85,13 @@ export default async function PropertyDetailPage({
     OTHER: "Autre",
   };
 
-  import { documentKindLabels } from "@/lib/utils/document-labels";
-
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* En-tête */}
       <div className="flex flex-col gap-4">
         <div className="flex items-start gap-3 sm:gap-4">
           <Link href="/interface/properties">
-            <Button variant="ghost" size="icon" className="flex-shrink-0">
+            <Button variant="ghost" size="icon" className="shrink-0">
               <ArrowLeft className="size-4" />
             </Button>
           </Link>
@@ -194,7 +192,7 @@ export default async function PropertyDetailPage({
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Adresse</p>
               <div className="flex items-start gap-2">
-                <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <MapPin className="size-4 text-muted-foreground mt-0.5 shrink-0" />
                 <p className="text-base font-medium">{property.fullAddress}</p>
               </div>
             </div>
@@ -284,14 +282,14 @@ export default async function PropertyDetailPage({
           {/* Section Contact */}
           {(() => {
             const ownerEmail = property.owner.type === ClientType.PERSONNE_PHYSIQUE
-              ? primaryPerson?.email || property.owner.email
-              : property.owner.entreprise?.email || property.owner.email;
+              ? primaryPerson?.email
+              : property.owner.entreprise?.email;
             const ownerPhone = property.owner.type === ClientType.PERSONNE_PHYSIQUE
-              ? primaryPerson?.phone || property.owner.phone
-              : property.owner.entreprise?.phone || property.owner.phone;
+              ? primaryPerson?.phone
+              : property.owner.entreprise?.phone;
             const ownerAddress = property.owner.type === ClientType.PERSONNE_PHYSIQUE
-              ? primaryPerson?.fullAddress || property.owner.fullAddress
-              : property.owner.entreprise?.fullAddress || property.owner.fullAddress;
+              ? primaryPerson?.fullAddress
+              : property.owner.entreprise?.fullAddress;
 
             if (!ownerEmail && !ownerPhone && !ownerAddress) return null;
 
@@ -315,7 +313,7 @@ export default async function PropertyDetailPage({
                 )}
                 {ownerAddress && (
                   <div className="flex items-start gap-2">
-                    <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <MapPin className="size-4 text-muted-foreground mt-0.5 shrink-0" />
                     <p className="text-sm">{ownerAddress}</p>
                   </div>
                 )}
@@ -324,48 +322,48 @@ export default async function PropertyDetailPage({
           })()}
 
           {/* Section Détails Personnels */}
-          {property.owner.type === "PERSONNE_PHYSIQUE" && (
+          {property.owner.type === "PERSONNE_PHYSIQUE" && primaryPerson && (
             <>
-              {(property.owner.birthDate || property.owner.birthPlace || property.owner.nationality || property.owner.profession || property.owner.familyStatus) && (
+              {(primaryPerson.birthDate || primaryPerson.birthPlace || primaryPerson.nationality || primaryPerson.profession || primaryPerson.familyStatus) && (
                 <>
                   <Separator />
                   <div className="space-y-3">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations personnelles</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {property.owner.birthDate && (
+                      {primaryPerson.birthDate && (
                         <div className="space-y-1">
                           <p className="text-xs font-medium text-muted-foreground">Date de naissance</p>
-                          <p className="text-sm">{formatDate(property.owner.birthDate)}</p>
+                          <p className="text-sm">{formatDate(primaryPerson.birthDate)}</p>
                         </div>
                       )}
-                      {property.owner.birthPlace && (
+                      {primaryPerson.birthPlace && (
                         <div className="space-y-1">
                           <p className="text-xs font-medium text-muted-foreground">Lieu de naissance</p>
-                          <p className="text-sm">{property.owner.birthPlace}</p>
+                          <p className="text-sm">{primaryPerson.birthPlace}</p>
                         </div>
                       )}
-                      {property.owner.nationality && (
+                      {primaryPerson.nationality && (
                         <div className="space-y-1">
                           <p className="text-xs font-medium text-muted-foreground">Nationalité</p>
-                          <p className="text-sm">{property.owner.nationality}</p>
+                          <p className="text-sm">{primaryPerson.nationality}</p>
                         </div>
                       )}
-                      {property.owner.profession && (
+                      {primaryPerson.profession && (
                         <div className="space-y-1">
                           <p className="text-xs font-medium text-muted-foreground">Profession</p>
-                          <p className="text-sm">{property.owner.profession}</p>
+                          <p className="text-sm">{primaryPerson.profession}</p>
                         </div>
                       )}
-                      {property.owner.familyStatus && (
+                      {primaryPerson.familyStatus && (
                         <div className="space-y-1">
                           <p className="text-xs font-medium text-muted-foreground">Statut familial</p>
-                          <FamilyStatusBadge status={property.owner.familyStatus} />
+                          <FamilyStatusBadge status={primaryPerson.familyStatus} />
                         </div>
                       )}
-                      {property.owner.familyStatus === "MARIE" && property.owner.matrimonialRegime && (
+                      {primaryPerson.familyStatus === "MARIE" && primaryPerson.matrimonialRegime && (
                         <div className="space-y-1">
                           <p className="text-xs font-medium text-muted-foreground">Régime matrimonial</p>
-                          <MatrimonialRegimeBadge regime={property.owner.matrimonialRegime} />
+                          <MatrimonialRegimeBadge regime={primaryPerson.matrimonialRegime} />
                         </div>
                       )}
                     </div>
@@ -375,12 +373,12 @@ export default async function PropertyDetailPage({
             </>
           )}
 
-          {property.owner.type === "PERSONNE_MORALE" && property.owner.registration && (
+          {property.owner.type === "PERSONNE_MORALE" && property.owner.entreprise?.registration && (
             <>
               <Separator />
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Numéro d'immatriculation</p>
-                <p className="text-sm font-mono">{property.owner.registration}</p>
+                <p className="text-sm font-mono">{property.owner.entreprise.registration}</p>
               </div>
             </>
           )}
@@ -437,7 +435,7 @@ export default async function PropertyDetailPage({
                             <StatusBadge status={bail.status} />
                           </div>
                         </div>
-                        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">

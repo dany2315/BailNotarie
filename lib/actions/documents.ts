@@ -248,20 +248,10 @@ export async function handleOwnerFormDocuments(
   if (type === "PERSONNE_PHYSIQUE") {
     const persons = client.persons || [];
     
-    // Pour chaque personne, uploader BIRTH_CERT et ID_IDENTITY
+    // Pour chaque personne, uploader ID_IDENTITY
     for (let i = 0; i < persons.length; i++) {
       const person = persons[i];
-      const birthCertKey = i === 0 ? "birthCert" : `birthCert_${i}`;
       const idIdentityKey = i === 0 ? "idIdentity" : `idIdentity_${i}`;
-
-      const birthCert = formData.get(birthCertKey) as File | null;
-      if (birthCert && birthCert.size > 0) {
-        const doc = await uploadFileAndCreateDocument(birthCert, DocumentKind.BIRTH_CERT, {
-          personId: person.id,
-          label: `Acte de naissance - ${person.firstName || ''} ${person.lastName || ''}`.trim(),
-        });
-        if (doc) documents.push(doc);
-      }
 
       const idIdentity = formData.get(idIdentityKey) as File | null;
       if (idIdentity && idIdentity.size > 0) {
@@ -428,20 +418,10 @@ export async function handleTenantFormDocuments(
   if (type === "PERSONNE_PHYSIQUE") {
     const persons = client.persons || [];
     
-    // Pour chaque personne, uploader BIRTH_CERT et ID_IDENTITY
+    // Pour chaque personne, uploader ID_IDENTITY
     for (let i = 0; i < persons.length; i++) {
       const person = persons[i];
-      const birthCertKey = i === 0 ? "birthCert" : `birthCert_${i}`;
       const idIdentityKey = i === 0 ? "idIdentity" : `idIdentity_${i}`;
-
-      const birthCert = formData.get(birthCertKey) as File | null;
-      if (birthCert && birthCert.size > 0) {
-        const doc = await uploadFileAndCreateDocument(birthCert, DocumentKind.BIRTH_CERT, {
-          personId: person.id,
-          label: `Acte de naissance - ${person.firstName || ''} ${person.lastName || ''}`.trim(),
-        });
-        if (doc) documents.push(doc);
-      }
 
       const idIdentity = formData.get(idIdentityKey) as File | null;
       if (idIdentity && idIdentity.size > 0) {

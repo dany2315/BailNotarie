@@ -163,3 +163,37 @@ export async function triggerBlogCommentNotificationEmail(data: {
   });
 }
 
+/**
+ * Déclenche l'envoi d'un email de confirmation après soumission d'un formulaire d'intake
+ */
+export async function triggerIntakeConfirmationEmail(data: {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  role: "LOCATAIRE" | "PROPRIETAIRE";
+}) {
+  await inngest.send({
+    name: "email/intake.confirmation",
+    data,
+  });
+}
+
+/**
+ * Déclenche l'envoi d'un email de notification au propriétaire quand le locataire soumet son formulaire
+ */
+export async function triggerTenantSubmittedNotificationEmail(data: {
+  ownerEmail: string;
+  ownerFirstName?: string | null;
+  ownerLastName?: string | null;
+  tenantFirstName?: string | null;
+  tenantLastName?: string | null;
+  propertyAddress?: string | null;
+  interfaceUrl: string;
+}) {
+  await inngest.send({
+    name: "email/intake.tenant-submitted",
+    data,
+  });
+}
+

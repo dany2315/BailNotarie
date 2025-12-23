@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
-import { triggerOwnerFormEmail, triggerRequestStatusEmail } from "@/lib/inngest/helpers";
+import { triggerOwnerFormEmail, triggerRequestStatusEmail, triggerIntakeConfirmationEmail } from "@/lib/inngest/helpers";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { z } from "zod";
 
@@ -80,7 +80,6 @@ export async function startAsOwner(data: StartOwnerInput) {
       },
     });
 
-
     // Notification pour création de propriétaire
     await createNotificationForAllUsers(
       NotificationType.CLIENT_CREATED_FROM_LANDING_PAGE,
@@ -89,6 +88,46 @@ export async function startAsOwner(data: StartOwnerInput) {
       null, // Créé depuis la landing page, pas par un utilisateur
       { createdByForm: true ,profileType: ProfilType.PROPRIETAIRE }
     );
+
+    // Envoyer un email au propriétaire avec le formulaire
+    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+    const ownerFormUrl = `${baseUrl}/commencer/proprietaire/${token}`;
+    
+    // Récupérer les informations de Person pour l'email
+    const ownerPersonData = await prisma.person.findFirst({
+      where: { clientId: client.id, isPrimary: true },
+    });
+
+    const firstName = ownerPersonData?.firstName || "";
+    const lastName = ownerPersonData?.lastName || "";
+    const phone = ownerPersonData?.phone || "";
+    
+    try {
+      await triggerOwnerFormEmail({
+        to: email,
+        firstName: firstName,
+        lastName: lastName,
+        formUrl: ownerFormUrl,
+      });
+    } catch (error) {
+      console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
+      // On continue même si l'email échoue
+    }
+
+    // Envoyer l'email de confirmation au propriétaire
+    try {
+      await triggerIntakeConfirmationEmail({
+        email,
+        firstName: firstName || "",
+        lastName: lastName || "",
+        phone: phone || undefined,
+        role: "PROPRIETAIRE",
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de l'email de confirmation au propriétaire:", error);
+      // On continue même si l'email échoue
+    }
+
     return { success: true, token: intakeLink.token };
   } else {
     // Vérifier d'abord s'il y a un IntakeLink soumis
@@ -132,7 +171,31 @@ export async function startAsOwner(data: StartOwnerInput) {
         },
       });
 
-      if (pendingIntakeLink) {
+      if (pendingIntakeLink && client) {
+        // Envoyer un email au propriétaire avec le formulaire
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+        const ownerFormUrl = `${baseUrl}/commencer/proprietaire/${pendingIntakeLink.token}`;
+        
+        // Récupérer les informations de Person pour l'email
+        const ownerPersonData = await prisma.person.findFirst({
+          where: { clientId: client.id, isPrimary: true },
+        });
+
+        const firstName = ownerPersonData?.firstName || "";
+        const lastName = ownerPersonData?.lastName || "";
+        
+        try {
+          await triggerOwnerFormEmail({
+            to: email,
+            firstName: firstName,
+            lastName: lastName,
+            formUrl: ownerFormUrl,
+          });
+        } catch (error) {
+          console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
+          // On continue même si l'email échoue
+        }
+
         return {
           success: true,
           token: pendingIntakeLink.token,

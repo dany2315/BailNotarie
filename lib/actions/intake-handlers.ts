@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { ClientType, ProfilType, CompletionStatus, BailType, BailFamille, BailStatus, PropertyStatus } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { handleDocumentsInTransaction } from "./intakes";
+import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
+import { randomBytes } from "crypto";
 
 // ============================================================================
 // HANDLERS POUR TENANT INTAKE
@@ -303,20 +305,32 @@ export async function handleOwnerTenantStep(
     await validateTenantEmailForOwner(intakeLink, payload, clientId);
   }
 
+  const tenantEmail = payload.tenantEmail?.trim().toLowerCase();
+  if (!tenantEmail) {
+    return { success: true }; // Pas de locataire à gérer
+  }
+
+  if (!intakeLink.bailId) {
+    throw new Error("BailId manquant pour ajouter le locataire");
+  }
+
+  // Récupérer l'ancien email du locataire avant la transaction pour détecter les changements
+  const existingTenant = intakeLink.bail?.parties?.find(
+    (party: any) => party.profilType === ProfilType.LOCATAIRE
+  );
+  let oldTenantEmail: string | null = null;
+  let tenantId: string | null = null;
+
+  if (existingTenant) {
+    tenantId = existingTenant.id;
+    const tenantPerson = await prisma.person.findFirst({
+      where: { clientId: existingTenant.id, isPrimary: true },
+    });
+    oldTenantEmail = tenantPerson?.email?.toLowerCase() || null;
+  }
+
+  // Exécuter la transaction pour créer/mettre à jour le locataire
   await prisma.$transaction(async (tx) => {
-    if (!intakeLink.bailId) {
-      throw new Error("BailId manquant pour ajouter le locataire");
-    }
-
-    const tenantEmail = payload.tenantEmail?.trim().toLowerCase();
-    if (!tenantEmail) {
-      return; // Pas de locataire à gérer
-    }
-
-    const existingTenant = intakeLink.bail?.parties?.find(
-      (party: any) => party.profilType === ProfilType.LOCATAIRE
-    );
-
     if (existingTenant) {
       // Mettre à jour l'email de la personne primaire
       const tenantPerson = await tx.person.findFirst({
@@ -344,6 +358,8 @@ export async function handleOwnerTenantStep(
         },
       });
 
+      tenantId = newTenant.id;
+
       // Connecter le locataire au bail
       await tx.bail.update({
         where: { id: intakeLink.bailId },
@@ -355,6 +371,87 @@ export async function handleOwnerTenantStep(
       });
     }
   });
+
+  // Après la transaction, gérer l'envoi d'email au locataire
+  if (tenantId) {
+    // Récupérer le bail avec le propertyId pour créer l'IntakeLink
+    const bail = await prisma.bail.findUnique({
+      where: { id: intakeLink.bailId },
+      include: {
+        property: true,
+      },
+    });
+
+    if (!bail) {
+      throw new Error("Bail introuvable");
+    }
+
+    // Vérifier si un IntakeLink existe déjà pour ce locataire et ce bail
+    let tenantIntakeLink = await prisma.intakeLink.findFirst({
+      where: {
+        clientId: tenantId,
+        bailId: intakeLink.bailId,
+        target: "TENANT",
+      },
+    });
+
+    // Déterminer si on doit envoyer l'email
+    const shouldSendEmail = 
+      !tenantIntakeLink || // Nouveau locataire, pas encore d'IntakeLink
+      (oldTenantEmail && oldTenantEmail !== tenantEmail); // Email a changé
+
+    if (shouldSendEmail) {
+      // Créer l'IntakeLink si nécessaire
+      if (!tenantIntakeLink) {
+        const token = randomBytes(32).toString("hex");
+        // Utiliser propertyId du bail ou de l'intakeLink si disponible
+        const propertyId = bail.propertyId || intakeLink.propertyId;
+        tenantIntakeLink = await prisma.intakeLink.create({
+          data: {
+            token,
+            target: "TENANT",
+            clientId: tenantId,
+            propertyId: propertyId,
+            bailId: intakeLink.bailId,
+            status: "PENDING",
+          },
+        });
+      } else if (tenantIntakeLink.propertyId !== bail.propertyId && bail.propertyId) {
+        // Mettre à jour le propertyId si le bail a été associé à un bien
+        tenantIntakeLink = await prisma.intakeLink.update({
+          where: { id: tenantIntakeLink.id },
+          data: { propertyId: bail.propertyId },
+        });
+      }
+
+      // Envoyer l'email au locataire avec le formulaire
+      const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+      const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
+
+      // Récupérer les informations de Person pour l'email
+      const tenantPerson = await prisma.person.findFirst({
+        where: { clientId: tenantId, isPrimary: true },
+      });
+
+      const firstName = tenantPerson?.firstName || "";
+      const lastName = tenantPerson?.lastName || "";
+
+      try {
+        await triggerTenantFormEmail({
+          to: tenantEmail,
+          firstName: firstName,
+          lastName: lastName,
+          formUrl: tenantFormUrl,
+        });
+        console.log(`[handleOwnerTenantStep] Email envoyé au locataire: ${tenantEmail}`);
+      } catch (error) {
+        console.error("Erreur lors du déclenchement de l'email au locataire:", error);
+        // On continue même si l'email échoue
+      }
+    } else {
+      console.log(`[handleOwnerTenantStep] Email non envoyé - IntakeLink existe déjà et email inchangé pour: ${tenantEmail}`);
+    }
+  }
 
   return { success: true };
 }

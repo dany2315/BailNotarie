@@ -10,7 +10,7 @@ import { DocumentKind } from "@prisma/client";
 
 export interface FileToUpload {
   file: File;
-  name: string; // Nom du champ (ex: "kbis", "birthCert_0")
+  name: string; // Nom du champ (ex: "kbis", "idIdentity_0")
   documentKind: DocumentKind;
   metadata?: {
     personIndex?: number;
@@ -170,6 +170,12 @@ export async function uploadFilesOptimized(
 
   return results;
 }
+
+
+
+
+
+
 
 
 

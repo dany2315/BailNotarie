@@ -22,10 +22,11 @@ import { DocumentUploaded } from "./document-uploaded";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { tenantFormSchema } from "@/lib/zod/client";
-import { FamilyStatus, MatrimonialRegime, ClientType, DocumentKind } from "@prisma/client";
+import { formatDate, formatCurrency, formatSurface } from "@/lib/utils/formatters";
+import { FamilyStatus, MatrimonialRegime, ClientType, DocumentKind, BailType } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Stepper } from "@/components/ui/stepper";
-import { ArrowLeftIcon, ArrowRightIcon, Loader2, Building2, User2 } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, Loader2, Building2, User2, MapPin, Calendar, Euro, Home, Info } from "lucide-react";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -38,6 +39,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -227,6 +229,7 @@ const buildDefaultValues = (intakeLink: any): FormWithPersons => {
 };
 
 const STEPS = [
+  { id: "overview", title: "Récapitulatif" },
   { id: "clientType", title: "Type de client" },
   { id: "clientInfo", title: "Informations client" },
   { id: "documents", title: "Pièces jointes" },
@@ -283,12 +286,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const ribTenantRef = useRef<HTMLInputElement>(null);
 
   // Refs dynamiques pour les documents de chaque personne
-  const personDocumentRefs = useRef<Record<number, { birthCert: React.RefObject<HTMLInputElement | null>; idIdentity: React.RefObject<HTMLInputElement | null> }>>({});
+  const personDocumentRefs = useRef<Record<number, { idIdentity: React.RefObject<HTMLInputElement | null> }>>({});
 
   // États pour les fichiers sélectionnés
   const [kbisFile, setKbisFile] = useState<File | null>(null);
   const [statutesFile, setStatutesFile] = useState<File | null>(null);
-  const [birthCertFile, setBirthCertFile] = useState<File | null>(null);
   const [idIdentityFile, setIdIdentityFile] = useState<File | null>(null);
   const [livretDeFamilleFile, setLivretDeFamilleFile] = useState<File | null>(null);
   const [contratDePacsFile, setContratDePacsFile] = useState<File | null>(null);
@@ -296,7 +298,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const [ribTenantFile, setRibTenantFile] = useState<File | null>(null);
 
   // États dynamiques pour les documents de chaque personne
-  const [personDocumentFiles, setPersonDocumentFiles] = useState<Record<number, { birthCert: File | null; idIdentity: File | null }>>({});
+  const [personDocumentFiles, setPersonDocumentFiles] = useState<Record<number, { idIdentity: File | null }>>({});
 
   const form = useForm<FormWithPersons>({
     resolver: zodResolver(tenantFormSchema) as any,
@@ -359,14 +361,13 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     persons.forEach((_, index) => {
       if (!personDocumentRefs.current[index]) {
         personDocumentRefs.current[index] = {
-          birthCert: React.createRef<HTMLInputElement | null>() as any,
           idIdentity: React.createRef<HTMLInputElement | null>() as any,
         };
       }
       if (!personDocumentFiles[index]) {
         setPersonDocumentFiles(prev => ({
           ...prev,
-          [index]: { birthCert: null, idIdentity: null }
+          [index]: { idIdentity: null }
         }));
       }
     });
@@ -394,7 +395,13 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "");
     };
     
-    // Fonction helper pour vérifier si l'étape 1 (informations client) a des données
+    // Si le bien ou le bail existe, commencer par l'étape overview (index 0)
+    if (intakeLink.property || intakeLink.bail) {
+      // Après overview, vérifier les autres étapes
+      // Mais toujours commencer par overview si bien/bail existe
+    }
+    
+    // Fonction helper pour vérifier si l'étape clientInfo a des données
     const hasClientInfoData = (): boolean => {
       if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
         const primaryPerson = values.persons?.[0];
@@ -409,14 +416,29 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return false;
     };
     
-    // Vérifier l'étape 0: Type de client
-    // Si le type est vide OU si aucune donnée n'a été saisie dans les étapes suivantes, commencer à l'étape 0
+    // Trouver les indices des étapes
+    const overviewIndex = STEPS.findIndex((s) => s.id === "overview");
+    const clientTypeIndex = STEPS.findIndex((s) => s.id === "clientType");
+    const clientInfoIndex = STEPS.findIndex((s) => s.id === "clientInfo");
+    const documentsIndex = STEPS.findIndex((s) => s.id === "documents");
+    
+    // Si le bien ou le bail existe, commencer par overview
+    if ((intakeLink.property || intakeLink.bail) && overviewIndex !== -1) {
+      // Après overview, continuer avec les autres vérifications
+    }
+    
+    // Vérifier l'étape clientType
+    // Si le type est vide OU si aucune donnée n'a été saisie dans les étapes suivantes, commencer à clientType
     // Cela permet à l'utilisateur de voir et modifier le type même s'il est prérempli
     if (isEmpty(values.type) || !hasClientInfoData()) {
-      return 0;
+      // Si overview existe et bien/bail existe, commencer par overview, sinon clientType
+      if ((intakeLink.property || intakeLink.bail) && overviewIndex !== -1) {
+        return overviewIndex;
+      }
+      return clientTypeIndex !== -1 ? clientTypeIndex : 0;
     }
 
-    // Vérifier l'étape 1: Informations client
+    // Vérifier l'étape clientInfo (maintenant index 2 si overview existe)
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
       const primaryPerson = values.persons?.[0];
       if (!primaryPerson || 
@@ -424,10 +446,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
           isEmpty(primaryPerson.email) || isEmpty(primaryPerson.phone) || isEmpty(primaryPerson.fullAddress) ||
           isEmpty(primaryPerson.profession) || !primaryPerson.familyStatus || 
           isEmpty(primaryPerson.birthPlace) || !primaryPerson.birthDate || isEmpty(primaryPerson.nationality)) {
-        return 1;
+        return clientInfoIndex !== -1 ? clientInfoIndex : 1;
       }
       if (primaryPerson.familyStatus === FamilyStatus.MARIE && !primaryPerson.matrimonialRegime) {
-        return 1;
+        return clientInfoIndex !== -1 ? clientInfoIndex : 1;
       }
       // Vérifier toutes les personnes
       if (values.persons && values.persons.length > 1) {
@@ -437,10 +459,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               isEmpty(person.email) || isEmpty(person.phone) || isEmpty(person.fullAddress) ||
               isEmpty(person.profession) || !person.familyStatus || 
               isEmpty(person.birthPlace) || !person.birthDate || isEmpty(person.nationality)) {
-            return 1;
+            return clientInfoIndex !== -1 ? clientInfoIndex : 1;
           }
           if (person.familyStatus === FamilyStatus.MARIE && !person.matrimonialRegime) {
-            return 1;
+            return clientInfoIndex !== -1 ? clientInfoIndex : 1;
           }
         }
       }
@@ -449,11 +471,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
           isEmpty(values.entreprise.legalName) || isEmpty(values.entreprise.email) || 
           isEmpty(values.entreprise.phone) || isEmpty(values.entreprise.fullAddress) ||
           isEmpty(values.entreprise.registration) || isEmpty(values.entreprise.nationality)) {
-        return 1;
+        return clientInfoIndex !== -1 ? clientInfoIndex : 1;
       }
     }
 
-    // Vérifier l'étape 2: Pièces jointes
+    // Vérifier l'étape documents (maintenant index 3 si overview existe)
     // Utiliser intakeLink directement pour avoir les données à jour
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
       // Vérifier les documents pour chaque personne
@@ -461,11 +483,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         for (let i = 0; i < values.persons.length; i++) {
           const person = values.persons[i];
           const personDocs = intakeLink.client?.persons?.[i]?.documents || [];
-          const hasBirthCert = personDocs.some((doc: any) => doc.kind === "BIRTH_CERT");
           const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
           
-          if (!hasBirthCert || !hasIdIdentity) {
-            return 2;
+          if (!hasIdIdentity) {
+            return documentsIndex !== -1 ? documentsIndex : 2;
           }
         }
       }
@@ -476,13 +497,13 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
         const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE");
         if (!hasLivret) {
-          return 2;
+          return documentsIndex !== -1 ? documentsIndex : 2;
         }
       }
       if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
         const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS");
         if (!hasPacs) {
-          return 2;
+          return documentsIndex !== -1 ? documentsIndex : 2;
         }
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
@@ -491,7 +512,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES");
       
       if (!hasKbis || !hasStatutes) {
-        return 2;
+        return documentsIndex !== -1 ? documentsIndex : 2;
       }
     }
 
@@ -501,7 +522,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB");
     
     if (!hasInsurance || !hasRib) {
-      return 2;
+      return documentsIndex !== -1 ? documentsIndex : 2;
     }
 
     // Toutes les étapes sont complètes, retourner la dernière étape
@@ -511,7 +532,16 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   // Initialiser currentStep avec la première étape incomplète
   useEffect(() => {
     lastSavedValues.current = defaultValues as FormWithPersons;
-    const firstIncompleteStep = getFirstIncompleteStep();
+    let firstIncompleteStep = getFirstIncompleteStep();
+    
+    // Si le bien ou le bail existe, commencer par l'étape overview
+    if (intakeLink.property || intakeLink.bail) {
+      const overviewIndex = STEPS.findIndex((s) => s.id === "overview");
+      if (overviewIndex !== -1) {
+        firstIncompleteStep = overviewIndex;
+      }
+    }
+    
     setCurrentStep(firstIncompleteStep);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -685,12 +715,19 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
   // Fonction pour vérifier si les données d'un step ont changé
   const hasStepDataChanged = (step: number): boolean => {
+    const stepId = STEPS[step]?.id;
+    
+    // L'étape overview est en lecture seule, pas de changement possible
+    if (stepId === "overview") {
+      return false;
+    }
+    
     const fieldsToCheck = getFieldsForStep(step);
     const currentValues = form.getValues();
     const initial = lastSavedValues.current;
 
-    // Pour le step 2 (Pièces jointes), vérifier uniquement les fichiers
-    if (step === 2) {
+    // Pour le step documents (maintenant index 3), vérifier uniquement les fichiers
+    if (stepId === "documents") {
       // Mapper les noms de fichiers aux types de documents
       const fileToDocumentKind: Record<string, string> = {
         kbis: "KBIS",
@@ -734,13 +771,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         const personRefs = personDocumentRefs.current[i];
         const personFiles = personDocumentFiles[i];
         const personDocs = intakeLink.client?.persons?.[i]?.documents || [];
-        
-        if (personRefs?.birthCert.current?.files?.[0] || personFiles?.birthCert) {
-          const hasBirthCert = personDocs.some((doc: any) => doc.kind === "BIRTH_CERT");
-          if (!hasBirthCert) {
-            return true; // Nouveau fichier détecté
-          }
-        }
         
         if (personRefs?.idIdentity.current?.files?.[0] || personFiles?.idIdentity) {
           const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
@@ -920,23 +950,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
     });
 
-    // Gérer les documents par personne (BIRTH_CERT, ID_IDENTITY)
+    // Gérer les documents par personne (ID_IDENTITY)
     const persons = personsWatch || [];
     persons.forEach((_, personIndex) => {
       const personRefs = personDocumentRefs.current[personIndex];
-      const personFiles = personDocumentFiles[personIndex] || { birthCert: null, idIdentity: null };
+      const personFiles = personDocumentFiles[personIndex] || { idIdentity: null };
       
       // Vérifier si les documents existent déjà dans les valeurs
       const personDocsInValues = currentValues.persons?.[personIndex]?.documents || [];
       const personDocs = [...personDocsInValues];
-
-      // Traiter birthCert
-      if (!personDocs.some((d: any) => d.kind === "BIRTH_CERT")) {
-        const birthCertFile = personFiles.birthCert || personRefs?.birthCert?.current?.files?.[0];
-        if (birthCertFile) {
-          filesFormData.append(`birthCert_${personIndex}`, birthCertFile);
-        }
-      }
 
       // Traiter idIdentity
       if (!personDocs.some((d: any) => d.kind === "ID_IDENTITY")) {
@@ -1046,15 +1068,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       // Nettoyer les documents par personne
       persons.forEach((_, personIndex) => {
         const personRefs = personDocumentRefs.current[personIndex];
-        if (personRefs?.birthCert.current) {
-          personRefs.birthCert.current.value = "";
-        }
         if (personRefs?.idIdentity.current) {
           personRefs.idIdentity.current.value = "";
         }
         setPersonDocumentFiles(prev => ({
           ...prev,
-          [personIndex]: { birthCert: null, idIdentity: null }
+          [personIndex]: { idIdentity: null }
         }));
       });
 
@@ -1099,6 +1118,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       // Pour clientInfo, on doit inclure les champs racine (email, phone) pour la synchronisation
       payload = {
         ...stepPayload,
+        // IMPORTANT: Toujours inclure le type pour que le backend sache comment traiter les données
+        type: allValues.type || stepPayload.type,
         // S'assurer que email et phone sont inclus si présents dans les valeurs complètes
         email: allValues.email || stepPayload.email,
         phone: allValues.phone || stepPayload.phone,
@@ -1158,6 +1179,13 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
   const handleNext = async () => {
     const stepId = STEPS[currentStep].id;
+  
+    // Si on est sur l'étape "overview", passer directement à la suivante sans sauvegarde
+    if (stepId === "overview") {
+      const nextStep = Math.min(currentStep + 1, STEPS.length - 1);
+      setCurrentStep(nextStep);
+      return;
+    }
   
     // Si on est sur l'étape "summary", pas besoin de sauvegarder, c'est juste une étape de visionnage
     if (stepId === "summary") {
@@ -1304,6 +1332,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
   const getFieldsForStep = (step: number): (keyof FormWithPersons)[] => {
     const stepId = STEPS[step]?.id;
+    // L'étape overview est en lecture seule, pas de champs
+    if (stepId === "overview") {
+      return [];
+    }
     return getRequiredFields(stepId as StepId, clientType);
   };
 
@@ -1364,14 +1396,9 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         const personFiles = personDocumentFiles[index];
         const personDocs = intakeLink.client?.persons?.[index]?.documents || [];
         
-        const hasBirthCert = personDocs.some((doc: any) => doc.kind === "BIRTH_CERT") ||
-          personRef?.birthCert.current?.files?.[0] || personFiles?.birthCert;
         const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
           personRef?.idIdentity.current?.files?.[0] || personFiles?.idIdentity;
         
-        if (!hasBirthCert) {
-          errors.push(`L'acte de naissance de la personne ${person.firstName} ${person.lastName} est requis`);
-        }
         if (!hasIdIdentity) {
           errors.push(`La pièce d'identité de la personne ${person.firstName} ${person.lastName} est requise`);
         }
@@ -1578,6 +1605,256 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     return { isValid: true };
   };
 
+
+  const renderOverviewStep = () => {
+    const property = intakeLink.property;
+    const bail = intakeLink.bail;
+
+    // Si pas de bien ou de bail, afficher un message informatif
+    if (!property && !bail) {
+      return (
+        <Card className="border-2 border-dashed">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-muted-foreground" />
+              Récapitulatif
+            </CardTitle>
+            <CardDescription>
+              Les informations du bien et du bail seront disponibles une fois que le propriétaire les aura renseignées.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      );
+    }
+
+    // Construire la liste des valeurs ouvertes par défaut
+    const defaultOpenValues: string[] = [];
+    if (property) defaultOpenValues.push("property");
+
+    return (
+      <Accordion type="multiple" defaultValue={defaultOpenValues} className="space-y-6">
+        {/* Informations du bien */}
+        {property && (
+          <AccordionItem value="property" className="border-2 shadow-lg rounded-lg overflow-hidden">
+            <AccordionTrigger className="bg-gradient-to-r from-primary/5 to-primary/10 py-4 px-4 hover:no-underline">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Building2 className="h-6 w-6 text-primary" />
+                </div>
+                <div className="text-left">
+                  <div className="text-base font-bold">Voici le bien que vous souhaitez louer</div>
+                  <div className="text-base mt-1 text-muted-foreground">
+                    Les caractéristiques du logement
+                  </div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pt-4 space-y-4">
+              {property.fullAddress && (
+                <div className="bg-muted/50 rounded-lg p-4 border">
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Adresse
+                      </label>
+                      <p className="mt-1 text-base font-semibold text-foreground">
+                        {property.fullAddress}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div className="grid gap-4 grid-cols-2">
+                {property.surfaceM2 && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Surface
+                    </label>
+                    <p className="text-base font-semibold text-primary">
+                      {formatSurface(Number(property.surfaceM2))}
+                    </p>
+                  </div>
+                )}
+                {property.type && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Type de bien
+                    </label>
+                    <p className="text-base font-semibold">
+                      {property.type.replace(/_/g, " ")}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="grid gap-4 grid-cols-2">
+                {property.legalStatus && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Statut légal
+                    </label>
+                    <p className="text-base font-semibold">
+                      {property.legalStatus.replace(/_/g, " ")}
+                    </p>
+                  </div>
+                )}
+
+                {property.owner &&  (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Propriétaire
+                    </label>
+                    <p className="text-base font-semibold">
+                      {property.owner.persons ? property.owner.persons.find((p: any) => p.isPrimary)?.firstName + " " + property.owner.persons.find((p: any) => p.isPrimary)?.lastName : property.owner.entreprise?.legalName + " " + property.owner.entreprise?.name}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {/* Informations du bail */}
+        {bail && (
+          <AccordionItem value="bail" className="border-2 shadow-lg  rounded-lg overflow-hidden">
+            <AccordionTrigger className="bg-gradient-to-r from-primary/5 to-primary/10 py-4 px-4 hover:no-underline">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Home className="h-6 w-6 text-primary" />
+                </div>
+                <div className="text-left">
+                  <div className="text-base font-bold">Les informations du bail que vous allez signer</div>
+                  <div className="text-base mt-1 text-muted-foreground">
+                    Détails financiers et conditions du contrat
+                  </div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pt-4 space-y-6">
+              {/* Informations financières mises en avant */}
+              <div className="grid gap-4 grid-cols-2">
+                {bail.rentAmount && (
+                  <div className="bg-primary/5 rounded-lg p-4 border-2 border-primary/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Euro className="h-4 w-4 text-primary" />
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Loyer mensuel
+                      </label>
+                    </div>
+                    <p className="text-xl font-bold text-primary">
+                      {formatCurrency(Number(bail.rentAmount))}
+                    </p>
+                  </div>
+                )}
+                {bail.monthlyCharges && Number(bail.monthlyCharges) > 0 && (
+                  <div className="bg-muted/50 rounded-lg p-4 border">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Euro className="h-4 w-4 text-muted-foreground" />
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Charges mensuelles
+                      </label>
+                    </div>
+                    <p className="text-xl font-semibold">
+                      {formatCurrency(Number(bail.monthlyCharges))}
+                    </p>
+                  </div>
+                )}
+                {bail.securityDeposit && Number(bail.securityDeposit) > 0 && (
+                  <div className="bg-amber-50 dark:bg-amber-950/20 rounded-lg p-4 border-2 border-amber-200 dark:border-amber-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Euro className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                      <label className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                        Dépôt de garantie
+                      </label>
+                    </div>
+                    <p className="text-xl font-bold text-amber-700 dark:text-amber-400">
+                      {formatCurrency(Number(bail.securityDeposit))}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Informations du contrat */}
+              <div className="grid gap-4 grid-cols-2 pt-4 border-t">
+                {bail.bailType && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Type de bail
+                    </label>
+                    <p className="text-base font-semibold">
+                      {bail.bailType === BailType.BAIL_NU_3_ANS ? "Bail nu" : bail.bailType === BailType.BAIL_NU_6_ANS ? "Bail nu" : bail.bailType === BailType.BAIL_MEUBLE_1_ANS ? "Bail meublé" : bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "Bail étudiant" : ""}
+                    </p>
+                  </div>
+                )}
+                {bail.bailFamily && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Famille de bail
+                    </label>
+                    <p className="text-base font-semibold">
+                      {bail.bailFamily.replace(/_/g, " ")}
+                    </p>
+                  </div>
+                )}
+                {bail.paymentDay && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Jour de paiement
+                    </label>
+                    <p className="text-base font-semibold">
+                      Le {bail.paymentDay} de chaque mois
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Dates du contrat */}
+              {(bail.effectiveDate || bail.endDate) && (
+                <div className="bg-muted/30 space-y-3 border-t pt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    <label className="text-sm font-semibold text-foreground">
+                      Durée du contrat
+                    </label>
+                  </div>
+                  {bail.bailType && (
+                    <div>
+                      {
+                        bail.bailType === BailType.BAIL_NU_3_ANS ? "3 ans" : bail.bailType === BailType.BAIL_NU_6_ANS ? "6 ans" : bail.bailType === BailType.BAIL_MEUBLE_1_ANS ? "1 an" : bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "9 mois" : ""
+                      }
+                    </div>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {bail.effectiveDate && (
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          Date de début
+                        </label>
+                        <p className="mt-1 text-base font-semibold">
+                          {formatDate(bail.effectiveDate)}
+                        </p>
+                      </div>
+                    )}
+                    {bail.endDate && (
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          Date de fin
+                        </label>
+                        <p className="mt-1 text-base font-semibold">
+                          {formatDate(bail.endDate)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        )}
+      </Accordion>
+    );
+  };
 
   const renderClientTypeStep = () => {
     return (
@@ -1944,6 +2221,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       )}
                     </div>
                     {/* Informations complémentaires */}
+                    <div className="grid gap-4 grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor={`persons.${index}.profession`}>Profession *</Label>
                       <Input
@@ -1955,7 +2233,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                         </p>
                       )}
                     </div>
-                    <div className="grid gap-4 grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor={`persons.${index}.nationality`}>Nationalité *</Label>
                         <Controller
@@ -2159,7 +2436,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Documents client *</h3>
+            <h3 className="text-lg font-semibold">Documents Locataire *</h3>
             {clientType === ClientType.PERSONNE_MORALE ? (
               <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
                 <DocumentUploaded token={intakeLink.token} documentKind="KBIS">
@@ -2209,7 +2486,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     ? `${person.firstName} ${person.lastName}`
                     : `Personne ${index + 1}`;
                   const personRefs = personDocumentRefs.current[index];
-                  const personFiles = personDocumentFiles[index] || { birthCert: null, idIdentity: null };
+                  const personFiles = personDocumentFiles[index] || { idIdentity: null };
                   
                   return (
                     <div key={index} className="space-y-4 border rounded-lg p-4">
@@ -2217,33 +2494,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                         Documents de {personName} {index === 0 && "(Principale)"} *
                       </h4>
                       <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                        <DocumentUploaded 
-                          token={intakeLink.token} 
-                          documentKind="BIRTH_CERT"
-                          personIndex={index}
-                        >
-                          <FileUpload
-                            label="Acte de naissance *"
-                            value={personFiles.birthCert}
-                            onChange={(file) => {
-                              setPersonDocumentFiles(prev => ({
-                                ...prev,
-                                [index]: { ...prev[index], birthCert: file }
-                              }));
-                              if (personRefs?.birthCert.current) {
-                                const dt = new DataTransfer();
-                                if (file) dt.items.add(file);
-                                personRefs.birthCert.current.files = dt.files;
-                              }
-                            }}
-                            disabled={isSubmitting}
-                            uploadToken={intakeLink.token}
-                            documentKind="BIRTH_CERT"
-                            clientId={client?.id}
-                            personIndex={index}
-                            onUploadStateChange={handleUploadStateChange}
-                          />
-                        </DocumentUploaded>
                         <DocumentUploaded 
                           token={intakeLink.token} 
                           documentKind="ID_IDENTITY"
@@ -2382,6 +2632,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const renderStepContent = () => {
     const stepId = STEPS[currentStep]?.id;
     switch (stepId) {
+      case "overview":
+        return renderOverviewStep();
       case "clientType":
         return renderClientTypeStep();
       case "clientInfo":
@@ -2424,22 +2676,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   </div>
                   
                   {/* Barre de progression principale */}
-                  <div className="relative h-3 bg-accent rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all duration-500 ease-out rounded-full"
-                      style={{
-                        width: `${(submissionProgress.step / submissionProgress.totalSteps) * 100}%`,
-                      }}
-                    />
-                    <div
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                      style={{
-                        backgroundSize: "200% 100%",
-                        animation: "shimmer 2s infinite",
-                        backgroundPosition: "200% 0",
-                      }}
-                    />
-                  </div>
+                  <Progress 
+                    value={(submissionProgress.step / submissionProgress.totalSteps) * 100} 
+                    className="h-3"
+                  />
                   
                   {/* Étapes détaillées */}
                   <div className="space-y-2 mt-4">
@@ -2515,8 +2755,9 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             steps={STEPS} 
             currentStep={currentStep}
             onStepClick={(step) => {
-              // Permettre de revenir en arrière OU de cliquer sur l'étape 0 (Type de client) pour permettre de le modifier
-              if (step < currentStep || step === 0) {
+              const stepId = STEPS[step]?.id;
+              // Permettre de revenir en arrière OU de cliquer sur overview ou clientType pour permettre de les modifier
+              if (step < currentStep || stepId === "overview" || stepId === "clientType") {
                 setCurrentStep(step);
               }
             }}
@@ -2541,7 +2782,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         const personRefs = personDocumentRefs.current[index];
         return (
           <React.Fragment key={index}>
-            <input type="file" ref={personRefs?.birthCert} name={`person_${index}_birthCert`} className="hidden" />
             <input type="file" ref={personRefs?.idIdentity} name={`person_${index}_idIdentity`} className="hidden" />
           </React.Fragment>
         );

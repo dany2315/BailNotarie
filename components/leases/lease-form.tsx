@@ -24,9 +24,9 @@ import { z } from "zod";
 // Schéma pour la validation côté client
 const leaseFormSchema = z.object({
   leaseType: z.enum(["HABITATION", "MEUBLE", "COMMERCIAL", "PROFESSIONNEL", "SAISONNIER", "OTHER"]).default("HABITATION"),
-  status: z.enum(["DRAFT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "ACTIVE", "TERMINATED", "CANCELED"]).default("DRAFT"),
+  status: z.enum(["DRAFT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "SIGNED", "TERMINATED"]).default("DRAFT"),
   propertyId: z.string().min(1, "Le bien est requis"),
-  tenantId: z.string().min(1, "Le locataire est requis"),
+  tenantId: z.string().optional().or(z.literal("")),
   effectiveDate: z.string().min(1, "La date de prise d'effet est requise"),
   endDate: z.string().optional().or(z.literal("")),
   rentAmount: z.string().min(1, "Le montant du loyer est requis"),
@@ -78,7 +78,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
       formData.append("leaseType", data.leaseType);
       formData.append("status", data.status);
       formData.append("propertyId", data.propertyId);
-      formData.append("tenantId", data.tenantId);
+      if (data.tenantId) formData.append("tenantId", data.tenantId);
       formData.append("effectiveDate", data.effectiveDate);
       if (data.endDate) formData.append("endDate", data.endDate);
       formData.append("rentAmount", data.rentAmount);
@@ -99,10 +99,19 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
   // Fonction pour obtenir le nom d'une partie
   const getPartyName = (party: any) => {
     if (party.type === "PERSONNE_PHYSIQUE") {
-      const name = `${party.firstName || ""} ${party.lastName || ""}`.trim();
-      return name || party.email || "Partie sans nom";
+      // Chercher la personne principale ou la première personne
+      const primaryPerson = party.persons?.find((p: any) => p.isPrimary) || party.persons?.[0];
+      if (primaryPerson) {
+        const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+        return name || primaryPerson.email || "Partie sans nom";
+      }
+      return "Partie sans nom";
     } else if (party.type === "PERSONNE_MORALE") {
-      return party.legalName || "Partie sans nom";
+      // Utiliser les données de l'entreprise
+      if (party.entreprise) {
+        return party.entreprise.legalName || party.entreprise.name || party.entreprise.email || "Partie sans nom";
+      }
+      return "Partie sans nom";
     }
     return "Partie sans nom";
   };
@@ -112,7 +121,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
       <CardHeader>
         <CardTitle>Informations du bail</CardTitle>
         <CardDescription>
-          Remplissez les informations pour créer un nouveau bail
+          {initialData?.id ? "Modifiez les informations du bail" : "Remplissez les informations pour créer un nouveau bail"}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -153,7 +162,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tenantId">Locataire *</Label>
+              <Label htmlFor="tenantId">Locataire</Label>
               <Controller
                 name="tenantId"
                 control={form.control}
@@ -161,15 +170,16 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
                   <Select
                     value={field.value || ""}
                     onValueChange={(value) => {
-                      field.onChange(value);
+                      field.onChange(value === "none" ? "" : value);
                       form.trigger("tenantId");
                     }}
                     disabled={isLoading}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un locataire" />
+                      <SelectValue placeholder="Sélectionner un locataire (optionnel)" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">Aucun locataire</SelectItem>
                       {parties.map((party) => (
                         <SelectItem key={party.id} value={party.id}>
                           {getPartyName(party)}
@@ -233,9 +243,8 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
                       <SelectItem value="DRAFT">Brouillon</SelectItem>
                       <SelectItem value="PENDING_VALIDATION">En attente de validation</SelectItem>
                       <SelectItem value="READY_FOR_NOTARY">Prêt pour notaire</SelectItem>
-                      <SelectItem value="ACTIVE">Actif</SelectItem>
+                      <SelectItem value="SIGNED">Signé</SelectItem>
                       <SelectItem value="TERMINATED">Terminé</SelectItem>
-                      <SelectItem value="CANCELED">Annulé</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -275,6 +284,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
               <Label htmlFor="rentAmount">Montant du loyer *</Label>
               <NumberInputGroup
                 field={form.register("rentAmount")}
+                value={form.watch("rentAmount")}
                 min={0}
                 unit="€"
                 disabled={isLoading}
@@ -291,6 +301,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
               <Label htmlFor="monthlyCharges">Charges mensuelles</Label>
               <NumberInputGroup
                 field={form.register("monthlyCharges")}
+                value={form.watch("monthlyCharges")}
                 min={0}
                 unit="€"
                 disabled={isLoading}
@@ -304,6 +315,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
               <Label htmlFor="securityDeposit">Dépôt de garantie</Label>
               <NumberInputGroup
                 field={form.register("securityDeposit")}
+                value={form.watch("securityDeposit")}
                 min={0}
                 unit="€"
                 disabled={isLoading}
@@ -315,6 +327,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
               <Label htmlFor="paymentDay">Jour de paiement</Label>
               <NumberInputGroup
                 field={form.register("paymentDay")}
+                value={form.watch("paymentDay")}
                 min={1}
                 max={31}
                 disabled={isLoading}

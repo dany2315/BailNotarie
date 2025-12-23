@@ -37,6 +37,21 @@ interface Bail {
   };
 }
 
+interface Person {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  isPrimary?: boolean;
+}
+
+interface Entreprise {
+  id: string;
+  name?: string | null;
+  legalName?: string | null;
+  email?: string | null;
+}
+
 interface Party {
   id: string;
   firstName?: string | null;
@@ -45,6 +60,8 @@ interface Party {
   type: ClientType;
   email?: string | null;
   profilType: ProfilType;
+  persons?: Person[];
+  entreprise?: Entreprise | null;
 }
 
 interface PropertyBailsViewerProps {

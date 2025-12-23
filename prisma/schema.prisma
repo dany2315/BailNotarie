@@ -140,7 +140,7 @@ enum DocumentKind {
   TITLE_DEED
 
 
-  BIRTH_CERT
+  
   ID_IDENTITY
   LIVRET_DE_FAMILLE
   CONTRAT_DE_PACS
@@ -413,7 +413,7 @@ model IntakeLink {
 
 model Document {
   id       String       @id @default(cuid())
-  kind     DocumentKind @default(BIRTH_CERT)
+  kind     DocumentKind @default(ID_IDENTITY)
   label    String?
   fileKey  String // clé S3/GCS
   mimeType String?

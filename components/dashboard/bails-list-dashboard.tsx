@@ -20,6 +20,29 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface Person {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  isPrimary: boolean;
+}
+
+interface Entreprise {
+  id: string;
+  legalName: string;
+  name: string;
+  email: string;
+}
+
+interface Party {
+  id: string;
+  type: ClientType;
+  profilType: ProfilType;
+  persons?: Person[];
+  entreprise?: Entreprise | null;
+}
+
 interface Bail {
   id: string;
   status: BailStatus;
@@ -28,15 +51,7 @@ interface Bail {
     id: string;
     fullAddress: string;
   };
-  parties: Array<{
-    id: string;
-    type: ClientType;
-    profilType: ProfilType;
-    firstName?: string | null;
-    lastName?: string | null;
-    legalName?: string | null;
-    email?: string | null;
-  }>;
+  parties: Party[];
 }
 
 interface BailsListDashboardProps {
@@ -67,19 +82,35 @@ export function BailsListDashboard({ bails: initialBails }: BailsListDashboardPr
         
         // Vérifier aussi dans les parties
         const partyMatch = bail.parties?.some((party) => {
-          const firstName = (party.firstName || "").toLowerCase();
-          const lastName = (party.lastName || "").toLowerCase();
-          const legalName = (party.legalName || "").toLowerCase();
-          const email = (party.email || "").toLowerCase();
-          const fullName = `${firstName} ${lastName}`.trim();
-          
-          return (
-            firstName.includes(searchLower) ||
-            lastName.includes(searchLower) ||
-            fullName.includes(searchLower) ||
-            legalName.includes(searchLower) ||
-            email.includes(searchLower)
-          );
+          // Pour une personne physique, chercher dans les persons
+          if (party.type === ClientType.PERSONNE_PHYSIQUE && party.persons) {
+            return party.persons.some((person) => {
+              const firstName = (person.firstName || "").toLowerCase();
+              const lastName = (person.lastName || "").toLowerCase();
+              const email = (person.email || "").toLowerCase();
+              const fullName = `${firstName} ${lastName}`.trim();
+              return (
+                firstName.includes(searchLower) ||
+                lastName.includes(searchLower) ||
+                fullName.includes(searchLower) ||
+                email.includes(searchLower)
+              );
+            });
+          }
+
+          // Pour une personne morale, chercher dans l'entreprise
+          if (party.type === ClientType.PERSONNE_MORALE && party.entreprise) {
+            const legalName = (party.entreprise.legalName || "").toLowerCase();
+            const name = (party.entreprise.name || "").toLowerCase();
+            const email = (party.entreprise.email || "").toLowerCase();
+            return (
+              legalName.includes(searchLower) ||
+              name.includes(searchLower) ||
+              email.includes(searchLower)
+            );
+          }
+
+          return false;
         });
 
         return hasMatch || partyMatch;
@@ -98,12 +129,21 @@ export function BailsListDashboard({ bails: initialBails }: BailsListDashboardPr
 
   const totalPages = Math.ceil(filteredBails.length / pageSize);
 
-  const getClientName = (party: Bail["parties"][0]) => {
+  const getClientName = (party: Party) => {
     if (party.type === ClientType.PERSONNE_PHYSIQUE) {
-      const name = `${party.firstName || ""} ${party.lastName || ""}`.trim();
-      return name || party.email || "N/A";
+      // Chercher la personne principale ou la première personne
+      const primaryPerson = party.persons?.find((p) => p.isPrimary) || party.persons?.[0];
+      if (primaryPerson) {
+        const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+        return name || primaryPerson.email || "N/A";
+      }
+      return "N/A";
     }
-    return party.legalName || party.email || "N/A";
+    // Pour une personne morale
+    if (party.entreprise) {
+      return party.entreprise.legalName || party.entreprise.name || party.entreprise.email || "N/A";
+    }
+    return "N/A";
   };
 
   const hasTenant = (bail: Bail) => {

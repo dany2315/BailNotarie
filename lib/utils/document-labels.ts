@@ -7,7 +7,6 @@ export const documentKindLabels: Record<string, string> = {
   STATUTES: "Statuts",
   INSURANCE: "Assurance",
   TITLE_DEED: "Titre de propriété",
-  BIRTH_CERT: "Acte de naissance",
   ID_IDENTITY: "Pièce d'identité",
   LIVRET_DE_FAMILLE: "Livret de famille",
   CONTRAT_DE_PACS: "Contrat de PACS",
@@ -26,6 +25,12 @@ export const documentKindLabels: Record<string, string> = {
 export function getDocumentLabel(kind: string): string {
   return documentKindLabels[kind] || kind;
 }
+
+
+
+
+
+
 
 
 

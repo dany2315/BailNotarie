@@ -35,12 +35,12 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     // ClientType
     PERSONNE_PHYSIQUE: { 
       variant: "default", 
-      label: "Personne physique",
+      label: "Particulier",
       icon: <User className="size-4" />
     },
     PERSONNE_MORALE: { 
       variant: "default", 
-      label: "Personne morale",
+      label: "Entreprise",
       icon: <Building2 className="size-4" />
     },
     // ProfilType

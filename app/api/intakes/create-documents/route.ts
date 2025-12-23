@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         const kind = doc.kind as DocumentKind;
 
         // Documents par personne
-        if (kind === "BIRTH_CERT" || kind === "ID_IDENTITY") {
+        if (kind === "ID_IDENTITY") {
           const personIndex = doc.personIndex !== undefined ? doc.personIndex : 0;
           if (client && client.persons && client.persons.length > personIndex) {
             targetPersonId = client.persons[personIndex].id;

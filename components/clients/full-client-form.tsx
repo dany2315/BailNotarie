@@ -68,7 +68,6 @@ const DEFAULT_FORM_VALUES = {
 const FILE_REFS_CONFIG = [
   { name: "kbis" },
   { name: "statutes" },
-  { name: "birthCert" },
   { name: "idIdentity" },
   { name: "livretDeFamille" },
   { name: "contratDePacs" },
@@ -280,8 +279,8 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
     <form onSubmit={form.handleSubmit(handleSubmit, onError)} className="space-y-6">
       <Tabs value={clientType} onValueChange={handleClientTypeChange}>
         <TabsList className="grid w-full grid-cols-2 border rounded-lg mb-6">
-          <TabsTrigger value={ClientType.PERSONNE_PHYSIQUE}>Personne physique</TabsTrigger>
-          <TabsTrigger value={ClientType.PERSONNE_MORALE}>Personne morale</TabsTrigger>
+          <TabsTrigger value={ClientType.PERSONNE_PHYSIQUE}>Particulier</TabsTrigger>
+          <TabsTrigger value={ClientType.PERSONNE_MORALE}>Entreprise</TabsTrigger>
         </TabsList>
 
         {/* Informations propriétaire et personnes rattachées */}

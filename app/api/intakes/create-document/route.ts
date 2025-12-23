@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
     let targetClientId: string | null = null;
     let targetPropertyId: string | null = null;
 
-    // Documents par personne (BIRTH_CERT et ID_IDENTITY)
-    if (documentKind === "BIRTH_CERT" || documentKind === "ID_IDENTITY") {
+    // Documents par personne (ID_IDENTITY)
+    if (documentKind === "ID_IDENTITY") {
       const personIdx = personIndex !== undefined ? personIndex : 0;
       if (client && client.persons && client.persons.length > personIdx) {
         targetPersonId = client.persons[personIdx].id;
@@ -164,6 +164,12 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
+
+
+
+
 
 
 

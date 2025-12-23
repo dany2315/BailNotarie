@@ -384,7 +384,6 @@ const documentFieldsSchema = {
   statutes: z.any().optional(),
   
   // Pièces jointes - Client (personne physique)
-  birthCert: z.any().optional(),
   idIdentity: z.any().optional(),
   livretDeFamille: z.any().optional(),
   contratDePacs: z.any().optional(),

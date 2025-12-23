@@ -13,7 +13,6 @@ export const runtime = 'nodejs'; // Utiliser Node.js runtime pour les uploads
 const FILE_TO_DOCUMENT_KIND: Record<string, DocumentKind> = {
   kbis: DocumentKind.KBIS,
   statutes: DocumentKind.STATUTES,
-  birthCert: DocumentKind.BIRTH_CERT,
   idIdentity: DocumentKind.ID_IDENTITY,
   livretDeFamille: DocumentKind.LIVRET_DE_FAMILLE,
   contratDePacs: DocumentKind.CONTRAT_DE_PACS,
@@ -111,7 +110,7 @@ export async function POST(request: NextRequest) {
 
       console.log(`[API upload] Traitement du fichier: ${name}, taille: ${file.size}`);
 
-      // Pour les fichiers avec index (ex: birthCert_0, idIdentity_1), extraire le nom de base
+      // Pour les fichiers avec index (ex: idIdentity_1), extraire le nom de base
       const baseName = name.split('_')[0];
       const documentKind = FILE_TO_DOCUMENT_KIND[baseName] || FILE_TO_DOCUMENT_KIND[name];
       if (!documentKind) {
@@ -161,9 +160,9 @@ export async function POST(request: NextRequest) {
             // Le client a déjà été récupéré avant la boucle, pas besoin de le refaire
 
             // Utiliser baseName pour déterminer le type de document et où le rattacher
-            // Documents par personne (BIRTH_CERT et ID_IDENTITY)
-            if (baseName === "birthCert" || baseName === "idIdentity") {
-              // Si le nom contient un index (ex: "birthCert_0"), utiliser cet index
+            // Documents par personne (ID_IDENTITY)
+            if (baseName === "idIdentity") {
+              // Si le nom contient un index (ex: "idIdentity_0"), utiliser cet index
               // Sinon, utiliser la première personne (personne principale)
               const match = name.match(/_(\d+)$/);
               const personIndex = match ? parseInt(match[1], 10) : 0;

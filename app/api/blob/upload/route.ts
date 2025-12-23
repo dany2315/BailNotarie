@@ -162,8 +162,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       let targetEntrepriseId: string | null = null;
       let targetClientId: string | null = null;
 
-      // Documents par personne (BIRTH_CERT et ID_IDENTITY)
-      if (kind === "BIRTH_CERT" || kind === "ID_IDENTITY") {
+      // Documents par personne (ID_IDENTITY)
+      if (kind === "ID_IDENTITY") {
         const personIdx = pIndex !== undefined ? pIndex : 0;
         if (client && client.persons && client.persons.length > personIdx) {
           targetPersonId = client.persons[personIdx].id;
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       pathname: blob.pathname,
       contentType: blob.contentType,
       contentDisposition: blob.contentDisposition,
-      size: blob.size,
+      size: file.size,
     });
   } catch (error: any) {
     console.error("[blob/upload] Erreur:", error);

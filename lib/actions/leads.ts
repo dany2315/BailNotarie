@@ -10,6 +10,50 @@ import { z } from "zod";
 import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 
+// Helper pour obtenir les informations d'un client avec la nouvelle architecture
+interface ClientWithRelations {
+  id: string;
+  type: ClientType;
+  profilType: ProfilType;
+  persons?: Array<{
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    isPrimary: boolean;
+  }>;
+  entreprise?: {
+    id: string;
+    legalName: string;
+    name: string;
+    email: string;
+    phone?: string | null;
+  } | null;
+}
+
+function getClientEmail(client: ClientWithRelations): string | null {
+  if (client.type === ClientType.PERSONNE_PHYSIQUE) {
+    const primaryPerson = client.persons?.find(p => p.isPrimary) || client.persons?.[0];
+    return primaryPerson?.email || null;
+  }
+  return client.entreprise?.email || null;
+}
+
+function getClientName(client: ClientWithRelations): { firstName: string | null; lastName: string | null } {
+  if (client.type === ClientType.PERSONNE_PHYSIQUE) {
+    const primaryPerson = client.persons?.find(p => p.isPrimary) || client.persons?.[0];
+    return {
+      firstName: primaryPerson?.firstName || null,
+      lastName: primaryPerson?.lastName || null,
+    };
+  }
+  return {
+    firstName: null,
+    lastName: client.entreprise?.legalName || client.entreprise?.name || null,
+  };
+}
+
 const createLeadSchema = z.object({
   contactType: z.enum(["email", "phone"]),
   email: z.string().optional(),
@@ -61,31 +105,38 @@ export async function createLead(data: unknown) {
 
     // Vérifier si un client avec cet email ou téléphone existe déjà
     if (validated.contactType === "email" && validated.email) {
-      const existingClient = await prisma.client.findUnique({
+      const existingPerson = await prisma.person.findFirst({
         where: { email: validated.email },
+        include: { client: true },
       });
 
-      if (existingClient) {
+      if (existingPerson?.client) {
         throw new Error(`Un client avec l'email ${validated.email} existe déjà.`);
       }
     } else if (validated.contactType === "phone" && validated.phone) {
-      const existingClient = await prisma.client.findFirst({
+      const existingPerson = await prisma.person.findFirst({
         where: { phone: validated.phone },
+        include: { client: true },
       });
 
-      if (existingClient) {
+      if (existingPerson?.client) {
         throw new Error(`Un client avec le numéro de téléphone ${validated.phone} existe déjà.`);
       }
     }
 
-    // Créer le client avec profilType LEAD
+    // Créer le client avec profilType LEAD et une Person associée
     const client = await prisma.client.create({
       data: { 
         type: ClientType.PERSONNE_PHYSIQUE, 
         profilType: ProfilType.LEAD,
-        email: validated.email || null,
-        phone: validated.phone || null,
         createdById: user.id,
+        persons: {
+          create: {
+            email: validated.email || null,
+            phone: validated.phone || null,
+            isPrimary: true,
+          },
+        },
       },
     });
 
@@ -178,7 +229,14 @@ export async function getLeadConversionLink(token: string) {
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     include: {
-      client: true,
+      client: {
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' as const },
+          },
+          entreprise: true,
+        },
+      },
     },
   });
 
@@ -218,7 +276,14 @@ export async function convertLead(data: {
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     include: {
-      client: true,
+      client: {
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' as const },
+          },
+          entreprise: true,
+        },
+      },
     },
   });
 
@@ -280,11 +345,12 @@ export async function convertLead(data: {
 
     // Déclencher l'envoi d'email avec le formulaire propriétaire via Inngest (asynchrone, ne bloque pas le rendu)
     const formUrl = `${baseUrl}/intakes/${ownerIntakeLink.token}`;
+    const clientEmail = getClientEmail(intakeLink.client as ClientWithRelations);
 
-    if (intakeLink.client.email) {
+    if (clientEmail) {
       try {
         await triggerLeadConversionEmail({
-          to: intakeLink.client.email,
+          to: clientEmail,
           subject: "Formulaire de bail notarié - Propriétaire",
           convertUrl: formUrl,
           isOwnerForm: true,
@@ -323,20 +389,44 @@ export async function convertLead(data: {
     );
 
     // Créer ou récupérer le client PROPRIETAIRE
+    // Chercher un propriétaire existant avec cet email dans ses persons
     let owner = await prisma.client.findFirst({
       where: {
-        email: ownerEmail.toLowerCase().trim(),
         profilType: ProfilType.PROPRIETAIRE,
+        persons: {
+          some: {
+            email: ownerEmail.toLowerCase().trim(),
+          },
+        },
+      },
+      include: {
+        persons: {
+          orderBy: { isPrimary: 'desc' },
+        },
+        entreprise: true,
       },
     });
 
     if (!owner) {
+      // Créer un nouveau client avec une personne associée
       owner = await prisma.client.create({
         data: {
           type: ClientType.PERSONNE_PHYSIQUE,
           profilType: ProfilType.PROPRIETAIRE,
-          email: ownerEmail.toLowerCase().trim(),
           createdById: intakeLink.createdById,
+          persons: {
+            create: {
+              email: ownerEmail.toLowerCase().trim(),
+              isPrimary: true,
+              createdById: intakeLink.createdById,
+            },
+          },
+        },
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
         },
       });
       
@@ -391,12 +481,12 @@ export async function convertLead(data: {
         bailId: bail.id,
         status: "PENDING",
         createdById: intakeLink.createdById,
-        rawPayload: {
-          relatedOwnerId: owner.id,
-          relatedOwnerEmail: ownerEmail,
-        } as any,
       },
     });
+
+    // Obtenir l'email du locataire (client converti)
+    const tenantEmail = getClientEmail(intakeLink.client as ClientWithRelations);
+    const tenantName = getClientName(intakeLink.client as ClientWithRelations);
 
     // Créer un IntakeLink pour le formulaire propriétaire
     const ownerIntakeLink = await prisma.intakeLink.create({
@@ -407,10 +497,6 @@ export async function convertLead(data: {
         bailId: bail.id,
         status: "PENDING",
         createdById: intakeLink.createdById,
-        rawPayload: {
-          relatedTenantId: intakeLink.client.id,
-          relatedTenantEmail: intakeLink.client.email,
-        } as any,
       },
     });
 
@@ -425,12 +511,12 @@ export async function convertLead(data: {
 
     // Déclencher l'envoi d'email au locataire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
     const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
-    if (intakeLink.client.email) {
+    if (tenantEmail) {
       try {
         await triggerTenantFormEmail({
-          to: intakeLink.client.email,
-          firstName: intakeLink.client.firstName,
-          lastName: intakeLink.client.lastName,
+          to: tenantEmail,
+          firstName: tenantName.firstName,
+          lastName: tenantName.lastName,
           formUrl: tenantFormUrl,
         });
       } catch (error) {
@@ -438,13 +524,16 @@ export async function convertLead(data: {
       }
     }
 
+    // Obtenir les infos du propriétaire
+    const ownerName = getClientName(owner as ClientWithRelations);
+
     // Déclencher l'envoi d'email au propriétaire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
     const ownerFormUrl = `${baseUrl}/intakes/${ownerIntakeLink.token}`;
     try {
       await triggerOwnerFormEmail({
         to: ownerEmail,
-        firstName: owner.firstName,
-        lastName: owner.lastName,
+        firstName: ownerName.firstName,
+        lastName: ownerName.lastName,
         formUrl: ownerFormUrl,
       });
     } catch (error) {

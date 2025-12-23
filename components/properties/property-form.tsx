@@ -138,8 +138,8 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
                     <SelectValue placeholder="Sélectionner un propriétaire" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ClientType.PERSONNE_PHYSIQUE}>Personne physique</SelectItem>
-                    <SelectItem value={ClientType.PERSONNE_MORALE}>Personne morale</SelectItem>
+                    <SelectItem value={ClientType.PERSONNE_PHYSIQUE}>Particulier</SelectItem>
+                    <SelectItem value={ClientType.PERSONNE_MORALE}>Entreprise</SelectItem>
                   </SelectContent>
                 </Select>
               )}

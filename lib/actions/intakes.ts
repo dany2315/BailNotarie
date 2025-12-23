@@ -94,6 +94,12 @@ export async function getIntakeLinkByToken(token: string) {
       property: {
         include: {
           documents: true,
+          owner: {
+            include: {
+              persons: true,
+              entreprise: true,
+            },
+          },
         },
       },
       bail: {
@@ -105,6 +111,7 @@ export async function getIntakeLinkByToken(token: string) {
             },
           },
           documents: true,
+          
         },
       },
       client: {
@@ -683,7 +690,7 @@ export async function getIntakeDocuments(token: string) {
     documents.push(...clientDocs);
   }
 
-  // Récupérer les documents des personnes (BIRTH_CERT, ID_IDENTITY)
+  // Récupérer les documents des personnes (ID_IDENTITY)
   if (intakeLink.client?.persons) {
     for (const person of intakeLink.client.persons) {
       const personDocs = await prisma.document.findMany({

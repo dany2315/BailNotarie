@@ -5,8 +5,9 @@ import { formatDate } from "@/lib/utils/formatters";
 import { ClientType, ProfilType, CompletionStatus } from "@prisma/client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Mail, Phone, Building2, User, Calendar } from "lucide-react";
 
 interface ClientCellProps {
   row: any;
@@ -34,33 +35,187 @@ export function ClientNameCell({ row }: ClientCellProps) {
     return <span className="text-muted-foreground">-</span>;
   }
   
-  if (row.type === ClientType.PERSONNE_PHYSIQUE) {
-    // Utiliser les données de la première personne (personne principale) si disponibles
-    const primaryPerson = row.persons?.find((p: any) => p.isPrimary) || row.persons?.[0];
-    
-    if (primaryPerson) {
-      const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
-      const hasMultiplePersons = row.persons && row.persons.length > 1;
-      
-      return (
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">{name || "-"}</span>
-          {hasMultiplePersons && (
-            <span className="text-xs text-muted-foreground">
-              +{row.persons.length - 1} autre{row.persons.length - 1 > 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
-      );
+  // Fonction pour obtenir tous les emails
+  const getAllEmails = () => {
+    if (row.type === ClientType.PERSONNE_PHYSIQUE) {
+      const emails: string[] = [];
+      if (row.persons && row.persons.length > 0) {
+        row.persons.forEach((person: any) => {
+          if (person.email) emails.push(person.email);
+        });
+      }
+      if (row.email && !emails.includes(row.email)) emails.push(row.email);
+      return emails;
     }
-    
-    // Fallback sur les champs du client si pas de personne
-    const name = `${row.firstName || ""} ${row.lastName || ""}`.trim();
-    return <>{name || "-"}</>;
+    if (row.type === ClientType.PERSONNE_MORALE) {
+      const emails: string[] = [];
+      if (row.entreprise?.email) emails.push(row.entreprise.email);
+      if (row.email && !emails.includes(row.email)) emails.push(row.email);
+      return emails;
+    }
+    return row.email ? [row.email] : [];
+  };
+
+  // Fonction pour obtenir tous les téléphones
+  const getAllPhones = () => {
+    if (row.type === ClientType.PERSONNE_PHYSIQUE) {
+      const phones: string[] = [];
+      if (row.persons && row.persons.length > 0) {
+        row.persons.forEach((person: any) => {
+          if (person.phone) phones.push(person.phone);
+        });
+      }
+      if (row.phone && !phones.includes(row.phone)) phones.push(row.phone);
+      return phones;
+    }
+    if (row.type === ClientType.PERSONNE_MORALE) {
+      const phones: string[] = [];
+      if (row.entreprise?.phone) phones.push(row.entreprise.phone);
+      if (row.phone && !phones.includes(row.phone)) phones.push(row.phone);
+      return phones;
+    }
+    return row.phone ? [row.phone] : [];
+  };
+
+  // Fonction pour obtenir le nom d'affichage
+  const getDisplayName = () => {
+    if (row.type === ClientType.PERSONNE_PHYSIQUE) {
+      const primaryPerson = row.persons?.find((p: any) => p.isPrimary) || row.persons?.[0];
+      if (primaryPerson) {
+        return `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+      }
+      return `${row.firstName || ""} ${row.lastName || ""}`.trim();
+    }
+    if (row.type === ClientType.PERSONNE_MORALE) {
+      return row.legalName || row.entreprise?.legalName || row.entreprise?.name || "-";
+    }
+    return "-";
+  };
+
+  const displayName = getDisplayName();
+  const emails = getAllEmails();
+  const phones = getAllPhones();
+  const hasMultiplePersons = row.type === ClientType.PERSONNE_PHYSIQUE && row.persons && row.persons.length > 1;
+
+  if (row.type === ClientType.PERSONNE_PHYSIQUE) {
+    return (
+      <HoverCard>
+        <HoverCardTrigger asChild>
+          <div className="flex flex-col gap-1 cursor-pointer">
+            <span className="font-medium hover:underline">{displayName || "-"}</span>
+            {hasMultiplePersons && (
+              <span className="text-xs text-muted-foreground">
+                +{row.persons.length - 1} autre{row.persons.length - 1 > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        </HoverCardTrigger>
+        <HoverCardContent className="w-80">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="font-semibold">{displayName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {hasMultiplePersons ? `${row.persons.length} personne${row.persons.length > 1 ? "s" : ""}` : "Particulier"}
+                </p>
+              </div>
+            </div>
+            
+            {emails.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Email{emails.length > 1 ? "s" : ""}</span>
+                </div>
+                <div className="pl-6 space-y-0.5">
+                  {emails.map((email, index) => (
+                    <p key={index} className="text-xs text-muted-foreground">{email}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {phones.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Téléphone{phones.length > 1 ? "s" : ""}</span>
+                </div>
+                <div className="pl-6 space-y-0.5">
+                  {phones.map((phone, index) => (
+                    <p key={index} className="text-xs text-muted-foreground">{phone}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {row.createdAt && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                <span>Créé le {formatDate(row.createdAt)}</span>
+              </div>
+            )}
+          </div>
+        </HoverCardContent>
+      </HoverCard>
+    );
   }
   
   if (row.type === ClientType.PERSONNE_MORALE) {
-    return <>{row.legalName || row.entreprise?.legalName || row.entreprise?.name || "-"}</>;
+    return (
+      <HoverCard>
+        <HoverCardTrigger asChild>
+          <span className="font-medium cursor-pointer hover:underline">{displayName}</span>
+        </HoverCardTrigger>
+        <HoverCardContent className="w-80">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="font-semibold">{displayName}</p>
+                <p className="text-xs text-muted-foreground">Entreprise</p>
+              </div>
+            </div>
+            
+            {emails.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Email{emails.length > 1 ? "s" : ""}</span>
+                </div>
+                <div className="pl-6 space-y-0.5">
+                  {emails.map((email, index) => (
+                    <p key={index} className="text-xs text-muted-foreground">{email}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {phones.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Téléphone{phones.length > 1 ? "s" : ""}</span>
+                </div>
+                <div className="pl-6 space-y-0.5">
+                  {phones.map((phone, index) => (
+                    <p key={index} className="text-xs text-muted-foreground">{phone}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {row.createdAt && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                <span>Créé le {formatDate(row.createdAt)}</span>
+              </div>
+            )}
+          </div>
+        </HoverCardContent>
+      </HoverCard>
+    );
   }
   
   return <span className="text-muted-foreground">-</span>;
@@ -119,16 +274,40 @@ export function ClientEmailCell({ row }: ClientCellProps) {
     return <span className="text-muted-foreground">-</span>;
   }
   
+  // Collecter tous les emails
+  const emails: string[] = [];
+  
   if (row.type === ClientType.PERSONNE_PHYSIQUE) {
-    const primaryPerson = row.persons?.find((p: any) => p.isPrimary) || row.persons?.[0];
-    return <span>{primaryPerson?.email || row.email || "-"}</span>;
+    if (row.persons && row.persons.length > 0) {
+      row.persons.forEach((person: any) => {
+        if (person.email && !emails.includes(person.email)) {
+          emails.push(person.email);
+        }
+      });
+    }
+    if (row.email && !emails.includes(row.email)) {
+      emails.push(row.email);
+    }
+  } else if (row.type === ClientType.PERSONNE_MORALE) {
+    if (row.entreprise?.email && !emails.includes(row.entreprise.email)) {
+      emails.push(row.entreprise.email);
+    }
+    if (row.email && !emails.includes(row.email)) {
+      emails.push(row.email);
+    }
+  } else {
+    if (row.email) emails.push(row.email);
   }
   
-  if (row.type === ClientType.PERSONNE_MORALE) {
-    return <span>{row.entreprise?.email || row.email || "-"}</span>;
+  if (emails.length === 0) {
+    return <span className="text-muted-foreground">-</span>;
   }
   
-  return <span>{row.email || "-"}</span>;
+  return (
+    <span className="text-sm" title={emails.length > 1 ? emails.join(", ") : undefined}>
+      {emails.join(", ")}
+    </span>
+  );
 }
 
 export function ClientPhoneCell({ row }: ClientCellProps) {
@@ -136,17 +315,42 @@ export function ClientPhoneCell({ row }: ClientCellProps) {
     return <span className="text-muted-foreground">-</span>;
   }
   
+  // Collecter tous les téléphones
+  const phones: string[] = [];
+  
   if (row.type === ClientType.PERSONNE_PHYSIQUE) {
-    const primaryPerson = row.persons?.find((p: any) => p.isPrimary) || row.persons?.[0];
-    return <span>{primaryPerson?.phone || row.phone || "-"}</span>;
+    if (row.persons && row.persons.length > 0) {
+      row.persons.forEach((person: any) => {
+        if (person.phone && !phones.includes(person.phone)) {
+          phones.push(person.phone);
+        }
+      });
+    }
+    if (row.phone && !phones.includes(row.phone)) {
+      phones.push(row.phone);
+    }
+  } else if (row.type === ClientType.PERSONNE_MORALE) {
+    if (row.entreprise?.phone && !phones.includes(row.entreprise.phone)) {
+      phones.push(row.entreprise.phone);
+    }
+    if (row.phone && !phones.includes(row.phone)) {
+      phones.push(row.phone);
+    }
+  } else {
+    if (row.phone) phones.push(row.phone);
   }
   
-  if (row.type === ClientType.PERSONNE_MORALE) {
-    return <span>{row.entreprise?.phone || row.phone || "-"}</span>;
+  if (phones.length === 0) {
+    return <span className="text-muted-foreground">-</span>;
   }
   
-  return <span>{row.phone || "-"}</span>;
+  return (
+    <span className="text-sm" title={phones.length > 1 ? phones.join(", ") : undefined}>
+      {phones.join(", ")}
+    </span>
+  );
 }
+
 
 
 

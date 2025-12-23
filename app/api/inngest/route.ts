@@ -2,7 +2,7 @@ import { serve } from "inngest/next";
 import { inngest } from "@/lib/inngest/client";
 import { sendContactConfirmationEmail, sendContactNotificationEmail } from "@/lib/inngest/functions/contact";
 import { sendNotificationEmail } from "@/lib/inngest/functions/notifications";
-import { sendOwnerFormEmail, sendTenantFormEmail, sendRequestStatusEmail } from "@/lib/inngest/functions/intake-forms";
+import { sendOwnerFormEmail, sendTenantFormEmail, sendRequestStatusEmail, sendIntakeConfirmationEmail, sendTenantSubmittedNotificationEmail } from "@/lib/inngest/functions/intake-forms";
 import { sendLeadConversionEmail } from "@/lib/inngest/functions/leads";
 import { sendBlogCommentNotificationEmail } from "@/lib/inngest/functions/blog-comments";
 import { 
@@ -21,6 +21,8 @@ const handler = serve({
     sendOwnerFormEmail,
     sendTenantFormEmail,
     sendRequestStatusEmail,
+    sendIntakeConfirmationEmail,
+    sendTenantSubmittedNotificationEmail,
     sendLeadConversionEmail,
     sendBlogCommentNotificationEmail,
     calculateClientCompletionStatus,
@@ -56,7 +58,7 @@ export async function PUT(request: NextRequest) {
       body: bodyToUse,
     });
     
-    return handler.PUT(newRequest);
+    return handler.PUT(newRequest, { params: Promise.resolve({}) });
   } catch (error) {
     // Si l'erreur persiste, on essaie avec un body vide minimal
     console.warn('[Inngest] Erreur lors du traitement de la requête PUT, tentative avec body vide:', error);
@@ -66,7 +68,7 @@ export async function PUT(request: NextRequest) {
         headers: request.headers,
         body: '{}',
       });
-      return handler.PUT(newRequest);
+      return handler.PUT(newRequest, { params: Promise.resolve({}) });
     } catch (fallbackError) {
       // Si même ça échoue, on retourne une erreur 400
       console.error('[Inngest] Erreur critique lors du traitement PUT:', fallbackError);

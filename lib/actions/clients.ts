@@ -18,7 +18,9 @@ import {
   triggerOwnerFormEmail, 
   triggerTenantFormEmail, 
   triggerLeadConversionEmail,
-  triggerCompletionStatusesCalculation
+  triggerCompletionStatusesCalculation,
+  triggerIntakeConfirmationEmail,
+  triggerTenantSubmittedNotificationEmail
 } from "@/lib/inngest/helpers";
 import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actions/documents";
 import { randomBytes } from "crypto";
@@ -1114,6 +1116,53 @@ export async function submitOwnerForm(data: unknown) {
   // Déclencher l'envoi d'email et les notifications en arrière-plan (après le return, ne bloque pas le rendu)
   Promise.resolve().then(async () => {
     try {
+      // Récupérer les informations du client pour l'email de confirmation
+      const clientData = await prisma.client.findUnique({
+        where: { id: validated.clientId },
+        include: {
+          persons: {
+            where: { isPrimary: true },
+            take: 1,
+          },
+          entreprise: true,
+        },
+      });
+
+      // Envoyer l'email de confirmation au propriétaire
+      if (clientData) {
+        let firstName = "";
+        let lastName = "";
+        let email = "";
+        let phone = "";
+
+        if (clientData.type === ClientType.PERSONNE_PHYSIQUE && clientData.persons.length > 0) {
+          const primaryPerson = clientData.persons[0];
+          firstName = primaryPerson.firstName || "";
+          lastName = primaryPerson.lastName || "";
+          email = primaryPerson.email || "";
+          phone = primaryPerson.phone || "";
+        } else if (clientData.type === ClientType.PERSONNE_MORALE && clientData.entreprise) {
+          firstName = clientData.entreprise.name || clientData.entreprise.legalName || "";
+          lastName = "";
+          email = clientData.entreprise.email || "";
+          phone = clientData.entreprise.phone || "";
+        }
+
+        if (email) {
+          try {
+            await triggerIntakeConfirmationEmail({
+              email,
+              firstName,
+              lastName,
+              phone: phone || undefined,
+              role: "PROPRIETAIRE",
+            });
+          } catch (error) {
+            console.error("Erreur lors de l'envoi de l'email de confirmation au propriétaire:", error);
+          }
+        }
+      }
+
       // Notification pour soumission d'intake
       if (ownerIntakeLinkId) {
         await createNotificationForAllUsers(
@@ -1124,9 +1173,6 @@ export async function submitOwnerForm(data: unknown) {
           { intakeTarget: "OWNER"}
         );
       }
-
-      // Ne pas envoyer d'email au propriétaire après soumission
-      // Le formulaire est déjà soumis, pas besoin de renvoyer le lien
     } catch (error: any) {
       // Ne pas bloquer la soumission même si les notifications/emails échouent
       console.error("❌ Erreur lors des notifications/emails (en arrière-plan):", error);
@@ -1156,12 +1202,45 @@ export async function submitTenantForm(data: unknown) {
   }
 
   // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité)
+  // Inclure les informations du bail et du propriétaire pour l'envoi de notification
   const intakeLink = await prisma.intakeLink.findFirst({
     where: {
       clientId: validated.clientId,
       target: "TENANT",
       status: {
         in: ["PENDING", "SUBMITTED"], // Permettre même si soumis (pour modifications)
+      },
+    },
+    include: {
+      bail: {
+        include: {
+          property: {
+            include: {
+              owner: {
+                include: {
+                  persons: {
+                    where: { isPrimary: true },
+                    take: 1,
+                  },
+                  entreprise: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      property: {
+        include: {
+          owner: {
+            include: {
+              persons: {
+                where: { isPrimary: true },
+                take: 1,
+              },
+              entreprise: true,
+            },
+          },
+        },
       },
     },
   });
@@ -1418,9 +1497,92 @@ export async function submitTenantForm(data: unknown) {
   // Retourner le résultat AVANT les notifications pour que l'utilisateur voie le statut immédiatement
   const result = { success: true };
 
-  // Déclencher les notifications en arrière-plan (après le return, ne bloque pas le rendu)
+  // Déclencher les notifications et l'email de confirmation en arrière-plan (après le return, ne bloque pas le rendu)
   Promise.resolve().then(async () => {
     try {    
+      // Récupérer les informations du client pour l'email de confirmation
+      const clientData = await prisma.client.findUnique({
+        where: { id: validated.clientId },
+        include: {
+          persons: {
+            where: { isPrimary: true },
+            take: 1,
+          },
+          entreprise: true,
+        },
+      });
+
+      // Envoyer l'email de confirmation au locataire
+      if (clientData) {
+        let firstName = "";
+        let lastName = "";
+        let email = "";
+        let phone = "";
+
+        if (clientData.type === ClientType.PERSONNE_PHYSIQUE && clientData.persons.length > 0) {
+          const primaryPerson = clientData.persons[0];
+          firstName = primaryPerson.firstName || "";
+          lastName = primaryPerson.lastName || "";
+          email = primaryPerson.email || "";
+          phone = primaryPerson.phone || "";
+        } else if (clientData.type === ClientType.PERSONNE_MORALE && clientData.entreprise) {
+          firstName = clientData.entreprise.name || clientData.entreprise.legalName || "";
+          lastName = "";
+          email = clientData.entreprise.email || "";
+          phone = clientData.entreprise.phone || "";
+        }
+
+        if (email) {
+          try {
+            await triggerIntakeConfirmationEmail({
+              email,
+              firstName,
+              lastName,
+              phone: phone || undefined,
+              role: "LOCATAIRE",
+            });
+          } catch (error) {
+            console.error("Erreur lors de l'envoi de l'email de confirmation au locataire:", error);
+          }
+        }
+
+        // Envoyer une notification au propriétaire que le locataire a soumis son formulaire
+        const owner = intakeLink.bail?.property?.owner || intakeLink.property?.owner;
+        const propertyAddress = intakeLink.bail?.property?.fullAddress || intakeLink.property?.fullAddress;
+        
+        if (owner) {
+          let ownerEmail = "";
+          let ownerFirstName = "";
+          let ownerLastName = "";
+
+          if (owner.type === ClientType.PERSONNE_PHYSIQUE && owner.persons && owner.persons.length > 0) {
+            const ownerPrimaryPerson = owner.persons[0];
+            ownerEmail = ownerPrimaryPerson.email || "";
+            ownerFirstName = ownerPrimaryPerson.firstName || "";
+            ownerLastName = ownerPrimaryPerson.lastName || "";
+          } else if (owner.type === ClientType.PERSONNE_MORALE && owner.entreprise) {
+            ownerEmail = owner.entreprise.email || "";
+            ownerFirstName = owner.entreprise.name || owner.entreprise.legalName || "";
+            ownerLastName = "";
+          }
+
+          if (ownerEmail) {
+            try {
+              await triggerTenantSubmittedNotificationEmail({
+                ownerEmail,
+                ownerFirstName,
+                ownerLastName,
+                tenantFirstName: firstName,
+                tenantLastName: lastName,
+                propertyAddress: propertyAddress || undefined,
+                interfaceUrl: `${process.env.NEXT_PUBLIC_APP_URL}/suivi`,
+              });
+            } catch (error) {
+              console.error("Erreur lors de l'envoi de l'email de notification au propriétaire:", error);
+            }
+          }
+        }
+      }
 
       // Notification pour soumission d'intake via formulaire
       if (updatedIntakeLinkId) {
@@ -2152,6 +2314,72 @@ export async function getClient(id: string) {
   return client ? serializeDecimal(client) : null;
 }
 
+// Type pour les données manquantes détaillées
+export interface ClientMissingData {
+  persons: Array<{
+    personId: string;
+    personName: string;
+    isPrimary: boolean;
+    missingFields: string[];
+    missingDocuments: string[];
+  }>;
+  entreprise: {
+    missingFields: string[];
+    missingDocuments: string[];
+  } | null;
+  clientDocuments: string[];
+  generalDocuments: string[];
+  // Pour compatibilité avec l'ancien format
+  totalMissingFields: number;
+  totalMissingDocuments: number;
+}
+
+// Obtenir les données manquantes d'un client (version détaillée)
+export async function getClientMissingData(clientId: string): Promise<ClientMissingData | null> {
+  await requireAuth();
+  
+  const { checkClientCompletionDetailed } = await import("@/lib/utils/completion-status");
+  
+  try {
+    const completion = await checkClientCompletionDetailed(clientId);
+    
+    // Calculer les totaux
+    let totalMissingFields = 0;
+    let totalMissingDocuments = 0;
+    
+    for (const person of completion.missingData.persons) {
+      totalMissingFields += person.missingFields.length;
+      totalMissingDocuments += person.missingDocuments.length;
+    }
+    
+    if (completion.missingData.entreprise) {
+      totalMissingFields += completion.missingData.entreprise.missingFields.length;
+      totalMissingDocuments += completion.missingData.entreprise.missingDocuments.length;
+    }
+    
+    totalMissingDocuments += completion.missingData.clientDocuments.length;
+    totalMissingDocuments += completion.missingData.generalDocuments.length;
+    
+    return {
+      persons: completion.missingData.persons.map(p => ({
+        ...p,
+        missingDocuments: p.missingDocuments as string[],
+      })),
+      entreprise: completion.missingData.entreprise ? {
+        missingFields: completion.missingData.entreprise.missingFields,
+        missingDocuments: completion.missingData.entreprise.missingDocuments as string[],
+      } : null,
+      clientDocuments: completion.missingData.clientDocuments as string[],
+      generalDocuments: completion.missingData.generalDocuments as string[],
+      totalMissingFields,
+      totalMissingDocuments,
+    };
+  } catch (error) {
+    console.error("Erreur lors de la vérification des données manquantes:", error);
+    return null;
+  }
+}
+
 // Obtenir la liste des clients
 export async function getClients(params: {
   page?: number;
@@ -2252,7 +2480,30 @@ export async function getAllClients() {
       },
       entreprise: true,
       ownedProperties: true,
-      bails: true,
+      bails: {
+        include: {
+          parties: {
+            select: {
+              id: true,
+              profilType: true,
+              type: true,
+              entreprise: {
+                select: {
+                  legalName: true,
+                  name: true,
+                },
+              },
+              persons: {
+                where: { isPrimary: true },
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+        },
+      },
       createdBy: {
         select: {
           id: true,
@@ -2717,11 +2968,7 @@ export async function updateClientCompletionStatus(data: { id: string; completio
   const user = await requireAuth();
   const { id, completionStatus } = data;
 
-  // Récupérer l'ancien statut
-  const oldClient = await prisma.client.findUnique({ where: { id } });
-  const oldStatus = oldClient?.completionStatus;
-
-  const client = await prisma.client.update({
+  await prisma.client.update({
     where: { id },
     data: {
       completionStatus,
@@ -2729,23 +2976,56 @@ export async function updateClientCompletionStatus(data: { id: string; completio
     },
   });
 
-  // Notification uniquement si le statut devient COMPLETED (via interface, notifier tous les utilisateurs)
-  if (oldStatus !== completionStatus && completionStatus === CompletionStatus.COMPLETED) {
-    await createNotificationForAllUsers(
-      NotificationType.COMPLETION_STATUS_CHANGED,
-      "CLIENT",
-      id,
-      null, // Modifié via interface, notifier tous les utilisateurs
-      { 
-        oldStatus,
-        newStatus: completionStatus,
-        entityType: "CLIENT"
-      }
-    );
+  // Vérifier et mettre à jour les baux associés si nécessaire
+  const bails = await prisma.bail.findMany({
+    where: {
+      parties: { some: { id } },
+      status: { in: ["DRAFT", "PENDING_VALIDATION"] }
+    },
+    include: {
+      property: true,
+      parties: true
+    }
+  });
+
+  for (const bail of bails) {
+    const owner = bail.parties.find((p: any) => p.profilType === "PROPRIETAIRE");
+    const tenant = bail.parties.find((p: any) => p.profilType === "LOCATAIRE");
+    const property = bail.property;
+
+    if (!owner || !tenant || !property) continue;
+
+    // Utiliser le nouveau statut pour le client concerné
+    const ownerStatus = owner.id === id ? completionStatus : owner.completionStatus;
+    const tenantStatus = tenant.id === id ? completionStatus : tenant.completionStatus;
+
+    const allCompleted = 
+      ownerStatus === "COMPLETED" && 
+      tenantStatus === "COMPLETED" && 
+      property.completionStatus === "COMPLETED";
+
+    const allPendingCheck = 
+      ownerStatus === "PENDING_CHECK" && 
+      tenantStatus === "PENDING_CHECK" && 
+      property.completionStatus === "PENDING_CHECK";
+
+    if (allCompleted && (bail.status === "DRAFT" || bail.status === "PENDING_VALIDATION")) {
+      await prisma.bail.update({
+        where: { id: bail.id },
+        data: { status: "READY_FOR_NOTARY" }
+      });
+    } else if (allPendingCheck && bail.status === "DRAFT") {
+      await prisma.bail.update({
+        where: { id: bail.id },
+        data: { status: "PENDING_VALIDATION" }
+      });
+    }
   }
 
   revalidatePath("/interface/clients");
   revalidatePath(`/interface/clients/${id}`);
-  return client;
+  revalidatePath("/interface/baux");
+  
+  return { success: true };
 }
 

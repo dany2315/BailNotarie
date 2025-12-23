@@ -27,6 +27,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -137,7 +138,7 @@ type EntrepriseForm = {
 };
 
 type RawDocumentMeta = {
-  kind: DocumentKind;        // "BIRTH_CERT" | "KBIS" | ...
+  kind: DocumentKind;        // "KBIS" | ...
   fileKey: string;     // clé blob
   fileName: string;
   mimeType: string;
@@ -570,9 +571,8 @@ const findFirstIncompleteStep = (
     const hasStatutes = clientDocs.some((d: any) => d.kind === "STATUTES");
     if (!hasKbis || !hasStatutes) return 6;
   } else if (clientType === ClientType.PERSONNE_PHYSIQUE) {
-    const hasBirthCert = clientDocs.some((d: any) => d.kind === "BIRTH_CERT");
     const hasId = clientDocs.some((d: any) => d.kind === "ID_IDENTITY");
-    if (!hasBirthCert || !hasId) return 6;
+    if (!hasId) return 6;
     const hasLivret = clientDocs.some((d: any) => d.kind === "LIVRET_DE_FAMILLE");
     const hasPacs = clientDocs.some((d: any) => d.kind === "CONTRAT_DE_PACS");
     if (!hasLivret || !hasPacs) return 6;
@@ -608,7 +608,7 @@ const findFirstIncompleteStep = (
 export function OwnerIntakeForm({
   intakeLink: initialIntakeLink,
 }: {
-  intakeLink: IntakeLink;
+  intakeLink: any;
 }) {
   // Invalider le cache des documents au montage du composant
   // Cela garantit que les documents sont rechargés depuis la base de données quand on revient au formulaire
@@ -666,7 +666,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
   const ribOwnerRef = useRef<HTMLInputElement>(null);
 
   // Refs dynamiques pour les documents de chaque personne
-  const personDocumentRefs = useRef<Record<number, { birthCert: React.RefObject<HTMLInputElement>; idIdentity: React.RefObject<HTMLInputElement> }>>({});
+  const personDocumentRefs = useRef<Record<number, { idIdentity: React.RefObject<HTMLInputElement> }>>({});
 
   // File states
   const [kbisFile, setKbisFile] = useState<File | null>(null);
@@ -688,7 +688,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
   const [ribOwnerFile, setRibOwnerFile] = useState<File | null>(null);
 
   // États dynamiques pour les documents de chaque personne
-  const [personDocumentFiles, setPersonDocumentFiles] = useState<Record<number, { birthCert: File | null; idIdentity: File | null }>>({});
+  const [personDocumentFiles, setPersonDocumentFiles] = useState<Record<number, { idIdentity: File | null }>>({});
 
   const defaultValues = useMemo(
     () => buildDefaultValues(intakeLink),
@@ -768,14 +768,13 @@ const [clientType, setClientType] = useState<ClientType | "">(
     persons.forEach((_, index) => {
       if (!personDocumentRefs.current[index]) {
         personDocumentRefs.current[index] = {
-          birthCert: React.createRef<HTMLInputElement | null>() as any,
           idIdentity: React.createRef<HTMLInputElement | null>() as any,
         };
       }
       if (!personDocumentFiles[index]) {
         setPersonDocumentFiles(prev => ({
           ...prev,
-          [index]: { birthCert: null, idIdentity: null }
+          [index]: { idIdentity: null }
         }));
       }
     });
@@ -993,7 +992,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
     // Documents client (livret de famille, PACS)
     const clientDocs = values.clientDocuments || [];
     
-    // Documents des personnes (BIRTH_CERT, ID_IDENTITY)
+    // Documents des personnes (ID_IDENTITY)
     // Si personIndex est fourni, vérifier seulement pour cette personne
     if (personIndex !== undefined) {
       const person = values.persons?.[personIndex];
@@ -1041,11 +1040,8 @@ const [clientType, setClientType] = useState<ClientType | "">(
           : `Personne ${index + 1}`;
         
         const personRefs = personDocumentRefs.current[index];
-        const personFiles = personDocumentFiles[index] || { birthCert: null, idIdentity: null };
+        const personFiles = personDocumentFiles[index] || { idIdentity: null };
         
-        if (!hasDocument(personRefs?.birthCert || null, personFiles.birthCert, "BIRTH_CERT", index)) {
-          errors.push(`Acte de naissance requis pour ${personName}`);
-        }
         if (!hasDocument(personRefs?.idIdentity || null, personFiles.idIdentity, "ID_IDENTITY", index)) {
           errors.push(`Pièce d'identité requise pour ${personName}`);
         }
@@ -1448,9 +1444,6 @@ const [clientType, setClientType] = useState<ClientType | "">(
         const personRefs = personDocumentRefs.current[i];
         const personFiles = personDocumentFiles[i];
         
-        if (personRefs?.birthCert.current?.files?.[0] || personFiles?.birthCert) {
-          return true;
-        }
         if (personRefs?.idIdentity.current?.files?.[0] || personFiles?.idIdentity) {
           return true;
         }
@@ -1466,22 +1459,34 @@ const [clientType, setClientType] = useState<ClientType | "">(
 
       // Cas spécial pour le champ "persons" : comparaison approfondie
       if (field === "persons") {
+        const currentPersons = Array.isArray(currentValue) ? currentValue : [];
+        const initialPersons = Array.isArray(initialValue) ? initialValue : [];
+        
+        // Si on a des personnes dans le formulaire mais pas dans les valeurs sauvegardées, c'est un changement
+        if (currentPersons.length > 0 && initialPersons.length === 0) {
+          return true;
+        }
+        
         // Si les deux sont des tableaux, comparer en profondeur
-        if (Array.isArray(currentValue) && Array.isArray(initialValue)) {
-          if (comparePersonsArrays(currentValue, initialValue)) {
+        if (currentPersons.length > 0 && initialPersons.length > 0) {
+          if (comparePersonsArrays(currentPersons, initialPersons)) {
             return true; // Des changements ont été détectés dans les personnes
           }
         } 
         // Si l'un est un tableau et l'autre non, ou si les longueurs diffèrent, il y a un changement
-        else if (Array.isArray(currentValue) || Array.isArray(initialValue)) {
+        else if (currentPersons.length !== initialPersons.length) {
           return true; // Changement de structure
         }
-        // Si aucun n'est un tableau, comparer normalement
-        else {
-          const normalizedCurrent = normalizeValue(currentValue);
-          const normalizedInitial = normalizeValue(initialValue);
-          if (normalizedCurrent !== normalizedInitial) {
-            return true;
+        // Vérifier si les personnes actuelles ont des données remplies mais pas les initiales
+        else if (currentPersons.length > 0) {
+          const hasFilledCurrentData = currentPersons.some((p: any) => 
+            p && (p.firstName || p.lastName || p.email || p.phone)
+          );
+          const hasFilledInitialData = initialPersons.some((p: any) => 
+            p && (p.firstName || p.lastName || p.email || p.phone)
+          );
+          if (hasFilledCurrentData && !hasFilledInitialData) {
+            return true; // Données remplies pour la première fois
           }
         }
         continue; // Passer au champ suivant
@@ -1521,6 +1526,12 @@ const [clientType, setClientType] = useState<ClientType | "">(
       // Mais on ne garde que les champs pertinents de l'étape
       const fieldsToKeep = getFieldsForStep(currentStep);
       const filteredPayload: any = { clientId: payload.clientId };
+      
+      // IMPORTANT: Toujours inclure le type pour que le backend sache comment traiter les données
+      if (payload.type) {
+        filteredPayload.type = payload.type;
+      }
+      
       fieldsToKeep.forEach((field) => {
         if (field === "persons") {
           filteredPayload.persons = payload.persons;
@@ -1661,9 +1672,31 @@ const [clientType, setClientType] = useState<ClientType | "">(
         ? summaryIndex
         : Math.min(currentStep + 1, STEPS.length - 1);
   
-    // 3. Sauvegarde (seulement si les données ont changé)
+    // 3. Sauvegarde
+    // Pour l'étape clientInfo, toujours sauvegarder si des données de personnes sont présentes
+    // pour éviter le problème où les données ne sont pas sauvegardées lors du premier remplissage
+    let shouldSkipIfUnchanged = true;
+    if (stepId === "clientInfo") {
+      const currentPersons = form.getValues("persons") || [];
+      const initialPersons = lastSavedValues.current?.persons || [];
+      // Si on a des personnes dans le formulaire mais pas dans les valeurs sauvegardées, forcer la sauvegarde
+      if (currentPersons.length > 0 && initialPersons.length === 0) {
+        shouldSkipIfUnchanged = false;
+      }
+      // Si les personnes ont des données remplies mais que les valeurs sauvegardées sont vides, forcer la sauvegarde
+      const hasFilledData = currentPersons.some((p: any) => 
+        p.firstName || p.lastName || p.email || p.phone
+      );
+      const initialHasData = initialPersons.some((p: any) => 
+        p.firstName || p.lastName || p.email || p.phone
+      );
+      if (hasFilledData && !initialHasData) {
+        shouldSkipIfUnchanged = false;
+      }
+    }
+  
     try {
-      await saveCurrentStep(false, true); // skipIfUnchanged = true
+      await saveCurrentStep(false, shouldSkipIfUnchanged);
       
       // NE PAS refresh ici si on passe à l'étape documents
       // Le refresh doit se faire uniquement si on EST déjà sur l'étape documents
@@ -1842,22 +1875,10 @@ const [clientType, setClientType] = useState<ClientType | "">(
                   </div>
                   
                   {/* Barre de progression principale */}
-                  <div className="relative h-3 bg-accent rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all duration-500 ease-out rounded-full"
-                      style={{
-                        width: `${(submissionProgress.step / submissionProgress.totalSteps) * 100}%`,
-                      }}
-                    />
-                    <div
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                      style={{
-                        backgroundSize: "200% 100%",
-                        animation: "shimmer 2s infinite",
-                        backgroundPosition: "200% 0",
-                      }}
-                    />
-                  </div>
+                  <Progress 
+                    value={(submissionProgress.step / submissionProgress.totalSteps) * 100} 
+                    className="h-3"
+                  />
                   
                   {/* Étapes détaillées */}
                   <div className="space-y-2 mt-4">
@@ -2107,12 +2128,6 @@ const [clientType, setClientType] = useState<ClientType | "">(
           if (!refs) return null;
           return (
             <React.Fragment key={index}>
-              <input
-                type="file"
-                ref={refs.birthCert}
-                name={`birthCert_${index}`}
-                className="hidden"
-              />
               <input
                 type="file"
                 ref={refs.idIdentity}
@@ -3106,7 +3121,10 @@ type BailStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
 };
 
-const BailStep = ({ form }: BailStepProps) => (
+const BailStep = ({ form }: BailStepProps) => {
+  
+  const isMobile = useIsMobile();
+  return (
   <Card>
     <CardHeader>
       <CardTitle>Informations du bail</CardTitle>
@@ -3146,7 +3164,30 @@ const BailStep = ({ form }: BailStepProps) => (
       </div>
       <div className="grid gap-3 sm:gap-4 grid-cols-2">
         <div className="space-y-2">
+          <div className="flex flex-row items-center gap-2">
           <Label>Loyer mensuel *</Label>
+          <InfoTooltip 
+                content={
+                  <div className="max-w-xs">
+                    <p className="mb-2">LIMITATIONS DES LOYERS</p>
+                    <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
+                    <a 
+                      href="https://www.service-public.fr/simulateur/calcul/zones-tendues" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-primary underline hover:text-primary/80"
+                    >
+                      https://www.service-public.fr/simulateur/calcul/zones-tendues
+                    </a>
+                  </div>
+                }
+                className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+              >
+                <button type="button" className="inline-flex items-center">
+                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </InfoTooltip>
+            </div>
           <NumberInputGroup
             field={form.register("bailRentAmount")}
             min={0}
@@ -3176,7 +3217,22 @@ const BailStep = ({ form }: BailStepProps) => (
       </div>
       <div className="grid gap-3 sm:gap-4 grid-cols-2">
         <div className="space-y-2">
+          <div className="flex flex-row items-center gap-2">
           <Label>Dépôt de garantie *</Label>
+          <InfoTooltip 
+                content={
+                  <>
+                    <p>Bail meublé → 2 mois de loyer hors charges maximum</p>
+                    <p>Bail nu → 1 mois de loyer hors charges maximum</p>
+                  </>
+                }
+                className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+              >
+                <button type="button" className="inline-flex items-center">
+                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </InfoTooltip>
+          </div>
           <NumberInputGroup
             field={form.register("bailSecurityDeposit")}
             min={0}
@@ -3240,7 +3296,7 @@ const BailStep = ({ form }: BailStepProps) => (
       </div>
     </CardContent>
   </Card>
-);
+)}
 
 type TenantStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
@@ -3311,9 +3367,9 @@ type DocumentsStepProps = {
     setInsuranceOwnerFile: (file: File | null) => void;
     setRibOwnerFile: (file: File | null) => void;
   };
-  personDocumentRefs: Record<number, { birthCert: RefObject<HTMLInputElement | null>; idIdentity: RefObject<HTMLInputElement | null> }>;
-  personDocumentFiles: Record<number, { birthCert: File | null; idIdentity: File | null }>;
-  setPersonDocumentFiles: React.Dispatch<React.SetStateAction<Record<number, { birthCert: File | null; idIdentity: File | null }>>>;
+  personDocumentRefs: Record<number, { idIdentity: RefObject<HTMLInputElement | null> }>;
+  personDocumentFiles: Record<number, { idIdentity: File | null }>;
+  setPersonDocumentFiles: React.Dispatch<React.SetStateAction<Record<number, { idIdentity: File | null }>>>;
   persons: any[];
   onUploadStateChange?: (isUploading: boolean) => void;
 };
@@ -3395,7 +3451,7 @@ const DocumentsStep = ({
                   ? `${person.firstName} ${person.lastName}`
                   : `Personne ${index + 1}`;
                 const personRefs = personDocumentRefs[index];
-                const personFiles = personDocumentFiles[index] || { birthCert: null, idIdentity: null };
+                const personFiles = personDocumentFiles[index] || { idIdentity: null };
                 
                 return (
                   <div key={index} className="space-y-4 border rounded-lg p-4">
@@ -3403,32 +3459,6 @@ const DocumentsStep = ({
                       Documents de {personName} {index === 0 && "(Principale)"} *
                     </h4>
                     <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                      <DocumentUploaded 
-                        token={intakeLink.token} 
-                        documentKind="BIRTH_CERT"
-                        personIndex={index}
-                      >
-                        <FileUpload
-                          label="Acte de naissance *"
-                          value={personFiles.birthCert}
-                          onChange={(file) => {
-                            setPersonDocumentFiles(prev => ({
-                              ...prev,
-                              [index]: { ...prev[index], birthCert: file }
-                            }));
-                            if (personRefs?.birthCert.current) {
-                              const dt = new DataTransfer();
-                              if (file) dt.items.add(file);
-                              personRefs.birthCert.current.files = dt.files;
-                            }
-                          }}
-                          uploadToken={intakeLink.token}
-                          documentKind="BIRTH_CERT"
-                          clientId={intakeLink.clientId}
-                          personIndex={index}
-                          onUploadStateChange={onUploadStateChange}
-                        />
-                      </DocumentUploaded>
                       <DocumentUploaded 
                         token={intakeLink.token} 
                         documentKind="ID_IDENTITY"

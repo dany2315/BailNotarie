@@ -129,7 +129,7 @@ export const blogData = [
         metaDescription:
           "Tarifs réglementés, estimation du coût d’un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
         metaKeywords:
-          "coût bail de location notarié, coût bail notarié, frais bail de location notarié, frais bail notarié, tarif notaire bail habitation, emolument bail notarié, moitié loyer hors charges, procuration authentique à distance, copies formalités notaire, débours bail notarié",
+          "bail notarié prix, coût bail de location notarié, coût bail notarié, frais bail de location notarié, frais bail notarié, tarif notaire bail habitation, emolument bail notarié, moitié loyer hors charges, procuration authentique à distance, copies formalités notaire, débours bail notarié",
         imageUrl:
           "https://images.pexels.com/photos/3943745/pexels-photo-3943745.jpeg",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",

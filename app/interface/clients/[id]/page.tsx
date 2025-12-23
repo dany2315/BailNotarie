@@ -1,4 +1,4 @@
-import { getClient } from "@/lib/actions/clients";
+import { getClient, getClientMissingData } from "@/lib/actions/clients";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { ClientActionsDropdown } from "@/components/clients/client-actions-dropd
 import { CommentsDrawer } from "@/components/comments/comments-drawer";
 import { DeleteClientButton } from "@/components/clients/delete-client-button";
 import { ClientPersonsTabs } from "@/components/clients/client-persons-tabs";
+import { MissingDataCard } from "@/components/clients/missing-data-card";
 
 export default async function ClientDetailPage({
   params,
@@ -24,14 +25,17 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const resolvedParams = await params;
-  const client = await getClient(resolvedParams.id);
+  const [client, missingData] = await Promise.all([
+    getClient(resolvedParams.id),
+    getClientMissingData(resolvedParams.id),
+  ]);
 
   if (!client) {
     notFound();
   }
 
   // Obtenir les données principales depuis Person (personne primaire) ou Entreprise
-  const primaryPerson = client.persons?.find(p => p.isPrimary) || client.persons?.[0];
+  const primaryPerson = client.persons?.find((p: any) => p.isPrimary) || client.persons?.[0];
   const entreprise = client.entreprise;
 
   // Obtenir le nom du client
@@ -52,7 +56,7 @@ export default async function ClientDetailPage({
 
   // Collecter tous les documents depuis persons, entreprise et client
   const allDocuments = [
-    ...(client.persons?.flatMap(p => p.documents || []) || []),
+    ...(client.persons?.flatMap((p: any) => p.documents || []) || []),
     ...(client.entreprise?.documents || []),
     ...(client.documents || []), // Documents client (livret de famille, PACS)
   ];
@@ -315,8 +319,16 @@ export default async function ClientDetailPage({
           />
         </div>
 
-        {/* Colonne droite - Actions rapides et Informations système */}
+        {/* Colonne droite - Données manquantes, Actions rapides et Informations système */}
         <div className="flex flex-col gap-6 order-4 lg:col-span-1">
+          {/* Données manquantes - Affiché uniquement si données manquantes */}
+          {missingData && (missingData.totalMissingFields > 0 || missingData.totalMissingDocuments > 0) && (
+            <MissingDataCard
+              clientId={client.id}
+              missingData={missingData}
+            />
+          )}
+
           {/* Actions rapides - Order 4 sur mobile */}
           <Card className="order-4">
             <CardHeader>
