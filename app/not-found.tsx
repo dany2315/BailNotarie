@@ -3,14 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
-import { Home, ArrowLeft, Search, FileText, Phone, Mail } from "lucide-react";
+import { Home, ArrowLeft, Search, FileText, Phone, Mail, Workflow } from "lucide-react";
 import Image from "next/image";
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
-import type { Metadata } from "next";
+import { Metadata } from "next";
 
 export const metadata: Metadata = generateDynamicMetadata({ page: 'notFound' });
 
 export default function NotFound() {
+  
   return (
     <main className="min-h-screen bg-gray-50">
       <Header />
@@ -52,12 +53,6 @@ export default function NotFound() {
                 Retour à l'accueil
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="javascript:history.back()" className="flex items-center gap-2">
-                <ArrowLeft className="h-5 w-5" />
-                Page précédente
-              </Link>
-            </Button>
           </div>
 
           {/* Suggestions de pages populaires */}
@@ -67,15 +62,28 @@ export default function NotFound() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               <Link 
-                href="/#services" 
+                href="/commencer" 
                 className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"
               >
                 <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
                   <FileText className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className="text-left">
-                  <h3 className="font-semibold text-gray-900">Nos Services</h3>
-                  <p className="text-sm text-gray-600">Découvrez nos services de baux notariés</p>
+                  <h3 className="font-semibold text-gray-900">Constituez votre dossier </h3>
+                  <p className="text-sm text-gray-600">Constituez votre dossier de bail notarié en ligne</p>
+                </div>
+              </Link>
+
+              <Link 
+                href="/commencer/suivi" 
+                className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"
+              >
+                <div className="p-2 bg-yellow-100 rounded-lg group-hover:bg-yellow-200 transition-colors">
+                  <Search className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-semibold text-gray-900">Suivi de votre dossier</h3>
+                  <p className="text-sm text-gray-600">Suivez le statut de votre dossier de bail notarié en ligne</p>
                 </div>
               </Link>
               
@@ -84,7 +92,7 @@ export default function NotFound() {
                 className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"
               >
                 <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
-                  <Search className="h-5 w-5 text-green-600" />
+                  <Workflow className="h-5 w-5 text-green-600" />
                 </div>
                 <div className="text-left">
                   <h3 className="font-semibold text-gray-900">Notre Processus</h3>

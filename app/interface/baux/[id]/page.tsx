@@ -1,4 +1,4 @@
-import { getLease } from "@/lib/actions/leases";
+import { getLease, getBailMissingData } from "@/lib/actions/leases";
 import { getDocuments } from "@/lib/actions/documents";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -21,6 +21,9 @@ import { CommentsDrawer } from "@/components/comments/comments-drawer";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { TenantCreateButton } from "@/components/leases/tenant-create-button";
 import { DeleteLeaseButton } from "@/components/leases/delete-lease-button";
+import { AssignBailButton } from "@/components/leases/assign-bail-button";
+import { documentKindLabels } from "@/lib/utils/document-labels";
+import { LeaseMissingDataCard } from "@/components/leases/lease-missing-data-card";
 
 export default async function LeaseDetailPage({
   params,
@@ -38,25 +41,33 @@ export default async function LeaseDetailPage({
   const tenant = lease.parties?.find((p: any) => p.profilType === "LOCATAIRE");
   const owner = lease.parties?.find((p: any) => p.profilType === "PROPRIETAIRE") || lease.property?.owner;
 
-  // Récupérer les documents
-  const [tenantDocuments, ownerDocuments, propertyDocuments, bailDocuments] = await Promise.all([
+  // Récupérer les documents et les données manquantes
+  const [tenantDocuments, ownerDocuments, propertyDocuments, bailDocuments, missingData] = await Promise.all([
     tenant ? getDocuments({ clientId: tenant.id }) : Promise.resolve([]),
     owner ? getDocuments({ clientId: owner.id }) : Promise.resolve([]),
     lease.property ? getDocuments({ propertyId: lease.property.id }) : Promise.resolve([]),
     getDocuments({ bailId: lease.id }),
+    getBailMissingData(lease.id),
   ]);
 
-  // Formater les noms
+  // Formater les noms en utilisant les personnes principales ou l'entreprise
+  const tenantPrimaryPerson = tenant?.persons?.find((p: any) => p.isPrimary) || tenant?.persons?.[0];
+  const ownerPrimaryPerson = owner?.persons?.find((p: any) => p.isPrimary) || owner?.persons?.[0];
+  
   const tenantName = tenant
     ? tenant.type === "PERSONNE_PHYSIQUE"
-      ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || ""
-      : tenant.legalName || ""
+      ? tenantPrimaryPerson
+        ? `${tenantPrimaryPerson.firstName || ""} ${tenantPrimaryPerson.lastName || ""}`.trim() || tenantPrimaryPerson.email || ""
+        : ""
+      : tenant.entreprise?.legalName || tenant.entreprise?.name || ""
     : "";
 
   const ownerName = owner
     ? owner.type === "PERSONNE_PHYSIQUE"
-      ? `${owner.firstName || ""} ${owner.lastName || ""}`.trim() || owner.email || ""
-      : owner.legalName || ""
+      ? ownerPrimaryPerson
+        ? `${ownerPrimaryPerson.firstName || ""} ${ownerPrimaryPerson.lastName || ""}`.trim() || ownerPrimaryPerson.email || ""
+        : ""
+      : owner.entreprise?.legalName || owner.entreprise?.name || ""
     : "";
 
   const bailFamilyLabels: Record<string, string> = {
@@ -73,22 +84,6 @@ export default async function LeaseDetailPage({
     BAIL_NU_6_ANS: "Bail nu 6 ans",
     BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
     BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
-  };
-
-  const documentKindLabels: Record<string, string> = {
-    KBIS: "KBIS",
-    STATUTES: "Statuts",
-    INSURANCE: "Assurance",
-    TITLE_DEED: "Titre de propriété",
-    BIRTH_CERT: "Acte de naissance",
-    ID_IDENTITY: "Pièce d'identité",
-    LIVRET_DE_FAMILLE: "Livret de famille",
-    CONTRAT_DE_PACS: "Contrat de PACS",
-    DIAGNOSTICS: "Diagnostics",
-    REGLEMENT_COPROPRIETE: "Règlement de copropriété",
-    CAHIER_DE_CHARGE_LOTISSEMENT: "Cahier des charges lotissement",
-    STATUT_DE_LASSOCIATION_SYNDICALE: "Statut de l'association syndicale",
-    RIB: "RIB",
   };
 
 
@@ -121,6 +116,9 @@ export default async function LeaseDetailPage({
                     <span className="">Modifier</span>
                   </Link>
               </Button>
+              <AssignBailButton 
+                bailId={lease.id}
+              />
               <CommentsDrawer target="BAIL" targetId={lease.id} />
               <DeleteLeaseButton leaseId={lease.id} />
             </ButtonGroup>
@@ -128,6 +126,14 @@ export default async function LeaseDetailPage({
           </div>
         </div>
       </div>
+
+      {/* Section des données manquantes */}
+      {missingData && (
+        <LeaseMissingDataCard 
+          missingData={missingData} 
+          bailId={lease.id}
+        />
+      )}
 
       {/* Informations du bail */}
       <Card>
@@ -258,92 +264,142 @@ export default async function LeaseDetailPage({
 
                 <Separator />
 
-                {/* Section Contact */}
-                {(tenant.email || tenant.phone || tenant.fullAddress) && (
-                  <div className="space-y-3">
-                    {tenant.email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="size-4 text-muted-foreground" />
-                        <a href={`mailto:${tenant.email}`} className="text-sm hover:underline">
-                          {tenant.email}
-                        </a>
-                      </div>
-                    )}
-                    {tenant.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="size-4 text-muted-foreground" />
-                        <a href={`tel:${tenant.phone}`} className="text-sm hover:underline">
-                          {tenant.phone}
-                        </a>
-                      </div>
-                    )}
-                    {tenant.fullAddress && (
-                      <div className="flex items-start gap-2">
-                        <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        <p className="text-sm">{tenant.fullAddress}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Section Détails Personnels */}
-                {tenant.type === "PERSONNE_PHYSIQUE" && (
+                {/* Section Contact - Personne Physique */}
+                {tenant.type === "PERSONNE_PHYSIQUE" && tenantPrimaryPerson && (
                   <>
-                    {(tenant.birthDate || tenant.birthPlace || tenant.nationality || tenant.profession || tenant.familyStatus) && (
-                      <>
-                        <Separator />
-                        <div className="space-y-3">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations personnelles</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {tenant.birthDate && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Date de naissance</p>
-                                <p className="text-sm">{formatDate(tenant.birthDate)}</p>
-                              </div>
-                            )}
-                            {tenant.birthPlace && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Lieu de naissance</p>
-                                <p className="text-sm">{tenant.birthPlace}</p>
-                              </div>
-                            )}
-                            {tenant.nationality && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Nationalité</p>
-                                <p className="text-sm">{tenant.nationality}</p>
-                              </div>
-                            )}
-                            {tenant.profession && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Profession</p>
-                                <p className="text-sm">{tenant.profession}</p>
-                              </div>
-                            )}
-                            {tenant.familyStatus && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Statut familial</p>
-                                <FamilyStatusBadge status={tenant.familyStatus} />
-                              </div>
-                            )}
-                            {tenant.familyStatus === "MARIE" && tenant.matrimonialRegime && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Régime matrimonial</p>
-                                <MatrimonialRegimeBadge regime={tenant.matrimonialRegime} />
-                              </div>
-                            )}
+                    {(tenantPrimaryPerson.email || tenantPrimaryPerson.phone || tenantPrimaryPerson.fullAddress) && (
+                      <div className="space-y-3">
+                        {tenantPrimaryPerson.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="size-4 text-muted-foreground" />
+                            <a href={`mailto:${tenantPrimaryPerson.email}`} className="text-sm hover:underline">
+                              {tenantPrimaryPerson.email}
+                            </a>
                           </div>
-                        </div>
-                      </>
+                        )}
+                        {tenantPrimaryPerson.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="size-4 text-muted-foreground" />
+                            <a href={`tel:${tenantPrimaryPerson.phone}`} className="text-sm hover:underline">
+                              {tenantPrimaryPerson.phone}
+                            </a>
+                          </div>
+                        )}
+                        {tenantPrimaryPerson.fullAddress && (
+                          <div className="flex items-start gap-2">
+                            <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <p className="text-sm">{tenantPrimaryPerson.fullAddress}</p>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </>
                 )}
 
-                {tenant.type === "PERSONNE_MORALE" && tenant.registration && (
+                {/* Section Contact - Personne Morale */}
+                {tenant.type === "PERSONNE_MORALE" && tenant.entreprise && (
+                  <>
+                    {(tenant.entreprise.email || tenant.entreprise.phone || tenant.entreprise.fullAddress) && (
+                      <div className="space-y-3">
+                        {tenant.entreprise.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="size-4 text-muted-foreground" />
+                            <a href={`mailto:${tenant.entreprise.email}`} className="text-sm hover:underline">
+                              {tenant.entreprise.email}
+                            </a>
+                          </div>
+                        )}
+                        {tenant.entreprise.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="size-4 text-muted-foreground" />
+                            <a href={`tel:${tenant.entreprise.phone}`} className="text-sm hover:underline">
+                              {tenant.entreprise.phone}
+                            </a>
+                          </div>
+                        )}
+                        {tenant.entreprise.fullAddress && (
+                          <div className="flex items-start gap-2">
+                            <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <p className="text-sm">{tenant.entreprise.fullAddress}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Section Détails Personnels - Afficher toutes les personnes si personne physique */}
+                {tenant.type === "PERSONNE_PHYSIQUE" && tenant.persons && tenant.persons.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-6">
+                      {tenant.persons.map((person: any, index: number) => (
+                        <div key={person.id} className="space-y-3">
+                          {tenant.persons && tenant.persons.length > 1 && (
+                            <div className="flex items-center gap-2">
+                              <Badge variant={person.isPrimary ? "default" : "outline"}>
+                                {person.isPrimary ? "Personne principale" : `Personne ${index + 1}`}
+                              </Badge>
+                            </div>
+                          )}
+                          {(person.birthDate || person.birthPlace || person.nationality || person.profession || person.familyStatus) && (
+                            <div className="space-y-3">
+                              {index === 0 && (
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations personnelles</p>
+                              )}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {person.birthDate && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Date de naissance</p>
+                                    <p className="text-sm">{formatDate(person.birthDate)}</p>
+                                  </div>
+                                )}
+                                {person.birthPlace && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Lieu de naissance</p>
+                                    <p className="text-sm">{person.birthPlace}</p>
+                                  </div>
+                                )}
+                                {person.nationality && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Nationalité</p>
+                                    <p className="text-sm">{person.nationality}</p>
+                                  </div>
+                                )}
+                                {person.profession && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Profession</p>
+                                    <p className="text-sm">{person.profession}</p>
+                                  </div>
+                                )}
+                                {person.familyStatus && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Statut familial</p>
+                                    <FamilyStatusBadge status={person.familyStatus} />
+                                  </div>
+                                )}
+                                {person.familyStatus === "MARIE" && person.matrimonialRegime && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Régime matrimonial</p>
+                                    <MatrimonialRegimeBadge regime={person.matrimonialRegime} />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {index < (tenant.persons?.length || 0) - 1 && <Separator />}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {tenant.type === "PERSONNE_MORALE" && tenant.entreprise?.registration && (
                   <>
                     <Separator />
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Numéro d'immatriculation</p>
-                      <p className="text-sm font-mono">{tenant.registration}</p>
+                      <p className="text-sm font-mono">{tenant.entreprise.registration}</p>
                     </div>
                   </>
                 )}
@@ -379,11 +435,13 @@ export default async function LeaseDetailPage({
                 </div>
                 <CardDescription>Informations du propriétaire</CardDescription>
               </div>
-              <CompletionStatusSelect
-                type="client"
-                id={owner.id}
-                currentStatus={owner.completionStatus}
-              />
+              {owner && (
+                <CompletionStatusSelect
+                  type="client"
+                  id={owner.id}
+                  currentStatus={owner.completionStatus}
+                />
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -403,92 +461,142 @@ export default async function LeaseDetailPage({
 
                 <Separator />
 
-                {/* Section Contact */}
-                {(owner.email || owner.phone || owner.fullAddress) && (
-                  <div className="space-y-3">
-                    {owner.email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="size-4 text-muted-foreground" />
-                        <a href={`mailto:${owner.email}`} className="text-sm hover:underline">
-                          {owner.email}
-                        </a>
-                      </div>
-                    )}
-                    {owner.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="size-4 text-muted-foreground" />
-                        <a href={`tel:${owner.phone}`} className="text-sm hover:underline">
-                          {owner.phone}
-                        </a>
-                      </div>
-                    )}
-                    {owner.fullAddress && (
-                      <div className="flex items-start gap-2">
-                        <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        <p className="text-sm">{owner.fullAddress}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Section Détails Personnels */}
-                {owner.type === "PERSONNE_PHYSIQUE" && (
+                {/* Section Contact - Personne Physique */}
+                {owner.type === "PERSONNE_PHYSIQUE" && ownerPrimaryPerson && (
                   <>
-                    {(owner.birthDate || owner.birthPlace || owner.nationality || owner.profession || owner.familyStatus) && (
-                      <>
-                        <Separator />
-                        <div className="space-y-3">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations personnelles</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {owner.birthDate && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Date de naissance</p>
-                                <p className="text-sm">{formatDate(owner.birthDate)}</p>
-                              </div>
-                            )}
-                            {owner.birthPlace && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Lieu de naissance</p>
-                                <p className="text-sm">{owner.birthPlace}</p>
-                              </div>
-                            )}
-                            {owner.nationality && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Nationalité</p>
-                                <p className="text-sm">{owner.nationality}</p>
-                              </div>
-                            )}
-                            {owner.profession && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Profession</p>
-                                <p className="text-sm">{owner.profession}</p>
-                              </div>
-                            )}
-                            {owner.familyStatus && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Statut familial</p>
-                                <FamilyStatusBadge status={owner.familyStatus} />
-                              </div>
-                            )}
-                            {owner.familyStatus === "MARIE" && owner.matrimonialRegime && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Régime matrimonial</p>
-                                <MatrimonialRegimeBadge regime={owner.matrimonialRegime} />
-                              </div>
-                            )}
+                    {(ownerPrimaryPerson.email || ownerPrimaryPerson.phone || ownerPrimaryPerson.fullAddress) && (
+                      <div className="space-y-3">
+                        {ownerPrimaryPerson.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="size-4 text-muted-foreground" />
+                            <a href={`mailto:${ownerPrimaryPerson.email}`} className="text-sm hover:underline">
+                              {ownerPrimaryPerson.email}
+                            </a>
                           </div>
-                        </div>
-                      </>
+                        )}
+                        {ownerPrimaryPerson.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="size-4 text-muted-foreground" />
+                            <a href={`tel:${ownerPrimaryPerson.phone}`} className="text-sm hover:underline">
+                              {ownerPrimaryPerson.phone}
+                            </a>
+                          </div>
+                        )}
+                        {ownerPrimaryPerson.fullAddress && (
+                          <div className="flex items-start gap-2">
+                            <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <p className="text-sm">{ownerPrimaryPerson.fullAddress}</p>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </>
                 )}
 
-                {owner.type === "PERSONNE_MORALE" && owner.registration && (
+                {/* Section Contact - Personne Morale */}
+                {owner.type === "PERSONNE_MORALE" && owner.entreprise && (
+                  <>
+                    {(owner.entreprise.email || owner.entreprise.phone || owner.entreprise.fullAddress) && (
+                      <div className="space-y-3">
+                        {owner.entreprise.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="size-4 text-muted-foreground" />
+                            <a href={`mailto:${owner.entreprise.email}`} className="text-sm hover:underline">
+                              {owner.entreprise.email}
+                            </a>
+                          </div>
+                        )}
+                        {owner.entreprise.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="size-4 text-muted-foreground" />
+                            <a href={`tel:${owner.entreprise.phone}`} className="text-sm hover:underline">
+                              {owner.entreprise.phone}
+                            </a>
+                          </div>
+                        )}
+                        {owner.entreprise.fullAddress && (
+                          <div className="flex items-start gap-2">
+                            <MapPin className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <p className="text-sm">{owner.entreprise.fullAddress}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Section Détails Personnels - Afficher toutes les personnes si personne physique */}
+                {owner.type === "PERSONNE_PHYSIQUE" && owner.persons && owner.persons.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-6">
+                      {owner.persons.map((person: any, index: number) => (
+                        <div key={person.id} className="space-y-3">
+                          {owner.persons && owner.persons.length > 1 && (
+                            <div className="flex items-center gap-2">
+                              <Badge variant={person.isPrimary ? "default" : "outline"}>
+                                {person.isPrimary ? "Personne principale" : `Personne ${index + 1}`}
+                              </Badge>
+                            </div>
+                          )}
+                          {(person.birthDate || person.birthPlace || person.nationality || person.profession || person.familyStatus) && (
+                            <div className="space-y-3">
+                              {index === 0 && (
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations personnelles</p>
+                              )}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {person.birthDate && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Date de naissance</p>
+                                    <p className="text-sm">{formatDate(person.birthDate)}</p>
+                                  </div>
+                                )}
+                                {person.birthPlace && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Lieu de naissance</p>
+                                    <p className="text-sm">{person.birthPlace}</p>
+                                  </div>
+                                )}
+                                {person.nationality && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Nationalité</p>
+                                    <p className="text-sm">{person.nationality}</p>
+                                  </div>
+                                )}
+                                {person.profession && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Profession</p>
+                                    <p className="text-sm">{person.profession}</p>
+                                  </div>
+                                )}
+                                {person.familyStatus && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Statut familial</p>
+                                    <FamilyStatusBadge status={person.familyStatus} />
+                                  </div>
+                                )}
+                                {person.familyStatus === "MARIE" && person.matrimonialRegime && (
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Régime matrimonial</p>
+                                    <MatrimonialRegimeBadge regime={person.matrimonialRegime} />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {index < (owner.persons?.length || 0) - 1 && <Separator />}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {owner.type === "PERSONNE_MORALE" && owner.entreprise?.registration && (
                   <>
                     <Separator />
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Numéro d'immatriculation</p>
-                      <p className="text-sm font-mono">{owner.registration}</p>
+                      <p className="text-sm font-mono">{owner.entreprise.registration}</p>
                     </div>
                   </>
                 )}
@@ -630,12 +738,12 @@ export default async function LeaseDetailPage({
               <p className="text-muted-foreground">Modifié le</p>
               <p className="font-medium">{formatDateTime(lease.updatedAt)}</p>
             </div>
-            {lease.createdBy && (
-              <div>
-                <p className="text-muted-foreground">Créé par</p>
-                <p className="font-medium">{lease.createdBy.name || lease.createdBy.email}</p>
-              </div>
-            )}
+            <div>
+              <p className="text-muted-foreground">Créé par</p>
+              <p className="font-medium">
+                {lease.createdBy ? (lease.createdBy.name || lease.createdBy.email) : "via formulaire"}
+              </p>
+            </div>
             {lease.updatedBy && (
               <div>
                 <p className="text-muted-foreground">Modifié par</p>

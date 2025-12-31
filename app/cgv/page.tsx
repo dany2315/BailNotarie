@@ -27,7 +27,7 @@ export default function CGVPage() {
               <section>
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Objet</h2>
                 <p>
-                  Les présentes CGV encadrent la prestation d'accompagnement administratif à la constitution d'un bail notarié proposée par <strong>MonBailNotarié</strong>.
+                  Les présentes CGV encadrent la prestation d'accompagnement administratif à la constitution d'un bail notarié proposée par <strong>Bailnotarie</strong>.
                 </p>
               </section>
 

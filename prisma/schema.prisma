@@ -140,7 +140,7 @@ enum DocumentKind {
   TITLE_DEED
 
 
-  BIRTH_CERT
+  
   ID_IDENTITY
   LIVRET_DE_FAMILLE
   CONTRAT_DE_PACS
@@ -194,6 +194,10 @@ model User {
   uploadedDocuments  Document[]         @relation("DocumentUploadedBy")
   clientsCreated     Client[]            @relation("ClientCreatedBy") 
   clientsUpdated     Client[]            @relation("ClientUpdatedBy")
+  personsCreated     Person[]            @relation("PersonCreatedBy")
+  personsUpdated     Person[]            @relation("PersonUpdatedBy")
+  entreprisesCreated Entreprise[]        @relation("EntrepriseCreatedBy")
+  entreprisesUpdated Entreprise[]        @relation("EntrepriseUpdatedBy")
   propertiesCreated  Property[]         @relation("PropertyCreatedBy")
   propertiesUpdated  Property[]         @relation("PropertyUpdatedBy")
   bailsCreated      Bail[]            @relation("BailCreatedBy") 
@@ -201,6 +205,13 @@ model User {
   intakeLinksCreated IntakeLink[]       @relation("IntakeLinkCreatedBy")
   notificationsCreated Notification[]   @relation("NotificationCreatedBy")
   notificationsReceived Notification[]  @relation("NotificationReceivedBy")
+  
+  // Relations pour les assignations de dossiers
+  notaireAssignments DossierNotaireAssignment[] @relation("NotaireAssignments")
+  dossierAssignmentsCreated DossierNotaireAssignment[] @relation("DossierAssignmentsCreated")
+  
+  // Relations pour les demandes du notaire
+  notaireRequestsCreated NotaireRequest[] @relation("NotaireRequestCreatedBy")
 }
 
 /**
@@ -213,24 +224,6 @@ model Client {
   // Sous-profils (1-1)
   profilType  ProfilType
 
-  firstName     String?
-  lastName      String?
-  profession    String?
-
-  legalName     String?
-  registration  String?
-
-  phone       String?
-  email       String? @unique
-  fullAddress String?
-  nationality String?
-
-
-  familyStatus      FamilyStatus?
-  matrimonialRegime MatrimonialRegime?
-  birthPlace        String?
-  birthDate         DateTime?
-
   completionStatus CompletionStatus @default(NOT_STARTED)
 
   createdAt   DateTime @default(now())
@@ -240,15 +233,82 @@ model Client {
   createdBy   User?    @relation("ClientCreatedBy", fields: [createdById], references: [id])
   updatedBy   User?    @relation("ClientUpdatedBy", fields: [updatedById], references: [id])
 
+  persons Person[]
+  entreprise Entreprise?
+
   ownedProperties Property[] @relation("OwnerProperties")
-  
+
+  documents Document[]
+
   bails       Bail[]     @relation("BailClients")
 
-  documents   Document[]
   intakeLinks IntakeLink[]
+  
+  dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
 
-  @@index([email])
   @@index([type])
+}
+
+model Person {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  firstName  String?
+  lastName   String?
+  profession String?
+
+  phone      String?
+  email      String? @unique
+  fullAddress String?
+  nationality String?
+
+  familyStatus      FamilyStatus?
+  matrimonialRegime MatrimonialRegime?
+  birthPlace        String?
+  birthDate         DateTime?
+
+  isPrimary Boolean @default(false)
+
+  documents Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  updatedById String?
+  createdBy   User?    @relation("PersonCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?    @relation("PersonUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([clientId])
+  @@index([email])
+}
+
+model Entreprise {
+  id String @id @default(cuid())
+
+  clientId String @unique
+  client Client @relation(fields: [clientId], references: [id])
+
+  registration String
+  legalName String
+
+  name String
+  email String @unique
+  phone String?
+  fullAddress String?
+
+  documents Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdById String?
+  updatedById String?
+  createdBy   User?    @relation("EntrepriseCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?    @relation("EntrepriseUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([clientId])
+  @@index([email])
 }
 
 /**
@@ -264,6 +324,21 @@ model Property {
   legalStatus BienLegalStatus?
   status      PropertyStatus @default(NON_LOUER)
 
+  // Mobilier obligatoire pour location meublée
+  hasLiterie              Boolean @default(false) // Literie avec couette ou couverture
+  hasRideaux              Boolean @default(false) // Volets ou rideaux dans les chambres
+  hasPlaquesCuisson       Boolean @default(false) // Plaques de cuisson
+  hasFour                 Boolean @default(false) // Four ou four à micro-onde
+  hasRefrigerateur        Boolean @default(false) // Réfrigérateur
+  hasCongelateur          Boolean @default(false) // Congélateur ou compartiment à congélation (-6°)
+  hasVaisselle            Boolean @default(false) // Vaisselle en nombre suffisant
+  hasUstensilesCuisine    Boolean @default(false) // Ustensiles de cuisine
+  hasTable                Boolean @default(false) // Table
+  hasSieges               Boolean @default(false) // Sièges
+  hasEtageresRangement    Boolean @default(false) // Étagères de rangement
+  hasLuminaires           Boolean @default(false) // Luminaires
+  hasMaterielEntretien    Boolean @default(false) // Matériel d'entretien ménager
+
   ownerId String
   owner   Client  @relation("OwnerProperties", fields: [ownerId], references: [id])
 
@@ -278,6 +353,8 @@ model Property {
   documents   Document[]
   intakes IntakeLink[] @relation("PropertyIntakes")
   bails Bail[] @relation("PropertyBails")
+  
+  dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
   
   @@index([status])
   @@index([ownerId])
@@ -318,6 +395,8 @@ model Bail {
 
   documents   Document[]
   intakes IntakeLink[] @relation("BailIntakes")
+  
+  dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
 
   @@index([status])
   @@index([propertyId])
@@ -344,8 +423,6 @@ model IntakeLink {
   status      IntakeStatus    @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
   submittedAt DateTime?
 
-  rawPayload Json?
-
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
@@ -364,14 +441,20 @@ model IntakeLink {
 
 model Document {
   id       String       @id @default(cuid())
-  kind     DocumentKind @default(BIRTH_CERT)
+  kind     DocumentKind @default(ID_IDENTITY)
   label    String?
   fileKey  String // clé S3/GCS
   mimeType String?
   size     Int?
 
+  personId String?
+  person   Person? @relation(fields: [personId], references: [id])
+
+  entrepriseId String?
+  entreprise   Entreprise? @relation(fields: [entrepriseId], references: [id])
+
   clientId String?
-  client   Client?  @relation(fields: [clientId], references: [id])
+  client   Client? @relation(fields: [clientId], references: [id])
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id])
@@ -385,7 +468,8 @@ model Document {
   uploadedBy   User?    @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
 
   @@index([kind])
-  @@index([clientId])
+  @@index([personId])
+  @@index([entrepriseId])
   @@index([propertyId])
   @@index([bailId])
   @@index([uploadedById])
@@ -513,5 +597,106 @@ model Verification {
   updatedAt  DateTime @updatedAt
 
   @@unique([identifier, value])
+}
+
+/**
+ * ---------------------- Notaire Assignments ------------------
+ */
+
+model DossierNotaireAssignment {
+  id        String   @id @default(cuid())
+  
+  // Relations vers les entités du dossier
+  clientId  String
+  client    Client   @relation("DossierNotaireAssignments", fields: [clientId], references: [id], onDelete: Cascade)
+  
+  propertyId String?
+  property   Property? @relation("DossierNotaireAssignments", fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  bailId    String?
+  bail      Bail?    @relation("DossierNotaireAssignments", fields: [bailId], references: [id], onDelete: Cascade)
+  
+  // Notaire assigné
+  notaireId String
+  notaire   User     @relation("NotaireAssignments", fields: [notaireId], references: [id], onDelete: Cascade)
+  
+  // Métadonnées
+  assignedAt   DateTime @default(now())
+  assignedById String
+  assignedBy   User     @relation("DossierAssignmentsCreated", fields: [assignedById], references: [id])
+  
+  notes        String?  // Notes optionnelles pour l'assignation
+  
+  // Relations pour les demandes
+  requests     NotaireRequest[] @relation("DossierRequests")
+  
+  @@unique([clientId, propertyId, bailId, notaireId])
+  @@index([notaireId])
+  @@index([clientId])
+  @@index([bailId])
+}
+
+/**
+ * ---------------------- Notaire Requests ------------------
+ * Demandes du notaire pour des pièces ou données aux parties
+ */
+
+enum NotaireRequestType {
+  DOCUMENT  // Demande de pièce/document
+  DATA      // Demande de données/informations
+}
+
+enum NotaireRequestStatus {
+  PENDING   // En attente de réponse
+  COMPLETED // Complétée
+  CANCELLED // Annulée
+}
+
+model NotaireRequest {
+  id        String   @id @default(cuid())
+  
+  // Dossier associé
+  dossierId String
+  dossier   DossierNotaireAssignment @relation("DossierRequests", fields: [dossierId], references: [id], onDelete: Cascade)
+  
+  // Type de demande
+  type      NotaireRequestType
+  
+  // Contenu de la demande
+  title     String   // Titre de la demande
+  content   String   // Contenu détaillé (textarea)
+  
+  // Destinataires (peut être propriétaire, locataire, ou les deux)
+  targetProprietaire Boolean @default(false)
+  targetLocataire   Boolean @default(false)
+  
+  // Statut
+  status    NotaireRequestStatus @default(PENDING)
+  
+  // Métadonnées
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String
+  createdBy   User     @relation("NotaireRequestCreatedBy", fields: [createdById], references: [id])
+  
+  @@index([dossierId])
+  @@index([status])
+  @@index([createdById])
+}
+
+/**
+ * ---------------------- OTP Codes ------------------
+ */
+
+model OTPCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String   // Code OTP (6 chiffres)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([email, used])
+  @@index([expiresAt])
 }
 

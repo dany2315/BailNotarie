@@ -1,26 +1,23 @@
-import { getClient } from "@/lib/actions/clients";
+import { getClient, getClientMissingData } from "@/lib/actions/clients";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit, Building2, FileText, Mail, Phone, MapPin, Calendar, Euro, Users, Home } from "lucide-react";
+import { ArrowLeft, Edit, Building2, FileText, Mail, Phone, Euro } from "lucide-react";
 import { 
-  StatusBadge, 
-  FamilyStatusBadge, 
-  MatrimonialRegimeBadge 
+  StatusBadge
 } from "@/components/shared/status-badge";
 import { CompletionStatusSelect } from "@/components/shared/completion-status-select";
-import { formatDate, formatCurrency, formatSurface, formatDateTime } from "@/lib/utils/formatters";
+import { formatCurrency, formatDateTime } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClientType, ProfilType, BailStatus, PropertyStatus, Property } from "@prisma/client";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { DocumentsList } from "@/components/leases/documents-list";
+import { ClientType, ProfilType, BailStatus } from "@prisma/client";
 import { PropertyBailsViewer } from "@/components/clients/property-bails-viewer";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { SendIntakeButton } from "@/components/clients/send-intake-button";
 import { ClientActionsDropdown } from "@/components/clients/client-actions-dropdown";
 import { CommentsDrawer } from "@/components/comments/comments-drawer";
 import { DeleteClientButton } from "@/components/clients/delete-client-button";
+import { ClientPersonsTabs } from "@/components/clients/client-persons-tabs";
+import { MissingDataCard } from "@/components/clients/missing-data-card";
 
 export default async function ClientDetailPage({
   params,
@@ -28,36 +25,112 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const resolvedParams = await params;
-  const client = await getClient(resolvedParams.id);
+  const [client, missingData] = await Promise.all([
+    getClient(resolvedParams.id),
+    getClientMissingData(resolvedParams.id),
+  ]);
 
   if (!client) {
     notFound();
   }
 
-  const clientName = client.type === ClientType.PERSONNE_PHYSIQUE
-    ? `${client.firstName || ""} ${client.lastName || ""}`.trim()
-    : client.legalName || "";
+  // Obtenir les données principales depuis Person (personne primaire) ou Entreprise
+  const primaryPerson = client.persons?.find((p: any) => p.isPrimary) || client.persons?.[0];
+  const entreprise = client.entreprise;
 
-  // Fonction helper pour sérialiser les Decimal
-  const serializeDecimal = (value: any): any => {
-    if (value && typeof value === 'object' && value.constructor?.name === 'Decimal') {
-      return Number(value);
+  // Obtenir le nom du client
+  const clientName = client.type === ClientType.PERSONNE_PHYSIQUE
+    ? primaryPerson
+      ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim()
+      : "Client"
+    : entreprise?.legalName || entreprise?.name || "Client";
+
+  // Obtenir l'email et le téléphone
+  const clientEmail = client.type === ClientType.PERSONNE_PHYSIQUE
+    ? primaryPerson?.email
+    : entreprise?.email;
+  
+  const clientPhone = client.type === ClientType.PERSONNE_PHYSIQUE
+    ? primaryPerson?.phone
+    : entreprise?.phone;
+
+  // Collecter tous les documents depuis persons, entreprise et client
+  const allDocuments = [
+    ...(client.persons?.flatMap((p: any) => p.documents || []) || []),
+    ...(client.entreprise?.documents || []),
+    ...(client.documents || []), // Documents client (livret de famille, PACS)
+  ];
+
+  // Fonction helper récursive pour sérialiser les Decimal de Prisma
+  const serializeDecimal = (obj: any): any => {
+    if (obj === null || obj === undefined) {
+      return obj;
     }
-    return value;
+    
+    // Détecter et convertir les Decimal de Prisma
+    if (obj && typeof obj === 'object') {
+      // Vérifier si c'est un Decimal de Prisma
+      const isDecimal = 
+        obj.constructor?.name === 'Decimal' ||
+        (typeof obj.toNumber === 'function' && 
+         typeof obj.toString === 'function' && 
+         !Array.isArray(obj) && 
+         !(obj instanceof Date) &&
+         obj.constructor !== Object &&
+         obj.constructor !== RegExp);
+      
+      if (isDecimal) {
+        try {
+          if (typeof obj.toNumber === 'function') {
+            const num = obj.toNumber();
+            return isNaN(num) ? null : num;
+          }
+          const num = Number(obj);
+          return isNaN(num) ? null : num;
+        } catch {
+          try {
+            return parseFloat(obj.toString()) || null;
+          } catch {
+            return null;
+          }
+        }
+      }
+      
+      // Gérer les Date
+      if (obj instanceof Date) {
+        return obj.toISOString();
+      }
+      
+      // Gérer les tableaux
+      if (Array.isArray(obj)) {
+        return obj.map(serializeDecimal);
+      }
+      
+      // Gérer les objets (récursivement)
+      const serialized: any = {};
+      for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          serialized[key] = serializeDecimal(obj[key]);
+        }
+      }
+      return serialized;
+    }
+    
+    return obj;
   };
 
   // Sérialiser les données pour convertir les Decimal en nombres
-  // Utilisation de JSON.parse(JSON.stringify()) pour sérialiser complètement
-  // Cela convertit automatiquement tous les Decimal en nombres et les Dates en strings
-  const serializedBails = client.bails ? JSON.parse(JSON.stringify(client.bails, (key, value) => serializeDecimal(value))) as typeof client.bails : [];
-  const serializedProperties = client.ownedProperties ? JSON.parse(JSON.stringify(client.ownedProperties, (key, value) => serializeDecimal(value))) as typeof client.ownedProperties : [];
-  const serializedIntakeLinks = client.intakeLinks ? client.intakeLinks.map(link => ({
-    id: link.id,
-    token: link.token,
-    target: link.target,
-    status: link.status,
-    createdAt: link.createdAt.toISOString(),
-  })) as Array<{ id: string; token: string; target: string; status: string; createdAt: string }> : [];
+  // Parcourir récursivement tous les objets pour convertir tous les Decimal
+  // Cela évite l'erreur "Only plain objects can be passed to Client Components"
+  const serializedBails = client.bails ? serializeDecimal(client.bails) : [];
+  const serializedProperties = client.ownedProperties ? serializeDecimal(client.ownedProperties) : [];
+  // Les intakeLinks sont déjà sérialisés par getClient, createdAt est déjà une string ISO
+  const serializedIntakeLinks = client.intakeLinks || [];
+  
+  // Sérialiser les données pour ClientPersonsTabs (composant client)
+  const serializedPersons = client.persons ? serializeDecimal(client.persons) : [];
+  const serializedEntreprise = client.entreprise ? serializeDecimal(client.entreprise) : null;
+  const serializedClientDocuments = client.documents ? serializeDecimal(client.documents) : [];
 
   // Statistiques selon le type de profil
   const stats = {
@@ -117,7 +190,7 @@ export default async function ClientDetailPage({
             <CommentsDrawer target="CLIENT" targetId={client.id} />
             <ClientActionsDropdown
               clientId={client.id}
-              hasEmail={!!client.email}
+              hasEmail={!!clientEmail}
               profilType={client.profilType}
               intakeLinks={serializedIntakeLinks}
             />
@@ -172,8 +245,8 @@ export default async function ClientDetailPage({
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{client.documents?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Pièce{client.documents && client.documents.length > 1 ? "s" : ""} jointe{client.documents && client.documents.length > 1 ? "s" : ""}</p>
+              <div className="text-2xl font-bold">{allDocuments.length}</div>
+              <p className="text-xs text-muted-foreground">Pièce{allDocuments.length > 1 ? "s" : ""} jointe{allDocuments.length > 1 ? "s" : ""}</p>
             </CardContent>
           </Card>
         </div>
@@ -211,8 +284,8 @@ export default async function ClientDetailPage({
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{client.documents?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Pièce{client.documents && client.documents.length > 1 ? "s" : ""} jointe{client.documents && client.documents.length > 1 ? "s" : ""}</p>
+              <div className="text-2xl font-bold">{allDocuments.length}</div>
+              <p className="text-xs text-muted-foreground">Pièce{allDocuments.length > 1 ? "s" : ""} jointe{allDocuments.length > 1 ? "s" : ""}</p>
             </CardContent>
           </Card>
         </div>
@@ -226,8 +299,8 @@ export default async function ClientDetailPage({
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{client.documents?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Pièce{client.documents && client.documents.length > 1 ? "s" : ""} jointe{client.documents && client.documents.length > 1 ? "s" : ""}</p>
+              <div className="text-2xl font-bold">{allDocuments.length}</div>
+              <p className="text-xs text-muted-foreground">Pièce{allDocuments.length > 1 ? "s" : ""} jointe{allDocuments.length > 1 ? "s" : ""}</p>
             </CardContent>
           </Card>
         </div>
@@ -235,167 +308,27 @@ export default async function ClientDetailPage({
 
       {/* Section principale avec grille asymétrique pour desktop */}
       <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
-        {/* Colonne gauche - Informations personnelles et Documents */}
+        {/* Colonne gauche - Informations personnelles avec onglets */}
         <div className="flex flex-col gap-6 order-1 lg:col-span-2">
-          {/* Informations du client - Order 1 sur mobile */}
-          <Card className="order-1">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Informations du client
-              </CardTitle>
-              <CardDescription>Détails personnels et de contact</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                {client.type === ClientType.PERSONNE_PHYSIQUE ? (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {client.firstName && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Prénom</label>
-                        <p className="mt-1 text-sm font-medium">{client.firstName}</p>
-                      </div>
-                    )}
-                    {client.lastName && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Nom</label>
-                        <p className="mt-1 text-sm font-medium">{client.lastName}</p>
-                      </div>
-                    )}
-                    {client.profession && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Profession</label>
-                        <p className="mt-1 text-sm">{client.profession}</p>
-                      </div>
-                    )}
-                    {client.familyStatus && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Statut familial</label>
-                        <div className="mt-1">
-                          <FamilyStatusBadge status={client.familyStatus} />
-                        </div>
-                      </div>
-                    )}
-                    {client.matrimonialRegime && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Régime matrimonial</label>
-                        <div className="mt-1">
-                          <MatrimonialRegimeBadge regime={client.matrimonialRegime} />
-                        </div>
-                      </div>
-                    )}
-                    {client.birthPlace && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Lieu de naissance</label>
-                        <p className="mt-1 text-sm">{client.birthPlace}</p>
-                      </div>
-                    )}
-                    {client.birthDate && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Date de naissance</label>
-                        <p className="mt-1 text-sm">{formatDate(client.birthDate)}</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {client.legalName && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Raison sociale</label>
-                        <p className="mt-1 text-sm font-medium">{client.legalName}</p>
-                      </div>
-                    )}
-                    {client.registration && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">SIREN/SIRET</label>
-                        <p className="mt-1 text-sm">{client.registration}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <Separator />
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  {client.email && (
-                    <div className="flex items-start gap-2">
-                      <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Email</label>
-                        <p className="mt-1 text-sm">{client.email}</p>
-                      </div>
-                    </div>
-                  )}
-                  {client.phone && (
-                    <div className="flex items-start gap-2">
-                      <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Téléphone</label>
-                        <p className="mt-1 text-sm">{client.phone}</p>
-                      </div>
-                    </div>
-                  )}
-                  {client.fullAddress && (
-                    <div className="flex items-start gap-2 md:col-span-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div className="flex-1">
-                        <label className="text-sm font-medium text-muted-foreground">Adresse</label>
-                        <p className="mt-1 text-sm whitespace-pre-line">{client.fullAddress}</p>
-                      </div>
-                    </div>
-                  )}
-                  {client.nationality && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Nationalité</label>
-                      <p className="mt-1 text-sm">{client.nationality}</p>
-                    </div>
-                  )}
-                </div>
-            </CardContent>
-          </Card>
-
-          {/* Documents - Order 2 sur mobile */}
-          {client.documents && client.documents.length > 0 && (
-            <Card className="order-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Documents ({client.documents.length})
-                </CardTitle>
-                <CardDescription>Pièces jointes du client</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DocumentsList
-                  documents={client.documents.map((doc: any) => ({
-                    id: doc.id,
-                    kind: doc.kind,
-                    fileKey: doc.fileKey,
-                    mimeType: doc.mimeType,
-                    label: doc.label,
-                    createdAt: doc.createdAt,
-                  }))}
-                  documentKindLabels={{
-                    KBIS: "KBIS",
-                    STATUTES: "Statuts",
-                    INSURANCE: "Assurance",
-                    TITLE_DEED: "Titre de propriété",
-                    BIRTH_CERT: "Acte de naissance",
-                    ID_IDENTITY: "Pièce d'identité",
-                    LIVRET_DE_FAMILLE: "Livret de famille",
-                    CONTRAT_DE_PACS: "Contrat de PACS",
-                    DIAGNOSTICS: "Diagnostics",
-                    REGLEMENT_COPROPRIETE: "Règlement de copropriété",
-                    CAHIER_DE_CHARGE_LOTISSEMENT: "Cahier des charges lotissement",
-                    STATUT_DE_LASSOCIATION_SYNDICALE: "Statut de l'association syndicale",
-                    RIB: "RIB",
-                  }}
-                />
-              </CardContent>
-            </Card>
-          )}
+          {/* Informations du client avec onglets pour sélectionner la personne */}
+          <ClientPersonsTabs
+            clientType={client.type}
+            persons={serializedPersons}
+            entreprise={serializedEntreprise}
+            clientDocuments={serializedClientDocuments}
+          />
         </div>
 
-        {/* Colonne droite - Actions rapides et Informations système */}
+        {/* Colonne droite - Données manquantes, Actions rapides et Informations système */}
         <div className="flex flex-col gap-6 order-4 lg:col-span-1">
+          {/* Données manquantes - Affiché uniquement si données manquantes */}
+          {missingData && (missingData.totalMissingFields > 0 || missingData.totalMissingDocuments > 0) && (
+            <MissingDataCard
+              clientId={client.id}
+              missingData={missingData}
+            />
+          )}
+
           {/* Actions rapides - Order 4 sur mobile */}
           <Card className="order-4">
             <CardHeader>
@@ -410,19 +343,19 @@ export default async function ClientDetailPage({
               </Link>
               <SendIntakeButton 
                 clientId={client.id}
-                hasEmail={!!client.email}
+                hasEmail={!!clientEmail}
                 profilType={client.profilType}
               />
-              {client.email && (
-                <a href={`mailto:${client.email}`} className="block">
+              {clientEmail && (
+                <a href={`mailto:${clientEmail}`} className="block">
                   <Button variant="outline" className="w-full justify-start">
                     <Mail className="h-4 w-4 mr-2" />
                     Envoyer un email
                   </Button>
                 </a>
               )}
-              {client.phone && (
-                <a href={`tel:${client.phone}`} className="block">
+              {clientPhone && (
+                <a href={`tel:${clientPhone}`} className="block">
                   <Button variant="outline" className="w-full justify-start">
                     <Phone className="h-4 w-4 mr-2" />
                     Appeler
@@ -446,12 +379,12 @@ export default async function ClientDetailPage({
                 <label className="text-xs text-muted-foreground">Modifié le</label>
                 <p className="mt-0.5 break-words">{formatDateTime(client.updatedAt)}</p>
               </div>
-              {client.createdBy && (
-                <div>
-                  <label className="text-xs text-muted-foreground">Créé par</label>
-                  <p className="mt-0.5 break-words">{client.createdBy.name || client.createdBy.email}</p>
-                </div>
-              )}
+              <div>
+                <label className="text-xs text-muted-foreground">Créé par</label>
+                <p className="mt-0.5 break-words">
+                  {client.createdBy ? (client.createdBy.name || client.createdBy.email) : "via formulaire"}
+                </p>
+              </div>
               {client.updatedBy && (
                 <div>
                   <label className="text-xs text-muted-foreground">Modifié par</label>

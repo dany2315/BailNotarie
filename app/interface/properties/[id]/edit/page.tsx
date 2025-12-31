@@ -28,6 +28,11 @@ async function handleSubmit(data: FormData) {
     formData.surfaceM2 = surfaceM2.toString().trim();
   }
   
+  const type = data.get("type");
+  if (type && type.toString().trim() !== "") {
+    formData.type = type.toString().trim();
+  }
+  
   const legalStatus = data.get("legalStatus");
   if (legalStatus && legalStatus.toString().trim() !== "") {
     formData.legalStatus = legalStatus.toString().trim();
@@ -41,6 +46,20 @@ async function handleSubmit(data: FormData) {
   const ownerId = data.get("ownerId");
   if (ownerId) {
     formData.ownerId = ownerId.toString();
+  }
+
+  // Traiter les champs de mobilier (convertir string "true"/"false" en boolean)
+  const furnitureFields = [
+    "hasLiterie", "hasRideaux", "hasPlaquesCuisson", "hasFour", 
+    "hasRefrigerateur", "hasCongelateur", "hasVaisselle", "hasUstensilesCuisine",
+    "hasTable", "hasSieges", "hasEtageresRangement", "hasLuminaires", "hasMaterielEntretien"
+  ];
+  
+  for (const field of furnitureFields) {
+    const value = data.get(field);
+    if (value !== null) {
+      formData[field] = value.toString() === "true";
+    }
   }
 
   // Validation avec Zod avant d'appeler updateProperty
@@ -72,9 +91,24 @@ export default async function EditPropertyPage({
     label: property.label || "",
     fullAddress: property.fullAddress,
     surfaceM2: property.surfaceM2 ? property.surfaceM2.toString() : "",
+    type: property.type || "",
     legalStatus: property.legalStatus || "",
     status: property.status,
     ownerId: property.ownerId,
+    // Champs de mobilier
+    hasLiterie: property.hasLiterie ?? false,
+    hasRideaux: property.hasRideaux ?? false,
+    hasPlaquesCuisson: property.hasPlaquesCuisson ?? false,
+    hasFour: property.hasFour ?? false,
+    hasRefrigerateur: property.hasRefrigerateur ?? false,
+    hasCongelateur: property.hasCongelateur ?? false,
+    hasVaisselle: property.hasVaisselle ?? false,
+    hasUstensilesCuisine: property.hasUstensilesCuisine ?? false,
+    hasTable: property.hasTable ?? false,
+    hasSieges: property.hasSieges ?? false,
+    hasEtageresRangement: property.hasEtageresRangement ?? false,
+    hasLuminaires: property.hasLuminaires ?? false,
+    hasMaterielEntretien: property.hasMaterielEntretien ?? false,
   };
 
   const propertyName = property.label || property.fullAddress;

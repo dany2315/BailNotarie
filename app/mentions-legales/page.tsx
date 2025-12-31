@@ -27,14 +27,14 @@ export default function MentionsLegalesPage() {
               <section>
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">Éditeur du site</h2>
                 <ul className="list-none pl-0 space-y-2">
-                  <li><strong>Mon Bail Notarié</strong> (nom commercial)</li>
-                  <li><strong>Société :</strong> [forme juridique – ex. SAS / SARL]</li>
-                  <li><strong>Capital social :</strong> [montant]</li>
-                  <li><strong>Siège social :</strong> [adresse complète]</li>
-                  <li><strong>RCS :</strong> [numéro]</li>
-                  <li><strong>N° SIRET :</strong> [numéro]</li>
-                  <li><strong>Code APE :</strong> [à compléter – ex. 8211Z : Services administratifs / support]</li>
-                  <li><strong>Directeur de la publication :</strong> chlomi cohen solal</li>
+                  <li><strong>BailNotarie</strong> (nom commercial)</li>
+                  <li><strong>Société :</strong> SAS</li>
+                  <li><strong>Capital social :</strong> 1000 €</li>
+                  <li><strong>Siège social :</strong> 58 rue de Monceau , 75380 Paris</li>
+                  <li><strong>RCS :</strong> 891 279 429</li>
+                  <li><strong>N° SIRET :</strong> (en cours d'immatriculation)</li>
+                  <li><strong>Code APE :</strong> (en cours d'attribution)</li>
+                  <li><strong>Directeur de la publication :</strong> Chlomi Cohen Solal</li>
                   <li><strong>Contact :</strong> <a href="mailto:contact@bailnotarie.fr" className="text-blue-600 hover:underline">contact@bailnotarie.fr</a></li>
                 </ul>
               </section>
@@ -42,7 +42,7 @@ export default function MentionsLegalesPage() {
               <section>
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">Hébergement</h2>
                 <ul className="list-none pl-0 space-y-2">
-                  <li><strong>[Nom de l'hébergeur]</strong></li>
+                  <li><strong>Vercel</strong></li>
                   <li><strong>Adresse :</strong> [adresse]</li>
                   <li><strong>Tél :</strong> [téléphone]</li>
                 </ul>
@@ -51,7 +51,7 @@ export default function MentionsLegalesPage() {
               <section>
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">🔒 Avertissement important / Déclaration de non-exercice du notariat</h2>
                 <p className="mb-4">
-                  <strong>Mon Bail Notarié</strong> est une société privée d'accompagnement administratif.
+                  <strong>Bailnotarie</strong> est une société privée d'accompagnement administratif.
                 </p>
                 <p className="mb-4">
                   Nous ne sommes pas un office notarial, nous n'exerçons pas d'acte notarié, nous ne conseillons pas juridiquement, 

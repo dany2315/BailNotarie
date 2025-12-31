@@ -5,24 +5,36 @@ import Script from "next/script";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Toaster } from "@/components/shared/toaster";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ 
+  subsets: ["latin"],
+  display: "swap", // Empêche le blocage du rendu
+  preload: true,
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
-    default: "BailNotarie - Procédure de bail notarié en ligne, avec force exécutoire immédiate",
+    default: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
     template: "%s | BailNotarie"
   },
-  description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
+  description: "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
   keywords: [
     "bail notarié",
     "bail notarié en ligne",
+    "contrat de bail location",
+    "cout bail notarié",
+    "bail mobilite",
+    "prix bail notarié",
+    "prix d'un bail notarié",
     "bail notarié France",
     "bail notarié en 48h",
     "bail location notarié",
     "notaire bail habitation",
     "contrat de location notarié",
     "bail",
+    "bail d'habitation",
+    "bail d'habitation durée 1 an",
+    "contrat de bail location",
     "bail location",
     "contrat location",
     "bail location notarié",
@@ -64,9 +76,9 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://www.bailnotarie.fr",
+    canonical: "/",
     languages: {
-      'fr-FR': 'https://www.bailnotarie.fr',
+      'fr-FR': '/',
     },
   },
   verification: {
@@ -91,26 +103,26 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "fr_FR",
-    url: "https://www.bailnotarie.fr",
+    url: "/",
     siteName: "BailNotarie",
-    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
-    description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +200 clients satisfaits. Devis gratuit. Expert en acte authentique depuis 2019.",
+    title: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
+    description: "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     images: [
       { 
-        url: "https://www.bailnotarie.fr/og-cover-v2.png",
+        url: "/og-cover-v2.png",
         width: 1200,
         height: 630,
-        alt: "BailNotarie - Expert en bail notarié avec force exécutoire immédiate",
+        alt: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
       },
     ],
   },
   twitter: {  
     card: "summary_large_image",
-    title: "BailNotarie - Bail Notarié en ligne, en 48h avec force exécutoire immédiate",
-    description: "Créez votre bail notarié en ligne, en 48h avec force exécutoire immédiate. +2000 clients satisfaits. Devis gratuit.",
+    title: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
+    description: "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
-    images: ["https://www.bailnotarie.fr/og-cover-v2.png"],
+    images: ["/og-cover-v2.png"],
   },
   manifest: '/site.webmanifest',
 };

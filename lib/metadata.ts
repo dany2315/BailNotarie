@@ -14,11 +14,11 @@ export interface PageMetadata {
 export const defaultMetadata: Metadata = {
   metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
-    default: "BailNotarie - Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate",
+    default: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
     template: "%s | BailNotarie",
   },
   description:
-    "Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+    "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
   keywords: [
     "bail notarié",
     "bail notarié en ligne",
@@ -77,15 +77,15 @@ export const defaultMetadata: Metadata = {
     locale: "fr_FR",
     url: "/", // ✅ aligne avec canonical
     siteName: "BailNotarie",
-    title: "BailNotarie - Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate",
+    title: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
     description:
-      "Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+      "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     images: [
       {
         url: "/og-cover-v2.png",
         width: 1200,
         height: 630,
-        alt: "BailNotarie - Expert en procédure de bail notarié 100% en ligne, avec force exécutoire immédiate",
+        alt: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
       },
     ],
   },
@@ -93,7 +93,7 @@ export const defaultMetadata: Metadata = {
     card: "summary_large_image",
     title: "BailNotarie - Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate",
     description:
-      "Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+      "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
     images: ["/og-cover-v2.png"],

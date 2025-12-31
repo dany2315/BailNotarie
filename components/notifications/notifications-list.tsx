@@ -205,11 +205,9 @@ export function NotificationsList({
                     )}
                     <p className="font-medium">{message}</p>
                   </div>
-                  {notification.createdBy && (
-                    <p className="text-sm text-muted-foreground">
-                      Par {notification.createdBy.name || notification.createdBy.email}
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Par {notification.createdBy ? (notification.createdBy.name || notification.createdBy.email) : "via formulaire"}
+                  </p>
                   <p className="text-sm text-muted-foreground mt-1">{timeAgo}</p>
                 </div>
                 {!notification.isRead && (

@@ -117,7 +117,7 @@ export function Blog2Content() {
         <h2 id="etape2" className="text-2xl font-bold text-gray-900 mb-4">Étape 2 — Cas spécifique : professionnel ou société</h2>
         
         <p className="text-gray-700 mb-6">
-          Si le bailleur ou le locataire est une personne morale (société, SCI, entreprise), des pièces supplémentaires sont requises :
+          Si le bailleur ou le locataire est une entreprise (société, SCI), des pièces supplémentaires sont requises :
         </p>
 
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-6 my-6">

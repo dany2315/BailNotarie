@@ -12,14 +12,27 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+interface Person {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  isPrimary: boolean;
+}
+
+interface Entreprise {
+  id: string;
+  legalName: string;
+  name: string;
+  email: string;
+}
+
 interface Client {
   id: string;
   type: ClientType;
   profilType: ProfilType;
-  firstName?: string | null;
-  lastName?: string | null;
-  legalName?: string | null;
-  email?: string | null;
+  persons?: Person[];
+  entreprise?: Entreprise | null;
   completionStatus: CompletionStatus;
   updatedAt: string | Date;
 }
@@ -57,19 +70,36 @@ export function ClientsListDashboard({ clients: initialClients }: ClientsListDas
     if (search.trim()) {
       const searchLower = search.toLowerCase().trim();
       filtered = filtered.filter((client) => {
-        const firstName = (client.firstName || "").toLowerCase();
-        const lastName = (client.lastName || "").toLowerCase();
-        const legalName = (client.legalName || "").toLowerCase();
-        const email = (client.email || "").toLowerCase();
-        const fullName = `${firstName} ${lastName}`.trim();
+        // Pour une personne physique, chercher dans les persons
+        if (client.type === ClientType.PERSONNE_PHYSIQUE && client.persons) {
+          const matchesPerson = client.persons.some((person) => {
+            const firstName = (person.firstName || "").toLowerCase();
+            const lastName = (person.lastName || "").toLowerCase();
+            const email = (person.email || "").toLowerCase();
+            const fullName = `${firstName} ${lastName}`.trim();
+            return (
+              firstName.includes(searchLower) ||
+              lastName.includes(searchLower) ||
+              fullName.includes(searchLower) ||
+              email.includes(searchLower)
+            );
+          });
+          if (matchesPerson) return true;
+        }
 
-        return (
-          firstName.includes(searchLower) ||
-          lastName.includes(searchLower) ||
-          fullName.includes(searchLower) ||
-          legalName.includes(searchLower) ||
-          email.includes(searchLower)
-        );
+        // Pour une personne morale, chercher dans l'entreprise
+        if (client.type === ClientType.PERSONNE_MORALE && client.entreprise) {
+          const legalName = (client.entreprise.legalName || "").toLowerCase();
+          const name = (client.entreprise.name || "").toLowerCase();
+          const email = (client.entreprise.email || "").toLowerCase();
+          return (
+            legalName.includes(searchLower) ||
+            name.includes(searchLower) ||
+            email.includes(searchLower)
+          );
+        }
+
+        return false;
       });
     }
 
@@ -87,15 +117,24 @@ export function ClientsListDashboard({ clients: initialClients }: ClientsListDas
 
   const getClientName = (client: Client) => {
     if (client.type === ClientType.PERSONNE_PHYSIQUE) {
-      const name = `${client.firstName || ""} ${client.lastName || ""}`.trim();
-      return name || client.email || "N/A";
+      // Chercher la personne principale ou la première personne
+      const primaryPerson = client.persons?.find((p) => p.isPrimary) || client.persons?.[0];
+      if (primaryPerson) {
+        const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+        return name || primaryPerson.email || "N/A";
+      }
+      return "N/A";
     }
-    return client.legalName || client.email || "N/A";
+    // Pour une personne morale
+    if (client.entreprise) {
+      return client.entreprise.legalName || client.entreprise.name || client.entreprise.email || "N/A";
+    }
+    return "N/A";
   };
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="flex flex-col h-full min-h-0">
+      <CardHeader className="shrink-0">
         <CardTitle className="text-lg sm:text-xl">Statuts clients</CardTitle>
         <div className="flex flex-col sm:flex-row gap-3 mt-4">
           <div className="relative flex-1">
@@ -128,7 +167,7 @@ export function ClientsListDashboard({ clients: initialClients }: ClientsListDas
           />
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 min-h-0 overflow-y-auto">
         {filteredClients.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             Aucun client trouvé
@@ -193,6 +232,9 @@ export function ClientsListDashboard({ clients: initialClients }: ClientsListDas
     </Card>
   );
 }
+
+
+
 
 
 

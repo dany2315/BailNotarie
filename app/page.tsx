@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { Header } from "@/components/header";
 import { HeroSectionNew } from "@/components/hero-section-new";
-import { HowItWorksSection } from "@/components/how-it-works-section";
-import { PartnershipSection } from "@/components/partnership-section";
-import { BenefitsNewSection } from "@/components/benefits-new-section";
-import { StatsSection } from "@/components/stats-section";
-import { TestimonialsSection } from "@/components/testimonials-section";
-import { FAQSection } from "@/components/faq-section";
-import { CTAFinalSection } from "@/components/cta-final-section";
-import { ContactForm } from "@/components/contact-form";
 import { Footer } from "@/components/footer";
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
-import { CTASection } from "@/components/cta-section";
+
+// Lazy load des sections below-the-fold pour améliorer le LCP
+const HowItWorksSection = dynamic(() => import("@/components/how-it-works-section").then(mod => ({ default: mod.HowItWorksSection })));
+const PartnershipSection = dynamic(() => import("@/components/partnership-section").then(mod => ({ default: mod.PartnershipSection })));
+const BenefitsNewSection = dynamic(() => import("@/components/benefits-new-section").then(mod => ({ default: mod.BenefitsNewSection })));
+const TestimonialsSection = dynamic(() => import("@/components/testimonials-section").then(mod => ({ default: mod.TestimonialsSection })));
+const FAQSection = dynamic(() => import("@/components/faq-section").then(mod => ({ default: mod.FAQSection })));
+const CTASection = dynamic(() => import("@/components/cta-section").then(mod => ({ default: mod.CTASection })));
+const ContactForm = dynamic(() => import("@/components/contact-form").then(mod => ({ default: mod.ContactForm })));
 
 export const metadata: Metadata = generateDynamicMetadata({ page: 'home' });
 

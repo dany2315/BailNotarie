@@ -207,26 +207,21 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
       property: {
         include: {
           owner: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              legalName: true,
-              type: true,
-              email: true,
+            include: {
+              persons: {
+                orderBy: { isPrimary: 'desc' },
+              },
+              entreprise: true,
             },
           },
         },
       },
       parties: {
-        select: {
-          id: true,
-          profilType: true,
-          firstName: true,
-          lastName: true,
-          legalName: true,
-          type: true,
-          email: true,
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
         },
       },
       documents: {
@@ -247,6 +242,23 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
     return { success: false, error: "Bail introuvable" };
   }
 
+  // Helper pour obtenir le nom d'un client
+  const getClientName = (client: any): string => {
+    if (client.type === ClientType.PERSONNE_PHYSIQUE) {
+      const primaryPerson = client.persons?.find((p: any) => p.isPrimary) || client.persons?.[0];
+      if (primaryPerson) {
+        const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+        return name || primaryPerson.email || "Client";
+      }
+      return client.email || "Client";
+    }
+    // PERSONNE_MORALE
+    if (client.entreprise) {
+      return client.entreprise.legalName || client.entreprise.name || client.entreprise.email || "Client";
+    }
+    return client.legalName || client.email || "Client";
+  };
+
   // Vérifier s'il y a un locataire connecté au bail
   const hasTenant = bail.parties.some(party => party.profilType === ProfilType.LOCATAIRE);
   
@@ -254,9 +266,7 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
     // Trouver le nom du locataire pour le message d'erreur
     const tenant = bail.parties.find(party => party.profilType === ProfilType.LOCATAIRE);
     if (tenant) {
-      const tenantName = tenant.type === ClientType.PERSONNE_PHYSIQUE
-        ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email || "Locataire"
-        : tenant.legalName || tenant.email || "Locataire";
+      const tenantName = getClientName(tenant);
       
       return {
         success: false,
@@ -336,10 +346,24 @@ export async function getLease(id: string) {
     include: {
       property: {
         include: {
-          owner: true,
+          owner: {
+            include: {
+              persons: {
+                orderBy: { isPrimary: 'desc' },
+              },
+              entreprise: true,
+            },
+          },
         },
       },
-      parties: true,
+      parties: {
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
+        },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
       documents: true,
@@ -385,10 +409,14 @@ export async function getLeases(params: {
   if (params.search) {
     where.OR = [
       { property: { fullAddress: { contains: params.search, mode: "insensitive" } } },
-      { parties: { some: { firstName: { contains: params.search, mode: "insensitive" } } } },
-      { parties: { some: { lastName: { contains: params.search, mode: "insensitive" } } } },
-      { parties: { some: { legalName: { contains: params.search, mode: "insensitive" } } } },
-      { parties: { some: { email: { contains: params.search, mode: "insensitive" } } } },
+      // Recherche dans les personnes des parties
+      { parties: { some: { persons: { some: { firstName: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { persons: { some: { lastName: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { persons: { some: { email: { contains: params.search, mode: "insensitive" } } } } } },
+      // Recherche dans les entreprises des parties
+      { parties: { some: { entreprise: { legalName: { contains: params.search, mode: "insensitive" } } } } },
+      { parties: { some: { entreprise: { name: { contains: params.search, mode: "insensitive" } } } } },
+      { parties: { some: { entreprise: { email: { contains: params.search, mode: "insensitive" } } } } },
     ];
   }
 
@@ -399,8 +427,37 @@ export async function getLeases(params: {
     prisma.bail.findMany({
       where,
       include: {
-        property: { include: { owner: true } },
-        parties: true,
+        property: { 
+          include: { 
+            owner: {
+              include: {
+                persons: {
+                  orderBy: { isPrimary: 'desc' },
+                },
+                entreprise: true,
+              },
+            },
+          },
+        },
+        parties: {
+          include: {
+            persons: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            entreprise: true,
+          },
+        },
+        dossierAssignments: {
+          include: {
+            notaire: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -429,10 +486,24 @@ export async function getAllBails() {
     include: {
       property: {
         include: {
-          owner: true,
+          owner: {
+            include: {
+              persons: {
+                orderBy: { isPrimary: 'desc' },
+              },
+              entreprise: true,
+            },
+          },
         },
       },
-      parties: true,
+      parties: {
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
+        },
+      },
     },
     orderBy: { updatedAt: "desc" },
   });
@@ -480,22 +551,32 @@ export async function createTenantForLease(data: unknown) {
     throw new Error("Un locataire est déjà connecté à ce bail");
   }
 
-  // Chercher un locataire existant avec cet email
+  // Chercher un locataire existant avec cet email dans ses persons
   let tenant = await prisma.client.findFirst({
     where: {
-      email: validated.email,
       profilType: ProfilType.LOCATAIRE,
+      persons: {
+        some: {
+          email: validated.email,
+        },
+      },
     },
   });
 
   if (!tenant) {
-    // Créer un nouveau locataire
+    // Créer un nouveau locataire avec une personne associée
     tenant = await prisma.client.create({
       data: {
         type: ClientType.PERSONNE_PHYSIQUE,
         profilType: ProfilType.LOCATAIRE,
-        email: validated.email,
         createdById: user.id,
+        persons: {
+          create: {
+            email: validated.email,
+            isPrimary: true,
+            createdById: user.id,
+          },
+        },
       },
     });
 
@@ -562,6 +643,257 @@ export async function createTenantForLease(data: unknown) {
   revalidatePath("/interface/clients");
 
   return { tenant, tenantIntakeLink };
+}
+
+// Types pour les données manquantes d'un bail
+export interface BailMissingDataPerson {
+  personId: string;
+  personName: string;
+  isPrimary: boolean;
+  missingFields: string[];
+  missingDocuments: string[];
+}
+
+export interface BailMissingDataClient {
+  clientId: string;
+  clientName: string;
+  clientType: ClientType;
+  profilType: ProfilType;
+  completionStatus: string;
+  persons: BailMissingDataPerson[];
+  entreprise: {
+    missingFields: string[];
+    missingDocuments: string[];
+  } | null;
+  clientDocuments: string[];
+  generalDocuments: string[];
+  totalMissingFields: number;
+  totalMissingDocuments: number;
+}
+
+export interface BailMissingDataProperty {
+  propertyId: string;
+  propertyLabel: string;
+  propertyAddress: string;
+  completionStatus: string;
+  missingFields: string[];
+  missingDocuments: string[];
+}
+
+export interface BailMissingDataBail {
+  missingFields: string[];
+  totalMissing: number;
+}
+
+export interface BailCompleteMissingData {
+  bail: BailMissingDataBail;
+  owner: BailMissingDataClient | null;
+  tenant: BailMissingDataClient | null;
+  property: BailMissingDataProperty | null;
+  isComplete: boolean;
+  totalMissing: number;
+}
+
+// Fonction pour récupérer toutes les données manquantes d'un bail
+export async function getBailMissingData(bailId: string): Promise<BailCompleteMissingData | null> {
+  await requireAuth();
+  
+  const { checkClientCompletionDetailed, checkPropertyCompletion } = await import("@/lib/utils/completion-status");
+  
+  try {
+    // Récupérer le bail avec toutes ses relations
+    const bail = await prisma.bail.findUnique({
+      where: { id: bailId },
+      include: {
+        property: {
+          include: {
+            documents: true,
+          },
+        },
+        parties: {
+          include: {
+            persons: true,
+            entreprise: true,
+          },
+        },
+      },
+    });
+
+    if (!bail) {
+      return null;
+    }
+
+    // Trouver propriétaire et locataire
+    const owner = bail.parties.find(p => p.profilType === ProfilType.PROPRIETAIRE);
+    const tenant = bail.parties.find(p => p.profilType === ProfilType.LOCATAIRE);
+    
+    // Vérifier les données du bail lui-même
+    const bailMissingFields: string[] = [];
+    
+    // Champs obligatoires du bail
+    if (!bail.rentAmount || bail.rentAmount <= 0) {
+      bailMissingFields.push("rentAmount");
+    }
+    if (!bail.effectiveDate) {
+      bailMissingFields.push("effectiveDate");
+    }
+    if (!bail.paymentDay) {
+      bailMissingFields.push("paymentDay");
+    }
+    if (!bail.securityDeposit && bail.securityDeposit !== 0) {
+      bailMissingFields.push("securityDeposit");
+    }
+    if (!tenant) {
+      bailMissingFields.push("tenant");
+    }
+    if (!owner) {
+      bailMissingFields.push("owner");
+    }
+    if (!bail.property) {
+      bailMissingFields.push("property");
+    }
+
+    // Vérifier les données du propriétaire
+    let ownerMissingData: BailMissingDataClient | null = null;
+    if (owner) {
+      const ownerCompletion = await checkClientCompletionDetailed(owner.id);
+      
+      // Calculer les totaux
+      let totalMissingFields = 0;
+      let totalMissingDocuments = 0;
+      
+      for (const person of ownerCompletion.missingData.persons) {
+        totalMissingFields += person.missingFields.length;
+        totalMissingDocuments += person.missingDocuments.length;
+      }
+      
+      if (ownerCompletion.missingData.entreprise) {
+        totalMissingFields += ownerCompletion.missingData.entreprise.missingFields.length;
+        totalMissingDocuments += ownerCompletion.missingData.entreprise.missingDocuments.length;
+      }
+      
+      totalMissingDocuments += ownerCompletion.missingData.clientDocuments.length;
+      totalMissingDocuments += ownerCompletion.missingData.generalDocuments.length;
+      
+      // Déterminer le nom du propriétaire
+      const primaryPerson = owner.persons?.find(p => p.isPrimary) || owner.persons?.[0];
+      const ownerName = owner.type === ClientType.PERSONNE_PHYSIQUE
+        ? primaryPerson
+          ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || primaryPerson.email || "Propriétaire"
+          : "Propriétaire"
+        : owner.entreprise?.legalName || owner.entreprise?.name || "Entreprise propriétaire";
+
+      ownerMissingData = {
+        clientId: owner.id,
+        clientName: ownerName,
+        clientType: owner.type,
+        profilType: owner.profilType,
+        completionStatus: owner.completionStatus,
+        persons: ownerCompletion.missingData.persons.map(p => ({
+          ...p,
+          missingDocuments: p.missingDocuments as string[],
+        })),
+        entreprise: ownerCompletion.missingData.entreprise ? {
+          missingFields: ownerCompletion.missingData.entreprise.missingFields,
+          missingDocuments: ownerCompletion.missingData.entreprise.missingDocuments as string[],
+        } : null,
+        clientDocuments: ownerCompletion.missingData.clientDocuments as string[],
+        generalDocuments: ownerCompletion.missingData.generalDocuments as string[],
+        totalMissingFields,
+        totalMissingDocuments,
+      };
+    }
+
+    // Vérifier les données du locataire
+    let tenantMissingData: BailMissingDataClient | null = null;
+    if (tenant) {
+      const tenantCompletion = await checkClientCompletionDetailed(tenant.id);
+      
+      // Calculer les totaux
+      let totalMissingFields = 0;
+      let totalMissingDocuments = 0;
+      
+      for (const person of tenantCompletion.missingData.persons) {
+        totalMissingFields += person.missingFields.length;
+        totalMissingDocuments += person.missingDocuments.length;
+      }
+      
+      if (tenantCompletion.missingData.entreprise) {
+        totalMissingFields += tenantCompletion.missingData.entreprise.missingFields.length;
+        totalMissingDocuments += tenantCompletion.missingData.entreprise.missingDocuments.length;
+      }
+      
+      totalMissingDocuments += tenantCompletion.missingData.clientDocuments.length;
+      totalMissingDocuments += tenantCompletion.missingData.generalDocuments.length;
+      
+      // Déterminer le nom du locataire
+      const primaryPerson = tenant.persons?.find(p => p.isPrimary) || tenant.persons?.[0];
+      const tenantName = tenant.type === ClientType.PERSONNE_PHYSIQUE
+        ? primaryPerson
+          ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || primaryPerson.email || "Locataire"
+          : "Locataire"
+        : tenant.entreprise?.legalName || tenant.entreprise?.name || "Entreprise locataire";
+
+      tenantMissingData = {
+        clientId: tenant.id,
+        clientName: tenantName,
+        clientType: tenant.type,
+        profilType: tenant.profilType,
+        completionStatus: tenant.completionStatus,
+        persons: tenantCompletion.missingData.persons.map(p => ({
+          ...p,
+          missingDocuments: p.missingDocuments as string[],
+        })),
+        entreprise: tenantCompletion.missingData.entreprise ? {
+          missingFields: tenantCompletion.missingData.entreprise.missingFields,
+          missingDocuments: tenantCompletion.missingData.entreprise.missingDocuments as string[],
+        } : null,
+        clientDocuments: tenantCompletion.missingData.clientDocuments as string[],
+        generalDocuments: tenantCompletion.missingData.generalDocuments as string[],
+        totalMissingFields,
+        totalMissingDocuments,
+      };
+    }
+
+    // Vérifier les données du bien
+    let propertyMissingData: BailMissingDataProperty | null = null;
+    if (bail.property) {
+      const propertyCompletion = await checkPropertyCompletion(bail.property.id);
+      
+      propertyMissingData = {
+        propertyId: bail.property.id,
+        propertyLabel: bail.property.label || "",
+        propertyAddress: bail.property.fullAddress,
+        completionStatus: bail.property.completionStatus,
+        missingFields: propertyCompletion.missingFields,
+        missingDocuments: propertyCompletion.missingDocuments as string[],
+      };
+    }
+
+    // Calculer le total général
+    const totalMissing = 
+      bailMissingFields.length +
+      (ownerMissingData ? ownerMissingData.totalMissingFields + ownerMissingData.totalMissingDocuments : 0) +
+      (tenantMissingData ? tenantMissingData.totalMissingFields + tenantMissingData.totalMissingDocuments : 0) +
+      (propertyMissingData ? propertyMissingData.missingFields.length + propertyMissingData.missingDocuments.length : 0);
+
+    const isComplete = totalMissing === 0;
+
+    return {
+      bail: {
+        missingFields: bailMissingFields,
+        totalMissing: bailMissingFields.length,
+      },
+      owner: ownerMissingData,
+      tenant: tenantMissingData,
+      property: propertyMissingData,
+      isComplete,
+      totalMissing,
+    };
+  } catch (error) {
+    console.error("Erreur lors de la récupération des données manquantes du bail:", error);
+    return null;
+  }
 }
 
 

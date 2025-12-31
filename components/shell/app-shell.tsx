@@ -16,6 +16,7 @@ import {
   Bell,
   CheckCircle2,
   UserIcon,
+  GraduationCap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -57,6 +58,7 @@ const navigation = [
   { name: "Clients", href: "/interface/clients", icon: Users },
   { name: "Biens", href: "/interface/properties", icon: Building2 },
   { name: "Intakes", href: "/interface/intakes", icon: LinkIcon },
+  { name: "Notaires", href: "/interface/notaires", icon: GraduationCap },
   { name: "Paramètres", href: "/interface/settings", icon: Settings },
 ];
 
@@ -205,13 +207,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       <SidebarInset className="rounded-xl overflow-hidden shadow-4xl ">
         <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-2 sm:gap-x-4 border-b bg-background px-2 sm:px-6 lg:px-8">
-          <SidebarTrigger className="pl-4 sm:p-0 flex-shrink-0 mr-4" />
+          <SidebarTrigger className="pl-4 sm:p-0 mr-4" />
           <Separator orientation="vertical" className=" sm:block" />
           <div className="flex flex-1 gap-x-2 sm:gap-x-4 self-stretch lg:gap-x-6 min-w-0 ml-2">
             <div className="flex items-center gap-x-2 sm:gap-x-4 lg:gap-x-6 flex-1 min-w-0 overflow-hidden">
               <Breadcrumbs />
             </div>
-            <div className="flex items-center gap-x-2 sm:gap-x-4 flex-shrink-0">
+            <div className="flex items-center gap-x-2 sm:gap-x-4 ">
               <NotificationsDropdown />
             </div>
           </div>

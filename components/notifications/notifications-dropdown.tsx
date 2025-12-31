@@ -235,11 +235,9 @@ export function NotificationsDropdown() {
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{message}</p>
-                        {notification.createdBy && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Par {notification.createdBy.name || notification.createdBy.email}
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Par {notification.createdBy ? (notification.createdBy.name || notification.createdBy.email) : "via formulaire"}
+                        </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           {timeAgo}
                         </p>
