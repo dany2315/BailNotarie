@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,12 +19,41 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { createFullClientWithPropertySchema } from "@/lib/zod/client";
 import { ClientType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, PropertyStatus, BienType, BienLegalStatus } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
+
+// Composant séparé pour la validation du dépôt de garantie (évite les re-renders)
+const BailSecurityDepositValidation = ({ control }: { control: any }) => {
+  const bailType = useWatch({ control, name: "bailType" });
+  const rentAmount = useWatch({ control, name: "bailRentAmount" });
+  const securityDeposit = useWatch({ control, name: "bailSecurityDeposit" });
+  
+  const isMeuble = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
+  const rentAmountNum = typeof rentAmount === 'number' ? rentAmount : parseInt(String(rentAmount) || '0', 10);
+  const securityDepositNum = typeof securityDeposit === 'number' ? securityDeposit : parseInt(String(securityDeposit) || '0', 10);
+  const maxDeposit = isMeuble ? rentAmountNum * 2 : rentAmountNum;
+  const isExceeded = rentAmountNum > 0 && securityDepositNum > maxDeposit;
+  
+  if (rentAmountNum <= 0) return null;
+  
+  return (
+    <>
+      <p className={`text-xs ${isExceeded ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+        Maximum : {maxDeposit.toLocaleString('fr-FR')} € ({isMeuble ? '2' : '1'} mois de loyer)
+      </p>
+      {isExceeded && (
+        <p className="text-sm text-destructive flex items-center gap-1">
+          <AlertCircle className="h-4 w-4" />
+          Dépasse le maximum légal
+        </p>
+      )}
+    </>
+  );
+};
 
 interface FullClientFormProps {
   onSubmit: (data: FormData) => Promise<void>;
@@ -804,7 +833,13 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bailSecurityDeposit">Dépôt de garantie</Label>
-                <NumberInputGroup field={form.register("bailSecurityDeposit")} min={0} unit="€" disabled={isLoading} />
+                <NumberInputGroup 
+                  field={form.register("bailSecurityDeposit")} 
+                  min={0} 
+                  unit="€" 
+                  disabled={isLoading} 
+                />
+                <BailSecurityDepositValidation control={form.control} />
               </div>
             </div>
           </CardContent>

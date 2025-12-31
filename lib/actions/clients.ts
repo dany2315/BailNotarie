@@ -245,6 +245,20 @@ export async function createFullClient(data: unknown) {
         status: validated.propertyStatus || PropertyStatus.NON_LOUER,
         ownerId: client.id,
         createdById: user.id,
+        // Mobilier obligatoire pour location meublée
+        hasLiterie: validated.hasLiterie ?? false,
+        hasRideaux: validated.hasRideaux ?? false,
+        hasPlaquesCuisson: validated.hasPlaquesCuisson ?? false,
+        hasFour: validated.hasFour ?? false,
+        hasRefrigerateur: validated.hasRefrigerateur ?? false,
+        hasCongelateur: validated.hasCongelateur ?? false,
+        hasVaisselle: validated.hasVaisselle ?? false,
+        hasUstensilesCuisine: validated.hasUstensilesCuisine ?? false,
+        hasTable: validated.hasTable ?? false,
+        hasSieges: validated.hasSieges ?? false,
+        hasEtageresRangement: validated.hasEtageresRangement ?? false,
+        hasLuminaires: validated.hasLuminaires ?? false,
+        hasMaterielEntretien: validated.hasMaterielEntretien ?? false,
       },
     });
 
@@ -817,6 +831,20 @@ export async function submitOwnerForm(data: unknown) {
         type: validated.propertyType,
         legalStatus: validated.propertyLegalStatus,
         status: validated.propertyStatus || PropertyStatus.NON_LOUER,
+        // Mobilier obligatoire pour location meublée
+        hasLiterie: validated.hasLiterie ?? false,
+        hasRideaux: validated.hasRideaux ?? false,
+        hasPlaquesCuisson: validated.hasPlaquesCuisson ?? false,
+        hasFour: validated.hasFour ?? false,
+        hasRefrigerateur: validated.hasRefrigerateur ?? false,
+        hasCongelateur: validated.hasCongelateur ?? false,
+        hasVaisselle: validated.hasVaisselle ?? false,
+        hasUstensilesCuisine: validated.hasUstensilesCuisine ?? false,
+        hasTable: validated.hasTable ?? false,
+        hasSieges: validated.hasSieges ?? false,
+        hasEtageresRangement: validated.hasEtageresRangement ?? false,
+        hasLuminaires: validated.hasLuminaires ?? false,
+        hasMaterielEntretien: validated.hasMaterielEntretien ?? false,
       },
     });
   } else {
@@ -830,6 +858,20 @@ export async function submitOwnerForm(data: unknown) {
         legalStatus: validated.propertyLegalStatus,
         status: validated.propertyStatus || PropertyStatus.NON_LOUER,
         ownerId: validated.clientId,
+        // Mobilier obligatoire pour location meublée
+        hasLiterie: validated.hasLiterie ?? false,
+        hasRideaux: validated.hasRideaux ?? false,
+        hasPlaquesCuisson: validated.hasPlaquesCuisson ?? false,
+        hasFour: validated.hasFour ?? false,
+        hasRefrigerateur: validated.hasRefrigerateur ?? false,
+        hasCongelateur: validated.hasCongelateur ?? false,
+        hasVaisselle: validated.hasVaisselle ?? false,
+        hasUstensilesCuisine: validated.hasUstensilesCuisine ?? false,
+        hasTable: validated.hasTable ?? false,
+        hasSieges: validated.hasSieges ?? false,
+        hasEtageresRangement: validated.hasEtageresRangement ?? false,
+        hasLuminaires: validated.hasLuminaires ?? false,
+        hasMaterielEntretien: validated.hasMaterielEntretien ?? false,
       },
     });
   }

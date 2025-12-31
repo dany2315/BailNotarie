@@ -8,7 +8,7 @@ import React, {
   type RefObject,
   type KeyboardEvent,
 } from "react";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { usePathname, useRouter } from "next/navigation";
@@ -48,6 +48,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { NumberInputGroup } from "@/components/ui/number-input-group";
 import { Stepper } from "@/components/ui/stepper";
 import { FileUpload } from "@/components/ui/file-upload";
@@ -67,6 +68,18 @@ import {
   Delete,
   Trash2,
   AlertCircle,
+  Bed,
+  Square,
+  ChefHat,
+  Microwave,
+  Refrigerator,
+  Snowflake,
+  UtensilsCrossed,
+  Table,
+  Armchair,
+  Layers,
+  Lightbulb,
+  Sparkles,
 } from "lucide-react";
 import {
   BailFamille,
@@ -91,6 +104,28 @@ import {
 import { Separator } from "../ui/separator";
 
 type OwnerFormData = z.infer<typeof ownerFormSchema>;
+
+// Liste des champs de mobilier obligatoire pour location meublée
+const FURNITURE_FIELDS = [
+  { key: "hasLiterie", label: "Literie avec couette ou couverture", icon: Bed },
+  { key: "hasRideaux", label: "Volets ou rideaux dans les chambres", icon: Square },
+  { key: "hasPlaquesCuisson", label: "Plaques de cuisson", icon: ChefHat },
+  { key: "hasFour", label: "Four ou four à micro-onde", icon: Microwave },
+  { key: "hasRefrigerateur", label: "Réfrigérateur", icon: Refrigerator },
+  { key: "hasCongelateur", label: "Congélateur ou compartiment à congélation (-6° max)", icon: Snowflake },
+  { key: "hasVaisselle", label: "Vaisselle en nombre suffisant", icon: UtensilsCrossed },
+  { key: "hasUstensilesCuisine", label: "Ustensiles de cuisine", icon: UtensilsCrossed },
+  { key: "hasTable", label: "Table", icon: Table },
+  { key: "hasSieges", label: "Sièges", icon: Armchair },
+  { key: "hasEtageresRangement", label: "Étagères de rangement", icon: Layers },
+  { key: "hasLuminaires", label: "Luminaires", icon: Lightbulb },
+  { key: "hasMaterielEntretien", label: "Matériel d'entretien ménager adapté", icon: Sparkles },
+] as const;
+
+// Fonction pour vérifier si tout le mobilier est présent
+const hasAllFurniture = (values: Record<string, unknown>): boolean => {
+  return FURNITURE_FIELDS.every(({ key }) => values[key] === true);
+};
 
 const STEPS = [
   { id: "clientType", title: "Type de client" },
@@ -250,6 +285,21 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   const propertyLegalStatus = property?.legalStatus ?? undefined;
   const propertyStatus = property?.status ?? PropertyStatus.NON_LOUER;
 
+  // Mobilier obligatoire pour location meublée
+  const hasLiterie = property?.hasLiterie ?? false;
+  const hasRideaux = property?.hasRideaux ?? false;
+  const hasPlaquesCuisson = property?.hasPlaquesCuisson ?? false;
+  const hasFour = property?.hasFour ?? false;
+  const hasRefrigerateur = property?.hasRefrigerateur ?? false;
+  const hasCongelateur = property?.hasCongelateur ?? false;
+  const hasVaisselle = property?.hasVaisselle ?? false;
+  const hasUstensilesCuisine = property?.hasUstensilesCuisine ?? false;
+  const hasTable = property?.hasTable ?? false;
+  const hasSieges = property?.hasSieges ?? false;
+  const hasEtageresRangement = property?.hasEtageresRangement ?? false;
+  const hasLuminaires = property?.hasLuminaires ?? false;
+  const hasMaterielEntretien = property?.hasMaterielEntretien ?? false;
+
   // Bail
   const bailFamily = bail?.bailFamily ?? BailFamille.HABITATION;
   const bailType = bail?.bailType ?? BailType.BAIL_NU_3_ANS;
@@ -323,6 +373,20 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       propertyType,
       propertyLegalStatus,
       propertyStatus,
+      // Mobilier
+      hasLiterie,
+      hasRideaux,
+      hasPlaquesCuisson,
+      hasFour,
+      hasRefrigerateur,
+      hasCongelateur,
+      hasVaisselle,
+      hasUstensilesCuisine,
+      hasTable,
+      hasSieges,
+      hasEtageresRangement,
+      hasLuminaires,
+      hasMaterielEntretien,
       // Bail
       bailType,
       bailFamily,
@@ -370,6 +434,20 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       propertyType,
       propertyLegalStatus,
       propertyStatus,
+      // Mobilier
+      hasLiterie,
+      hasRideaux,
+      hasPlaquesCuisson,
+      hasFour,
+      hasRefrigerateur,
+      hasCongelateur,
+      hasVaisselle,
+      hasUstensilesCuisine,
+      hasTable,
+      hasSieges,
+      hasEtageresRangement,
+      hasLuminaires,
+      hasMaterielEntretien,
       // Bail
       bailType,
       bailFamily,
@@ -1190,6 +1268,20 @@ const [clientType, setClientType] = useState<ClientType | "">(
           "propertyType",
           "propertyLegalStatus",
           "propertyStatus",
+          // Mobilier
+          "hasLiterie",
+          "hasRideaux",
+          "hasPlaquesCuisson",
+          "hasFour",
+          "hasRefrigerateur",
+          "hasCongelateur",
+          "hasVaisselle",
+          "hasUstensilesCuisine",
+          "hasTable",
+          "hasSieges",
+          "hasEtageresRangement",
+          "hasLuminaires",
+          "hasMaterielEntretien",
         ];
       case "bail":
         return [
@@ -3113,6 +3205,61 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
           )}
         </div>
       </div>
+
+      {/* Section Mobilier pour location meublée */}
+      <div className="space-y-4 pt-4">
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold">Mobilier du logement</h3>
+          <InfoTooltip
+            content={
+              <div className="max-w-sm">
+                <p className="mb-2 font-medium">LOCATION MEUBLÉE</p>
+                <p>Un logement meublé doit obligatoirement comporter tous ces équipements pour pouvoir être loué en meublé. Cochez les éléments présents dans votre bien.</p>
+              </div>
+            }
+            className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+          >
+            <button type="button" className="inline-flex items-center">
+              <InfoIcon className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </InfoTooltip>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Cochez les équipements présents dans le bien. Pour louer en meublé, tous les équipements doivent être présents.
+        </p>
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+          {FURNITURE_FIELDS.map(({ key, label, icon: Icon }) => (
+            <Controller
+              key={key}
+              name={key as keyof FormWithPersons}
+              control={form.control}
+              render={({ field }) => (
+                <Label
+                htmlFor={key}
+                className="text-sm font-normal cursor-pointer flex items-center space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors"
+                >
+                  <Checkbox
+                    id={key}
+                    checked={field.value as boolean}
+                    onCheckedChange={field.onChange}
+                  />
+                  <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="flex-1">{label}</span>
+                </Label>
+              )}
+            />
+          ))}
+        </div>
+        {/* Indicateur de complétion pour bail meublé */}
+        <div className={`p-4 rounded-lg ${hasAllFurniture(form.getValues()) ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800" : "bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800"}`}>
+          <p className={`text-sm font-medium ${hasAllFurniture(form.getValues()) ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
+            {hasAllFurniture(form.getValues()) 
+              ? "✓ Tous les équipements sont présents. Vous pouvez louer ce bien en meublé." 
+              : "⚠ Équipements incomplets. Pour louer en meublé, tous les équipements doivent être présents."
+            }
+          </p>
+        </div>
+      </div>
     </CardContent>
   </Card>
 );
@@ -3121,9 +3268,85 @@ type BailStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
 };
 
+// Composant séparé pour afficher la validation du dépôt de garantie
+// Isolé pour éviter les re-renders des inputs
+const SecurityDepositValidation = ({ control }: { control: any }) => {
+  const bailType = useWatch({ control, name: "bailType" });
+  const rentAmount = useWatch({ control, name: "bailRentAmount" });
+  const securityDeposit = useWatch({ control, name: "bailSecurityDeposit" });
+  
+  const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
+  const rentAmountNum = typeof rentAmount === 'number' ? rentAmount : parseInt(String(rentAmount) || '0', 10);
+  const securityDepositNum = typeof securityDeposit === 'number' ? securityDeposit : parseInt(String(securityDeposit) || '0', 10);
+  const maxSecurityDeposit = isMeubleBail ? rentAmountNum * 2 : rentAmountNum;
+  const isSecurityDepositExceeded = securityDepositNum > maxSecurityDeposit && rentAmountNum > 0;
+  
+  if (rentAmountNum <= 0) return null;
+  
+  return (
+    <>
+      <p className={`text-xs ${isSecurityDepositExceeded ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+        Maximum : {maxSecurityDeposit.toLocaleString('fr-FR')} € ({isMeubleBail ? '2' : '1'} mois de loyer)
+      </p>
+      {isSecurityDepositExceeded && (
+        <p className="text-sm text-destructive flex items-center gap-1">
+          <AlertCircle className="h-4 w-4" />
+          Le dépôt de garantie ne peut pas dépasser {isMeubleBail ? '2' : '1'} mois de loyer hors charges
+        </p>
+      )}
+    </>
+  );
+};
+
+// Composant pour le tooltip du dépôt de garantie avec les valeurs calculées
+const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, isMobile: boolean }) => {
+  const bailType = useWatch({ control, name: "bailType" });
+  const rentAmount = useWatch({ control, name: "bailRentAmount" });
+  
+  const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
+  const rentAmountNum = typeof rentAmount === 'number' ? rentAmount : parseInt(String(rentAmount) || '0', 10);
+  const maxSecurityDeposit = isMeubleBail ? rentAmountNum * 2 : rentAmountNum;
+  
+  return (
+    <InfoTooltip 
+      content={
+        <>
+          <p>Bail meublé → 2 mois de loyer hors charges maximum</p>
+          <p>Bail nu → 1 mois de loyer hors charges maximum</p>
+          {rentAmountNum > 0 && (
+            <p className="mt-2 font-semibold">
+              Maximum autorisé : {maxSecurityDeposit.toLocaleString('fr-FR')} €
+            </p>
+          )}
+        </>
+      }
+      className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+    >
+      <button type="button" className="inline-flex items-center">
+        <InfoIcon className="h-4 w-4 text-muted-foreground" />
+      </button>
+    </InfoTooltip>
+  );
+};
+
 const BailStep = ({ form }: BailStepProps) => {
   
   const isMobile = useIsMobile();
+  
+  // Surveiller les valeurs du formulaire pour vérifier si tout le mobilier est présent
+  // Utiliser useWatch pour une surveillance optimisée
+  const watchedFurniture = useWatch({ 
+    control: form.control, 
+    name: ["hasLiterie", "hasRideaux", "hasPlaquesCuisson", "hasFour", "hasRefrigerateur", 
+           "hasCongelateur", "hasVaisselle", "hasUstensilesCuisine", "hasTable", 
+           "hasSieges", "hasEtageresRangement", "hasLuminaires", "hasMaterielEntretien"]
+  });
+  const allFurniturePresent = watchedFurniture.every(v => v === true);
+  
+  // Vérifier si le bail actuel est un bail meublé
+  const currentBailType = useWatch({ control: form.control, name: "bailType" });
+  const isMeubleBail = currentBailType === BailType.BAIL_MEUBLE_1_ANS || currentBailType === BailType.BAIL_MEUBLE_9_MOIS;
+  
   return (
   <Card>
     <CardHeader>
@@ -3137,7 +3360,21 @@ const BailStep = ({ form }: BailStepProps) => {
           name="bailType"
           control={form.control}
           render={({ field }) => (
-            <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+            <Select 
+              value={field.value ?? undefined} 
+              onValueChange={(value) => {
+                // Si on essaie de sélectionner un bail meublé sans le mobilier complet
+                const isMeubleSelected = value === BailType.BAIL_MEUBLE_1_ANS || value === BailType.BAIL_MEUBLE_9_MOIS;
+                if (isMeubleSelected && !allFurniturePresent) {
+                  toast.error("Mobilier incomplet", {
+                    description: "Pour sélectionner un bail meublé, tous les équipements obligatoires doivent être présents dans le bien. Veuillez retourner à l'étape précédente pour compléter le mobilier.",
+                    duration: 6000,
+                  });
+                  return;
+                }
+                field.onChange(value);
+              }}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Sélectionner" />
               </SelectTrigger>
@@ -3146,11 +3383,19 @@ const BailStep = ({ form }: BailStepProps) => {
                 <SelectItem value={BailType.BAIL_NU_6_ANS}>
                   Bail nu 6 ans (SCI)
                 </SelectItem>
-                <SelectItem value={BailType.BAIL_MEUBLE_1_ANS}>
-                  Bail meublé 1 an
+                <SelectItem 
+                  value={BailType.BAIL_MEUBLE_1_ANS}
+                  disabled={!allFurniturePresent}
+                  className={!allFurniturePresent ? "opacity-50" : ""}
+                >
+                  Bail meublé 1 an {!allFurniturePresent && "(mobilier incomplet)"}
                 </SelectItem>
-                <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS}>
-                  Bail étudiant (9 mois)
+                <SelectItem 
+                  value={BailType.BAIL_MEUBLE_9_MOIS}
+                  disabled={!allFurniturePresent}
+                  className={!allFurniturePresent ? "opacity-50" : ""}
+                >
+                  Bail étudiant (9 mois) {!allFurniturePresent && "(mobilier incomplet)"}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -3159,6 +3404,12 @@ const BailStep = ({ form }: BailStepProps) => {
         {form.formState.errors.bailType && (
           <p className="text-sm text-destructive">
             {form.formState.errors.bailType.message}
+          </p>
+        )}
+        {!allFurniturePresent && (
+          <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1">
+            <AlertCircle className="h-4 w-4" />
+            Les baux meublés nécessitent que tous les équipements soient présents dans le bien.
           </p>
         )}
       </div>
@@ -3219,19 +3470,7 @@ const BailStep = ({ form }: BailStepProps) => {
         <div className="space-y-2">
           <div className="flex flex-row items-center gap-2">
           <Label>Dépôt de garantie *</Label>
-          <InfoTooltip 
-                content={
-                  <>
-                    <p>Bail meublé → 2 mois de loyer hors charges maximum</p>
-                    <p>Bail nu → 1 mois de loyer hors charges maximum</p>
-                  </>
-                }
-                className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
-              >
-                <button type="button" className="inline-flex items-center">
-                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </InfoTooltip>
+          <SecurityDepositTooltipContent control={form.control} isMobile={isMobile} />
           </div>
           <NumberInputGroup
             field={form.register("bailSecurityDeposit")}
@@ -3239,11 +3478,7 @@ const BailStep = ({ form }: BailStepProps) => {
             step={1}
             unit="€"
           />
-          {form.formState.errors.bailSecurityDeposit && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.bailSecurityDeposit.message}
-            </p>
-          )}
+          <SecurityDepositValidation control={form.control} />
         </div>
         <div className="space-y-2">
           <Label>Jour de paiement *</Label>

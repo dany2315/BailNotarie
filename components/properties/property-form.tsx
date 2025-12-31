@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -15,11 +16,34 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, InfoIcon } from "lucide-react";
 import { createPropertySchema } from "@/lib/zod/property";
 import { z } from "zod";
 import { BienType, BienLegalStatus, PropertyStatus, ClientType } from "@prisma/client";
+
+// Liste des champs de mobilier obligatoire pour location meublée
+const FURNITURE_FIELDS = [
+  { key: "hasLiterie", label: "Literie avec couette ou couverture" },
+  { key: "hasRideaux", label: "Volets ou rideaux dans les chambres" },
+  { key: "hasPlaquesCuisson", label: "Plaques de cuisson" },
+  { key: "hasFour", label: "Four ou four à micro-onde" },
+  { key: "hasRefrigerateur", label: "Réfrigérateur" },
+  { key: "hasCongelateur", label: "Congélateur ou compartiment à congélation (-6° max)" },
+  { key: "hasVaisselle", label: "Vaisselle en nombre suffisant" },
+  { key: "hasUstensilesCuisine", label: "Ustensiles de cuisine" },
+  { key: "hasTable", label: "Table" },
+  { key: "hasSieges", label: "Sièges" },
+  { key: "hasEtageresRangement", label: "Étagères de rangement" },
+  { key: "hasLuminaires", label: "Luminaires" },
+  { key: "hasMaterielEntretien", label: "Matériel d'entretien ménager adapté" },
+] as const;
+
+// Fonction pour vérifier si tout le mobilier est présent
+const hasAllFurniture = (values: Record<string, unknown>): boolean => {
+  return FURNITURE_FIELDS.every(({ key }) => values[key] === true);
+};
 
 // Schéma pour la validation côté client - tous les champs optionnels sauf fullAddress et ownerId
 const propertyFormSchema = z.object({
@@ -30,6 +54,20 @@ const propertyFormSchema = z.object({
   legalStatus: z.nativeEnum(BienLegalStatus).optional().or(z.literal("")),
   status: z.nativeEnum(PropertyStatus).default(PropertyStatus.NON_LOUER),
   ownerId: z.string().min(1, "Le propriétaire est requis"),
+  // Mobilier obligatoire pour location meublée
+  hasLiterie: z.boolean().default(false),
+  hasRideaux: z.boolean().default(false),
+  hasPlaquesCuisson: z.boolean().default(false),
+  hasFour: z.boolean().default(false),
+  hasRefrigerateur: z.boolean().default(false),
+  hasCongelateur: z.boolean().default(false),
+  hasVaisselle: z.boolean().default(false),
+  hasUstensilesCuisine: z.boolean().default(false),
+  hasTable: z.boolean().default(false),
+  hasSieges: z.boolean().default(false),
+  hasEtageresRangement: z.boolean().default(false),
+  hasLuminaires: z.boolean().default(false),
+  hasMaterielEntretien: z.boolean().default(false),
 });
 
 type PropertyFormData = z.infer<typeof propertyFormSchema>;
@@ -53,8 +91,25 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
       legalStatus: "",
       status: PropertyStatus.NON_LOUER,
       ownerId: "",
+      // Mobilier
+      hasLiterie: false,
+      hasRideaux: false,
+      hasPlaquesCuisson: false,
+      hasFour: false,
+      hasRefrigerateur: false,
+      hasCongelateur: false,
+      hasVaisselle: false,
+      hasUstensilesCuisine: false,
+      hasTable: false,
+      hasSieges: false,
+      hasEtageresRangement: false,
+      hasLuminaires: false,
+      hasMaterielEntretien: false,
     },
   });
+  
+  const watchedValues = form.watch();
+  const allFurniturePresent = hasAllFurniture(watchedValues);
 
   const handleSubmit = async (data: PropertyFormData) => {
     setIsLoading(true);
@@ -74,6 +129,21 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
       if (data.legalStatus) formData.append("legalStatus", data.legalStatus);
       formData.append("status", data.status || "PROSPECT");
       formData.append("ownerId", data.ownerId);
+      
+      // Ajouter les champs de mobilier
+      formData.append("hasLiterie", String(data.hasLiterie ?? false));
+      formData.append("hasRideaux", String(data.hasRideaux ?? false));
+      formData.append("hasPlaquesCuisson", String(data.hasPlaquesCuisson ?? false));
+      formData.append("hasFour", String(data.hasFour ?? false));
+      formData.append("hasRefrigerateur", String(data.hasRefrigerateur ?? false));
+      formData.append("hasCongelateur", String(data.hasCongelateur ?? false));
+      formData.append("hasVaisselle", String(data.hasVaisselle ?? false));
+      formData.append("hasUstensilesCuisine", String(data.hasUstensilesCuisine ?? false));
+      formData.append("hasTable", String(data.hasTable ?? false));
+      formData.append("hasSieges", String(data.hasSieges ?? false));
+      formData.append("hasEtageresRangement", String(data.hasEtageresRangement ?? false));
+      formData.append("hasLuminaires", String(data.hasLuminaires ?? false));
+      formData.append("hasMaterielEntretien", String(data.hasMaterielEntretien ?? false));
       
       await onSubmit(formData);
       toast.success(initialData?.id ? "Bien modifié avec succès" : "Bien créé avec succès");
@@ -259,6 +329,52 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
                 )}
               />
             </div>
+
+          <Separator className="my-6" />
+
+          {/* Section Mobilier pour location meublée */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">Mobilier du logement</h3>
+              <InfoIcon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Cochez les équipements présents dans le bien. Pour louer en meublé, tous les équipements doivent être présents.
+            </p>
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+              {FURNITURE_FIELDS.map(({ key, label }) => (
+                <Controller
+                  key={key}
+                  name={key as keyof PropertyFormData}
+                  control={form.control}
+                  render={({ field }) => (
+                    <Label
+                    htmlFor={key}
+                    className="text-sm font-normal cursor-pointer flex-1 flex items-center space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors"
+                  >
+                      <Checkbox
+                        id={key}
+                        checked={field.value as boolean}
+                        onCheckedChange={field.onChange}
+                        disabled={isLoading}
+                      />
+
+                        {label}
+                   </Label>
+                  )}
+                />
+              ))}
+            </div>
+            {/* Indicateur de complétion pour bail meublé */}
+            <div className={`p-4 rounded-lg ${allFurniturePresent ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800" : "bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800"}`}>
+              <p className={`text-sm font-medium ${allFurniturePresent ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
+                {allFurniturePresent 
+                  ? "✓ Tous les équipements sont présents. Ce bien est éligible pour une location meublée." 
+                  : "⚠ Équipements incomplets. Pour louer en meublé, tous les équipements doivent être présents."
+                }
+              </p>
+            </div>
+          </div>
 
           <div className="flex justify-end gap-2">
             <Button

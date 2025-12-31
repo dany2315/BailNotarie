@@ -379,12 +379,12 @@ export default async function ClientDetailPage({
                 <label className="text-xs text-muted-foreground">Modifié le</label>
                 <p className="mt-0.5 break-words">{formatDateTime(client.updatedAt)}</p>
               </div>
-              {client.createdBy && (
-                <div>
-                  <label className="text-xs text-muted-foreground">Créé par</label>
-                  <p className="mt-0.5 break-words">{client.createdBy.name || client.createdBy.email}</p>
-                </div>
-              )}
+              <div>
+                <label className="text-xs text-muted-foreground">Créé par</label>
+                <p className="mt-0.5 break-words">
+                  {client.createdBy ? (client.createdBy.name || client.createdBy.email) : "via formulaire"}
+                </p>
+              </div>
               {client.updatedBy && (
                 <div>
                   <label className="text-xs text-muted-foreground">Modifié par</label>

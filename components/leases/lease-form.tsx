@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { createLeaseSchema } from "@/lib/zod/lease";
 import { z } from "zod";
 
@@ -33,9 +33,57 @@ const leaseFormSchema = z.object({
   monthlyCharges: z.string().optional().or(z.literal("")),
   securityDeposit: z.string().optional().or(z.literal("")),
   paymentDay: z.string().optional().or(z.literal("")),
+}).superRefine((data, ctx) => {
+  // Validation dépôt de garantie selon le type de bail
+  const rentAmount = parseInt(data.rentAmount || '0', 10);
+  const securityDeposit = parseInt(data.securityDeposit || '0', 10);
+  
+  if (rentAmount > 0 && securityDeposit > 0) {
+    // MEUBLE = bail meublé → max 2 mois
+    // HABITATION = bail nu → max 1 mois
+    const isMeuble = data.leaseType === "MEUBLE";
+    const maxDeposit = isMeuble ? rentAmount * 2 : rentAmount;
+    
+    if (securityDeposit > maxDeposit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["securityDeposit"],
+        message: `Le dépôt de garantie ne peut pas dépasser ${isMeuble ? '2' : '1'} mois de loyer hors charges (max ${maxDeposit.toLocaleString('fr-FR')} €)`,
+      });
+    }
+  }
 });
 
 type LeaseFormData = z.infer<typeof leaseFormSchema>;
+
+// Composant séparé pour la validation du dépôt de garantie (évite les re-renders)
+const SecurityDepositValidation = ({ control }: { control: any }) => {
+  const leaseType = useWatch({ control, name: "leaseType" });
+  const rentAmount = useWatch({ control, name: "rentAmount" });
+  const securityDeposit = useWatch({ control, name: "securityDeposit" });
+  
+  const isMeuble = leaseType === "MEUBLE";
+  const rentAmountNum = parseInt(rentAmount || '0', 10);
+  const securityDepositNum = parseInt(securityDeposit || '0', 10);
+  const maxDeposit = isMeuble ? rentAmountNum * 2 : rentAmountNum;
+  const isExceeded = rentAmountNum > 0 && securityDepositNum > maxDeposit;
+  
+  if (rentAmountNum <= 0) return null;
+  
+  return (
+    <>
+      <p className={`text-xs ${isExceeded ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+        Maximum : {maxDeposit.toLocaleString('fr-FR')} € ({isMeuble ? '2' : '1'} mois de loyer)
+      </p>
+      {isExceeded && (
+        <p className="text-sm text-destructive flex items-center gap-1">
+          <AlertCircle className="h-4 w-4" />
+          Dépasse le maximum légal
+        </p>
+      )}
+    </>
+  );
+};
 
 interface LeaseFormProps {
   onSubmit: (data: FormData) => Promise<void>;
@@ -315,12 +363,12 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
               <Label htmlFor="securityDeposit">Dépôt de garantie</Label>
               <NumberInputGroup
                 field={form.register("securityDeposit")}
-                value={form.watch("securityDeposit")}
                 min={0}
                 unit="€"
                 disabled={isLoading}
                 placeholder="800"
               />
+              <SecurityDepositValidation control={form.control} />
             </div>
 
             <div className="space-y-2">

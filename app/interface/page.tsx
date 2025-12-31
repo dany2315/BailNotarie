@@ -27,8 +27,8 @@ export default async function InterfacePage() {
 
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="flex flex-col h-[calc(93vh-4rem)] gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
@@ -39,7 +39,7 @@ export default async function InterfacePage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 shrink-0">
         <KPICard
           title="Clients complets"
           value={completedClients}
@@ -66,7 +66,7 @@ export default async function InterfacePage() {
         />
       </div>
 
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 flex-1 min-h-0">
         {/* Liste des baux */}
         <BailsListDashboard bails={allBails} />
 
@@ -76,7 +76,7 @@ export default async function InterfacePage() {
 
       {/* To-do Notaire */}
       {readyForNotary > 0 && (
-        <Card>
+        <Card className="shrink-0">
           <CardHeader>
             <CardTitle className="text-lg sm:text-xl">To-do Notaire</CardTitle>
           </CardHeader>

@@ -2,7 +2,7 @@
 
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate, formatCurrency } from "@/lib/utils/formatters";
-import { ArrowRight, Building2, User } from "lucide-react";
+import { ArrowRight, Building2, User, GraduationCap } from "lucide-react";
 import Link from "next/link";
 
 interface LeaseCellProps {
@@ -202,5 +202,30 @@ export function LeaseDepositCell({ row }: LeaseCellProps) {
     return <span className="text-muted-foreground">-</span>;
   }
   return <>{formatCurrency(Number(row.securityDeposit))}</>;
+}
+
+export function LeaseNotaireCell({ row }: LeaseCellProps) {
+  if (!row?.dossierAssignments || !Array.isArray(row.dossierAssignments) || row.dossierAssignments.length === 0) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  
+  // Prendre la première assignation (il ne devrait y en avoir qu'une par bail normalement)
+  const assignment = row.dossierAssignments[0];
+  const notaire = assignment?.notaire;
+  
+  if (!notaire) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  
+  return (
+    <Link 
+      href={`/interface/notaires/${notaire.id}/dossiers`}
+      className="flex items-center gap-2 font-medium hover:underline group w-full"
+    >
+      <GraduationCap className="size-4 text-muted-foreground" />
+      <span>{notaire.name || notaire.email}</span>
+      <ArrowRight className="size-4 -rotate-45 group-hover:text-foreground text-background" />
+    </Link>
+  );
 }
 

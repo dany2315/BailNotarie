@@ -233,6 +233,61 @@ export default async function PropertyDetailPage({
 
           <Separator />
 
+          {/* Section Mobilier */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Mobilier pour location meublée</p>
+              {property.hasLiterie && property.hasRideaux && property.hasPlaquesCuisson && 
+               property.hasFour && property.hasRefrigerateur && property.hasCongelateur && 
+               property.hasVaisselle && property.hasUstensilesCuisine && property.hasTable && 
+               property.hasSieges && property.hasEtageresRangement && property.hasLuminaires && 
+               property.hasMaterielEntretien ? (
+                <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950 px-2 py-1 rounded">
+                  ✓ Éligible bail meublé
+                </span>
+              ) : (
+                <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-2 py-1 rounded">
+                  ⚠ Mobilier incomplet
+                </span>
+              )}
+            </div>
+            <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { key: "hasLiterie", label: "Literie avec couette ou couverture", value: property.hasLiterie },
+                { key: "hasRideaux", label: "Volets ou rideaux", value: property.hasRideaux },
+                { key: "hasPlaquesCuisson", label: "Plaques de cuisson", value: property.hasPlaquesCuisson },
+                { key: "hasFour", label: "Four ou micro-onde", value: property.hasFour },
+                { key: "hasRefrigerateur", label: "Réfrigérateur", value: property.hasRefrigerateur },
+                { key: "hasCongelateur", label: "Congélateur (-6° max)", value: property.hasCongelateur },
+                { key: "hasVaisselle", label: "Vaisselle", value: property.hasVaisselle },
+                { key: "hasUstensilesCuisine", label: "Ustensiles de cuisine", value: property.hasUstensilesCuisine },
+                { key: "hasTable", label: "Table", value: property.hasTable },
+                { key: "hasSieges", label: "Sièges", value: property.hasSieges },
+                { key: "hasEtageresRangement", label: "Étagères de rangement", value: property.hasEtageresRangement },
+                { key: "hasLuminaires", label: "Luminaires", value: property.hasLuminaires },
+                { key: "hasMaterielEntretien", label: "Matériel d'entretien", value: property.hasMaterielEntretien },
+              ].map(({ key, label, value }) => (
+                <div 
+                  key={key} 
+                  className={`flex items-center gap-2 p-2 rounded border ${
+                    value 
+                      ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800" 
+                      : "bg-muted/50 border-muted"
+                  }`}
+                >
+                  <span className={`text-sm ${value ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                    {value ? "✓" : "✗"}
+                  </span>
+                  <span className={`text-sm ${value ? "text-foreground" : "text-muted-foreground"}`}>
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Section Documents */}
           {propertyDocuments.length > 0 && (
             <div className="space-y-2">
@@ -488,12 +543,12 @@ export default async function PropertyDetailPage({
               <p className="text-muted-foreground">Modifié le</p>
               <p className="font-medium">{formatDateTime(property.updatedAt)}</p>
             </div>
-            {property.createdBy && (
-              <div>
-                <p className="text-muted-foreground">Créé par</p>
-                <p className="font-medium">{property.createdBy.name || property.createdBy.email}</p>
-              </div>
-            )}
+            <div>
+              <p className="text-muted-foreground">Créé par</p>
+              <p className="font-medium">
+                {property.createdBy ? (property.createdBy.name || property.createdBy.email) : "via formulaire"}
+              </p>
+            </div>
             {property.updatedBy && (
               <div>
                 <p className="text-muted-foreground">Modifié par</p>

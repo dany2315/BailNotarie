@@ -13,11 +13,37 @@ interface CommentItemProps {
       name: string | null;
       email: string;
       image: string | null;
-    };
+    } | null;
   };
 }
 
 export function CommentItem({ comment }: CommentItemProps) {
+  if (!comment.createdBy) {
+    const displayName = "via formulaire";
+    return (
+      <div className="group flex gap-3 py-4 px-1">
+        <Avatar className="size-8 shrink-0">
+          <AvatarFallback className="bg-primary/10 text-primary">
+            VF
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-baseline gap-2">
+            <p className="text-sm font-semibold text-foreground">{displayName}</p>
+            <span className="text-xs text-muted-foreground">
+              {formatDateTime(comment.createdAt)}
+            </span>
+          </div>
+          <div className="prose prose-sm max-w-none">
+            <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+              {comment.body}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const userInitials = comment.createdBy.name
     ? comment.createdBy.name
         .split(" ")

@@ -195,6 +195,23 @@ export async function deleteProperty(id: string): Promise<{ success: true } | { 
   return { success: true };
 }
 
+export async function getAllProperties() {
+  await requireAuth();
+  return prisma.property.findMany({
+    include: {
+      owner: {
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export async function getProperty(id: string) {
   await requireAuth();
   return prisma.property.findUnique({

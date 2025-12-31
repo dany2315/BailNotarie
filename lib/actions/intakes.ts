@@ -311,7 +311,14 @@ export async function getIntakeLinks(params: {
             parties: true,
           },
         },
-        client: true,
+        client: {
+          include: {
+            persons: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            entreprise: true,
+          },
+        },
         createdBy: { select: { id: true, name: true, email: true } },
       },
       skip: (page - 1) * pageSize,

@@ -271,6 +271,21 @@ const propertyFieldsSchema = {
   propertyStatus: z
     .nativeEnum(PropertyStatus)
     .default(PropertyStatus.NON_LOUER),
+
+  // Mobilier obligatoire pour location meublée
+  hasLiterie: z.boolean().default(false),           // Literie avec couette ou couverture
+  hasRideaux: z.boolean().default(false),           // Volets ou rideaux dans les chambres
+  hasPlaquesCuisson: z.boolean().default(false),    // Plaques de cuisson
+  hasFour: z.boolean().default(false),              // Four ou four à micro-onde
+  hasRefrigerateur: z.boolean().default(false),     // Réfrigérateur
+  hasCongelateur: z.boolean().default(false),       // Congélateur ou compartiment à congélation
+  hasVaisselle: z.boolean().default(false),         // Vaisselle en nombre suffisant
+  hasUstensilesCuisine: z.boolean().default(false), // Ustensiles de cuisine
+  hasTable: z.boolean().default(false),             // Table
+  hasSieges: z.boolean().default(false),            // Sièges
+  hasEtageresRangement: z.boolean().default(false), // Étagères de rangement
+  hasLuminaires: z.boolean().default(false),        // Luminaires
+  hasMaterielEntretien: z.boolean().default(false), // Matériel d'entretien ménager
 };
 
 // Schéma pour les données du bail
@@ -699,6 +714,32 @@ export const ownerFormSchema = z
         });
       }
     }
+
+    // ------------------------------------------------------------------
+    // VALIDATION DÉPÔT DE GARANTIE
+    // Bail meublé → max 2 mois de loyer hors charges
+    // Bail nu → max 1 mois de loyer hors charges
+    // ------------------------------------------------------------------
+    const rentAmount = typeof data.bailRentAmount === 'number' 
+      ? data.bailRentAmount 
+      : parseInt(String(data.bailRentAmount) || '0', 10);
+    const securityDeposit = typeof data.bailSecurityDeposit === 'number'
+      ? data.bailSecurityDeposit
+      : parseInt(String(data.bailSecurityDeposit) || '0', 10);
+    
+    if (rentAmount > 0 && securityDeposit > 0) {
+      const isMeubleBail = data.bailType === BailType.BAIL_MEUBLE_1_ANS || 
+                           data.bailType === BailType.BAIL_MEUBLE_9_MOIS;
+      const maxDeposit = isMeubleBail ? rentAmount * 2 : rentAmount;
+      
+      if (securityDeposit > maxDeposit) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["bailSecurityDeposit"],
+          message: `Le dépôt de garantie ne peut pas dépasser ${isMeubleBail ? '2' : '1'} mois de loyer hors charges (max ${maxDeposit.toLocaleString('fr-FR')} €)`,
+        });
+      }
+    }
   });
 
 
@@ -993,6 +1034,21 @@ export const createFullOwnerPhysicalClientWithPropertySchema = createOwnerPhysic
   propertyStatus: z
     .nativeEnum(PropertyStatus)
     .default(PropertyStatus.NON_LOUER),
+
+  // Mobilier obligatoire pour location meublée
+  hasLiterie: z.boolean().default(false),
+  hasRideaux: z.boolean().default(false),
+  hasPlaquesCuisson: z.boolean().default(false),
+  hasFour: z.boolean().default(false),
+  hasRefrigerateur: z.boolean().default(false),
+  hasCongelateur: z.boolean().default(false),
+  hasVaisselle: z.boolean().default(false),
+  hasUstensilesCuisine: z.boolean().default(false),
+  hasTable: z.boolean().default(false),
+  hasSieges: z.boolean().default(false),
+  hasEtageresRangement: z.boolean().default(false),
+  hasLuminaires: z.boolean().default(false),
+  hasMaterielEntretien: z.boolean().default(false),
   
   // Données du bail
   bailType: z.nativeEnum(BailType)

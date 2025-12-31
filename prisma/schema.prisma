@@ -205,6 +205,13 @@ model User {
   intakeLinksCreated IntakeLink[]       @relation("IntakeLinkCreatedBy")
   notificationsCreated Notification[]   @relation("NotificationCreatedBy")
   notificationsReceived Notification[]  @relation("NotificationReceivedBy")
+  
+  // Relations pour les assignations de dossiers
+  notaireAssignments DossierNotaireAssignment[] @relation("NotaireAssignments")
+  dossierAssignmentsCreated DossierNotaireAssignment[] @relation("DossierAssignmentsCreated")
+  
+  // Relations pour les demandes du notaire
+  notaireRequestsCreated NotaireRequest[] @relation("NotaireRequestCreatedBy")
 }
 
 /**
@@ -236,6 +243,8 @@ model Client {
   bails       Bail[]     @relation("BailClients")
 
   intakeLinks IntakeLink[]
+  
+  dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
 
   @@index([type])
 }
@@ -315,6 +324,21 @@ model Property {
   legalStatus BienLegalStatus?
   status      PropertyStatus @default(NON_LOUER)
 
+  // Mobilier obligatoire pour location meublée
+  hasLiterie              Boolean @default(false) // Literie avec couette ou couverture
+  hasRideaux              Boolean @default(false) // Volets ou rideaux dans les chambres
+  hasPlaquesCuisson       Boolean @default(false) // Plaques de cuisson
+  hasFour                 Boolean @default(false) // Four ou four à micro-onde
+  hasRefrigerateur        Boolean @default(false) // Réfrigérateur
+  hasCongelateur          Boolean @default(false) // Congélateur ou compartiment à congélation (-6°)
+  hasVaisselle            Boolean @default(false) // Vaisselle en nombre suffisant
+  hasUstensilesCuisine    Boolean @default(false) // Ustensiles de cuisine
+  hasTable                Boolean @default(false) // Table
+  hasSieges               Boolean @default(false) // Sièges
+  hasEtageresRangement    Boolean @default(false) // Étagères de rangement
+  hasLuminaires           Boolean @default(false) // Luminaires
+  hasMaterielEntretien    Boolean @default(false) // Matériel d'entretien ménager
+
   ownerId String
   owner   Client  @relation("OwnerProperties", fields: [ownerId], references: [id])
 
@@ -329,6 +353,8 @@ model Property {
   documents   Document[]
   intakes IntakeLink[] @relation("PropertyIntakes")
   bails Bail[] @relation("PropertyBails")
+  
+  dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
   
   @@index([status])
   @@index([ownerId])
@@ -369,6 +395,8 @@ model Bail {
 
   documents   Document[]
   intakes IntakeLink[] @relation("BailIntakes")
+  
+  dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
 
   @@index([status])
   @@index([propertyId])
@@ -569,5 +597,106 @@ model Verification {
   updatedAt  DateTime @updatedAt
 
   @@unique([identifier, value])
+}
+
+/**
+ * ---------------------- Notaire Assignments ------------------
+ */
+
+model DossierNotaireAssignment {
+  id        String   @id @default(cuid())
+  
+  // Relations vers les entités du dossier
+  clientId  String
+  client    Client   @relation("DossierNotaireAssignments", fields: [clientId], references: [id], onDelete: Cascade)
+  
+  propertyId String?
+  property   Property? @relation("DossierNotaireAssignments", fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  bailId    String?
+  bail      Bail?    @relation("DossierNotaireAssignments", fields: [bailId], references: [id], onDelete: Cascade)
+  
+  // Notaire assigné
+  notaireId String
+  notaire   User     @relation("NotaireAssignments", fields: [notaireId], references: [id], onDelete: Cascade)
+  
+  // Métadonnées
+  assignedAt   DateTime @default(now())
+  assignedById String
+  assignedBy   User     @relation("DossierAssignmentsCreated", fields: [assignedById], references: [id])
+  
+  notes        String?  // Notes optionnelles pour l'assignation
+  
+  // Relations pour les demandes
+  requests     NotaireRequest[] @relation("DossierRequests")
+  
+  @@unique([clientId, propertyId, bailId, notaireId])
+  @@index([notaireId])
+  @@index([clientId])
+  @@index([bailId])
+}
+
+/**
+ * ---------------------- Notaire Requests ------------------
+ * Demandes du notaire pour des pièces ou données aux parties
+ */
+
+enum NotaireRequestType {
+  DOCUMENT  // Demande de pièce/document
+  DATA      // Demande de données/informations
+}
+
+enum NotaireRequestStatus {
+  PENDING   // En attente de réponse
+  COMPLETED // Complétée
+  CANCELLED // Annulée
+}
+
+model NotaireRequest {
+  id        String   @id @default(cuid())
+  
+  // Dossier associé
+  dossierId String
+  dossier   DossierNotaireAssignment @relation("DossierRequests", fields: [dossierId], references: [id], onDelete: Cascade)
+  
+  // Type de demande
+  type      NotaireRequestType
+  
+  // Contenu de la demande
+  title     String   // Titre de la demande
+  content   String   // Contenu détaillé (textarea)
+  
+  // Destinataires (peut être propriétaire, locataire, ou les deux)
+  targetProprietaire Boolean @default(false)
+  targetLocataire   Boolean @default(false)
+  
+  // Statut
+  status    NotaireRequestStatus @default(PENDING)
+  
+  // Métadonnées
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String
+  createdBy   User     @relation("NotaireRequestCreatedBy", fields: [createdById], references: [id])
+  
+  @@index([dossierId])
+  @@index([status])
+  @@index([createdById])
+}
+
+/**
+ * ---------------------- OTP Codes ------------------
+ */
+
+model OTPCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String   // Code OTP (6 chiffres)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([email, used])
+  @@index([expiresAt])
 }
 

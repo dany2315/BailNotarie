@@ -230,7 +230,7 @@ export function ClientDateCell({ row }: ClientCellProps) {
 
 export function ClientCreatedByCell({ row }: ClientCellProps) {
   if (!row?.createdBy) {
-    return <span className="text-muted-foreground">-</span>;
+    return <span className="text-muted-foreground">via formulaire</span>;
   }
 
   const user = row.createdBy;

@@ -160,8 +160,8 @@ export function BailsListDashboard({ bails: initialBails }: BailsListDashboardPr
   ];
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="flex flex-col h-full min-h-0">
+      <CardHeader className="shrink-0">
         <CardTitle className="text-lg sm:text-xl">Liste des baux</CardTitle>
         <div className="flex flex-col sm:flex-row gap-3 mt-4">
           <div className="relative flex-1">
@@ -199,7 +199,7 @@ export function BailsListDashboard({ bails: initialBails }: BailsListDashboardPr
           </Select>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 min-h-0 overflow-y-auto">
         {filteredBails.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             Aucun bail trouvé

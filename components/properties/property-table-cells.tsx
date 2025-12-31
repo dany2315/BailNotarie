@@ -73,6 +73,13 @@ export function PropertyDateCell({ row }: PropertyCellProps) {
   return <>{formatDate(row.createdAt)}</>;
 }
 
+export function PropertyCompletionStatusCell({ row }: PropertyCellProps) {
+  if (!row?.completionStatus) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  return <StatusBadge status={row.completionStatus} />;
+}
+
 
 
 

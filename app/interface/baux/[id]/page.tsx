@@ -21,6 +21,7 @@ import { CommentsDrawer } from "@/components/comments/comments-drawer";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { TenantCreateButton } from "@/components/leases/tenant-create-button";
 import { DeleteLeaseButton } from "@/components/leases/delete-lease-button";
+import { AssignBailButton } from "@/components/leases/assign-bail-button";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { LeaseMissingDataCard } from "@/components/leases/lease-missing-data-card";
 
@@ -115,6 +116,9 @@ export default async function LeaseDetailPage({
                     <span className="">Modifier</span>
                   </Link>
               </Button>
+              <AssignBailButton 
+                bailId={lease.id}
+              />
               <CommentsDrawer target="BAIL" targetId={lease.id} />
               <DeleteLeaseButton leaseId={lease.id} />
             </ButtonGroup>
@@ -734,12 +738,12 @@ export default async function LeaseDetailPage({
               <p className="text-muted-foreground">Modifié le</p>
               <p className="font-medium">{formatDateTime(lease.updatedAt)}</p>
             </div>
-            {lease.createdBy && (
-              <div>
-                <p className="text-muted-foreground">Créé par</p>
-                <p className="font-medium">{lease.createdBy.name || lease.createdBy.email}</p>
-              </div>
-            )}
+            <div>
+              <p className="text-muted-foreground">Créé par</p>
+              <p className="font-medium">
+                {lease.createdBy ? (lease.createdBy.name || lease.createdBy.email) : "via formulaire"}
+              </p>
+            </div>
             {lease.updatedBy && (
               <div>
                 <p className="text-muted-foreground">Modifié par</p>

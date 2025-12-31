@@ -16,6 +16,7 @@ import {
   Bell,
   CheckCircle2,
   UserIcon,
+  GraduationCap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -57,6 +58,7 @@ const navigation = [
   { name: "Clients", href: "/interface/clients", icon: Users },
   { name: "Biens", href: "/interface/properties", icon: Building2 },
   { name: "Intakes", href: "/interface/intakes", icon: LinkIcon },
+  { name: "Notaires", href: "/interface/notaires", icon: GraduationCap },
   { name: "Paramètres", href: "/interface/settings", icon: Settings },
 ];
 

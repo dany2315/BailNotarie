@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { getPaginationParams } from "@/lib/utils/pagination";
-import { PropertyFullAddressCell, PropertyOwnerCell, PropertyStatusCell, PropertyDateCell } from "@/components/properties/property-table-cells";
+import { PropertyFullAddressCell, PropertyOwnerCell, PropertyStatusCell, PropertyDateCell, PropertyCompletionStatusCell } from "@/components/properties/property-table-cells";
 import { PropertyActions } from "@/components/properties/property-actions";
 
 export default async function PropertiesPage({
@@ -53,6 +53,11 @@ export default async function PropertiesPage({
       id: "status",
       header: "Statut",
       cell: PropertyStatusCell,
+    },
+    {
+      id: "completionStatus",
+      header: "Statut de complétion",
+      cell: PropertyCompletionStatusCell,
     },
     {
       id: "createdAt",

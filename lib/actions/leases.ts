@@ -447,6 +447,17 @@ export async function getLeases(params: {
             entreprise: true,
           },
         },
+        dossierAssignments: {
+          include: {
+            notaire: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
