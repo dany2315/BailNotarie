@@ -79,11 +79,22 @@ export async function deleteProperty(id: string): Promise<{ success: true } | { 
       owner: {
         select: {
           id: true,
-          firstName: true,
-          lastName: true,
-          legalName: true,
           type: true,
-          email: true,
+          persons: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              isPrimary: true,
+            },
+          },
+          entreprise: {
+            select: {
+              name: true,
+              legalName: true,
+              email: true,
+            },
+          },
         },
       },
       bails: {
@@ -184,15 +195,50 @@ export async function deleteProperty(id: string): Promise<{ success: true } | { 
   return { success: true };
 }
 
+export async function getAllProperties() {
+  await requireAuth();
+  return prisma.property.findMany({
+    include: {
+      owner: {
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export async function getProperty(id: string) {
   await requireAuth();
   return prisma.property.findUnique({
     where: { id },
     include: {
-      owner: true,
+      owner: {
+        include: {
+          persons: {
+            orderBy: { isPrimary: 'desc' },
+          },
+          entreprise: true,
+        },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
-      bails: { include: { parties: true } },
+      bails: { 
+        include: { 
+          parties: {
+            include: {
+              persons: {
+                orderBy: { isPrimary: 'desc' },
+              },
+              entreprise: true,
+            },
+          },
+        },
+      },
       documents: true,
     },
   });
@@ -228,7 +274,14 @@ export async function getProperties(params: {
     prisma.property.findMany({
       where,
       include: {
-        owner: true,
+        owner: {
+          include: {
+            persons: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            entreprise: true,
+          },
+        },
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -254,11 +307,7 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
   const user = await requireAuth();
   const { id, completionStatus } = data;
 
-  // Récupérer l'ancien statut
-  const oldProperty = await prisma.property.findUnique({ where: { id } });
-  const oldStatus = oldProperty?.completionStatus;
-
-  const property = await prisma.property.update({
+  await prisma.property.update({
     where: { id },
     data: {
       completionStatus,
@@ -266,23 +315,52 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
     },
   });
 
-  // Notification uniquement si le statut devient COMPLETED (via interface, notifier tous les utilisateurs)
-  if (oldStatus !== completionStatus && completionStatus === CompletionStatus.COMPLETED) {
-    await createNotificationForAllUsers(
-      NotificationType.COMPLETION_STATUS_CHANGED,
-      "PROPERTY",
-      id,
-      null, // Modifié via interface, notifier tous les utilisateurs
-      { 
-        oldStatus,
-        newStatus: completionStatus,
-        entityType: "PROPERTY"
-      }
-    );
+  // Vérifier et mettre à jour les baux associés si nécessaire
+  const bails = await prisma.bail.findMany({
+    where: {
+      propertyId: id,
+      status: { in: ["DRAFT", "PENDING_VALIDATION"] }
+    },
+    include: {
+      property: true,
+      parties: true
+    }
+  });
+
+  for (const bail of bails) {
+    const owner = bail.parties.find((p: any) => p.profilType === "PROPRIETAIRE");
+    const tenant = bail.parties.find((p: any) => p.profilType === "LOCATAIRE");
+    const property = bail.property;
+
+    if (!owner || !tenant || !property) continue;
+
+    const allCompleted = 
+      owner.completionStatus === "COMPLETED" && 
+      tenant.completionStatus === "COMPLETED" && 
+      completionStatus === "COMPLETED";
+
+    const allPendingCheck = 
+      owner.completionStatus === "PENDING_CHECK" && 
+      tenant.completionStatus === "PENDING_CHECK" && 
+      completionStatus === "PENDING_CHECK";
+
+    if (allCompleted && (bail.status === "DRAFT" || bail.status === "PENDING_VALIDATION")) {
+      await prisma.bail.update({
+        where: { id: bail.id },
+        data: { status: "READY_FOR_NOTARY" }
+      });
+    } else if (allPendingCheck && bail.status === "DRAFT") {
+      await prisma.bail.update({
+        where: { id: bail.id },
+        data: { status: "PENDING_VALIDATION" }
+      });
+    }
   }
 
   revalidatePath("/interface/properties");
   revalidatePath(`/interface/properties/${id}`);
-  return property;
+  revalidatePath("/interface/baux");
+  
+  return { success: true };
 }
 

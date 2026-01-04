@@ -1,14 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown, X, Home, User, UserPlus, Key } from "lucide-react";
+import { Check, ChevronDown, X, User, UserPlus, Key } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
@@ -17,34 +15,37 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
 import { ProfilType } from "@prisma/client";
 
 interface ProfilOption {
   value: ProfilType;
   label: string;
+  shortLabel: string;
   icon: React.ReactNode;
-  variant: "default" | "secondary" | "outline";
+  colorClass: string;
 }
 
 const profilOptions: ProfilOption[] = [
   {
     value: "PROPRIETAIRE",
     label: "Propriétaire",
-    icon: <Key className="h-4 w-4" />,
-    variant: "default",
+    shortLabel: "Proprio",
+    icon: <Key className="size-3.5" />,
+    colorClass: "text-blue-600 dark:text-blue-400",
   },
   {
     value: "LOCATAIRE",
     label: "Locataire",
-    icon: <User className="h-4 w-4" />,
-    variant: "secondary",
+    shortLabel: "Locataire",
+    icon: <User className="size-3.5" />,
+    colorClass: "text-emerald-600 dark:text-emerald-400",
   },
   {
     value: "LEAD",
     label: "Lead",
-    icon: <UserPlus className="h-4 w-4" />,
-    variant: "outline",
+    shortLabel: "Lead",
+    icon: <UserPlus className="size-3.5" />,
+    colorClass: "text-amber-600 dark:text-amber-400",
   },
 ];
 
@@ -57,7 +58,7 @@ interface ClientProfilTypeMultiSelectProps {
 export function ClientProfilTypeMultiSelect({
   value = [],
   onValueChange,
-  placeholder = "Filtrer par profil",
+  placeholder = "Profil",
 }: ClientProfilTypeMultiSelectProps) {
   const [open, setOpen] = React.useState(false);
 
@@ -68,121 +69,100 @@ export function ClientProfilTypeMultiSelect({
     onValueChange?.(newValue);
   };
 
-  const handleRemove = (profilValue: ProfilType, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newValue = value.filter((v) => v !== profilValue);
-    onValueChange?.(newValue);
-  };
-
   const selectedProfils = profilOptions.filter((option) =>
     value.includes(option.value)
   );
 
+  const hasSelection = selectedProfils.length > 0;
+
   return (
-    <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-[200px] justify-between h-9 font-normal"
-            type="button"
-          >
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              {selectedProfils.length === 0 ? (
-                <span className="text-muted-foreground">{placeholder}</span>
-              ) : (
-                <div className="flex items-center gap-1 flex-1 min-w-0">
-                  {selectedProfils.length === 1 ? (
-                    <div className="flex items-center gap-1.5">
-                      {selectedProfils[0].icon}
-                      <span className="truncate">{selectedProfils[0].label}</span>
-                    </div>
-                  ) : (
-                    <span className="text-sm">
-                      {selectedProfils.length} profils sélectionnés
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "w-full md:w-auto justify-between h-10 font-normal text-sm rounded-lg border-muted-foreground/20 gap-2",
+            hasSelection && "border-primary/40 bg-primary/5"
+          )}
+          type="button"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            {!hasSelection ? (
+              <span className="text-muted-foreground">{placeholder}</span>
+            ) : selectedProfils.length === 1 ? (
+              <div className="flex items-center gap-1.5">
+                <span className={selectedProfils[0].colorClass}>{selectedProfils[0].icon}</span>
+                <span className="hidden md:inline">{selectedProfils[0].label}</span>
+                <span className="md:hidden">{selectedProfils[0].shortLabel}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <div className="flex -space-x-1">
+                  {selectedProfils.slice(0, 2).map((p) => (
+                    <span key={p.value} className={cn("size-4 flex items-center justify-center rounded-full bg-background border", p.colorClass)}>
+                      {p.icon}
                     </span>
-                  )}
+                  ))}
                 </div>
-              )}
-            </div>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-          <Command>
-            <CommandInput placeholder="Rechercher un profil..." />
-            <CommandList>
-              <CommandEmpty>Aucun profil trouvé.</CommandEmpty>
-              <CommandGroup>
-                {profilOptions.map((option) => {
-                  const isSelected = value.includes(option.value);
-                  return (
-                    <CommandItem
-                      key={option.value}
-                      value={option.label}
-                      onSelect={() => handleSelect(option.value)}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2 flex-1">
-                        <div
-                          className={cn(
-                            "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                            isSelected
-                              ? "bg-primary text-primary-foreground"
-                              : "opacity-50 [&_svg]:invisible"
-                          )}
-                        >
-                          <Check className="h-3 w-3" />
-                        </div>
-                        <span className="text-foreground">{option.icon}</span>
-                        <span className="flex-1">{option.label}</span>
-                      </div>
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-      {selectedProfils.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedProfils.map((profil) => {
-            const profilOption = profilOptions.find(opt => opt.value === profil.value);
-            return (
-              <Badge
-                key={profil.value}
-                variant={profilOption?.variant || "secondary"}
-                className="text-xs pr-1"
-              >
-                <div className="flex items-center gap-1.5">
-                  {profil.icon}
-                  <span>{profil.label}</span>
-                  <button
-                    type="button"
-                    className="ml-0.5 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-secondary/80"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleRemove(profil.value, e as any);
-                      }
-                    }}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onClick={(e) => handleRemove(profil.value, e)}
+                <span className="text-sm font-medium">{selectedProfils.length}</span>
+              </div>
+            )}
+          </div>
+          {hasSelection ? (
+            <button
+              type="button"
+              className="rounded-full p-0.5 hover:bg-muted transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onValueChange?.([]);
+              }}
+            >
+              <X className="size-3.5 text-muted-foreground hover:text-foreground" />
+            </button>
+          ) : (
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-(--radix-popover-trigger-width) min-w-[180px] p-1" align="start">
+        <Command>
+          <CommandList>
+            <CommandGroup>
+              {profilOptions.map((option) => {
+                const isSelected = value.includes(option.value);
+                return (
+                  <CommandItem
+                    key={option.value}
+                    value={option.label}
+                    onSelect={() => handleSelect(option.value)}
+                    className="cursor-pointer rounded-md px-2 py-2"
                   >
-                    <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                  </button>
-                </div>
-              </Badge>
-            );
-          })}
-        </div>
-      )}
-    </div>
+                    <div className="flex items-center gap-2.5 flex-1">
+                      <div
+                        className={cn(
+                          "flex size-4 items-center justify-center rounded border transition-colors",
+                          isSelected
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "border-muted-foreground/30"
+                        )}
+                      >
+                        {isSelected && <Check className="size-3" />}
+                      </div>
+                      <span className={cn("size-4 flex items-center justify-center", option.colorClass)}>
+                        {option.icon}
+                      </span>
+                      <span className="flex-1 text-sm">{option.label}</span>
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 

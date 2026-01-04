@@ -12,32 +12,51 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { format, parse } from "date-fns"
-import { fr } from "date-fns/locale"
+import { fr } from "react-day-picker/locale";
 
 /**
- * Normalise une date en heure locale française (sans décalage de fuseau horaire)
+ * Formate une date pour l'affichage dans l'input (format français long)
+ * Utilise toLocaleDateString avec locale fr et timezone UTC
+ */
+function formatDate(date: Date | undefined): string {
+  if (!date) {
+    return ""
+  }
+  // Utiliser UTC pour éviter les problèmes de fuseau horaire
+  const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  return utcDate.toLocaleDateString("fr", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+}
+
+/**
+ * Normalise une date en UTC (sans décalage de fuseau horaire)
  */
 function normalizeToLocalDate(date: Date | string | undefined): Date | undefined {
   if (!date) return undefined
 
   if (date instanceof Date) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    // Créer une date UTC à partir des composants de la date
+    return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
   }
 
   if (typeof date === "string") {
+    // Si c'est au format yyyy-MM-dd, parser directement
     const dateMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
     if (dateMatch) {
       const year = parseInt(dateMatch[1], 10)
       const month = parseInt(dateMatch[2], 10) - 1
       const day = parseInt(dateMatch[3], 10)
-      const normalizedDate = new Date(year, month, day)
-      return isNaN(normalizedDate.getTime()) ? undefined : normalizedDate
+      return new Date(Date.UTC(year, month, day))
     }
 
-    const isoDate = new Date(date)
-    if (!isNaN(isoDate.getTime())) {
-      return new Date(isoDate.getFullYear(), isoDate.getMonth(), isoDate.getDate())
+    // Sinon, parser avec new Date et normaliser en UTC
+    const parsed = new Date(date)
+    if (!isNaN(parsed.getTime())) {
+      return new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()))
     }
   }
 
@@ -45,63 +64,13 @@ function normalizeToLocalDate(date: Date | string | undefined): Date | undefined
 }
 
 export function formatDateToLocalString(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
-
-/**
- * Formate une date pour l'affichage dans l'input (format français long)
- */
-function formatDateForInput(date: Date | undefined): string {
-  if (!date) return ""
-  return format(date, "PPP", { locale: fr })
-}
-
-/**
- * Parse une string de date en Date, en essayant plusieurs formats
- * ⚠️ Version STRICTE : on ne parse que si la chaîne matche un format complet
- */
-function parseDateString(dateString: string): Date | undefined {
-  const value = dateString.trim()
-  if (!value) return undefined
-
-  // yyyy-MM-dd
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const parsed = parse(value, "yyyy-MM-dd", new Date(), { locale: fr })
-    return isNaN(parsed.getTime())
-      ? undefined
-      : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
-  }
-
-  // dd/MM/yyyy
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-    const parsed = parse(value, "dd/MM/yyyy", new Date(), { locale: fr })
-    return isNaN(parsed.getTime())
-      ? undefined
-      : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
-  }
-
-  // dd-MM-yyyy
-  if (/^\d{2}-\d{2}-\d{4}$/.test(value)) {
-    const parsed = parse(value, "dd-MM-yyyy", new Date(), { locale: fr })
-    return isNaN(parsed.getTime())
-      ? undefined
-      : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
-  }
-
-  // Format texte FR type : "1 juin 2025"
-  if (/^\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4}$/.test(value)) {
-    // "d MMMM yyyy" correspond bien à "1 juin 2025"
-    const parsed = parse(value, "d MMMM yyyy", new Date(), { locale: fr })
-    return isNaN(parsed.getTime())
-      ? undefined
-      : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
-  }
-
-  // Si aucun format strict ne matche → on ne parse pas
-  return undefined
+  const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  return utcDate.toLocaleDateString("fr", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  })
 }
 
 function isValidDate(date: Date | undefined): boolean {
@@ -134,6 +103,8 @@ export function DatePicker({
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false)
   const isControlled = value !== undefined
+  const [isEditing, setIsEditing] = React.useState(false)
+  const previousValueRef = React.useRef(value)
 
   const [internalDate, setInternalDate] = React.useState<Date | undefined>(() =>
     normalizeToLocalDate(value)
@@ -147,27 +118,30 @@ export function DatePicker({
   const [month, setMonth] = React.useState<Date>(() => selectedDate || new Date())
 
   const [inputValue, setInputValue] = React.useState<string>(() =>
-    formatDateForInput(selectedDate)
+    formatDate(selectedDate)
   )
 
   React.useEffect(() => {
-    if (isControlled) {
+    // Ne reformater que si la valeur a changé de l'extérieur (pas par l'utilisateur)
+    if (isControlled && !isEditing && value !== previousValueRef.current) {
       const normalized = normalizeToLocalDate(value)
       setInternalDate(normalized)
-      setInputValue(formatDateForInput(normalized))
+      setInputValue(formatDate(normalized))
       if (normalized) {
         setMonth(normalized)
       }
+      previousValueRef.current = value
     }
-  }, [isControlled, value])
+  }, [isControlled, value, isEditing])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
+    setIsEditing(true)
     setInputValue(newValue)
 
-    // On essaie de parser UNIQUEMENT si le format est complet
-    const parsed = parseDateString(newValue)
-    if (parsed && isValidDate(parsed)) {
+    // Parser directement avec new Date comme dans Calendar28
+    const parsed = new Date(newValue)
+    if (isValidDate(parsed)) {
       const normalized = normalizeToLocalDate(parsed)
 
       if (!isControlled) {
@@ -179,24 +153,30 @@ export function DatePicker({
         setMonth(normalized)
       }
     }
-    // Si pas parsable → on ne touche PAS à la date interne
+  }
+
+  const handleInputFocus = () => {
+    setIsEditing(true)
   }
 
   const handleInputBlur = () => {
+    setIsEditing(false)
+    // Reformater seulement si la date est valide
     if (selectedDate) {
-      setInputValue(formatDateForInput(selectedDate))
+      setInputValue(formatDate(selectedDate))
     } else if (inputValue.trim() !== "") {
-      // si l'utilisateur a tapé une date invalide ou incomplète → on reset
-      const parsed = parseDateString(inputValue)
-      if (parsed && isValidDate(parsed)) {
+      // Essayer de parser la valeur actuelle
+      const parsed = new Date(inputValue)
+      if (isValidDate(parsed)) {
         const normalized = normalizeToLocalDate(parsed)
         if (!isControlled) {
           setInternalDate(normalized)
         }
         onChange?.(normalized)
-        setInputValue(formatDateForInput(normalized))
+        setInputValue(formatDate(normalized))
         if (normalized) setMonth(normalized)
       } else {
+        // Si invalide, réinitialiser
         setInputValue("")
       }
     }
@@ -210,7 +190,8 @@ export function DatePicker({
     }
 
     onChange?.(normalized)
-    setInputValue(formatDateForInput(normalized))
+    setInputValue(formatDate(normalized))
+    setIsEditing(false)
     setOpen(false)
   }
 
@@ -228,10 +209,11 @@ export function DatePicker({
         <Input
           id={id}
           value={inputValue}
-          placeholder={"ex: 13/09/2000"}
+          placeholder={placeholder || "01 juin 2025"}
           disabled={disabled}
           className={`bg-background pr-10 ${className || ""}`}
           onChange={handleInputChange}
+          onFocus={handleInputFocus}
           onBlur={handleInputBlur}
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") {
@@ -268,6 +250,7 @@ export function DatePicker({
               onSelect={handleSelect}
               fromYear={defaultFromYear}
               toYear={defaultToYear}
+              timeZone={"UTC"}
               locale={fr}
             />
           </PopoverContent>

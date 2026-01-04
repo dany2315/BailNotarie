@@ -30,21 +30,37 @@ export async function createComment(data: unknown) {
     if (validated.target === "CLIENT") {
       const client = await prisma.client.findUnique({
         where: { id: validated.targetId },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          legalName: true,
-          email: true,
-          type: true,
+        include: {
+          persons: {
+            where: { isPrimary: true },
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          entreprise: {
+            select: {
+              legalName: true,
+              name: true,
+              email: true,
+            },
+          },
         },
       });
       if (client) {
+        let entityName = "Client";
+        if (client.type === "PERSONNE_PHYSIQUE") {
+          const primaryPerson = client.persons?.[0];
+          if (primaryPerson) {
+            entityName = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || primaryPerson.email || "Client";
+          }
+        } else if (client.entreprise) {
+          entityName = client.entreprise.legalName || client.entreprise.name || client.entreprise.email || "Client";
+        }
         entityDetails = {
           entityType: "client",
-          entityName: client.type === "PERSONNE_PHYSIQUE"
-            ? `${client.firstName || ""} ${client.lastName || ""}`.trim() || client.email || "Client"
-            : client.legalName || client.email || "Client",
+          entityName,
           entityId: client.id,
         };
       }
@@ -76,13 +92,20 @@ export async function createComment(data: unknown) {
             },
           },
           parties: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              legalName: true,
-              type: true,
-              profilType: true,
+            include: {
+              persons: {
+                where: { isPrimary: true },
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+              entreprise: {
+                select: {
+                  legalName: true,
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -90,16 +113,21 @@ export async function createComment(data: unknown) {
       if (bail) {
         const owner = bail.parties.find((p: any) => p.profilType === "PROPRIETAIRE");
         const tenant = bail.parties.find((p: any) => p.profilType === "LOCATAIRE");
-        const ownerName = owner
-          ? owner.type === "PERSONNE_PHYSIQUE"
-            ? `${owner.firstName || ""} ${owner.lastName || ""}`.trim()
-            : owner.legalName || ""
-          : "";
-        const tenantName = tenant
-          ? tenant.type === "PERSONNE_PHYSIQUE"
-            ? `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim()
-            : tenant.legalName || ""
-          : "";
+        
+        const getPartyName = (party: any): string => {
+          if (!party) return "";
+          if (party.type === "PERSONNE_PHYSIQUE") {
+            const primaryPerson = party.persons?.[0];
+            if (primaryPerson) {
+              return `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+            }
+            return "";
+          }
+          return party.entreprise?.legalName || party.entreprise?.name || "";
+        };
+
+        const ownerName = getPartyName(owner);
+        const tenantName = getPartyName(tenant);
         const propertyName = bail.property?.label || bail.property?.fullAddress || "";
         
         entityDetails = {

@@ -132,6 +132,21 @@ export async function getDocuments(params: {
     },
     include: {
       uploadedBy: { select: { id: true, name: true, email: true } },
+      person: { 
+        select: { 
+          id: true, 
+          firstName: true, 
+          lastName: true, 
+          isPrimary: true 
+        } 
+      },
+      entreprise: { 
+        select: { 
+          id: true, 
+          legalName: true, 
+          name: true 
+        } 
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -143,6 +158,8 @@ async function uploadFileAndCreateDocument(
   kind: DocumentKind,
   options: {
     clientId?: string;
+    personId?: string;
+    entrepriseId?: string;
     propertyId?: string;
     bailId?: string;
     label?: string;
@@ -174,6 +191,8 @@ async function uploadFileAndCreateDocument(
       mimeType: file.type,
       size: file.size,
       clientId: options.clientId,
+      personId: options.personId,
+      entrepriseId: options.entrepriseId,
       propertyId: options.propertyId,
       bailId: options.bailId,
       uploadedById: user.id,
@@ -202,12 +221,29 @@ export async function handleOwnerFormDocuments(
 ) {
   const documents: any[] = [];
 
-  // Pièces jointes - Client (personne morale)
+  // Récupérer le client avec ses personnes et entreprise
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      persons: true,
+      entreprise: true,
+    },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  // Pièces jointes - Entreprise (personne morale)
   if (type === "PERSONNE_MORALE") {
+    if (!client.entreprise) {
+      throw new Error("Entreprise introuvable pour ce client");
+    }
+
     const kbis = formData.get("kbis") as File | null;
     if (kbis && kbis.size > 0) {
       const doc = await uploadFileAndCreateDocument(kbis, DocumentKind.KBIS, {
-        clientId,
+        entrepriseId: client.entreprise.id,
         label: "KBIS",
       });
       if (doc) documents.push(doc);
@@ -216,34 +252,33 @@ export async function handleOwnerFormDocuments(
     const statutes = formData.get("statutes") as File | null;
     if (statutes && statutes.size > 0) {
       const doc = await uploadFileAndCreateDocument(statutes, DocumentKind.STATUTES, {
-        clientId,
+        entrepriseId: client.entreprise.id,
         label: "Statuts",
       });
       if (doc) documents.push(doc);
     }
   }
 
-  // Pièces jointes - Client (personne physique)
+  // Pièces jointes - Personnes (personne physique)
   if (type === "PERSONNE_PHYSIQUE") {
-    const birthCert = formData.get("birthCert") as File | null;
-    if (birthCert && birthCert.size > 0) {
-      const doc = await uploadFileAndCreateDocument(birthCert, DocumentKind.BIRTH_CERT, {
-        clientId,
-        label: "Acte de naissance",
-      });
-      if (doc) documents.push(doc);
+    const persons = client.persons || [];
+    
+    // Pour chaque personne, uploader ID_IDENTITY
+    for (let i = 0; i < persons.length; i++) {
+      const person = persons[i];
+      const idIdentityKey = i === 0 ? "idIdentity" : `idIdentity_${i}`;
+
+      const idIdentity = formData.get(idIdentityKey) as File | null;
+      if (idIdentity && idIdentity.size > 0) {
+        const doc = await uploadFileAndCreateDocument(idIdentity, DocumentKind.ID_IDENTITY, {
+          personId: person.id,
+          label: `Pièce d'identité - ${person.firstName || ''} ${person.lastName || ''}`.trim(),
+        });
+        if (doc) documents.push(doc);
+      }
     }
 
-    const idIdentity = formData.get("idIdentity") as File | null;
-    if (idIdentity && idIdentity.size > 0) {
-      const doc = await uploadFileAndCreateDocument(idIdentity, DocumentKind.ID_IDENTITY, {
-        clientId,
-        label: "Pièce d'identité",
-      });
-      if (doc) documents.push(doc);
-    }
-
-    // Livret de famille si marié
+    // Livret de famille si marié (document client commun)
     if (familyStatus === "MARIE") {
       const livretDeFamille = formData.get("livretDeFamille") as File | null;
       if (livretDeFamille && livretDeFamille.size > 0) {
@@ -255,7 +290,7 @@ export async function handleOwnerFormDocuments(
       }
     }
 
-    // Contrat de PACS si pacsé
+    // Contrat de PACS si pacsé (document client commun)
     if (familyStatus === "PACS") {
       const contratDePacs = formData.get("contratDePacs") as File | null;
       if (contratDePacs && contratDePacs.size > 0) {
@@ -356,12 +391,29 @@ export async function handleTenantFormDocuments(
 ) {
   const documents: any[] = [];
 
-  // Pièces jointes - Client (personne morale)
+  // Récupérer le client avec ses personnes et entreprise
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      persons: true,
+      entreprise: true,
+    },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  // Pièces jointes - Entreprise (personne morale)
   if (type === "PERSONNE_MORALE") {
+    if (!client.entreprise) {
+      throw new Error("Entreprise introuvable pour ce client");
+    }
+
     const kbis = formData.get("kbis") as File | null;
     if (kbis && kbis.size > 0) {
       const doc = await uploadFileAndCreateDocument(kbis, DocumentKind.KBIS, {
-        clientId,
+        entrepriseId: client.entreprise.id,
         label: "KBIS",
       });
       if (doc) documents.push(doc);
@@ -370,34 +422,33 @@ export async function handleTenantFormDocuments(
     const statutes = formData.get("statutes") as File | null;
     if (statutes && statutes.size > 0) {
       const doc = await uploadFileAndCreateDocument(statutes, DocumentKind.STATUTES, {
-        clientId,
+        entrepriseId: client.entreprise.id,
         label: "Statuts",
       });
       if (doc) documents.push(doc);
     }
   }
 
-  // Pièces jointes - Client (personne physique)
+  // Pièces jointes - Personnes (personne physique)
   if (type === "PERSONNE_PHYSIQUE") {
-    const birthCert = formData.get("birthCert") as File | null;
-    if (birthCert && birthCert.size > 0) {
-      const doc = await uploadFileAndCreateDocument(birthCert, DocumentKind.BIRTH_CERT, {
-        clientId,
-        label: "Acte de naissance",
-      });
-      if (doc) documents.push(doc);
+    const persons = client.persons || [];
+    
+    // Pour chaque personne, uploader ID_IDENTITY
+    for (let i = 0; i < persons.length; i++) {
+      const person = persons[i];
+      const idIdentityKey = i === 0 ? "idIdentity" : `idIdentity_${i}`;
+
+      const idIdentity = formData.get(idIdentityKey) as File | null;
+      if (idIdentity && idIdentity.size > 0) {
+        const doc = await uploadFileAndCreateDocument(idIdentity, DocumentKind.ID_IDENTITY, {
+          personId: person.id,
+          label: `Pièce d'identité - ${person.firstName || ''} ${person.lastName || ''}`.trim(),
+        });
+        if (doc) documents.push(doc);
+      }
     }
 
-    const idIdentity = formData.get("idIdentity") as File | null;
-    if (idIdentity && idIdentity.size > 0) {
-      const doc = await uploadFileAndCreateDocument(idIdentity, DocumentKind.ID_IDENTITY, {
-        clientId,
-        label: "Pièce d'identité",
-      });
-      if (doc) documents.push(doc);
-    }
-
-    // Livret de famille si marié
+    // Livret de famille si marié (document client commun)
     if (familyStatus === "MARIE") {
       const livretDeFamille = formData.get("livretDeFamille") as File | null;
       if (livretDeFamille && livretDeFamille.size > 0) {
@@ -409,7 +460,7 @@ export async function handleTenantFormDocuments(
       }
     }
 
-    // Contrat de PACS si pacsé
+    // Contrat de PACS si pacsé (document client commun)
     if (familyStatus === "PACS") {
       const contratDePacs = formData.get("contratDePacs") as File | null;
       if (contratDePacs && contratDePacs.size > 0) {

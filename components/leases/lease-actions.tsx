@@ -9,11 +9,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, Trash2, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { deleteLease } from "@/lib/actions/leases";
 import { toast } from "sonner";
 import { DeleteLeaseDialog } from "./delete-lease-dialog";
+import { AssignDossierDialog } from "@/components/notaires/assign-dossier-dialog";
 
 interface LeaseActionsProps {
   row: { id: string; [key: string]: any };
@@ -23,6 +24,7 @@ export function LeaseActions({ row }: LeaseActionsProps) {
   const router = useRouter();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<{
     message: string;
     blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }>;
@@ -88,6 +90,10 @@ export function LeaseActions({ row }: LeaseActionsProps) {
             Modifier
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setIsAssignDialogOpen(true)}>
+          <UserPlus className="mr-2 h-4 w-4" />
+          Assigner à un notaire
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleDeleteClick} className="text-destructive">
           <Trash2 className="mr-2 h-4 w-4" />
           Supprimer
@@ -105,6 +111,11 @@ export function LeaseActions({ row }: LeaseActionsProps) {
         onConfirm={handleConfirmDelete}
         isLoading={isDeleting}
         error={deleteError}
+      />
+      <AssignDossierDialog
+        open={isAssignDialogOpen}
+        onOpenChange={setIsAssignDialogOpen}
+        initialBailId={row.id}
       />
     </DropdownMenu>
   );

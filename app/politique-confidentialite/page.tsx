@@ -28,7 +28,7 @@ export default function PolitiqueConfidentialitePage() {
               <section>
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Responsable du traitement</h2>
                 <p>
-                  La société <strong>MonBailNotarié</strong>, est responsable du traitement des données collectées via le site, les formulaires et nos échanges.
+                  La société <strong>Bailnotarie</strong>, est responsable du traitement des données collectées via le site, les formulaires et nos échanges.
                 </p>
               </section>
 

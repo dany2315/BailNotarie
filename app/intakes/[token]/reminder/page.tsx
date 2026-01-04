@@ -54,8 +54,11 @@ export default async function IntakeReminderPage({
   }
 
   const isOwner = intakeLink.target === "OWNER";
+  const primaryPerson = intakeLink.client?.persons?.find((p: any) => p.isPrimary) || intakeLink.client?.persons?.[0];
   const clientName = intakeLink.client
-    ? `${intakeLink.client.firstName || ""} ${intakeLink.client.lastName || ""}`.trim() || (intakeLink.client.email || "Client")
+    ? primaryPerson
+      ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || (primaryPerson.email || "Client")
+      : "Client"
     : "Client";
 
   return (

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,25 +17,73 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { createLeaseSchema } from "@/lib/zod/lease";
 import { z } from "zod";
 
 // Schéma pour la validation côté client
 const leaseFormSchema = z.object({
   leaseType: z.enum(["HABITATION", "MEUBLE", "COMMERCIAL", "PROFESSIONNEL", "SAISONNIER", "OTHER"]).default("HABITATION"),
-  status: z.enum(["DRAFT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "ACTIVE", "TERMINATED", "CANCELED"]).default("DRAFT"),
+  status: z.enum(["DRAFT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "SIGNED", "TERMINATED"]).default("DRAFT"),
   propertyId: z.string().min(1, "Le bien est requis"),
-  tenantId: z.string().min(1, "Le locataire est requis"),
+  tenantId: z.string().optional().or(z.literal("")),
   effectiveDate: z.string().min(1, "La date de prise d'effet est requise"),
   endDate: z.string().optional().or(z.literal("")),
   rentAmount: z.string().min(1, "Le montant du loyer est requis"),
   monthlyCharges: z.string().optional().or(z.literal("")),
   securityDeposit: z.string().optional().or(z.literal("")),
   paymentDay: z.string().optional().or(z.literal("")),
+}).superRefine((data, ctx) => {
+  // Validation dépôt de garantie selon le type de bail
+  const rentAmount = parseInt(data.rentAmount || '0', 10);
+  const securityDeposit = parseInt(data.securityDeposit || '0', 10);
+  
+  if (rentAmount > 0 && securityDeposit > 0) {
+    // MEUBLE = bail meublé → max 2 mois
+    // HABITATION = bail nu → max 1 mois
+    const isMeuble = data.leaseType === "MEUBLE";
+    const maxDeposit = isMeuble ? rentAmount * 2 : rentAmount;
+    
+    if (securityDeposit > maxDeposit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["securityDeposit"],
+        message: `Le dépôt de garantie ne peut pas dépasser ${isMeuble ? '2' : '1'} mois de loyer hors charges (max ${maxDeposit.toLocaleString('fr-FR')} €)`,
+      });
+    }
+  }
 });
 
 type LeaseFormData = z.infer<typeof leaseFormSchema>;
+
+// Composant séparé pour la validation du dépôt de garantie (évite les re-renders)
+const SecurityDepositValidation = ({ control }: { control: any }) => {
+  const leaseType = useWatch({ control, name: "leaseType" });
+  const rentAmount = useWatch({ control, name: "rentAmount" });
+  const securityDeposit = useWatch({ control, name: "securityDeposit" });
+  
+  const isMeuble = leaseType === "MEUBLE";
+  const rentAmountNum = parseInt(rentAmount || '0', 10);
+  const securityDepositNum = parseInt(securityDeposit || '0', 10);
+  const maxDeposit = isMeuble ? rentAmountNum * 2 : rentAmountNum;
+  const isExceeded = rentAmountNum > 0 && securityDepositNum > maxDeposit;
+  
+  if (rentAmountNum <= 0) return null;
+  
+  return (
+    <>
+      <p className={`text-xs ${isExceeded ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+        Maximum : {maxDeposit.toLocaleString('fr-FR')} € ({isMeuble ? '2' : '1'} mois de loyer)
+      </p>
+      {isExceeded && (
+        <p className="text-sm text-destructive flex items-center gap-1">
+          <AlertCircle className="h-4 w-4" />
+          Dépasse le maximum légal
+        </p>
+      )}
+    </>
+  );
+};
 
 interface LeaseFormProps {
   onSubmit: (data: FormData) => Promise<void>;
@@ -78,7 +126,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
       formData.append("leaseType", data.leaseType);
       formData.append("status", data.status);
       formData.append("propertyId", data.propertyId);
-      formData.append("tenantId", data.tenantId);
+      if (data.tenantId) formData.append("tenantId", data.tenantId);
       formData.append("effectiveDate", data.effectiveDate);
       if (data.endDate) formData.append("endDate", data.endDate);
       formData.append("rentAmount", data.rentAmount);
@@ -99,10 +147,19 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
   // Fonction pour obtenir le nom d'une partie
   const getPartyName = (party: any) => {
     if (party.type === "PERSONNE_PHYSIQUE") {
-      const name = `${party.firstName || ""} ${party.lastName || ""}`.trim();
-      return name || party.email || "Partie sans nom";
+      // Chercher la personne principale ou la première personne
+      const primaryPerson = party.persons?.find((p: any) => p.isPrimary) || party.persons?.[0];
+      if (primaryPerson) {
+        const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+        return name || primaryPerson.email || "Partie sans nom";
+      }
+      return "Partie sans nom";
     } else if (party.type === "PERSONNE_MORALE") {
-      return party.legalName || "Partie sans nom";
+      // Utiliser les données de l'entreprise
+      if (party.entreprise) {
+        return party.entreprise.legalName || party.entreprise.name || party.entreprise.email || "Partie sans nom";
+      }
+      return "Partie sans nom";
     }
     return "Partie sans nom";
   };
@@ -112,7 +169,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
       <CardHeader>
         <CardTitle>Informations du bail</CardTitle>
         <CardDescription>
-          Remplissez les informations pour créer un nouveau bail
+          {initialData?.id ? "Modifiez les informations du bail" : "Remplissez les informations pour créer un nouveau bail"}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -153,7 +210,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tenantId">Locataire *</Label>
+              <Label htmlFor="tenantId">Locataire</Label>
               <Controller
                 name="tenantId"
                 control={form.control}
@@ -161,15 +218,16 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
                   <Select
                     value={field.value || ""}
                     onValueChange={(value) => {
-                      field.onChange(value);
+                      field.onChange(value === "none" ? "" : value);
                       form.trigger("tenantId");
                     }}
                     disabled={isLoading}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un locataire" />
+                      <SelectValue placeholder="Sélectionner un locataire (optionnel)" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">Aucun locataire</SelectItem>
                       {parties.map((party) => (
                         <SelectItem key={party.id} value={party.id}>
                           {getPartyName(party)}
@@ -233,9 +291,8 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
                       <SelectItem value="DRAFT">Brouillon</SelectItem>
                       <SelectItem value="PENDING_VALIDATION">En attente de validation</SelectItem>
                       <SelectItem value="READY_FOR_NOTARY">Prêt pour notaire</SelectItem>
-                      <SelectItem value="ACTIVE">Actif</SelectItem>
+                      <SelectItem value="SIGNED">Signé</SelectItem>
                       <SelectItem value="TERMINATED">Terminé</SelectItem>
-                      <SelectItem value="CANCELED">Annulé</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -275,6 +332,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
               <Label htmlFor="rentAmount">Montant du loyer *</Label>
               <NumberInputGroup
                 field={form.register("rentAmount")}
+                value={form.watch("rentAmount")}
                 min={0}
                 unit="€"
                 disabled={isLoading}
@@ -291,6 +349,7 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
               <Label htmlFor="monthlyCharges">Charges mensuelles</Label>
               <NumberInputGroup
                 field={form.register("monthlyCharges")}
+                value={form.watch("monthlyCharges")}
                 min={0}
                 unit="€"
                 disabled={isLoading}
@@ -309,12 +368,14 @@ export function LeaseForm({ onSubmit, initialData, properties, parties }: LeaseF
                 disabled={isLoading}
                 placeholder="800"
               />
+              <SecurityDepositValidation control={form.control} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="paymentDay">Jour de paiement</Label>
               <NumberInputGroup
                 field={form.register("paymentDay")}
+                value={form.watch("paymentDay")}
                 min={1}
                 max={31}
                 disabled={isLoading}

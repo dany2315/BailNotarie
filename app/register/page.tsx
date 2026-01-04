@@ -1,5 +1,5 @@
-"use client";
-
+ "use client";
+/*
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -19,9 +19,9 @@ export default function RegisterPage() {
       </div>
     </div>
   );
-}
+} */
 
-/* 
+
 // Code commenté - Page d'inscription temporairement désactivée
 
 import { useState, useEffect } from "react";
@@ -284,6 +284,5 @@ export default function RegisterPage() {
     </div>
   );
 }
-*/
 
 

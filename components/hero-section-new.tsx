@@ -1,19 +1,13 @@
-"use client";
-
 import { ArrowRight, CheckCircle2, Clock, Shield, Globe } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SocialProof } from "./ui/socialProof";
+import Link from "next/link";
 
 export function HeroSectionNew() {
-  const handleStart = () => {
-    window.location.href = "/commencer";
-  };
-
   return (
     <section
-      className="relative min-h-[90vh] flex items-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 overflow-hidden"
+      className="relative min-h-[90vh] flex items-center bg-linear-to-br from-slate-50 via-blue-50 to-indigo-50 overflow-hidden"
       aria-labelledby="hero-bail-notarie-title"
     >
       {/* Décor de fond */}
@@ -51,7 +45,7 @@ export function HeroSectionNew() {
                 </strong>{" "}
                 pour constituer leur dossier de{" "}
                 <strong className="font-semibold text-gray-900">
-                  bail notarié d’habitation en France
+                  bail notarié d'habitation en France
                 </strong>.
               </p>
 
@@ -76,14 +70,13 @@ export function HeroSectionNew() {
               <SocialProof />
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <Button
-                  size="lg"
-                  onClick={handleStart}
-                  className="bg-[#4373f5] hover:bg-blue-700 text-white sm:text-lg text-md px-8 py-3 h-auto rounded-xl shadow-md transition-all duration-200"
+                <Link
+                  href="/commencer"
+                  className="inline-flex items-center justify-center bg-[#4373f5] hover:bg-blue-700 text-white sm:text-lg text-md px-8 py-3 h-auto rounded-xl shadow-md transition-all duration-200 font-medium"
                 >
                   Constituer mon dossier 
                   <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
+                </Link>
               </div>
 
               {/* Garanties / arguments rassurants */}
@@ -127,7 +120,7 @@ export function HeroSectionNew() {
                 {/* Liste ordonnée = plus lisible pour Google */}
                 <ol className="space-y-4">
                   <li className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
                       <span className="text-[#4373f5] font-bold">1</span>
                     </div>
                     <div>
@@ -142,7 +135,7 @@ export function HeroSectionNew() {
                   </li>
 
                   <li className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
                       <span className="text-indigo-600 font-bold">2</span>
                     </div>
                     <div>
@@ -158,7 +151,7 @@ export function HeroSectionNew() {
                   </li>
 
                   <li className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                       <span className="text-green-600 font-bold">3</span>
                     </div>
                     <div>

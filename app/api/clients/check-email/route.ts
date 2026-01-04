@@ -14,26 +14,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérifier si un client avec cet email existe déjà
-    const existingClient = await prisma.client.findUnique({
+    const existingPerson = await prisma.person.findUnique({
       where: { email: email.toLowerCase().trim() },
       select: {
         id: true,
         email: true,
-        profilType: true,
+      },
+    });
+    const existingEntreprise = await prisma.entreprise.findUnique({
+      where: { email: email.toLowerCase().trim() },
+      select: {
+        id: true,
+        email: true,
       },
     });
 
-    if (existingClient) {
-      return NextResponse.json({
-        exists: true,
-        client: existingClient,
-      });
+
+    if (existingPerson || existingEntreprise) {
+      return NextResponse.json({ exists: true });
     }
 
-    return NextResponse.json({
-      exists: false,
-    });
+    return NextResponse.json({ exists: false });
   } catch (error: any) {
     console.error("Erreur lors de la vérification de l'email:", error);
     return NextResponse.json(
@@ -42,6 +43,10 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
+
+
 
 
 

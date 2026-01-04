@@ -1,6 +1,32 @@
 import { z } from "zod";
 
-export const createLeaseSchema = z.object({
+// Helper pour valider le dépôt de garantie selon le type de bail
+function validateSecurityDeposit(
+  leaseType: string | undefined,
+  rentAmount: number | undefined,
+  securityDeposit: number | undefined,
+  ctx: z.RefinementCtx
+) {
+  if (!rentAmount || !securityDeposit || rentAmount <= 0 || securityDeposit <= 0) {
+    return;
+  }
+  
+  // MEUBLE = bail meublé → max 2 mois
+  // Autres = bail nu → max 1 mois
+  const isMeuble = leaseType === "MEUBLE";
+  const maxDeposit = isMeuble ? rentAmount * 2 : rentAmount;
+  
+  if (securityDeposit > maxDeposit) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["securityDeposit"],
+      message: `Le dépôt de garantie ne peut pas dépasser ${isMeuble ? '2' : '1'} mois de loyer hors charges (max ${maxDeposit.toLocaleString('fr-FR')} €)`,
+    });
+  }
+}
+
+// Schéma de base pour la création
+const createLeaseBaseSchema = z.object({
   leaseType: z.enum(["HABITATION", "MEUBLE", "COMMERCIAL", "PROFESSIONNEL", "SAISONNIER", "OTHER"]).default("HABITATION"),
   status: z.enum(["DRAFT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "ACTIVE", "TERMINATED", "CANCELED"]).default("DRAFT"),
   rentAmount: z.string().transform((val) => {
@@ -39,8 +65,13 @@ export const createLeaseSchema = z.object({
   tenantId: z.string().cuid("ID locataire invalide").min(1, "Le locataire est requis"),
 });
 
-// Schéma de mise à jour - tous les champs sont optionnels
-export const updateLeaseSchema = z.object({
+// Schéma de création avec validation du dépôt de garantie
+export const createLeaseSchema = createLeaseBaseSchema.superRefine((data, ctx) => {
+  validateSecurityDeposit(data.leaseType, data.rentAmount, data.securityDeposit, ctx);
+});
+
+// Schéma de base pour la mise à jour - tous les champs sont optionnels
+const updateLeaseBaseSchema = z.object({
   id: z.string().cuid("ID invalide"),
   leaseType: z.enum(["HABITATION", "MEUBLE", "COMMERCIAL", "PROFESSIONNEL", "SAISONNIER", "OTHER"]).optional(),
   status: z.enum(["DRAFT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "ACTIVE", "TERMINATED", "CANCELED"]).optional(),
@@ -84,6 +115,11 @@ export const updateLeaseSchema = z.object({
   tenantId: z.string().cuid("ID locataire invalide").optional(),
 });
 
+// Schéma de mise à jour avec validation du dépôt de garantie
+export const updateLeaseSchema = updateLeaseBaseSchema.superRefine((data, ctx) => {
+  validateSecurityDeposit(data.leaseType, data.rentAmount, data.securityDeposit, ctx);
+});
+
 export const transitionLeaseSchema = z.object({
   id: z.string().cuid("ID invalide"),
   nextStatus: z.enum(["PENDING_VALIDATION", "READY_FOR_NOTARY", "ACTIVE", "TERMINATED", "CANCELED"]),
@@ -92,5 +128,3 @@ export const transitionLeaseSchema = z.object({
 export type CreateLeaseInput = z.infer<typeof createLeaseSchema>;
 export type UpdateLeaseInput = z.infer<typeof updateLeaseSchema>;
 export type TransitionLeaseInput = z.infer<typeof transitionLeaseSchema>;
-
-

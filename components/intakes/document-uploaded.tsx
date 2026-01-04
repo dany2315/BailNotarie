@@ -2,18 +2,20 @@
 
 import { useState, useEffect, useRef, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { File, Eye, Download, Trash2 } from "lucide-react";
+import { File, Eye, Download, Trash2, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getIntakeDocuments } from "@/lib/actions/intakes";
+import { getIntakeDocuments, deleteDocumentFromRawPayload } from "@/lib/actions/intakes";
 import { deleteDocument } from "@/lib/actions/documents";
 import { toast } from "sonner";
 import { DocumentKind } from "@prisma/client";
+import { documentKindLabels } from "@/lib/utils/document-labels";
 
 interface DocumentUploadedProps {
   token: string;
   documentKind: string;
   clientId?: string; // Optionnel : pour filtrer les documents par client (utile pour le formulaire locataire)
+  personIndex?: number; // Optionnel : pour filtrer les documents par personne (index dans le tableau persons)
   onDelete?: (documentId: string) => void;
   children?: ReactNode;
 }
@@ -28,49 +30,22 @@ export function invalidateDocumentCache(token: string) {
   tokenDocumentsData.delete(token);
 }
 
-export function DocumentUploaded({ token, documentKind, clientId, onDelete, children }: DocumentUploadedProps) {
+export function DocumentUploaded({ token, documentKind, clientId, personIndex, onDelete, children }: DocumentUploadedProps) {
   const [document, setDocument] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false); // Ajouter cet état
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<any | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const isViewerOpenRef = useRef(false);
   const hasLoadedRef = useRef(false);
 
+  // Utiliser les labels centralisés
   const getDocumentLabel = (kind: string) => {
-    switch (kind) {
-      case DocumentKind.BIRTH_CERT:
-        return "Acte de naissance";
-      case DocumentKind.ID_IDENTITY:
-        return "Pièce d'identité";
-      case DocumentKind.LIVRET_DE_FAMILLE:
-        return "Livret de famille";
-      case DocumentKind.CONTRAT_DE_PACS:
-        return "Contrat de PACS";
-      case DocumentKind.DIAGNOSTICS:
-        return "Diagnostics";
-      case DocumentKind.REGLEMENT_COPROPRIETE:
-        return "Règlement de copropriété";
-      case DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT:
-        return "Cahier de charge de lotissement";
-      case DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE:
-        return "Statut de l'association syndicale";
-      case DocumentKind.RIB:
-        return "RIB";
-      case DocumentKind.INSURANCE:
-        return "Assurance";
-      case DocumentKind.TITLE_DEED:
-        return "Titre de propriété";
-      case DocumentKind.STATUTES:
-        return "Statuts";
-      case DocumentKind.KBIS:
-        return "KBIS";
-      default:
-        return `Document ${kind}`;
-    }
+    return documentKindLabels[kind] || `Document ${kind}`;
   };
 
   // Charger tous les documents pour ce token
@@ -78,14 +53,18 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
     // Réinitialiser hasLoadedRef si refreshKey change
     hasLoadedRef.current = false;
 
-    const loadDocuments = async () => {
+      const loadDocuments = async () => {
       // Vérifier si les documents sont déjà en cache
       if (tokenDocumentsData.has(token)) {
         const allDocs = tokenDocumentsData.get(token) || [];
-        // Filtrer par kind et optionnellement par clientId
+        // Filtrer par kind et optionnellement par clientId ou personIndex
         let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
         if (clientId) {
           filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
+        }
+        // Si personIndex est fourni, filtrer par personIndex
+        if (personIndex !== undefined) {
+          filteredDocs = filteredDocs.filter((doc) => doc.personIndex === personIndex);
         }
         const foundDoc = filteredDocs
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -100,10 +79,14 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
         try {
           const allDocs = await existingPromise;
           if (allDocs) {
-            // Filtrer par kind et optionnellement par clientId
+            // Filtrer par kind et optionnellement par clientId ou personIndex
             let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
             if (clientId) {
               filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
+            }
+            // Si personIndex est fourni, filtrer par personIndex
+            if (personIndex !== undefined) {
+              filteredDocs = filteredDocs.filter((doc) => doc.personIndex === personIndex);
             }
             const foundDoc = filteredDocs
               .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -127,10 +110,14 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
         tokenDocumentsData.set(token, allDocs);
         tokenDocumentsCache.delete(token); // Nettoyer le cache de promesses
 
-        // Filtrer par kind et optionnellement par clientId
+        // Filtrer par kind et optionnellement par clientId ou personIndex
         let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
         if (clientId) {
           filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
+        }
+        // Si personIndex est fourni, filtrer par personIndex
+        if (personIndex !== undefined) {
+          filteredDocs = filteredDocs.filter((doc) => doc.personIndex === personIndex);
         }
         const foundDoc = filteredDocs
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -145,7 +132,7 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
 
     loadDocuments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, documentKind, clientId, refreshKey]);
+  }, [token, documentKind, clientId, personIndex, refreshKey]);
 
   // Écouter les événements de rechargement
   useEffect(() => {
@@ -173,16 +160,49 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
     setIsViewerOpen(true);
   };
 
-  const handleDownloadDocument = (doc: any) => {
-    const link = document.createElement("a");
-    link.href = doc.fileKey.startsWith("http") 
-      ? doc.fileKey 
-      : doc.fileKey.startsWith("/") 
-        ? doc.fileKey 
-        : `/${doc.fileKey}`;
-    link.download = doc.label || `document-${doc.id}`;
-    link.target = "_blank";
-    link.click();
+  const handleDownloadDocument = async (doc: any) => {
+    // Vérifier que nous sommes dans le navigateur
+    if (typeof window === "undefined" || typeof window.document === "undefined") {
+      toast.error("Téléchargement non disponible dans cet environnement");
+      return;
+    }
+
+    setIsDownloading(true); // Activer le loader
+    try {
+      // Si fileKey est une URL complète (Vercel Blob), utiliser fetch pour télécharger
+      if (doc.fileKey?.startsWith("http")) {
+        const response = await fetch(doc.fileKey);
+        if (!response.ok) {
+          throw new Error("Erreur lors du téléchargement du fichier");
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = window.document.createElement("a");
+        link.href = url;
+        link.download = doc.label || doc.fileName || `document-${doc.kind}`;
+        window.document.body.appendChild(link);
+        link.click();
+        window.document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        // Pour les chemins relatifs, utiliser l'approche classique
+        const link = window.document.createElement("a");
+        link.href = doc.fileKey?.startsWith("/") 
+          ? doc.fileKey 
+          : `/${doc.fileKey || ""}`;
+        link.download = doc.label || doc.fileName || `document-${doc.kind}`;
+        link.target = "_blank";
+        window.document.body.appendChild(link);
+        link.click();
+        window.document.body.removeChild(link);
+      }
+    } catch (error) {
+      console.error("Erreur lors du téléchargement:", error);
+      toast.error("Erreur lors du téléchargement du document");
+    } finally {
+      setIsDownloading(false); // Désactiver le loader
+    }
   };
 
   const handleDeleteClick = (doc: any) => {
@@ -197,7 +217,22 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
     setIsDeleteDialogOpen(false);
     
     try {
-      await deleteDocument(documentToDelete.id);
+      // Vérifier si le document vient de rawPayload (ID commence par "raw_")
+      const isFromRawPayload = documentToDelete.id?.startsWith("raw_");
+      
+      if (isFromRawPayload) {
+        // Supprimer depuis rawPayload
+        await deleteDocumentFromRawPayload({
+          token,
+          fileKey: documentToDelete.fileKey,
+          kind: documentToDelete.kind,
+          personIndex: documentToDelete.personIndex,
+        });
+      } else {
+        // Supprimer depuis la DB (document déjà soumis)
+        await deleteDocument(documentToDelete.id);
+      }
+      
       toast.success("Document supprimé avec succès");
       
       // Mettre à jour le cache local
@@ -217,6 +252,10 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
       }
       
       setDocumentToDelete(null);
+      
+      // Invalider le cache et déclencher un refresh
+      invalidateDocumentCache(token);
+      setRefreshKey(prev => prev + 1);
     } catch (error: any) {
       toast.error(error.message || "Erreur lors de la suppression du document");
       console.error("Erreur lors de la suppression:", error);
@@ -265,7 +304,8 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
                 { getDocumentLabel(document.kind) }
               </p>
               <p className="text-xs text-muted-foreground">
-                {formatFileSize(document.size)} • {new Date(document.createdAt).toLocaleDateString()}
+                {formatFileSize(document.size)}
+                {document.createdAt && ` • ${new Date(document.createdAt).toLocaleDateString()}`}
               </p>
             </div>
           </div>
@@ -277,6 +317,7 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
               className="size-8"
               onClick={() => handleViewDocument(document)}
               title="Voir le document"
+              disabled={isDeleting}
             >
               <Eye className="size-4" />
             </Button>
@@ -287,8 +328,13 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
               className="size-8"
               onClick={() => handleDownloadDocument(document)}
               title="Télécharger le document"
+              disabled={isDeleting || isDownloading}
             >
-              <Download className="size-4" />
+              {isDownloading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Download className="size-4" />
+              )}
             </Button>
             <Button
               type="button"
@@ -299,7 +345,11 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
               title="Supprimer le document"
               disabled={isDeleting}
             >
-              <Trash2 className="size-4" />
+              {isDeleting ? (
+                <Loader2 className="size-4 animate-spin text-destructive" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
             </Button>
           </div>
         </div>
@@ -361,7 +411,7 @@ export function DocumentUploaded({ token, documentKind, clientId, onDelete, chil
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-muted-foreground">
-              Êtes-vous sûr de vouloir supprimer le document <span className="font-bold">{documentToDelete?.kind}</span> "{documentToDelete?.label || `Document ${documentToDelete?.kind}`}" ?
+              Êtes-vous sûr de vouloir supprimer le document <span className="font-bold">{getDocumentLabel(documentToDelete?.kind)}</span> "{documentToDelete?.label || `Document ${documentToDelete?.kind}`}" ?
               Cette action est irréversible.
             </p>
           </div>

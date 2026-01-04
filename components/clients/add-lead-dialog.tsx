@@ -143,7 +143,7 @@ export function AddLeadDialog({ open, onOpenChange }: AddLeadDialogProps) {
         <DialogHeader>
           <DialogTitle>Ajouter un lead</DialogTitle>
           <DialogDescription>
-            Choisissez comment contacter le prospect. Si vous choisissez l'email, il recevra automatiquement un email avec un lien de conversion.
+            Choisissez comment contacter le prospect. Si vous choisissez l'email, il recevra automatiquement un email avec un lien qui lui permettra de choisir si proprietaire ou locataire.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">

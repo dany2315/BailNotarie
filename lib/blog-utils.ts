@@ -70,12 +70,11 @@ export function generateArticleMetadata(article: Article) {
   const keywords = article.metaKeywords 
     ? article.metaKeywords.split(',').map(k => k.trim())
     : [
-       "bail notarié",
+        "bail notarié",
         "bail de location",
         "bail location",
         "bail de location notarié",
         "bail de location notarié en ligne",
-
         article.category.name.toLowerCase(),
         ...article.title.toLowerCase().split(' ').filter(word => word.length > 3)
       ];
@@ -89,7 +88,7 @@ export function generateArticleMetadata(article: Article) {
     openGraph: {
       title: article.metaTitle || article.title,
       description,
-      url: `https://bailnotarie.fr/blog/${article.slug}`,
+      url: `https://www.bailnotarie.fr/blog/${article.slug}`,
       type: "article",
       publishedTime: article.createdAt.toISOString(),
       authors: ["Équipe BailNotarie"],

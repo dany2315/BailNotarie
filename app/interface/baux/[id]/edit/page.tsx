@@ -88,11 +88,22 @@ export default async function EditLeasePage({
     getAllClients(),
   ]);
 
-  // Filtrer pour ne garder que les locataires
-  const tenants = allClients.filter((client: any) => client.profilType === "LOCATAIRE");
+  // S'assurer que la propriété actuelle est dans la liste
+  let properties = propertiesResult.data;
+  if (lease.property && !properties.find((p: any) => p.id === lease.property.id)) {
+    properties = [lease.property, ...properties];
+  }
 
-  // Trouver le locataire dans les parties
+  // Trouver le locataire dans les parties du bail
   const tenant = lease.parties?.find((p: any) => p.profilType === "LOCATAIRE");
+
+  // Filtrer pour ne garder que les locataires
+  let tenants = allClients.filter((client: any) => client.profilType === "LOCATAIRE");
+  
+  // S'assurer que le locataire actuel est dans la liste (s'il existe)
+  if (tenant && !tenants.find((t: any) => t.id === tenant.id)) {
+    tenants = [tenant, ...tenants];
+  }
   
   // Mapper bailFamily vers leaseType pour le formulaire
   const bailFamilyToLeaseType: Record<string, string> = {
@@ -138,7 +149,7 @@ export default async function EditLeasePage({
       <LeaseForm
         onSubmit={handleSubmit}
         initialData={initialData}
-        properties={propertiesResult.data}
+        properties={properties}
         parties={tenants}
       />
     </div>

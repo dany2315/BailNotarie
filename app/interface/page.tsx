@@ -3,15 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { KPICard } from "@/components/shared/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, Link as LinkIcon, AlertCircle, Plus, Users } from "lucide-react";
+import { FileText, Link as LinkIcon, AlertCircle, Users } from "lucide-react";
 import Link from "next/link";
-import { formatCurrency, formatDate } from "@/lib/utils/formatters";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { BailStatus, CompletionStatus, PropertyStatus  } from "@prisma/client";
+import { BailStatus, CompletionStatus } from "@prisma/client";
 import { getAllClients } from "@/lib/actions/clients";
 import { getAllBails } from "@/lib/actions/leases";
 import { ClientsListDashboard } from "@/components/dashboard/clients-list-dashboard";
 import { BailsListDashboard } from "@/components/dashboard/bails-list-dashboard";
+import { DashboardActionButtons } from "@/components/dashboard/dashboard-action-buttons";
 
 export default async function InterfacePage() {
   const user = await getCurrentUser();
@@ -28,41 +27,19 @@ export default async function InterfacePage() {
 
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="flex flex-col h-[calc(93vh-4rem)] gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Bienvenue, {user?.name || user?.email}
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <Link href="/interface/properties/new" className="w-full sm:w-auto">
-            <Button size="sm" className="w-full sm:w-auto">
-              <Plus className="size-4 sm:mr-2" />
-              <span className="hidden sm:inline">Créer Bien</span>
-              <span className="sm:hidden">Bien</span>
-            </Button>
-          </Link>
-          <Link href="/interface/baux/new" className="w-full sm:w-auto">
-            <Button size="sm" className="w-full sm:w-auto">
-              <Plus className="size-4 sm:mr-2" />
-              <span className="hidden sm:inline">Créer Bail</span>
-              <span className="sm:hidden">Bail</span>
-            </Button>
-          </Link>
-          <Link href="/interface/intakes" className="w-full sm:w-auto">
-            <Button size="sm" variant="outline" className="w-full sm:w-auto">
-              <LinkIcon className="size-4 sm:mr-2" />
-              <span className="hidden sm:inline">Créer Intake</span>
-              <span className="sm:hidden">Intake</span>
-            </Button>
-          </Link>
-        </div>
+        <DashboardActionButtons />
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 shrink-0">
         <KPICard
           title="Clients complets"
           value={completedClients}
@@ -89,7 +66,7 @@ export default async function InterfacePage() {
         />
       </div>
 
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 flex-1 min-h-0">
         {/* Liste des baux */}
         <BailsListDashboard bails={allBails} />
 
@@ -99,7 +76,7 @@ export default async function InterfacePage() {
 
       {/* To-do Notaire */}
       {readyForNotary > 0 && (
-        <Card>
+        <Card className="shrink-0">
           <CardHeader>
             <CardTitle className="text-lg sm:text-xl">To-do Notaire</CardTitle>
           </CardHeader>

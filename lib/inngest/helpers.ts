@@ -56,6 +56,7 @@ export async function triggerOwnerFormEmail(data: {
   firstName?: string | null;
   lastName?: string | null;
   formUrl: string;
+  emailContext?: "landing_owner" | "landing_tenant" | "admin" | "default";
 }) {
   await inngest.send({
     name: "email/intake.owner-form",
@@ -159,6 +160,40 @@ export async function triggerBlogCommentNotificationEmail(data: {
 }) {
   await inngest.send({
     name: "email/blog-comment.notification",
+    data,
+  });
+}
+
+/**
+ * Déclenche l'envoi d'un email de confirmation après soumission d'un formulaire d'intake
+ */
+export async function triggerIntakeConfirmationEmail(data: {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  role: "LOCATAIRE" | "PROPRIETAIRE";
+}) {
+  await inngest.send({
+    name: "email/intake.confirmation",
+    data,
+  });
+}
+
+/**
+ * Déclenche l'envoi d'un email de notification au propriétaire quand le locataire soumet son formulaire
+ */
+export async function triggerTenantSubmittedNotificationEmail(data: {
+  ownerEmail: string;
+  ownerFirstName?: string | null;
+  ownerLastName?: string | null;
+  tenantFirstName?: string | null;
+  tenantLastName?: string | null;
+  propertyAddress?: string | null;
+  interfaceUrl: string;
+}) {
+  await inngest.send({
+    name: "email/intake.tenant-submitted",
     data,
   });
 }

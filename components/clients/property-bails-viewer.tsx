@@ -37,6 +37,21 @@ interface Bail {
   };
 }
 
+interface Person {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  isPrimary?: boolean;
+}
+
+interface Entreprise {
+  id: string;
+  name?: string | null;
+  legalName?: string | null;
+  email?: string | null;
+}
+
 interface Party {
   id: string;
   firstName?: string | null;
@@ -45,6 +60,8 @@ interface Party {
   type: ClientType;
   email?: string | null;
   profilType: ProfilType;
+  persons?: Person[];
+  entreprise?: Entreprise | null;
 }
 
 interface PropertyBailsViewerProps {
@@ -75,9 +92,13 @@ export function PropertyBailsViewer({ properties }: PropertyBailsViewerProps) {
 
   const getPartyName = (party: Party) => {
     if (party.type === ClientType.PERSONNE_PHYSIQUE) {
+      const primaryPerson = party.persons?.find((p: any) => p.isPrimary) || party.persons?.[0];
+      if (primaryPerson) {
+        return `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || primaryPerson.email || "N/A";
+      }
       return `${party.firstName || ""} ${party.lastName || ""}`.trim() || party.email || "N/A";
     }
-    return party.legalName || party.email || "N/A";
+    return party.entreprise?.legalName || party.entreprise?.name || party.legalName || party.email || "N/A";
   };
 
   if (properties.length === 0) {

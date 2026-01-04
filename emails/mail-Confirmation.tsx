@@ -18,7 +18,8 @@ interface MailConfirmationProps {
   lastName: string;
   email: string;
   phone: string;
-  message: string;
+  message?: string;
+  role?: "LOCATAIRE" | "PROPRIETAIRE";
 }
 
 export default function MailConfirmation({
@@ -26,7 +27,8 @@ export default function MailConfirmation({
   lastName,
   email,
   phone,
-  message
+  message,
+  role
 }: MailConfirmationProps) {
   return (
     <Html>
@@ -117,78 +119,143 @@ export default function MailConfirmation({
             }}>
               Bonjour {firstName} {lastName},
             </Text>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              Nous avons bien reçu votre demande de bail notarié. Notre équipe d'experts va l'étudier avec attention et vous recontacter dans les plus brefs délais.
-            </Text>
+          
 
-            {/* Récapitulatif de la demande */}
-            <Section style={{ 
-              backgroundColor: "#f9fafb",
-              borderRadius: "8px",
-              padding: "24px",
-              margin: "24px 0"
-            }}>
-              <Text style={{ 
-                color: "#1f2937",
-                fontSize: "18px",
-                fontWeight: "bold",
-                margin: "0 0 16px 0"
+            {/* Texte ciblé selon le rôle */}
+            {role === "LOCATAIRE" && (
+              <Section style={{ 
+                backgroundColor: "#f0f9ff",
+                borderRadius: "8px",
+                padding: "24px",
+                margin: "24px 0"
               }}>
-                📋 Récapitulatif de votre demande :
-              </Text>
-              
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: "0 0 8px 0"
+
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "16px",
+                  lineHeight: "1.6",
+                  margin: "0 0 12px 0"
+                }}>
+                  Votre formulaire de bail notarié a été soumis avec succès. Nous allons maintenant traiter votre demande et vous tenir informé de l'avancement de votre dossier.
+                </Text>
+                <Text style={{ 
+                  color: "#1f2937",
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  margin: "0 0 16px 0"
+                }}>
+                  🏠 En tant que locataire
+                </Text>
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "16px",
+                  lineHeight: "1.6",
+                  margin: 0
+                }}>
+                  Le bail notarié vous offre une sécurité renforcée et une force exécutoire immédiate, vous protégeant ainsi en cas de litige avec votre propriétaire.
+                </Text>
+              </Section>
+            )}
+
+            {role === "PROPRIETAIRE" && (
+              <Section style={{ 
+                backgroundColor: "#f0f9ff",
+                borderRadius: "8px",
+                padding: "24px",
+                margin: "24px 0"
               }}>
-                <strong>Nom complet :</strong> {firstName} {lastName}
-              </Text>
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: "0 0 8px 0"
+               
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "16px",
+                  lineHeight: "1.6",
+                  margin: "0 0 12px 0"
+                }}>
+                  Votre formulaire de bail notarié a été soumis avec succès. Une fois validé, il sera transmis à l’un de nos notaires partenaires, qui vous contactera directement pour finaliser le bail et vous communiquer le montant précis de l’acte notarié.
+                </Text>
+                <Text style={{ 
+                  color: "#1f2937",
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  margin: "0 0 16px 0"
+                }}>
+                  🔑 En tant que propriétaire
+                </Text>
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "16px",
+                  lineHeight: "1.6",
+                  margin: 0
+                }}>
+                  Le bail notarié vous garantit une protection optimale de vos biens et vous permet de récupérer rapidement votre bien en cas de non-paiement ou de litige avec votre locataire grâce à la force exécutoire.
+                </Text>
+              </Section>
+            )}
+
+            {/* Récapitulatif uniquement si message présent (pour les emails de contact) */}
+            {message && (
+              <Section style={{ 
+                backgroundColor: "#f9fafb",
+                borderRadius: "8px",
+                padding: "24px",
+                margin: "24px 0"
               }}>
-                <strong>Email :</strong> {email}
-              </Text>
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: "0 0 8px 0"
-              }}>
-                <strong>Téléphone :</strong> {phone}
-              </Text>
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: "0 0 16px 0"
-              }}>
-                <strong>Message :</strong>
-              </Text>
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: "0 0 16px 0",
-                fontStyle: "italic",
-                backgroundColor: "#ffffff",
-                padding: "12px",
-                borderRadius: "6px",
-                border: "1px solid #e5e7eb"
-              }}>
-                "{message}"
-              </Text>
-            </Section>
+                <Text style={{ 
+                  color: "#1f2937",
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  margin: "0 0 16px 0"
+                }}>
+                  📋 Récapitulatif de votre demande :
+                </Text>
+                
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "14px",
+                  lineHeight: "1.6",
+                  margin: "0 0 8px 0"
+                }}>
+                  <strong>Nom complet :</strong> {firstName} {lastName}
+                </Text>
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "14px",
+                  lineHeight: "1.6",
+                  margin: "0 0 8px 0"
+                }}>
+                  <strong>Email :</strong> {email}
+                </Text>
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "14px",
+                  lineHeight: "1.6",
+                  margin: "0 0 8px 0"
+                }}>
+                  <strong>Téléphone :</strong> {phone}
+                </Text>
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "14px",
+                  lineHeight: "1.6",
+                  margin: "0 0 16px 0"
+                }}>
+                  <strong>Message :</strong>
+                </Text>
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "14px",
+                  lineHeight: "1.6",
+                  margin: "0 0 16px 0",
+                  fontStyle: "italic",
+                  backgroundColor: "#ffffff",
+                  padding: "12px",
+                  borderRadius: "6px",
+                  border: "1px solid #e5e7eb"
+                }}>
+                  "{message}"
+                </Text>
+              </Section>
+            )}
 
             {/* Points clés */}
             <Section style={{ 
@@ -212,14 +279,6 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: "0 0 8px 0"
               }}>
-                • <strong>Devis gratuit</strong> sous 24h
-              </Text>
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: "0 0 8px 0"
-              }}>
                 • <strong>Bail notarié</strong> en 48h
               </Text>
               <Text style={{ 
@@ -236,7 +295,7 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: 0
               }}>
-                • <strong>+2000 clients</strong> satisfaits
+                • <strong>+200 clients</strong> satisfaits
               </Text>
             </Section>
 

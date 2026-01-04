@@ -31,8 +31,8 @@ export function PartyTypeFilter({ defaultValue }: { defaultValue: string }) {
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">Tous les types</SelectItem>
-        <SelectItem value="NATURAL">Personne physique</SelectItem>
-        <SelectItem value="LEGAL">Personne morale</SelectItem>
+        <SelectItem value="NATURAL">Particulier</SelectItem>
+        <SelectItem value="LEGAL">Entreprise</SelectItem>
       </SelectContent>
     </Select>
   );

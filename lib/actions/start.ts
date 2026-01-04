@@ -25,12 +25,18 @@ export async function startAsOwner(data: StartOwnerInput) {
   const validated = startOwnerSchema.parse(data);
   const email = validated.email.toLowerCase().trim();
   
-  // Vérifier si un client avec cet email existe déjà (peu importe le profilType)
-  let client = await prisma.client.findUnique({
-    where: {
-      email: email,
-    },
+  // Chercher un client via Person.email ou Entreprise.email
+  const person = await prisma.person.findUnique({
+    where: { email },
+    include: { client: true },
   });
+
+  const entreprise = await prisma.entreprise.findUnique({
+    where: { email },
+    include: { client: true },
+  });
+
+  let client = person?.client || entreprise?.client || null;
 
   // Variable pour savoir si le client existait déjà
   const isExistingClient = !!client;
@@ -48,13 +54,18 @@ export async function startAsOwner(data: StartOwnerInput) {
     };
   }
 
-  // Si le client n'existe pas, le créer
+  // Si le client n'existe pas, le créer avec une Person
   if (!isExistingClient) {
     client = await prisma.client.create({
       data: {
         type: ClientType.PERSONNE_PHYSIQUE,
         profilType: ProfilType.PROPRIETAIRE,
-        email: email,
+        persons: {
+          create: {
+            email: email,
+            isPrimary: true,
+          },
+        },
       },
     });
 
@@ -69,7 +80,6 @@ export async function startAsOwner(data: StartOwnerInput) {
       },
     });
 
-
     // Notification pour création de propriétaire
     await createNotificationForAllUsers(
       NotificationType.CLIENT_CREATED_FROM_LANDING_PAGE,
@@ -78,6 +88,32 @@ export async function startAsOwner(data: StartOwnerInput) {
       null, // Créé depuis la landing page, pas par un utilisateur
       { createdByForm: true ,profileType: ProfilType.PROPRIETAIRE }
     );
+
+    // Envoyer un email au propriétaire avec le formulaire
+    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+    const ownerFormUrl = `${baseUrl}/commencer/proprietaire/${token}`;
+    
+    // Récupérer les informations de Person pour l'email
+    const ownerPersonData = await prisma.person.findFirst({
+      where: { clientId: client.id, isPrimary: true },
+    });
+
+    const firstName = ownerPersonData?.firstName || "";
+    const lastName = ownerPersonData?.lastName || "";
+    
+    try {
+      await triggerOwnerFormEmail({
+        to: email,
+        firstName: firstName,
+        lastName: lastName,
+        formUrl: ownerFormUrl,
+        emailContext: "landing_owner",
+      });
+    } catch (error) {
+      console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
+      // On continue même si l'email échoue
+    }
+
     return { success: true, token: intakeLink.token };
   } else {
     // Vérifier d'abord s'il y a un IntakeLink soumis
@@ -121,7 +157,32 @@ export async function startAsOwner(data: StartOwnerInput) {
         },
       });
 
-      if (pendingIntakeLink) {
+      if (pendingIntakeLink && client) {
+        // Envoyer un email au propriétaire avec le formulaire
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+        const ownerFormUrl = `${baseUrl}/commencer/proprietaire/${pendingIntakeLink.token}`;
+        
+        // Récupérer les informations de Person pour l'email
+        const ownerPersonData = await prisma.person.findFirst({
+          where: { clientId: client.id, isPrimary: true },
+        });
+
+        const firstName = ownerPersonData?.firstName || "";
+        const lastName = ownerPersonData?.lastName || "";
+        
+        try {
+          await triggerOwnerFormEmail({
+            to: email,
+            firstName: firstName,
+            lastName: lastName,
+            formUrl: ownerFormUrl,
+            emailContext: "landing_owner",
+          });
+        } catch (error) {
+          console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
+          // On continue même si l'email échoue
+        }
+
         return {
           success: true,
           token: pendingIntakeLink.token,
@@ -144,13 +205,19 @@ export async function startAsTenant(data: StartTenantInput) {
   const { ownerEmail } = validated;
 
 
-  // Créer ou récupérer le client PROPRIETAIRE
+  // Chercher le client PROPRIETAIRE via Person.email ou Entreprise.email
   const normalizedOwnerEmail = ownerEmail.toLowerCase().trim();
-  let owner = await prisma.client.findFirst({
-    where: {
-      email: normalizedOwnerEmail,
-    },
+  const ownerPerson = await prisma.person.findUnique({
+    where: { email: normalizedOwnerEmail },
+    include: { client: true },
   });
+
+  const ownerEntreprise = await prisma.entreprise.findUnique({
+    where: { email: normalizedOwnerEmail },
+    include: { client: true },
+  });
+
+  let owner = ownerPerson?.client || ownerEntreprise?.client || null;
 
   // Si l'email correspond à un locataire, retourner une erreur
   if (owner && owner.profilType === ProfilType.LOCATAIRE) {
@@ -214,12 +281,17 @@ export async function startAsTenant(data: StartTenantInput) {
     { createdByForm: true ,profileType: ProfilType.LOCATAIRE }
   );
 
-    // Créer un client propriétaire
+    // Créer un client propriétaire avec une Person
     owner = await prisma.client.create({
       data: {
         type: ClientType.PERSONNE_PHYSIQUE,
         profilType: ProfilType.PROPRIETAIRE,
-        email: normalizedOwnerEmail,
+        persons: {
+          create: {
+            email: normalizedOwnerEmail,
+            isPrimary: true,
+          },
+        },
       },
     });
 
@@ -293,12 +365,25 @@ export async function startAsTenant(data: StartTenantInput) {
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
   const ownerFormUrl = `${baseUrl}/commencer/proprietaire/${ownerToken}`;
   
+  // Récupérer les informations de Person ou Entreprise pour l'email
+  const ownerPersonData = await prisma.person.findFirst({
+    where: { clientId: owner.id, isPrimary: true },
+  });
+
+  const ownerEntrepriseData = await prisma.entreprise.findUnique({
+    where: { clientId: owner.id },
+  });
+
+  const firstName = ownerPersonData?.firstName || "";
+  const lastName = ownerPersonData?.lastName || "";
+  
   try {
     await triggerOwnerFormEmail({
       to: ownerEmail,
-      firstName: owner.firstName || "",
-      lastName: owner.lastName || "",
+      firstName: firstName,
+      lastName: lastName,
       formUrl: ownerFormUrl,
+      emailContext: "landing_tenant",
     });
   } catch (error) {
     console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
@@ -317,11 +402,30 @@ export async function startAsTenant(data: StartTenantInput) {
 export async function getRequestStatusByEmail(email: string) {
   const normalizedEmail = email.toLowerCase().trim();
   
-  // Trouver le client par email
+  // Trouver le client via Person.email ou Entreprise.email
+  const person = await prisma.person.findUnique({
+    where: { email: normalizedEmail },
+    select: { clientId: true },
+  });
+
+  const entreprise = await prisma.entreprise.findUnique({
+    where: { email: normalizedEmail },
+    select: { clientId: true },
+  });
+
+  const clientId = person?.clientId || entreprise?.clientId;
+
+  if (!clientId) {
+    return {
+      success: false,
+      found: false,
+      message: "Aucune demande trouvée pour cet email.",
+    };
+  }
+
+  // Récupérer le client avec toutes ses relations
   const client = await prisma.client.findUnique({
-    where: {
-      email: normalizedEmail,
-    },
+    where: { id: clientId },
     include: {
       intakeLinks: {
         where: {
@@ -333,15 +437,6 @@ export async function getRequestStatusByEmail(email: string) {
           bail: {
             include: {
               property: true,
-              parties: {
-                select: {
-                  id: true,
-                  email: true,
-                  firstName: true,
-                  lastName: true,
-                  profilType: true,
-                },
-              },
             },
           },
           property: true,
@@ -353,15 +448,6 @@ export async function getRequestStatusByEmail(email: string) {
       bails: {
         include: {
           property: true,
-          parties: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-              profilType: true,
-            },
-          },
         },
         orderBy: {
           createdAt: "desc",
@@ -371,15 +457,6 @@ export async function getRequestStatusByEmail(email: string) {
   });
 
   if (!client) {
-    return {
-      success: false,
-      found: false,
-      message: "Aucune demande trouvée pour cet email.",
-    };
-  }
-
-  // Vérifier que l'email du client correspond (sécurité)
-  if (client.email?.toLowerCase().trim() !== normalizedEmail) {
     return {
       success: false,
       found: false,
@@ -426,12 +503,24 @@ export async function getRequestStatusByEmail(email: string) {
     }
   }
 
+  // Récupérer les informations de Person ou Entreprise pour l'email
+  const clientPerson = await prisma.person.findFirst({
+    where: { clientId: client.id, isPrimary: true },
+  });
+
+  const clientEntreprise = await prisma.entreprise.findUnique({
+    where: { clientId: client.id },
+  });
+
+  const firstName = clientPerson?.firstName || null;
+  const lastName = clientPerson?.lastName || null;
+
   // Envoyer l'email avec les informations de suivi
   try {
     await triggerRequestStatusEmail({
       to: normalizedEmail,
-      firstName: client.firstName,
-      lastName: client.lastName,
+      firstName: firstName,
+      lastName: lastName,
       currentStep,
       status,
       propertyAddress: latestBail?.property?.fullAddress || null,
