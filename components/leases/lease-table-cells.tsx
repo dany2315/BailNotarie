@@ -197,6 +197,13 @@ export function LeaseDateCell({ row }: LeaseCellProps) {
   return <>{formatDate(row.effectiveDate)}</>;
 }
 
+export function LeaseCreatedDateCell({ row }: LeaseCellProps) {
+  if (!row?.createdAt) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  return <>{formatDate(row.createdAt)}</>;
+}
+
 export function LeaseDepositCell({ row }: LeaseCellProps) {
   if (!row?.securityDeposit) {
     return <span className="text-muted-foreground">-</span>;

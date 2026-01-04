@@ -14,6 +14,7 @@ import {
   LeaseDateCell,
   LeaseDepositCell,
   LeaseNotaireCell,
+  LeaseCreatedDateCell,
 } from "@/components/leases/lease-table-cells";
 import { BailStatusFilterWrapper } from "@/components/leases/bail-status-filter-wrapper";
 
@@ -56,6 +57,11 @@ export default async function LeasesPage({
       id: "reference",
       header: "N° Référence",
       cell: LeaseReferenceCell,
+    },
+    {
+      id: "createdAt",
+      header: "Créé le",
+      cell: LeaseCreatedDateCell,
     },
     {
       id: "tenant",
