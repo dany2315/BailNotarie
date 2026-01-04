@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { DocumentKind } from "@prisma/client";
+import { DocumentKind, ProfilType } from "@prisma/client";
 
 /**
  * Route API pour créer les documents dans la DB après upload direct côté client
@@ -107,7 +107,17 @@ export async function POST(request: NextRequest) {
         else if (["DIAGNOSTICS", "TITLE_DEED", "REGLEMENT_COPROPRIETE", "CAHIER_DE_CHARGE_LOTISSEMENT", "STATUT_DE_LASSOCIATION_SYNDICALE"].includes(kind)) {
           targetPropertyId = finalPropertyId || null;
         }
-        // Documents client
+        // Documents INSURANCE et RIB : attachés au Property pour les propriétaires, au Client pour les locataires
+        else if (kind === "INSURANCE" || kind === "RIB") {
+          // Vérifier le profilType du client pour déterminer si c'est un propriétaire
+          if (client && client.profilType === ProfilType.PROPRIETAIRE) {
+            targetPropertyId = finalPropertyId || null;
+          } else {
+            // Pour les locataires, attacher au Client
+            targetClientId = finalClientId;
+          }
+        }
+        // Documents client (livret de famille, PACS)
         else {
           targetClientId = finalClientId;
         }

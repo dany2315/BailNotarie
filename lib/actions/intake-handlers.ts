@@ -221,6 +221,35 @@ export async function handleOwnerBailStep(
     let bailId = intakeLink.bailId;
     const bailParties = [{ id: clientId }];
 
+    // Mettre à jour la propriété avec les données de mobilier
+    const propertyId = intakeLink.propertyId;
+    if (propertyId) {
+      const propertyUpdateData: any = {};
+      
+      // Champs de mobilier
+      if (payload.hasLiterie !== undefined) propertyUpdateData.hasLiterie = payload.hasLiterie;
+      if (payload.hasRideaux !== undefined) propertyUpdateData.hasRideaux = payload.hasRideaux;
+      if (payload.hasPlaquesCuisson !== undefined) propertyUpdateData.hasPlaquesCuisson = payload.hasPlaquesCuisson;
+      if (payload.hasFour !== undefined) propertyUpdateData.hasFour = payload.hasFour;
+      if (payload.hasRefrigerateur !== undefined) propertyUpdateData.hasRefrigerateur = payload.hasRefrigerateur;
+      if (payload.hasCongelateur !== undefined) propertyUpdateData.hasCongelateur = payload.hasCongelateur;
+      if (payload.hasVaisselle !== undefined) propertyUpdateData.hasVaisselle = payload.hasVaisselle;
+      if (payload.hasUstensilesCuisine !== undefined) propertyUpdateData.hasUstensilesCuisine = payload.hasUstensilesCuisine;
+      if (payload.hasTable !== undefined) propertyUpdateData.hasTable = payload.hasTable;
+      if (payload.hasSieges !== undefined) propertyUpdateData.hasSieges = payload.hasSieges;
+      if (payload.hasEtageresRangement !== undefined) propertyUpdateData.hasEtageresRangement = payload.hasEtageresRangement;
+      if (payload.hasLuminaires !== undefined) propertyUpdateData.hasLuminaires = payload.hasLuminaires;
+      if (payload.hasMaterielEntretien !== undefined) propertyUpdateData.hasMaterielEntretien = payload.hasMaterielEntretien;
+
+      // Mettre à jour la propriété seulement si des données de mobilier sont présentes
+      if (Object.keys(propertyUpdateData).length > 0) {
+        await tx.property.update({
+          where: { id: propertyId },
+          data: propertyUpdateData,
+        });
+      }
+    }
+
     if (bailId && intakeLink.bail) {
       const updateData: any = {};
       if (payload.bailType) updateData.bailType = payload.bailType;
@@ -253,7 +282,6 @@ export async function handleOwnerBailStep(
         data: updateData,
       });
     } else {
-      const propertyId = intakeLink.propertyId;
       if (!propertyId) {
         throw new Error("PropertyId manquant pour créer le bail");
       }

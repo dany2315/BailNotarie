@@ -17,13 +17,58 @@ interface MailOwnerFormProps {
   firstName: string;
   lastName: string;
   formUrl: string;
+  emailContext?: "landing_owner" | "landing_tenant" | "admin" | "default";
 }
 
 export default function MailOwnerForm({
   firstName,
   lastName,
-  formUrl
+  formUrl,
+  emailContext = "default"
 }: MailOwnerFormProps) {
+  // Contenu adapté selon le contexte
+  const getContent = () => {
+    switch (emailContext) {
+      case "landing_owner":
+        return {
+          title: `Bonjour ${firstName} ${lastName},`,
+          intro: "Nous vous remercions de votre confiance et de l'intérêt que vous portez à nos services de bail notarié.",
+          mainText: "Pour finaliser votre demande, nous avons besoin que vous complétiez le formulaire avec vos informations personnelles et les détails du bien que vous souhaitez mettre en location.",
+          additionalText: "Vous pouvez compléter ce formulaire maintenant ou y revenir plus tard en utilisant le lien ci-dessous. Votre progression sera sauvegardée.",
+          buttonText: "Accéder au formulaire",
+          showList: false
+        };
+      case "landing_tenant":
+        return {
+          title: `Bonjour ${firstName} ${lastName},`,
+          intro: "Un locataire a initié une demande de bail notarié et vous a indiqué comme propriétaire.",
+          mainText: "Pour poursuivre le processus, nous avons besoin que vous complétiez le formulaire ci-dessous avec vos informations personnelles et les détails du bien concerné.",
+          additionalText: "Ce formulaire vous permettra de renseigner toutes les informations nécessaires à la création du bail notarié.",
+          buttonText: "Compléter le formulaire",
+          showList: false
+        };
+      case "admin":
+        return {
+          title: `Bonjour ${firstName} ${lastName},`,
+          intro: "Un formulaire de bail notarié vous a été assigné par notre équipe.",
+          mainText: "Nous vous invitons à compléter le formulaire ci-dessous avec vos informations personnelles et les détails du bien que vous souhaitez mettre en location.",
+          additionalText: "Ce formulaire vous permettra de renseigner toutes les informations nécessaires à la création du bail notarié.",
+          buttonText: "Accéder au formulaire",
+          showList: true
+        };
+      default:
+        return {
+          title: `Bonjour ${firstName} ${lastName},`,
+          intro: "Nous vous remercions de votre confiance. Pour finaliser la création de votre bail notarié, nous avons besoin que vous complétiez le formulaire ci-dessous avec vos informations personnelles et les détails du bien que vous souhaitez mettre en location.",
+          mainText: "",
+          additionalText: "",
+          buttonText: "Accéder au formulaire",
+          showList: false
+        };
+    }
+  };
+
+  const content = getContent();
   return (
     <Html>
       <Head />
@@ -100,7 +145,7 @@ export default function MailOwnerForm({
               fontWeight: "bold",
               margin: "0 0 20px 0"
             }}>
-              Bonjour {firstName} {lastName},
+              {content.title}
             </Heading>
 
             <Text style={{ 
@@ -109,32 +154,56 @@ export default function MailOwnerForm({
               lineHeight: "24px",
               margin: "0 0 20px 0"
             }}>
-              Nous vous remercions de votre confiance. Pour finaliser la création de votre bail notarié, 
-              nous avons besoin que vous complétiez le formulaire ci-dessous avec vos informations personnelles 
-              et les détails du bien que vous souhaitez mettre en location.
+              {content.intro}
             </Text>
 
-            <Text style={{ 
-              color: "#4b5563",
-              fontSize: "16px",
-              lineHeight: "24px",
-              margin: "0 0 20px 0"
-            }}>
-              Ce formulaire vous permettra de renseigner :
-            </Text>
+            {content.mainText && (
+              <Text style={{ 
+                color: "#4b5563",
+                fontSize: "16px",
+                lineHeight: "24px",
+                margin: "0 0 20px 0"
+              }}>
+                {content.mainText}
+              </Text>
+            )}
 
-            <ul style={{ 
-              color: "#4b5563",
-              fontSize: "16px",
-              lineHeight: "24px",
-              margin: "0 0 20px 0",
-              paddingLeft: "20px"
-            }}>
-              <li>Vos informations personnelles complètes</li>
-              <li>Les caractéristiques du bien à louer</li>
-              <li>Les conditions du bail (loyer, charges, etc.)</li>
-              <li>Les informations du locataire</li>
-            </ul>
+            {content.showList && (
+              <>
+                <Text style={{ 
+                  color: "#4b5563",
+                  fontSize: "16px",
+                  lineHeight: "24px",
+                  margin: "0 0 20px 0"
+                }}>
+                  Ce formulaire vous permettra de renseigner :
+                </Text>
+
+                <ul style={{ 
+                  color: "#4b5563",
+                  fontSize: "16px",
+                  lineHeight: "24px",
+                  margin: "0 0 20px 0",
+                  paddingLeft: "20px"
+                }}>
+                  <li>Vos informations personnelles complètes</li>
+                  <li>Les caractéristiques du bien à louer</li>
+                  <li>Les conditions du bail (loyer, charges, etc.)</li>
+                  <li>Les informations du locataire</li>
+                </ul>
+              </>
+            )}
+
+            {content.additionalText && (
+              <Text style={{ 
+                color: "#4b5563",
+                fontSize: "16px",
+                lineHeight: "24px",
+                margin: "0 0 20px 0"
+              }}>
+                {content.additionalText}
+              </Text>
+            )}
 
             <Section style={{ 
               textAlign: "center",
@@ -153,7 +222,7 @@ export default function MailOwnerForm({
                   fontWeight: "600"
                 }}
               >
-                Accéder au formulaire
+                {content.buttonText}
               </Button>
             </Section>
 

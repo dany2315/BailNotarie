@@ -1268,7 +1268,18 @@ const [clientType, setClientType] = useState<ClientType | "">(
           "propertyType",
           "propertyLegalStatus",
           "propertyStatus",
-          // Mobilier
+        ];
+      case "bail":
+        return [
+          "bailType",
+          "bailFamily",
+          "bailRentAmount",
+          "bailMonthlyCharges",
+          "bailSecurityDeposit",
+          "bailPaymentDay",
+          "bailEffectiveDate",
+          "bailEndDate",
+          // Mobilier - sauvegardé avec le step bail
           "hasLiterie",
           "hasRideaux",
           "hasPlaquesCuisson",
@@ -1282,17 +1293,6 @@ const [clientType, setClientType] = useState<ClientType | "">(
           "hasEtageresRangement",
           "hasLuminaires",
           "hasMaterielEntretien",
-        ];
-      case "bail":
-        return [
-          "bailType",
-          "bailFamily",
-          "bailRentAmount",
-          "bailMonthlyCharges",
-          "bailSecurityDeposit",
-          "bailPaymentDay",
-          "bailEffectiveDate",
-          "bailEndDate",
         ];
       case "tenant":
         return ["tenantEmail"];
@@ -1734,6 +1734,59 @@ const [clientType, setClientType] = useState<ClientType | "">(
         const valid = await trigger(fields as any);
         if (!valid) return;
         
+        // Validation spéciale pour le step bail : vérifier le mobilier si bail meublé
+        if (stepId === "bail") {
+          const bailType = form.getValues("bailType");
+          const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
+          
+          if (isMeubleBail) {
+            // Vérifier que tous les équipements sont présents
+            const furnitureFields = [
+              'hasLiterie',
+              'hasRideaux',
+              'hasPlaquesCuisson',
+              'hasFour',
+              'hasRefrigerateur',
+              'hasCongelateur',
+              'hasVaisselle',
+              'hasUstensilesCuisine',
+              'hasTable',
+              'hasSieges',
+              'hasEtageresRangement',
+              'hasLuminaires',
+              'hasMaterielEntretien',
+            ] as const;
+            
+            const values = form.getValues();
+            const missingFurniture = furnitureFields.filter(
+              (field) => !values[field] || values[field] !== true
+            );
+            
+            if (missingFurniture.length > 0) {
+              // Ajouter des erreurs sur les champs manquants
+              missingFurniture.forEach((field) => {
+                form.setError(field as keyof FormWithPersons, {
+                  type: 'manual',
+                  message: 'Cet équipement est requis pour un bail meublé',
+                });
+              });
+              
+              // Ajouter une erreur sur bailType
+              form.setError('bailType', {
+                type: 'manual',
+                message: 'Tous les équipements doivent être présents pour un bail meublé',
+              });
+              
+              toast.error("Mobilier incomplet", {
+                description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
+                duration: 6000,
+              });
+              
+              return;
+            }
+          }
+        }
+        
         // Validation spéciale pour le step tenant : vérifier que tenantEmail n'est pas vide
         // sauf si un locataire existe déjà dans le bail
         if (stepId === "tenant") {
@@ -1828,6 +1881,61 @@ const [clientType, setClientType] = useState<ClientType | "">(
   };
 
   const handleManualSave = async () => {
+    const stepId = STEPS[currentStep].id;
+    
+    // Validation spéciale pour le step bail : vérifier le mobilier si bail meublé
+    if (stepId === "bail") {
+      const bailType = form.getValues("bailType");
+      const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
+      
+      if (isMeubleBail) {
+        // Vérifier que tous les équipements sont présents
+        const furnitureFields = [
+          'hasLiterie',
+          'hasRideaux',
+          'hasPlaquesCuisson',
+          'hasFour',
+          'hasRefrigerateur',
+          'hasCongelateur',
+          'hasVaisselle',
+          'hasUstensilesCuisine',
+          'hasTable',
+          'hasSieges',
+          'hasEtageresRangement',
+          'hasLuminaires',
+          'hasMaterielEntretien',
+        ] as const;
+        
+        const values = form.getValues();
+        const missingFurniture = furnitureFields.filter(
+          (field) => !values[field] || values[field] !== true
+        );
+        
+        if (missingFurniture.length > 0) {
+          // Ajouter des erreurs sur les champs manquants
+          missingFurniture.forEach((field) => {
+            form.setError(field as keyof FormWithPersons, {
+              type: 'manual',
+              message: 'Cet équipement est requis pour un bail meublé',
+            });
+          });
+          
+          // Ajouter une erreur sur bailType
+          form.setError('bailType', {
+            type: 'manual',
+            message: 'Tous les équipements doivent être présents pour un bail meublé',
+          });
+          
+          toast.error("Mobilier incomplet", {
+            description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
+            duration: 6000,
+          });
+          
+          return;
+        }
+      }
+    }
+    
     try {
       await saveCurrentStep(true, false); // redirectAfterSave = true, skipIfUnchanged = false (forcer la sauvegarde)
     } catch (error: any) {
@@ -3205,61 +3313,6 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
           )}
         </div>
       </div>
-
-      {/* Section Mobilier pour location meublée */}
-      <div className="space-y-4 pt-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold">Mobilier du logement</h3>
-          <InfoTooltip
-            content={
-              <div className="max-w-sm">
-                <p className="mb-2 font-medium">LOCATION MEUBLÉE</p>
-                <p>Un logement meublé doit obligatoirement comporter tous ces équipements pour pouvoir être loué en meublé. Cochez les éléments présents dans votre bien.</p>
-              </div>
-            }
-            className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
-          >
-            <button type="button" className="inline-flex items-center">
-              <InfoIcon className="h-4 w-4 text-muted-foreground" />
-            </button>
-          </InfoTooltip>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Cochez les équipements présents dans le bien. Pour louer en meublé, tous les équipements doivent être présents.
-        </p>
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-          {FURNITURE_FIELDS.map(({ key, label, icon: Icon }) => (
-            <Controller
-              key={key}
-              name={key as keyof FormWithPersons}
-              control={form.control}
-              render={({ field }) => (
-                <Label
-                htmlFor={key}
-                className="text-sm font-normal cursor-pointer flex items-center space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors"
-                >
-                  <Checkbox
-                    id={key}
-                    checked={field.value as boolean}
-                    onCheckedChange={field.onChange}
-                  />
-                  <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="flex-1">{label}</span>
-                </Label>
-              )}
-            />
-          ))}
-        </div>
-        {/* Indicateur de complétion pour bail meublé */}
-        <div className={`p-4 rounded-lg ${hasAllFurniture(form.getValues()) ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800" : "bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800"}`}>
-          <p className={`text-sm font-medium ${hasAllFurniture(form.getValues()) ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
-            {hasAllFurniture(form.getValues()) 
-              ? "✓ Tous les équipements sont présents. Vous pouvez louer ce bien en meublé." 
-              : "⚠ Équipements incomplets. Pour louer en meublé, tous les équipements doivent être présents."
-            }
-          </p>
-        </div>
-      </div>
     </CardContent>
   </Card>
 );
@@ -3347,6 +3400,19 @@ const BailStep = ({ form }: BailStepProps) => {
   const currentBailType = useWatch({ control: form.control, name: "bailType" });
   const isMeubleBail = currentBailType === BailType.BAIL_MEUBLE_1_ANS || currentBailType === BailType.BAIL_MEUBLE_9_MOIS;
   
+  // Nettoyer les erreurs de mobilier si on passe à un bail nu
+  useEffect(() => {
+    if (!isMeubleBail) {
+      FURNITURE_FIELDS.forEach(({ key }) => {
+        form.clearErrors(key as keyof FormWithPersons);
+      });
+      // Nettoyer aussi l'erreur sur bailType si elle existe et qu'on est sur un bail nu
+      if (form.formState.errors.bailType?.message?.includes('équipements')) {
+        form.clearErrors('bailType');
+      }
+    }
+  }, [isMeubleBail, form]);
+  
   return (
   <Card>
     <CardHeader>
@@ -3363,16 +3429,16 @@ const BailStep = ({ form }: BailStepProps) => {
             <Select 
               value={field.value ?? undefined} 
               onValueChange={(value) => {
-                // Si on essaie de sélectionner un bail meublé sans le mobilier complet
-                const isMeubleSelected = value === BailType.BAIL_MEUBLE_1_ANS || value === BailType.BAIL_MEUBLE_9_MOIS;
-                if (isMeubleSelected && !allFurniturePresent) {
-                  toast.error("Mobilier incomplet", {
-                    description: "Pour sélectionner un bail meublé, tous les équipements obligatoires doivent être présents dans le bien. Veuillez retourner à l'étape précédente pour compléter le mobilier.",
-                    duration: 6000,
-                  });
-                  return;
-                }
                 field.onChange(value);
+                // Réinitialiser les erreurs de validation après changement
+                form.clearErrors("bailType");
+                // Si on passe à un bail nu, nettoyer toutes les erreurs de mobilier
+                const isNowMeuble = value === BailType.BAIL_MEUBLE_1_ANS || value === BailType.BAIL_MEUBLE_9_MOIS;
+                if (!isNowMeuble) {
+                  FURNITURE_FIELDS.forEach(({ key }) => {
+                    form.clearErrors(key as keyof FormWithPersons);
+                  });
+                }
               }}
             >
               <SelectTrigger className="w-full">
@@ -3383,33 +3449,26 @@ const BailStep = ({ form }: BailStepProps) => {
                 <SelectItem value={BailType.BAIL_NU_6_ANS}>
                   Bail nu 6 ans (SCI)
                 </SelectItem>
-                <SelectItem 
-                  value={BailType.BAIL_MEUBLE_1_ANS}
-                  disabled={!allFurniturePresent}
-                  className={!allFurniturePresent ? "opacity-50" : ""}
-                >
-                  Bail meublé 1 an {!allFurniturePresent && "(mobilier incomplet)"}
+                <SelectItem value={BailType.BAIL_MEUBLE_1_ANS}>
+                  Bail meublé 1 an
                 </SelectItem>
-                <SelectItem 
-                  value={BailType.BAIL_MEUBLE_9_MOIS}
-                  disabled={!allFurniturePresent}
-                  className={!allFurniturePresent ? "opacity-50" : ""}
-                >
-                  Bail étudiant (9 mois) {!allFurniturePresent && "(mobilier incomplet)"}
+                <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS}>
+                  Bail étudiant (9 mois)
                 </SelectItem>
               </SelectContent>
             </Select>
           )}
         />
         {form.formState.errors.bailType && (
-          <p className="text-sm text-destructive">
+          <p className="text-sm text-destructive flex items-center gap-1">
+            <AlertCircle className="h-4 w-4" />
             {form.formState.errors.bailType.message}
           </p>
         )}
-        {!allFurniturePresent && (
+        {isMeubleBail && !allFurniturePresent && !form.formState.errors.bailType && (
           <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1">
             <AlertCircle className="h-4 w-4" />
-            Les baux meublés nécessitent que tous les équipements soient présents dans le bien.
+            Pour valider et passer à l'étape suivante, tous les équipements doivent être cochés pour un bail meublé.
           </p>
         )}
       </div>
@@ -3529,6 +3588,81 @@ const BailStep = ({ form }: BailStepProps) => {
           />
         </div>
       </div>
+
+      {/* Section Mobilier pour location meublée - affichée uniquement si bail meublé sélectionné */}
+      {isMeubleBail && (
+        <div className="space-y-4 pt-4 border-t">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">Mobilier du logement</h3>
+            <InfoTooltip
+              content={
+                <div className="max-w-sm">
+                  <p className="mb-2 font-medium">LOCATION MEUBLÉE</p>
+                  <p>Un logement meublé doit obligatoirement comporter tous ces équipements pour pouvoir être loué en meublé. Cochez les éléments présents dans votre bien.</p>
+                </div>
+              }
+              className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+            >
+              <button type="button" className="inline-flex items-center">
+                <InfoIcon className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </InfoTooltip>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Cochez les équipements présents dans le bien. Pour louer en meublé, tous les équipements doivent être présents.
+          </p>
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+            {FURNITURE_FIELDS.map(({ key, label, icon: Icon }) => {
+              const fieldError = form.formState.errors[key as keyof FormWithPersons];
+              return (
+                <div key={key} className="space-y-1">
+                  <Controller
+                    name={key as keyof FormWithPersons}
+                    control={form.control}
+                    render={({ field }) => (
+                      <Label
+                        htmlFor={key}
+                        className={`text-sm font-normal cursor-pointer flex items-center space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors ${
+                          fieldError ? 'border-destructive' : ''
+                        }`}
+                      >
+                        <Checkbox
+                          id={key}
+                          checked={field.value as boolean}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            // Nettoyer l'erreur quand l'utilisateur coche
+                            if (checked) {
+                              form.clearErrors(key as keyof FormWithPersons);
+                            }
+                          }}
+                        />
+                        <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="flex-1">{label}</span>
+                      </Label>
+                    )}
+                  />
+                  {fieldError && (
+                    <p className="text-xs text-destructive flex items-center gap-1 px-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {fieldError.message as string}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {/* Indicateur de complétion pour bail meublé */}
+          <div className={`p-4 rounded-lg ${allFurniturePresent ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800" : "bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800"}`}>
+            <p className={`text-sm font-medium ${allFurniturePresent ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
+              {allFurniturePresent 
+                ? "✓ Tous les équipements sont présents. Vous pouvez louer ce bien en meublé." 
+                : "⚠ Équipements incomplets. Pour louer en meublé, tous les équipements doivent être présents."
+              }
+            </p>
+          </div>
+        </div>
+      )}
     </CardContent>
   </Card>
 )}

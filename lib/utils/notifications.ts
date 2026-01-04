@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { NotificationType, ProfilType } from "@prisma/client";
+import { NotificationType, ProfilType, Role } from "@prisma/client";
 import { triggerNotificationEmail } from "@/lib/inngest/helpers";
 
 /**
@@ -111,7 +111,7 @@ function getNotificationInterfaceLink(
 }
 
 /**
- * Crée une notification pour tous les utilisateurs (sauf celui qui a déclenché l'événement)
+ * Crée une notification pour tous les administrateurs (sauf celui qui a déclenché l'événement)
  */
 export async function createNotificationForAllUsers(
   type: NotificationType,
@@ -120,9 +120,12 @@ export async function createNotificationForAllUsers(
   createdById: string | null,
   metadata?: Record<string, any>
 ) {
-  // Récupérer tous les utilisateurs sauf celui qui a créé l'événement
+  // Récupérer tous les administrateurs sauf celui qui a créé l'événement
   const users = await prisma.user.findMany({
-    where: createdById ? { id: { not: createdById } } : undefined,
+    where: {
+      role: Role.ADMINISTRATEUR,
+      ...(createdById ? { id: { not: createdById } } : {}),
+    },
     select: { id: true, email: true, name: true },
   });
 

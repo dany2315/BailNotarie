@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
-import { triggerOwnerFormEmail, triggerRequestStatusEmail, triggerIntakeConfirmationEmail } from "@/lib/inngest/helpers";
+import { triggerOwnerFormEmail, triggerRequestStatusEmail } from "@/lib/inngest/helpers";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { z } from "zod";
 
@@ -100,7 +100,6 @@ export async function startAsOwner(data: StartOwnerInput) {
 
     const firstName = ownerPersonData?.firstName || "";
     const lastName = ownerPersonData?.lastName || "";
-    const phone = ownerPersonData?.phone || "";
     
     try {
       await triggerOwnerFormEmail({
@@ -108,23 +107,10 @@ export async function startAsOwner(data: StartOwnerInput) {
         firstName: firstName,
         lastName: lastName,
         formUrl: ownerFormUrl,
+        emailContext: "landing_owner",
       });
     } catch (error) {
       console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
-      // On continue même si l'email échoue
-    }
-
-    // Envoyer l'email de confirmation au propriétaire
-    try {
-      await triggerIntakeConfirmationEmail({
-        email,
-        firstName: firstName || "",
-        lastName: lastName || "",
-        phone: phone || undefined,
-        role: "PROPRIETAIRE",
-      });
-    } catch (error) {
-      console.error("Erreur lors de l'envoi de l'email de confirmation au propriétaire:", error);
       // On continue même si l'email échoue
     }
 
@@ -190,6 +176,7 @@ export async function startAsOwner(data: StartOwnerInput) {
             firstName: firstName,
             lastName: lastName,
             formUrl: ownerFormUrl,
+            emailContext: "landing_owner",
           });
         } catch (error) {
           console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
@@ -396,6 +383,7 @@ export async function startAsTenant(data: StartTenantInput) {
       firstName: firstName,
       lastName: lastName,
       formUrl: ownerFormUrl,
+      emailContext: "landing_tenant",
     });
   } catch (error) {
     console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);

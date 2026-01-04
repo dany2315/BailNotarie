@@ -56,6 +56,7 @@ export async function triggerOwnerFormEmail(data: {
   firstName?: string | null;
   lastName?: string | null;
   formUrl: string;
+  emailContext?: "landing_owner" | "landing_tenant" | "admin" | "default";
 }) {
   await inngest.send({
     name: "email/intake.owner-form",
