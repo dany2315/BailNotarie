@@ -67,11 +67,14 @@ export default async function InterfacePage() {
       </div>
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 flex-1 min-h-0">
-        {/* Liste des baux */}
-        <BailsListDashboard bails={allBails} />
+        <div className="h-[400px] lg:h-full">
+          <BailsListDashboard bails={allBails} />
+        </div>
 
         {/* Liste des clients */}
-        <ClientsListDashboard clients={allClients} />
+        <div className="h-[400px] lg:h-full">
+          <ClientsListDashboard clients={allClients} />
+        </div>
       </div>
 
       {/* To-do Notaire */}

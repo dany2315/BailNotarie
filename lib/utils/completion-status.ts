@@ -53,7 +53,7 @@ export function getRequiredClientFields(
       requiredFields.push("matrimonialRegime");
     }
   } else if (type === ClientType.PERSONNE_MORALE) {
-    requiredFields.push("legalName", "registration", "nationality");
+    requiredFields.push("legalName", "registration");
     
     // Documents requis pour personne morale
     requiredDocuments.push(DocumentKind.KBIS, DocumentKind.STATUTES);
