@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { DocumentKind } from "@prisma/client";
+import { DocumentKind, ProfilType } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -90,7 +90,17 @@ export async function POST(request: NextRequest) {
       targetPropertyId = finalPropertyId;
       targetClientId = finalClientId; // Garder aussi clientId pour compatibilité
     }
-    // Documents client (livret de famille, PACS, assurance, RIB)
+    // Documents INSURANCE et RIB : attachés au Property pour les propriétaires, au Client pour les locataires
+    else if (documentKind === "INSURANCE" || documentKind === "RIB") {
+      // Vérifier le profilType du client pour déterminer si c'est un propriétaire
+      if (client && client.profilType === ProfilType.PROPRIETAIRE) {
+        targetPropertyId = finalPropertyId;
+      } else {
+        // Pour les locataires, attacher au Client
+        targetClientId = finalClientId;
+      }
+    }
+    // Documents client (livret de famille, PACS)
     else {
       targetClientId = finalClientId;
     }

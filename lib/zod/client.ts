@@ -716,6 +716,52 @@ export const ownerFormSchema = z
     }
 
     // ------------------------------------------------------------------
+    // VALIDATION MOBILIER POUR BAIL MEUBLÉ
+    // Si un bail meublé est sélectionné, tous les équipements doivent être présents
+    // ------------------------------------------------------------------
+    const isMeubleBail = data.bailType === BailType.BAIL_MEUBLE_1_ANS || 
+                         data.bailType === BailType.BAIL_MEUBLE_9_MOIS;
+    
+    if (isMeubleBail) {
+      const furnitureFields = [
+        'hasLiterie',
+        'hasRideaux',
+        'hasPlaquesCuisson',
+        'hasFour',
+        'hasRefrigerateur',
+        'hasCongelateur',
+        'hasVaisselle',
+        'hasUstensilesCuisine',
+        'hasTable',
+        'hasSieges',
+        'hasEtageresRangement',
+        'hasLuminaires',
+        'hasMaterielEntretien',
+      ] as const;
+      
+      const missingFurniture = furnitureFields.filter(
+        (field) => !data[field] || data[field] !== true
+      );
+      
+      if (missingFurniture.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["bailType"],
+          message: "Pour un bail meublé, tous les équipements obligatoires doivent être présents dans le bien. Veuillez cocher tous les équipements requis.",
+        });
+        
+        // Ajouter aussi une erreur sur chaque champ manquant pour guider l'utilisateur
+        missingFurniture.forEach((field) => {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: "Cet équipement est requis pour un bail meublé",
+          });
+        });
+      }
+    }
+
+    // ------------------------------------------------------------------
     // VALIDATION DÉPÔT DE GARANTIE
     // Bail meublé → max 2 mois de loyer hors charges
     // Bail nu → max 1 mois de loyer hors charges
@@ -728,8 +774,6 @@ export const ownerFormSchema = z
       : parseInt(String(data.bailSecurityDeposit) || '0', 10);
     
     if (rentAmount > 0 && securityDeposit > 0) {
-      const isMeubleBail = data.bailType === BailType.BAIL_MEUBLE_1_ANS || 
-                           data.bailType === BailType.BAIL_MEUBLE_9_MOIS;
       const maxDeposit = isMeubleBail ? rentAmount * 2 : rentAmount;
       
       if (securityDeposit > maxDeposit) {

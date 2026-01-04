@@ -132,6 +132,21 @@ export async function getDocuments(params: {
     },
     include: {
       uploadedBy: { select: { id: true, name: true, email: true } },
+      person: { 
+        select: { 
+          id: true, 
+          firstName: true, 
+          lastName: true, 
+          isPrimary: true 
+        } 
+      },
+      entreprise: { 
+        select: { 
+          id: true, 
+          legalName: true, 
+          name: true 
+        } 
+      },
     },
     orderBy: { createdAt: "desc" },
   });

@@ -101,6 +101,7 @@ export async function createBasicClient(data: unknown) {
       firstName: "",
       lastName: "",
       formUrl,
+      emailContext: "admin",
     });
   } catch (error) {
     console.error("Erreur lors du déclenchement de l'email:", error);
@@ -2764,6 +2765,7 @@ export async function sendIntakeLinkToClient(clientId: string) {
         firstName: firstName,
         lastName: lastName,
         formUrl,
+        emailContext: "admin",
       });
     } else {
       await triggerTenantFormEmail({

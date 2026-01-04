@@ -143,17 +143,6 @@ export default function MailTenantSubmitted({
                 </Text>
               </Section>
             )}
-
-            <Text style={{ 
-              color: "#4b5563",
-              fontSize: "16px",
-              lineHeight: "24px",
-              margin: "0 0 20px 0"
-            }}>
-              Vous pouvez dès maintenant consulter les informations fournies par votre locataire 
-              et suivre l'avancement de votre dossier depuis votre espace personnel.
-            </Text>
-
             <Text style={{ 
               color: "#6b7280",
               fontSize: "14px",
@@ -206,6 +195,7 @@ export default function MailTenantSubmitted({
     </Html>
   );
 }
+
 
 
 

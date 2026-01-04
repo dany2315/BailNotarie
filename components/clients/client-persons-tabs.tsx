@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { DocumentsList } from "@/components/leases/documents-list";
+import { DocumentsListWithOwner } from "@/components/leases/documents-list-with-owner";
 import { Mail, Phone, MapPin, FileText, Users } from "lucide-react";
 import { FamilyStatusBadge, MatrimonialRegimeBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils/formatters";
@@ -78,7 +79,9 @@ export function ClientPersonsTabs({
     if (persons.length === 1) {
       const person = persons[0];
       const personDocuments = person.documents || [];
-      const allPersonDocuments = [...personDocuments, ...clientDocuments];
+      // Séparer les documents de la personne et les documents du client
+      const personOnlyDocuments = personDocuments;
+      const clientOnlyDocuments = clientDocuments;
       
       return (
         <Card>
@@ -172,17 +175,47 @@ export function ClientPersonsTabs({
               )}
             </div>
             
-            {/* Documents de la personne directement en dessous */}
-            {allPersonDocuments.length > 0 && (
+            {/* Documents de la personne */}
+            {personOnlyDocuments.length > 0 && (
               <>
                 <Separator />
                 <div>
                   <div className="flex items-center gap-2 mb-4">
                     <FileText className="h-5 w-5" />
-                    <h3 className="text-lg font-semibold">Documents ({allPersonDocuments.length})</h3>
+                    <h3 className="text-lg font-semibold">Documents de {[person.firstName, person.lastName].filter(Boolean).join(" ") || "cette personne"} ({personOnlyDocuments.length})</h3>
                   </div>
-                  <DocumentsList
-                    documents={allPersonDocuments.map((doc) => ({
+                  <DocumentsListWithOwner
+                    documents={personOnlyDocuments.map((doc) => ({
+                      id: doc.id,
+                      kind: doc.kind,
+                      fileKey: doc.fileKey,
+                      mimeType: doc.mimeType,
+                      label: doc.label,
+                      createdAt: doc.createdAt,
+                      person: {
+                        id: person.id,
+                        firstName: person.firstName,
+                        lastName: person.lastName,
+                        isPrimary: person.isPrimary,
+                      },
+                    }))}
+                    documentKindLabels={documentKindLabels}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Documents du client (commun à toutes les personnes) */}
+            {clientOnlyDocuments.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <FileText className="h-5 w-5" />
+                    <h3 className="text-lg font-semibold">Documents du client ({clientOnlyDocuments.length})</h3>
+                  </div>
+                  <DocumentsListWithOwner
+                    documents={clientOnlyDocuments.map((doc) => ({
                       id: doc.id,
                       kind: doc.kind,
                       fileKey: doc.fileKey,
@@ -191,6 +224,7 @@ export function ClientPersonsTabs({
                       createdAt: doc.createdAt,
                     }))}
                     documentKindLabels={documentKindLabels}
+                    ownerLabel="Client"
                   />
                 </div>
               </>
@@ -222,7 +256,9 @@ export function ClientPersonsTabs({
             
             {persons.map((person, index) => {
               const personDocuments = person.documents || [];
-              const allPersonDocuments = [...personDocuments, ...clientDocuments];
+              // Séparer les documents de la personne et les documents du client
+              const personOnlyDocuments = personDocuments;
+              const clientOnlyDocuments = clientDocuments;
               
               return (
                 <TabsContent key={person.id} value={person.id} className="space-y-6">
@@ -230,6 +266,9 @@ export function ClientPersonsTabs({
                     <Badge variant={person.isPrimary ? "default" : "outline"}>
                       {person.isPrimary ? "Personne principale" : `Personne ${index + 1}`}
                     </Badge>
+                    <p className="text-sm font-medium">
+                      {[person.firstName, person.lastName].filter(Boolean).join(" ") || "Sans nom"}
+                    </p>
                   </div>
                   
                   <div className="grid gap-4 md:grid-cols-2">
@@ -314,17 +353,47 @@ export function ClientPersonsTabs({
                     )}
                   </div>
                   
-                  {/* Documents de la personne directement en dessous */}
-                  {allPersonDocuments.length > 0 && (
+                  {/* Documents de la personne */}
+                  {personOnlyDocuments.length > 0 && (
                     <>
                       <Separator />
                       <div>
                         <div className="flex items-center gap-2 mb-4">
                           <FileText className="h-5 w-5" />
-                          <h3 className="text-lg font-semibold">Documents ({allPersonDocuments.length})</h3>
+                          <h3 className="text-lg font-semibold">Documents de {[person.firstName, person.lastName].filter(Boolean).join(" ") || "cette personne"} ({personOnlyDocuments.length})</h3>
                         </div>
-                        <DocumentsList
-                          documents={allPersonDocuments.map((doc) => ({
+                        <DocumentsListWithOwner
+                          documents={personOnlyDocuments.map((doc) => ({
+                            id: doc.id,
+                            kind: doc.kind,
+                            fileKey: doc.fileKey,
+                            mimeType: doc.mimeType,
+                            label: doc.label,
+                            createdAt: doc.createdAt,
+                            person: {
+                              id: person.id,
+                              firstName: person.firstName,
+                              lastName: person.lastName,
+                              isPrimary: person.isPrimary,
+                            },
+                          }))}
+                          documentKindLabels={documentKindLabels}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Documents du client (commun à toutes les personnes) */}
+                  {clientOnlyDocuments.length > 0 && (
+                    <>
+                      <Separator />
+                      <div>
+                        <div className="flex items-center gap-2 mb-4">
+                          <FileText className="h-5 w-5" />
+                          <h3 className="text-lg font-semibold">Documents du client ({clientOnlyDocuments.length})</h3>
+                        </div>
+                        <DocumentsListWithOwner
+                          documents={clientOnlyDocuments.map((doc) => ({
                             id: doc.id,
                             kind: doc.kind,
                             fileKey: doc.fileKey,
@@ -333,6 +402,7 @@ export function ClientPersonsTabs({
                             createdAt: doc.createdAt,
                           }))}
                           documentKindLabels={documentKindLabels}
+                          ownerLabel="Client"
                         />
                       </div>
                     </>

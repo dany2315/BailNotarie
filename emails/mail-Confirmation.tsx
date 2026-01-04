@@ -119,15 +119,7 @@ export default function MailConfirmation({
             }}>
               Bonjour {firstName} {lastName},
             </Text>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              Nous avons bien reçu votre demande de bail notarié. Notre équipe d'experts va l'étudier avec attention et vous recontacter dans les plus brefs délais.
-            </Text>
+          
 
             {/* Texte ciblé selon le rôle */}
             {role === "LOCATAIRE" && (
@@ -137,14 +129,7 @@ export default function MailConfirmation({
                 padding: "24px",
                 margin: "24px 0"
               }}>
-                <Text style={{ 
-                  color: "#1f2937",
-                  fontSize: "18px",
-                  fontWeight: "bold",
-                  margin: "0 0 16px 0"
-                }}>
-                  🏠 En tant que locataire
-                </Text>
+
                 <Text style={{ 
                   color: "#374151",
                   fontSize: "16px",
@@ -152,6 +137,14 @@ export default function MailConfirmation({
                   margin: "0 0 12px 0"
                 }}>
                   Votre formulaire de bail notarié a été soumis avec succès. Nous allons maintenant traiter votre demande et vous tenir informé de l'avancement de votre dossier.
+                </Text>
+                <Text style={{ 
+                  color: "#1f2937",
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  margin: "0 0 16px 0"
+                }}>
+                  🏠 En tant que locataire
                 </Text>
                 <Text style={{ 
                   color: "#374151",
@@ -171,6 +164,15 @@ export default function MailConfirmation({
                 padding: "24px",
                 margin: "24px 0"
               }}>
+               
+                <Text style={{ 
+                  color: "#374151",
+                  fontSize: "16px",
+                  lineHeight: "1.6",
+                  margin: "0 0 12px 0"
+                }}>
+                  Votre formulaire de bail notarié a été soumis avec succès. Une fois validé, il sera transmis à l’un de nos notaires partenaires, qui vous contactera directement pour finaliser le bail et vous communiquer le montant précis de l’acte notarié.
+                </Text>
                 <Text style={{ 
                   color: "#1f2937",
                   fontSize: "18px",
@@ -178,14 +180,6 @@ export default function MailConfirmation({
                   margin: "0 0 16px 0"
                 }}>
                   🔑 En tant que propriétaire
-                </Text>
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "16px",
-                  lineHeight: "1.6",
-                  margin: "0 0 12px 0"
-                }}>
-                  Votre formulaire de bail notarié a été soumis avec succès. Notre équipe va maintenant examiner votre demande et vous contacter dans les plus brefs délais pour finaliser votre bail notarié.
                 </Text>
                 <Text style={{ 
                   color: "#374151",
@@ -285,14 +279,6 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: "0 0 8px 0"
               }}>
-                • <strong>Devis gratuit</strong> sous 24h
-              </Text>
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: "0 0 8px 0"
-              }}>
                 • <strong>Bail notarié</strong> en 48h
               </Text>
               <Text style={{ 
@@ -309,7 +295,7 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: 0
               }}>
-                • <strong>+2000 clients</strong> satisfaits
+                • <strong>+200 clients</strong> satisfaits
               </Text>
             </Section>
 

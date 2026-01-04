@@ -19,6 +19,7 @@ export const sendOwnerFormEmail = inngest.createFunction(
           firstName: event.data.firstName || "",
           lastName: event.data.lastName || "",
           formUrl: event.data.formUrl,
+          emailContext: event.data.emailContext || "default",
         }),
       });
       

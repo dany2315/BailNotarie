@@ -178,9 +178,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       }
       // Documents bien (PROPERTY) - diagnostics, titre de propriété, etc.
-      // Note: Ces documents sont attachés au propertyId dans l'ancien système
-      // mais pour l'instant on les attache au clientId pour la compatibilité
-      // Documents client (livret de famille, PACS, assurance, RIB)
+      // Documents INSURANCE et RIB : attachés au Property pour les propriétaires, au Client pour les locataires
+      else if (kind === "INSURANCE" || kind === "RIB") {
+        // Vérifier le profilType du client pour déterminer si c'est un propriétaire
+        if (client && client.profilType === "PROPRIETAIRE") {
+          // Sera géré dans targetPropertyId ci-dessous
+        } else {
+          // Pour les locataires, attacher au Client
+          targetClientId = docClientId;
+        }
+      }
+      // Documents client (livret de famille, PACS)
       else {
         targetClientId = docClientId;
       }
@@ -188,6 +196,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Déterminer targetPropertyId pour les documents de bien
       let targetPropertyId: string | null = null;
       if (["DIAGNOSTICS", "TITLE_DEED", "REGLEMENT_COPROPRIETE", "CAHIER_DE_CHARGE_LOTISSEMENT", "STATUT_DE_LASSOCIATION_SYNDICALE"].includes(kind)) {
+        targetPropertyId = docPropertyId || null;
+      } else if ((kind === "INSURANCE" || kind === "RIB") && client && client.profilType === "PROPRIETAIRE") {
+        // Pour les propriétaires, INSURANCE et RIB sont attachés au Property
         targetPropertyId = docPropertyId || null;
       }
 

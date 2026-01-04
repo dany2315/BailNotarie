@@ -62,8 +62,10 @@ export function getRequiredClientFields(
   // Champs communs selon le profil
   if (profilType === ProfilType.PROPRIETAIRE) {
     requiredFields.push("phone", "fullAddress");
+    // Ne pas ajouter INSURANCE et RIB ici car ils sont attachés au Property (bien)
   } else if (profilType === ProfilType.LOCATAIRE) {
     requiredFields.push("phone", "fullAddress");
+    // Pour les locataires, INSURANCE et RIB sont attachés au Client
     requiredDocuments.push(DocumentKind.INSURANCE, DocumentKind.RIB);
   } else if (profilType === ProfilType.LEAD) {
     requiredFields = [];
@@ -86,8 +88,9 @@ export function getRequiredPropertyFields(
   const requiredDocuments: DocumentKind[] = [
     DocumentKind.DIAGNOSTICS,
     DocumentKind.TITLE_DEED,
-    DocumentKind.RIB,
+    // Documents du propriétaire attachés au Property (bien)
     DocumentKind.INSURANCE,
+    DocumentKind.RIB,
   ];
 
   // Documents conditionnels selon le statut légal

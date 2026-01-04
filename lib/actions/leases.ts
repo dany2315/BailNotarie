@@ -350,8 +350,15 @@ export async function getLease(id: string) {
             include: {
               persons: {
                 orderBy: { isPrimary: 'desc' },
+                include: {
+                  documents: { orderBy: { createdAt: "desc" } },
+                },
               },
-              entreprise: true,
+              entreprise: {
+                include: {
+                  documents: { orderBy: { createdAt: "desc" } },
+                },
+              },
             },
           },
         },
@@ -360,8 +367,15 @@ export async function getLease(id: string) {
         include: {
           persons: {
             orderBy: { isPrimary: 'desc' },
+            include: {
+              documents: { orderBy: { createdAt: "desc" } },
+            },
           },
-          entreprise: true,
+          entreprise: {
+            include: {
+              documents: { orderBy: { createdAt: "desc" } },
+            },
+          },
         },
       },
       createdBy: { select: { id: true, name: true, email: true } },

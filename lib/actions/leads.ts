@@ -535,6 +535,7 @@ export async function convertLead(data: {
         firstName: ownerName.firstName,
         lastName: ownerName.lastName,
         formUrl: ownerFormUrl,
+        emailContext: "default",
       });
     } catch (error) {
       console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);

@@ -110,7 +110,7 @@ export default function MailTenantForm({
               margin: "0 0 20px 0"
             }}>
               Votre propriétaire a initié la création d'un bail notarié pour le bien que vous allez louer. 
-              Pour finaliser cette procédure, nous avons besoin que vous complétiez le formulaire ci-dessous 
+              Pour finaliser cette procédure, nous avons besoin que vous complétiez le formulaire 
               avec vos informations personnelles complètes.
             </Text>
 
