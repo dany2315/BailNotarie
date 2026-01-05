@@ -198,3 +198,17 @@ export async function triggerTenantSubmittedNotificationEmail(data: {
   });
 }
 
+/**
+ * Déclenche l'envoi d'un email de bienvenue pour un nouveau notaire
+ */
+export async function triggerNotaireWelcomeEmail(data: {
+  email: string;
+  userName?: string | null;
+  loginUrl: string;
+}) {
+  await inngest.send({
+    name: "email/notaire.welcome",
+    data,
+  });
+}
+
