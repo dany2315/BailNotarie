@@ -47,7 +47,7 @@ export function NationalitySelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between h-9 font-normal"
+          className="w-full justify-between h-9 font-normal overflow-hidden"
           disabled={disabled || loading}
           type="button"
         >

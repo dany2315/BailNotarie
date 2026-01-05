@@ -1706,7 +1706,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Propriétaire
                     </label>
                     <p className="text-base font-semibold">
-                      {property.owner.persons ? property.owner.persons.find((p: any) => p.isPrimary)?.firstName + " " + property.owner.persons.find((p: any) => p.isPrimary)?.lastName : property.owner.entreprise?.legalName + " " + property.owner.entreprise?.name}
+                      {property.owner.type === ClientType.PERSONNE_PHYSIQUE ? property.owner.persons.find((p: any) => p.isPrimary)?.firstName + " " + property.owner.persons.find((p: any) => p.isPrimary)?.lastName : property.owner.entreprise?.legalName ||property.owner.entreprise?.name}
                     </p>
                   </div>
                 )}
@@ -1787,7 +1787,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     </p>
                   </div>
                 )}
-                {bail.bailFamily && (
+                {/*{bail.bailFamily && (
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                       Famille de bail
@@ -1796,7 +1796,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       {bail.bailFamily.replace(/_/g, " ")}
                     </p>
                   </div>
-                )}
+                )}*/}
                 {bail.paymentDay && (
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
