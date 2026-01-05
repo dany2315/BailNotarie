@@ -2325,35 +2325,40 @@ export async function getClient(id: string) {
               parties: {
                 select: {
                   id: true,
+                  type: true,
                   profilType: true,
                   persons: {
-                    include: {
-                      documents: { orderBy: { createdAt: "desc" } },
+                    select: {  // Changer de include à select pour spécifier les champs
+                      id: true,
+                      firstName: true,
+                      lastName: true,
+                      email: true,
+                      isPrimary: true,
+                      documents: {
+                        orderBy: { createdAt: "desc" },
+                      },
                     },
                   },
                   entreprise: {
-                    include: {
-                     documents: { orderBy: { createdAt: "desc" } },
+                    select: {  // Changer de include à select pour spécifier les champs
+                      id: true,
+                      legalName: true,
+                      name: true,
+                      email: true,
+                      documents: {
+                        orderBy: { createdAt: "desc" },
+                      },
                     },
-                  },
                 },
               },
             },
-            orderBy: { createdAt: "desc" },
+          },
           },
         },
-        orderBy: { createdAt: "desc" },
-      },
-      createdBy: { select: { id: true, name: true, email: true } },
-      updatedBy: { select: { id: true, name: true, email: true } },
-      intakeLinks: {
-        orderBy: { createdAt: "desc" },
       },
     },
   });
-  
-  // Sérialiser le client pour convertir les Decimal en nombres
-  // Cela évite l'erreur "Only plain objects can be passed to Client Components"
+
   return client ? serializeDecimal(client) : null;
 }
 
