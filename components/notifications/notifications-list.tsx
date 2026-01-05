@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
+import { BailStatus } from "@prisma/client";
 
 interface Notification {
   id: string;
@@ -60,8 +61,24 @@ function getNotificationMessage(notification: Notification): string {
       return "Bail modifié";
     case "BAIL_DELETED":
       return "Bail supprimé";
-    case "BAIL_STATUS_CHANGED":
-      return `Statut du bail changé: ${metadata.oldStatus} → ${metadata.newStatus}`;
+      case "BAIL_STATUS_CHANGED": {
+        if (metadata.oldStatus === BailStatus.DRAFT && metadata.newStatus === BailStatus.PENDING_VALIDATION) {
+          return "Bail en attente de validation par bailnotarie";
+        }
+        if (metadata.oldStatus === BailStatus.PENDING_VALIDATION && metadata.newStatus === BailStatus.READY_FOR_NOTARY) {
+          return "Bail prêt a être assigné au notaire";
+        }
+        if (metadata.oldStatus === BailStatus.READY_FOR_NOTARY && metadata.newStatus === BailStatus.SIGNED) {
+          return "Bail signé";
+        }
+        if (metadata.oldStatus === BailStatus.SIGNED && metadata.newStatus === BailStatus.TERMINATED) {
+          return "Bail terminé";
+        }
+        if (metadata.oldStatus === BailStatus.TERMINATED && metadata.newStatus === BailStatus.DRAFT) {
+          return "Bail réinitialisé";
+        }
+        return "Statut du bail modifié";
+      }
     case "INTAKE_SUBMITTED":
       return `Formulaire ${metadata.intakeTarget === "OWNER" ? "propriétaire" : "locataire"} soumis`;
     case "INTAKE_REVOKED":
