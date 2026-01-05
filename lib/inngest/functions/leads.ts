@@ -1,5 +1,5 @@
 import { inngest } from "@/lib/inngest/client";
-import { resend } from "@/lib/resend";
+import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailLeadConversion from "@/emails/mail-lead-conversion";
 
 export const sendLeadConversionEmail = inngest.createFunction(
@@ -7,7 +7,7 @@ export const sendLeadConversionEmail = inngest.createFunction(
   { event: "email/lead.conversion" },
   async ({ event, step }) => {
     await step.run("send-lead-conversion-email", async () => {
-      await resend.emails.send({
+      await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.to,
         subject: event.data.subject,

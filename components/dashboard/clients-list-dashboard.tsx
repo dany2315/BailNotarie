@@ -133,7 +133,7 @@ export function ClientsListDashboard({ clients: initialClients }: ClientsListDas
   };
 
   return (
-    <Card className="flex flex-col h-full min-h-0">
+    <Card className="flex flex-col lg:h-full min-h-0">
       <CardHeader className="shrink-0">
         <CardTitle className="text-lg sm:text-xl">Statuts clients</CardTitle>
         <div className="flex flex-col sm:flex-row gap-3 mt-4">
@@ -167,7 +167,7 @@ export function ClientsListDashboard({ clients: initialClients }: ClientsListDas
           />
         </div>
       </CardHeader>
-      <CardContent className="flex-1 min-h-0 overflow-y-auto">
+      <CardContent className="flex-1 min-h-0 lg:overflow-y-auto">
         {filteredClients.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             Aucun client trouvé

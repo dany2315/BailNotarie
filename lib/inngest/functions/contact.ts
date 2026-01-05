@@ -1,5 +1,5 @@
 import { inngest } from "@/lib/inngest/client";
-import { resend } from "@/lib/resend";
+import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailConfirmation from "@/emails/mail-Confirmation";
 import MailNotificationEquipe from "@/emails/mail-Notification-Equipe";
 
@@ -8,7 +8,7 @@ export const sendContactConfirmationEmail = inngest.createFunction(
   { event: "email/contact.confirmation" },
   async ({ event, step }) => {
     await step.run("send-confirmation-email", async () => {
-      await resend.emails.send({
+      await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.email,
         subject: "Confirmation de votre demande de contact",
@@ -29,7 +29,7 @@ export const sendContactNotificationEmail = inngest.createFunction(
   { event: "email/contact.notification" },
   async ({ event, step }) => {
     await step.run("send-notification-email", async () => {
-      await resend.emails.send({
+      await resendSendEmail({
         from: "Support BailNotarie <support@bailnotarie.fr>",
         to: ["david@bailnotarie.fr", "shlomi@bailnotarie.fr"],
         subject: "Nouvelle demande de contact",

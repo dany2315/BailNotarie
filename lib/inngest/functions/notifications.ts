@@ -1,5 +1,5 @@
 import { inngest } from "@/lib/inngest/client";
-import { resend } from "@/lib/resend";
+import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailNotification from "@/emails/mail-notification";
 
 export const sendNotificationEmail = inngest.createFunction(
@@ -7,7 +7,7 @@ export const sendNotificationEmail = inngest.createFunction(
   { event: "email/notification.send" },
   async ({ event, step }) => {
     await step.run("send-notification-email", async () => {
-      await resend.emails.send({
+      await resendSendEmail({
         from: "Support BailNotarie <support@bailnotarie.fr>",
         to: event.data.to,
         subject: "Nouvelle notification - BailNotarie",

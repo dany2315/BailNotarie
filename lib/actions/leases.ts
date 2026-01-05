@@ -475,7 +475,7 @@ export async function getLeases(params: {
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { effectiveDate: "desc" },
+      orderBy: { createdAt: "desc" },
     }),
     prisma.bail.count({ where }),
   ]);

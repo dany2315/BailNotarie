@@ -356,10 +356,11 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
               Bail
             </TabsTrigger>
           )}
-          <TabsTrigger value="requests" className="px-4 py-2">
+         {/* <TabsTrigger value="requests" className="px-4 py-2">
             <MessageSquare className="mr-2 h-4 w-4" />
             Demandes ({dossier.requests?.length || 0})
           </TabsTrigger>
+          */}
         </TabsList>
 
         {/* Onglet Propriété */}
@@ -947,13 +948,13 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
 
 
         {/* Onglet Demandes */}
-        <TabsContent value="requests">
-          <NotaireRequests
-            dossierId={dossier.id}
-            initialRequests={dossier.requests || []}
-            bailParties={dossier.bail?.parties || []}
-          />
-        </TabsContent>
+         {/* <TabsContent value="requests">
+            <NotaireRequests
+              dossierId={dossier.id}
+              initialRequests={dossier.requests || []}
+              bailParties={dossier.bail?.parties || []}
+            />
+          </TabsContent> */}
       </Tabs>
 
             {/* Informations générales */}

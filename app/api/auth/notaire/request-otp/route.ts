@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { resend } from "@/lib/resend";
+import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailNotaireOTP from "@/emails/mail-notaire-otp";
 
 // Rate limiting simple : 3 demandes par heure par email
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     // Envoyer l'email via Resend
     try {
-      await resend.emails.send({
+      await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: email,
         subject: "Code de connexion - BailNotarie",
@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 
 
 

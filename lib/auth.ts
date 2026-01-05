@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP } from "better-auth/plugins";
 import { prisma } from "./prisma";
-import { resend } from "./resend";
+import { resendSendEmail } from "./resend-rate-limited";
 import MailNotaireOTP from "@/emails/mail-notaire-otp";
 
 export const auth = betterAuth({
@@ -42,7 +42,7 @@ export const auth = betterAuth({
 
         // Envoyer l'email via Resend
         try {
-          await resend.emails.send({
+          await resendSendEmail({
             from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
             to: email.toLowerCase().trim(),
             subject: "Code de connexion - BailNotarie",
