@@ -1724,7 +1724,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   <Home className="h-6 w-6 text-primary" />
                 </div>
                 <div className="text-left">
-                  <div className="text-base font-bold">Les informations du bail que vous allez signer</div>
+                  <div className="text-base font-bold">Les informations du bail</div>
                   <div className="text-base mt-1 text-muted-foreground">
                     Détails financiers et conditions du contrat
                   </div>
