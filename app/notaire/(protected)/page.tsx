@@ -6,6 +6,9 @@ import { KPICard } from "@/components/shared/kpi-card";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 export default async function NotaireDashboardPage() {
   const user = await getCurrentUser();
   

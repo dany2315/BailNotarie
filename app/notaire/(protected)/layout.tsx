@@ -4,6 +4,9 @@ import { Role } from "@prisma/client";
 import { NotaireSidebar } from "@/components/notaire/notaire-sidebar";
 import { NotaireHeader } from "@/components/notaire/notaire-header";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 export default async function NotaireProtectedLayout({
   children,
 }: {
