@@ -1,5 +1,5 @@
 import { inngest } from "@/lib/inngest/client";
-import { resend } from "@/lib/resend";
+import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailBlogComment from "@/emails/mail-blog-comment";
 
 export const sendBlogCommentNotificationEmail = inngest.createFunction(
@@ -7,7 +7,7 @@ export const sendBlogCommentNotificationEmail = inngest.createFunction(
   { event: "email/blog-comment.notification" },
   async ({ event, step }) => {
     await step.run("send-blog-comment-notification-email", async () => {
-      await resend.emails.send({
+      await resendSendEmail({
         from: "Support BailNotarie <support@bailnotarie.fr>",
         to: ["david@bailnotarie.fr", "shlomi@bailnotarie.fr"],
         subject: `Nouveau commentaire sur l'article : ${event.data.articleTitle}`,

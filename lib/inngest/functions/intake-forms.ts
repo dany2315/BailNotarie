@@ -1,5 +1,5 @@
 import { inngest } from "@/lib/inngest/client";
-import { resend } from "@/lib/resend";
+import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailOwnerForm from "@/emails/mail-owner-form";
 import MailTenantForm from "@/emails/mail-tenant-form";
 import MailRequestStatus from "@/emails/mail-request-status";
@@ -11,7 +11,7 @@ export const sendOwnerFormEmail = inngest.createFunction(
   { event: "email/intake.owner-form" },
   async ({ event, step }) => {
     await step.run("send-owner-form-email", async () => {
-      const result = await resend.emails.send({
+      const result = await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.to,
         subject: "Formulaire de bail notarié - Propriétaire",
@@ -37,7 +37,7 @@ export const sendTenantFormEmail = inngest.createFunction(
   { event: "email/intake.tenant-form" },
   async ({ event, step }) => {
     await step.run("send-tenant-form-email", async () => {
-      const result = await resend.emails.send({
+      const result = await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.to,
         subject: "Formulaire de bail notarié - Locataire",
@@ -62,7 +62,7 @@ export const sendRequestStatusEmail = inngest.createFunction(
   { event: "email/request-status.send" },
   async ({ event, step }) => {
     await step.run("send-request-status-email", async () => {
-      const result = await resend.emails.send({
+      const result = await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.to,
         subject: "Suivi de votre demande de bail notarié",
@@ -91,7 +91,7 @@ export const sendIntakeConfirmationEmail = inngest.createFunction(
   { event: "email/intake.confirmation" },
   async ({ event, step }) => {
     await step.run("send-intake-confirmation-email", async () => {
-      const result = await resend.emails.send({
+      const result = await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.email,
         subject: "Confirmation de votre demande de bail notarié",
@@ -118,7 +118,7 @@ export const sendTenantSubmittedNotificationEmail = inngest.createFunction(
   { event: "email/intake.tenant-submitted" },
   async ({ event, step }) => {
     await step.run("send-tenant-submitted-notification-email", async () => {
-      const result = await resend.emails.send({
+      const result = await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.ownerEmail,
         subject: "Votre locataire a soumis son formulaire",
