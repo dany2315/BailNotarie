@@ -42,12 +42,16 @@ export function FAQSection() {
       {
         question: "Tous les types de location peuvent-ils être notariés ?",
         answer: "Oui, tous les types de baux peuvent être notariés : bail d'habitation, bail commercial, bail rural, colocation, location meublée ou vide. Le bail notarié s'adapte à toutes les situations locatives et respecte toutes les réglementations spécifiques (loi Alur, etc.)."
+      },
+      {
+        question: "Faut-il une procuration pour signer un bail notarié à distance ?",
+        answer: "Oui. Lorsque la signature du bail notarié se fait entièrement à distance, une procuration authentique est nécessaire afin de permettre au notaire de signer l’acte au nom de la partie concernée.Cette procuration est établie et sécurisée par le notaire, généralement par visioconférence. Un coût supplémentaire d’environ une quarantaine d’euros peut s’appliquer pour cette formalité, conformément au tarif réglementé des notaires."
       }
     ],
     "couts": [
       {
         question: "Combien coûte un bail notarié ?",
-        answer: "Le prix d'un bail notarié est strictement fixé par la loi. Il correspond à 50 % d'un mois de loyer hors charges et hors taxes. Exemple : pour un loyer de 1 000 € HT, les émoluments dus au notaire s'élèvent à 500 € HT. Ce montant est versé directement à l'étude notariale. Référence juridique : articles A.444-103 et suivants du Code de commerce (tarif réglementé des notaires)."
+        answer: "Le coût d’un bail notarié d’habitation est fixé par la réglementation notariale (article A.444-103 du Code de commerce) et correspond, en pratique, à environ la moitié d’un loyer mensuel hors charges, auquel s’ajoutent la TVA et les frais de formalités. Des frais complémentaires peuvent s’appliquer selon le dossier, notamment en cas de procuration notariée, de signature à distance, ou de débours administratifs avancés par l’étude"
       },
       {
         question: "Y a-t-il des frais cachés ?",

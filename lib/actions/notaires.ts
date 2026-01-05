@@ -7,6 +7,7 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailNotaireAssignment from "@/emails/mail-notaire-assignment";
+import { triggerNotaireWelcomeEmail } from "@/lib/inngest/helpers";
 
 // Schémas de validation
 const createNotaireSchema = z.object({
@@ -85,6 +86,21 @@ export async function createNotaire(data: unknown) {
       emailVerified: false, // Sera vérifié lors de la première connexion OTP
     },
   });
+
+  // Envoyer un email de bienvenue via Inngest
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.bailnotarie.fr";
+    const loginUrl = `${baseUrl}/notaire/login`;
+
+    await triggerNotaireWelcomeEmail({
+      email: newNotaire.email,
+      userName: newNotaire.name,
+      loginUrl,
+    });
+  } catch (emailError) {
+    console.error("Erreur lors de l'envoi de l'email de bienvenue:", emailError);
+    // Ne pas faire échouer la création si l'email échoue
+  }
 
   revalidatePath("/interface/notaires");
   return newNotaire;

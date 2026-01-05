@@ -5,6 +5,7 @@ import { sendNotificationEmail } from "@/lib/inngest/functions/notifications";
 import { sendOwnerFormEmail, sendTenantFormEmail, sendRequestStatusEmail, sendIntakeConfirmationEmail, sendTenantSubmittedNotificationEmail } from "@/lib/inngest/functions/intake-forms";
 import { sendLeadConversionEmail } from "@/lib/inngest/functions/leads";
 import { sendBlogCommentNotificationEmail } from "@/lib/inngest/functions/blog-comments";
+import { sendNotaireWelcomeEmail } from "@/lib/inngest/functions/notaires";
 import { 
   calculateClientCompletionStatus, 
   calculatePropertyCompletionStatus,
@@ -25,6 +26,7 @@ const handler = serve({
     sendTenantSubmittedNotificationEmail,
     sendLeadConversionEmail,
     sendBlogCommentNotificationEmail,
+    sendNotaireWelcomeEmail,
     calculateClientCompletionStatus,
     calculatePropertyCompletionStatus,
     calculateCompletionStatuses,

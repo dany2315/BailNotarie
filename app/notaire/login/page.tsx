@@ -281,21 +281,6 @@ export default function NotaireLoginPage() {
                 className="w-auto h-14 sm:h-16 md:h-18 object-contain relative z-10"
               />
             </div>
-            
-            {/* Titre et description pour mobile */}
-            <div className="text-center space-y-2 px-4">
-              <div className="flex items-center justify-center gap-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Scale className="h-5 w-5 text-blue-600" />
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  Connexion à votre Espace Notaire
-                </h2>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Connexion sécurisée à votre espace professionnel
-              </p>
-            </div>
           </div>
 
           <Card className="border-0 shadow-xl sm:shadow-2xl bg-white/90 sm:bg-white/80 backdrop-blur-sm">
@@ -317,8 +302,11 @@ export default function NotaireLoginPage() {
                 </Button>
               )}
               <CardTitle className="text-2xl sm:text-3xl font-bold text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                {step === "email" ? "Connexion" : "Code de vérification"}
+                {step === "email" ? "Connexion à votre Espace Notaire" : "Code de vérification"}
               </CardTitle>
+              <CardDescription className="text-sm text-center text-muted-foreground">
+                Connexion sécurisée à votre espace professionnel
+              </CardDescription>
               <CardDescription className="text-center text-sm sm:text-base px-2">
                 {step === "email"
                   ? "Entrez votre adresse email professionnelle pour recevoir un code de connexion sécurisé"
@@ -338,7 +326,7 @@ export default function NotaireLoginPage() {
                         id="email"
                         type="email"
                         placeholder="notaire@example.com"
-                        className="pl-9 sm:pl-10 h-11 sm:h-12 text-sm sm:text-base border-2 focus:border-primary transition-colors"
+                        className="pl-9 sm:pl-10 h-11 sm:h-12 text-base sm:text-base border-2 focus:border-primary transition-colors"
                         {...registerEmail("email")}
                       />
                     </div>
