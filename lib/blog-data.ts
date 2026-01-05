@@ -119,21 +119,40 @@ export const blogData = [
       },
       {
         id: "blog-6",
-        title: "Coût d’un bail de location notarié : tarifs, partage des frais et exemples concrets",
-        slug: generateSlug("Coût d’un bail de location notarié : tarifs, partage des frais et exemples concrets"),
+        title: "Coût d'un bail de location notarié : tarifs, partage des frais et exemples concrets",
+        slug: generateSlug("Coût d'un bail de location notarié : tarifs, partage des frais et exemples concrets"),
         description:
-          "Tarifs réglementés, estimation du coût d’un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
+          "Tarifs réglementés, estimation du coût d'un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
         content: "",
         readTime: 6,
-        metaTitle: "Coût d’un bail de location notarié : tarifs, partage des frais et exemples concrets",
+        metaTitle: "Coût d'un bail de location notarié : tarifs, partage des frais et exemples concrets",
         metaDescription:
-          "Tarifs réglementés, estimation du coût d’un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
+          "Tarifs réglementés, estimation du coût d'un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
         metaKeywords:
           "bail notarié prix, coût bail de location notarié, coût bail notarié, frais bail de location notarié, frais bail notarié, tarif notaire bail habitation, emolument bail notarié, moitié loyer hors charges, procuration authentique à distance, copies formalités notaire, débours bail notarié",
         imageUrl:
           "https://images.pexels.com/photos/3943745/pexels-photo-3943745.jpeg",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-06-01"),
+        categoryId: "1",
+      },
+      {
+        id: "blog-7",
+        title: "Bail Notarié à Distance : Signer en Sécurité avec la Procuration",
+        slug: generateSlug("Bail Notarié à Distance : Signer en Sécurité avec la Procuration"),
+        description:
+          "Vous devez signer un bail notarié mais vous ne pouvez pas vous déplacer ? Découvrez comment la procuration notariée permet de signer à distance avec la même sécurité qu'un rendez-vous physique.",
+        content: "",
+        readTime: 5,
+        metaTitle: "Bail Notarié à Distance : Signer en Sécurité avec la Procuration",
+        metaDescription:
+          "Signez votre bail notarié à distance grâce à la procuration notariée. Visioconférence, signature électronique sécurisée, conservation numérique. Solution fiable et accessible pour expatriés et personnes éloignées.",
+        metaKeywords:
+          "bail notarié, bail notarié d'habitation, bail notarié en ligne, bail notarie en ligne, bail notarié à distance, procuration notariée, signature bail à distance, bail notarié visioconférence, signer bail notarié sans se déplacer, procuration authentique, signature électronique bail, bail notarié expatrié, bail notarié en ligne, signature notariée à distance",
+        imageUrl:
+          "https://images.pexels.com/photos/4458421/pexels-photo-4458421.jpeg",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2025-06-15"),
         categoryId: "1",
       },
 ]
