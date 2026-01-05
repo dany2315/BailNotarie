@@ -27,7 +27,7 @@ export default async function InterfacePage() {
 
 
   return (
-    <div className="flex flex-col h-[calc(93vh-4rem)] gap-6">
+    <div className="flex flex-col h-[calc(93vh-4rem)] lg:h-[calc(93vh-4rem)] overflow-y-auto lg:overflow-hidden gap-6 pb-6 lg:pb-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
@@ -66,13 +66,12 @@ export default async function InterfacePage() {
         />
       </div>
 
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 flex-1 min-h-0">
-        <div className="h-[400px] lg:h-full">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 flex-1 min-h-0 lg:overflow-hidden">
+        <div className="lg:min-h-0 lg:overflow-y-auto">
           <BailsListDashboard bails={allBails} />
         </div>
 
-        {/* Liste des clients */}
-        <div className="h-[400px] lg:h-full">
+        <div className="lg:min-h-0 lg:overflow-y-auto">
           <ClientsListDashboard clients={allClients} />
         </div>
       </div>

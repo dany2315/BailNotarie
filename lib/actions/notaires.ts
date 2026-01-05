@@ -5,7 +5,7 @@ import { requireAuth, requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { Role } from "@prisma/client";
 import { z } from "zod";
-import { resend } from "@/lib/resend";
+import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailNotaireAssignment from "@/emails/mail-notaire-assignment";
 
 // Schémas de validation
@@ -198,7 +198,7 @@ export async function assignDossierToNotaire(data: unknown) {
                       "Client";
     const propertyAddress = bail.property.fullAddress || undefined;
 
-    await resend.emails.send({
+    await resendSendEmail({
       from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
       to: notaire.email,
       subject: "Nouveau dossier assigné - BailNotarie",

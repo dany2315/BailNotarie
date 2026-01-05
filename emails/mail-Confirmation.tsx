@@ -158,42 +158,71 @@ export default function MailConfirmation({
             )}
 
             {role === "PROPRIETAIRE" && (
-              <Section style={{ 
-                backgroundColor: "#f0f9ff",
-                borderRadius: "8px",
-                padding: "24px",
-                margin: "24px 0"
-              }}>
-               
+              <>
                 <Text style={{ 
                   color: "#374151",
                   fontSize: "16px",
                   lineHeight: "1.6",
-                  margin: "0 0 12px 0"
+                  margin: "0 0 24px 0"
                 }}>
-                  Votre formulaire de bail notarié a été soumis avec succès. Une fois validé, il sera transmis à l’un de nos notaires partenaires, qui vous contactera directement pour finaliser le bail et vous communiquer le montant précis de l’acte notarié.
+                  Votre demande de bail notarié a bien été enregistrée.
                 </Text>
-                <Text style={{ 
-                  color: "#1f2937",
-                  fontSize: "18px",
-                  fontWeight: "bold",
-                  margin: "0 0 16px 0"
-                }}>
-                  🔑 En tant que propriétaire
-                </Text>
+                
                 <Text style={{ 
                   color: "#374151",
                   fontSize: "16px",
                   lineHeight: "1.6",
-                  margin: 0
+                  margin: "0 0 24px 0"
                 }}>
-                  Le bail notarié vous garantit une protection optimale de vos biens et vous permet de récupérer rapidement votre bien en cas de non-paiement ou de litige avec votre locataire grâce à la force exécutoire.
+                  Après vérification de votre dossier, celui-ci sera transmis à l'un de nos notaires partenaires, qui vous contactera directement pour finaliser le bail et vous communiquer le montant précis de l'acte notarié.
                 </Text>
-              </Section>
+
+                <Section style={{ 
+                  backgroundColor: "#f0f9ff",
+                  borderRadius: "8px",
+                  padding: "24px",
+                  margin: "24px 0"
+                }}>
+                  <Text style={{ 
+                    color: "#1f2937",
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    margin: "0 0 12px 0"
+                  }}>
+                    📩 Côté locataire
+                  </Text>
+                  <Text style={{ 
+                    color: "#374151",
+                    fontSize: "16px",
+                    lineHeight: "1.6",
+                    margin: "0 0 24px 0"
+                  }}>
+                    Votre locataire a reçu un email l'invitant à compléter ses informations. Merci de lui demander de vérifier <strong>ses spams / courriers indésirables si besoin.</strong>   
+                  </Text>
+
+                  <Text style={{ 
+                    color: "#1f2937",
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    margin: "0 0 12px 0"
+                  }}>
+                    🔐 Votre protection en tant que propriétaire
+                  </Text>
+                  <Text style={{ 
+                    color: "#374151",
+                    fontSize: "16px",
+                    lineHeight: "1.6",
+                    margin: 0
+                  }}>
+                    Le bail notarié vous offre une sécurité juridique renforcée et bénéficie de la force exécutoire, vous permettant d'agir rapidement en cas d'impayé ou de litige.
+                  </Text>
+                </Section>
+              </>
             )}
 
             {/* Récapitulatif uniquement si message présent (pour les emails de contact) */}
             {message && (
+              <>
               <Section style={{ 
                 backgroundColor: "#f9fafb",
                 borderRadius: "8px",
@@ -255,9 +284,7 @@ export default function MailConfirmation({
                   "{message}"
                 </Text>
               </Section>
-            )}
-
-            {/* Points clés */}
+                          {/* Points clés */}
             <Section style={{ 
               backgroundColor: "#f0f9ff",
               borderRadius: "8px",
@@ -298,6 +325,10 @@ export default function MailConfirmation({
                 • <strong>+200 clients</strong> satisfaits
               </Text>
             </Section>
+            </>
+            )}
+
+
 
             <Text style={{ 
               color: "#374151",
