@@ -87,7 +87,7 @@ export async function deleteBlobFiles(fileKeys: string[]) {
 }
 
 export async function deleteDocument(id: string) {
-  await requireAuth();
+
   const document = await prisma.document.findUnique({ where: { id } });
   
   if (!document) {
