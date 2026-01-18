@@ -1,11 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireProprietaireAuth } from "@/lib/auth-helpers";
 import { createPropertySchema, updatePropertySchema } from "@/lib/zod/property";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
-import { PropertyStatus, CompletionStatus, NotificationType } from "@prisma/client";
+import { PropertyStatus, CompletionStatus, NotificationType, Role, ProfilType } from "@prisma/client";
 import { updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus } from "@/lib/utils/completion-status";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
@@ -13,6 +13,15 @@ import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-
 export async function createProperty(data: unknown) {
   const user = await requireAuth();
   const validated = createPropertySchema.parse(data);
+
+  // Si l'utilisateur est un client, vérifier qu'il est propriétaire
+  if (user.role === Role.UTILISATEUR) {
+    const { client } = await requireProprietaireAuth();
+    // Vérifier que le ownerId correspond au client
+    if (validated.ownerId !== client.id) {
+      throw new Error("Vous ne pouvez créer des biens que pour vous-même");
+    }
+  }
 
   const property = await prisma.property.create({
     data: {

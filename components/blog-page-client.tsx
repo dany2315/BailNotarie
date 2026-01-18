@@ -39,8 +39,6 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
     commentsSectionRef.current?.openModal();
   };
 
-  console.log(relatedArticles);
-
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Hero Section avec image */}

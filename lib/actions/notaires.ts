@@ -7,7 +7,8 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailNotaireAssignment from "@/emails/mail-notaire-assignment";
-import { triggerNotaireWelcomeEmail } from "@/lib/inngest/helpers";
+import { triggerNotaireWelcomeEmail, triggerDocumentRequestEmail } from "@/lib/inngest/helpers";
+import { pusherServer } from "@/lib/pusher";
 
 // Schémas de validation
 const createNotaireSchema = z.object({
@@ -38,11 +39,11 @@ function serializeDecimal(value: any): any {
 
 const createNotaireRequestSchema = z.object({
   dossierId: z.string().min(1, "Le dossier est requis"),
-  type: z.enum(["DOCUMENT", "DATA"]),
   title: z.string().min(1, "Le titre est requis"),
   content: z.string().min(1, "Le contenu est requis"),
   targetProprietaire: z.boolean().default(false),
   targetLocataire: z.boolean().default(false),
+  targetPartyIds: z.array(z.string()).default([]), // IDs des parties spécifiques ciblées
 });
 
 /**
@@ -485,19 +486,35 @@ export async function createNotaireRequest(data: unknown) {
   }
 
   // Vérifier qu'au moins un destinataire est sélectionné
-  if (!validated.targetProprietaire && !validated.targetLocataire) {
+  const hasTargetPartyIds = validated.targetPartyIds && validated.targetPartyIds.length > 0;
+  if (!validated.targetProprietaire && !validated.targetLocataire && !hasTargetPartyIds) {
     throw new Error("Au moins un destinataire doit être sélectionné");
+  }
+
+  // Si des parties spécifiques sont ciblées, vérifier qu'elles appartiennent au bail du dossier
+  if (hasTargetPartyIds && dossier.bailId) {
+    const bail = await prisma.bail.findUnique({
+      where: { id: dossier.bailId },
+      include: { parties: true },
+    });
+    if (bail) {
+      const validPartyIds = bail.parties.map(p => p.id);
+      const invalidPartyIds = validated.targetPartyIds.filter(id => !validPartyIds.includes(id));
+      if (invalidPartyIds.length > 0) {
+        throw new Error(`Les parties suivantes n'appartiennent pas à ce bail: ${invalidPartyIds.join(", ")}`);
+      }
+    }
   }
 
   // Créer la demande
   const request = await prisma.notaireRequest.create({
     data: {
       dossierId: validated.dossierId,
-      type: validated.type,
       title: validated.title,
       content: validated.content,
       targetProprietaire: validated.targetProprietaire,
       targetLocataire: validated.targetLocataire,
+      targetPartyIds: validated.targetPartyIds || [],
       createdById: user.id,
     },
     include: {
@@ -507,8 +524,368 @@ export async function createNotaireRequest(data: unknown) {
     },
   });
 
+  // Émettre l'événement Pusher pour notifier les clients
+  if (dossier.bailId) {
+    try {
+      await pusherServer.trigger(`presence-bail-${dossier.bailId}`, "new-request", {
+        request: {
+          ...request,
+          createdAt: request.createdAt.toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'émission Pusher:", error);
+      // Ne pas faire échouer la fonction si Pusher échoue
+    }
+
+    // Envoyer un email aux destinataires via Inngest
+    try {
+      // Récupérer le bail avec ses parties, utilisateurs et adresse
+      const bail = await prisma.bail.findUnique({
+        where: { id: dossier.bailId },
+        include: {
+          property: {
+            select: { fullAddress: true },
+          },
+          parties: {
+            include: {
+              users: {
+                select: {
+                  email: true,
+                  name: true,
+                },
+              },
+              persons: {
+                where: { isPrimary: true },
+                take: 1,
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+              entreprise: {
+                select: {
+                  legalName: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (bail) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.bailnotarie.fr";
+        const bailAddress = bail.property?.fullAddress || null;
+        const notaireName = user.name || user.email;
+
+        // Déterminer les parties destinataires
+        const targetParties = bail.parties.filter(party => {
+          if (hasTargetPartyIds && validated.targetPartyIds.includes(party.id)) {
+            return true;
+          }
+          if (validated.targetProprietaire && party.profilType === "PROPRIETAIRE") {
+            return true;
+          }
+          if (validated.targetLocataire && party.profilType === "LOCATAIRE") {
+            return true;
+          }
+          return false;
+        });
+
+        // Envoyer un email à chaque utilisateur des parties destinataires
+        for (const party of targetParties) {
+          for (const partyUser of party.users) {
+            // Construire le nom du destinataire
+            const primaryPerson = party.persons[0];
+            const recipientName = partyUser.name || 
+              (primaryPerson ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() : null) ||
+              (party.entreprise?.legalName || party.entreprise?.name) ||
+              null;
+
+            // URL du chat pour le client
+            const chatUrl = party.profilType === "PROPRIETAIRE"
+              ? `${baseUrl}/client/proprietaire/baux/${dossier.bailId}`
+              : `${baseUrl}/client/locataire/baux/${dossier.bailId}`;
+
+            await triggerDocumentRequestEmail({
+              recipientEmail: partyUser.email,
+              recipientName,
+              notaireName,
+              requestTitle: validated.title,
+              requestContent: validated.content,
+              bailAddress,
+              chatUrl,
+            });
+          }
+        }
+      }
+    } catch (emailError) {
+      console.error("Erreur lors de l'envoi des emails de demande de document:", emailError);
+      // Ne pas faire échouer la fonction si les emails échouent
+    }
+  }
+
   revalidatePath(`/notaire/dossiers/${validated.dossierId}`);
   return request;
+}
+
+/**
+ * Récupère les documents annexes d'un dossier (documents reçus via les demandes)
+ * Filtrés par partie
+ */
+export async function getDossierAnnexDocuments(dossierId: string) {
+  const user = await requireAuth();
+
+  // Vérifier que l'utilisateur est un notaire
+  if (user.role !== Role.NOTAIRE && user.role !== Role.ADMINISTRATEUR) {
+    throw new Error("Non autorisé");
+  }
+
+  // Récupérer le dossier avec ses demandes
+  const dossier = await prisma.dossierNotaireAssignment.findUnique({
+    where: { id: dossierId },
+    include: {
+      requests: {
+        include: {
+          bailMessages: {
+            where: {
+              documentId: { not: null },
+            },
+            include: {
+              document: true,
+              sender: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  clientId: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!dossier) {
+    throw new Error("Dossier introuvable");
+  }
+
+  // Vérifier que le notaire a accès à ce dossier
+  if (user.role === Role.NOTAIRE && dossier.notaireId !== user.id) {
+    throw new Error("Non autorisé");
+  }
+
+  // Récupérer le bail pour connaître les parties avec leurs informations complètes
+  let bailParties: Array<{
+    id: string;
+    profilType: string;
+    entreprise?: { legalName: string; name: string } | null;
+    persons?: Array<{ firstName: string | null; lastName: string | null; isPrimary: boolean }>;
+  }> = [];
+  if (dossier.bailId) {
+    const bail = await prisma.bail.findUnique({
+      where: { id: dossier.bailId },
+      include: {
+        parties: {
+          select: {
+            id: true,
+            profilType: true,
+            entreprise: {
+              select: {
+                legalName: true,
+                name: true,
+              },
+            },
+            persons: {
+              select: {
+                firstName: true,
+                lastName: true,
+                isPrimary: true,
+              },
+              orderBy: { isPrimary: "desc" },
+            },
+          },
+        },
+      },
+    });
+    if (bail) {
+      bailParties = bail.parties;
+    }
+  }
+
+  // Collecter tous les documents avec leurs informations
+  const documentsByParty: Record<string, Array<{
+    id: string;
+    label: string | null;
+    fileKey: string;
+    mimeType: string | null;
+    size: number | null;
+    createdAt: Date;
+    uploadedBy: {
+      id: string;
+      email: string;
+      name: string | null;
+    };
+    requestTitle: string;
+    requestId: string;
+  }>> = {};
+
+  for (const request of dossier.requests) {
+    for (const message of request.bailMessages) {
+      if (message.document) {
+        // Déterminer à quelle partie appartient le document via le sender
+        let partyId: string | null = null;
+        if (message.sender.clientId) {
+          // Trouver la partie correspondante
+          const party = bailParties.find(p => p.id === message.sender.clientId);
+          if (party) {
+            partyId = party.id;
+          }
+        }
+
+        // Si on ne peut pas déterminer la partie, utiliser "unknown"
+        const key = partyId || "unknown";
+
+        if (!documentsByParty[key]) {
+          documentsByParty[key] = [];
+        }
+
+        documentsByParty[key].push({
+          id: message.document.id,
+          label: message.document.label,
+          fileKey: message.document.fileKey,
+          mimeType: message.document.mimeType,
+          size: message.document.size,
+          createdAt: message.document.createdAt,
+          uploadedBy: {
+            id: message.sender.id,
+            email: message.sender.email,
+            name: message.sender.name,
+          },
+          requestTitle: request.title,
+          requestId: request.id,
+        });
+      }
+    }
+  }
+
+  // Fonction helper pour obtenir le nom d'une partie
+  const getPartyName = (party: typeof bailParties[0] | undefined): string => {
+    if (!party) return "Non identifié";
+    if (party.entreprise) {
+      return party.entreprise.legalName || party.entreprise.name;
+    }
+    const primaryPerson = party.persons?.find(p => p.isPrimary) || party.persons?.[0];
+    if (primaryPerson) {
+      return `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || "Client";
+    }
+    return "Client";
+  };
+
+  // Organiser les documents par partie avec les informations de la partie
+  const result = Object.entries(documentsByParty).map(([partyId, documents]) => {
+    const party = bailParties.find(p => p.id === partyId);
+    return {
+      partyId: partyId === "unknown" ? null : partyId,
+      partyName: getPartyName(party),
+      profilType: party?.profilType || null,
+      documents: documents.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      ),
+    };
+  });
+
+  return result;
+}
+
+/**
+ * Supprimer une demande de document et ses documents associés
+ */
+export async function deleteNotaireRequest(requestId: string) {
+  const user = await requireAuth();
+
+  // Vérifier que l'utilisateur est un notaire
+  if (user.role !== Role.NOTAIRE && user.role !== Role.ADMINISTRATEUR) {
+    throw new Error("Seuls les notaires peuvent supprimer des demandes");
+  }
+
+  // Récupérer la demande avec ses relations
+  const request = await prisma.notaireRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      dossier: true,
+      bailMessages: {
+        include: {
+          document: true,
+        },
+      },
+    },
+  });
+
+  if (!request) {
+    throw new Error("Demande introuvable");
+  }
+
+  // Vérifier que le notaire a accès à ce dossier
+  if (user.role === Role.NOTAIRE && request.dossier.notaireId !== user.id) {
+    throw new Error("Non autorisé");
+  }
+
+  // Supprimer les fichiers du blob storage et les documents associés
+  const { del } = await import("@vercel/blob");
+  for (const message of request.bailMessages) {
+    if (message.document) {
+      try {
+        // Supprimer le fichier du blob si c'est une URL
+        if (message.document.fileKey && message.document.fileKey.startsWith('http')) {
+          await del(message.document.fileKey, {
+            token: process.env.BLOB_READ_WRITE_TOKEN,
+          });
+        }
+        
+        // Supprimer le document de la base de données
+        await prisma.document.delete({
+          where: { id: message.document.id },
+        });
+      } catch (error) {
+        // Ne pas faire échouer la suppression si un document ne peut pas être supprimé
+        console.error(`Erreur lors de la suppression du document ${message.document.id}:`, error);
+      }
+    }
+  }
+
+  // Supprimer les messages associés à la demande
+  await prisma.bailMessage.deleteMany({
+    where: { notaireRequestId: requestId },
+  });
+
+  // Supprimer la demande
+  await prisma.notaireRequest.delete({
+    where: { id: requestId },
+  });
+
+  // Émettre l'événement Pusher pour notifier les clients
+  if (request.dossier.bailId) {
+    try {
+      await pusherServer.trigger(`private-bail-${request.dossier.bailId}`, "request-deleted", {
+        requestId,
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'émission Pusher:", error);
+      // Ne pas faire échouer la fonction si Pusher échoue
+    }
+  }
+
+  revalidatePath(`/notaire/dossiers/${request.dossierId}`);
+  if (request.dossier.bailId) {
+    revalidatePath(`/client/proprietaire/baux/${request.dossier.bailId}`);
+    revalidatePath(`/client/locataire/baux/${request.dossier.bailId}`);
+  }
+
+  return { success: true };
 }
 
 /**

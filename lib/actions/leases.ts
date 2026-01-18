@@ -1,10 +1,10 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireRole } from "@/lib/auth-helpers";
+import { requireAuth, requireRole, requireProprietaireAuth } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
 import { revalidatePath } from "next/cache";
-import { BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType } from "@prisma/client";
+import { BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
@@ -22,6 +22,14 @@ export async function createLease(data: unknown) {
 
   if (!property) {
     throw new Error("Bien introuvable");
+  }
+
+  // Si l'utilisateur est un client, vérifier qu'il est propriétaire du bien
+  if (user.role === Role.UTILISATEUR) {
+    const { client } = await requireProprietaireAuth();
+    if (property.ownerId !== client.id) {
+      throw new Error("Vous ne pouvez créer des baux que pour vos propres biens");
+    }
   }
 
   // Vérifier que le locataire existe

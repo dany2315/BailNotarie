@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -28,33 +27,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, FileText, MessageSquare, Plus, User, Building2 } from "lucide-react";
+import { Loader2, FileText, Plus, User, Building2 } from "lucide-react";
 import { createNotaireRequest } from "@/lib/actions/notaires";
 import { formatDateTime } from "@/lib/utils/formatters";
 
 const requestSchema = z.object({
-  type: z.enum(["DOCUMENT", "DATA"]),
   title: z.string().min(1, "Le titre est requis"),
   content: z.string().min(1, "Le contenu est requis"),
-  targetProprietaire: z.boolean(),
-  targetLocataire: z.boolean(),
-}).refine(
-  (data) => data.targetProprietaire || data.targetLocataire,
-  {
-    message: "Au moins un destinataire doit être sélectionné",
-    path: ["targetProprietaire"],
-  }
-);
+  targetPartyId: z.string().min(1, "Un destinataire doit être sélectionné"),
+});
 
 type RequestFormData = z.infer<typeof requestSchema>;
 
 interface NotaireRequest {
   id: string;
-  type: "DOCUMENT" | "DATA";
   title: string;
   content: string;
   targetProprietaire: boolean;
   targetLocataire: boolean;
+  targetPartyIds?: string[];
   status: "PENDING" | "COMPLETED" | "CANCELLED";
   createdAt: Date;
   createdBy: {
@@ -100,27 +91,29 @@ export function NotaireRequests({
   } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
     defaultValues: {
-      type: "DOCUMENT",
       title: "",
       content: "",
-      targetProprietaire: false,
-      targetLocataire: false,
+      targetPartyId: "",
     },
   });
 
-  const targetProprietaire = watch("targetProprietaire");
-  const targetLocataire = watch("targetLocataire");
-
-  // Séparer les parties par type
-  const proprietaires = bailParties.filter((p) => p.profilType === "PROPRIETAIRE");
-  const locataires = bailParties.filter((p) => p.profilType === "LOCATAIRE");
+  const selectedPartyId = watch("targetPartyId");
 
   const onSubmit = async (data: RequestFormData) => {
     setIsLoading(true);
     try {
+      // Trouver la partie sélectionnée pour déterminer le type
+      const selectedParty = bailParties.find(p => p.id === data.targetPartyId);
+      const isProprietaire = selectedParty?.profilType === "PROPRIETAIRE";
+      const isLocataire = selectedParty?.profilType === "LOCATAIRE";
+
       const newRequest = await createNotaireRequest({
         dossierId,
-        ...data,
+        title: data.title,
+        content: data.content,
+        targetProprietaire: isProprietaire,
+        targetLocataire: isLocataire,
+        targetPartyIds: [data.targetPartyId],
       });
       
       setRequests([newRequest, ...requests]);
@@ -147,6 +140,34 @@ export function NotaireRequests({
     return "Client";
   };
 
+  const getPartyDisplayName = (party: typeof bailParties[0]) => {
+    const name = getPartyName(party);
+    const type = party.profilType === "PROPRIETAIRE" ? "Propriétaire" : "Locataire";
+    return `${name} (${type})`;
+  };
+
+  // Récupérer le nom de la partie sélectionnée pour une demande
+  const getRequestPartyName = (request: NotaireRequest) => {
+    // Si on a les targetPartyIds, récupérer le nom des parties
+    if (request.targetPartyIds && request.targetPartyIds.length > 0) {
+      const partyNames = request.targetPartyIds
+        .map(id => {
+          const party = bailParties.find(p => p.id === id);
+          return party ? getPartyDisplayName(party) : null;
+        })
+        .filter(Boolean);
+      if (partyNames.length > 0) {
+        return partyNames.join(", ");
+      }
+    }
+    
+    // Fallback aux anciens champs
+    const types = [];
+    if (request.targetProprietaire) types.push("Propriétaire");
+    if (request.targetLocataire) types.push("Locataire");
+    return types.join(", ") || "Non spécifié";
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -154,7 +175,7 @@ export function NotaireRequests({
           <div>
             <CardTitle>Demandes aux parties</CardTitle>
             <CardDescription>
-              Demander des pièces ou des données au propriétaire et/ou locataire
+              Demander des pièces ou des données au propriétaire ou locataire
             </CardDescription>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -166,38 +187,46 @@ export function NotaireRequests({
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Créer une demande</DialogTitle>
+                <DialogTitle>Créer une demande de document</DialogTitle>
                 <DialogDescription>
-                  Demander des pièces ou des données aux parties du dossier
+                  Demander un document à une partie du dossier
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="type">Type de demande *</Label>
+                  <Label htmlFor="targetPartyId">Destinataire *</Label>
                   <Select
-                    defaultValue="DOCUMENT"
-                    onValueChange={(value) => setValue("type", value as "DOCUMENT" | "DATA")}
+                    value={selectedPartyId}
+                    onValueChange={(value) => setValue("targetPartyId", value)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un type" />
+                      <SelectValue placeholder="Sélectionner une partie" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="DOCUMENT">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          Demande de pièce/document
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="DATA">
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="h-4 w-4" />
-                          Demande de données/informations
-                        </div>
-                      </SelectItem>
+                      {bailParties.map((party) => (
+                        <SelectItem key={party.id} value={party.id}>
+                          <div className="flex items-center gap-2">
+                            {party.profilType === "PROPRIETAIRE" ? (
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <User className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <span>{getPartyName(party)}</span>
+                            <Badge variant="outline" className="text-xs ml-1">
+                              {party.profilType === "PROPRIETAIRE" ? "Propriétaire" : "Locataire"}
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  {errors.type && (
-                    <p className="text-sm text-destructive">{errors.type.message}</p>
+                  {errors.targetPartyId && (
+                    <p className="text-sm text-destructive">{errors.targetPartyId.message}</p>
+                  )}
+                  {bailParties.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Aucune partie disponible dans ce dossier
+                    </p>
                   )}
                 </div>
 
@@ -226,86 +255,6 @@ export function NotaireRequests({
                   )}
                 </div>
 
-                <div className="space-y-3">
-                  <Label>Destinataires *</Label>
-                  
-                  {proprietaires.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="targetProprietaire"
-                          checked={targetProprietaire}
-                          onCheckedChange={(checked) =>
-                            setValue("targetProprietaire", checked === true)
-                          }
-                        />
-                        <Label
-                          htmlFor="targetProprietaire"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4" />
-                            Propriétaire{proprietaires.length > 1 ? "s" : ""}
-                          </div>
-                        </Label>
-                      </div>
-                      {targetProprietaire && (
-                        <div className="ml-6 space-y-1">
-                          {proprietaires.map((prop) => (
-                            <div key={prop.id} className="text-sm text-muted-foreground">
-                              • {getPartyName(prop)}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {locataires.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="targetLocataire"
-                          checked={targetLocataire}
-                          onCheckedChange={(checked) =>
-                            setValue("targetLocataire", checked === true)
-                          }
-                        />
-                        <Label
-                          htmlFor="targetLocataire"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4" />
-                            Locataire{locataires.length > 1 ? "s" : ""}
-                          </div>
-                        </Label>
-                      </div>
-                      {targetLocataire && (
-                        <div className="ml-6 space-y-1">
-                          {locataires.map((loc) => (
-                            <div key={loc.id} className="text-sm text-muted-foreground">
-                              • {getPartyName(loc)}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {proprietaires.length === 0 && locataires.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Aucune partie disponible dans ce dossier
-                    </p>
-                  )}
-
-                  {errors.targetProprietaire && (
-                    <p className="text-sm text-destructive">
-                      {errors.targetProprietaire.message}
-                    </p>
-                  )}
-                </div>
-
                 <DialogFooter>
                   <Button
                     type="button"
@@ -318,7 +267,7 @@ export function NotaireRequests({
                   >
                     Annuler
                   </Button>
-                  <Button type="submit" disabled={isLoading}>
+                  <Button type="submit" disabled={isLoading || bailParties.length === 0}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Créer la demande
                   </Button>
@@ -343,18 +292,10 @@ export function NotaireRequests({
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      {request.type === "DOCUMENT" ? (
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                      )}
+                      <FileText className="h-4 w-4 text-muted-foreground" />
                       <h3 className="font-semibold">{request.title}</h3>
-                      <Badge
-                        variant={
-                          request.type === "DOCUMENT" ? "default" : "secondary"
-                        }
-                      >
-                        {request.type === "DOCUMENT" ? "Document" : "Données"}
+                      <Badge variant="default">
+                        Document
                       </Badge>
                       <Badge
                         variant={
@@ -379,19 +320,12 @@ export function NotaireRequests({
                 </div>
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
-                    <span>Destinataires:</span>
-                    {request.targetProprietaire && (
-                      <Badge variant="outline" className="text-xs">
-                        <Building2 className="h-3 w-3 mr-1" />
-                        Propriétaire
-                      </Badge>
-                    )}
-                    {request.targetLocataire && (
-                      <Badge variant="outline" className="text-xs">
-                        <User className="h-3 w-3 mr-1" />
-                        Locataire
-                      </Badge>
-                    )}
+                    <span>Destinataire:</span>
+                    <Badge variant="outline" className="text-xs">
+                      {request.targetProprietaire && <Building2 className="h-3 w-3 mr-1" />}
+                      {request.targetLocataire && <User className="h-3 w-3 mr-1" />}
+                      {getRequestPartyName(request)}
+                    </Badge>
                   </div>
                   <span>•</span>
                   <span>Créée le {formatDateTime(request.createdAt)}</span>
@@ -404,6 +338,3 @@ export function NotaireRequests({
     </Card>
   );
 }
-
-
-

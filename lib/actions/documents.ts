@@ -167,8 +167,6 @@ async function uploadFileAndCreateDocument(
 ) {
   if (!file) return null;
 
-  console.log("data", options);
-
   const user = await requireAuth();
   
   // Générer un nom de fichier unique

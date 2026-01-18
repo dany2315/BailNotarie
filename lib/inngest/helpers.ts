@@ -212,3 +212,60 @@ export async function triggerNotaireWelcomeEmail(data: {
   });
 }
 
+/**
+ * Déclenche l'envoi d'un email de notification pour un nouveau message de chat
+ * Utilisé quand le destinataire n'est pas en ligne
+ */
+export async function triggerChatMessageNotificationEmail(data: {
+  recipientEmail: string;
+  recipientName?: string | null;
+  senderName: string;
+  senderRole: "notaire" | "client";
+  messagePreview: string;
+  bailAddress?: string | null;
+  chatUrl: string;
+}) {
+  await inngest.send({
+    name: "email/chat-message.send",
+    data,
+  });
+}
+
+/**
+ * Déclenche l'envoi d'un email pour une nouvelle demande de document
+ * Envoyé au client quand le notaire crée une demande
+ */
+export async function triggerDocumentRequestEmail(data: {
+  recipientEmail: string;
+  recipientName?: string | null;
+  notaireName: string;
+  requestTitle: string;
+  requestContent: string;
+  bailAddress?: string | null;
+  chatUrl: string;
+}) {
+  await inngest.send({
+    name: "email/document-request.send",
+    data,
+  });
+}
+
+/**
+ * Déclenche l'envoi d'un email quand un document est reçu en réponse à une demande
+ * Envoyé au notaire quand le client répond
+ */
+export async function triggerDocumentReceivedEmail(data: {
+  notaireEmail: string;
+  notaireName?: string | null;
+  clientName: string;
+  requestTitle: string;
+  documentNames: string[];
+  bailAddress?: string | null;
+  chatUrl: string;
+}) {
+  await inngest.send({
+    name: "email/document-received.send",
+    data,
+  });
+}
+
