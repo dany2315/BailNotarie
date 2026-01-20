@@ -133,7 +133,7 @@ export const blogData = [
         imageUrl:
           "https://images.pexels.com/photos/3943745/pexels-photo-3943745.jpeg",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
-        createdAt: new Date("2025-06-01"),
+        createdAt: new Date("2025-09-01"),
         categoryId: "1",
       },
       {
@@ -153,6 +153,44 @@ export const blogData = [
           "https://images.pexels.com/photos/4458421/pexels-photo-4458421.jpeg",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-06-15"),
+        categoryId: "1",
+      },
+      {
+        id: "blog-8",
+        title: "Saisie sur salaire et Bail Notarié : La procédure de recouvrement accélérée (Réforme 2025)",
+        slug: generateSlug("Saisie sur salaire et Bail Notarié : La procédure de recouvrement accélérée (Réforme 2025)"),
+        description:
+          "Le décret du 1er juillet 2025 a déjudiciarisé la saisie sur salaire. Découvrez comment le Bail Notarié permet d'activer cette procédure de recouvrement accélérée sans passer par les tribunaux.",
+        content: "",
+        readTime: 7,
+        metaTitle: "Saisie sur salaire et Bail Notarié : La procédure de recouvrement accélérée (Réforme 2025)",
+        metaDescription:
+          "Réforme 2025 : la saisie sur salaire est déjudiciarisée. Avec un Bail Notarié (titre exécutoire), récupérez les loyers impayés directement via Commissaire de Justice sans procédure judiciaire.",
+        metaKeywords:
+          "saisie sur salaire, saisie sur salaire bail notarié, recouvrement loyers impayés 2025, décret 2025-125 saisie rémunérations, titre exécutoire notarié, commandement de payer loyer, commissaire de justice saisie salaire, quotité saisissable loyer, procédure recouvrement locatif, bail notarié force exécutoire, saisie rémunérations sans juge, recouvrement accéléré loyers, impayés locatifs solution 2025",
+        imageUrl:
+          "https://images.pexels.com/photos/3760067/pexels-photo-3760067.jpeg",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2025-07-01"),
+        categoryId: "1",
+      },
+      {
+        id: "blog-9",
+        title: "Diagnostics Immobiliers 2026 : Durées de validité, coûts et pièges juridiques",
+        slug: generateSlug("Diagnostics Immobiliers 2026 : Durées de validité, coûts et pièges juridiques"),
+        description:
+          "Guide complet des diagnostics techniques immobiliers (DDT) : validité illimitée, temporaire ou volatile. Découvrez les durées de validité, les coûts et les risques juridiques à éviter en 2026.",
+        content: "",
+        readTime: 8,
+        metaTitle: "Diagnostics Immobiliers 2026 : Durées de validité, coûts et pièges juridiques",
+        metaDescription:
+          "DPE, amiante, plomb, électricité, gaz : guide complet des diagnostics immobiliers. Validité, coûts, pièges juridiques. Un diagnostic périmé peut annuler votre bail ou bloquer votre vente.",
+        metaKeywords:
+          "diagnostics immobiliers, DDT dossier diagnostic technique, validité diagnostics immobiliers, DPE durée validité, diagnostic amiante validité, CREP plomb validité, diagnostic électricité gaz, ERP état risques pollutions, diagnostics périmés, loi ALUR diagnostics, diagnostics location vente, coût diagnostics immobiliers, sanctions diagnostics manquants",
+        imageUrl:
+          "https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2026-01-15"),
         categoryId: "1",
       },
 ]
