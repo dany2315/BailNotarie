@@ -234,7 +234,7 @@ export function Blog9Content() {
               <div className="bg-slate-50 rounded p-4 border border-slate-200">
                 <p className="font-semibold text-gray-900 mb-2">Rappel Interdictions (France Métropolitaine) :</p>
                 <ul className="space-y-1 text-gray-700">
-                  {diagnosticsTemporaires[0].interdictions.map((interdiction, idx) => (
+                  {diagnosticsTemporaires[0].interdictions?.map((interdiction, idx) => (
                     <li key={idx} className="flex items-start">
                       <span className="mr-2">•</span>
                       <span>{interdiction}</span>
