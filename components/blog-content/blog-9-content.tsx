@@ -204,46 +204,50 @@ export function Blog9Content() {
 
         <div className="space-y-6">
           {/* DPE - Section spéciale */}
-          <div className="bg-orange-50 rounded-lg border border-orange-200 p-6">
-            <div className="flex items-start mb-4">
-              <Zap className="h-6 w-6 text-orange-600 mr-3 flex-shrink-0 mt-7" aria-hidden="true" />
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">Le DPE (Performance Énergétique) : Le point critique</h3>
-                <p className="text-sm text-gray-600">Le DPE est devenu le document le plus surveillé par l'administration et les locataires.</p>
-              </div>
-            </div>
-            <div className="space-y-3 text-sm">
-              <div className="bg-white rounded p-3 border border-orange-100">
-                <span className="font-medium text-orange-700">Durée de validité :</span>
-                <span className="text-gray-700 ml-2">{diagnosticsTemporaires[0].validite}</span>
-              </div>
-              <div className="bg-red-50 rounded p-4 border border-red-200">
-                <div className="flex items-start">
-                  <AlertTriangle className="h-5 w-5 text-red-600 mr-2 mt-0.5 flex-shrink-0" aria-hidden="true" />
-                  <div>
-                    <p className="font-semibold text-red-800 mb-2">⚠️ Le piège de 2026 :</p>
-                    <p className="text-gray-700">{diagnosticsTemporaires[0].piège}</p>
-                  </div>
+          {diagnosticsTemporaires[0] && (
+            <div className="bg-orange-50 rounded-lg border border-orange-200 p-6">
+              <div className="flex items-start mb-4">
+                <Zap className="h-6 w-6 text-orange-600 mr-3 flex-shrink-0 mt-7" aria-hidden="true" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Le DPE (Performance Énergétique) : Le point critique</h3>
+                  <p className="text-sm text-gray-600">Le DPE est devenu le document le plus surveillé par l'administration et les locataires.</p>
                 </div>
               </div>
-              <div className="bg-white rounded p-3 border border-orange-100">
-                <p className="text-gray-700">
-                  <strong>Pourquoi le refaire avant 10 ans ?</strong> {diagnosticsTemporaires[0].avantage}
-                </p>
-              </div>
-              <div className="bg-slate-50 rounded p-4 border border-slate-200">
-                <p className="font-semibold text-gray-900 mb-2">Rappel Interdictions (France Métropolitaine) :</p>
-                <ul className="space-y-1 text-gray-700">
-                  {diagnosticsTemporaires[0].interdictions?.map((interdiction, idx) => (
-                    <li key={idx} className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>{interdiction}</span>
-                    </li>
-                  ))}
-                </ul>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white rounded p-3 border border-orange-100">
+                  <span className="font-medium text-orange-700">Durée de validité :</span>
+                  <span className="text-gray-700 ml-2">{diagnosticsTemporaires[0].validite}</span>
+                </div>
+                <div className="bg-red-50 rounded p-4 border border-red-200">
+                  <div className="flex items-start">
+                    <AlertTriangle className="h-5 w-5 text-red-600 mr-2 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                    <div>
+                      <p className="font-semibold text-red-800 mb-2">⚠️ Le piège de 2026 :</p>
+                      <p className="text-gray-700">{diagnosticsTemporaires[0].piège}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded p-3 border border-orange-100">
+                  <p className="text-gray-700">
+                    <strong>Pourquoi le refaire avant 10 ans ?</strong> {diagnosticsTemporaires[0].avantage}
+                  </p>
+                </div>
+                {diagnosticsTemporaires[0].interdictions && (
+                  <div className="bg-slate-50 rounded p-4 border border-slate-200">
+                    <p className="font-semibold text-gray-900 mb-2">Rappel Interdictions (France Métropolitaine) :</p>
+                    <ul className="space-y-1 text-gray-700">
+                      {diagnosticsTemporaires[0].interdictions.map((interdiction, idx) => (
+                        <li key={idx} className="flex items-start">
+                          <span className="mr-2">•</span>
+                          <span>{interdiction}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          )}
 
           {/* Électricité, Gaz, Assainissement */}
           {diagnosticsTemporaires.slice(1).map((diag, index) => {
