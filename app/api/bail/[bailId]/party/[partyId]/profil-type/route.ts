@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
@@ -8,11 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ bailId: string; partyId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json(
         { error: "Non authentifié" },
         { status: 401 }
@@ -23,25 +20,25 @@ export async function GET(
     const { bailId, partyId } = resolvedParams;
 
     // Vérifier l'accès au bail
-    if (session.user.role === Role.UTILISATEUR) {
+    if (user.role === Role.UTILISATEUR) {
       // Pour un client, vérifier qu'il a accès à ce bail
-      const user = await prisma.user.findUnique({
-        where: { id: session.user.id },
+      const userWithClientId = await prisma.user.findUnique({
+        where: { id: user.id },
         select: { clientId: true },
       });
 
-      if (user?.clientId !== partyId) {
+      if (userWithClientId?.clientId !== partyId) {
         return NextResponse.json(
           { error: "Non autorisé" },
           { status: 403 }
         );
       }
-    } else if (session.user.role === Role.NOTAIRE) {
+    } else if (user.role === Role.NOTAIRE) {
       // Pour un notaire, vérifier qu'il est assigné à ce bail
       const assignment = await prisma.dossierNotaireAssignment.findFirst({
         where: {
           bailId,
-          notaireId: session.user.id,
+          notaireId: user.id,
         },
       });
 

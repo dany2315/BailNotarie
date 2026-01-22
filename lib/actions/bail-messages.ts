@@ -842,7 +842,7 @@ export async function addDocumentToNotaireRequest(
   const { uploadFileToS3, generateS3FileKey } = await import("@/lib/utils/s3-client");
   
   const uploadPromises = files.map(async (file) => {
-    const fileKey = generateS3FileKey("bail-messages", file.name, request.dossier.bailId);
+    const fileKey = generateS3FileKey("bail-messages", file.name, request.dossier.bailId ?? undefined);
 
     const s3Result = await uploadFileToS3(
       file,

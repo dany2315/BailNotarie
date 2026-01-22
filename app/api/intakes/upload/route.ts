@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
             
             const dbTime = Date.now() - dbStartTime;
             console.log(`[API upload] Opérations DB pour ${name} terminées en ${dbTime}ms`);
-            console.log(`[API upload] Total pour ${name}: ${Date.now() - fileStartTime}ms (Blob: ${blobUploadTime}ms, DB: ${dbTime}ms)`);
+            console.log(`[API upload] Total pour ${name}: ${Date.now() - fileStartTime}ms (S3: ${s3UploadTime}ms, DB: ${dbTime}ms)`);
 
             // Retourner toutes les métadonnées nécessaires
             return { 
