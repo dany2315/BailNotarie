@@ -117,6 +117,8 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
   const [selectedPartyUserIds, setSelectedPartyUserIds] = useState<string[]>([]);
   const [userRole, setUserRole] = useState<Role | null>(null);
+  const [optimisticMessages, setOptimisticMessages] = useState<Map<string, { tempId: string; realId?: string; status: 'sending' | 'sent' | 'error' }>>(new Map());
+  const [optimisticRequests, setOptimisticRequests] = useState<Map<string, { tempId: string; realId?: string; status: 'sending' | 'sent' | 'error' }>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -285,6 +287,18 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
             setMessages(prev => {
               const existingMessageIds = new Set(prev.map(m => m.id));
               if (existingMessageIds.has(data.message.id)) {
+                // Si c'est un message optimiste qui vient d'être confirmé, mettre à jour son statut
+                setOptimisticMessages(prevOptimistic => {
+                  const optimisticEntry = Array.from(prevOptimistic.entries()).find(
+                    ([_, value]) => value.realId === data.message.id || value.tempId === data.message.id
+                  );
+                  if (optimisticEntry) {
+                    const newMap = new Map(prevOptimistic);
+                    newMap.delete(optimisticEntry[0]);
+                    return newMap;
+                  }
+                  return prevOptimistic;
+                });
                 return prev;
               }
 
@@ -314,6 +328,22 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                 return prev; // Ne pas ajouter le message s'il ne doit pas être affiché
               }
 
+              // Vérifier si c'est la confirmation d'un message optimiste
+              let updatedPrev = prev;
+              setOptimisticMessages(prevOptimistic => {
+                const optimisticEntry = Array.from(prevOptimistic.entries()).find(
+                  ([_, value]) => value.status === 'sending' && message.senderId === session?.user?.id
+                );
+                if (optimisticEntry) {
+                  // Remplacer le message optimiste par le vrai message
+                  updatedPrev = prev.filter(m => m.id !== optimisticEntry[0]);
+                  const newMap = new Map(prevOptimistic);
+                  newMap.delete(optimisticEntry[0]);
+                  return newMap;
+                }
+                return prevOptimistic;
+              });
+
               // Convertir createdAt en Date si c'est une string
               const messageWithDate = {
                 ...message,
@@ -321,7 +351,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                   ? new Date(message.createdAt) 
                   : message.createdAt,
               };
-              const newMessages = [...prev, messageWithDate].sort((a, b) => 
+              const newMessages = [...updatedPrev, messageWithDate].sort((a, b) => 
                 new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
               );
               
@@ -356,9 +386,38 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
             setRequests(prev => {
               const existingRequestIds = new Set(prev.map(r => r.id));
               if (existingRequestIds.has(data.request.id)) {
+                // Si c'est une demande optimiste qui vient d'être confirmée, mettre à jour son statut
+                setOptimisticRequests(prevOptimistic => {
+                  const optimisticEntry = Array.from(prevOptimistic.entries()).find(
+                    ([_, value]) => value.realId === data.request.id || value.tempId === data.request.id
+                  );
+                  if (optimisticEntry) {
+                    const newMap = new Map(prevOptimistic);
+                    newMap.delete(optimisticEntry[0]);
+                    return newMap;
+                  }
+                  return prevOptimistic;
+                });
                 return prev;
               }
-              return [...prev, data.request].sort((a, b) => 
+              
+              // Vérifier si c'est la confirmation d'une demande optimiste
+              let updatedPrev = prev;
+              setOptimisticRequests(prevOptimistic => {
+                const optimisticEntry = Array.from(prevOptimistic.entries()).find(
+                  ([_, value]) => value.status === 'sending' && data.request.createdById === session?.user?.id
+                );
+                if (optimisticEntry) {
+                  // Remplacer la demande optimiste par la vraie demande
+                  updatedPrev = prev.filter(r => r.id !== optimisticEntry[0]);
+                  const newMap = new Map(prevOptimistic);
+                  newMap.delete(optimisticEntry[0]);
+                  return newMap;
+                }
+                return prevOptimistic;
+              });
+              
+              return [...updatedPrev, data.request].sort((a, b) => 
                 new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
               );
             });
@@ -554,57 +613,123 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
   }, [open, initialLoading, messages, requests]);
 
   const onSubmitMessage = async (data: MessageFormData) => {
+    // Le notaire doit avoir sélectionné une partie spécifique pour envoyer un message
+    if (!selectedPartyId || selectedPartyId === "all") {
+      toast.error("Destinataire requis", {
+        description: "Veuillez sélectionner un propriétaire ou locataire pour envoyer un message",
+      });
+      return;
+    }
+    
+    const recipientPartyId = selectedPartyId;
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const messageContent = data.content?.trim() || "";
+    const filesToSend = [...selectedFiles];
+    
+    // Créer un message optimiste immédiatement
+    const optimisticMessage: any = {
+      id: tempId,
+      bailId,
+      senderId: session?.user?.id,
+      messageType: "MESSAGE",
+      content: messageContent || (filesToSend.length === 1 
+        ? `Fichier: ${filesToSend[0].name}` 
+        : filesToSend.length > 1 
+          ? `${filesToSend.length} fichiers: ${filesToSend.map(f => f.name).join(", ")}`
+          : ""),
+      recipientPartyId,
+      createdAt: new Date(),
+      sender: {
+        id: session?.user?.id,
+        name: session?.user?.name,
+        email: session?.user?.email,
+        role: Role.NOTAIRE,
+      },
+      document: filesToSend.length > 0 ? {
+        id: `temp-doc-${tempId}`,
+        label: filesToSend.length === 1 ? filesToSend[0].name : `${filesToSend.length} fichiers`,
+        fileKey: "#",
+        mimeType: filesToSend[0]?.type || "application/octet-stream",
+        size: filesToSend.reduce((sum, f) => sum + f.size, 0),
+      } : null,
+    };
+
+    // Ajouter le message optimiste immédiatement
+    setMessages(prev => [...prev, optimisticMessage].sort((a, b) => 
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    ));
+    setOptimisticMessages(prev => {
+      const newMap = new Map(prev);
+      newMap.set(tempId, { tempId, status: 'sending' });
+      return newMap;
+    });
+    
+    // Scroll vers le bas immédiatement
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      setHasScrolledToBottom(true);
+    }, 50);
+
     try {
       setSending(true);
       
-      // Le notaire doit avoir sélectionné une partie spécifique pour envoyer un message
-      if (!selectedPartyId || selectedPartyId === "all") {
-        toast.error("Destinataire requis", {
-          description: "Veuillez sélectionner un propriétaire ou locataire pour envoyer un message",
-        });
-        setSending(false);
-        return;
-      }
-      
-      const recipientPartyId = selectedPartyId;
-      
-      if (selectedFiles.length > 0) {
+      if (filesToSend.length > 0) {
         // Envoyer avec fichiers
         const formData = new FormData();
-        selectedFiles.forEach((file) => {
+        filesToSend.forEach((file) => {
           formData.append("files", file);
         });
-        if (data.content) {
-          formData.append("content", data.content);
+        if (messageContent) {
+          formData.append("content", messageContent);
         }
         if (recipientPartyId) {
           formData.append("recipientPartyId", recipientPartyId);
         }
         
-        await sendBailMessageWithFile(bailId, formData, recipientPartyId);
+        const sentMessage = await sendBailMessageWithFile(bailId, formData, recipientPartyId);
+        
+        // Mettre à jour le message optimiste avec le vrai ID
+        setOptimisticMessages(prev => {
+          const newMap = new Map(prev);
+          const entry = newMap.get(tempId);
+          if (entry) {
+            newMap.set(tempId, { ...entry, realId: sentMessage.id, status: 'sent' });
+          }
+          return newMap;
+        });
+        
         setSelectedFiles([]);
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
-      } else if (data.content && data.content.trim()) {
+      } else if (messageContent) {
         // Envoyer message texte uniquement
-        await sendBailMessage(bailId, data.content.trim(), recipientPartyId);
-      } else {
-        toast.error("Erreur", {
-          description: "Veuillez saisir un message ou sélectionner un fichier",
+        const sentMessage = await sendBailMessage(bailId, messageContent, recipientPartyId);
+        
+        // Mettre à jour le message optimiste avec le vrai ID
+        setOptimisticMessages(prev => {
+          const newMap = new Map(prev);
+          const entry = newMap.get(tempId);
+          if (entry) {
+            newMap.set(tempId, { ...entry, realId: sentMessage.id, status: 'sent' });
+          }
+          return newMap;
         });
-        return;
+      } else {
+        throw new Error("Veuillez saisir un message ou sélectionner un fichier");
       }
       
       resetMessage();
-      // Ne pas recharger les messages - Pusher les ajoutera automatiquement en temps réel
-      toast.success("Message envoyé");
-      // Scroll vers le bas après l'envoi
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        setHasScrolledToBottom(true);
-      }, 100);
+      // Le message sera remplacé par le vrai message via Pusher
     } catch (error: any) {
+      // Retirer le message optimiste en cas d'erreur
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setOptimisticMessages(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(tempId);
+        return newMap;
+      });
+      
       toast.error("Erreur", {
         description: error.message || "Impossible d'envoyer le message",
       });
@@ -614,28 +739,75 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
   };
 
   const onSubmitRequest = async (data: RequestFormData) => {
+    if (!selectedPartyId) {
+      toast.error("Erreur", {
+        description: "Veuillez sélectionner un destinataire",
+      });
+      return;
+    }
+    
+    const tempId = `temp-request-${Date.now()}-${Math.random()}`;
+    
+    // Créer une demande optimiste immédiatement
+    const optimisticRequest: any = {
+      id: tempId,
+      dossierId,
+      title: data.title,
+      content: data.content,
+      targetProprietaire: data.targetProprietaire,
+      targetLocataire: data.targetLocataire,
+      targetPartyIds: data.targetPartyIds || [],
+      status: "PENDING",
+      createdAt: new Date(),
+      createdById: session?.user?.id,
+      createdBy: {
+        id: session?.user?.id,
+        name: session?.user?.name,
+        email: session?.user?.email,
+      },
+      documents: [],
+    };
+
+    // Ajouter la demande optimiste immédiatement
+    setRequests(prev => [optimisticRequest, ...prev].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ));
+    setOptimisticRequests(prev => {
+      const newMap = new Map(prev);
+      newMap.set(tempId, { tempId, status: 'sending' });
+      return newMap;
+    });
+
     try {
       setSending(true);
-      
-      if (!selectedPartyId) {
-        toast.error("Erreur", {
-          description: "Veuillez sélectionner un destinataire",
-        });
-        return;
-      }
       
       const newRequest = await createNotaireRequest({
         dossierId,
         ...data,
       });
       
+      // Mettre à jour la demande optimiste avec le vrai ID
+      setOptimisticRequests(prev => {
+        const newMap = new Map(prev);
+        const entry = newMap.get(tempId);
+        if (entry) {
+          newMap.set(tempId, { ...entry, realId: newRequest.id, status: 'sent' });
+        }
+        return newMap;
+      });
       
-      setRequests([newRequest, ...requests]);
       resetRequest();
       setIsRequestDialogOpen(false);
-      toast.success("Demande créée avec succès");
-      // Le message sera ajouté via Pusher, pas besoin de recharger
+      // La demande sera remplacée par la vraie demande via Pusher
     } catch (error: any) {
+      // Retirer la demande optimiste en cas d'erreur
+      setRequests(prev => prev.filter(r => r.id !== tempId));
+      setOptimisticRequests(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(tempId);
+        return newMap;
+      });
+      
       toast.error("Erreur", {
         description: error.message || "Impossible de créer la demande",
       });
@@ -825,10 +997,10 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                   </DialogHeader>
                   <form onSubmit={handleSubmitRequest(onSubmitRequest)} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="title">Titre de la demande *</Label>
+                      <Label htmlFor="title">Nom du document *</Label>
                       <Input
                         id="title"
-                        placeholder="Ex: Demande de pièce d'identité"
+                        placeholder="Ex: Piéce d'identiter"
                         {...registerRequest("title")}
                       />
                       {requestErrors.title && (
@@ -1047,11 +1219,16 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                           .join("")
                           .toUpperCase()
                           .slice(0, 2);
+                        
+                        // Vérifier si c'est un message optimiste
+                        const optimisticStatus = optimisticMessages.get(message.id);
+                        const isOptimistic = optimisticStatus !== undefined;
+                        const isSending = optimisticStatus?.status === 'sending';
 
                         return (
                           <div
                             key={`message-${message.id}`}
-                            className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}
+                            className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"} ${isSending ? "opacity-70" : ""}`}
                           >
                             <Avatar className="h-8 w-8 shrink-0">
                               <AvatarFallback className={isNotaireMessage ? "bg-blue-500 text-white" : "bg-muted"}>
@@ -1070,7 +1247,10 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                                 <span className="text-xs text-muted-foreground">
                                   {formatDateTime(message.createdAt)}
                                 </span>
-                                {isOwnMessage && (
+                                {isSending && (
+                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                )}
+                                {isOwnMessage && !isOptimistic && (
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -1143,6 +1323,12 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                         );
                       } else {
                         const request = item.data;
+                        
+                        // Vérifier si c'est une demande optimiste
+                        const optimisticRequestStatus = optimisticRequests.get(request.id);
+                        const isRequestOptimistic = optimisticRequestStatus !== undefined;
+                        const isRequestSending = optimisticRequestStatus?.status === 'sending';
+                        
                         const RequestStatusControl = ({ requestId, currentStatus }: { requestId: string; currentStatus: NotaireRequestStatus }) => {
                           const [isUpdating, setIsUpdating] = useState(false);
 
@@ -1182,7 +1368,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                         };
 
                         return (
-                          <div key={`request-${request.id}`} className="flex gap-3 flex-row-reverse">
+                          <div key={`request-${request.id}`} className={`flex gap-3 flex-row-reverse ${isRequestSending ? "opacity-70" : ""}`}>
                             <Avatar className="h-8 w-8 shrink-0">
                               <AvatarFallback className="bg-blue-500 text-white">
                                 <Scale className="h-4 w-4" />
@@ -1196,6 +1382,9 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                                 <span className="text-xs font-medium text-foreground">
                                   {request.createdById === currentUserId ? "Moi" : (request.createdBy.name || request.createdBy.email)}
                                 </span>
+                                {isRequestSending && (
+                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                )}
                               </div>
                               <Card className={`${
                                   request.status === NotaireRequestStatus.COMPLETED 

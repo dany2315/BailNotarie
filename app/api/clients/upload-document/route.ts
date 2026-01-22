@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import { DocumentKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { 
   updateClientCompletionStatus as calculateAndUpdateClientStatus 
 } from "@/lib/utils/completion-status";
 import { revalidatePath } from "next/cache";
+import { uploadFileToS3, generateS3FileKey } from "@/lib/utils/s3-client";
 
 // Configuration pour accepter les fichiers volumineux
 export const maxDuration = 300; // 5 minutes pour les uploads volumineux (multipart)
@@ -91,26 +91,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Générer un nom de fichier unique avec timestamp pour tri chronologique
-    const timestamp = Date.now();
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const fileName = `documents/${clientId}/${timestamp}-${sanitizedName}`;
+    // Générer un nom de fichier unique pour S3
+    const fileKey = generateS3FileKey("documents", file.name, clientId);
 
-    // Uploader le fichier vers Vercel Blob
-    // La fonction put() gère automatiquement les multipart uploads pour fichiers > 100MB
-    // selon la documentation Vercel Blob: https://vercel.com/docs/vercel-blob
-    const blob = await put(fileName, file, {
-      access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      contentType: file.type || "application/octet-stream", // S'assurer que le Content-Type est défini
-    });
+    // Uploader le fichier vers S3
+    const s3Result = await uploadFileToS3(
+      file,
+      fileKey,
+      file.type || "application/octet-stream"
+    );
 
     // Créer le document dans la base de données
     const document = await prisma.document.create({
       data: {
         kind: kind as DocumentKind,
         label: file.name,
-        fileKey: blob.url,
+        fileKey: s3Result.url, // URL publique S3
         mimeType: file.type,
         size: file.size,
         ...(personId && { personId }),

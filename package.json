@@ -17,6 +17,8 @@
     "vercel-build": "npm run migrate:deploy && npm run prisma:generate && npm run build"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.972.0",
+    "@aws-sdk/s3-request-presigner": "^3.972.0",
     "@hookform/resolvers": "^5.2.1",
     "@prisma/client": "^6.15.0",
     "@radix-ui/react-accordion": "^1.2.12",

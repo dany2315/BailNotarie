@@ -70,7 +70,7 @@ export function BailChat({ bailId }: BailChatProps) {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages,requests]);
 
   // Charger le rôle de l'utilisateur depuis l'API
   useEffect(() => {

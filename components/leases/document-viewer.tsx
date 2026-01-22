@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Image as ImageIcon, File, ExternalLink } from "lucide-react";
+import { Download, FileText, Image as ImageIcon, File, ExternalLink, Loader2 } from "lucide-react";
 
 interface DocumentViewerProps {
   document: {
@@ -28,6 +28,8 @@ export function DocumentViewer({
   children,
 }: DocumentViewerProps) {
   const [open, setOpen] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [isLoadingSignedUrl, setIsLoadingSignedUrl] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [pdfError, setPdfError] = useState(false);
 
@@ -55,12 +57,54 @@ export function DocumentViewer({
   const fileType = getFileType(document.mimeType, document.fileKey);
   const documentName = documentKindLabels[document.kind] || document.kind;
 
+  // Fonction pour obtenir une URL signée pour la lecture
+  const getSignedUrlForDocument = async (fileKey: string): Promise<string> => {
+    try {
+      const response = await fetch("/api/blob/get-signed-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la génération de l'URL signée");
+      }
+
+      const { signedUrl } = await response.json();
+      return signedUrl;
+    } catch (error) {
+      console.error("[DocumentViewer] Erreur lors de la génération de l'URL signée:", error);
+      return fileKey;
+    }
+  };
+
+  // Générer l'URL signée quand le dialog s'ouvre
+  useEffect(() => {
+    if (open && document.fileKey) {
+      setIsLoadingSignedUrl(true);
+      getSignedUrlForDocument(document.fileKey)
+        .then((url) => {
+          setSignedUrl(url);
+        })
+        .catch((error) => {
+          console.error("[DocumentViewer] Erreur:", error);
+          setSignedUrl(document.fileKey);
+        })
+        .finally(() => {
+          setIsLoadingSignedUrl(false);
+        });
+    } else if (!open) {
+      setSignedUrl(null);
+    }
+  }, [open, document.fileKey]);
+
   const handleDialogOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen) {
       // Reset errors when dialog closes
       setImageError(false);
       setPdfError(false);
+      setSignedUrl(null);
     }
   };
 
@@ -81,10 +125,15 @@ export function DocumentViewer({
           </DialogHeader>
           
           <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-muted/30 rounded-lg">
-            {fileType === "image" && !imageError && (
+            {isLoadingSignedUrl ? (
+              <div className="flex items-center justify-center h-[70vh]">
+                <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Chargement du document...</span>
+              </div>
+            ) : fileType === "image" && !imageError && (
               <div className="w-full h-full flex items-center justify-center">
                 <img
-                  src={document.fileKey}
+                  src={signedUrl || document.fileKey}
                   alt={documentName}
                   className="max-w-full max-h-[70vh] object-contain rounded-lg"
                   onError={() => setImageError(true)}
@@ -99,14 +148,14 @@ export function DocumentViewer({
                   <p className="text-muted-foreground mb-4">Impossible de charger l'image</p>
                   <div className="flex gap-2 justify-center">
                     <Button asChild>
-                      <a href={document.fileKey} download className="inline-flex items-center gap-2">
+                      <a href={signedUrl || document.fileKey} download className="inline-flex items-center gap-2">
                         <Download className="size-4" />
                         Télécharger
                       </a>
                     </Button>
                     <Button variant="outline" asChild>
                       <a
-                        href={document.fileKey}
+                        href={signedUrl || document.fileKey}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2"
@@ -123,7 +172,7 @@ export function DocumentViewer({
             {fileType === "pdf" && !pdfError && (
               <div className="w-full h-full">
                 <iframe
-                  src={document.fileKey}
+                  src={signedUrl || document.fileKey}
                   className="w-full h-[70vh] rounded-lg border"
                   title={documentName}
                   onError={() => setPdfError(true)}
@@ -138,14 +187,14 @@ export function DocumentViewer({
                   <p className="text-muted-foreground mb-4">Impossible de charger le PDF</p>
                   <div className="flex gap-2 justify-center">
                     <Button asChild>
-                      <a href={document.fileKey} download className="inline-flex items-center gap-2">
+                      <a href={signedUrl || document.fileKey} download className="inline-flex items-center gap-2">
                         <Download className="size-4" />
                         Télécharger
                       </a>
                     </Button>
                     <Button variant="outline" asChild>
                       <a
-                        href={document.fileKey}
+                        href={signedUrl || document.fileKey}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2"
@@ -170,7 +219,7 @@ export function DocumentViewer({
                   <div className="flex gap-2 justify-center">
                     <Button asChild>
                       <a
-                        href={document.fileKey}
+                        href={signedUrl || document.fileKey}
                         download
                         className="inline-flex items-center gap-2"
                       >
@@ -180,7 +229,7 @@ export function DocumentViewer({
                     </Button>
                     <Button variant="outline" asChild>
                       <a
-                        href={document.fileKey}
+                        href={signedUrl || document.fileKey}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2"

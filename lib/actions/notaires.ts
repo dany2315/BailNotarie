@@ -834,16 +834,17 @@ export async function deleteNotaireRequest(requestId: string) {
     throw new Error("Non autorisé");
   }
 
-  // Supprimer les fichiers du blob storage et les documents associés
-  const { del } = await import("@vercel/blob");
+  // Supprimer les fichiers de S3 et les documents associés
+  const { deleteFileFromS3, extractS3KeyFromUrl } = await import("@/lib/utils/s3-client");
   for (const message of request.bailMessages) {
     if (message.document) {
       try {
-        // Supprimer le fichier du blob si c'est une URL
-        if (message.document.fileKey && message.document.fileKey.startsWith('http')) {
-          await del(message.document.fileKey, {
-            token: process.env.BLOB_READ_WRITE_TOKEN,
-          });
+        // Supprimer le fichier de S3
+        if (message.document.fileKey) {
+          const s3Key = extractS3KeyFromUrl(message.document.fileKey);
+          if (s3Key) {
+            await deleteFileFromS3(s3Key);
+          }
         }
         
         // Supprimer le document de la base de données
@@ -870,7 +871,7 @@ export async function deleteNotaireRequest(requestId: string) {
   // Émettre l'événement Pusher pour notifier les clients
   if (request.dossier.bailId) {
     try {
-      await pusherServer.trigger(`private-bail-${request.dossier.bailId}`, "request-deleted", {
+      await pusherServer.trigger(`presence-bail-${request.dossier.bailId}`, "request-deleted", {
         requestId,
       });
     } catch (error) {

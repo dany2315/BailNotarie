@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Send, FileText, MessageSquare, User, Scale, Plus, AlertCircle, Loader2, Download } from "lucide-react";
-import { getBailMessages, sendBailMessage, getNotaireRequestsByBail } from "@/lib/actions/bail-messages";
+import { getBailMessages, getBailMessagesAndRequests, sendBailMessage, getNotaireRequestsByBail } from "@/lib/actions/bail-messages";
 import { createNotaireRequest } from "@/lib/actions/notaires";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { Role, BailMessageType, NotaireRequestStatus } from "@prisma/client";
@@ -71,9 +71,10 @@ interface NotaireBailChatProps {
       name: string;
     } | null;
   }>;
+  selectedPartyId?: string | null;
 }
 
-export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailChatProps) {
+export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyId: externalSelectedPartyId }: NotaireBailChatProps) {
   const { data: session } = useSession();
   const [messages, setMessages] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -81,7 +82,11 @@ export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailC
   const [sending, setSending] = useState(false);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<Role | null>(null);
+  const [internalSelectedPartyId, setInternalSelectedPartyId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Utiliser la partie sélectionnée externe si fournie, sinon utiliser l'état interne
+  const selectedPartyId = externalSelectedPartyId !== undefined ? externalSelectedPartyId : internalSelectedPartyId;
 
   const {
     register: registerMessage,
@@ -116,12 +121,20 @@ export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailC
   const loadMessages = async () => {
     try {
       setLoading(true);
-      const [messagesData, requestsData] = await Promise.all([
-        getBailMessages(bailId),
-        getNotaireRequestsByBail(bailId),
-      ]);
-      setMessages(messagesData);
-      setRequests(requestsData);
+      // Si une partie est sélectionnée et que l'utilisateur est notaire, utiliser getBailMessagesAndRequests pour filtrer
+      if (selectedPartyId) {
+        const { messages: messagesData, requests: requestsData } = await getBailMessagesAndRequests(bailId, selectedPartyId);
+        setMessages(messagesData);
+        setRequests(requestsData);
+      } else {
+        // Sinon, charger tous les messages
+        const [messagesData, requestsData] = await Promise.all([
+          getBailMessages(bailId),
+          getNotaireRequestsByBail(bailId),
+        ]);
+        setMessages(messagesData);
+        setRequests(requestsData);
+      }
     } catch (error: any) {
       toast.error("Erreur", {
         description: error.message || "Impossible de charger les messages",
@@ -136,7 +149,7 @@ export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailC
     // Recharger les messages toutes les 30 secondes
     const interval = setInterval(loadMessages, 30000);
     return () => clearInterval(interval);
-  }, [bailId]);
+  }, [bailId, selectedPartyId, userRole]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -158,13 +171,44 @@ export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailC
     }
   }, [session?.user?.id]);
 
+  // Initialiser le destinataire par défaut pour le notaire si aucune partie n'est sélectionnée
+  useEffect(() => {
+    if (userRole === Role.NOTAIRE && !selectedPartyId && !internalSelectedPartyId && bailParties.length > 0) {
+      // Sélectionner le premier propriétaire par défaut, ou le premier locataire si pas de propriétaire
+      const firstProprietaire = bailParties.find((p) => p.profilType === "PROPRIETAIRE");
+      const firstLocataire = bailParties.find((p) => p.profilType === "LOCATAIRE");
+      const defaultRecipient = firstProprietaire || firstLocataire;
+      if (defaultRecipient) {
+        setInternalSelectedPartyId(defaultRecipient.id);
+      }
+    }
+  }, [userRole, selectedPartyId, internalSelectedPartyId, bailParties]);
+
   const onSubmitMessage = async (data: MessageFormData) => {
     try {
       setSending(true);
-      const newMessage = await sendBailMessage(bailId, data.content);
+      
+      // Pour le notaire, utiliser selectedPartyId si disponible, sinon erreur
+      const recipientPartyId = userRole === Role.NOTAIRE ? selectedPartyId : undefined;
+      
+      if (userRole === Role.NOTAIRE && !recipientPartyId) {
+        toast.error("Erreur", {
+          description: "Veuillez sélectionner un destinataire",
+        });
+        setSending(false);
+        return;
+      }
+      
+      const newMessage = await sendBailMessage(
+        bailId, 
+        data.content,
+        recipientPartyId || undefined
+      );
       setMessages([...messages, newMessage]);
       resetMessage();
       toast.success("Message envoyé");
+      // Recharger les messages pour avoir la vue à jour
+      loadMessages();
     } catch (error: any) {
       toast.error("Erreur", {
         description: error.message || "Impossible d'envoyer le message",
@@ -182,8 +226,15 @@ export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailC
         ...data,
       });
       
-      // Créer un message dans le chat pour cette demande
-      await sendBailMessage(bailId, `Nouvelle demande : ${data.title}`);
+      // Créer un message dans le chat pour cette demande aux destinataires sélectionnés
+      // Envoyer au propriétaire si sélectionné
+      if (data.targetProprietaire && proprietaires.length > 0) {
+        await sendBailMessage(bailId, `Nouvelle demande : ${data.title}`, proprietaires[0].id);
+      }
+      // Envoyer au locataire si sélectionné
+      if (data.targetLocataire && locataires.length > 0) {
+        await sendBailMessage(bailId, `Nouvelle demande : ${data.title}`, locataires[0].id);
+      }
       
       setRequests([newRequest, ...requests]);
       resetRequest();
@@ -224,8 +275,21 @@ export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailC
     );
   }
 
+  // Trouver la partie sélectionnée pour afficher son nom
+  const selectedParty = selectedPartyId ? bailParties.find((p) => p.id === selectedPartyId) : null;
+
   return (
     <div className="space-y-4">
+      {/* Indicateur de la partie avec laquelle on discute */}
+      {isNotaire && selectedParty && (
+        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <User className="h-4 w-4 text-blue-600" />
+          <span className="text-sm font-medium text-blue-900">
+            Discussion avec {getPartyName(selectedParty)} ({selectedParty.profilType === "PROPRIETAIRE" ? "Propriétaire" : "Locataire"})
+          </span>
+        </div>
+      )}
+      
       {/* Zone de messages */}
       <div className="border rounded-lg p-4 max-h-96 overflow-y-auto space-y-4">
         {messages.length === 0 && requests.length === 0 ? (
@@ -408,10 +472,10 @@ export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailC
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="title">Titre de la demande *</Label>
+                  <Label htmlFor="title">Nom de la piéce *</Label>
                   <Input
                     id="title"
-                    placeholder="Ex: Demande de pièce d'identité"
+                    placeholder="Ex: piéce d'identiter"
                     {...registerRequest("title")}
                   />
                   {requestErrors.title && (
@@ -531,6 +595,45 @@ export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailC
 
       {/* Formulaire d'envoi de message */}
       <form onSubmit={handleSubmitMessage(onSubmitMessage)} className="space-y-2">
+        {/* Sélecteur de destinataire pour le notaire - seulement si aucune partie n'est sélectionnée */}
+        {isNotaire && !selectedPartyId && (
+          <div className="space-y-2">
+            <Label htmlFor="recipient">Destinataire du message *</Label>
+            <Select
+              value={internalSelectedPartyId || ""}
+              onValueChange={(value) => setInternalSelectedPartyId(value)}
+            >
+              <SelectTrigger id="recipient">
+                <SelectValue placeholder="Sélectionner un destinataire" />
+              </SelectTrigger>
+              <SelectContent>
+                {proprietaires.map((prop) => (
+                  <SelectItem key={prop.id} value={prop.id}>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Propriétaire : {getPartyName(prop)}
+                    </div>
+                  </SelectItem>
+                ))}
+                {locataires.map((loc) => (
+                  <SelectItem key={loc.id} value={loc.id}>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Locataire : {getPartyName(loc)}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!internalSelectedPartyId && (
+              <p className="text-xs text-muted-foreground">
+                <AlertCircle className="h-3 w-3 inline mr-1" />
+                Vous devez sélectionner un destinataire pour envoyer un message
+              </p>
+            )}
+          </div>
+        )}
+        
         <Textarea
           placeholder="Tapez votre message..."
           {...registerMessage("content")}
@@ -541,7 +644,7 @@ export function NotaireBailChat({ bailId, dossierId, bailParties }: NotaireBailC
           <p className="text-sm text-destructive">{messageErrors.content.message}</p>
         )}
         <div className="flex justify-end">
-          <Button type="submit" disabled={sending}>
+          <Button type="submit" disabled={sending || (isNotaire && !selectedPartyId && !internalSelectedPartyId)}>
             {sending ? (
               "Envoi..."
             ) : (

@@ -36,6 +36,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { InputGroup, InputGroupTextarea, InputGroupButton } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { getPusherClient } from "@/lib/pusher-client";
 import type { Channel } from "pusher-js";
 
@@ -49,8 +50,10 @@ type MessageFormData = z.infer<typeof messageSchema>;
 // Défini en dehors du composant principal pour éviter les problèmes de recréation d'état
 function RequestResponseForm({ requestId, onSuccess }: { requestId: string; onSuccess?: () => void }) {
   const [isResponding, setIsResponding] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [responseFiles, setResponseFiles] = useState<File[]>([]);
   const responseFileInputRef = useRef<HTMLInputElement>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleResponseFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -70,6 +73,15 @@ function RequestResponseForm({ requestId, onSuccess }: { requestId: string; onSu
     setResponseFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Nettoyer l'interval au démontage du composant
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
+
   const handleResponseSubmit = async () => {
     if (responseFiles.length === 0) {
       toast.error("Erreur", {
@@ -80,18 +92,53 @@ function RequestResponseForm({ requestId, onSuccess }: { requestId: string; onSu
 
     try {
       setIsResponding(true);
+      setUploadProgress(0);
+      
+      // Simuler la progression de l'upload
+      progressIntervalRef.current = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            return prev; // Ne pas dépasser 90% avant la fin réelle
+          }
+          return prev + Math.random() * 15; // Augmenter progressivement
+        });
+      }, 200);
+
       const formData = new FormData();
       responseFiles.forEach((file) => {
         formData.append("files", file);
       });
+      
       await addDocumentToNotaireRequest(requestId, formData);
+      
+      // Compléter la progression à 100%
+      setUploadProgress(100);
+      
+      // Nettoyer l'interval
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      
       toast.success(`${responseFiles.length} document${responseFiles.length > 1 ? "s" : ""} ajouté${responseFiles.length > 1 ? "s" : ""} à la demande`);
       setResponseFiles([]);
       if (responseFileInputRef.current) {
         responseFileInputRef.current.value = "";
       }
+      
+      // Réinitialiser la progression après un court délai
+      setTimeout(() => {
+        setUploadProgress(0);
+      }, 500);
+      
       onSuccess?.();
     } catch (error: any) {
+      // Nettoyer l'interval en cas d'erreur
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      setUploadProgress(0);
       toast.error("Erreur", {
         description: error.message || "Impossible d'ajouter le document",
       });
@@ -152,25 +199,36 @@ function RequestResponseForm({ requestId, onSuccess }: { requestId: string; onSu
                 </div>
               ))}
             </div>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleResponseSubmit}
-              disabled={isResponding}
-              className="w-full"
-            >
-              {isResponding ? (
-                <>
-                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                  Envoi en cours...
-                </>
-              ) : (
-                <>
-                  <Send className="mr-2 h-3 w-3" />
-                  Envoyer {responseFiles.length} fichier{responseFiles.length > 1 ? "s" : ""}
-                </>
+            <div className="space-y-2">
+              {isResponding && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Upload en cours...</span>
+                    <span>{Math.round(uploadProgress)}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-2" />
+                </div>
               )}
-            </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleResponseSubmit}
+                disabled={isResponding}
+                className="w-full"
+              >
+                {isResponding ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Envoi en cours...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-3 w-3" />
+                    Envoyer {responseFiles.length} fichier{responseFiles.length > 1 ? "s" : ""}
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -198,8 +256,12 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const [otherUser, setOtherUser] = useState<{ id: string; name: string | null; email: string; role: Role; partyId?: string } | null>(null);
   const [userClientId, setUserClientId] = useState<string | null>(null);
+  const [userProfilType, setUserProfilType] = useState<"PROPRIETAIRE" | "LOCATAIRE" | null>(null);
+  const userClientIdRef = useRef<string | null>(null);
+  const userProfilTypeRef = useRef<"PROPRIETAIRE" | "LOCATAIRE" | null>(null);
   const [isOtherUserOnline, setIsOtherUserOnline] = useState(false);
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
+  const [optimisticMessages, setOptimisticMessages] = useState<Map<string, { tempId: string; realId?: string; status: 'sending' | 'sent' | 'error' }>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -289,6 +351,42 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
     }
   }, [open, bailId, userClientId, hasScrolledToBottom]);
 
+  // Charger userClientId et profilType dès l'ouverture du chat
+  useEffect(() => {
+    if (open && session?.user && !userClientId) {
+      getBailMessagesAndRequests(bailId).then(({ userClientId: clientId }) => {
+        if (clientId) {
+          setUserClientId(clientId);
+          userClientIdRef.current = clientId;
+          
+          // Récupérer le profilType du client
+          fetch(`/api/bail/${bailId}/party/${clientId}/profil-type`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.profilType) {
+                setUserProfilType(data.profilType);
+                userProfilTypeRef.current = data.profilType;
+              }
+            })
+            .catch(() => {
+              // Ignorer les erreurs silencieusement
+            });
+        }
+      }).catch(() => {
+        // Ignorer les erreurs silencieusement
+      });
+    }
+  }, [open, session?.user, bailId, userClientId]);
+  
+  // Mettre à jour les refs quand les valeurs changent
+  useEffect(() => {
+    userClientIdRef.current = userClientId;
+  }, [userClientId]);
+  
+  useEffect(() => {
+    userProfilTypeRef.current = userProfilType;
+  }, [userProfilType]);
+
   // Connexion Pusher pour les mises à jour en temps réel
   useEffect(() => {
     if (!open || !session?.user) return;
@@ -308,6 +406,9 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
 
         // Fonction pour bind les événements une fois le channel authentifié
         const bindEvents = () => {
+          // Utiliser les refs pour avoir toujours la valeur la plus récente
+          const getCurrentClientId = () => userClientIdRef.current;
+          const getCurrentProfilType = () => userProfilTypeRef.current;
           // Utiliser les événements natifs de Pusher Presence Channel
           // Vérifier si l'autre utilisateur est déjà présent
           const presenceChannel = channel as any;
@@ -351,6 +452,18 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
             setMessages(prev => {
               const existingMessageIds = new Set(prev.map(m => m.id));
               if (existingMessageIds.has(data.message.id)) {
+                // Si c'est un message optimiste qui vient d'être confirmé, mettre à jour son statut
+                setOptimisticMessages(prev => {
+                  const optimisticEntry = Array.from(prev.entries()).find(
+                    ([_, value]) => value.realId === data.message.id || value.tempId === data.message.id
+                  );
+                  if (optimisticEntry) {
+                    const newMap = new Map(prev);
+                    newMap.delete(optimisticEntry[0]);
+                    return newMap;
+                  }
+                  return prev;
+                });
                 return prev;
               }
 
@@ -359,22 +472,42 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
               // - Messages du notaire qui lui sont destinés (recipientPartyId === userClientId)
               const message = data.message;
               
-              // Si userClientId n'est pas encore chargé, accepter temporairement le message
-              // Il sera filtré lors du prochain chargement
-              if (!userClientId) {
-                // Accepter uniquement les messages de l'utilisateur en attendant
-                if (message.senderId !== session?.user?.id) {
-                  return prev;
+              // Utiliser les refs pour avoir toujours la valeur la plus récente
+              const clientId = getCurrentClientId();
+              
+              // Toujours accepter les messages de l'utilisateur
+              if (message.senderId === session?.user?.id) {
+                // C'est un message de l'utilisateur, l'accepter
+              } else if (clientId) {
+                // Filtrer correctement avec userClientId
+                const shouldShowMessage = message.recipientPartyId === clientId;
+                if (!shouldShowMessage) {
+                  return prev; // Ne pas ajouter le message s'il ne doit pas être affiché
+                }
+              } else {
+                // Si userClientId n'est pas encore chargé, accepter temporairement les messages du notaire
+                // Le filtrage correct sera fait lors du prochain loadMessages
+                const isFromNotaire = message.sender?.role === Role.NOTAIRE;
+                if (!isFromNotaire) {
+                  return prev; // Ne pas accepter les messages d'autres clients
                 }
               }
-              
-              const shouldShowMessage = 
-                message.senderId === session?.user?.id || // Message envoyé par l'utilisateur
-                (userClientId && message.recipientPartyId === userClientId); // Message du notaire destiné à sa partie
 
-              if (!shouldShowMessage) {
-                return prev; // Ne pas ajouter le message s'il ne doit pas être affiché
-              }
+              // Vérifier si c'est la confirmation d'un message optimiste
+              let updatedPrev = prev;
+              setOptimisticMessages(prevOptimistic => {
+                const optimisticEntry = Array.from(prevOptimistic.entries()).find(
+                  ([_, value]) => value.status === 'sending' && message.senderId === session?.user?.id
+                );
+                if (optimisticEntry) {
+                  // Remplacer le message optimiste par le vrai message
+                  updatedPrev = prev.filter(m => m.id !== optimisticEntry[0]);
+                  const newMap = new Map(prevOptimistic);
+                  newMap.delete(optimisticEntry[0]);
+                  return newMap;
+                }
+                return prevOptimistic;
+              });
 
               // Convertir createdAt en Date si c'est une string
               const messageWithDate = {
@@ -383,7 +516,7 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
                   ? new Date(message.createdAt) 
                   : message.createdAt,
               };
-              const newMessages = [...prev, messageWithDate].sort((a, b) => 
+              const newMessages = [...updatedPrev, messageWithDate].sort((a, b) => 
                 new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
               );
               
@@ -415,7 +548,31 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
               if (existingRequestIds.has(data.request.id)) {
                 return prev;
               }
-              return [...prev, data.request].sort((a, b) => 
+              
+              const request = data.request;
+              const profilType = getCurrentProfilType();
+              
+              // Filtrer les demandes selon le profil du client
+              // Un client ne voit que les demandes qui lui sont destinées
+              if (profilType) {
+                const shouldShowRequest = 
+                  (profilType === "PROPRIETAIRE" && request.targetProprietaire) ||
+                  (profilType === "LOCATAIRE" && request.targetLocataire) ||
+                  (request.targetPartyIds && request.targetPartyIds.length > 0);
+                
+                // Si la demande cible des parties spécifiques, vérifier si le client est concerné
+                if (request.targetPartyIds && request.targetPartyIds.length > 0) {
+                  const clientId = getCurrentClientId();
+                  if (clientId && !request.targetPartyIds.includes(clientId)) {
+                    return prev; // La demande ne cible pas ce client
+                  }
+                } else if (!shouldShowRequest) {
+                  return prev; // La demande ne cible pas ce type de profil
+                }
+              }
+              
+              // Accepter la demande (soit elle correspond aux critères, soit on laisse le filtrage côté serveur)
+              return [...prev, request].sort((a, b) => 
                 new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
               );
             });
@@ -509,7 +666,7 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
       }
       pusherChannelRef.current = null;
     };
-  }, [open, bailId, session?.user, otherUser, userClientId]);
+  }, [open, bailId, session?.user, otherUser]);
 
   // Charger les informations de l'autre utilisateur
   useEffect(() => {
@@ -572,43 +729,113 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
   }, [open, initialLoading, messages, requests]);
 
   const onSubmit = async (data: MessageFormData) => {
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const messageContent = data.content?.trim() || "";
+    const filesToSend = [...selectedFiles];
+    
+    // Créer un message optimiste immédiatement
+    const optimisticMessage: any = {
+      id: tempId,
+      bailId,
+      senderId: session?.user?.id,
+      messageType: "MESSAGE",
+      content: messageContent || (filesToSend.length === 1 
+        ? `Fichier: ${filesToSend[0].name}` 
+        : filesToSend.length > 1 
+          ? `${filesToSend.length} fichiers: ${filesToSend.map(f => f.name).join(", ")}`
+          : ""),
+      recipientPartyId: null,
+      createdAt: new Date(),
+      sender: {
+        id: session?.user?.id,
+        name: session?.user?.name,
+        email: session?.user?.email,
+        role: Role.UTILISATEUR,
+      },
+      document: filesToSend.length > 0 ? {
+        id: `temp-doc-${tempId}`,
+        label: filesToSend.length === 1 ? filesToSend[0].name : `${filesToSend.length} fichiers`,
+        fileKey: "#",
+        mimeType: filesToSend[0]?.type || "application/octet-stream",
+        size: filesToSend.reduce((sum, f) => sum + f.size, 0),
+      } : null,
+    };
+
+    // Ajouter le message optimiste immédiatement
+    setMessages(prev => [...prev, optimisticMessage].sort((a, b) => 
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    ));
+    setOptimisticMessages(prev => {
+      const newMap = new Map(prev);
+      newMap.set(tempId, { tempId, status: 'sending' });
+      return newMap;
+    });
+    
+    // Scroll vers le bas immédiatement
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      setHasScrolledToBottom(true);
+    }, 50);
+
     try {
       setSending(true);
       
-      if (selectedFiles.length > 0) {
+      if (filesToSend.length > 0) {
         // Envoyer avec fichiers
         const formData = new FormData();
-        selectedFiles.forEach((file) => {
+        filesToSend.forEach((file) => {
           formData.append("files", file);
         });
-        if (data.content) {
-          formData.append("content", data.content);
+        if (messageContent) {
+          formData.append("content", messageContent);
         }
         
-        await sendBailMessageWithFile(bailId, formData);
+        const sentMessage = await sendBailMessageWithFile(bailId, formData);
+        
+        // Mettre à jour le message optimiste avec le vrai ID
+        setOptimisticMessages(prev => {
+          const newMap = new Map(prev);
+          const entry = newMap.get(tempId);
+          if (entry) {
+            newMap.set(tempId, { ...entry, realId: sentMessage.id, status: 'sent' });
+          }
+          return newMap;
+        });
+        
         setSelectedFiles([]);
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
-      } else if (data.content && data.content.trim()) {
+      } else if (messageContent) {
         // Envoyer message texte uniquement
-        await sendBailMessage(bailId, data.content.trim());
-      } else {
-        toast.error("Erreur", {
-          description: "Veuillez saisir un message ou sélectionner un fichier",
+        const sentMessage = await sendBailMessage(bailId, messageContent);
+        
+        // Mettre à jour le message optimiste avec le vrai ID
+        setOptimisticMessages(prev => {
+          const newMap = new Map(prev);
+          const entry = newMap.get(tempId);
+          if (entry) {
+            newMap.set(tempId, { ...entry, realId: sentMessage.id, status: 'sent' });
+          }
+          return newMap;
         });
-        return;
+      } else {
+        // Ne devrait pas arriver ici grâce à la validation
+        throw new Error("Veuillez saisir un message ou sélectionner un fichier");
       }
       
       reset();
-      // Ne pas recharger les messages - Pusher les ajoutera automatiquement en temps réel
-      toast.success("Message envoyé");
-      // Scroll vers le bas après l'envoi
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        setHasScrolledToBottom(true);
-      }, 100);
+      // Le message sera remplacé par le vrai message via Pusher
+      // toast.success("Message envoyé"); // Pas besoin, le message apparaît déjà
     } catch (error: any) {
+      // Retirer le message optimiste en cas d'erreur
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setOptimisticMessages(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(tempId);
+        return newMap;
+      });
+      
       toast.error("Erreur", {
         description: error.message || "Impossible d'envoyer le message",
       });
@@ -822,11 +1049,16 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
                           .join("")
                           .toUpperCase()
                           .slice(0, 2);
+                        
+                        // Vérifier si c'est un message optimiste
+                        const optimisticStatus = optimisticMessages.get(message.id);
+                        const isOptimistic = optimisticStatus !== undefined;
+                        const isSending = optimisticStatus?.status === 'sending';
 
                         return (
                           <div
                             key={`message-${message.id}`}
-                            className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}
+                            className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"} ${isSending ? "opacity-70" : ""}`}
                           >
                             <Avatar className="h-8 w-8 shrink-0">
                               <AvatarFallback className={isNotaireMessage ? "bg-blue-500 text-white" : "bg-muted"}>
@@ -845,7 +1077,10 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
                                 <span className="text-xs text-muted-foreground">
                                   {formatDateTime(message.createdAt)}
                                 </span>
-                                {isOwnMessage && (
+                                {isSending && (
+                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                )}
+                                {isOwnMessage && !isOptimistic && (
                                   <Button
                                     type="button"
                                     variant="ghost"

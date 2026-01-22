@@ -540,25 +540,24 @@ export async function sendBailMessageWithFile(bailId: string, formData: FormData
     throw new Error("Au moins un fichier est requis");
   }
 
-  // Uploader tous les fichiers vers Vercel Blob
-  const { put } = await import("@vercel/blob");
-  const timestamp = Date.now();
+  // Uploader tous les fichiers vers S3
+  const { uploadFileToS3, generateS3FileKey } = await import("@/lib/utils/s3-client");
   
   const uploadPromises = files.map(async (file) => {
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const fileName = `bail-messages/${bailId}/${timestamp}-${Date.now()}-${sanitizedName}`;
+    const fileKey = generateS3FileKey("bail-messages", file.name, bailId);
 
-    const blob = await put(fileName, file, {
-      access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
+    const s3Result = await uploadFileToS3(
+      file,
+      fileKey,
+      file.type || "application/octet-stream"
+    );
 
     // Créer le document dans la base de données
     return prisma.document.create({
       data: {
         kind: "OTHER",
         label: file.name,
-        fileKey: blob.url,
+        fileKey: s3Result.url, // URL publique S3
         mimeType: file.type,
         size: file.size,
         bailId,
@@ -729,8 +728,31 @@ export async function updateNotaireRequestStatus(
           email: true,
         },
       },
+      documents: {
+        select: {
+          id: true,
+          label: true,
+          fileKey: true,
+          mimeType: true,
+          size: true,
+        },
+      },
     },
   });
+
+  // Envoyer l'événement Pusher pour la mise à jour en temps réel
+  if (request.dossier.bailId) {
+    try {
+      await pusherServer.trigger(`presence-bail-${request.dossier.bailId}`, "request-updated", {
+        request: {
+          ...updatedRequest,
+          createdAt: updatedRequest.createdAt.toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de l'événement Pusher:", error);
+    }
+  }
 
   revalidatePath(`/notaire/dossiers`);
   if (request.dossier.bailId) {
@@ -816,25 +838,24 @@ export async function addDocumentToNotaireRequest(
     throw new Error("Demande introuvable ou non liée à un bail");
   }
 
-  // Uploader tous les fichiers vers Vercel Blob
-  const { put } = await import("@vercel/blob");
-  const timestamp = Date.now();
+  // Uploader tous les fichiers vers S3
+  const { uploadFileToS3, generateS3FileKey } = await import("@/lib/utils/s3-client");
   
   const uploadPromises = files.map(async (file) => {
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const fileName = `bail-messages/${request.dossier.bailId}/${timestamp}-${Date.now()}-${sanitizedName}`;
+    const fileKey = generateS3FileKey("bail-messages", file.name, request.dossier.bailId);
 
-    const blob = await put(fileName, file, {
-      access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
+    const s3Result = await uploadFileToS3(
+      file,
+      fileKey,
+      file.type || "application/octet-stream"
+    );
 
     // Créer le document dans la base de données avec le clientId et notaireRequestId
     return prisma.document.create({
       data: {
         kind: "OTHER",
         label: file.name,
-        fileKey: blob.url,
+        fileKey: s3Result.url,
         mimeType: file.type,
         size: file.size,
         bailId: request.dossier.bailId,
@@ -1018,12 +1039,13 @@ export async function deleteBailMessage(messageId: string) {
   // Supprimer le document associé s'il existe
   if (message.document) {
     try {
-      // Supprimer le fichier du blob
-      const { del } = await import("@vercel/blob");
-      if (message.document.fileKey && message.document.fileKey.startsWith('http')) {
-        await del(message.document.fileKey, {
-          token: process.env.BLOB_READ_WRITE_TOKEN,
-        });
+      // Supprimer le fichier de S3
+      const { deleteFileFromS3, extractS3KeyFromUrl } = await import("@/lib/utils/s3-client");
+      if (message.document.fileKey) {
+        const s3Key = extractS3KeyFromUrl(message.document.fileKey);
+        if (s3Key) {
+          await deleteFileFromS3(s3Key);
+        }
       }
       
       // Supprimer le document de la base de données

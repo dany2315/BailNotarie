@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { File, Eye, Download, Image, ImageDown, ImageIcon } from "lucide-react";
+import { File, Eye, Download, Image, ImageDown, ImageIcon, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getIntakeDocuments } from "@/lib/actions/intakes";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
@@ -21,6 +21,8 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [isLoadingSignedUrl, setIsLoadingSignedUrl] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const isViewerOpenRef = useRef(false);
   const hasLoadedRef = useRef(false);
@@ -93,11 +95,48 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
   // Mettre à jour la ref quand isViewerOpen change
   useEffect(() => {
     isViewerOpenRef.current = isViewerOpen;
+    // Réinitialiser l'URL signée quand le dialog se ferme
+    if (!isViewerOpen) {
+      setSignedUrl(null);
+    }
   }, [isViewerOpen]);
 
-  const handleViewDocument = (doc: any) => {
+  // Fonction pour obtenir une URL signée pour la lecture
+  const getSignedUrlForDocument = async (fileKey: string): Promise<string> => {
+    try {
+      const response = await fetch("/api/blob/get-signed-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la génération de l'URL signée");
+      }
+
+      const { signedUrl } = await response.json();
+      return signedUrl;
+    } catch (error) {
+      console.error("[DocumentPreview] Erreur lors de la génération de l'URL signée:", error);
+      return fileKey;
+    }
+  };
+
+  const handleViewDocument = async (doc: any) => {
     setSelectedDocument(doc);
     setIsViewerOpen(true);
+    setIsLoadingSignedUrl(true);
+    
+    // Générer une URL signée pour la lecture
+    try {
+      const url = await getSignedUrlForDocument(doc.fileKey);
+      setSignedUrl(url);
+    } catch (error) {
+      console.error("[DocumentPreview] Erreur:", error);
+      setSignedUrl(doc.fileKey);
+    } finally {
+      setIsLoadingSignedUrl(false);
+    }
   };
 
   const handleDownloadDocument = (doc: any) => {
@@ -191,25 +230,28 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
           <div className="mt-4">
             {selectedDocument && (
               <div className="space-y-4">
-                {selectedDocument.mimeType?.includes("image") ? (
+                {isLoadingSignedUrl ? (
+                  <div className="flex items-center justify-center h-[70vh]">
+                    <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Chargement du document...</span>
+                  </div>
+                ) : selectedDocument.mimeType?.includes("image") ? (
                   <img
-                    src={selectedDocument.fileKey.startsWith("http") 
-                      ? selectedDocument.fileKey 
-                      : selectedDocument.fileKey.startsWith("/") 
-                        ? selectedDocument.fileKey 
-                        : `/${selectedDocument.fileKey}`}
+                    src={signedUrl || selectedDocument.fileKey}
                     alt={selectedDocument.label || "Document"}
                     className="max-w-full max-h-[70vh] mx-auto object-contain"
+                    onError={(e) => {
+                      console.error("[DocumentPreview] Erreur de chargement de l'image:", e);
+                    }}
                   />
                 ) : selectedDocument.mimeType?.includes("pdf") ? (
                   <iframe
-                    src={selectedDocument.fileKey.startsWith("http") 
-                      ? selectedDocument.fileKey 
-                      : selectedDocument.fileKey.startsWith("/") 
-                        ? selectedDocument.fileKey 
-                        : `/${selectedDocument.fileKey}`}
+                    src={signedUrl || selectedDocument.fileKey}
                     className="w-full h-[70vh] border rounded"
                     title={selectedDocument.label || "Document PDF"}
+                    onError={() => {
+                      console.error("[DocumentPreview] Erreur de chargement du PDF");
+                    }}
                   />
                 ) : (
                   <div className="text-center py-8">

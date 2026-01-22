@@ -1,6 +1,6 @@
-import { put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { uploadFileToS3, generateS3FileKey } from "@/lib/utils/s3-client";
 
 // Configuration pour accepter les fichiers volumineux
 export const maxDuration = 300; // 5 minutes pour les uploads volumineux (multipart)
@@ -86,15 +86,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const finalClientId = clientId || intakeLink.clientId;
     const finalPropertyId = propertyId || intakeLink.propertyId;
 
-    // Valider la taille du fichier (max 20MB pour ce endpoint)
-    const maxSizeInBytes = 20 * 1024 * 1024; // 20MB
-    if (file.size > maxSizeInBytes) {
-      return NextResponse.json(
-        { error: `Fichier trop volumineux. Taille maximale: ${maxSizeInBytes / 1024 / 1024}MB` },
-        { status: 400 }
-      );
-    }
-
     // Valider le type MIME
     const allowedMimeTypes = [
       "application/pdf",
@@ -112,22 +103,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Générer le pathname avec le token pour organiser les fichiers
-    // Utiliser timestamp pour tri chronologique (selon doc Vercel Blob)
-    const timestamp = Date.now();
-    const randomSuffix = Math.random().toString(36).substring(2, 9);
-    const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const pathname = `intakes/${token}/${timestamp}-${randomSuffix}-${sanitizedFilename}`;
+    // Générer la clé S3 pour le fichier
+    const fileKey = generateS3FileKey("intakes", file.name, token);
 
-    // Uploader le fichier vers Vercel Blob avec retry logic
-    // La fonction put() gère automatiquement les multipart uploads pour fichiers > 100MB
-    const blob = await retryUpload(async () => {
-      return await put(pathname, file, {
-        access: "public",
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-        contentType: file.type || "application/octet-stream", // S'assurer que le Content-Type est défini
-        // addRandomSuffix: false, // On gère déjà l'unicité avec timestamp + randomSuffix
-      });
+    // Uploader le fichier vers S3 avec retry logic
+    const s3Result = await retryUpload(async () => {
+      return await uploadFileToS3(
+        file,
+        fileKey,
+        file.type || "application/octet-stream"
+      );
     });
 
     // Créer le document dans la base de données
@@ -204,7 +189,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // Vérifier si le document existe déjà
       const whereCondition: any = {
-        fileKey: blob.url,
+        fileKey: s3Result.url,
         kind: kind as any,
       };
 
@@ -234,7 +219,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const documentData: any = {
           kind: kind as any,
           label: file.name,
-          fileKey: blob.url,
+          fileKey: s3Result.url, // URL publique S3
           mimeType: file.type,
           size: file.size,
           uploadedById: null, // Sera mis à jour lors du savePartialIntake
@@ -267,12 +252,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Le document sera créé lors du savePartialIntake
     }
 
-    // Retourner la réponse attendue par le SDK client
+    // Retourner la réponse avec les informations S3
     return NextResponse.json({
-      url: blob.url,
-      pathname: blob.pathname,
-      contentType: blob.contentType,
-      contentDisposition: blob.contentDisposition,
+      url: s3Result.url,
+      fileKey: s3Result.fileKey,
       size: file.size,
     });
   } catch (error: any) {

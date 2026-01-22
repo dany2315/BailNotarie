@@ -4,11 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { DocumentKind } from "@prisma/client";
-import { put, del } from "@vercel/blob";
 import { 
   updateClientCompletionStatus as calculateAndUpdateClientStatus, 
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
 } from "@/lib/utils/completion-status";
+import { uploadFileToS3, generateS3FileKey, deleteFileFromS3, extractS3KeyFromUrl } from "@/lib/utils/s3-client";
 
 export async function getSignedUrl(kind: string, fileName: string, mimeType: string) {
   await requireAuth();
@@ -66,18 +66,20 @@ export async function createDocument(data: {
   return document;
 }
 
-// Helper pour supprimer un fichier blob
+// Helper pour supprimer un fichier S3
 async function deleteBlobFile(fileKey: string) {
   try {
-    // Extraire l'URL du fichier blob
-    if (fileKey && fileKey.startsWith('http')) {
-      await del(fileKey, {
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
+    if (!fileKey) return;
+    
+    // Extraire la clé S3 depuis l'URL si c'est une URL complète
+    const s3Key = extractS3KeyFromUrl(fileKey) || fileKey;
+    
+    if (s3Key) {
+      await deleteFileFromS3(s3Key);
     }
   } catch (error) {
-    // Ne pas faire échouer la suppression si le fichier blob n'existe pas
-    console.error(`Erreur lors de la suppression du fichier blob ${fileKey}:`, error);
+    // Ne pas faire échouer la suppression si le fichier n'existe pas
+    console.error(`Erreur lors de la suppression du fichier S3 ${fileKey}:`, error);
   }
 }
 
@@ -169,23 +171,22 @@ async function uploadFileAndCreateDocument(
 
   const user = await requireAuth();
   
-  // Générer un nom de fichier unique
-  const timestamp = Date.now();
-  const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-  const fileName = `documents/${timestamp}-${sanitizedName}`;
+  // Générer la clé S3 pour le fichier
+  const fileKey = generateS3FileKey("documents", file.name, options.clientId);
 
-  // Uploader le fichier vers Vercel Blob
-  const blob = await put(fileName, file, {
-    access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-  });
+  // Uploader le fichier vers S3
+  const s3Result = await uploadFileToS3(
+    file,
+    fileKey,
+    file.type || "application/octet-stream"
+  );
 
   // Créer le document dans la base de données
   const document = await prisma.document.create({
     data: {
       kind,
       label: options.label || file.name,
-      fileKey: blob.url, // URL Vercel Blob
+      fileKey: s3Result.url, // URL publique S3
       mimeType: file.type,
       size: file.size,
       clientId: options.clientId,

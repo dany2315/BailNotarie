@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { put } from "@vercel/blob";
 import { DocumentKind } from "@prisma/client";
+import { uploadFileToS3, generateS3FileKey } from "@/lib/utils/s3-client";
 
 // Configuration pour accepter les fichiers volumineux
 // Les API routes dans Next.js App Router gèrent automatiquement les FormData
@@ -125,28 +125,22 @@ export async function POST(request: NextRequest) {
         (async () => {
           const fileStartTime = Date.now();
           try {
-            // Générer un nom de fichier unique avec timestamp et index pour éviter les collisions
-            const timestamp = Date.now();
-            const randomSuffix = Math.random().toString(36).substring(2, 9);
-            const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-            const fileName = `intakes/${token}/${timestamp}-${randomSuffix}-${sanitizedName}`;
+            // Générer la clé S3 pour le fichier
+            const fileKey = generateS3FileKey("intakes", file.name, token);
 
-            const blobStartTime = Date.now();
+            const s3StartTime = Date.now();
             const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
-            console.log(`[API upload] Début upload ${name} vers Vercel Blob (${fileSizeMB} MB)`);
+            console.log(`[API upload] Début upload ${name} vers S3 (${fileSizeMB} MB)`);
             
-            // Uploader le fichier vers Vercel Blob (en parallèle avec les autres)
-            // La fonction put() gère automatiquement les multipart uploads pour fichiers > 100MB
-            // selon la documentation Vercel Blob: https://vercel.com/docs/vercel-blob
-            const blob = await put(fileName, file, {
-              access: "public",
-              token: process.env.BLOB_READ_WRITE_TOKEN,
-              contentType: file.type || "application/octet-stream", // S'assurer que le Content-Type est défini
-              // addRandomSuffix: false, // On gère déjà l'unicité avec timestamp + randomSuffix
-            });
+            // Uploader le fichier vers S3 (en parallèle avec les autres)
+            const s3Result = await uploadFileToS3(
+              file,
+              fileKey,
+              file.type || "application/octet-stream"
+            );
             
-            const blobUploadTime = Date.now() - blobStartTime;
-            console.log(`[API upload] Upload ${name} vers Vercel Blob terminé en ${blobUploadTime}ms (${(blobUploadTime / 1000).toFixed(2)}s)`);
+            const s3UploadTime = Date.now() - s3StartTime;
+            console.log(`[API upload] Upload ${name} vers S3 terminé en ${s3UploadTime}ms (${(s3UploadTime / 1000).toFixed(2)}s)`);
             
             const dbStartTime = Date.now();
 
@@ -210,7 +204,7 @@ export async function POST(request: NextRequest) {
             // Vérifier si le document existe déjà (éviter les doublons)
             // Construire la condition where en fonction des targets
             const whereCondition: any = {
-              fileKey: blob.url,
+              fileKey: s3Result.url,
               kind: documentKind,
             };
             
@@ -262,7 +256,7 @@ export async function POST(request: NextRequest) {
               const documentData: any = {
                 kind: documentKind,
                 label: file.name,
-                fileKey: blob.url,
+                fileKey: s3Result.url, // URL publique S3
                 mimeType: file.type,
                 size: file.size,
                 uploadedById: null, // Sera mis à jour lors du savePartialIntake

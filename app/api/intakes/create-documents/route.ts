@@ -69,16 +69,10 @@ export async function POST(request: NextRequest) {
     }) : null;
 
     const createdDocuments: any[] = [];
-    const maxSizeInBytes = 4 * 1024 * 1024; // 4MB
 
     // Créer chaque document dans la DB
     for (const doc of documents) {
       try {
-        // Valider la taille du fichier (max 4MB)
-        if (doc.size && doc.size > maxSizeInBytes) {
-          console.warn(`[create-documents] Document ${doc.fileName} trop volumineux: ${(doc.size / 1024 / 1024).toFixed(2)} MB`);
-          continue; // Ignorer ce document
-        }
         // Déterminer où attacher le document
         let targetPersonId: string | null = null;
         let targetEntrepriseId: string | null = null;

@@ -1,18 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { generateSignedUploadUrl, generateS3FileKey } from "@/lib/utils/s3-client";
 
 /**
- * Route API pour générer un token d'upload sécurisé pour les uploads côté client
- * Selon la checklist Vercel Blob : utiliser le client SDK avec token pour upload direct
+ * Route API pour générer une URL signée S3 pour upload direct côté client
+ * Permet des uploads rapides directement vers S3 sans passer par le serveur
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = await request.json();
-    const { token: intakeToken } = body;
+    const { 
+      token: intakeToken,
+      fileName,
+      contentType = "application/octet-stream",
+      documentKind,
+    } = body;
 
     if (!intakeToken) {
       return NextResponse.json(
         { error: "Token manquant" },
+        { status: 400 }
+      );
+    }
+
+    if (!fileName) {
+      return NextResponse.json(
+        { error: "Nom de fichier manquant" },
         { status: 400 }
       );
     }
@@ -41,27 +54,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Retourner le token d'upload (BLOB_READ_WRITE_TOKEN)
-    // Note: En production, on devrait générer un token temporaire avec des permissions limitées
-    // Pour l'instant, on utilise le token complet mais avec validation côté serveur
-    const uploadToken = process.env.BLOB_READ_WRITE_TOKEN;
+    // Générer la clé S3 pour le fichier
+    const fileKey = generateS3FileKey("intakes", fileName, intakeToken);
 
-    if (!uploadToken) {
-      return NextResponse.json(
-        { error: "Token d'upload non configuré" },
-        { status: 500 }
-      );
-    }
+    // Générer l'URL signée pour upload (valide 1 heure)
+    // URL signée simple PUT sans Content-Type ni checksum
+    const signedUrl = await generateSignedUploadUrl(fileKey, undefined, 3600);
+
+    // Générer l'URL publique du fichier S3 (après upload)
+    const bucketName = process.env.AWS_S3_BUCKET_NAME || "";
+    const region = process.env.AWS_REGION || "eu-west-3";
+    const publicUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${fileKey}`;
 
     return NextResponse.json({
-      token: uploadToken,
-      // Indiquer que multipart est supporté
-      multipart: true,
+      signedUrl, // URL signée pour upload direct
+      fileKey, // Clé S3 du fichier
+      publicUrl, // URL publique S3 après upload
+      expiresIn: 3600, // Durée de validité en secondes
     });
   } catch (error: any) {
     console.error("[generate-upload-token] Erreur:", error);
     return NextResponse.json(
-      { error: error.message || "Erreur lors de la génération du token d'upload" },
+      { error: error.message || "Erreur lors de la génération de l'URL signée" },
       { status: 500 }
     );
   }

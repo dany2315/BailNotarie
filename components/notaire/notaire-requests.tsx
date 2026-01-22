@@ -231,10 +231,10 @@ export function NotaireRequests({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="title">Titre de la demande *</Label>
+                  <Label htmlFor="title">Nom de la piéce *</Label>
                   <Input
                     id="title"
-                    placeholder="Ex: Demande de pièce d'identité"
+                    placeholder="Ex: piéce d'identiter"
                     {...register("title")}
                   />
                   {errors.title && (

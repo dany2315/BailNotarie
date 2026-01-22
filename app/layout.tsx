@@ -140,12 +140,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://images.pexels.com" />
         <link rel="dns-prefetch" href="https://images.pexels.com" />
       </head>
-      <body className={inter.className}>{children}
+      <body className={inter.className} suppressHydrationWarning>{children}
       
       {/* Google ADS */}
       <Script
