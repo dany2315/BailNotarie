@@ -500,6 +500,146 @@ export async function getNotaireRequestsByBail(bailId: string) {
  * @param formData - FormData contenant les fichiers et le contenu
  * @param recipientPartyId - ID de la partie destinataire (requis pour les notaires)
  */
+/**
+ * Nouvelle fonction pour envoyer un message avec fichiers uploadés directement vers S3
+ * Accepte les URLs publiques S3 au lieu de FormData
+ */
+export async function sendBailMessageWithS3Urls(
+  bailId: string,
+  files: Array<{ publicUrl: string; fileName: string; mimeType: string; size: number }>,
+  content: string = "",
+  recipientPartyId?: string
+) {
+  const user = await requireAuth();
+
+  let finalRecipientPartyId: string | null = recipientPartyId || null;
+
+  // Vérifier les permissions
+  if (user.role === Role.UTILISATEUR) {
+    const hasAccess = await canAccessBail(user.id, bailId);
+    if (!hasAccess) {
+      throw new Error("Non autorisé");
+    }
+    // Pour un client, pas de destinataire spécifique (le notaire voit tout)
+    finalRecipientPartyId = null;
+  } else if (user.role === Role.NOTAIRE) {
+    // Vérifier que le notaire est assigné à ce bail
+    const assignment = await prisma.dossierNotaireAssignment.findFirst({
+      where: {
+        bailId,
+        notaireId: user.id,
+      },
+    });
+    if (!assignment) {
+      throw new Error("Non autorisé");
+    }
+    // Pour un notaire, recipientPartyId est requis
+    if (!recipientPartyId) {
+      throw new Error("Le destinataire est requis pour les messages du notaire");
+    }
+    finalRecipientPartyId = recipientPartyId;
+  } else {
+    throw new Error("Non autorisé");
+  }
+
+  if (!files || files.length === 0) {
+    throw new Error("Au moins un fichier est requis");
+  }
+
+  // Créer les documents dans la base de données avec les URLs S3
+  const documents = await Promise.all(
+    files.map(async (file) => {
+      return prisma.document.create({
+        data: {
+          kind: "OTHER",
+          label: file.fileName,
+          fileKey: file.publicUrl, // URL publique S3
+          mimeType: file.mimeType,
+          size: file.size,
+          bailId,
+          uploadedById: user.id,
+        },
+      });
+    })
+  );
+
+  // Créer un message pour chaque document (ou un seul message avec le premier document si plusieurs)
+  const fileNames = files.map(f => f.fileName).join(", ");
+  const firstDocument = documents[0];
+
+  // Créer le message principal avec le premier document
+  const message = await prisma.bailMessage.create({
+    data: {
+      bailId,
+      senderId: user.id,
+      messageType: BailMessageType.MESSAGE,
+      content: content.trim() || (files.length === 1 ? `Fichier: ${fileNames}` : `${files.length} fichiers: ${fileNames}`),
+      documentId: firstDocument.id,
+      recipientPartyId: finalRecipientPartyId,
+    },
+    include: {
+      sender: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+      document: {
+        select: {
+          id: true,
+          label: true,
+          fileKey: true,
+          mimeType: true,
+          size: true,
+        },
+      },
+      recipientParty: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  // Créer des messages supplémentaires pour les autres documents
+  if (documents.length > 1) {
+    await Promise.all(
+      documents.slice(1).map((doc) =>
+        prisma.bailMessage.create({
+          data: {
+            bailId,
+            senderId: user.id,
+            messageType: BailMessageType.MESSAGE,
+            content: `Fichier: ${doc.label}`,
+            documentId: doc.id,
+            recipientPartyId: finalRecipientPartyId,
+          },
+        })
+      )
+    );
+  }
+
+  // Envoyer l'événement Pusher pour la mise à jour en temps réel
+  try {
+    await pusherServer.trigger(`presence-bail-${bailId}`, "new-message", {
+      message: {
+        ...message,
+        createdAt: message.createdAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Erreur lors de l'envoi de l'événement Pusher:", error);
+  }
+
+  revalidatePath(`/client/proprietaire/baux/${bailId}`);
+  revalidatePath(`/client/locataire/baux/${bailId}`);
+  revalidatePath(`/notaire/dossiers`);
+
+  return message;
+}
+
 export async function sendBailMessageWithFile(bailId: string, formData: FormData, recipientPartyId?: string) {
   const user = await requireAuth();
 
@@ -766,6 +906,222 @@ export async function updateNotaireRequestStatus(
 /**
  * Ajoute un document à une demande de notaire
  */
+/**
+ * Nouvelle fonction pour ajouter des documents à une demande avec URLs S3
+ * Accepte les URLs publiques S3 au lieu de FormData
+ */
+export async function addDocumentToNotaireRequestWithS3Urls(
+  requestId: string,
+  files: Array<{ publicUrl: string; fileName: string; mimeType: string; size: number }>
+) {
+  const user = await requireAuth();
+
+  // Récupérer le clientId de l'utilisateur s'il est un client
+  let userClientId: string | null = null;
+  
+  // Vérifier les permissions
+  if (user.role === Role.UTILISATEUR) {
+    // Les utilisateurs peuvent répondre aux demandes qui les concernent
+    const [request, userWithClient] = await Promise.all([
+      prisma.notaireRequest.findUnique({
+        where: { id: requestId },
+        include: {
+          dossier: true,
+        },
+      }),
+      prisma.user.findUnique({
+        where: { id: user.id },
+        select: { clientId: true },
+      }),
+    ]);
+
+    if (!request) {
+      throw new Error("Demande introuvable");
+    }
+
+    if (!request.dossier.bailId) {
+      throw new Error("Cette demande n'est pas liée à un bail");
+    }
+
+    const hasAccess = await canAccessBail(user.id, request.dossier.bailId);
+    if (!hasAccess) {
+      throw new Error("Non autorisé");
+    }
+    
+    // Récupérer le clientId de l'utilisateur
+    userClientId = userWithClient?.clientId || null;
+  } else if (user.role === Role.NOTAIRE) {
+    const request = await prisma.notaireRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        dossier: true,
+      },
+    });
+
+    if (!request || request.dossier.notaireId !== user.id) {
+      throw new Error("Non autorisé");
+    }
+  } else {
+    throw new Error("Non autorisé");
+  }
+
+  if (!files || files.length === 0) {
+    throw new Error("Au moins un fichier est requis");
+  }
+
+  const request = await prisma.notaireRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      dossier: true,
+    },
+  });
+
+  if (!request || !request.dossier.bailId) {
+    throw new Error("Demande introuvable ou non liée à un bail");
+  }
+
+  // Créer les documents dans la base de données avec les URLs S3
+  const documents = await Promise.all(
+    files.map(async (file) => {
+      return prisma.document.create({
+        data: {
+          kind: "OTHER",
+          label: file.fileName,
+          fileKey: file.publicUrl, // URL publique S3
+          mimeType: file.mimeType,
+          size: file.size,
+          bailId: request.dossier.bailId,
+          clientId: userClientId, // Lier le document au client qui l'envoie
+          uploadedById: user.id,
+          notaireRequestId: requestId, // Rattacher directement le document à la demande
+        },
+      });
+    })
+  );
+
+  // Mettre à jour le statut de la demande en COMPLETED quand un document est ajouté
+  await prisma.notaireRequest.update({
+    where: { id: requestId },
+    data: { status: NotaireRequestStatus.COMPLETED },
+  });
+
+  // Envoyer l'événement Pusher pour notifier que la demande a été complétée
+  if (request.dossier.bailId) {
+    try {
+      // Émettre un événement pour mettre à jour le statut de la demande avec les documents
+      await pusherServer.trigger(`presence-bail-${request.dossier.bailId}`, "request-updated", {
+        request: {
+          id: request.id,
+          status: NotaireRequestStatus.COMPLETED,
+          documents: documents.map(doc => ({
+            id: doc.id,
+            label: doc.label,
+            fileKey: doc.fileKey,
+            mimeType: doc.mimeType,
+            size: doc.size,
+          })),
+        },
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de l'événement Pusher:", error);
+    }
+
+    // Envoyer un email au notaire pour le notifier du document reçu
+    try {
+      console.log("[addDocumentToNotaireRequestWithS3Urls] Préparation de l'email pour le notaire...");
+      console.log("[addDocumentToNotaireRequestWithS3Urls] request.dossierId:", request.dossierId);
+      
+      // Récupérer les informations du notaire et du client
+      const dossierWithNotaire = await prisma.dossierNotaireAssignment.findUnique({
+        where: { id: request.dossierId },
+        include: {
+          notaire: {
+            select: {
+              email: true,
+              name: true,
+            },
+          },
+          bail: {
+            include: {
+              property: {
+                select: { fullAddress: true },
+              },
+            },
+          },
+        },
+      });
+
+      console.log("[addDocumentToNotaireRequestWithS3Urls] dossierWithNotaire:", dossierWithNotaire ? "trouvé" : "null");
+      console.log("[addDocumentToNotaireRequestWithS3Urls] notaire:", dossierWithNotaire?.notaire ? dossierWithNotaire.notaire.email : "null");
+
+      if (dossierWithNotaire?.notaire) {
+        // Récupérer le nom du client qui envoie le document
+        const clientInfo = await prisma.user.findUnique({
+          where: { id: user.id },
+          include: {
+            client: {
+              include: {
+                persons: {
+                  where: { isPrimary: true },
+                  take: 1,
+                  select: { firstName: true, lastName: true },
+                },
+                entreprise: {
+                  select: { legalName: true, name: true },
+                },
+              },
+            },
+          },
+        });
+
+        let clientName = user.name || user.email;
+        if (clientInfo?.client) {
+          const primaryPerson = clientInfo.client.persons[0];
+          if (primaryPerson) {
+            clientName = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || clientName;
+          } else if (clientInfo.client.entreprise) {
+            clientName = clientInfo.client.entreprise.legalName || clientInfo.client.entreprise.name || clientName;
+          }
+        }
+
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.bailnotarie.fr";
+        const documentNames = documents.map(doc => doc.label || "Document");
+
+        console.log("[addDocumentToNotaireRequestWithS3Urls] Envoi de l'email via Inngest...");
+        console.log("[addDocumentToNotaireRequestWithS3Urls] Données email:", {
+          notaireEmail: dossierWithNotaire.notaire.email,
+          clientName,
+          requestTitle: request.title,
+          documentNames,
+        });
+
+        await triggerDocumentReceivedEmail({
+          notaireEmail: dossierWithNotaire.notaire.email,
+          notaireName: dossierWithNotaire.notaire.name,
+          clientName,
+          requestTitle: request.title,
+          documentNames,
+          bailAddress: dossierWithNotaire.bail?.property?.fullAddress || null,
+          chatUrl: `${baseUrl}/notaire/dossiers`,
+        });
+        
+        console.log("[addDocumentToNotaireRequestWithS3Urls] Email envoyé avec succès via Inngest");
+      } else {
+        console.log("[addDocumentToNotaireRequestWithS3Urls] Notaire non trouvé, email non envoyé");
+      }
+    } catch (emailError) {
+      console.error("[addDocumentToNotaireRequestWithS3Urls] Erreur lors de l'envoi de l'email au notaire:", emailError);
+      // Ne pas faire échouer la fonction si l'email échoue
+    }
+  }
+
+  revalidatePath(`/notaire/dossiers`);
+  revalidatePath(`/client/proprietaire/baux/${request.dossier.bailId}`);
+  revalidatePath(`/client/locataire/baux/${request.dossier.bailId}`);
+
+  return documents[0]; // Retourner le premier document
+}
+
 export async function addDocumentToNotaireRequest(
   requestId: string,
   formData: FormData

@@ -209,6 +209,12 @@ async function uploadFileAndCreateDocument(
   return document;
 }
 
+/**
+ * @deprecated Cette fonction est obsolète. Les uploads se font maintenant directement
+ * via FileUpload avec upload direct client → S3. Conservée pour compatibilité.
+ * 
+ * Utilisez FileUpload avec les props documentKind, documentClientId, etc.
+ */
 // Fonction pour gérer les pièces jointes d'un formulaire propriétaire
 export async function handleOwnerFormDocuments(
   formData: FormData,
@@ -380,6 +386,12 @@ export async function handleOwnerFormDocuments(
   return documents;
 }
 
+/**
+ * @deprecated Cette fonction est obsolète. Les uploads se font maintenant directement
+ * via FileUpload avec upload direct client → S3. Conservée pour compatibilité.
+ * 
+ * Utilisez FileUpload avec les props documentKind, documentClientId, etc.
+ */
 // Fonction pour gérer les pièces jointes d'un formulaire locataire
 export async function handleTenantFormDocuments(
   formData: FormData,

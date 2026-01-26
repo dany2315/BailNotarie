@@ -3789,7 +3789,7 @@ const DocumentsStep = ({
                   }}
                   uploadToken={intakeLink.token}
                   documentKind="KBIS"
-                  clientId={intakeLink.clientId}
+                  documentClientId={intakeLink.clientId}
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>
@@ -3807,7 +3807,7 @@ const DocumentsStep = ({
                   }}
                   uploadToken={intakeLink.token}
                   documentKind="STATUTES"
-                  clientId={intakeLink.clientId}
+                  documentClientId={intakeLink.clientId}
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>
@@ -3849,7 +3849,7 @@ const DocumentsStep = ({
                           }}
                           uploadToken={intakeLink.token}
                           documentKind="ID_IDENTITY"
-                          clientId={intakeLink.clientId}
+                          documentClientId={intakeLink.clientId}
                           personIndex={index}
                           onUploadStateChange={onUploadStateChange}
                         />
@@ -3880,7 +3880,7 @@ const DocumentsStep = ({
                         }}
                         uploadToken={intakeLink.token}
                         documentKind="LIVRET_DE_FAMILLE"
-                        clientId={intakeLink.clientId}
+                        documentClientId={intakeLink.clientId}
                         onUploadStateChange={onUploadStateChange}
                       />
                     </DocumentUploaded>
@@ -3903,7 +3903,7 @@ const DocumentsStep = ({
                         }}
                         uploadToken={intakeLink.token}
                         documentKind="CONTRAT_DE_PACS"
-                        clientId={intakeLink.clientId}
+                        documentClientId={intakeLink.clientId}
                         onUploadStateChange={onUploadStateChange}
                       />
                     </DocumentUploaded>
@@ -3931,7 +3931,7 @@ const DocumentsStep = ({
               }}
               uploadToken={intakeLink.token}
               documentKind="INSURANCE"
-              clientId={intakeLink.clientId}
+              documentClientId={intakeLink.clientId}
               onUploadStateChange={onUploadStateChange}
             />
           </DocumentUploaded>
@@ -3949,7 +3949,7 @@ const DocumentsStep = ({
               }}
               uploadToken={intakeLink.token}
               documentKind="RIB"
-              clientId={intakeLink.clientId}
+              documentClientId={intakeLink.clientId}
               onUploadStateChange={onUploadStateChange}
             />
           </DocumentUploaded>
@@ -3967,7 +3967,7 @@ const DocumentsStep = ({
               }}
               uploadToken={intakeLink.token}
               documentKind="DIAGNOSTICS"
-              clientId={intakeLink.clientId}
+              documentClientId={intakeLink.clientId}
               onUploadStateChange={onUploadStateChange}
             />
           </DocumentUploaded>
@@ -3985,7 +3985,7 @@ const DocumentsStep = ({
               }}
               uploadToken={intakeLink.token}
               documentKind="TITLE_DEED"
-              clientId={intakeLink.clientId}
+              documentClientId={intakeLink.clientId}
               onUploadStateChange={onUploadStateChange}
             />
           </DocumentUploaded>
@@ -4007,7 +4007,7 @@ const DocumentsStep = ({
                 }}
                 uploadToken={intakeLink.token}
                 documentKind="REGLEMENT_COPROPRIETE"
-                clientId={intakeLink.clientId}
+                documentClientId={intakeLink.clientId}
                 onUploadStateChange={onUploadStateChange}
               />
             </DocumentUploaded>
@@ -4031,7 +4031,7 @@ const DocumentsStep = ({
                   }}
                   uploadToken={intakeLink.token}
                   documentKind="CAHIER_DE_CHARGE_LOTISSEMENT"
-                  clientId={intakeLink.clientId}
+                  documentClientId={intakeLink.clientId}
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>
@@ -4052,7 +4052,7 @@ const DocumentsStep = ({
                   }}
                   uploadToken={intakeLink.token}
                   documentKind="STATUT_DE_LASSOCIATION_SYNDICALE"
-                  clientId={intakeLink.clientId}
+                  documentClientId={intakeLink.clientId}
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>

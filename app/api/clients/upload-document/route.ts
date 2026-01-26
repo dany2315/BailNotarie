@@ -7,6 +7,12 @@ import {
 import { revalidatePath } from "next/cache";
 import { uploadFileToS3, generateS3FileKey } from "@/lib/utils/s3-client";
 
+/**
+ * @deprecated Cet endpoint est obsolète. Utilisez l'upload direct via /api/blob/generate-upload-token
+ * et /api/documents/create pour un meilleur performance (upload direct client → S3).
+ * 
+ * Conservé pour compatibilité avec d'éventuels anciens clients.
+ */
 // Configuration pour accepter les fichiers volumineux
 export const maxDuration = 300; // 5 minutes pour les uploads volumineux (multipart)
 export const runtime = 'nodejs'; // Utiliser Node.js runtime pour les uploads

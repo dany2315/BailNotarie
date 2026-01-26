@@ -3,6 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { DocumentKind } from "@prisma/client";
 import { uploadFileToS3, generateS3FileKey } from "@/lib/utils/s3-client";
 
+/**
+ * @deprecated Cet endpoint est obsolète. Utilisez l'upload direct via /api/blob/generate-upload-token
+ * et /api/documents/create pour un meilleur performance (upload direct client → S3).
+ * 
+ * Conservé pour compatibilité avec d'éventuels anciens clients.
+ */
+
 // Configuration pour accepter les fichiers volumineux
 // Les API routes dans Next.js App Router gèrent automatiquement les FormData
 // Pas besoin de bodyParser: false car Next.js le gère automatiquement

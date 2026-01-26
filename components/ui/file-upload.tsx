@@ -16,11 +16,18 @@ interface FileUploadProps {
   disabled?: boolean;
   required?: boolean;
   error?: string;
-  // Props pour l'upload direct vers Vercel Blob
-  uploadToken?: string;
+  // Props pour l'upload direct vers S3
+  // Pour les intakes
+  uploadToken?: string; // Token d'intake
+  // Pour les documents clients/propriétés
+  documentClientId?: string;
+  documentPersonId?: string;
+  documentEntrepriseId?: string;
+  documentPropertyId?: string;
+  documentBailId?: string;
+  // Commun
   documentKind?: string;
-  clientId?: string;
-  personIndex?: number;
+  personIndex?: number; // Pour les documents de personne (ID_IDENTITY)
   onUploadComplete?: (blobUrl: string) => void;
   onUploadProgress?: (progress: number) => void;
   onUploadStateChange?: (isUploading: boolean) => void;
@@ -36,7 +43,11 @@ export function FileUpload({
   error,
   uploadToken,
   documentKind,
-  clientId,
+  documentClientId,
+  documentPersonId,
+  documentEntrepriseId,
+  documentPropertyId,
+  documentBailId,
   personIndex,
   onUploadComplete,
   onUploadProgress,
@@ -126,8 +137,8 @@ export function FileUpload({
       return;
     }
 
-    // Si uploadToken est fourni, faire l'upload direct vers S3 avec URL signée
-    if (uploadToken && documentKind) {
+    // Si documentKind est fourni, faire l'upload direct vers S3 avec URL signée
+    if (documentKind) {
       setUploadingFile(file); // Stocker le fichier en cours d'upload
       setIsUploading(true);
       setUploadProgress(0);
@@ -139,7 +150,15 @@ export function FileUpload({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
-            token: uploadToken,
+            // Pour les intakes
+            ...(uploadToken && { token: uploadToken }),
+            // Pour les documents clients/propriétés
+            ...(documentClientId && { clientId: documentClientId }),
+            ...(documentPersonId && { personId: documentPersonId }),
+            ...(documentEntrepriseId && { entrepriseId: documentEntrepriseId }),
+            ...(documentPropertyId && { propertyId: documentPropertyId }),
+            ...(documentBailId && { bailId: documentBailId }),
+            // Commun
             fileName: file.name,
             contentType: file.type || "application/octet-stream",
             documentKind: documentKind,
@@ -157,22 +176,27 @@ export function FileUpload({
         // Ne pas envoyer Content-Type car il n'est pas signé dans l'URL
         await uploadFileToS3(file, signedUrl);
 
-        // 3. Créer le document dans la DB via l'API
-        const createDocResponse = await fetch("/api/intakes/create-documents", {
+        // 3. Créer le document dans la DB via l'API générique
+        const createDocResponse = await fetch("/api/documents/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            token: uploadToken,
-            documents: [{
-              fileKey: publicUrl, // URL publique S3
-              kind: documentKind,
-              fileName: file.name,
-              mimeType: file.type,
-              size: file.size,
-              label: file.name,
-              personIndex: personIndex,
-            }],
-            clientId: clientId,
+            // Pour les intakes
+            ...(uploadToken && { token: uploadToken }),
+            // Pour les documents clients/propriétés
+            ...(documentClientId && { clientId: documentClientId }),
+            ...(documentPersonId && { personId: documentPersonId }),
+            ...(documentEntrepriseId && { entrepriseId: documentEntrepriseId }),
+            ...(documentPropertyId && { propertyId: documentPropertyId }),
+            ...(documentBailId && { bailId: documentBailId }),
+            // Données du document
+            fileKey: publicUrl, // URL publique S3
+            kind: documentKind,
+            fileName: file.name,
+            mimeType: file.type,
+            size: file.size,
+            label: file.name,
+            ...(personIndex !== undefined && { personIndex }),
           }),
         });
 
@@ -180,17 +204,25 @@ export function FileUpload({
           const error = await createDocResponse.json();
           console.warn("[FileUpload] Erreur lors de la création du document:", error);
           // Ne pas faire échouer l'upload si la création du document échoue
-          // Le document sera créé lors du savePartialIntake
+          // Le document sera créé lors du savePartialIntake pour les intakes
+        } else {
+          toast.success("Fichier uploadé avec succès");
         }
-
-        toast.success("Fichier uploadé avec succès");
         
         if (onUploadComplete) {
           onUploadComplete(publicUrl);
         }
 
         // Déclencher l'événement pour recharger les documents
-        window.dispatchEvent(new CustomEvent(`document-uploaded-${uploadToken}`));
+        if (uploadToken) {
+          window.dispatchEvent(new CustomEvent(`document-uploaded-${uploadToken}`));
+        }
+        if (documentClientId) {
+          window.dispatchEvent(new CustomEvent(`document-uploaded-client-${documentClientId}`));
+        }
+        if (documentPropertyId) {
+          window.dispatchEvent(new CustomEvent(`document-uploaded-property-${documentPropertyId}`));
+        }
 
         // Garder le fichier dans le state pour l'affichage
         onChange(file);
@@ -220,7 +252,7 @@ export function FileUpload({
     const file = e.dataTransfer.files[0];
     if (file) {
       // Utiliser la même logique que handleFileChange
-      if (uploadToken && documentKind) {
+      if (documentKind) {
         setUploadingFile(file); // Stocker le fichier en cours d'upload
         setIsUploading(true);
         setUploadProgress(0);
@@ -232,7 +264,15 @@ export function FileUpload({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
-              token: uploadToken,
+              // Pour les intakes
+              ...(uploadToken && { token: uploadToken }),
+              // Pour les documents clients/propriétés
+              ...(documentClientId && { clientId: documentClientId }),
+              ...(documentPersonId && { personId: documentPersonId }),
+              ...(documentEntrepriseId && { entrepriseId: documentEntrepriseId }),
+              ...(documentPropertyId && { propertyId: documentPropertyId }),
+              ...(documentBailId && { bailId: documentBailId }),
+              // Commun
               fileName: file.name,
               contentType: file.type || "application/octet-stream",
               documentKind: documentKind,
@@ -251,36 +291,50 @@ export function FileUpload({
           await uploadFileToS3(file, signedUrl);
 
           // 3. Créer le document dans la DB
-          const createDocResponse = await fetch("/api/intakes/create-documents", {
+          const createDocResponse = await fetch("/api/documents/create", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              token: uploadToken,
-              documents: [{
-                fileKey: publicUrl,
-                kind: documentKind,
-                fileName: file.name,
-                mimeType: file.type,
-                size: file.size,
-                label: file.name,
-                personIndex: personIndex,
-              }],
-              clientId: clientId,
+              // Pour les intakes
+              ...(uploadToken && { token: uploadToken }),
+              // Pour les documents clients/propriétés
+              ...(documentClientId && { clientId: documentClientId }),
+              ...(documentPersonId && { personId: documentPersonId }),
+              ...(documentEntrepriseId && { entrepriseId: documentEntrepriseId }),
+              ...(documentPropertyId && { propertyId: documentPropertyId }),
+              ...(documentBailId && { bailId: documentBailId }),
+              // Données du document
+              fileKey: publicUrl,
+              kind: documentKind,
+              fileName: file.name,
+              mimeType: file.type,
+              size: file.size,
+              label: file.name,
+              ...(personIndex !== undefined && { personIndex }),
             }),
           });
 
           if (!createDocResponse.ok) {
             const error = await createDocResponse.json();
             console.warn("[FileUpload] Erreur lors de la création du document:", error);
+          } else {
+            toast.success("Fichier uploadé avec succès");
           }
-
-          toast.success("Fichier uploadé avec succès");
           
           if (onUploadComplete) {
             onUploadComplete(publicUrl);
           }
 
-          window.dispatchEvent(new CustomEvent(`document-uploaded-${uploadToken}`));
+          // Déclencher l'événement pour recharger les documents
+          if (uploadToken) {
+            window.dispatchEvent(new CustomEvent(`document-uploaded-${uploadToken}`));
+          }
+          if (documentClientId) {
+            window.dispatchEvent(new CustomEvent(`document-uploaded-client-${documentClientId}`));
+          }
+          if (documentPropertyId) {
+            window.dispatchEvent(new CustomEvent(`document-uploaded-property-${documentPropertyId}`));
+          }
 
           onChange(file);
         } catch (error: any) {

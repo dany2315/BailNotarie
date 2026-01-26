@@ -2454,7 +2454,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     disabled={isSubmitting}
                     uploadToken={intakeLink.token}
                     documentKind="KBIS"
-                    clientId={client?.id}
+                    documentClientId={client?.id}
                     onUploadStateChange={handleUploadStateChange}
                   />
                 </DocumentUploaded>
@@ -2473,7 +2473,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     disabled={isSubmitting}
                     uploadToken={intakeLink.token}
                     documentKind="STATUTES"
-                    clientId={client?.id}
+                    documentClientId={client?.id}
                     onUploadStateChange={handleUploadStateChange}
                   />
                 </DocumentUploaded>
@@ -2516,7 +2516,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                             disabled={isSubmitting}
                             uploadToken={intakeLink.token}
                             documentKind="ID_IDENTITY"
-                            clientId={client?.id}
+                            documentClientId={client?.id}
                             personIndex={index}
                             onUploadStateChange={handleUploadStateChange}
                           />
@@ -2548,7 +2548,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           disabled={isSubmitting}
                           uploadToken={intakeLink.token}
                           documentKind="LIVRET_DE_FAMILLE"
-                          clientId={client?.id}
+                          documentClientId={client?.id}
                           onUploadStateChange={handleUploadStateChange}
                         />
                       </DocumentUploaded>
@@ -2572,7 +2572,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           disabled={isSubmitting}
                           uploadToken={intakeLink.token}
                           documentKind="CONTRAT_DE_PACS"
-                          clientId={client?.id}
+                          documentClientId={client?.id}
                           onUploadStateChange={handleUploadStateChange}
                         />
                       </DocumentUploaded>
@@ -2599,7 +2599,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   disabled={isSubmitting}
                   uploadToken={intakeLink.token}
                   documentKind="INSURANCE"
-                  clientId={client?.id}
+                  documentClientId={client?.id}
                   onUploadStateChange={handleUploadStateChange}
                 />
               </DocumentUploaded>
@@ -2618,7 +2618,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   disabled={isSubmitting}
                   uploadToken={intakeLink.token}
                   documentKind="RIB"
-                  clientId={client?.id}
+                  documentClientId={client?.id}
                   onUploadStateChange={handleUploadStateChange}
                 />
               </DocumentUploaded>

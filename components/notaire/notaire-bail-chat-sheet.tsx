@@ -70,6 +70,72 @@ const requestSchema = z.object({
 type MessageFormData = z.infer<typeof messageSchema>;
 type RequestFormData = z.infer<typeof requestSchema>;
 
+// Fonction helper pour obtenir une URL signée pour le téléchargement
+async function getSignedUrlForDownload(fileKey: string): Promise<string> {
+  try {
+    const response = await fetch("/api/blob/get-signed-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileKey }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Erreur lors de la génération de l'URL signée");
+    }
+
+    const { signedUrl } = await response.json();
+    return signedUrl;
+  } catch (error) {
+    console.error("[NotaireBailChatSheet] Erreur lors de la génération de l'URL signée:", error);
+    // En cas d'erreur, retourner l'URL originale
+    return fileKey;
+  }
+}
+
+// Fonction helper pour télécharger un document avec URL signée S3
+async function handleDownloadDocument(
+  fileKey: string,
+  fileName: string
+): Promise<void> {
+  if (typeof window === "undefined" || typeof window.document === "undefined") {
+    toast.error("Téléchargement non disponible dans cet environnement");
+    return;
+  }
+
+  try {
+    // Obtenir une URL signée pour le téléchargement si c'est une URL S3
+    let downloadUrl = fileKey;
+    
+    // Si c'est une URL S3, obtenir une URL signée
+    if (fileKey?.startsWith("http") && (fileKey.includes("s3") || fileKey.includes("amazonaws.com"))) {
+      try {
+        downloadUrl = await getSignedUrlForDownload(fileKey);
+      } catch (error) {
+        console.warn("[NotaireBailChatSheet] Impossible d'obtenir une URL signée, utilisation de l'URL originale");
+      }
+    }
+    
+    // Télécharger le fichier
+    const response = await fetch(downloadUrl);
+    if (!response.ok) {
+      throw new Error("Erreur lors du téléchargement du fichier");
+    }
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = window.document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    window.document.body.appendChild(link);
+    link.click();
+    window.document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Erreur lors du téléchargement:", error);
+    toast.error("Erreur lors du téléchargement du document");
+  }
+}
+
 interface NotaireBailChatSheetProps {
   bailId: string;
   dossierId: string;
@@ -1277,22 +1343,27 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                                     isOwnMessage ? "bg-white/10" : "bg-background"
                                   }`}>
                                     <FileText className="h-4 w-4 shrink-0" />
-                                    <a
-                                      href={message.document.fileKey}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-sm underline hover:no-underline flex-1 truncate"
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const signedUrl = await getSignedUrlForDownload(message.document.fileKey);
+                                        window.open(signedUrl, "_blank", "noopener,noreferrer");
+                                      }}
+                                      className="text-sm underline hover:no-underline flex-1 truncate text-left"
                                     >
                                       {message.document.label || "Document"}
-                                    </a>
-                                    <a
-                                      href={message.document.fileKey}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadDocument(
+                                        message.document.fileKey,
+                                        message.document.label || "Document"
+                                      )}
                                       className="shrink-0 hover:opacity-70 transition-opacity"
+                                      title="Télécharger le document"
                                     >
                                       <Download className="h-4 w-4" />
-                                    </a>
+                                    </button>
                                     {isNotaire && (
                                       <Button
                                         type="button"
@@ -1454,15 +1525,27 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                                           <div key={doc.id} className="flex flex-col gap-1 text-xs bg-background p-2 rounded">
                                             <div className="flex items-center gap-2">
                                               <FileText className="h-3 w-3 shrink-0" />
-                                              <a
-                                                href={doc.fileKey}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="underline hover:no-underline flex-1 truncate text-blue-600 hover:text-blue-800"
+                                              <button
+                                                type="button"
+                                                onClick={async () => {
+                                                  const signedUrl = await getSignedUrlForDownload(doc.fileKey);
+                                                  window.open(signedUrl, "_blank", "noopener,noreferrer");
+                                                }}
+                                                className="underline hover:no-underline flex-1 truncate text-blue-600 hover:text-blue-800 text-left"
                                               >
                                                 {doc.label || "Document"}
-                                              </a>
-                                              <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDownloadDocument(
+                                                  doc.fileKey,
+                                                  doc.label || "Document"
+                                                )}
+                                                className="shrink-0 hover:opacity-70 transition-opacity"
+                                                title="Télécharger le document"
+                                              >
+                                                <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                              </button>
                                             </div>
                                             <div className="flex items-center gap-1 text-muted-foreground pl-5">
                                               <User className="h-3 w-3" />
