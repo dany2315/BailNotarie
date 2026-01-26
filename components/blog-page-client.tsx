@@ -11,7 +11,7 @@ import { CommentButton } from '@/components/comment-button';
 import { CommentsSection, CommentsSectionRef } from '@/components/comments-section';
 import { CallButton, ContactButton } from '@/components/ui/action-buttons';
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
-import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content } from '@/components/blog-content';
+import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content } from '@/components/blog-content';
 
 // Mapping des composants de contenu par ID d'article
 const contentComponents: Record<string, React.ComponentType> = {
@@ -24,6 +24,7 @@ const contentComponents: Record<string, React.ComponentType> = {
   'blog-7': Blog7Content,
   'blog-8': Blog8Content,
   'blog-9': Blog9Content,
+  'blog-10': Blog10Content,
 };
 import useIsMobile from '@/hooks/useIsMobile';
 

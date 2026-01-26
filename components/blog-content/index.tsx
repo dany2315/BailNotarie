@@ -8,6 +8,7 @@ export { Blog6Content } from './blog-6-content';
 export { Blog7Content } from './blog-7-content';
 export { Blog8Content } from './blog-8-content';
 export { Blog9Content } from './blog-9-content';
+export { Blog10Content } from './blog-10-content';
 
 
 

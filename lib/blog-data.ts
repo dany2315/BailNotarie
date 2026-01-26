@@ -193,4 +193,23 @@ export const blogData = [
         createdAt: new Date("2026-01-15"),
         categoryId: "1",
       },
+      {
+        id: "blog-10",
+        title: "Bail Notarié et Expulsion : Efficacité Juridique et Stratégie de Recouvrement",
+        slug: generateSlug("Bail Notarié et Expulsion : Efficacité Juridique et Stratégie de Recouvrement"),
+        description:
+          "Analyse de la portée juridique du bail notarié : s'il ne dispense pas d'une décision de justice pour l'expulsion, il constitue le levier le plus puissant en matière de recouvrement de créances.",
+        content: "",
+        readTime: 6,
+        metaTitle: "Bail Notarié et Expulsion : Efficacité Juridique et Stratégie de Recouvrement",
+        metaDescription:
+          "Le bail notarié ne remplace pas le juge pour l'expulsion, mais il permet un recouvrement immédiat grâce au titre exécutoire. Découvrez comment sécuriser vos revenus locatifs avec l'acte authentique.",
+        metaKeywords:
+          "expulsion locataire, expulsion locative, bail notarié expulsion, titre exécutoire bail notarié, recouvrement loyers impayés, saisie conservatoire bail notarié, saisie rémunérations bail notarié, force exécutoire acte notarié, procédure expulsion locative, recouvrement créances locatives, bail notarié avantages, acte authentique location, sécurité juridique bailleur, impayés locatifs solution",
+        imageUrl:
+          "https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=1200",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2026-01-20"),
+        categoryId: "1",
+      },
 ]
