@@ -113,7 +113,7 @@ export async function getBailMessagesAndRequests(bailId: string, filterByPartyId
       throw new Error("Non autorisé");
     }
     userClientId = userWithClient?.clientId || null;
-    userProfilType = clientData?.client?.profilType || null;
+    userProfilType = (clientData?.client?.profilType as "PROPRIETAIRE" | "LOCATAIRE" | null) || null;
     
     // Récupérer le dossierId en arrière-plan
     const dossier = await prisma.dossierNotaireAssignment.findFirst({
@@ -550,7 +550,7 @@ export async function getNotaireRequestsByBail(bailId: string) {
       throw new Error("Non autorisé");
     }
     userClientId = userWithClient?.clientId || null;
-    userProfilType = clientData?.client?.profilType || null;
+    userProfilType = (clientData?.client?.profilType as "PROPRIETAIRE" | "LOCATAIRE" | null) || null;
   } else if (user.role === Role.NOTAIRE) {
     if (dossier.notaireId !== user.id) {
       throw new Error("Non autorisé");

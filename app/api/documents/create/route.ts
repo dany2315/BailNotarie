@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
           label: label || fileName,
           mimeType: mimeType,
           size: size,
-          ...(uploadedById && { uploadedById }),
+          ...(uploadedById ? { uploadedById } : {}),
         },
       });
     } else {
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
         fileKey: fileKey,
         mimeType: mimeType,
         size: size,
-        ...(uploadedById && { uploadedById }),
+        ...(uploadedById ? { uploadedById } : {}),
       };
 
       if (targetPersonId) documentData.personId = targetPersonId;

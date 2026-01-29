@@ -832,7 +832,7 @@ export async function getDossierAnnexDocuments(dossierId: string) {
       uploadedBy: {
         id: doc.uploadedBy?.id || "",
         email: doc.uploadedBy?.email || "",
-        name: doc.uploadedBy?.name,
+        name: doc.uploadedBy?.name || null,
       },
       requestTitle: doc.notaireRequest?.title || null,
       requestId: doc.notaireRequest?.id || null,

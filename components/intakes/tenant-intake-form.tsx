@@ -978,7 +978,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     }
 
     // Uploader les fichiers via le nouveau système (upload individuel)
-    const uploadedDocuments: any[] = [];
     const uploadPromises: Promise<any>[] = [];
 
     // Fonction helper pour uploader un fichier
