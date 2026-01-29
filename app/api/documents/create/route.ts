@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { DocumentKind } from "@prisma/client";
-import { requireAuth } from "@/lib/auth-helpers";
 import { 
   updateClientCompletionStatus as calculateAndUpdateClientStatus, 
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
@@ -12,8 +11,7 @@ import { revalidatePath } from "next/cache";
  * Route API pour créer des documents dans la DB après upload direct côté client
  * Supporte tous les contextes : intakes, clients, propriétés, baux
  * 
- * Note : Les intakes (formulaires publics) n'ont PAS besoin d'authentification.
- * Seuls les documents de l'interface notaire nécessitent une authentification.
+ * PAS D'AUTHENTIFICATION REQUISE
  */
 export async function POST(request: NextRequest) {
   try {
@@ -49,8 +47,7 @@ export async function POST(request: NextRequest) {
     let finalBailId: string | null = null;
     let uploadedById: string | null = null;
 
-    // Cas 1: Document pour intake - PAS D'AUTHENTIFICATION REQUISE
-    // Les utilisateurs publics peuvent créer des documents via leur token d'intake
+    // Cas 1: Document pour intake
     if (intakeToken) {
       // Vérifier que l'intakeLink existe
       const intakeLink = await prisma.intakeLink.findUnique({
@@ -86,11 +83,8 @@ export async function POST(request: NextRequest) {
       finalBailId = bailId || intakeLink.bailId;
       // uploadedById sera mis à jour lors du savePartialIntake
     }
-    // Cas 2: Document pour client/propriété (nécessite auth)
+    // Cas 2: Document pour client/propriété
     else {
-      const user = await requireAuth();
-      uploadedById = user.id;
-
       // Récupérer le clientId si nécessaire
       if (personId) {
         const person = await prisma.person.findUnique({

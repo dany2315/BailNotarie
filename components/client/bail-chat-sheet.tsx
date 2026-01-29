@@ -163,13 +163,6 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
   const handleResponseFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      const invalidFiles = files.filter(file => file.size > 10 * 1024 * 1024);
-      if (invalidFiles.length > 0) {
-        toast.error("Fichier(s) trop volumineux", {
-          description: `La taille maximale est de 10MB par fichier. ${invalidFiles.length} fichier(s) dépassent cette limite.`,
-        });
-        return;
-      }
       setResponseFiles(prev => [...prev, ...files]);
     }
   };
@@ -1019,14 +1012,6 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      // Vérifier la taille de chaque fichier (max 10MB chacun)
-      const invalidFiles = files.filter(file => file.size > 10 * 1024 * 1024);
-      if (invalidFiles.length > 0) {
-        toast.error("Fichier(s) trop volumineux", {
-          description: `La taille maximale est de 10MB par fichier. ${invalidFiles.length} fichier(s) dépassent cette limite.`,
-        });
-        return;
-      }
       setSelectedFiles(prev => [...prev, ...files]);
     }
   };

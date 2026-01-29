@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -118,7 +118,7 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
   const targetProprietaire = watch("targetProprietaire");
   const targetLocataire = watch("targetLocataire");
 
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     try {
       setLoading(true);
       // Si une partie est sélectionnée et que l'utilisateur est notaire, utiliser getBailMessagesAndRequests pour filtrer
@@ -142,14 +142,16 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
     } finally {
       setLoading(false);
     }
-  };
+  }, [bailId, selectedPartyId]);
 
   useEffect(() => {
+    if (!session?.user?.id) return; // Ne pas charger si pas de session
+    
     loadMessages();
     // Recharger les messages toutes les 30 secondes
     const interval = setInterval(loadMessages, 30000);
     return () => clearInterval(interval);
-  }, [bailId, selectedPartyId, userRole]);
+  }, [bailId, selectedPartyId, loadMessages, session?.user?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

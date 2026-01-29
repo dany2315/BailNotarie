@@ -641,7 +641,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
       setIsOtherUserOnline(false);
       setIsOtherUserTyping(false);
     }
-  }, [bailId, open]);
+  }, [bailId, open, loadMessages]);
 
   // Détecter si l'utilisateur est en bas de la liste
   useEffect(() => {
@@ -885,14 +885,6 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      // Vérifier la taille de chaque fichier (max 10MB chacun)
-      const invalidFiles = files.filter(file => file.size > 10 * 1024 * 1024);
-      if (invalidFiles.length > 0) {
-        toast.error("Fichier(s) trop volumineux", {
-          description: `La taille maximale est de 10MB par fichier. ${invalidFiles.length} fichier(s) dépassent cette limite.`,
-        });
-        return;
-      }
       setSelectedFiles(prev => [...prev, ...files]);
     }
   };

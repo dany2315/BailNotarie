@@ -130,6 +130,45 @@ export async function GET(
           createdBy: {
             select: { id: true, email: true, name: true },
           },
+          // Documents fournis directement liés à cette demande
+          documents: {
+            select: {
+              id: true,
+              label: true,
+              fileKey: true,
+              mimeType: true,
+              size: true,
+              clientId: true, // Pour identifier de quelle partie vient le document
+              createdAt: true,
+              client: {
+                select: {
+                  id: true,
+                  profilType: true,
+                  persons: {
+                    where: { isPrimary: true },
+                    take: 1,
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                    },
+                  },
+                  entreprise: {
+                    select: {
+                      legalName: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+              uploadedBy: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
         },
         orderBy: {
           createdAt: "desc",

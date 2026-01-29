@@ -86,13 +86,26 @@ export async function getBailMessagesAndRequests(bailId: string, filterByPartyId
   let dossierId: string | null = null;
 
   // Optimisation : exécuter les vérifications en parallèle
+  let userProfilType: "PROPRIETAIRE" | "LOCATAIRE" | null = null;
+  
   if (user.role === Role.UTILISATEUR) {
-    // Pour un client, vérifier l'accès et récupérer le clientId en parallèle
-    const [hasAccess, userWithClient] = await Promise.all([
+    // Pour un client, vérifier l'accès et récupérer le clientId et profilType en parallèle
+    const [hasAccess, userWithClient, clientData] = await Promise.all([
       canAccessBail(user.id, bailId),
       prisma.user.findUnique({
         where: { id: user.id },
         select: { clientId: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          client: {
+            select: {
+              id: true,
+              profilType: true,
+            },
+          },
+        },
       }),
     ]);
     
@@ -100,6 +113,7 @@ export async function getBailMessagesAndRequests(bailId: string, filterByPartyId
       throw new Error("Non autorisé");
     }
     userClientId = userWithClient?.clientId || null;
+    userProfilType = clientData?.client?.profilType || null;
     
     // Récupérer le dossierId en arrière-plan
     const dossier = await prisma.dossierNotaireAssignment.findFirst({
@@ -120,6 +134,17 @@ export async function getBailMessagesAndRequests(bailId: string, filterByPartyId
       throw new Error("Non autorisé");
     }
     dossierId = assignment.id;
+    
+    // Si un filtre par partie est spécifié, récupérer le profilType de cette partie (qui est un Client)
+    if (filterByPartyId) {
+      const partyClient = await prisma.client.findUnique({
+        where: { id: filterByPartyId },
+        select: { profilType: true },
+      });
+      if (partyClient) {
+        userProfilType = partyClient.profilType as "PROPRIETAIRE" | "LOCATAIRE" | null;
+      }
+    }
   } else {
     throw new Error("Non autorisé");
   }
@@ -198,7 +223,43 @@ export async function getBailMessagesAndRequests(bailId: string, filterByPartyId
     }),
     dossierId
       ? prisma.notaireRequest.findMany({
-          where: { dossierId },
+          where: {
+            dossierId,
+            // Filtrer les demandes selon le profilType de l'utilisateur pour les clients
+            // OU selon la partie sélectionnée pour les notaires
+            ...(user.role === Role.UTILISATEUR && userClientId && userProfilType
+              ? {
+                  OR: [
+                    // Demande destinée au type de profil de l'utilisateur
+                    ...(userProfilType === "PROPRIETAIRE"
+                      ? [{ targetProprietaire: true }]
+                      : [{ targetLocataire: true }]),
+                    // Demande destinée spécifiquement à ce client via targetPartyIds
+                    {
+                      targetPartyIds: {
+                        has: userClientId,
+                      },
+                    },
+                  ],
+                }
+              : user.role === Role.NOTAIRE && filterByPartyId && userProfilType
+              ? {
+                  // Pour un notaire avec filtre par partie : voir seulement les demandes destinées à cette partie
+                  OR: [
+                    // Demande destinée au type de profil de la partie sélectionnée
+                    ...(userProfilType === "PROPRIETAIRE"
+                      ? [{ targetProprietaire: true }]
+                      : [{ targetLocataire: true }]),
+                    // Demande destinée spécifiquement à cette partie via targetPartyIds
+                    {
+                      targetPartyIds: {
+                        has: filterByPartyId,
+                      },
+                    },
+                  ],
+                }
+              : {}), // Pour les notaires sans filtre : voir toutes les demandes
+          },
           include: {
             createdBy: {
               select: {
@@ -461,12 +522,35 @@ export async function getNotaireRequestsByBail(bailId: string) {
     return [];
   }
 
-  // Vérifier les permissions
+  let userClientId: string | null = null;
+  let userProfilType: "PROPRIETAIRE" | "LOCATAIRE" | null = null;
+
+  // Vérifier les permissions et récupérer les infos du client si nécessaire
   if (user.role === Role.UTILISATEUR) {
-    const hasAccess = await canAccessBail(user.id, bailId);
+    const [hasAccess, userWithClient, clientData] = await Promise.all([
+      canAccessBail(user.id, bailId),
+      prisma.user.findUnique({
+        where: { id: user.id },
+        select: { clientId: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          client: {
+            select: {
+              id: true,
+              profilType: true,
+            },
+          },
+        },
+      }),
+    ]);
+    
     if (!hasAccess) {
       throw new Error("Non autorisé");
     }
+    userClientId = userWithClient?.clientId || null;
+    userProfilType = clientData?.client?.profilType || null;
   } else if (user.role === Role.NOTAIRE) {
     if (dossier.notaireId !== user.id) {
       throw new Error("Non autorisé");
@@ -476,7 +560,26 @@ export async function getNotaireRequestsByBail(bailId: string) {
   }
 
   const requests = await prisma.notaireRequest.findMany({
-    where: { dossierId: dossier.id },
+    where: {
+      dossierId: dossier.id,
+      // Filtrer les demandes selon le profilType de l'utilisateur pour les clients
+      ...(user.role === Role.UTILISATEUR && userClientId && userProfilType
+        ? {
+            OR: [
+              // Demande destinée au type de profil de l'utilisateur
+              ...(userProfilType === "PROPRIETAIRE"
+                ? [{ targetProprietaire: true }]
+                : [{ targetLocataire: true }]),
+              // Demande destinée spécifiquement à ce client via targetPartyIds
+              {
+                targetPartyIds: {
+                  has: userClientId,
+                },
+              },
+            ],
+          }
+        : {}), // Pour les notaires, pas de filtre (ils voient toutes les demandes)
+    },
     include: {
       createdBy: {
         select: {
@@ -684,7 +787,7 @@ export async function sendBailMessageWithFile(bailId: string, formData: FormData
   const { uploadFileToS3, generateS3FileKey } = await import("@/lib/utils/s3-client");
   
   const uploadPromises = files.map(async (file) => {
-    const fileKey = generateS3FileKey("bail-messages", file.name, bailId);
+    const fileKey = generateS3FileKey(file.name, bailId);
 
     const s3Result = await uploadFileToS3(
       file,
@@ -1198,7 +1301,7 @@ export async function addDocumentToNotaireRequest(
   const { uploadFileToS3, generateS3FileKey } = await import("@/lib/utils/s3-client");
   
   const uploadPromises = files.map(async (file) => {
-    const fileKey = generateS3FileKey("bail-messages", file.name, request.dossier.bailId ?? undefined);
+    const fileKey = generateS3FileKey(file.name, request.dossier.bailId ?? undefined);
 
     const s3Result = await uploadFileToS3(
       file,

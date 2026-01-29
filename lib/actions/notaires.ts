@@ -631,7 +631,9 @@ export async function createNotaireRequest(data: unknown) {
 }
 
 /**
- * Récupère les documents annexes d'un dossier (documents reçus via les demandes)
+ * Récupère les documents annexes d'un dossier
+ * - Documents liés aux demandes du notaire (via notaireRequestId)
+ * - Documents envoyés via le chat sans demande (via BailMessage sans notaireRequestId)
  * Filtrés par partie
  */
 export async function getDossierAnnexDocuments(dossierId: string) {
@@ -642,28 +644,14 @@ export async function getDossierAnnexDocuments(dossierId: string) {
     throw new Error("Non autorisé");
   }
 
-  // Récupérer le dossier avec ses demandes
+  // Récupérer le dossier
   const dossier = await prisma.dossierNotaireAssignment.findUnique({
     where: { id: dossierId },
     include: {
       requests: {
-        include: {
-          bailMessages: {
-            where: {
-              documentId: { not: null },
-            },
-            include: {
-              document: true,
-              sender: {
-                select: {
-                  id: true,
-                  email: true,
-                  name: true,
-                  clientId: true,
-                },
-              },
-            },
-          },
+        select: {
+          id: true,
+          title: true,
         },
       },
     },
@@ -678,43 +666,136 @@ export async function getDossierAnnexDocuments(dossierId: string) {
     throw new Error("Non autorisé");
   }
 
+  if (!dossier.bailId) {
+    return [];
+  }
+
   // Récupérer le bail pour connaître les parties avec leurs informations complètes
-  let bailParties: Array<{
-    id: string;
-    profilType: string;
-    entreprise?: { legalName: string; name: string } | null;
-    persons?: Array<{ firstName: string | null; lastName: string | null; isPrimary: boolean }>;
-  }> = [];
-  if (dossier.bailId) {
-    const bail = await prisma.bail.findUnique({
-      where: { id: dossier.bailId },
-      include: {
-        parties: {
-          select: {
-            id: true,
-            profilType: true,
-            entreprise: {
-              select: {
-                legalName: true,
-                name: true,
-              },
+  const bail = await prisma.bail.findUnique({
+    where: { id: dossier.bailId },
+    include: {
+      parties: {
+        select: {
+          id: true,
+          profilType: true,
+          entreprise: {
+            select: {
+              legalName: true,
+              name: true,
             },
-            persons: {
-              select: {
-                firstName: true,
-                lastName: true,
-                isPrimary: true,
-              },
-              orderBy: { isPrimary: "desc" },
+          },
+          persons: {
+            select: {
+              firstName: true,
+              lastName: true,
+              isPrimary: true,
+            },
+            orderBy: { isPrimary: "desc" },
+          },
+        },
+      },
+    },
+  });
+
+  if (!bail) {
+    return [];
+  }
+
+  const bailParties = bail.parties;
+  const requestIds = dossier.requests.map(r => r.id);
+
+  // Récupérer les documents directement liés aux demandes (via notaireRequestId)
+  const documentsFromRequests = await prisma.document.findMany({
+    where: {
+      notaireRequestId: { in: requestIds },
+      bailId: dossier.bailId,
+    },
+    include: {
+      client: {
+        select: {
+          id: true,
+          profilType: true,
+          entreprise: {
+            select: {
+              legalName: true,
+              name: true,
+            },
+          },
+          persons: {
+            where: { isPrimary: true },
+            take: 1,
+            select: {
+              firstName: true,
+              lastName: true,
             },
           },
         },
       },
-    });
-    if (bail) {
-      bailParties = bail.parties;
-    }
-  }
+      uploadedBy: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+        },
+      },
+      notaireRequest: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+    },
+  });
+
+  // Récupérer les documents envoyés via le chat sans demande (via BailMessage sans notaireRequestId)
+  const messagesWithoutRequest = await prisma.bailMessage.findMany({
+    where: {
+      bailId: dossier.bailId,
+      documentId: { not: null },
+      notaireRequestId: null, // Documents du chat sans demande
+    },
+    include: {
+      document: {
+        include: {
+          client: {
+            select: {
+              id: true,
+              profilType: true,
+              entreprise: {
+                select: {
+                  legalName: true,
+                  name: true,
+                },
+              },
+              persons: {
+                where: { isPrimary: true },
+                take: 1,
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+          uploadedBy: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      },
+      sender: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          clientId: true,
+        },
+      },
+    },
+  });
 
   // Collecter tous les documents avec leurs informations
   const documentsByParty: Record<string, Array<{
@@ -729,47 +810,72 @@ export async function getDossierAnnexDocuments(dossierId: string) {
       email: string;
       name: string | null;
     };
-    requestTitle: string;
-    requestId: string;
+    requestTitle: string | null;
+    requestId: string | null;
   }>> = {};
 
-  for (const request of dossier.requests) {
-    for (const message of request.bailMessages) {
-      if (message.document) {
-        // Déterminer à quelle partie appartient le document via le sender
-        let partyId: string | null = null;
-        if (message.sender.clientId) {
-          // Trouver la partie correspondante
-          const party = bailParties.find(p => p.id === message.sender.clientId);
-          if (party) {
-            partyId = party.id;
-          }
-        }
-
-        // Si on ne peut pas déterminer la partie, utiliser "unknown"
-        const key = partyId || "unknown";
-
-        if (!documentsByParty[key]) {
-          documentsByParty[key] = [];
-        }
-
-        documentsByParty[key].push({
-          id: message.document.id,
-          label: message.document.label,
-          fileKey: message.document.fileKey,
-          mimeType: message.document.mimeType,
-          size: message.document.size,
-          createdAt: message.document.createdAt,
-          uploadedBy: {
-            id: message.sender.id,
-            email: message.sender.email,
-            name: message.sender.name,
-          },
-          requestTitle: request.title,
-          requestId: request.id,
-        });
-      }
+  // Traiter les documents liés aux demandes
+  for (const doc of documentsFromRequests) {
+    const partyId = doc.clientId || "unknown";
+    
+    if (!documentsByParty[partyId]) {
+      documentsByParty[partyId] = [];
     }
+
+    documentsByParty[partyId].push({
+      id: doc.id,
+      label: doc.label,
+      fileKey: doc.fileKey,
+      mimeType: doc.mimeType,
+      size: doc.size,
+      createdAt: doc.createdAt,
+      uploadedBy: {
+        id: doc.uploadedBy?.id || "",
+        email: doc.uploadedBy?.email || "",
+        name: doc.uploadedBy?.name,
+      },
+      requestTitle: doc.notaireRequest?.title || null,
+      requestId: doc.notaireRequest?.id || null,
+    });
+  }
+
+  // Traiter les documents du chat sans demande
+  for (const message of messagesWithoutRequest) {
+    if (!message.document) continue;
+
+    // Déterminer à quelle partie appartient le document
+    let partyId: string | null = null;
+    
+    // D'abord essayer via le clientId du document
+    if (message.document.clientId) {
+      partyId = message.document.clientId;
+    } 
+    // Sinon essayer via le sender du message
+    else if (message.sender.clientId) {
+      partyId = message.sender.clientId;
+    }
+
+    const key = partyId || "unknown";
+
+    if (!documentsByParty[key]) {
+      documentsByParty[key] = [];
+    }
+
+    documentsByParty[key].push({
+      id: message.document.id,
+      label: message.document.label,
+      fileKey: message.document.fileKey,
+      mimeType: message.document.mimeType,
+      size: message.document.size,
+      createdAt: message.document.createdAt,
+      uploadedBy: {
+        id: message.document.uploadedBy?.id || message.sender.id,
+        email: message.document.uploadedBy?.email || message.sender.email,
+        name: message.document.uploadedBy?.name || message.sender.name,
+      },
+      requestTitle: null, // Pas de demande pour les documents du chat
+      requestId: null,
+    });
   }
 
   // Fonction helper pour obtenir le nom d'une partie

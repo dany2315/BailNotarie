@@ -155,20 +155,20 @@ export async function uploadFileDirectToS3(
 
 /**
  * Génère un nom de fichier unique pour S3
+ * Tous les fichiers sont stockés dans le dossier "documents"
  */
 export function generateS3FileKey(
-  prefix: string,
   fileName: string,
-  token?: string
+  identifier?: string
 ): string {
   const timestamp = Date.now();
   const randomSuffix = Math.random().toString(36).substring(2, 9);
   const sanitizedName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
   
-  if (token) {
-    return `${prefix}/${token}/${timestamp}-${randomSuffix}-${sanitizedName}`;
+  if (identifier) {
+    return `documents/${identifier}/${timestamp}-${randomSuffix}-${sanitizedName}`;
   }
-  return `${prefix}/${timestamp}-${randomSuffix}-${sanitizedName}`;
+  return `documents/${timestamp}-${randomSuffix}-${sanitizedName}`;
 }
 
 /**

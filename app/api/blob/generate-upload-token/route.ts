@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSignedUploadUrl, generateS3FileKey } from "@/lib/utils/s3-client";
-import { requireAuth } from "@/lib/auth-helpers";
 
 /**
  * Route API pour générer une URL signée S3 pour upload direct côté client
  * Permet des uploads rapides directement vers S3 sans passer par le serveur
  * 
- * Supporte plusieurs contextes :
- * - Intakes : avec token (intakeLink) - PAS D'AUTHENTIFICATION REQUISE (formulaires publics)
- * - Documents clients : avec clientId, personId, ou entrepriseId (nécessite auth - interface notaire)
- * - Documents propriétés : avec propertyId (nécessite auth - interface notaire)
- * - Documents baux : avec bailId (nécessite auth - interface notaire)
+ * PAS D'AUTHENTIFICATION REQUISE - Tous les fichiers sont stockés dans "documents"
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -21,7 +16,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       fileName,
       contentType = "application/octet-stream",
       documentKind,
-      // Pour les documents clients/propriétés (nécessite auth)
+      // Pour les documents clients/propriétés
       clientId,
       personId,
       entrepriseId,
@@ -37,11 +32,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     let fileKey: string;
-    let prefix: string;
     let identifier: string | undefined;
 
-    // Cas 1: Upload pour intake (avec token) - PAS D'AUTHENTIFICATION REQUISE
-    // Les utilisateurs publics peuvent uploader via leur token d'intake
+    // Cas 1: Upload pour intake (avec token)
     if (intakeToken) {
       // Vérifier que l'intakeLink existe et est valide
       const intakeLink = await prisma.intakeLink.findUnique({
@@ -67,14 +60,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      prefix = "intakes";
       identifier = intakeToken;
     }
-    // Cas 2: Upload pour documents clients/propriétés (nécessite auth)
+    // Cas 2: Upload pour documents clients/propriétés
     else {
-      // Vérifier l'authentification pour les uploads de documents
-      await requireAuth();
-
       // Déterminer le contexte et l'identifiant
       if (personId) {
         // Vérifier que la personne existe
@@ -88,7 +77,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        prefix = "documents";
         identifier = person.clientId;
       } else if (entrepriseId) {
         // Vérifier que l'entreprise existe
@@ -102,7 +90,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        prefix = "documents";
         identifier = entreprise.clientId;
       } else if (clientId) {
         // Vérifier que le client existe
@@ -116,7 +103,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        prefix = "documents";
         identifier = clientId;
       } else if (propertyId) {
         // Vérifier que la propriété existe
@@ -130,7 +116,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        prefix = "documents";
         identifier = propertyId;
       } else if (bailId) {
         // Vérifier que le bail existe
@@ -144,9 +129,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        // Utiliser "bail-messages" pour les messages de chat, "documents" pour les documents de bail
-        prefix = documentKind ? "documents" : "bail-messages";
-        identifier = bailId;
+        // Pour les messages de chat, utiliser "bail-messages", sinon "documents"
+        identifier = documentKind ? bailId : bailId; // On garde bailId comme identifiant
       } else {
         return NextResponse.json(
           { error: "Token, clientId, personId, entrepriseId, propertyId ou bailId requis" },
@@ -155,8 +139,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // Générer la clé S3 pour le fichier
-    fileKey = generateS3FileKey(prefix, fileName, identifier);
+    // Générer la clé S3 pour le fichier (toujours dans "documents")
+    fileKey = generateS3FileKey(fileName, identifier);
 
     // Générer l'URL signée pour upload (valide 1 heure)
     // URL signée simple PUT sans Content-Type ni checksum

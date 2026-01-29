@@ -214,7 +214,7 @@ export async function submitIntake(data: unknown) {
         clientId: intakeLink.clientId,
         ...payload,
       });
-      // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
+      // Les fichiers sont maintenant uploadés directement via FileUpload avec upload direct client → S3
       // Plus besoin de passer formData
       await submitOwnerForm(ownerData);
       return { success: true };
@@ -239,7 +239,7 @@ export async function submitIntake(data: unknown) {
         clientId: intakeLink.clientId,
         ...payload,
       });
-      // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
+      // Les fichiers sont maintenant uploadés directement via FileUpload avec upload direct client → S3
       // Plus besoin de passer formData
       await submitTenantForm(tenantData);
       return { success: true };

@@ -168,11 +168,9 @@ async function uploadFileAndCreateDocument(
   }
 ) {
   if (!file) return null;
-
-  const user = await requireAuth();
   
   // Générer la clé S3 pour le fichier
-  const fileKey = generateS3FileKey("documents", file.name, options.clientId);
+  const fileKey = generateS3FileKey(file.name, options.clientId);
 
   // Uploader le fichier vers S3
   const s3Result = await uploadFileToS3(
@@ -194,7 +192,7 @@ async function uploadFileAndCreateDocument(
       entrepriseId: options.entrepriseId,
       propertyId: options.propertyId,
       bailId: options.bailId,
-      uploadedById: user.id,
+      uploadedById: null,
     },
   });
 
