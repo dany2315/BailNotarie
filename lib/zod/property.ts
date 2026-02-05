@@ -27,8 +27,8 @@ export const createPropertySchema = z.object({
     if (isNaN(num) || num < 0) return null;
     return num;
   }),
-  type: z.nativeEnum(BienType).optional(),
-  legalStatus: z.nativeEnum(BienLegalStatus).optional(),
+  type: z.nativeEnum(BienType, { message: "Le type de bien est requis" }),
+  legalStatus: z.nativeEnum(BienLegalStatus, { message: "Le statut juridique est requis" }),
   status: z.enum(["PROSPECT", "IN_PROGRESS", "ACTIVE", "ARCHIVED"]).default("PROSPECT"),
   ownerId: z.string().cuid("ID propriétaire invalide").min(1, "Le propriétaire est requis"),
   // Mobilier obligatoire pour location meublée

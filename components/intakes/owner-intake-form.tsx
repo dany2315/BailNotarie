@@ -2590,8 +2590,12 @@ const ClientInfoStep = ({
               id="entreprise.email" 
               type="email" 
               disabled={isEmailLocked}
+              className={isEmailLocked ? "bg-muted cursor-not-allowed" : ""}
               {...form.register("entreprise.email" as any)} 
             />
+            {isEmailLocked && (
+              <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
+            )}
             {form.formState.errors.entreprise?.email && (
               <p className="text-sm text-destructive">
                 {form.formState.errors.entreprise.email.message}
@@ -2723,7 +2727,11 @@ const ClientInfoStep = ({
                       type="email"
                       {...form.register(`persons.${index}.email` as any)}
                       disabled={isEmailLocked && index === 0}
+                      className={isEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}
                     />
+                    {isEmailLocked && index === 0 && (
+                      <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
+                    )}
                     {form.formState.errors.persons?.[index]?.email && (
                       <p className="text-sm text-destructive">
                         {form.formState.errors.persons[index]?.email?.message}
@@ -2745,6 +2753,9 @@ const ClientInfoStep = ({
                         />
                       )}
                     />
+                    {isPhoneLocked && index === 0 && (
+                      <p className="text-sm text-muted-foreground">Le téléphone ne peut pas être modifié</p>
+                    )}
                     {form.formState.errors.persons?.[index]?.phone && (
                       <p className="text-sm text-destructive">
                         {form.formState.errors.persons[index]?.phone?.message}

@@ -1,12 +1,14 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { requireLocataireAuth } from "@/lib/auth-helpers";
-import { getLocataireStats, getClientBails } from "@/lib/actions/client-space";
+import { getLocataireStats, getClientBails, getPendingNotaireRequests } from "@/lib/actions/client-space";
 import { ProfilType } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { FileText, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/utils/formatters";
+import { UnifiedStatusList } from "@/components/client/unified-status-list";
+import { CompletionStatusBanner } from "@/components/client/completion-status-banner";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -14,17 +16,13 @@ export const fetchCache = "force-no-store";
 export default async function LocataireDashboardPage() {
   const { user, client } = await requireLocataireAuth();
   
-  const [stats, baux] = await Promise.all([
+  const [stats, baux, pendingRequests] = await Promise.all([
     getLocataireStats(client.id),
     getClientBails(client.id, ProfilType.LOCATAIRE),
+    getPendingNotaireRequests(client.id, ProfilType.LOCATAIRE),
   ]);
 
   const bauxActifs = baux.filter(b => b.status === "SIGNED");
-  const demandesEnAttente = baux.filter(b => 
-    b.dossierAssignments.length > 0 && 
-    b.dossierAssignments[0]?.requests &&
-    b.dossierAssignments[0].requests.length > 0
-  );
 
   return (
     <div className="p-6 space-y-6">
@@ -32,6 +30,12 @@ export default async function LocataireDashboardPage() {
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground">Bienvenue dans votre espace locataire</p>
       </div>
+
+      {/* Bannière de statut de vérification */}
+      <CompletionStatusBanner 
+        completionStatus={client.completionStatus} 
+        informationsPath="/client/locataire/informations"
+      />
 
       {/* Statistiques */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -65,7 +69,7 @@ export default async function LocataireDashboardPage() {
             <AlertCircle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{demandesEnAttente.length}</div>
+            <div className="text-2xl font-bold">{pendingRequests.length}</div>
             <p className="text-xs text-muted-foreground">
               Réponses requises
             </p>
@@ -125,38 +129,54 @@ export default async function LocataireDashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Demandes en attente */}
-      {demandesEnAttente.length > 0 && (
+      {/* Demandes du notaire non traitées */}
+      {pendingRequests.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-600" />
-              Demandes en attente
-            </CardTitle>
-            <CardDescription>
-              Le notaire a besoin de votre réponse
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-orange-600" />
+                  Demandes du notaire en attente
+                </CardTitle>
+                <CardDescription>
+                  Le notaire a besoin de votre réponse
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {demandesEnAttente.map((bail) => (
-                <div key={bail.id} className="border rounded-lg p-4 bg-orange-50">
+              {pendingRequests.map((request) => (
+                <div key={request.id} className="border rounded-lg p-4 bg-orange-50">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <Link href={`/client/locataire/baux/${bail.id}`}>
-                        <span className="font-medium hover:underline">
-                          {bail.property.label || bail.property.fullAddress}
-                        </span>
-                      </Link>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Des documents ou informations sont requis
+                      <h3 className="font-medium mb-1">{request.title}</h3>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {request.content}
+                      </p>
+                      {request.bail && (
+                        <Link href={`/client/locataire/baux/${request.bail.id}`}>
+                          <p className="text-xs text-muted-foreground hover:underline">
+                            Bail : {request.bail.property?.label || request.bail.property?.fullAddress}
+                          </p>
+                        </Link>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Demandé le {formatDateTime(request.createdAt)}
                       </p>
                     </div>
-                    <Link href={`/client/locataire/baux/${bail.id}`}>
-                      <Button variant="outline" size="sm">
+                    {request.bail ? (
+                      <Link href={`/client/locataire/baux/${request.bail.id}`}>
+                        <Button variant="outline" size="sm">
+                          Répondre
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button variant="outline" size="sm" disabled>
                         Répondre
                       </Button>
-                    </Link>
+                    )}
                   </div>
                 </div>
               ))}
@@ -164,6 +184,23 @@ export default async function LocataireDashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {pendingRequests.length === 0 && (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Aucune demande en attente du notaire
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Liste unifiée des baux avec filtres */}
+      <UnifiedStatusList 
+        bails={baux} 
+        profilType={ProfilType.LOCATAIRE}
+        basePath="/client/locataire"
+      />
     </div>
   );
 }

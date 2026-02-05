@@ -36,17 +36,30 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
         },
       },
     },
-    include: {
+    select: {
+      id: true,
+      bailType: true,
+      bailFamily: true,
+      status: true,
+      rentAmount: true,
+      effectiveDate: true,
+      endDate: true,
+      createdAt: true,
+      updatedAt: true,
+      propertyId: true,
       property: {
         select: {
           id: true,
           label: true,
           fullAddress: true,
           status: true,
+          completionStatus: true,
         },
       },
       parties: {
-        include: {
+        select: {
+          id: true,
+          profilType: true,
           persons: {
             where: { isPrimary: true },
             take: 1,
@@ -64,7 +77,8 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
         },
       },
       dossierAssignments: {
-        include: {
+        select: {
+          id: true,
           notaire: {
             select: {
               id: true,
@@ -115,7 +129,15 @@ export async function getClientProperties(clientId: string) {
     where: {
       ownerId: clientId,
     },
-    include: {
+    select: {
+      id: true,
+      label: true,
+      fullAddress: true,
+      status: true,
+      completionStatus: true,
+      surfaceM2: true,
+      createdAt: true,
+      updatedAt: true,
       bails: {
         select: {
           id: true,
@@ -178,5 +200,95 @@ export async function getLocataireStats(clientId: string) {
   };
 
   return stats;
+}
+
+/**
+ * Récupère les demandes du notaire non traitées pour un client
+ */
+export async function getPendingNotaireRequests(clientId: string, profilType: ProfilType) {
+  // Récupérer tous les dossiers assignés à ce client
+  const dossiers = await prisma.dossierNotaireAssignment.findMany({
+    where: {
+      clientId,
+    },
+    include: {
+      bail: {
+        include: {
+          property: {
+            select: {
+              id: true,
+              label: true,
+              fullAddress: true,
+            },
+          },
+        },
+      },
+      requests: {
+        where: {
+          status: "PENDING",
+          OR: [
+            // Demande destinée au type de profil du client
+            ...(profilType === ProfilType.PROPRIETAIRE
+              ? [{ targetProprietaire: true }]
+              : [{ targetLocataire: true }]),
+            // Demande destinée spécifiquement à ce client
+            {
+              targetPartyIds: {
+                has: clientId,
+              },
+            },
+          ],
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+    },
+  });
+
+  // Flatten les demandes avec les infos du bail
+  const requests = dossiers.flatMap((dossier) =>
+    dossier.requests.map((request) => ({
+      ...request,
+      bail: dossier.bail,
+      dossierId: dossier.id,
+    }))
+  );
+
+  return requests;
+}
+
+/**
+ * Récupère toutes les informations du client pour l'affichage dans l'espace client
+ */
+export async function getClientFullInfo(clientId: string) {
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      persons: {
+        orderBy: { isPrimary: 'desc' },
+        include: {
+          documents: { orderBy: { createdAt: "desc" } },
+        },
+      },
+      entreprise: {
+        include: {
+          documents: { orderBy: { createdAt: "desc" } },
+        },
+      },
+      documents: { orderBy: { createdAt: "desc" } },
+    },
+  });
+
+  return client;
 }
 

@@ -1508,9 +1508,8 @@ export async function deleteBailMessage(messageId: string) {
       }
       
       // Supprimer le document de la base de données
-      await prisma.document.delete({
-        where: { id: message.document.id },
-      });
+      const { deleteDocumentFromDB } = await import("@/lib/actions/documents");
+      await deleteDocumentFromDB(message.document.id);
     } catch (error) {
       // Ne pas faire échouer la suppression du message si le document ne peut pas être supprimé
       console.error(`Erreur lors de la suppression du document ${message.document.id}:`, error);

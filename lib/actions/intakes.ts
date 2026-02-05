@@ -848,9 +848,8 @@ export async function deleteDocumentFromRawPayload(data: {
     }
 
     // Supprimer le document de la base de données
-    await prisma.document.delete({
-      where: { id: documentToDelete.id },
-    });
+    const { deleteDocumentFromDB } = await import("@/lib/actions/documents");
+    await deleteDocumentFromDB(documentToDelete.id);
     
     deleted = true;
   }

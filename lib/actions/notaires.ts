@@ -384,12 +384,65 @@ export async function revokeAssignment(data: unknown) {
 
   const assignment = await prisma.dossierNotaireAssignment.findUnique({
     where: { id: validated.assignmentId },
+    include: {
+      requests: {
+        include: {
+          documents: {
+            select: {
+              id: true,
+              fileKey: true,
+            },
+          },
+          bailMessages: {
+            include: {
+              document: {
+                select: {
+                  id: true,
+                  fileKey: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!assignment) {
     throw new Error("Assignation introuvable");
   }
 
+  // Collecter tous les documents à supprimer (documents directs + documents des messages)
+  const allDocumentFileKeys: string[] = [];
+  
+  for (const request of assignment.requests) {
+    // Documents directs de la demande
+    for (const doc of request.documents || []) {
+      allDocumentFileKeys.push(doc.fileKey);
+    }
+    
+    // Documents des messages
+    for (const message of request.bailMessages || []) {
+      if (message.document) {
+        allDocumentFileKeys.push(message.document.fileKey);
+      }
+    }
+  }
+
+  // Supprimer tous les fichiers AWS S3
+  if (allDocumentFileKeys.length > 0) {
+    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    await deleteBlobFiles(allDocumentFileKeys);
+  }
+
+  // Supprimer les documents directs des demandes (les documents des messages seront supprimés en cascade)
+  const requestIds = assignment.requests.map(r => r.id);
+  if (requestIds.length > 0) {
+    const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+    await deleteDocumentsFromDB({ notaireRequestId: { in: requestIds } });
+  }
+
+  // Supprimer le dossier (les NotaireRequest seront supprimés en cascade)
   await prisma.dossierNotaireAssignment.delete({
     where: { id: validated.assignmentId },
   });
@@ -928,6 +981,12 @@ export async function deleteNotaireRequest(requestId: string) {
           document: true,
         },
       },
+      documents: {
+        select: {
+          id: true,
+          fileKey: true,
+        },
+      },
     },
   });
 
@@ -940,28 +999,46 @@ export async function deleteNotaireRequest(requestId: string) {
     throw new Error("Non autorisé");
   }
 
-  // Supprimer les fichiers de S3 et les documents associés
+  // Collecter tous les documents à supprimer (messages + documents directs de la demande)
+  const allDocumentFileKeys: string[] = [];
+  
+  // Documents des messages
+  for (const message of request.bailMessages) {
+    if (message.document) {
+      allDocumentFileKeys.push(message.document.fileKey);
+    }
+  }
+  
+  // Documents directs de la demande
+  for (const doc of request.documents || []) {
+    allDocumentFileKeys.push(doc.fileKey);
+  }
+
+  // Supprimer tous les fichiers AWS S3
+  if (allDocumentFileKeys.length > 0) {
+    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    await deleteBlobFiles(allDocumentFileKeys);
+  }
+
+  // Supprimer les documents des messages
   const { deleteFileFromS3, extractS3KeyFromUrl } = await import("@/lib/utils/s3-client");
   for (const message of request.bailMessages) {
     if (message.document) {
       try {
-        // Supprimer le fichier de S3
-        if (message.document.fileKey) {
-          const s3Key = extractS3KeyFromUrl(message.document.fileKey);
-          if (s3Key) {
-            await deleteFileFromS3(s3Key);
-          }
-        }
-        
         // Supprimer le document de la base de données
-        await prisma.document.delete({
-          where: { id: message.document.id },
-        });
+        const { deleteDocumentFromDB } = await import("@/lib/actions/documents");
+        await deleteDocumentFromDB(message.document.id);
       } catch (error) {
         // Ne pas faire échouer la suppression si un document ne peut pas être supprimé
         console.error(`Erreur lors de la suppression du document ${message.document.id}:`, error);
       }
     }
+  }
+
+  // Supprimer les documents directs de la demande
+  if (request.documents && request.documents.length > 0) {
+    const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+    await deleteDocumentsFromDB({ notaireRequestId: requestId });
   }
 
   // Supprimer les messages associés à la demande

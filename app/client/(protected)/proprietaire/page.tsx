@@ -1,12 +1,14 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
-import { getProprietaireStats, getClientBails, getClientProperties } from "@/lib/actions/client-space";
-import { ProfilType } from "@prisma/client";
+import { getProprietaireStats, getPendingNotaireRequests, getClientBails, getClientProperties } from "@/lib/actions/client-space";
+import { ProfilType, BailStatus } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Home, FileText, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Home, CheckCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/utils/formatters";
+import { UnifiedStatusList } from "@/components/client/unified-status-list";
+import { CompletionStatusBanner } from "@/components/client/completion-status-banner";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -14,14 +16,12 @@ export const fetchCache = "force-no-store";
 export default async function ProprietaireDashboardPage() {
   const { user, client } = await requireProprietaireAuth();
   
-  const [stats, baux, biens] = await Promise.all([
+  const [stats, pendingRequests, baux, properties] = await Promise.all([
     getProprietaireStats(client.id),
+    getPendingNotaireRequests(client.id, ProfilType.PROPRIETAIRE),
     getClientBails(client.id, ProfilType.PROPRIETAIRE),
     getClientProperties(client.id),
   ]);
-
-  const bauxRecents = baux.slice(0, 5);
-  const biensRecents = biens.slice(0, 5);
 
   return (
     <div className="p-6 space-y-6">
@@ -30,24 +30,16 @@ export default async function ProprietaireDashboardPage() {
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Bienvenue dans votre espace propriétaire</p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/client/proprietaire/biens/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Créer un bien
-            </Button>
-          </Link>
-          <Link href="/client/proprietaire/baux/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Créer un bail
-            </Button>
-          </Link>
-        </div>
       </div>
 
+      {/* Bannière de statut de vérification */}
+      <CompletionStatusBanner 
+        completionStatus={client.completionStatus} 
+        informationsPath="/client/proprietaire/informations"
+      />
+
       {/* Statistiques */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Biens</CardTitle>
@@ -72,144 +64,81 @@ export default async function ProprietaireDashboardPage() {
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Baux terminés</CardTitle>
-            <XCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.bauxTermines}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.bauxEnCours} en cours
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En attente</CardTitle>
-            <Clock className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.bauxEnCours}</div>
-            <p className="text-xs text-muted-foreground">
-              Baux en cours de traitement
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Baux récents */}
+      {/* Demandes du notaire non traitées */}
+      {pendingRequests.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Baux récents</CardTitle>
-                <CardDescription>Vos derniers baux</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-orange-600" />
+                  Demandes du notaire en attente
+                </CardTitle>
+                <CardDescription>
+                  Le notaire a besoin de votre réponse
+                </CardDescription>
               </div>
-              <Link href="/client/proprietaire/baux">
-                <Button variant="outline" size="sm">
-                  Voir tout
-                </Button>
-              </Link>
             </div>
           </CardHeader>
           <CardContent>
-            {bauxRecents.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Aucun bail pour le moment
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {bauxRecents.map((bail) => (
-                  <div key={bail.id} className="border rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                          <Link href={`/client/proprietaire/baux/${bail.id}`}>
-                            <span className="font-medium hover:underline">
-                              {bail.property.label || bail.property.fullAddress}
-                            </span>
-                          </Link>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {bail.rentAmount.toLocaleString()} € / mois
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDateTime(bail.createdAt)}
-                        </p>
-                      </div>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        bail.status === "SIGNED" ? "bg-green-100 text-green-800" :
-                        bail.status === "TERMINATED" ? "bg-gray-100 text-gray-800" :
-                        "bg-orange-100 text-orange-800"
-                      }`}>
-                        {bail.status}
-                      </span>
+            <div className="space-y-4">
+              {pendingRequests.map((request) => (
+                <div key={request.id} className="border rounded-lg p-4 bg-orange-50">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-medium mb-1">{request.title}</h3>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {request.content}
+                      </p>
+                      {request.bail && (
+                        <Link href={`/client/proprietaire/baux/${request.bail.id}`}>
+                          <p className="text-xs text-muted-foreground hover:underline">
+                            Bail : {request.bail.property?.label || request.bail.property?.fullAddress}
+                          </p>
+                        </Link>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Demandé le {formatDateTime(request.createdAt)}
+                      </p>
                     </div>
+                    {request.bail ? (
+                      <Link href={`/client/proprietaire/baux/${request.bail.id}`}>
+                        <Button variant="outline" size="sm">
+                          Répondre
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button variant="outline" size="sm" disabled>
+                        Répondre
+                      </Button>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
+      )}
 
-        {/* Biens récents */}
+      {pendingRequests.length === 0 && (
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Biens récents</CardTitle>
-                <CardDescription>Vos derniers biens</CardDescription>
-              </div>
-              <Link href="/client/proprietaire/biens">
-                <Button variant="outline" size="sm">
-                  Voir tout
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {biensRecents.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Aucun bien pour le moment
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {biensRecents.map((bien) => (
-                  <div key={bien.id} className="border rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Home className="h-4 w-4 text-muted-foreground" />
-                          <Link href={`/client/proprietaire/biens/${bien.id}`}>
-                            <span className="font-medium hover:underline">
-                              {bien.label || bien.fullAddress}
-                            </span>
-                          </Link>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {bien.bails.length} bail{bien.bails.length > 1 ? "x" : ""}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {bien.status === "LOUER" ? "Loué" : "Disponible"}
-                        </p>
-                      </div>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        bien.status === "LOUER" ? "bg-green-100 text-green-800" :
-                        "bg-gray-100 text-gray-800"
-                      }`}>
-                        {bien.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <CardContent className="py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Aucune demande en attente du notaire
+            </p>
           </CardContent>
         </Card>
-      </div>
+      )}
+
+      {/* Liste unifiée des biens et baux avec filtres */}
+      <UnifiedStatusList 
+        properties={properties}
+        bails={baux} 
+        profilType={ProfilType.PROPRIETAIRE}
+        basePath="/client/proprietaire"
+      />
     </div>
   );
 }

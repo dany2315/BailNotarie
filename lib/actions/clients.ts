@@ -31,6 +31,7 @@ import {
   updateClientCompletionStatus as calculateAndUpdateClientStatus, 
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
 } from "@/lib/utils/completion-status";
+import { createUserForClient } from "@/lib/utils/user-creation";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -106,6 +107,14 @@ export async function createBasicClient(data: unknown) {
   } catch (error) {
     console.error("Erreur lors du déclenchement de l'email:", error);
     // On continue même si l'email échoue
+  }
+
+  // Créer automatiquement un User pour ce client
+  try {
+    await createUserForClient(client.id);
+  } catch (error) {
+    console.error("Erreur lors de la création du User pour le client:", error);
+    // On continue même si la création du User échoue
   }
 
   // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le client)
@@ -374,6 +383,24 @@ export async function createFullClient(data: unknown) {
       }
     }
 
+    // Créer automatiquement un User pour le client propriétaire
+    try {
+      await createUserForClient(client.id);
+    } catch (error) {
+      console.error("Erreur lors de la création du User pour le client propriétaire:", error);
+      // On continue même si la création du User échoue
+    }
+
+    // Créer automatiquement un User pour le locataire s'il existe
+    if (tenant) {
+      try {
+        await createUserForClient(tenant.id);
+      } catch (error) {
+        console.error("Erreur lors de la création du User pour le locataire:", error);
+        // On continue même si la création du User échoue
+      }
+    }
+
     revalidatePath("/interface/clients");
     revalidatePath("/interface/properties");
     revalidatePath("/interface/bails");
@@ -499,6 +526,14 @@ export async function createFullClient(data: unknown) {
             }
             throw entrepriseError;
           }
+        }
+
+        // Créer automatiquement un User pour ce client
+        try {
+          await createUserForClient(client.id);
+        } catch (error) {
+          console.error("Erreur lors de la création du User pour le client:", error);
+          // On continue même si la création du User échoue
         }
 
         // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le client)
@@ -1981,6 +2016,12 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
           id: true,
         },
       },
+      users: {
+        select: {
+          id: true,
+          email: true,
+        },
+      },
     },
   });
 
@@ -2021,6 +2062,13 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Les documents seront supprimés automatiquement via cascade quand Person/Entreprise seront supprimés
 
+    // Supprimer les users rattachés au client (better-auth)
+    if (client.users && client.users.length > 0) {
+      await prisma.user.deleteMany({
+        where: { clientId: id },
+      });
+    }
+
     // Supprimer le client
     await prisma.client.delete({ where: { id } });
 
@@ -2045,6 +2093,13 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
     }
 
     // Les documents seront supprimés automatiquement via cascade quand Person/Entreprise seront supprimés
+
+    // Supprimer les users rattachés au client (better-auth)
+    if (client.users && client.users.length > 0) {
+      await prisma.user.deleteMany({
+        where: { clientId: id },
+      });
+    }
 
     // Supprimer les connexions avec les baux (disconnect le locataire des baux)
     for (const bail of client.bails) {
@@ -2158,11 +2213,17 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Supprimer tous les documents (biens)
     // Les documents du client seront supprimés automatiquement via cascade quand Person/Entreprise seront supprimés
-    await prisma.document.deleteMany({
-      where: {
-        propertyId: { in: client.ownedProperties.map(p => p.id) },
-      },
+    const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+    await deleteDocumentsFromDB({
+      propertyId: { in: client.ownedProperties.map(p => p.id) },
     });
+
+    // Supprimer les users rattachés au client (better-auth)
+    if (client.users && client.users.length > 0) {
+      await prisma.user.deleteMany({
+        where: { clientId: id },
+      });
+    }
 
     // Supprimer les intakeLinks en relation avec le client et les biens
     await prisma.intakeLink.deleteMany({
@@ -2191,6 +2252,12 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
     await prisma.client.delete({ where: { id } });
   } else {
     // Cas par défaut (ne devrait pas arriver)
+    // Supprimer les users rattachés au client (better-auth)
+    if (client.users && client.users.length > 0) {
+      await prisma.user.deleteMany({
+        where: { clientId: id },
+      });
+    }
     await prisma.client.delete({ where: { id } });
   }
   
@@ -3017,6 +3084,18 @@ export async function updateClientCompletionStatus(data: { id: string; completio
   const user = await requireAuth();
   const { id, completionStatus } = data;
 
+  // Récupérer l'ancien statut
+  const client = await prisma.client.findUnique({
+    where: { id },
+    select: { completionStatus: true, profilType: true },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  const oldStatus = client.completionStatus;
+
   await prisma.client.update({
     where: { id },
     data: {
@@ -3024,6 +3103,38 @@ export async function updateClientCompletionStatus(data: { id: string; completio
       updatedById: user.id,
     },
   });
+
+  // Envoyer un email de notification au client si le statut a changé (asynchrone)
+  if (oldStatus !== completionStatus) {
+    const { getClientEmailAndName } = await import("../utils/client-email");
+    const { triggerCompletionStatusEmail } = await import("../inngest/helpers");
+    
+    getClientEmailAndName(id).then(({ email, name, profilType }) => {
+      if (email) {
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+        const dashboardPath = profilType === ProfilType.PROPRIETAIRE 
+          ? "/client/proprietaire" 
+          : profilType === ProfilType.LOCATAIRE
+          ? "/client/locataire"
+          : "/client";
+        
+        triggerCompletionStatusEmail({
+          to: email,
+          clientName: name,
+          entityType: "client",
+          entityName: name,
+          oldStatus,
+          newStatus: completionStatus,
+          dashboardUrl: `${baseUrl}${dashboardPath}`,
+          profilType: profilType === ProfilType.PROPRIETAIRE ? "PROPRIETAIRE" : profilType === ProfilType.LOCATAIRE ? "LOCATAIRE" : undefined,
+        }).catch((error) => {
+          console.error(`Erreur lors de l'envoi de l'email de changement de statut au client ${id}:`, error);
+        });
+      }
+    }).catch((error) => {
+      console.error(`Erreur lors de la récupération des informations du client ${id}:`, error);
+    });
+  }
 
   // Vérifier et mettre à jour les baux associés si nécessaire
   const bails = await prisma.bail.findMany({

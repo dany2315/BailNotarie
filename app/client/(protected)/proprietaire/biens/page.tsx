@@ -1,11 +1,11 @@
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
 import { getClientProperties } from "@/lib/actions/client-space";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus, Home, FileText } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Plus, Home, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { Badge } from "@/components/ui/badge";
+import { CompletionStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -15,113 +15,119 @@ export default async function ProprietaireBiensPage() {
   
   const biens = await getClientProperties(client.id);
 
+  const completionStatusLabels: Record<CompletionStatus, string> = {
+    NOT_STARTED: "Non commencé",
+    PARTIAL: "Partiel",
+    PENDING_CHECK: "En vérification",
+    COMPLETED: "Complété",
+  };
+
+  const completionStatusVariants: Record<CompletionStatus, "default" | "secondary" | "outline" | "destructive"> = {
+    NOT_STARTED: "secondary",
+    PARTIAL: "outline",
+    PENDING_CHECK: "default",
+    COMPLETED: "default",
+  };
+
+  const completionStatusColors: Record<CompletionStatus, string> = {
+    NOT_STARTED: "bg-gray-100 text-gray-800 border-gray-200",
+    PARTIAL: "bg-orange-100 text-orange-800 border-orange-200",
+    PENDING_CHECK: "bg-blue-100 text-blue-800 border-blue-200",
+    COMPLETED: "bg-green-100 text-green-800 border-green-200",
+  };
+
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Mes biens</h1>
-          <p className="text-muted-foreground">Gérez tous vos biens immobiliers</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Mes biens</h1>
+        <p className="text-muted-foreground">Gérez tous vos biens immobiliers</p>
+      </div>
+
+      {/* Liste des biens avec carte d'ajout intégrée */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Carte d'ajout de bien */}
         <Link href="/client/proprietaire/biens/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Créer un nouveau bien
-          </Button>
+          <Card className="h-full border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group p-0">
+            <CardContent className="flex flex-col items-center justify-center py-4 ">
+              <div className="flex flex-col items-center gap-4 text-center">
+                <div className="rounded-full bg-primary/10 p-4 group-hover:bg-primary/20 transition-colors">
+                  <Plus className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-1">Ajouter un bien</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Créez un nouveau bien immobilier
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </Link>
-      </div>
 
-      {/* Statistiques */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{biens.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Loués</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {biens.filter(b => b.status === "LOUER").length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Disponibles</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-600">
-              {biens.filter(b => b.status === "NON_LOUER").length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Liste des biens */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tous vos biens</CardTitle>
-          <CardDescription>
-            {biens.length} bien{biens.length > 1 ? "s" : ""} au total
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {biens.length === 0 ? (
-            <div className="text-center py-12">
-              <Home className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Aucun bien</h3>
-              <p className="text-muted-foreground mb-4">
-                Vous n'avez pas encore de biens. Créez-en un pour commencer.
-              </p>
-              <Link href="/client/proprietaire/biens/new">
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Créer un bien
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {biens.map((bien) => (
-                <Link key={bien.id} href={`/client/proprietaire/biens/${bien.id}`}>
-                  <div className="border rounded-lg p-4 hover:bg-accent transition-colors cursor-pointer">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Home className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">
-                            {bien.label || bien.fullAddress}
-                          </span>
-                        </div>
-                        <div className="space-y-1 text-sm text-muted-foreground">
-                          <p>{bien.fullAddress}</p>
-                          {bien.surfaceM2 && (
-                            <p>{bien.surfaceM2.toString()} m²</p>
-                          )}
-                          <p>{bien.bails.length} bail{bien.bails.length > 1 ? "x" : ""}</p>
-                        </div>
+        {/* Liste des biens existants */}
+        {biens.map((bien) => (
+          <Link key={bien.id} href={`/client/proprietaire/biens/${bien.id}`}>
+            <Card className="h-full hover:shadow-md transition-all cursor-pointer p-0">
+              <CardContent className="p-6">
+                <div className="flex flex-col h-full">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-full bg-primary/10 p-2">
+                        <Home className="h-5 w-5 text-primary" />
                       </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <Badge variant={bien.status === "LOUER" ? "default" : "secondary"}>
-                          {bien.status === "LOUER" ? "Loué" : "Disponible"}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDateTime(bien.createdAt)}
-                        </span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate">
+                          {bien.label || bien.fullAddress}
+                        </h3>
                       </div>
                     </div>
+                    <Badge 
+                      variant={completionStatusVariants[bien.completionStatus]} 
+                      className={`shrink-0 ${completionStatusColors[bien.completionStatus]}`}
+                    >
+                      {completionStatusLabels[bien.completionStatus]}
+                    </Badge>
                   </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {bien.fullAddress}
+                    </p>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      {bien.surfaceM2 && (
+                        <span>{bien.surfaceM2.toString()} m²</span>
+                      )}
+                      <span>{bien.bails.length} bail{bien.bails.length > 1 ? "x" : ""}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 pt-2 border-t flex flex-row justify-between">
+                    <span className="text-xs text-muted-foreground pt-2">
+                      Ajouté le {formatDateTime(bien.createdAt)}
+                    </span>
+                    <span className="flex flex-row items-center gap-1 bg-primary/10 cursor-pointer rounded-full hover:text-primary p-1.5 hover:scale-95 transition-colors">
+                    <ArrowRight className="h-4 w-4 text-primary hover:scale-95 transition-colors " />
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      {/* Message si aucun bien */}
+      {biens.length === 0 && (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Home className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Aucun bien</h3>
+            <p className="text-muted-foreground">
+              Commencez par ajouter votre premier bien immobilier
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

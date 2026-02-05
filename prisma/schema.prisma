@@ -298,7 +298,7 @@ model Entreprise {
   id String @id @default(cuid())
 
   clientId String @unique
-  client   Client @relation(fields: [clientId], references: [id])
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   registration String
   legalName    String
@@ -493,19 +493,19 @@ model Document {
   size     Int?
 
   personId String?
-  person   Person? @relation(fields: [personId], references: [id])
+  person   Person? @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   entrepriseId String?
-  entreprise   Entreprise? @relation(fields: [entrepriseId], references: [id])
+  entreprise   Entreprise? @relation(fields: [entrepriseId], references: [id], onDelete: Cascade)
 
   clientId String?
-  client   Client? @relation(fields: [clientId], references: [id])
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   propertyId String?
-  property   Property? @relation(fields: [propertyId], references: [id])
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   bailId String?
-  bail   Bail?   @relation(fields: [bailId], references: [id])
+  bail   Bail?   @relation(fields: [bailId], references: [id], onDelete: Cascade)
 
   // Lien direct avec une demande de notaire (pour les documents fournis en réponse)
   notaireRequestId String?
@@ -725,7 +725,7 @@ model NotaireRequest {
 
   // Messages de chat liés à cette demande
   bailMessages BailMessage[] @relation("BailMessageRequest")
-  
+
   // Documents fournis en réponse à cette demande
   documents Document[] @relation("NotaireRequestDocuments")
 
