@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole, requireProprietaireAuth } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
 import { revalidatePath } from "next/cache";
-import { BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role } from "@prisma/client";
+import { BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
@@ -29,6 +29,11 @@ export async function createLease(data: unknown) {
     const { client } = await requireProprietaireAuth();
     if (property.ownerId !== client.id) {
       throw new Error("Vous ne pouvez créer des baux que pour vos propres biens");
+    }
+    // Vérifier le statut de completion
+    if (client.completionStatus !== CompletionStatus.PENDING_CHECK && 
+        client.completionStatus !== CompletionStatus.COMPLETED) {
+      throw new Error("Vous devez compléter vos informations personnelles et les soumettre à vérification avant de pouvoir créer un bail");
     }
   }
 
@@ -79,6 +84,56 @@ export async function createLease(data: unknown) {
     bail.id,
     user.id
   );
+
+  // Créer un IntakeLink pour le locataire et envoyer l'email
+  const tenantParty = bail.parties.find((party) => party.profilType === ProfilType.LOCATAIRE);
+  if (tenantParty) {
+    // Vérifier si un IntakeLink existe déjà pour ce locataire et ce bail
+    let tenantIntakeLink = await prisma.intakeLink.findFirst({
+      where: {
+        clientId: tenantParty.id,
+        bailId: bail.id,
+        target: "TENANT",
+      },
+    });
+
+    if (!tenantIntakeLink) {
+      // Créer un nouvel IntakeLink
+      tenantIntakeLink = await prisma.intakeLink.create({
+        data: {
+          target: "TENANT",
+          clientId: tenantParty.id,
+          propertyId: validated.propertyId,
+          bailId: bail.id,
+          createdById: user.id,
+        },
+      });
+    }
+
+    // Récupérer l'email du locataire
+    const tenantPerson = await prisma.person.findFirst({
+      where: { clientId: tenantParty.id, isPrimary: true },
+    });
+    const tenantEmail = tenantPerson?.email;
+
+    if (tenantEmail) {
+      // Déclencher l'envoi d'email au locataire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
+      const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+      const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
+
+      try {
+        await triggerTenantFormEmail({
+          to: tenantEmail,
+          firstName: tenantPerson?.firstName || "",
+          lastName: tenantPerson?.lastName || "",
+          formUrl: tenantFormUrl,
+        });
+      } catch (error) {
+        console.error("Erreur lors du déclenchement de l'email au locataire:", error);
+        // On continue même si l'email échoue
+      }
+    }
+  }
 
   revalidatePath("/interface/baux");
   return bail;
@@ -243,6 +298,16 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
           id: true,
         },
       },
+      messages: {
+        include: {
+          document: {
+            select: {
+              id: true,
+              fileKey: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -292,15 +357,31 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
   }
 
   // Si seulement un propriétaire, on peut supprimer
-  // Supprimer les documents et leurs fichiers blob
-  const documentFileKeys = bail.documents.map(doc => doc.fileKey);
-  if (documentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
-    await deleteBlobFiles(documentFileKeys);
+  // Collecter tous les documents (bail + messages)
+  const allDocumentFileKeys: string[] = [];
+  
+  // Documents du bail
+  allDocumentFileKeys.push(...bail.documents.map(doc => doc.fileKey));
+  
+  // Documents des messages
+  for (const message of bail.messages || []) {
+    if (message.document) {
+      allDocumentFileKeys.push(message.document.fileKey);
+    }
   }
 
-  // Supprimer les documents du bail
-  await prisma.document.deleteMany({
+  // Supprimer tous les fichiers AWS S3
+  if (allDocumentFileKeys.length > 0) {
+    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    await deleteBlobFiles(allDocumentFileKeys);
+  }
+
+  // Supprimer les documents du bail et des messages
+  const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+  await deleteDocumentsFromDB({ bailId: id });
+
+  // Supprimer les messages du bail (les documents associés sont déjà supprimés)
+  await prisma.bailMessage.deleteMany({
     where: { bailId: id },
   });
 
@@ -546,6 +627,15 @@ const createTenantForLeaseSchema = z.object({
     .trim(),
 });
 
+// Schéma pour créer un locataire depuis un email (sans bailId)
+const createTenantFromEmailSchema = z.object({
+  email: z.string()
+    .email("Email invalide")
+    .max(100, "L'email est trop long")
+    .toLowerCase()
+    .trim(),
+});
+
 // Créer un locataire pour un bail existant (avec juste l'email)
 export async function createTenantForLease(data: unknown) {
   const user = await requireAuth();
@@ -665,6 +755,104 @@ export async function createTenantForLease(data: unknown) {
   revalidatePath("/interface/clients");
 
   return { tenant, tenantIntakeLink };
+}
+
+// Créer un locataire depuis un email (sans bailId) - pour utilisation lors de la création de bail
+export async function createTenantFromEmail(data: unknown) {
+  const user = await requireAuth();
+  const validated = createTenantFromEmailSchema.parse(data);
+
+  // Chercher un locataire existant avec cet email dans ses persons
+  let tenant = await prisma.client.findFirst({
+    where: {
+      profilType: ProfilType.LOCATAIRE,
+      persons: {
+        some: {
+          email: validated.email,
+        },
+      },
+    },
+    include: {
+      persons: { where: { isPrimary: true }, take: 1 },
+      entreprise: true,
+    },
+  });
+
+  if (!tenant) {
+    // Créer un nouveau locataire avec une personne associée
+    tenant = await prisma.client.create({
+      data: {
+        type: ClientType.PERSONNE_PHYSIQUE,
+        profilType: ProfilType.LOCATAIRE,
+        createdById: user.id,
+        persons: {
+          create: {
+            email: validated.email,
+            isPrimary: true,
+            createdById: user.id,
+          },
+        },
+      },
+      include: {
+        persons: { where: { isPrimary: true }, take: 1 },
+        entreprise: true,
+      },
+    });
+
+    // Notification pour création de client
+    await createNotificationForAllUsers(
+      NotificationType.CLIENT_CREATED,
+      "CLIENT",
+      tenant.id,
+      user.id,
+      { createdByForm: false }
+    );
+  }
+
+  revalidatePath("/interface/clients");
+  return tenant;
+}
+
+// Récupérer les locataires qui étaient en commun dans un bail avec un propriétaire
+export async function getCommonTenantsForOwner(ownerId: string) {
+  await requireAuth();
+
+  // Récupérer tous les baux où ce propriétaire est partie
+  const bails = await prisma.bail.findMany({
+    where: {
+      parties: {
+        some: {
+          id: ownerId,
+        },
+      },
+      property: {
+        ownerId: ownerId,
+      },
+    },
+    include: {
+      parties: {
+        where: {
+          profilType: ProfilType.LOCATAIRE,
+        },
+        include: {
+          persons: { where: { isPrimary: true }, take: 1 },
+          entreprise: true,
+        },
+      },
+    },
+  });
+
+  // Extraire les locataires uniques
+  const tenantMap = new Map();
+  bails.forEach((bail) => {
+    bail.parties.forEach((party) => {
+      if (party.profilType === ProfilType.LOCATAIRE && !tenantMap.has(party.id)) {
+        tenantMap.set(party.id, party);
+      }
+    });
+  });
+
+  return Array.from(tenantMap.values());
 }
 
 // Types pour les données manquantes d'un bail

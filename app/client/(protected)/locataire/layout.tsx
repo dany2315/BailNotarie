@@ -2,7 +2,6 @@ import { getCurrentUser } from "@/lib/auth-helpers";
 import { getClientProfilType } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
 import { Role, ProfilType } from "@prisma/client";
-import { LocataireSidebar } from "@/components/client/locataire-sidebar";
 import { LocataireHeader } from "@/components/client/locataire-header";
 
 export const dynamic = "force-dynamic";
@@ -36,9 +35,7 @@ export default async function LocataireProtectedLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <LocataireSidebar />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
         <LocataireHeader 
           userId={user.id}
           userName={user.name}
@@ -47,7 +44,6 @@ export default async function LocataireProtectedLayout({
         <main className="flex-1 overflow-y-auto min-h-0">
           {children}
         </main>
-      </div>
     </div>
   );
 }

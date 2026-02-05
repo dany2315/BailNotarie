@@ -21,6 +21,11 @@ export async function createProperty(data: unknown) {
     if (validated.ownerId !== client.id) {
       throw new Error("Vous ne pouvez créer des biens que pour vous-même");
     }
+    // Vérifier le statut de completion
+    if (client.completionStatus !== CompletionStatus.PENDING_CHECK && 
+        client.completionStatus !== CompletionStatus.COMPLETED) {
+      throw new Error("Vous devez compléter vos informations personnelles et les soumettre à vérification avant de pouvoir créer un bien");
+    }
   }
 
   const property = await prisma.property.create({
@@ -155,9 +160,8 @@ export async function deleteProperty(id: string): Promise<{ success: true } | { 
   }
 
   // Supprimer les documents du bien
-  await prisma.document.deleteMany({
-    where: { propertyId: id },
-  });
+  const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+  await deleteDocumentsFromDB({ propertyId: id });
 
   // Remettre l'IntakeLink du propriétaire en PENDING s'il était en SUBMITTED
   if (property.owner) {
@@ -316,6 +320,27 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
   const user = await requireAuth();
   const { id, completionStatus } = data;
 
+  // Récupérer l'ancien statut et le propriétaire
+  const property = await prisma.property.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      completionStatus: true,
+      label: true,
+      fullAddress: true,
+      ownerId: true,
+      owner: {
+        select: { id: true, profilType: true },
+      },
+    },
+  });
+
+  if (!property) {
+    throw new Error("Bien introuvable");
+  }
+
+  const oldStatus = property.completionStatus;
+
   await prisma.property.update({
     where: { id },
     data: {
@@ -323,6 +348,38 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
       updatedById: user.id,
     },
   });
+
+  // Envoyer un email de notification au propriétaire si le statut a changé (asynchrone)
+  if (oldStatus !== completionStatus && property.ownerId) {
+    const { getClientEmailAndName } = await import("../utils/client-email");
+    const { triggerCompletionStatusEmail } = await import("../inngest/helpers");
+    
+    getClientEmailAndName(property.ownerId).then(({ email, name, profilType }) => {
+      if (email) {
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+        const dashboardPath = profilType === ProfilType.PROPRIETAIRE 
+          ? "/client/proprietaire" 
+          : "/client";
+        
+        const propertyName = property.label || property.fullAddress;
+        
+        triggerCompletionStatusEmail({
+          to: email,
+          clientName: name,
+          entityType: "property",
+          entityName: propertyName,
+          oldStatus,
+          newStatus: completionStatus,
+          dashboardUrl: `${baseUrl}${dashboardPath}`,
+          profilType: profilType === ProfilType.PROPRIETAIRE ? "PROPRIETAIRE" : undefined,
+        }).catch((error) => {
+          console.error(`Erreur lors de l'envoi de l'email de changement de statut au propriétaire ${property.ownerId}:`, error);
+        });
+      }
+    }).catch((error) => {
+      console.error(`Erreur lors de la récupération des informations du propriétaire ${property.ownerId}:`, error);
+    });
+  }
 
   // Vérifier et mettre à jour les baux associés si nécessaire
   const bails = await prisma.bail.findMany({

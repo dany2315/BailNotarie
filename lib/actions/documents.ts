@@ -88,6 +88,60 @@ export async function deleteBlobFiles(fileKeys: string[]) {
   await Promise.all(fileKeys.map(key => deleteBlobFile(key)));
 }
 
+/**
+ * Supprime un document de la DB et son fichier AWS S3 associé
+ * À utiliser à la place de prisma.document.delete() pour garantir la suppression des fichiers
+ */
+export async function deleteDocumentFromDB(id: string) {
+  const document = await prisma.document.findUnique({
+    where: { id },
+    select: { fileKey: true },
+  });
+
+  if (!document) {
+    throw new Error("Document introuvable");
+  }
+
+  // Supprimer le fichier AWS S3
+  if (document.fileKey) {
+    await deleteBlobFile(document.fileKey);
+  }
+
+  // Supprimer le document de la DB
+  await prisma.document.delete({ where: { id } });
+}
+
+/**
+ * Supprime plusieurs documents de la DB et leurs fichiers AWS S3 associés
+ * À utiliser à la place de prisma.document.deleteMany() pour garantir la suppression des fichiers
+ */
+export async function deleteDocumentsFromDB(where: {
+  id?: string | { in: string[] };
+  clientId?: string | { in: string[] } | null;
+  propertyId?: string | { in: string[] } | null;
+  bailId?: string | { in: string[] } | null;
+  personId?: string | { in: string[] } | null;
+  entrepriseId?: string | { in: string[] } | null;
+  notaireRequestId?: string | { in: string[] } | null;
+}) {
+  // Récupérer les documents avant suppression pour obtenir les fileKeys
+  const documents = await prisma.document.findMany({
+    where,
+    select: { fileKey: true },
+  });
+
+  // Supprimer tous les fichiers AWS S3
+  if (documents.length > 0) {
+    const fileKeys = documents.map(doc => doc.fileKey).filter(Boolean);
+    if (fileKeys.length > 0) {
+      await deleteBlobFiles(fileKeys);
+    }
+  }
+
+  // Supprimer les documents de la DB
+  await prisma.document.deleteMany({ where });
+}
+
 export async function deleteDocument(id: string) {
   await requireAuth();
   const document = await prisma.document.findUnique({ where: { id } });
@@ -98,12 +152,9 @@ export async function deleteDocument(id: string) {
 
   const clientId = document.clientId;
   const propertyId = document.propertyId;
-  const fileKey = document.fileKey;
 
-  // Supprimer le fichier blob
-  await deleteBlobFile(fileKey);
-
-  await prisma.document.delete({ where: { id } });
+  // Utiliser la fonction wrapper pour supprimer le document et son fichier
+  await deleteDocumentFromDB(id);
 
   // Mettre à jour les statuts de complétion
   if (clientId) {

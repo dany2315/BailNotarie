@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { RoleSelectionForm } from "@/components/start/role-selection-form";
 import { OwnerEmailForm } from "@/components/start/owner-email-form";
 import { OwnerEmailInputForm } from "@/components/start/owner-email-input-form";
@@ -23,8 +23,10 @@ export default function StartPage() {
   };
 
   const handleOwnerEmailSuccess = (tenantToken: string) => {
-    // Rediriger vers le formulaire locataire
-    router.push(`/intakes/${tenantToken}`);
+    // Rediriger vers le formulaire locataire avec startTransition pour une transition fluide
+    startTransition(() => {
+      router.push(`/intakes/${tenantToken}`);
+    });
   };
 
   const handleBack = () => {

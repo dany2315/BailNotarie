@@ -28,7 +28,7 @@ import { NationalitySelect } from "@/components/ui/nationality-select";
 import { deleteDocument, getDocuments } from "@/lib/actions/documents";
 import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentViewer } from "@/components/leases/document-viewer";
-import { getRequiredClientFields } from "@/lib/utils/completion-status";
+import { getRequiredClientFields } from "@/lib/utils/required-fields";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 
 interface EditClientFormProps {

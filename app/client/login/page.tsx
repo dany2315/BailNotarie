@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Loader2, Mail, User, Lock, ArrowLeft } from "lucide-react";
 import Image from "next/image";
-import { authClient } from "@/lib/auth-client";
+import { authClient, useSession } from "@/lib/auth-client";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -27,10 +27,54 @@ type LoginFormData = z.infer<typeof loginSchema>;
 type OTPFormData = z.infer<typeof otpSchema>;
 
 export default function ClientLoginPage() {
+  const { data: session, isPending } = useSession();
   const router = useRouter();
   const [step, setStep] = useState<"email" | "otp">("email");
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Rediriger vers le dashboard approprié si l'utilisateur est déjà connecté
+  useEffect(() => {
+    async function checkAndRedirect() {
+      if (isPending) {
+        return;
+      }
+
+      if (session?.user) {
+        try {
+          // Récupérer les informations de l'utilisateur pour déterminer où le rediriger
+          const userResponse = await fetch("/api/user/current");
+          const userData = await userResponse.json();
+          
+          if (userData.isAuthenticated && userData.user) {
+            const { role, profilType } = userData.user;
+            
+            // Si c'est un client, rediriger vers son dashboard approprié
+            if (role === "UTILISATEUR") {
+              if (profilType === "PROPRIETAIRE") {
+                router.push("/client/proprietaire");
+              } else if (profilType === "LOCATAIRE") {
+                router.push("/client/locataire");
+              } else {
+                router.push("/client");
+              }
+            } else if (role === "NOTAIRE") {
+              router.push("/notaire");
+            } else if (role === "ADMINISTRATEUR") {
+              router.push("/interface");
+            }
+          }
+        } catch (error) {
+          console.error("Erreur lors de la vérification de l'utilisateur:", error);
+        }
+      } else {
+        setIsCheckingAuth(false);
+      }
+    }
+
+    checkAndRedirect();
+  }, [session, isPending, router]);
 
   const {
     register: registerEmail,
@@ -160,11 +204,29 @@ export default function ClientLoginPage() {
       });
       
       // Attendre un peu pour que le cookie soit défini
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Utiliser router.push + refresh comme pour les notaires
-      router.push("/client");
-      router.refresh();
+      // Récupérer le profilType pour rediriger directement vers la bonne page
+      try {
+        const userResponse = await fetch("/api/user/current");
+        const userData = await userResponse.json();
+        
+        if (userData.isAuthenticated && userData.user?.profilType) {
+          const profilType = userData.user.profilType;
+          if (profilType === "PROPRIETAIRE") {
+            window.location.href = "/client/proprietaire";
+            return;
+          } else if (profilType === "LOCATAIRE") {
+            window.location.href = "/client/locataire";
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Erreur lors de la récupération du profilType:", error);
+      }
+      
+      // Fallback : rediriger vers /client qui fera la redirection serveur
+      window.location.href = "/client";
     } catch (error: any) {
       console.error("Erreur lors de la connexion:", error);
       
@@ -183,8 +245,23 @@ export default function ClientLoginPage() {
     }
   };
 
+  if (isPending || isCheckingAuth) {
+    return (
+      <div className="flex flex-1 min-h-0 items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (session) {
+    return null; // Retourner null pendant la redirection
+  }
+
   return (
-    <div className="min-h-screen flex">
+    <div className="flex flex-1 min-h-0">
       {/* Section gauche avec image et branding */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 overflow-hidden">
         {/* Motifs décoratifs */}

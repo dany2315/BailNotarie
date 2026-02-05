@@ -251,6 +251,45 @@ export async function triggerDocumentRequestEmail(data: {
 }
 
 /**
+ * Déclenche l'envoi d'un email de notification de changement de statut de completion
+ * Envoyé au client quand son statut de completion change
+ */
+export async function triggerCompletionStatusEmail(data: {
+  to: string;
+  clientName?: string | null;
+  entityType: "client" | "property";
+  entityName?: string | null;
+  oldStatus: string;
+  newStatus: string;
+  dashboardUrl: string;
+  profilType?: "PROPRIETAIRE" | "LOCATAIRE";
+}) {
+  const statusLabels: Record<string, string> = {
+    NOT_STARTED: "Non commencé",
+    PARTIAL: "Partiel",
+    PENDING_CHECK: "En vérification",
+    COMPLETED: "Complété",
+  };
+
+  const oldStatusLabel = statusLabels[data.oldStatus] || data.oldStatus;
+  const newStatusLabel = statusLabels[data.newStatus] || data.newStatus;
+  
+  const subject = data.newStatus === "COMPLETED"
+    ? "✅ Vérification complétée - BailNotarie"
+    : data.newStatus === "PENDING_CHECK"
+    ? "🔵 Vérification en cours - BailNotarie"
+    : `Statut de vérification mis à jour : ${oldStatusLabel} → ${newStatusLabel}`;
+
+  await inngest.send({
+    name: "email/completion-status.send",
+    data: {
+      ...data,
+      subject,
+    },
+  });
+}
+
+/**
  * Déclenche l'envoi d'un email quand un document est reçu en réponse à une demande
  * Envoyé au notaire quand le client répond
  */

@@ -5,6 +5,7 @@ import { randomBytes } from "crypto";
 import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
 import { triggerOwnerFormEmail, triggerRequestStatusEmail } from "@/lib/inngest/helpers";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
+import { createUserForClient } from "@/lib/utils/user-creation";
 import { z } from "zod";
 
 const startOwnerSchema = z.object({
@@ -68,6 +69,14 @@ export async function startAsOwner(data: StartOwnerInput) {
         },
       },
     });
+
+    // Créer automatiquement un User pour ce client
+    try {
+      await createUserForClient(client.id);
+    } catch (error) {
+      console.error("Erreur lors de la création du User pour le client:", error);
+      // On continue même si la création du User échoue
+    }
 
     const token = randomBytes(32).toString("hex");
     const intakeLink = await prisma.intakeLink.create({
@@ -294,6 +303,14 @@ export async function startAsTenant(data: StartTenantInput) {
         },
       },
     });
+
+    // Créer automatiquement un User pour le propriétaire
+    try {
+      await createUserForClient(owner.id);
+    } catch (error) {
+      console.error("Erreur lors de la création du User pour le propriétaire:", error);
+      // On continue même si la création du User échoue
+    }
 
     // Notification pour création de propriétaire
     await createNotificationForAllUsers(
