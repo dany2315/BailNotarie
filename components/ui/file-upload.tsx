@@ -170,7 +170,7 @@ export function FileUpload({
           throw new Error(error.error || "Erreur lors de la récupération de l'URL signée");
         }
 
-        const { signedUrl, fileKey, publicUrl } = await tokenResponse.json();
+        const { signedUrl, fileKey } = await tokenResponse.json();
 
         // 2. Uploader directement vers S3 avec l'URL signée (progression réelle)
         // Ne pas envoyer Content-Type car il n'est pas signé dans l'URL
@@ -190,7 +190,7 @@ export function FileUpload({
             ...(documentPropertyId && { propertyId: documentPropertyId }),
             ...(documentBailId && { bailId: documentBailId }),
             // Données du document
-            fileKey: publicUrl, // URL publique S3
+            fileKey: fileKey, // Clé S3 (pas l'URL complète)
             kind: documentKind,
             fileName: file.name,
             mimeType: file.type,
@@ -210,7 +210,7 @@ export function FileUpload({
         }
         
         if (onUploadComplete) {
-          onUploadComplete(publicUrl);
+          onUploadComplete(fileKey);
         }
 
         // Déclencher l'événement pour recharger les documents
@@ -284,7 +284,7 @@ export function FileUpload({
             throw new Error(error.error || "Erreur lors de la récupération de l'URL signée");
           }
 
-          const { signedUrl, fileKey, publicUrl } = await tokenResponse.json();
+          const { signedUrl, fileKey } = await tokenResponse.json();
 
           // 2. Uploader directement vers S3 avec l'URL signée
           // Ne pas envoyer Content-Type car il n'est pas signé dans l'URL
@@ -304,7 +304,7 @@ export function FileUpload({
               ...(documentPropertyId && { propertyId: documentPropertyId }),
               ...(documentBailId && { bailId: documentBailId }),
               // Données du document
-              fileKey: publicUrl,
+              fileKey: fileKey, // Clé S3 (pas l'URL complète)
               kind: documentKind,
               fileName: file.name,
               mimeType: file.type,
@@ -322,7 +322,7 @@ export function FileUpload({
           }
           
           if (onUploadComplete) {
-            onUploadComplete(publicUrl);
+            onUploadComplete(fileKey);
           }
 
           // Déclencher l'événement pour recharger les documents

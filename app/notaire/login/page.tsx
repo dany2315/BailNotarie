@@ -14,6 +14,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Loader2, Mail, Scale, Shield, Lock, ArrowLeft } from "lucide-react";
 import { authClient, useSession } from "@/lib/auth-client";
 import Image from "next/image";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -235,14 +236,7 @@ export default function NotaireLoginPage() {
   };
 
   if (isPending || isCheckingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Chargement...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Chargement..." />;
   }
 
   if (session) {

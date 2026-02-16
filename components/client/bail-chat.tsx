@@ -14,6 +14,7 @@ import { getBailMessages, sendBailMessage, getNotaireRequestsByBail } from "@/li
 import { formatDateTime } from "@/lib/utils/formatters";
 import { Role, BailMessageType, NotaireRequestStatus } from "@prisma/client";
 import { useSession } from "@/lib/auth-client";
+import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 
 const messageSchema = z.object({
   content: z.string().min(1, "Le message ne peut pas être vide"),
@@ -203,7 +204,7 @@ export function BailChat({ bailId }: BailChatProps) {
                           <div key={doc.id} className="flex items-center gap-2 text-xs bg-background p-2 rounded">
                             <FileText className="h-3 w-3 shrink-0" />
                             <a
-                              href={doc.fileKey}
+                              href={getS3PublicUrl(doc.fileKey) || doc.fileKey}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="underline hover:no-underline flex-1 truncate text-blue-600 hover:text-blue-800"

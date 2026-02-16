@@ -10,6 +10,7 @@ import { Building2, User2, ArrowRight, Loader2, CheckCircle2, Sparkles } from "l
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import Image from "next/image";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 const roleSelectionSchema = z.object({
   role: z.enum(["PROPRIETAIRE", "LOCATAIRE"]),
@@ -188,7 +189,7 @@ export function RoleSelectionForm({ onOwnerSelected, onTenantSelected }: RoleSel
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                  Chargement...
+                  Traitement...
                 </>
               ) : (
                 <>

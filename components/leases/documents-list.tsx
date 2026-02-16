@@ -1,9 +1,10 @@
 "use client";
 
-import { FileText, Download, Eye } from "lucide-react";
+import { FileText, Download, Eye, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentViewer } from "./document-viewer";
 import { formatDateTime } from "@/lib/utils/formatters";
+import { useDownloadFile } from "@/hooks/use-download-file";
 
 interface Document {
   id: string;
@@ -20,6 +21,8 @@ interface DocumentsListProps {
 }
 
 export function DocumentsList({ documents, documentKindLabels }: DocumentsListProps) {
+  const { downloadFile, isFileDownloading } = useDownloadFile();
+
   if (documents.length === 0) {
     return <p className="text-sm text-muted-foreground">Aucun document</p>;
   }
@@ -55,11 +58,14 @@ export function DocumentsList({ documents, documentKindLabels }: DocumentsListPr
               variant="ghost"
               size="icon"
               className="h-8 w-8 flex-shrink-0"
-              asChild
+              onClick={() => downloadFile(doc.fileKey, doc.label || `document-${doc.id}`)}
+              disabled={isFileDownloading(doc.fileKey)}
             >
-              <a href={doc.fileKey} download target="_blank" rel="noopener noreferrer">
+              {isFileDownloading(doc.fileKey) ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
                 <Download className="size-4" />
-              </a>
+              )}
             </Button>
           </div>
         </div>

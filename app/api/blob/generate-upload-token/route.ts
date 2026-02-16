@@ -31,9 +31,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    let fileKey: string;
-    let identifier: string | undefined;
-
+    // Validation : vérifier que l'entité existe avant de générer l'URL signée
     // Cas 1: Upload pour intake (avec token)
     if (intakeToken) {
       // Vérifier que l'intakeLink existe et est valide
@@ -59,12 +57,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           { status: 403 }
         );
       }
-
-      identifier = intakeToken;
     }
     // Cas 2: Upload pour documents clients/propriétés
     else {
-      // Déterminer le contexte et l'identifiant
+      // Déterminer le contexte et valider l'entité
       if (personId) {
         // Vérifier que la personne existe
         const person = await prisma.person.findUnique({
@@ -77,7 +73,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        identifier = person.clientId;
       } else if (entrepriseId) {
         // Vérifier que l'entreprise existe
         const entreprise = await prisma.entreprise.findUnique({
@@ -90,7 +85,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        identifier = entreprise.clientId;
       } else if (clientId) {
         // Vérifier que le client existe
         const client = await prisma.client.findUnique({
@@ -103,7 +97,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        identifier = clientId;
       } else if (propertyId) {
         // Vérifier que la propriété existe
         const property = await prisma.property.findUnique({
@@ -116,7 +109,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        identifier = propertyId;
       } else if (bailId) {
         // Vérifier que le bail existe
         const bail = await prisma.bail.findUnique({
@@ -129,8 +121,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             { status: 404 }
           );
         }
-        // Pour les messages de chat, utiliser "bail-messages", sinon "documents"
-        identifier = documentKind ? bailId : bailId; // On garde bailId comme identifiant
       } else {
         return NextResponse.json(
           { error: "Token, clientId, personId, entrepriseId, propertyId ou bailId requis" },
@@ -140,21 +130,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Générer la clé S3 pour le fichier (toujours dans "documents")
-    fileKey = generateS3FileKey(fileName, identifier);
+    const fileKey = generateS3FileKey(fileName);
 
     // Générer l'URL signée pour upload (valide 1 heure)
     // URL signée simple PUT sans Content-Type ni checksum
     const signedUrl = await generateSignedUploadUrl(fileKey, undefined, 3600);
 
-    // Générer l'URL publique du fichier S3 (après upload)
-    const bucketName = process.env.AWS_S3_BUCKET_NAME || "";
-    const region = process.env.AWS_REGION || "eu-west-3";
-    const publicUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${fileKey}`;
-
     return NextResponse.json({
       signedUrl, // URL signée pour upload direct
-      fileKey, // Clé S3 du fichier
-      publicUrl, // URL publique S3 après upload
+      fileKey, // Clé S3 du fichier (à stocker dans la DB)
       expiresIn: 3600, // Durée de validité en secondes
     });
   } catch (error: any) {

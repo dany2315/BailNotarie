@@ -55,14 +55,21 @@ async function handleDownloadDocument(
   }
 
   try {
+    // Toujours essayer d'obtenir une URL signée (fonctionne avec clé S3 ou URL complète)
     let downloadUrl = fileKey;
     
-    if (fileKey?.startsWith("http") && (fileKey.includes("s3") || fileKey.includes("amazonaws.com"))) {
-      try {
-        downloadUrl = await getSignedUrlForPreview(fileKey);
-      } catch (error) {
-        console.warn("Impossible d'obtenir une URL signée, utilisation de l'URL originale");
+    try {
+      downloadUrl = await getSignedUrlForPreview(fileKey);
+    } catch (error) {
+      // Fallback : si c'est une URL complète (ancien format), utiliser directement
+      if (fileKey?.startsWith("http")) {
+        downloadUrl = fileKey;
+      } else {
+        // Sinon, générer l'URL publique depuis la clé S3
+        const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
+        downloadUrl = getS3PublicUrl(fileKey) || fileKey;
       }
+      console.warn("Impossible d'obtenir une URL signée, utilisation de l'URL publique");
     }
     
     const response = await fetch(downloadUrl);
@@ -101,8 +108,14 @@ export function BailDocumentPreview({ document }: BailDocumentPreviewProps) {
       setSignedUrl(url);
     } catch (error) {
       console.error("Erreur lors de la prévisualisation:", error);
-      toast.error("Impossible de charger le document");
-      setIsOpen(false);
+      // Fallback : générer l'URL publique depuis la clé S3
+      const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
+      const fallbackUrl = getS3PublicUrl(document.fileKey) || document.fileKey;
+      setSignedUrl(fallbackUrl);
+      if (!fallbackUrl.startsWith("http")) {
+        toast.error("Impossible de charger le document");
+        setIsOpen(false);
+      }
     } finally {
       setIsLoading(false);
     }

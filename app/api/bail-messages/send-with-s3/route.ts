@@ -3,14 +3,14 @@ import { sendBailMessageWithS3Urls } from "@/lib/actions/bail-messages";
 
 /**
  * Route API pour envoyer un message avec fichiers uploadés directement vers S3
- * Accepte les URLs publiques S3 au lieu de FormData
+ * Accepte les clés S3 au lieu de FormData
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { 
       bailId,
-      files, // Array<{ publicUrl: string; fileName: string; mimeType: string; size: number }>
+      files, // Array<{ fileKey: string; fileName: string; mimeType: string; size: number }>
       content,
       recipientPartyId,
     } = body;

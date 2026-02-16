@@ -16,6 +16,7 @@ import { fr } from "date-fns/locale";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 interface Notification {
   id: string;
@@ -203,8 +204,13 @@ export function NotificationsDropdown() {
         </div>
         <ScrollArea className="h-[400px]">
           {isLoading ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              Chargement...
+            <div className="p-4">
+              <LoadingScreen 
+                message="Chargement..." 
+                variant="inline" 
+                showLogo={false}
+                spinnerSize="sm"
+              />
             </div>
           ) : notifications.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">

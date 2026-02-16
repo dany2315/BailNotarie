@@ -272,6 +272,30 @@ const propertyFieldsSchema = {
     .nativeEnum(PropertyStatus)
     .default(PropertyStatus.NON_LOUER),
 
+  // Données géographiques enrichies (optionnelles)
+  propertyHousenumber: z.string().max(20).trim().optional(),
+  propertyStreet: z.string().max(200).trim().optional(),
+  propertyCity: z.string().max(200).trim().optional(),
+  propertyPostalCode: z.string().max(10).trim().optional(),
+  propertyDistrict: z.string().max(100).trim().optional(),
+  propertyInseeCode: z.string().max(10).trim().optional(),
+  propertyDepartment: z.string().max(100).trim().optional(),
+  propertyRegion: z.string().max(100).trim().optional(),
+  propertyLatitude: z.string().optional().transform((val) => {
+    if (!val) return null;
+    const num = parseFloat(val);
+    if (isNaN(num)) return null;
+    return num;
+  }),
+  propertyLongitude: z.string().optional().transform((val) => {
+    if (!val) return null;
+    const num = parseFloat(val);
+    if (isNaN(num)) return null;
+    return num;
+  }),
+  propertyIsTightZone: z.boolean().optional(),
+  propertyHasRentControl: z.boolean().optional(),
+
   // Mobilier obligatoire pour location meublée
   hasLiterie: z.boolean().default(false),           // Literie avec couette ou couverture
   hasRideaux: z.boolean().default(false),           // Volets ou rideaux dans les chambres

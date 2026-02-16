@@ -14,6 +14,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Loader2, Mail, User, Lock, ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { authClient, useSession } from "@/lib/auth-client";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -246,14 +247,7 @@ export default function ClientLoginPage() {
   };
 
   if (isPending || isCheckingAuth) {
-    return (
-      <div className="flex flex-1 min-h-0 items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Chargement...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Chargement..." variant="inline" />;
   }
 
   if (session) {
@@ -261,7 +255,7 @@ export default function ClientLoginPage() {
   }
 
   return (
-    <div className="flex flex-1 min-h-0">
+    <div className="flex flex-1 min-h-0 h-screen">
       {/* Section gauche avec image et branding */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 overflow-hidden">
         {/* Motifs décoratifs */}
@@ -277,7 +271,7 @@ export default function ClientLoginPage() {
               alt="BailNotarie"
               width={120}
               height={120}
-              className="rounded-full bg-white/10 p-4"
+              className="rounded-full bg-white p-4 shadow-xl"
             />
           </div>
           <h1 className="text-4xl font-bold mb-4 text-center">Bienvenue sur votre espace client</h1>

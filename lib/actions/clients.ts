@@ -401,6 +401,8 @@ export async function createFullClient(data: unknown) {
       }
     }
 
+    // Revalidation groupée pour éviter les appels multiples
+    console.log("[createFullClient] Revalidation des pages après création");
     revalidatePath("/interface/clients");
     revalidatePath("/interface/properties");
     revalidatePath("/interface/bails");

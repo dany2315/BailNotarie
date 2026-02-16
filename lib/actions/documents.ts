@@ -10,18 +10,15 @@ import {
 } from "@/lib/utils/completion-status";
 import { uploadFileToS3, generateS3FileKey, deleteFileFromS3, extractS3KeyFromUrl } from "@/lib/utils/s3-client";
 
+/**
+ * @deprecated Cette fonction est obsolète. Utilisez `/api/blob/generate-upload-token` pour obtenir une URL signée S3.
+ * Cette fonction retournait un stub et n'est plus utilisée.
+ */
 export async function getSignedUrl(kind: string, fileName: string, mimeType: string) {
   await requireAuth();
   
-  // Stub: retourner une URL signée simulée
-  // TODO: Implémenter avec votre service S3/GCS
-  const fileKey = `documents/${Date.now()}-${fileName}`;
-  const uploadUrl = `/api/upload?key=${fileKey}&mimeType=${mimeType}`;
-  
-  return {
-    uploadUrl,
-    fileKey,
-  };
+  // Cette fonction est deprecated - utiliser /api/blob/generate-upload-token à la place
+  throw new Error("getSignedUrl() est deprecated. Utilisez /api/blob/generate-upload-token pour obtenir une URL signée S3.");
 }
 
 export async function createDocument(data: {
@@ -71,7 +68,8 @@ async function deleteBlobFile(fileKey: string) {
   try {
     if (!fileKey) return;
     
-    // Extraire la clé S3 depuis l'URL si c'est une URL complète
+    // fileKey peut être soit une clé S3 (nouveau format) soit une URL complète (ancien format pour compatibilité)
+    // extractS3KeyFromUrl gère les deux cas
     const s3Key = extractS3KeyFromUrl(fileKey) || fileKey;
     
     if (s3Key) {
@@ -221,7 +219,7 @@ async function uploadFileAndCreateDocument(
   if (!file) return null;
   
   // Générer la clé S3 pour le fichier
-  const fileKey = generateS3FileKey(file.name, options.clientId);
+  const fileKey = generateS3FileKey(file.name);
 
   // Uploader le fichier vers S3
   const s3Result = await uploadFileToS3(
@@ -235,7 +233,7 @@ async function uploadFileAndCreateDocument(
     data: {
       kind,
       label: options.label || file.name,
-      fileKey: s3Result.url, // URL publique S3
+      fileKey: s3Result.fileKey, // Clé S3 (pas l'URL complète)
       mimeType: file.type,
       size: file.size,
       clientId: options.clientId,

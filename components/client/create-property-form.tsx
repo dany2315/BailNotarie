@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { FileUpload } from "@/components/ui/file-upload";
 import { createProperty } from "@/lib/actions/properties";
 import { getDocuments } from "@/lib/actions/documents";
+import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 import {
   Loader2,
   ArrowLeft,
@@ -55,6 +56,8 @@ import {
 import { createPropertySchema } from "@/lib/zod/property";
 import { deleteDocument } from "@/lib/actions/documents";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import type { AddressData } from "@/lib/types/address";
 
 // Type pour le formulaire - correspond au schéma d'entrée avec valeurs par défaut appliquées
 type CreatePropertyFormData = {
@@ -65,6 +68,17 @@ type CreatePropertyFormData = {
   legalStatus?: BienLegalStatus;
   status?: "PROSPECT" | "IN_PROGRESS" | "ACTIVE" | "ARCHIVED";
   ownerId: string;
+  // Données géographiques enrichies (optionnelles)
+  housenumber?: string;
+  street?: string;
+  city?: string;
+  postalCode?: string;
+  district?: string;
+  inseeCode?: string;
+  department?: string;
+  region?: string;
+  latitude?: string;
+  longitude?: string;
   hasLiterie: boolean;
   hasRideaux: boolean;
   hasPlaquesCuisson: boolean;
@@ -180,10 +194,14 @@ function PropertyDocumentUploaded({
         const { signedUrl } = await response.json();
         setSignedUrl(signedUrl);
       } else {
-        setSignedUrl(doc.fileKey);
+        // Fallback : générer l'URL publique depuis la clé S3
+        const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
+        setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
       }
     } catch (error) {
-      setSignedUrl(doc.fileKey);
+      // Fallback : générer l'URL publique depuis la clé S3
+      const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
+      setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
     } finally {
       setIsLoadingSignedUrl(false);
     }
@@ -263,13 +281,13 @@ function PropertyDocumentUploaded({
               </div>
             ) : selectedDocument?.mimeType?.includes("pdf") ? (
               <iframe
-                src={signedUrl || selectedDocument.fileKey}
+                src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                 className="w-full h-[70vh] border rounded"
                 title={selectedDocument.label}
               />
             ) : selectedDocument?.mimeType?.includes("image") ? (
               <img
-                src={signedUrl || selectedDocument.fileKey}
+                src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                 alt={selectedDocument.label}
                 className="max-w-full max-h-[70vh] mx-auto object-contain"
               />
@@ -331,6 +349,13 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
       type: undefined,
       legalStatus: undefined,
       status: undefined,
+      city: undefined,
+      postalCode: undefined,
+      inseeCode: undefined,
+      department: undefined,
+      region: undefined,
+      latitude: undefined,
+      longitude: undefined,
       hasLiterie: false,
       hasRideaux: false,
       hasPlaquesCuisson: false,
@@ -346,6 +371,21 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
       hasMaterielEntretien: false,
     },
   });
+
+  const handleAddressSelect = (addressData: AddressData) => {
+    console.log("📍 [CreatePropertyForm] Adresse sélectionnée:", addressData);
+    setValue("fullAddress" as any, addressData.fullAddress);
+    setValue("housenumber" as any, addressData.housenumber || "");
+    setValue("street" as any, addressData.street || "");
+    setValue("city" as any, addressData.city);
+    setValue("postalCode" as any, addressData.postalCode);
+    setValue("district" as any, addressData.district || "");
+    setValue("inseeCode" as any, addressData.inseeCode);
+    setValue("department" as any, addressData.department || "");
+    setValue("region" as any, addressData.region || "");
+    setValue("latitude" as any, addressData.latitude.toString());
+    setValue("longitude" as any, addressData.longitude.toString());
+  };
 
   const type = watch("type" as any);
   const legalStatus = watch("legalStatus" as any);
@@ -429,17 +469,53 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                   <MapPin className="h-4 w-4 text-muted-foreground" />
                   Adresse complète *
                 </Label>
-            <Input
-              id="fullAddress"
-                  {...register("fullAddress" as any)}
+            <AddressAutocomplete
+              value={watch("fullAddress" as any) || ""}
+              onAddressSelect={handleAddressSelect}
+              onChange={(value: string) => setValue("fullAddress" as any, value)}
               disabled={isLoading}
-              placeholder="123 Rue Example, 75001 Paris"
-                  className="w-full"
+              placeholder="Rechercher une adresse..."
+              error={(errors as any).fullAddress?.message}
             />
                 {(errors as any).fullAddress && (
                   <p className="text-sm text-destructive">{(errors as any).fullAddress.message}</p>
             )}
           </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="postalCode" className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    Code postal *
+                  </Label>
+                  <Input
+                    id="postalCode"
+                    {...register("postalCode" as any)}
+                    disabled={isLoading}
+                    placeholder="75001"
+                    value={watch("postalCode" as any) || ""}
+                  />
+                  {(errors as any).postalCode && (
+                    <p className="text-sm text-destructive">{(errors as any).postalCode.message}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city" className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    Ville *
+                  </Label>
+                  <Input
+                    id="city"
+                    {...register("city" as any)}
+                    disabled={isLoading}
+                    placeholder="Paris"
+                    value={watch("city" as any) || ""}
+                  />
+                  {(errors as any).city && (
+                    <p className="text-sm text-destructive">{(errors as any).city.message}</p>
+                  )}
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">

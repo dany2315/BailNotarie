@@ -7,6 +7,7 @@ import { File, Eye, Download, Image, ImageDown, ImageIcon, Loader2 } from "lucid
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getIntakeDocuments } from "@/lib/actions/intakes";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
+import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 
 interface DocumentPreviewProps {
   token: string;
@@ -118,7 +119,8 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
       return signedUrl;
     } catch (error) {
       console.error("[DocumentPreview] Erreur lors de la génération de l'URL signée:", error);
-      return fileKey;
+      // Fallback : générer l'URL publique depuis la clé S3
+      return getS3PublicUrl(fileKey) || fileKey;
     }
   };
 
@@ -133,22 +135,52 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
       setSignedUrl(url);
     } catch (error) {
       console.error("[DocumentPreview] Erreur:", error);
-      setSignedUrl(doc.fileKey);
+      // Fallback : générer l'URL publique depuis la clé S3
+      setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
     } finally {
       setIsLoadingSignedUrl(false);
     }
   };
 
-  const handleDownloadDocument = (doc: any) => {
-    const link = document.createElement("a");
-    link.href = doc.fileKey.startsWith("http") 
-      ? doc.fileKey 
-      : doc.fileKey.startsWith("/") 
-        ? doc.fileKey 
-        : `/${doc.fileKey}`;
-    link.download = doc.label || `document-${doc.id}`;
-    link.target = "_blank";
-    link.click();
+  const handleDownloadDocument = async (doc: any) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      // Obtenir une URL signée pour le téléchargement (fonctionne avec clé S3 ou URL complète)
+      let downloadUrl = doc.fileKey;
+      
+      try {
+        downloadUrl = await getSignedUrlForDocument(doc.fileKey);
+      } catch (error) {
+        // Si c'est une URL complète (ancien format), utiliser directement
+        if (doc.fileKey?.startsWith("http")) {
+          downloadUrl = doc.fileKey;
+        } else {
+          // Sinon, générer l'URL publique depuis la clé S3
+          downloadUrl = getS3PublicUrl(doc.fileKey) || doc.fileKey;
+        }
+        console.warn("[DocumentPreview] Impossible d'obtenir une URL signée, utilisation de l'URL publique");
+      }
+      
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error("Erreur lors du téléchargement du fichier");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = doc.label || `document-${doc.id}`;
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("[DocumentPreview] Erreur lors du téléchargement:", error);
+    }
   };
 
   const getDocumentIcon = (mimeType?: string) => {
@@ -237,7 +269,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
                   </div>
                 ) : selectedDocument.mimeType?.includes("image") ? (
                   <img
-                    src={signedUrl || selectedDocument.fileKey}
+                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                     alt={selectedDocument.label || "Document"}
                     className="max-w-full max-h-[70vh] mx-auto object-contain"
                     onError={(e) => {
@@ -246,7 +278,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
                   />
                 ) : selectedDocument.mimeType?.includes("pdf") ? (
                   <iframe
-                    src={signedUrl || selectedDocument.fileKey}
+                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                     className="w-full h-[70vh] border rounded"
                     title={selectedDocument.label || "Document PDF"}
                     onError={() => {

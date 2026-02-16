@@ -334,6 +334,20 @@ model Property {
   legalStatus BienLegalStatus?
   status      PropertyStatus   @default(NON_LOUER)
 
+  // Données géographiques enrichies (via API BAN)
+  housenumber String?
+  street      String?
+  city        String?
+  postalCode  String?
+  district    String? // Arrondissement pour Paris/Lyon/Marseille
+  inseeCode   String?
+  department  String?
+  region      String?
+  latitude    Decimal?         @db.Decimal(10, 8)
+  longitude   Decimal?         @db.Decimal(11, 8)
+  isTightZone Boolean          @default(false)
+  hasRentControl Boolean       @default(false)
+
   // Mobilier obligatoire pour location meublée
   hasLiterie           Boolean @default(false) // Literie avec couette ou couverture
   hasRideaux           Boolean @default(false) // Volets ou rideaux dans les chambres
@@ -368,6 +382,47 @@ model Property {
 
   @@index([status])
   @@index([ownerId])
+  @@index([inseeCode])
+  @@index([isTightZone])
+}
+
+/**
+ * ---------------------- Zones Tendues ---------------------
+ */
+
+model ZoneTendue {
+  id               String   @id @default(cuid())
+  inseeCode        String  @unique
+  city             String
+  postalCode       String
+  department       String
+  region           String
+  isActive         Boolean  @default(true)
+  rentControlEnabled Boolean @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  rentControls RentControl[]
+
+  @@index([inseeCode])
+  @@index([isActive])
+  @@index([rentControlEnabled])
+}
+
+model RentControl {
+  id           String   @id @default(cuid())
+  zoneTendueId String
+  zoneTendue   ZoneTendue @relation(fields: [zoneTendueId], references: [id], onDelete: Cascade)
+  propertyType BienType
+  maxRentPerM2 Decimal  @db.Decimal(10, 2)
+  effectiveDate DateTime
+  endDate      DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([zoneTendueId])
+  @@index([propertyType])
+  @@index([effectiveDate])
 }
 
 /**

@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       propertyId,
       bailId,
       // Données du document
-      fileKey, // URL publique S3
+      fileKey, // Clé S3 (pas l'URL complète)
       kind,
       fileName,
       mimeType,

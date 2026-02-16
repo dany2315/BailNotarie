@@ -11,6 +11,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { signIn, useSession } from "@/lib/auth-client";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -78,7 +79,7 @@ export default function LoginPage() {
   }, [session, isPending, router]);
 
   if (isPending || isCheckingAuth) {
-    return <div>Chargement...</div>;
+    return <LoadingScreen message="Chargement..." />;
   }
 
   if (session) {

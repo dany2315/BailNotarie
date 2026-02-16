@@ -22,6 +22,8 @@ import { Loader2, InfoIcon } from "lucide-react";
 import { createPropertySchema } from "@/lib/zod/property";
 import { z } from "zod";
 import { BienType, BienLegalStatus, PropertyStatus, ClientType } from "@prisma/client";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import type { AddressData } from "@/lib/types/address";
 
 // Liste des champs de mobilier obligatoire pour location meublée
 const FURNITURE_FIELDS = [
@@ -54,6 +56,17 @@ const propertyFormSchema = z.object({
   legalStatus: z.nativeEnum(BienLegalStatus).optional().or(z.literal("")),
   status: z.nativeEnum(PropertyStatus).default(PropertyStatus.NON_LOUER),
   ownerId: z.string().min(1, "Le propriétaire est requis"),
+  // Données géographiques enrichies (optionnelles)
+  housenumber: z.string().max(20).trim().optional().or(z.literal("")),
+  street: z.string().max(200).trim().optional().or(z.literal("")),
+  city: z.string().max(200).trim().optional().or(z.literal("")),
+  postalCode: z.string().max(10).trim().optional().or(z.literal("")),
+  district: z.string().max(100).trim().optional().or(z.literal("")),
+  inseeCode: z.string().max(10).trim().optional().or(z.literal("")),
+  department: z.string().max(100).trim().optional().or(z.literal("")),
+  region: z.string().max(100).trim().optional().or(z.literal("")),
+  latitude: z.string().optional().or(z.literal("")),
+  longitude: z.string().optional().or(z.literal("")),
   // Mobilier obligatoire pour location meublée
   hasLiterie: z.boolean().default(false),
   hasRideaux: z.boolean().default(false),
@@ -86,11 +99,21 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
     defaultValues: initialData || {
       label: "",
       fullAddress: "",
+      housenumber: "",
+      street: "",
       surfaceM2: "",
       type: "",
       legalStatus: "",
       status: PropertyStatus.NON_LOUER,
       ownerId: "",
+      city: "",
+      postalCode: "",
+      district: "",
+      inseeCode: "",
+      department: "",
+      region: "",
+      latitude: "",
+      longitude: "",
       // Mobilier
       hasLiterie: false,
       hasRideaux: false,
@@ -107,6 +130,21 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
       hasMaterielEntretien: false,
     },
   });
+
+  const handleAddressSelect = (addressData: AddressData) => {
+    console.log("📍 [PropertyForm] Adresse sélectionnée:", addressData);
+    form.setValue("fullAddress", addressData.fullAddress);
+    form.setValue("housenumber", addressData.housenumber || "");
+    form.setValue("street", addressData.street || "");
+    form.setValue("city", addressData.city);
+    form.setValue("postalCode", addressData.postalCode);
+    form.setValue("district", addressData.district || "");
+    form.setValue("inseeCode", addressData.inseeCode);
+    form.setValue("department", addressData.department || "");
+    form.setValue("region", addressData.region || "");
+    form.setValue("latitude", addressData.latitude.toString());
+    form.setValue("longitude", addressData.longitude.toString());
+  };
   
   const watchedValues = form.watch();
   const allFurniturePresent = hasAllFurniture(watchedValues);
@@ -129,6 +167,18 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
       if (data.legalStatus) formData.append("legalStatus", data.legalStatus);
       formData.append("status", data.status || "PROSPECT");
       formData.append("ownerId", data.ownerId);
+      
+      // Ajouter les champs d'adresse détaillés
+      if (data.housenumber) formData.append("housenumber", data.housenumber);
+      if (data.street) formData.append("street", data.street);
+      if (data.city) formData.append("city", data.city);
+      if (data.postalCode) formData.append("postalCode", data.postalCode);
+      if (data.district) formData.append("district", data.district);
+      if (data.inseeCode) formData.append("inseeCode", data.inseeCode);
+      if (data.department) formData.append("department", data.department);
+      if (data.region) formData.append("region", data.region);
+      if (data.latitude) formData.append("latitude", data.latitude);
+      if (data.longitude) formData.append("longitude", data.longitude);
       
       // Ajouter les champs de mobilier
       formData.append("hasLiterie", String(data.hasLiterie ?? false));
@@ -223,17 +273,52 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="fullAddress">Adresse complète *</Label>
-            <Input
-              id="fullAddress"
-              {...form.register("fullAddress")}
+            <AddressAutocomplete
+              value={form.watch("fullAddress") || ""}
+              onAddressSelect={handleAddressSelect}
+              onChange={(value) => form.setValue("fullAddress", value)}
               disabled={isLoading}
-              placeholder="123 Rue Example, 75001 Paris"
+              placeholder="Rechercher une adresse..."
+              error={form.formState.errors.fullAddress?.message}
             />
             {form.formState.errors.fullAddress && (
               <p className="text-sm text-destructive">
                 {form.formState.errors.fullAddress.message}
               </p>
             )}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="postalCode">Code postal *</Label>
+              <Input
+                id="postalCode"
+                {...form.register("postalCode")}
+                disabled={isLoading}
+                placeholder="75001"
+                value={form.watch("postalCode") || ""}
+              />
+              {form.formState.errors.postalCode && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.postalCode.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="city">Ville *</Label>
+              <Input
+                id="city"
+                {...form.register("city")}
+                disabled={isLoading}
+                placeholder="Paris"
+                value={form.watch("city") || ""}
+              />
+              {form.formState.errors.city && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.city.message}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">

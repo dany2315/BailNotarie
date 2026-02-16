@@ -44,12 +44,12 @@ export function CompletionStatusBanner({ completionStatus, informationsPath }: C
       <AlertTitle className={isWarning ? "text-orange-800 dark:text-orange-300" : "text-blue-800 dark:text-blue-300"}>
         {message.title}
       </AlertTitle>
-      <AlertDescription className={isWarning ? "text-orange-700 dark:text-orange-400" : "text-blue-700 dark:text-blue-400"}>
-        <div className="flex items-center justify-between mt-2">
+      <AlertDescription className={isWarning ? "text-orange-700 dark:text-orange-400 flex" : "text-blue-700 dark:text-blue-400"}>
+        <div className="flex flex-col items-center justify-between mt-2">
           <span>{message.description}</span>
           {completionStatus !== CompletionStatus.PENDING_CHECK && (
-            <Link href={informationsPath}>
-              <Button variant="outline" size="sm" className="ml-4">
+            <Link href={informationsPath} className="w-full">
+              <Button variant="outline" size="sm" className="w-full ">
                 Compléter mes informations
               </Button>
             </Link>
@@ -59,5 +59,8 @@ export function CompletionStatusBanner({ completionStatus, informationsPath }: C
     </Alert>
   );
 }
+
+
+
 
 

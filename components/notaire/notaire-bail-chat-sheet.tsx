@@ -87,8 +87,9 @@ async function getSignedUrlForDownload(fileKey: string): Promise<string> {
     return signedUrl;
   } catch (error) {
     console.error("[NotaireBailChatSheet] Erreur lors de la génération de l'URL signée:", error);
-    // En cas d'erreur, retourner l'URL originale
-    return fileKey;
+    // Fallback : générer l'URL publique depuis la clé S3
+    const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
+    return getS3PublicUrl(fileKey) || fileKey;
   }
 }
 
@@ -103,16 +104,21 @@ async function handleDownloadDocument(
   }
 
   try {
-    // Obtenir une URL signée pour le téléchargement si c'est une URL S3
+    // Toujours essayer d'obtenir une URL signée (fonctionne avec clé S3 ou URL complète)
     let downloadUrl = fileKey;
     
-    // Si c'est une URL S3, obtenir une URL signée
-    if (fileKey?.startsWith("http") && (fileKey.includes("s3") || fileKey.includes("amazonaws.com"))) {
-      try {
-        downloadUrl = await getSignedUrlForDownload(fileKey);
-      } catch (error) {
-        console.warn("[NotaireBailChatSheet] Impossible d'obtenir une URL signée, utilisation de l'URL originale");
+    try {
+      downloadUrl = await getSignedUrlForDownload(fileKey);
+    } catch (error) {
+      // Fallback : si c'est une URL complète (ancien format), utiliser directement
+      if (fileKey?.startsWith("http")) {
+        downloadUrl = fileKey;
+      } else {
+        // Sinon, générer l'URL publique depuis la clé S3
+        const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
+        downloadUrl = getS3PublicUrl(fileKey) || fileKey;
       }
+      console.warn("[NotaireBailChatSheet] Impossible d'obtenir une URL signée, utilisation de l'URL publique");
     }
     
     // Télécharger le fichier

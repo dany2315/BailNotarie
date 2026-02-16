@@ -103,8 +103,9 @@ async function getSignedUrlForDownload(fileKey: string): Promise<string> {
     return signedUrl;
   } catch (error) {
     console.error("[BailChatSheet] Erreur lors de la génération de l'URL signée:", error);
-    // En cas d'erreur, retourner l'URL originale
-    return fileKey;
+    // Fallback : générer l'URL publique depuis la clé S3
+    const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
+    return getS3PublicUrl(fileKey) || fileKey;
   }
 }
 
@@ -119,16 +120,21 @@ async function handleDownloadDocument(
   }
 
   try {
-    // Obtenir une URL signée pour le téléchargement si c'est une URL S3
+    // Toujours essayer d'obtenir une URL signée (fonctionne avec clé S3 ou URL complète)
     let downloadUrl = fileKey;
     
-    // Si c'est une URL S3, obtenir une URL signée
-    if (fileKey?.startsWith("http") && (fileKey.includes("s3") || fileKey.includes("amazonaws.com"))) {
-      try {
-        downloadUrl = await getSignedUrlForDownload(fileKey);
-      } catch (error) {
-        console.warn("[BailChatSheet] Impossible d'obtenir une URL signée, utilisation de l'URL originale");
+    try {
+      downloadUrl = await getSignedUrlForDownload(fileKey);
+    } catch (error) {
+      // Fallback : si c'est une URL complète (ancien format), utiliser directement
+      if (fileKey?.startsWith("http")) {
+        downloadUrl = fileKey;
+      } else {
+        // Sinon, générer l'URL publique depuis la clé S3
+        const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
+        downloadUrl = getS3PublicUrl(fileKey) || fileKey;
       }
+      console.warn("[BailChatSheet] Impossible d'obtenir une URL signée, utilisation de l'URL publique");
     }
     
     // Télécharger le fichier
@@ -185,7 +191,7 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
       
       // Récupérer le bailId depuis la demande (nécessaire pour générer les URLs signées)
       // On va utiliser une approche différente : uploader chaque fichier vers S3 puis créer les documents
-      const uploadedFiles: Array<{ publicUrl: string; fileName: string; mimeType: string; size: number }> = [];
+      const uploadedFiles: Array<{ fileKey: string; fileName: string; mimeType: string; size: number }> = [];
       
       // Calculer la progression totale (chaque fichier = 100%)
       const progressPerFile = 100 / responseFiles.length;
@@ -215,13 +221,13 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
           throw new Error(error.error || "Erreur lors de la récupération de l'URL signée");
         }
 
-        const { signedUrl, publicUrl } = await tokenResponse.json();
+        const { signedUrl, fileKey } = await tokenResponse.json();
 
         // 2. Uploader directement vers S3
         await uploadFileToS3(file, signedUrl, fileProgress);
 
         uploadedFiles.push({
-          publicUrl,
+          fileKey, // Clé S3 (pas l'URL complète)
           fileName: file.name,
           mimeType: file.type || "application/octet-stream",
           size: file.size,
@@ -896,7 +902,7 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
       
       if (filesToSend.length > 0) {
         // Uploader chaque fichier vers S3 puis créer le message
-        const uploadedFiles: Array<{ publicUrl: string; fileName: string; mimeType: string; size: number }> = [];
+        const uploadedFiles: Array<{ fileKey: string; fileName: string; mimeType: string; size: number }> = [];
         
         // Calculer la progression totale (chaque fichier = 100%)
         const progressPerFile = 100 / filesToSend.length;
@@ -926,13 +932,13 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
             throw new Error(error.error || "Erreur lors de la récupération de l'URL signée");
           }
 
-          const { signedUrl, publicUrl } = await tokenResponse.json();
+          const { signedUrl, fileKey } = await tokenResponse.json();
 
           // 2. Uploader directement vers S3
           await uploadFileToS3(file, signedUrl, fileProgress);
 
           uploadedFiles.push({
-            publicUrl,
+            fileKey, // Clé S3 (pas l'URL complète)
             fileName: file.name,
             mimeType: file.type || "application/octet-stream",
             size: file.size,

@@ -44,6 +44,7 @@ import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Separator } from "../ui/separator";
 import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -191,11 +192,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [session, isPending, router]);
 
   if (isPending) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>Chargement...</div>
-      </div>
-    );
+    return <LoadingScreen message="Chargement..." />;
   }
 
   if (!session) {

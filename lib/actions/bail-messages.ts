@@ -609,7 +609,7 @@ export async function getNotaireRequestsByBail(bailId: string) {
  */
 export async function sendBailMessageWithS3Urls(
   bailId: string,
-  files: Array<{ publicUrl: string; fileName: string; mimeType: string; size: number }>,
+  files: Array<{ fileKey: string; fileName: string; mimeType: string; size: number }>,
   content: string = "",
   recipientPartyId?: string
 ) {
@@ -649,14 +649,14 @@ export async function sendBailMessageWithS3Urls(
     throw new Error("Au moins un fichier est requis");
   }
 
-  // Créer les documents dans la base de données avec les URLs S3
+  // Créer les documents dans la base de données avec les clés S3
   const documents = await Promise.all(
     files.map(async (file) => {
       return prisma.document.create({
         data: {
           kind: "OTHER",
           label: file.fileName,
-          fileKey: file.publicUrl, // URL publique S3
+          fileKey: file.fileKey, // Clé S3 (pas l'URL complète)
           mimeType: file.mimeType,
           size: file.size,
           bailId,
@@ -787,7 +787,7 @@ export async function sendBailMessageWithFile(bailId: string, formData: FormData
   const { uploadFileToS3, generateS3FileKey } = await import("@/lib/utils/s3-client");
   
   const uploadPromises = files.map(async (file) => {
-    const fileKey = generateS3FileKey(file.name, bailId);
+    const fileKey = generateS3FileKey(file.name);
 
     const s3Result = await uploadFileToS3(
       file,
@@ -800,7 +800,7 @@ export async function sendBailMessageWithFile(bailId: string, formData: FormData
       data: {
         kind: "OTHER",
         label: file.name,
-        fileKey: s3Result.url, // URL publique S3
+        fileKey: s3Result.fileKey, // Clé S3 (pas l'URL complète)
         mimeType: file.type,
         size: file.size,
         bailId,
@@ -1015,7 +1015,7 @@ export async function updateNotaireRequestStatus(
  */
 export async function addDocumentToNotaireRequestWithS3Urls(
   requestId: string,
-  files: Array<{ publicUrl: string; fileName: string; mimeType: string; size: number }>
+  files: Array<{ fileKey: string; fileName: string; mimeType: string; size: number }>
 ) {
   const user = await requireAuth();
 
@@ -1083,14 +1083,14 @@ export async function addDocumentToNotaireRequestWithS3Urls(
     throw new Error("Demande introuvable ou non liée à un bail");
   }
 
-  // Créer les documents dans la base de données avec les URLs S3
+  // Créer les documents dans la base de données avec les clés S3
   const documents = await Promise.all(
     files.map(async (file) => {
       return prisma.document.create({
         data: {
           kind: "OTHER",
           label: file.fileName,
-          fileKey: file.publicUrl, // URL publique S3
+          fileKey: file.fileKey, // Clé S3 (pas l'URL complète)
           mimeType: file.mimeType,
           size: file.size,
           bailId: request.dossier.bailId,
@@ -1301,7 +1301,7 @@ export async function addDocumentToNotaireRequest(
   const { uploadFileToS3, generateS3FileKey } = await import("@/lib/utils/s3-client");
   
   const uploadPromises = files.map(async (file) => {
-    const fileKey = generateS3FileKey(file.name, request.dossier.bailId ?? undefined);
+    const fileKey = generateS3FileKey(file.name);
 
     const s3Result = await uploadFileToS3(
       file,
@@ -1314,7 +1314,7 @@ export async function addDocumentToNotaireRequest(
       data: {
         kind: "OTHER",
         label: file.name,
-        fileKey: s3Result.url,
+        fileKey: s3Result.fileKey, // Clé S3 (pas l'URL complète)
         mimeType: file.type,
         size: file.size,
         bailId: request.dossier.bailId,

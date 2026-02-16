@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { signUp, useSession } from "@/lib/auth-client";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 const registerSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -78,7 +79,7 @@ export default function RegisterPage() {
   }, [session, isPending, router]);
 
   if (isPending) {
-    return <div>Chargement...</div>;
+    return <LoadingScreen message="Chargement..." />;
   }
 
   if (session) {

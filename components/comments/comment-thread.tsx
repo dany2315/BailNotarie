@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { toast } from "sonner";
 import { Send } from "lucide-react";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 interface CommentThreadProps {
   target: "PARTY" | "PROPERTY" | "LEASE" | "DOCUMENT" | "INTAKE";
@@ -53,7 +54,14 @@ export function CommentThread({ target, targetId }: CommentThreadProps) {
   };
 
   if (loading) {
-    return <div className="text-sm text-muted-foreground">Chargement...</div>;
+    return (
+      <LoadingScreen 
+        message="Chargement..." 
+        variant="inline" 
+        showLogo={false}
+        spinnerSize="sm"
+      />
+    );
   }
 
   return (

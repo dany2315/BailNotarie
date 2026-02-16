@@ -24,9 +24,7 @@ export interface S3UploadOptions {
 }
 
 export interface S3UploadResult {
-  url: string; // URL publique du fichier uploadé
-  fileKey: string; // Clé S3 du fichier
-  signedUrl?: string; // URL signée pour upload (si générée)
+  fileKey: string; // Clé S3 du fichier (stockée dans la DB)
 }
 
 /**
@@ -84,11 +82,7 @@ export async function uploadFileToS3(
 
   await s3Client.send(command);
 
-  // Générer l'URL publique du fichier S3
-  const url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || "eu-west-3"}.amazonaws.com/${fileKey}`;
-
   return {
-    url,
     fileKey,
   };
 }
@@ -158,16 +152,12 @@ export async function uploadFileDirectToS3(
  * Tous les fichiers sont stockés dans le dossier "documents"
  */
 export function generateS3FileKey(
-  fileName: string,
-  identifier?: string
+  fileName: string
 ): string {
   const timestamp = Date.now();
   const randomSuffix = Math.random().toString(36).substring(2, 9);
   const sanitizedName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
   
-  if (identifier) {
-    return `documents/${identifier}/${timestamp}-${randomSuffix}-${sanitizedName}`;
-  }
   return `documents/${timestamp}-${randomSuffix}-${sanitizedName}`;
 }
 
@@ -186,13 +176,25 @@ export async function deleteFileFromS3(fileKey: string): Promise<void> {
 }
 
 /**
- * Extrait la clé S3 depuis une URL publique S3
+ * Génère l'URL publique S3 à partir de la clé S3
+ * Format: https://{bucket}.s3.{region}.amazonaws.com/{key}
+ */
+export function generateS3PublicUrl(fileKey: string): string {
+  const bucket = process.env.AWS_S3_BUCKET_NAME || "";
+  const region = process.env.AWS_REGION || "eu-west-3";
+  return `https://${bucket}.s3.${region}.amazonaws.com/${fileKey}`;
+}
+
+/**
+ * @deprecated Cette fonction est conservée pour compatibilité avec les anciennes données.
+ * Les nouveaux fichiers stockent uniquement la clé S3 dans fileKey.
+ * Utilisez directement fileKey si c'est déjà une clé, sinon cette fonction pour extraire depuis une ancienne URL.
  */
 export function extractS3KeyFromUrl(url: string): string | null {
   try {
     if (!url) return null;
     
-    // Si c'est déjà une clé (pas une URL complète)
+    // Si c'est déjà une clé (pas une URL complète) - nouveau format
     if (!url.startsWith("http")) {
       return url;
     }

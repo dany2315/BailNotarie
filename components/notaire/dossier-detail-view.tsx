@@ -21,6 +21,7 @@ import { useState, useEffect } from "react";
 import { Download, File } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 
 interface Dossier {
   id: string;
@@ -1109,7 +1110,10 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => window.open(doc.fileKey, "_blank")}
+                              onClick={() => {
+                                const url = getS3PublicUrl(doc.fileKey) || doc.fileKey;
+                                window.open(url, "_blank");
+                              }}
                               className="shrink-0"
                             >
                               <Download className="h-4 w-4 mr-2" />
