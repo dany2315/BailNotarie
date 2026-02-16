@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Toaster } from "@/components/shared/toaster";
 
@@ -146,6 +148,12 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://images.pexels.com" />
       </head>
       <body className={inter.className} suppressHydrationWarning>{children}
+      
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
+      
+      {/* Vercel Web Analytics */}
+      <Analytics />
       
       {/* Google ADS */}
       <Script

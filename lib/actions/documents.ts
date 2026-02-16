@@ -141,7 +141,7 @@ export async function deleteDocumentsFromDB(where: {
 }
 
 export async function deleteDocument(id: string) {
-  await requireAuth();
+
   const document = await prisma.document.findUnique({ where: { id } });
   
   if (!document) {
