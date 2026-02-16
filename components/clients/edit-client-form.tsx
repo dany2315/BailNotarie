@@ -30,6 +30,7 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentViewer } from "@/components/leases/document-viewer";
 import { getRequiredClientFields } from "@/lib/utils/required-fields";
 import { documentKindLabels } from "@/lib/utils/document-labels";
+import { useDownloadFile } from "@/hooks/use-download-file";
 
 interface EditClientFormProps {
   client: any;
@@ -37,6 +38,7 @@ interface EditClientFormProps {
 
 export function EditClientForm({ client }: EditClientFormProps) {
   const router = useRouter();
+  const { downloadFile, isDownloading } = useDownloadFile();
   const [isLoading, setIsLoading] = useState(false);
   const [clientType, setClientType] = useState<ClientType>(client.type || ClientType.PERSONNE_PHYSIQUE);
   
@@ -735,11 +737,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                               variant="ghost"
                                               size="icon"
                                               className="h-8 w-8"
-                                              asChild
+                                              onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                              disabled={isDownloading}
                                             >
-                                              <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                              {isDownloading ? (
+                                                <Loader2 className="size-4 animate-spin" />
+                                              ) : (
                                                 <Download className="size-4" />
-                                              </a>
+                                              )}
                                             </Button>
                                             <Button
                                               variant="ghost"
@@ -824,11 +829,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
-                                        asChild
+                                        onClick={() => downloadFile(doc.fileKey, doc.label || `document-${doc.id}`)}
+                                        disabled={isDownloading}
                                       >
-                                        <a href={doc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                        {isDownloading ? (
+                                          <Loader2 className="size-4 animate-spin" />
+                                        ) : (
                                           <Download className="size-4" />
-                                        </a>
+                                        )}
                                       </Button>
                                       <Button
                                         variant="ghost"
@@ -924,11 +932,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8"
-                                            asChild
+                                            onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                            disabled={isDownloading}
                                           >
-                                            <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                            {isDownloading ? (
+                                              <Loader2 className="size-4 animate-spin" />
+                                            ) : (
                                               <Download className="size-4" />
-                                            </a>
+                                            )}
                                           </Button>
                                           <Button
                                             variant="ghost"
@@ -1028,11 +1039,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8"
-                                            asChild
+                                            onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                            disabled={isDownloading}
                                           >
-                                            <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                            {isDownloading ? (
+                                              <Loader2 className="size-4 animate-spin" />
+                                            ) : (
                                               <Download className="size-4" />
-                                            </a>
+                                            )}
                                           </Button>
                                           <Button
                                             variant="ghost"
@@ -1125,11 +1139,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                       variant="ghost"
                                       size="icon"
                                       className="h-8 w-8"
-                                      asChild
+                                      onClick={() => downloadFile(doc.fileKey, doc.label || `document-${doc.id}`)}
+                                      disabled={isDownloading}
                                     >
-                                      <a href={doc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                      {isDownloading ? (
+                                        <Loader2 className="size-4 animate-spin" />
+                                      ) : (
                                         <Download className="size-4" />
-                                      </a>
+                                      )}
                                     </Button>
                                     <Button
                                       variant="ghost"
@@ -1322,11 +1339,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                asChild
+                                onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                disabled={isDownloading}
                               >
-                                <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                {isDownloading ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
                                   <Download className="size-4" />
-                                </a>
+                                )}
                               </Button>
                               <Button
                                 variant="ghost"
@@ -1426,11 +1446,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                asChild
+                                onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                disabled={isDownloading}
                               >
-                                <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                {isDownloading ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
                                   <Download className="size-4" />
-                                </a>
+                                )}
                               </Button>
                               <Button
                                 variant="ghost"
@@ -1517,11 +1540,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          asChild
+                          onClick={() => downloadFile(doc.fileKey, doc.label || `document-${doc.id}`)}
+                          disabled={isDownloading}
                         >
-                          <a href={doc.fileKey} download target="_blank" rel="noopener noreferrer">
+                          {isDownloading ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
                             <Download className="size-4" />
-                          </a>
+                          )}
                         </Button>
                         <Button
                           variant="ghost"

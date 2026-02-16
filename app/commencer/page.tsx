@@ -1,36 +1,62 @@
 "use client";
 
 import { useState, startTransition } from "react";
-import { RoleSelectionForm } from "@/components/start/role-selection-form";
-import { OwnerEmailForm } from "@/components/start/owner-email-form";
 import { OwnerEmailInputForm } from "@/components/start/owner-email-input-form";
+import { OtpVerificationForm } from "@/components/start/otp-verification-form";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 
-type Step = "role-selection" | "owner-email-input" | "owner-email";
+type Step = "email-input" | "otp-verification";
 
 export default function StartPage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<Step>("role-selection");
+  const [currentStep, setCurrentStep] = useState<Step>("email-input");
+  const [email, setEmail] = useState("");
+  const [token, setToken] = useState<string | undefined>(undefined);
+  const [isExistingClient, setIsExistingClient] = useState(false);
 
-  const handleOwnerSelected = () => {
-    setCurrentStep("owner-email-input");
+  // Callback quand l'OTP a été envoyé avec succès
+  const handleOtpSent = (
+    sentEmail: string,
+    sentToken: string | undefined,
+    existingClient: boolean
+  ) => {
+    setEmail(sentEmail);
+    setToken(sentToken);
+    setIsExistingClient(existingClient);
+    setCurrentStep("otp-verification");
   };
 
-  const handleTenantSelected = () => {
-    setCurrentStep("owner-email");
-  };
-
-  const handleOwnerEmailSuccess = (tenantToken: string) => {
-    // Rediriger vers le formulaire locataire avec startTransition pour une transition fluide
+  // Callback après vérification OTP réussie
+  const handleOtpSuccess = (
+    existingClient: boolean,
+    otpToken: string | undefined
+  ) => {
+    console.log(`[StartPage] handleOtpSuccess: existingClient=${existingClient}, otpToken=${otpToken}`);
     startTransition(() => {
-      router.push(`/intakes/${tenantToken}`);
+      if (existingClient) {
+        // Client existant → espace client propriétaire
+        console.log("[StartPage] Redirecting to /client/proprietaire (existing client)");
+        window.location.href = "/client/proprietaire";
+      } else if (otpToken) {
+        // Nouveau client → formulaire propriétaire
+        console.log(`[StartPage] Redirecting to /commencer/proprietaire/${otpToken} (new client)`);
+        router.push(`/commencer/proprietaire/${otpToken}`);
+      } else {
+        // Fallback - ne devrait pas arriver
+        console.warn("[StartPage] FALLBACK: no token for new client! Redirecting to /client/proprietaire");
+        window.location.href = "/client/proprietaire";
+      }
     });
   };
 
+  // Retour à l'étape email
   const handleBack = () => {
-    setCurrentStep("role-selection");
+    setCurrentStep("email-input");
+    setEmail("");
+    setToken(undefined);
+    setIsExistingClient(false);
   };
 
   return (
@@ -45,18 +71,15 @@ export default function StartPage() {
         </div>
         
         <div className="w-full max-w-4xl relative z-10">
-          {currentStep === "role-selection" && (
-            <RoleSelectionForm
-              onOwnerSelected={handleOwnerSelected}
-              onTenantSelected={handleTenantSelected}
-            />
+          {currentStep === "email-input" && (
+            <OwnerEmailInputForm onOtpSent={handleOtpSent} />
           )}
-          {currentStep === "owner-email-input" && (
-            <OwnerEmailInputForm onBack={handleBack} />
-          )}
-          {currentStep === "owner-email" && (
-            <OwnerEmailForm
-              onSuccess={handleOwnerEmailSuccess}
+          {currentStep === "otp-verification" && (
+            <OtpVerificationForm
+              email={email}
+              token={token}
+              isExistingClient={isExistingClient}
+              onSuccess={handleOtpSuccess}
               onBack={handleBack}
             />
           )}
@@ -66,4 +89,3 @@ export default function StartPage() {
     </div>
   );
 }
-

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Image as ImageIcon, File, ExternalLink, Loader2 } from "lucide-react";
+import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 
 interface DocumentViewerProps {
   document: {
@@ -74,7 +75,8 @@ export function DocumentViewer({
       return signedUrl;
     } catch (error) {
       console.error("[DocumentViewer] Erreur lors de la génération de l'URL signée:", error);
-      return fileKey;
+      // Fallback : générer l'URL publique depuis la clé S3
+      return getS3PublicUrl(fileKey) || fileKey;
     }
   };
 
@@ -88,7 +90,8 @@ export function DocumentViewer({
         })
         .catch((error) => {
           console.error("[DocumentViewer] Erreur:", error);
-          setSignedUrl(document.fileKey);
+          // Fallback : générer l'URL publique depuis la clé S3
+          setSignedUrl(getS3PublicUrl(document.fileKey) || document.fileKey);
         })
         .finally(() => {
           setIsLoadingSignedUrl(false);
@@ -133,7 +136,7 @@ export function DocumentViewer({
             ) : fileType === "image" && !imageError && (
               <div className="w-full h-full flex items-center justify-center">
                 <img
-                  src={signedUrl || document.fileKey}
+                  src={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
                   alt={documentName}
                   className="max-w-full max-h-[70vh] object-contain rounded-lg"
                   onError={() => setImageError(true)}
@@ -148,14 +151,14 @@ export function DocumentViewer({
                   <p className="text-muted-foreground mb-4">Impossible de charger l'image</p>
                   <div className="flex gap-2 justify-center">
                     <Button asChild>
-                      <a href={signedUrl || document.fileKey} download className="inline-flex items-center gap-2">
+                      <a href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey} download className="inline-flex items-center gap-2">
                         <Download className="size-4" />
                         Télécharger
                       </a>
                     </Button>
                     <Button variant="outline" asChild>
                       <a
-                        href={signedUrl || document.fileKey}
+                        href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2"
@@ -172,7 +175,7 @@ export function DocumentViewer({
             {fileType === "pdf" && !pdfError && (
               <div className="w-full h-full">
                 <iframe
-                  src={signedUrl || document.fileKey}
+                  src={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
                   className="w-full h-[70vh] rounded-lg border"
                   title={documentName}
                   onError={() => setPdfError(true)}
@@ -187,14 +190,14 @@ export function DocumentViewer({
                   <p className="text-muted-foreground mb-4">Impossible de charger le PDF</p>
                   <div className="flex gap-2 justify-center">
                     <Button asChild>
-                      <a href={signedUrl || document.fileKey} download className="inline-flex items-center gap-2">
+                      <a href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey} download className="inline-flex items-center gap-2">
                         <Download className="size-4" />
                         Télécharger
                       </a>
                     </Button>
                     <Button variant="outline" asChild>
                       <a
-                        href={signedUrl || document.fileKey}
+                        href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2"
@@ -219,7 +222,7 @@ export function DocumentViewer({
                   <div className="flex gap-2 justify-center">
                     <Button asChild>
                       <a
-                        href={signedUrl || document.fileKey}
+                        href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
                         download
                         className="inline-flex items-center gap-2"
                       >
@@ -229,7 +232,7 @@ export function DocumentViewer({
                     </Button>
                     <Button variant="outline" asChild>
                       <a
-                        href={signedUrl || document.fileKey}
+                        href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2"

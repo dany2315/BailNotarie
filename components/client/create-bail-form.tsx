@@ -34,6 +34,9 @@ import {
 } from "@/components/ui/select";
 import { CreatePropertyForm, CreatePropertyFormRef } from "./create-property-form";
 import { cn } from "@/lib/utils";
+import { RentControlAlert } from "@/components/ui/rent-control-alert";
+import { validateRentAmount } from "@/lib/utils/rent-validation";
+import type { RentValidationResult } from "@/lib/utils/rent-validation";
 
 const createBailSchema = z.object({
   propertyId: z.string().min(1, "Le bien est requis"),
@@ -110,6 +113,50 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
   const propertyId = watch("propertyId");
   const tenantId = watch("tenantId");
   const bailType = watch("bailType");
+  const rentAmount = watch("rentAmount");
+  const [selectedProperty, setSelectedProperty] = useState<{ id: string; surfaceM2: number | null } | null>(null);
+  const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
+
+  // Récupérer les informations du bien sélectionné
+  useEffect(() => {
+    if (propertyId) {
+      const bien = localBiens.find(b => b.id === propertyId);
+      if (bien) {
+        // Récupérer la surface depuis l'API
+        fetch(`/api/properties/${propertyId}`)
+          .then(res => res.json())
+          .then(data => {
+            setSelectedProperty({
+              id: propertyId,
+              surfaceM2: data.surfaceM2 ? Number(data.surfaceM2) : null,
+            });
+          })
+          .catch(() => {
+            setSelectedProperty({ id: propertyId, surfaceM2: null });
+          });
+      } else {
+        setSelectedProperty(null);
+      }
+    } else {
+      setSelectedProperty(null);
+    }
+  }, [propertyId, localBiens]);
+
+  // Valider le loyer quand il change
+  useEffect(() => {
+    if (propertyId && rentAmount && selectedProperty) {
+      const rent = parseFloat(rentAmount);
+      if (!isNaN(rent) && rent > 0) {
+        validateRentAmount(propertyId, rent, selectedProperty.surfaceM2)
+          .then(result => setRentValidationResult(result))
+          .catch(() => setRentValidationResult(null));
+      } else {
+        setRentValidationResult(null);
+      }
+    } else {
+      setRentValidationResult(null);
+    }
+  }, [propertyId, rentAmount, selectedProperty]);
 
   const getLocataireName = (locataire: typeof locataires[0]) => {
     if (locataire.entreprise) {
@@ -312,6 +359,16 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                 <p className="text-sm text-destructive">{errors.propertyId.message}</p>
               )}
             </div>
+
+            {/* Avertissement zone tendue */}
+            {propertyId && (
+              <RentControlAlert
+                propertyId={propertyId}
+                rentAmount={rentAmount ? parseFloat(rentAmount) : undefined}
+                surfaceM2={selectedProperty?.surfaceM2}
+                validationResult={rentValidationResult}
+              />
+            )}
 
             <Separator />
 

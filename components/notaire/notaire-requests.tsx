@@ -212,8 +212,9 @@ export function NotaireRequests({
       return signedUrl;
     } catch (error) {
       console.error("[NotaireRequests] Erreur lors de la génération de l'URL signée:", error);
-      // En cas d'erreur, retourner l'URL originale
-      return fileKey;
+      // Fallback : générer l'URL publique depuis la clé S3
+      const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
+      return getS3PublicUrl(fileKey) || fileKey;
     }
   };
 

@@ -5,6 +5,7 @@ import { ClientType, ProfilType, CompletionStatus, BailType, BailFamille, BailSt
 import { Decimal } from "@prisma/client/runtime/library";
 import { handleDocumentsInTransaction } from "./intakes";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
+import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
 import { randomBytes } from "crypto";
 
 // ============================================================================
@@ -171,6 +172,9 @@ export async function handleOwnerPropertyStep(
   payload: any,
   clientId: string,
 ) {
+  // Variable pour stocker le propertyId après la transaction (nécessaire pour updatePropertyZoneStatus)
+  let finalPropertyId: string | null = null;
+
   await prisma.$transaction(async (tx) => {
     let propertyId = intakeLink.propertyId;
 
@@ -182,6 +186,33 @@ export async function handleOwnerPropertyStep(
       if (payload.propertyType) updateData.type = payload.propertyType;
       if (payload.propertyLegalStatus) updateData.legalStatus = payload.propertyLegalStatus;
       if (payload.propertyStatus) updateData.status = payload.propertyStatus;
+      // Données géographiques enrichies - normaliser les chaînes vides en null
+      if (payload.propertyHousenumber !== undefined) {
+        updateData.housenumber = payload.propertyHousenumber && payload.propertyHousenumber.trim() ? payload.propertyHousenumber.trim() : null;
+      }
+      if (payload.propertyStreet !== undefined) {
+        updateData.street = payload.propertyStreet && payload.propertyStreet.trim() ? payload.propertyStreet.trim() : null;
+      }
+      if (payload.propertyCity !== undefined) {
+        updateData.city = payload.propertyCity && payload.propertyCity.trim() ? payload.propertyCity.trim() : null;
+      }
+      if (payload.propertyPostalCode !== undefined) {
+        updateData.postalCode = payload.propertyPostalCode && payload.propertyPostalCode.trim() ? payload.propertyPostalCode.trim() : null;
+      }
+      if (payload.propertyDistrict !== undefined) {
+        updateData.district = payload.propertyDistrict && payload.propertyDistrict.trim() ? payload.propertyDistrict.trim() : null;
+      }
+      if (payload.propertyInseeCode !== undefined) {
+        updateData.inseeCode = payload.propertyInseeCode && payload.propertyInseeCode.trim() ? payload.propertyInseeCode.trim() : null;
+      }
+      if (payload.propertyDepartment !== undefined) {
+        updateData.department = payload.propertyDepartment && payload.propertyDepartment.trim() ? payload.propertyDepartment.trim() : null;
+      }
+      if (payload.propertyRegion !== undefined) {
+        updateData.region = payload.propertyRegion && payload.propertyRegion.trim() ? payload.propertyRegion.trim() : null;
+      }
+      if (payload.propertyLatitude !== undefined) updateData.latitude = payload.propertyLatitude ? new Decimal(payload.propertyLatitude) : null;
+      if (payload.propertyLongitude !== undefined) updateData.longitude = payload.propertyLongitude ? new Decimal(payload.propertyLongitude) : null;
 
       await tx.property.update({
         where: { id: propertyId },
@@ -197,6 +228,17 @@ export async function handleOwnerPropertyStep(
           legalStatus: payload.propertyLegalStatus || null,
           status: payload.propertyStatus || PropertyStatus.NON_LOUER,
           ownerId: clientId,
+          // Données géographiques enrichies - normaliser les chaînes vides en null
+          housenumber: payload.propertyHousenumber && payload.propertyHousenumber.trim() ? payload.propertyHousenumber.trim() : null,
+          street: payload.propertyStreet && payload.propertyStreet.trim() ? payload.propertyStreet.trim() : null,
+          city: payload.propertyCity && payload.propertyCity.trim() ? payload.propertyCity.trim() : null,
+          postalCode: payload.propertyPostalCode && payload.propertyPostalCode.trim() ? payload.propertyPostalCode.trim() : null,
+          district: payload.propertyDistrict && payload.propertyDistrict.trim() ? payload.propertyDistrict.trim() : null,
+          inseeCode: payload.propertyInseeCode && payload.propertyInseeCode.trim() ? payload.propertyInseeCode.trim() : null,
+          department: payload.propertyDepartment && payload.propertyDepartment.trim() ? payload.propertyDepartment.trim() : null,
+          region: payload.propertyRegion && payload.propertyRegion.trim() ? payload.propertyRegion.trim() : null,
+          latitude: payload.propertyLatitude ? new Decimal(payload.propertyLatitude) : null,
+          longitude: payload.propertyLongitude ? new Decimal(payload.propertyLongitude) : null,
         },
       });
       propertyId = newProperty.id;
@@ -206,7 +248,15 @@ export async function handleOwnerPropertyStep(
         data: { propertyId },
       });
     }
+
+    finalPropertyId = propertyId;
   });
+
+  // Vérifier et mettre à jour les indicateurs de zone tendue APRÈS la transaction
+  // (updatePropertyZoneStatus utilise prisma directement, pas tx, donc le record doit être committé)
+  if (finalPropertyId && payload.propertyInseeCode && payload.propertyType) {
+    await updatePropertyZoneStatus(finalPropertyId, payload.propertyInseeCode, payload.propertyType);
+  }
 
   return { success: true };
 }

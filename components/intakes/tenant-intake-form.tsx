@@ -1001,7 +1001,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         throw new Error(error.error || "Erreur lors de la récupération de l'URL signée");
       }
 
-      const { signedUrl, publicUrl } = await tokenResponse.json();
+      const { signedUrl, fileKey } = await tokenResponse.json();
 
       // 2. Uploader vers S3
       const xhr = new XMLHttpRequest();
@@ -1025,7 +1025,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: intakeLink.token,
-          fileKey: publicUrl,
+          fileKey: fileKey, // Clé S3 (pas l'URL complète)
           kind: documentKind,
           fileName: file.name,
           mimeType: file.type,

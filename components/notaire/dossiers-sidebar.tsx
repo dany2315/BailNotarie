@@ -123,7 +123,7 @@ export function DossiersSidebar({ dossiers: initialDossiers }: DossiersSidebarPr
   return (
     <div className="flex h-full gap-4 p">
       {/* Sidebar */}
-      <div className="w-auto border-r bg-background flex flex-col h-full min-w-0 py-6 px-4">
+      <div className="w-[25%] border-r bg-background flex flex-col h-full min-w-0 py-6 px-4">
         {/* Header fixe - ne scroll pas */}
         <div className="p-4 border-b shrink-0">
           <h1 className="text-xl font-bold mb-2">Mes dossiers</h1>

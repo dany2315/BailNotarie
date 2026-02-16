@@ -149,6 +149,8 @@ export async function getIntakeLinkByToken(token: string) {
       legalStatus: intakeLink.property.legalStatus || null,
       status: intakeLink.property.status || null,
       surfaceM2: intakeLink.property.surfaceM2?.toString() || null,
+      latitude: intakeLink.property.latitude?.toString() || null,
+      longitude: intakeLink.property.longitude?.toString() || null,
       createdAt: intakeLink.property.createdAt.toISOString(),
       updatedAt: intakeLink.property.updatedAt.toISOString(),
       documents: intakeLink.property.documents || [],

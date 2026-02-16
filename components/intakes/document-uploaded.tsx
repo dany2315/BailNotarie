@@ -10,6 +10,7 @@ import { deleteDocument } from "@/lib/actions/documents";
 import { toast } from "sonner";
 import { DocumentKind } from "@prisma/client";
 import { documentKindLabels } from "@/lib/utils/document-labels";
+import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 
 interface DocumentUploadedProps {
   token: string;
@@ -178,8 +179,8 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
       return signedUrl;
     } catch (error) {
       console.error("[DocumentUploaded] Erreur lors de la génération de l'URL signée:", error);
-      // En cas d'erreur, retourner l'URL originale (peut échouer mais on essaie)
-      return fileKey;
+      // Fallback : générer l'URL publique depuis la clé S3
+      return getS3PublicUrl(fileKey) || fileKey;
     }
   };
 
@@ -194,7 +195,8 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
       setSignedUrl(url);
     } catch (error) {
       console.error("[DocumentUploaded] Erreur:", error);
-      setSignedUrl(doc.fileKey); // Fallback sur l'URL originale
+      // Fallback : générer l'URL publique depuis la clé S3
+      setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
     } finally {
       setIsLoadingSignedUrl(false);
     }
@@ -209,17 +211,20 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
 
     setIsDownloading(true); // Activer le loader
     try {
-      // Obtenir une URL signée pour le téléchargement
+      // Obtenir une URL signée pour le téléchargement (fonctionne avec clé S3 ou URL complète)
       let downloadUrl = doc.fileKey;
       
-      // Si c'est une URL S3, obtenir une URL signée
-      if (doc.fileKey?.startsWith("http") && doc.fileKey.includes("s3") || doc.fileKey.includes("amazonaws.com")) {
-        try {
-          const signedUrl = await getSignedUrlForDocument(doc.fileKey);
-          downloadUrl = signedUrl;
-        } catch (error) {
-          console.warn("[DocumentUploaded] Impossible d'obtenir une URL signée, utilisation de l'URL originale");
+      try {
+        downloadUrl = await getSignedUrlForDocument(doc.fileKey);
+      } catch (error) {
+        // Si c'est une URL complète (ancien format), utiliser directement
+        if (doc.fileKey?.startsWith("http")) {
+          downloadUrl = doc.fileKey;
+        } else {
+          // Sinon, générer l'URL publique depuis la clé S3
+          downloadUrl = getS3PublicUrl(doc.fileKey) || doc.fileKey;
         }
+        console.warn("[DocumentUploaded] Impossible d'obtenir une URL signée, utilisation de l'URL publique");
       }
       
       // Télécharger le fichier
@@ -410,7 +415,7 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
                   </div>
                 ) : selectedDocument.mimeType?.includes("image") ? (
                   <img
-                    src={signedUrl || selectedDocument.fileKey}
+                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                     alt={selectedDocument.label || "Document"}
                     className="max-w-full max-h-[70vh] mx-auto object-contain"
                     onError={(e) => {
@@ -420,7 +425,7 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
                   />
                 ) : selectedDocument.mimeType?.includes("pdf") ? (
                   <iframe
-                    src={signedUrl || selectedDocument.fileKey}
+                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                     className="w-full h-[70vh] border rounded"
                     title={selectedDocument.label || "Document PDF"}
                     onError={() => {

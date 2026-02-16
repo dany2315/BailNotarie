@@ -9,6 +9,7 @@ import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
+import { validateRentForProperty } from "@/lib/utils/rent-validation";
 
 export async function createLease(data: unknown) {
   const user = await requireAuth();
@@ -44,6 +45,16 @@ export async function createLease(data: unknown) {
 
   if (!tenant) {
     throw new Error("Locataire introuvable");
+  }
+
+  // Valider le loyer selon les limitations de zone tendue
+  const rentValidation = await validateRentForProperty(validated.propertyId, validated.rentAmount);
+  if (!rentValidation.isValid && rentValidation.maxAllowed !== null) {
+    throw new Error(
+      `Le loyer de ${validated.rentAmount} € dépasse la limite autorisée de ${rentValidation.maxAllowed.toFixed(2)} € ` +
+      `(${rentValidation.maxRentPerM2?.toFixed(2)} €/m²). ` +
+      `Veuillez ajuster le loyer pour respecter la réglementation.`
+    );
   }
 
   // Mapper leaseType vers bailFamily
@@ -144,6 +155,30 @@ export async function updateLease(data: unknown) {
   const validated = updateLeaseSchema.parse(data);
   const { id, tenantId, leaseType, ...updateData } = validated;
 
+  // Récupérer le bail pour obtenir le propertyId
+  const bail = await prisma.bail.findUnique({
+    where: { id },
+    include: { property: true },
+  });
+
+  if (!bail) {
+    throw new Error("Bail introuvable");
+  }
+
+  const propertyId = updateData.propertyId || bail.propertyId;
+
+  // Valider le loyer si il est modifié
+  if (updateData.rentAmount !== undefined) {
+    const rentValidation = await validateRentForProperty(propertyId, updateData.rentAmount);
+    if (!rentValidation.isValid && rentValidation.maxAllowed !== null) {
+      throw new Error(
+        `Le loyer de ${updateData.rentAmount} € dépasse la limite autorisée de ${rentValidation.maxAllowed.toFixed(2)} € ` +
+        `(${rentValidation.maxRentPerM2?.toFixed(2)} €/m²). ` +
+        `Veuillez ajuster le loyer pour respecter la réglementation.`
+      );
+    }
+  }
+
   const updatePayload: any = {
     updatedById: user.id,
   };
@@ -181,13 +216,13 @@ export async function updateLease(data: unknown) {
 
   // Si tenantId est fourni, mettre à jour les parties
   if (tenantId) {
-    const bail = await prisma.bail.findUnique({
+    const existingBailWithParties = await prisma.bail.findUnique({
       where: { id },
       include: { property: true, parties: true },
     });
 
-    if (bail) {
-      const owner = bail.parties.find((p) => p.profilType === ProfilType.PROPRIETAIRE);
+    if (existingBailWithParties) {
+      const owner = existingBailWithParties.parties.find((p) => p.profilType === ProfilType.PROPRIETAIRE);
       if (owner) {
         updatePayload.parties = {
           set: [
@@ -204,7 +239,7 @@ export async function updateLease(data: unknown) {
   const oldStatus = oldBail?.status;
   const newStatus = updatePayload.status || oldBail?.status;
 
-  const bail = await prisma.bail.update({
+  const updatedBail = await prisma.bail.update({
     where: { id },
     data: updatePayload,
     include: {
@@ -217,7 +252,7 @@ export async function updateLease(data: unknown) {
 
   revalidatePath("/interface/baux");
   revalidatePath(`/interface/baux/${id}`);
-  return bail;
+  return updatedBail;
 }
 
 export async function transitionLease(data: unknown) {

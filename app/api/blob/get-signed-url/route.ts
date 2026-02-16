@@ -17,7 +17,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Extraire la clé S3 depuis l'URL si c'est une URL complète
+    // fileKey peut être soit une clé S3 (nouveau format) soit une URL complète (ancien format pour compatibilité)
+    // extractS3KeyFromUrl gère les deux cas
     const s3Key = extractS3KeyFromUrl(fileKey) || fileKey;
 
     if (!s3Key) {
