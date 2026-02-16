@@ -28,8 +28,9 @@ import { NationalitySelect } from "@/components/ui/nationality-select";
 import { deleteDocument, getDocuments } from "@/lib/actions/documents";
 import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentViewer } from "@/components/leases/document-viewer";
-import { getRequiredClientFields } from "@/lib/utils/completion-status";
+import { getRequiredClientFields } from "@/lib/utils/required-fields";
 import { documentKindLabels } from "@/lib/utils/document-labels";
+import { useDownloadFile } from "@/hooks/use-download-file";
 
 interface EditClientFormProps {
   client: any;
@@ -37,6 +38,7 @@ interface EditClientFormProps {
 
 export function EditClientForm({ client }: EditClientFormProps) {
   const router = useRouter();
+  const { downloadFile, isDownloading } = useDownloadFile();
   const [isLoading, setIsLoading] = useState(false);
   const [clientType, setClientType] = useState<ClientType>(client.type || ClientType.PERSONNE_PHYSIQUE);
   
@@ -242,12 +244,11 @@ export function EditClientForm({ client }: EditClientFormProps) {
       setEntrepriseDocuments(updatedClient.entreprise?.documents || []);
       setClientDocuments(updatedClient.documents || []);
       
-      // Recharger la page pour synchroniser avec le serveur
-      router.refresh();
+      // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
+      // La mise à jour de l'état local suffit pour afficher les nouveaux documents
     } catch (error) {
       console.error("Erreur lors du chargement des documents:", error);
-      // En cas d'erreur, recharger quand même la page
-      router.refresh();
+      // Ne pas rafraîchir la page même en cas d'erreur pour ne pas interrompre les uploads
     } finally {
       setIsLoadingDocuments(false);
     }
@@ -265,58 +266,13 @@ export function EditClientForm({ client }: EditClientFormProps) {
       await deleteDocument(documentId);
       toast.success("Document supprimé avec succès");
       await refreshDocuments();
-      router.refresh();
+      // Ne pas rafraîchir la page pour éviter d'interrompre les uploads en cours
     } catch (error: any) {
       toast.error(error.message || "Erreur lors de la suppression");
     }
   };
 
-  const handleUploadDocument = async (kind: DocumentKind, personId?: string, entrepriseId?: string, clientId?: string, fileKey?: string) => {
-    const file = fileKey ? uploadingFiles[fileKey] : uploadingFiles[kind];
-    if (!file) {
-      toast.error("Veuillez sélectionner un fichier");
-      return;
-    }
-
-    setIsUploadingDocument(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("kind", kind);
-      
-      if (personId) {
-        formData.append("personId", personId);
-      } else if (entrepriseId) {
-        formData.append("entrepriseId", entrepriseId);
-      } else if (clientId) {
-        formData.append("clientId", clientId);
-      }
-
-      const response = await fetch("/api/clients/upload-document", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Erreur lors de l'upload");
-      }
-
-      toast.success("Document ajouté avec succès");
-      if (fileKey) {
-        setUploadingFiles((prev) => ({ ...prev, [fileKey]: null }));
-      } else {
-        setUploadingFiles((prev) => ({ ...prev, [kind]: null }));
-      }
-      setUploadingDocumentKind(null);
-      await refreshDocuments();
-      router.refresh();
-    } catch (error: any) {
-      toast.error(error.message || "Erreur lors de l'upload");
-    } finally {
-      setIsUploadingDocument(false);
-    }
-  };
+  // handleUploadDocument supprimé - maintenant l'upload se fait directement via FileUpload avec upload direct
 
   const handleSubmit = async (data: any) => {
     setIsLoading(true);
@@ -781,11 +737,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                               variant="ghost"
                                               size="icon"
                                               className="h-8 w-8"
-                                              asChild
+                                              onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                              disabled={isDownloading}
                                             >
-                                              <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                              {isDownloading ? (
+                                                <Loader2 className="size-4 animate-spin" />
+                                              ) : (
                                                 <Download className="size-4" />
-                                              </a>
+                                              )}
                                             </Button>
                                             <Button
                                               variant="ghost"
@@ -805,41 +764,26 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                     
                                     {!hasDocument && (
                                       <div className="mt-2 pt-2 border-t border-destructive/20">
-                                        <div className="space-y-2">
-                                          <FileUpload
-                                            label=""
-                                            value={fileForKind || null}
-                                            onChange={(file: File | null) => {
-                                              setUploadingFiles((prev) => ({ ...prev, [`${kind}-${personId}`]: file }));
-                                            }}
-                                            accept="application/pdf,image/*"
-                                            disabled={isUploading}
-                                          />
-                                          {fileForKind && (
-                                            <Button
-                                              type="button"
-                                              size="sm"
-                                              onClick={() => {
-                                                setUploadingDocumentKind(kind);
-                                                handleUploadDocument(kind, personId, undefined, undefined, `${kind}-${personId}`);
-                                              }}
-                                              disabled={isUploading}
-                                              className="w-full flex items-center justify-center gap-2"
-                                            >
-                                              {isUploading ? (
-                                                <>
-                                                  <Loader2 className="size-4 animate-spin" />
-                                                  Upload en cours...
-                                                </>
-                                              ) : (
-                                                <>
-                                                  <Upload className="size-4" />
-                                                  Ajouter le document
-                                                </>
-                                              )}
-                                            </Button>
-                                          )}
-                                        </div>
+                                        <FileUpload
+                                          label=""
+                                          value={fileForKind || null}
+                                          onChange={(file: File | null) => {
+                                            setUploadingFiles((prev) => ({ ...prev, [`${kind}-${personId}`]: file }));
+                                            if (file) {
+                                              // L'upload se fait automatiquement via FileUpload
+                                              setTimeout(() => refreshDocuments(), 1000);
+                                            }
+                                          }}
+                                          accept="application/pdf,image/*"
+                                          disabled={isUploading}
+                                          documentKind={kind}
+                                          documentPersonId={personId}
+                                          onUploadComplete={() => {
+                                            setUploadingFiles((prev) => ({ ...prev, [`${kind}-${personId}`]: null }));
+                                            refreshDocuments();
+                                            // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
+                                          }}
+                                        />
                                       </div>
                                     )}
                                   </div>
@@ -885,11 +829,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
-                                        asChild
+                                        onClick={() => downloadFile(doc.fileKey, doc.label || `document-${doc.id}`)}
+                                        disabled={isDownloading}
                                       >
-                                        <a href={doc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                        {isDownloading ? (
+                                          <Loader2 className="size-4 animate-spin" />
+                                        ) : (
                                           <Download className="size-4" />
-                                        </a>
+                                        )}
                                       </Button>
                                       <Button
                                         variant="ghost"
@@ -985,11 +932,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8"
-                                            asChild
+                                            onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                            disabled={isDownloading}
                                           >
-                                            <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                            {isDownloading ? (
+                                              <Loader2 className="size-4 animate-spin" />
+                                            ) : (
                                               <Download className="size-4" />
-                                            </a>
+                                            )}
                                           </Button>
                                           <Button
                                             variant="ghost"
@@ -1009,41 +959,26 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                   
                                   {!hasDocument && (
                                     <div className="mt-2 pt-2 border-t border-destructive/20">
-                                      <div className="space-y-2">
-                                        <FileUpload
-                                          label=""
-                                          value={fileForKind || null}
-                                          onChange={(file: File | null) => {
-                                            setUploadingFiles((prev) => ({ ...prev, [`${kind}-client`]: file }));
-                                          }}
-                                          accept="application/pdf,image/*"
-                                          disabled={isUploading}
-                                        />
-                                        {fileForKind && (
-                                          <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => {
-                                              setUploadingDocumentKind(kind);
-                                              handleUploadDocument(kind, undefined, undefined, client.id, `${kind}-client`);
-                                            }}
-                                            disabled={isUploading}
-                                            className="w-full flex items-center justify-center gap-2"
-                                          >
-                                            {isUploading ? (
-                                              <>
-                                                <Loader2 className="size-4 animate-spin" />
-                                                Upload en cours...
-                                              </>
-                                            ) : (
-                                              <>
-                                                <Upload className="size-4" />
-                                                Ajouter le document
-                                              </>
-                                            )}
-                                          </Button>
-                                        )}
-                                      </div>
+                                      <FileUpload
+                                        label=""
+                                        value={fileForKind || null}
+                                        onChange={(file: File | null) => {
+                                          setUploadingFiles((prev) => ({ ...prev, [`${kind}-client`]: file }));
+                                          if (file) {
+                                            // L'upload se fait automatiquement via FileUpload
+                                            setTimeout(() => refreshDocuments(), 1000);
+                                          }
+                                        }}
+                                        accept="application/pdf,image/*"
+                                        disabled={isUploading}
+                                        documentKind={kind}
+                                        documentClientId={client.id}
+                                        onUploadComplete={() => {
+                                          setUploadingFiles((prev) => ({ ...prev, [`${kind}-client`]: null }));
+                                          refreshDocuments();
+                                          // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
+                                        }}
+                                      />
                                     </div>
                                   )}
                                 </div>
@@ -1104,11 +1039,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8"
-                                            asChild
+                                            onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                            disabled={isDownloading}
                                           >
-                                            <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                            {isDownloading ? (
+                                              <Loader2 className="size-4 animate-spin" />
+                                            ) : (
                                               <Download className="size-4" />
-                                            </a>
+                                            )}
                                           </Button>
                                           <Button
                                             variant="ghost"
@@ -1128,42 +1066,26 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                   
                                   {!hasDocument && (
                                     <div className="mt-2 pt-2 border-t border-destructive/20">
-                                      <div className="space-y-2">
-                                        <FileUpload
-                                          label=""
-                                          value={fileForKind || null}
-                                          onChange={(file: File | null) => {
-                                            setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil`]: file }));
-                                          }}
-                                          accept="application/pdf,image/*"
-                                          disabled={isUploading}
-                                        />
-                                        {fileForKind && (
-                                          <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => {
-                                              setUploadingDocumentKind(kind);
-                                              // Uploader au niveau client pour les documents de profil
-                                              handleUploadDocument(kind, undefined, undefined, client.id, `${kind}-profil`);
-                                            }}
-                                            disabled={isUploading}
-                                            className="w-full flex items-center justify-center gap-2"
-                                          >
-                                            {isUploading ? (
-                                              <>
-                                                <Loader2 className="size-4 animate-spin" />
-                                                Upload en cours...
-                                              </>
-                                            ) : (
-                                              <>
-                                                <Upload className="size-4" />
-                                                Ajouter le document
-                                              </>
-                                            )}
-                                          </Button>
-                                        )}
-                                      </div>
+                                      <FileUpload
+                                        label=""
+                                        value={fileForKind || null}
+                                        onChange={(file: File | null) => {
+                                          setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil`]: file }));
+                                          if (file) {
+                                            // L'upload se fait automatiquement via FileUpload
+                                            setTimeout(() => refreshDocuments(), 1000);
+                                          }
+                                        }}
+                                        accept="application/pdf,image/*"
+                                        disabled={isUploading}
+                                        documentKind={kind}
+                                        documentClientId={client.id}
+                                        onUploadComplete={() => {
+                                          setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil`]: null }));
+                                          refreshDocuments();
+                                          // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
+                                        }}
+                                      />
                                     </div>
                                   )}
                                 </div>
@@ -1217,11 +1139,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                       variant="ghost"
                                       size="icon"
                                       className="h-8 w-8"
-                                      asChild
+                                      onClick={() => downloadFile(doc.fileKey, doc.label || `document-${doc.id}`)}
+                                      disabled={isDownloading}
                                     >
-                                      <a href={doc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                      {isDownloading ? (
+                                        <Loader2 className="size-4 animate-spin" />
+                                      ) : (
                                         <Download className="size-4" />
-                                      </a>
+                                      )}
                                     </Button>
                                     <Button
                                       variant="ghost"
@@ -1414,11 +1339,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                asChild
+                                onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                disabled={isDownloading}
                               >
-                                <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                {isDownloading ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
                                   <Download className="size-4" />
-                                </a>
+                                )}
                               </Button>
                               <Button
                                 variant="ghost"
@@ -1439,41 +1367,26 @@ export function EditClientForm({ client }: EditClientFormProps) {
                       {/* Formulaire d'upload pour les documents manquants */}
                       {!hasDocument && (
                         <div className="mt-2 pt-2 border-t border-destructive/20">
-                          <div className="space-y-2">
-                            <FileUpload
-                              label=""
-                              value={fileForKind || null}
-                              onChange={(file: File | null) => {
-                                setUploadingFiles((prev) => ({ ...prev, [`${kind}-entreprise`]: file }));
-                              }}
-                              accept="application/pdf,image/*"
-                              disabled={isUploading}
-                            />
-                            {fileForKind && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => {
-                                  setUploadingDocumentKind(kind);
-                                  handleUploadDocument(kind, undefined, client.entreprise?.id);
-                                }}
-                                disabled={isUploading}
-                                className="w-full flex items-center justify-center gap-2"
-                              >
-                                {isUploading ? (
-                                  <>
-                                    <Loader2 className="size-4 animate-spin" />
-                                    Upload en cours...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Upload className="size-4" />
-                                    Ajouter le document
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                          </div>
+                          <FileUpload
+                            label=""
+                            value={fileForKind || null}
+                            onChange={(file: File | null) => {
+                              setUploadingFiles((prev) => ({ ...prev, [`${kind}-entreprise`]: file }));
+                              if (file) {
+                                // L'upload se fait automatiquement via FileUpload
+                                setTimeout(() => refreshDocuments(), 1000);
+                              }
+                            }}
+                            accept="application/pdf,image/*"
+                            disabled={isUploading}
+                            documentKind={kind}
+                            documentEntrepriseId={client.entreprise?.id}
+                            onUploadComplete={() => {
+                              setUploadingFiles((prev) => ({ ...prev, [`${kind}-entreprise`]: null }));
+                              refreshDocuments();
+                              // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
+                            }}
+                          />
                         </div>
                       )}
                     </div>
@@ -1533,11 +1446,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                asChild
+                                onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
+                                disabled={isDownloading}
                               >
-                                <a href={existingDoc.fileKey} download target="_blank" rel="noopener noreferrer">
+                                {isDownloading ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
                                   <Download className="size-4" />
-                                </a>
+                                )}
                               </Button>
                               <Button
                                 variant="ghost"
@@ -1557,41 +1473,26 @@ export function EditClientForm({ client }: EditClientFormProps) {
                       
                       {!hasDocument && (
                         <div className="mt-2 pt-2 border-t border-destructive/20">
-                          <div className="space-y-2">
-                            <FileUpload
-                              label=""
-                              value={fileForKind || null}
-                              onChange={(file: File | null) => {
-                                setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil-entreprise`]: file }));
-                              }}
-                              accept="application/pdf,image/*"
-                              disabled={isUploading}
-                            />
-                            {fileForKind && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => {
-                                  setUploadingDocumentKind(kind);
-                                  handleUploadDocument(kind, undefined, client.entreprise?.id);
-                                }}
-                                disabled={isUploading}
-                                className="w-full flex items-center justify-center gap-2"
-                              >
-                                {isUploading ? (
-                                  <>
-                                    <Loader2 className="size-4 animate-spin" />
-                                    Upload en cours...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Upload className="size-4" />
-                                    Ajouter le document
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                          </div>
+                          <FileUpload
+                            label=""
+                            value={fileForKind || null}
+                            onChange={(file: File | null) => {
+                              setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil-entreprise`]: file }));
+                              if (file) {
+                                // L'upload se fait automatiquement via FileUpload
+                                setTimeout(() => refreshDocuments(), 1000);
+                              }
+                            }}
+                            accept="application/pdf,image/*"
+                            disabled={isUploading}
+                            documentKind={kind}
+                            documentEntrepriseId={client.entreprise?.id}
+                            onUploadComplete={() => {
+                              setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil-entreprise`]: null }));
+                              refreshDocuments();
+                              // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
+                            }}
+                          />
                         </div>
                       )}
                     </div>
@@ -1639,11 +1540,14 @@ export function EditClientForm({ client }: EditClientFormProps) {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          asChild
+                          onClick={() => downloadFile(doc.fileKey, doc.label || `document-${doc.id}`)}
+                          disabled={isDownloading}
                         >
-                          <a href={doc.fileKey} download target="_blank" rel="noopener noreferrer">
+                          {isDownloading ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
                             <Download className="size-4" />
-                          </a>
+                          )}
                         </Button>
                         <Button
                           variant="ghost"

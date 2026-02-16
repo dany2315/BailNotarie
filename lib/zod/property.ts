@@ -27,10 +27,33 @@ export const createPropertySchema = z.object({
     if (isNaN(num) || num < 0) return null;
     return num;
   }),
-  type: z.nativeEnum(BienType).optional(),
-  legalStatus: z.nativeEnum(BienLegalStatus).optional(),
+  type: z.nativeEnum(BienType, { message: "Le type de bien est requis" }),
+  legalStatus: z.nativeEnum(BienLegalStatus, { message: "Le statut juridique est requis" }),
   status: z.enum(["PROSPECT", "IN_PROGRESS", "ACTIVE", "ARCHIVED"]).default("PROSPECT"),
   ownerId: z.string().cuid("ID propriétaire invalide").min(1, "Le propriétaire est requis"),
+  // Données géographiques enrichies (optionnelles)
+  housenumber: z.string().max(20).trim().optional(),
+  street: z.string().max(200).trim().optional(),
+  city: z.string().max(200).trim().optional(),
+  postalCode: z.string().max(10).trim().optional(),
+  district: z.string().max(100).trim().optional(),
+  inseeCode: z.string().max(10).trim().optional(),
+  department: z.string().max(100).trim().optional(),
+  region: z.string().max(100).trim().optional(),
+  latitude: z.string().optional().transform((val) => {
+    if (!val) return null;
+    const num = parseFloat(val);
+    if (isNaN(num)) return null;
+    return num;
+  }),
+  longitude: z.string().optional().transform((val) => {
+    if (!val) return null;
+    const num = parseFloat(val);
+    if (isNaN(num)) return null;
+    return num;
+  }),
+  isTightZone: z.boolean().optional(),
+  hasRentControl: z.boolean().optional(),
   // Mobilier obligatoire pour location meublée
   ...furnitureFieldsSchema,
 });
@@ -50,6 +73,29 @@ export const updatePropertySchema = z.object({
   legalStatus: z.nativeEnum(BienLegalStatus).optional(),
   status: z.nativeEnum(PropertyStatus).optional(),
   ownerId: z.string().cuid("ID propriétaire invalide").optional(),
+  // Données géographiques enrichies (optionnelles)
+  housenumber: z.string().max(20).trim().optional(),
+  street: z.string().max(200).trim().optional(),
+  city: z.string().max(200).trim().optional(),
+  postalCode: z.string().max(10).trim().optional(),
+  district: z.string().max(100).trim().optional(),
+  inseeCode: z.string().max(10).trim().optional(),
+  department: z.string().max(100).trim().optional(),
+  region: z.string().max(100).trim().optional(),
+  latitude: z.string().optional().transform((val) => {
+    if (!val) return null;
+    const num = parseFloat(val);
+    if (isNaN(num)) return null;
+    return num;
+  }),
+  longitude: z.string().optional().transform((val) => {
+    if (!val) return null;
+    const num = parseFloat(val);
+    if (isNaN(num)) return null;
+    return num;
+  }),
+  isTightZone: z.boolean().optional(),
+  hasRentControl: z.boolean().optional(),
   // Mobilier obligatoire pour location meublée (tous optionnels pour mise à jour)
   hasLiterie: z.boolean().optional(),
   hasRideaux: z.boolean().optional(),

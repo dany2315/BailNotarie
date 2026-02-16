@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, Scale, X, Home, Settings, BookOpen, Mail, HelpCircle , FileText, Workflow, ChevronDown, StarIcon, ShieldCheck, PenTool, Phone } from "lucide-react";
+import { Menu, Scale, X, Home, Settings, BookOpen, Mail, HelpCircle , FileText, Workflow, ChevronDown, StarIcon, ShieldCheck, PenTool, Phone, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { Separator } from "@/components/ui/separator";
@@ -15,16 +15,37 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import Image from "next/image";
 import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, navigationMenuTriggerStyle } from "@/components/ui/navigation-menu";
 import useIsMobile  from "@/hooks/useIsMobile";
 import { Badge } from "./ui/badge";
+import { HeaderClientInfo } from "./header-client-info";
+
+interface CurrentUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  image: string | null;
+  clientId: string | null;
+}
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isBailNotarieOpen, setIsBailNotarieOpen] = useState(false);
+  const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
   const isMobile = useIsMobile();
-
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const bailNotarieSubItems = [
     { href: "/commencer", title: "Démarrer un bail", description: "Créer votre bail en quelques minutes" },
     { href: "/commencer/suivi", title: "Suivi en temps réel", description: "Voir l’état de votre demande instantanément" },    
@@ -41,6 +62,29 @@ export function Header() {
       setIsBailNotarieOpen(false);
     }
   }, [isOpen]);
+
+  // Récupérer l'utilisateur actuel via l'API
+  useEffect(() => {
+    async function fetchCurrentUser() {
+      try {
+        const response = await fetch("/api/user/current");
+        const data = await response.json();
+        
+        if (data.isAuthenticated && data.user) {
+          setCurrentUser(data.user);
+        } else {
+          setCurrentUser(null);
+        }
+      } catch (error) {
+        console.error("Erreur lors de la récupération de l'utilisateur:", error);
+        setCurrentUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchCurrentUser();
+  }, []);
 
   return (
     <header className="bg-white shadow-sm border-b sticky top-0 z-50">
@@ -118,6 +162,22 @@ export function Header() {
 
           {/* CTA Desktop */}
           <div className="hidden md:flex items-center space-x-4">
+            {isLoading ? (
+              <div className="h-10 w-24 bg-gray-100 animate-pulse rounded-lg" />
+            ) : currentUser?.role === "UTILISATEUR" && currentUser?.clientId ? (
+              <HeaderClientInfo />
+            ) : (
+              <Button
+                asChild
+                variant="outline"
+                className="border-2 border-[#4373f5] text-[#4373f5] hover:bg-[#4373f5] hover:text-white transition-all duration-200"
+              >
+                <Link href="/client/login">
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Se connecter
+                </Link>
+              </Button>
+            )}
             <PhoneButton withLabel={false} size="sm" phoneNumber="07 49 38 77 56" className="sm:text-lg text-md px-5 py-3 h-auto border-2 border-blue-200/60 bg-background shadow-md text-[#4373f5] rounded-xl hover:bg-blue-200 transition-all duration-200" />
           </div>
 
@@ -221,39 +281,85 @@ export function Header() {
                   </Link>
 
                   {/* Contact */}
-                  <Link
-                    href="/#contact"
-                    onClick={handleMenuClick}
-                    className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group"
-                  >
-                    <Mail className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
-                    <span className="font-medium">Contact</span>
-                  </Link>
+                  <Dialog open={isContactDialogOpen} onOpenChange={setIsContactDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Link 
+                          href="#"
+                          className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group"
+                          onClick={() => setIsContactDialogOpen(true)}
+                        >
+                          <Mail className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors"/>
+                          <span className="font-medium">Contactez-nous</span>
+                        </Link>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Contactez-nous</DialogTitle>
+                          <DialogDescription>
+                            Nous sommes là pour vous aider. Choisissez votre moyen de contact préféré.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <Button 
+                            variant="outline" 
+                            className="w-full flex items-center justify-start space-x-3 text-left h-auto py-3"
+                            onClick={() => {
+                              window.open("mailto:contact@bailnotarie.fr", "_blank");
+                            }}
+                          >
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                              <Mail className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-900">Email</span>
+                              <span className="text-sm text-gray-600">contact@bailnotarie.fr</span>
+                              <span className="text-xs text-gray-500 mt-1">Réponse sous 24h</span>
+                            </div>
+                          </Button>
+
+                          <Button 
+                            variant="outline" 
+                            className="w-full flex items-center justify-start space-x-3 text-left h-auto py-3"
+                            onClick={() => {
+                              window.open("tel:0749387756", "_blank");
+                            }}
+                          >
+                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                              <Phone className="h-5 w-5 text-green-600" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-900">Téléphone</span>
+                              <span className="text-sm text-gray-600">07 49 38 77 56</span>
+                              <span className="text-xs text-gray-500 mt-1">Lun-Ven 9h-18h</span>
+                            </div>
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                 </nav>
                 </div>
                 <SheetFooter >
-                  <Separator className="mb-4" />
-                  
-                  {/* Section contact */}
-                  <div className="space-y-6 w-full px-4">
-                    
-                      <h3 className="text-sm font-semibold text-gray-900 mb-3">Contactez-nous</h3>
-
-                        <Button variant="link" className="flex items-center space-x-2 text-gray-600 cursor-pointer !pl-0 m-0" onClick={() => {
-                          window.open("mailto:contact@bailnotarie.fr", "_blank");
-                        }}>
-                          <Mail className="h-4 w-4" />
-                          <span>contact@bailnotarie.fr</span>
-                        </Button>
-
-                        <Button variant="link" className="flex items-center space-x-2 text-gray-600 cursor-pointer !pl-0 m-0" onClick={() => {
-                          window.open("tel:0749387756", "_blank");
-                        }}>
-                          <Phone className="h-4 w-4" />
-                          <span>07 49 38 77 56</span>
-                        </Button>                   
-                  
+                  {/* Connexion / Client connecté */}
+                  <Separator className="my-4" />
+                 <div className=" w-full">  
+                 {isLoading ? (
+                    <div className="h-10 w-24 bg-gray-100 animate-pulse rounded-lg" />
+                  ) : currentUser?.role === "UTILISATEUR" && currentUser?.clientId ? (
+                    <HeaderClientInfo />
+                  ) : (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="border-2 w-full  border-[#4373f5] text-[#4373f5] hover:bg-[#4373f5] hover:text-white transition-all duration-200"
+                    >
+                      <Link href="/client/login">
+                        <LogIn className="mr-2 h-4 w-4" />
+                        Se connecter
+                      </Link>
+                    </Button>
+                  )}
                   </div>
+                    
                   
                   {/* Footer du menu */}
                   <div className=" pt-4 pb-2 border-t border-gray-200 mt-2 w-full">

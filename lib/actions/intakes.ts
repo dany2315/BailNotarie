@@ -149,6 +149,8 @@ export async function getIntakeLinkByToken(token: string) {
       legalStatus: intakeLink.property.legalStatus || null,
       status: intakeLink.property.status || null,
       surfaceM2: intakeLink.property.surfaceM2?.toString() || null,
+      latitude: intakeLink.property.latitude?.toString() || null,
+      longitude: intakeLink.property.longitude?.toString() || null,
       createdAt: intakeLink.property.createdAt.toISOString(),
       updatedAt: intakeLink.property.updatedAt.toISOString(),
       documents: intakeLink.property.documents || [],
@@ -214,7 +216,7 @@ export async function submitIntake(data: unknown) {
         clientId: intakeLink.clientId,
         ...payload,
       });
-      // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
+      // Les fichiers sont maintenant uploadés directement via FileUpload avec upload direct client → S3
       // Plus besoin de passer formData
       await submitOwnerForm(ownerData);
       return { success: true };
@@ -239,7 +241,7 @@ export async function submitIntake(data: unknown) {
         clientId: intakeLink.clientId,
         ...payload,
       });
-      // Les fichiers sont maintenant uploadés via l'API route /api/intakes/upload
+      // Les fichiers sont maintenant uploadés directement via FileUpload avec upload direct client → S3
       // Plus besoin de passer formData
       await submitTenantForm(tenantData);
       return { success: true };
@@ -848,9 +850,8 @@ export async function deleteDocumentFromRawPayload(data: {
     }
 
     // Supprimer le document de la base de données
-    await prisma.document.delete({
-      where: { id: documentToDelete.id },
-    });
+    const { deleteDocumentFromDB } = await import("@/lib/actions/documents");
+    await deleteDocumentFromDB(documentToDelete.id);
     
     deleted = true;
   }

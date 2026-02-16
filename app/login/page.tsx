@@ -11,6 +11,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { signIn, useSession } from "@/lib/auth-client";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -23,21 +24,62 @@ export default function LoginPage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState<LoginFormData>({
     email: "",
     password: "",
   });
 
-  // Rediriger vers l'interface si l'utilisateur est déjà connecté
+  // Rediriger vers le dashboard approprié si l'utilisateur est déjà connecté
   useEffect(() => {
-    if (session && !isPending) {
-      router.push("/interface");
+    async function checkAndRedirect() {
+      if (isPending) {
+        return;
+      }
+
+      if (session?.user) {
+        try {
+          // Récupérer les informations de l'utilisateur pour déterminer où le rediriger
+          const userResponse = await fetch("/api/user/current");
+          const userData = await userResponse.json();
+          
+          if (userData.isAuthenticated && userData.user) {
+            const { role, profilType } = userData.user;
+            
+            // Rediriger selon le role et le profilType
+            if (role === "ADMINISTRATEUR") {
+              router.push("/interface");
+            } else if (role === "UTILISATEUR") {
+              if (profilType === "PROPRIETAIRE") {
+                router.push("/client/proprietaire");
+              } else if (profilType === "LOCATAIRE") {
+                router.push("/client/locataire");
+              } else {
+                router.push("/client");
+              }
+            } else if (role === "NOTAIRE") {
+              router.push("/notaire");
+            } else {
+              // Fallback vers l'interface par défaut
+              router.push("/interface");
+            }
+          }
+        } catch (error) {
+          console.error("Erreur lors de la vérification de l'utilisateur:", error);
+          // En cas d'erreur, rediriger vers l'interface par défaut
+          router.push("/interface");
+        }
+      } else {
+        setIsCheckingAuth(false);
+      }
     }
+
+    checkAndRedirect();
   }, [session, isPending, router]);
 
-  if (isPending) {
-    return <div>Chargement...</div>;
+  if (isPending || isCheckingAuth) {
+    return <LoadingScreen message="Chargement..." />;
   }
 
   if (session) {

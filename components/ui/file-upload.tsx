@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { X, Upload, File, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { put } from "@vercel/blob";
 
 interface FileUploadProps {
   label: string;
@@ -17,11 +16,18 @@ interface FileUploadProps {
   disabled?: boolean;
   required?: boolean;
   error?: string;
-  // Props pour l'upload direct vers Vercel Blob
-  uploadToken?: string;
+  // Props pour l'upload direct vers S3
+  // Pour les intakes
+  uploadToken?: string; // Token d'intake
+  // Pour les documents clients/propriétés
+  documentClientId?: string;
+  documentPersonId?: string;
+  documentEntrepriseId?: string;
+  documentPropertyId?: string;
+  documentBailId?: string;
+  // Commun
   documentKind?: string;
-  clientId?: string;
-  personIndex?: number;
+  personIndex?: number; // Pour les documents de personne (ID_IDENTITY)
   onUploadComplete?: (blobUrl: string) => void;
   onUploadProgress?: (progress: number) => void;
   onUploadStateChange?: (isUploading: boolean) => void;
@@ -37,7 +43,11 @@ export function FileUpload({
   error,
   uploadToken,
   documentKind,
-  clientId,
+  documentClientId,
+  documentPersonId,
+  documentEntrepriseId,
+  documentPropertyId,
+  documentBailId,
   personIndex,
   onUploadComplete,
   onUploadProgress,
@@ -51,71 +61,59 @@ export function FileUpload({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingFile, setUploadingFile] = useState<File | null>(null); // Ajouter cet état
 
-  // Fonction optimisée utilisant put() directement avec simulation de progression améliorée
-  const uploadFileOptimized = useCallback(async (
+  // Fonction pour uploader directement vers S3 avec URL signée
+  const uploadFileToS3 = useCallback(async (
     file: File,
-    blobToken: string,
-    intakeToken: string
-  ): Promise<{ url: string; pathname: string }> => {
-    // Générer un pathname unique avec timestamp pour tri chronologique
-    const timestamp = Date.now();
-    const randomSuffix = Math.random().toString(36).substring(2, 9);
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const pathname = `intakes/${intakeToken}/${timestamp}-${randomSuffix}-${sanitizedName}`;
+    signedUrl: string
+  ): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
 
-    // Simuler la progression de manière plus réaliste
-    // Basée sur la taille du fichier et le temps estimé
-    const fileSizeMB = file.size / (1024 * 1024);
-    const estimatedTimeMs = Math.max(1000, fileSizeMB * 200); // ~200ms par MB
-    const updateInterval = Math.max(50, estimatedTimeMs / 100); // 100 mises à jour
-    let currentProgress = 0;
-
-    progressIntervalRef.current = setInterval(() => {
-      if (currentProgress < 90) {
-        // Accélération au début, ralentissement vers la fin
-        const increment = currentProgress < 50 
-          ? Math.random() * 15 + 5  // 5-20% par intervalle au début
-          : Math.random() * 5 + 2;   // 2-7% par intervalle vers la fin
-        
-        currentProgress = Math.min(currentProgress + increment, 90);
-        setUploadProgress(currentProgress);
-        if (onUploadProgress) {
-          onUploadProgress(currentProgress);
+      // Suivi de progression réel avec XMLHttpRequest
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = (e.loaded / e.total) * 100;
+          setUploadProgress(percentComplete);
+          if (onUploadProgress) {
+            onUploadProgress(percentComplete);
+          }
         }
-      }
-    }, updateInterval);
-
-    try {
-      // Upload direct vers Vercel Blob avec multipart automatique pour fichiers > 100MB
-      const blob = await put(pathname, file, {
-        access: "public",
-        token: blobToken,
-        contentType: file.type || "application/octet-stream",
-        // multipart: true est activé automatiquement pour fichiers > 100MB selon la doc
       });
 
-      // Nettoyer l'intervalle et mettre à jour à 100%
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-      setUploadProgress(100);
-      if (onUploadProgress) {
-        onUploadProgress(100);
-      }
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          setUploadProgress(100);
+          if (onUploadProgress) {
+            onUploadProgress(100);
+          }
+          resolve();
+        } else {
+          // Logger plus de détails pour le débogage
+          console.error("[S3 Upload] Erreur détaillée:", {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            responseText: xhr.responseText,
+          });
+          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText || xhr.responseText || 'Unknown error'}`));
+        }
+      });
 
-      return {
-        url: blob.url,
-        pathname: blob.pathname,
-      };
-    } catch (error) {
-      // Nettoyer l'intervalle en cas d'erreur
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-      throw error;
-    }
+      xhr.addEventListener("error", () => {
+        reject(new Error("Upload failed due to network error"));
+      });
+
+      xhr.addEventListener("abort", () => {
+        reject(new Error("Upload was aborted"));
+      });
+
+      // Upload PUT vers l'URL signée S3 (simple PUT sans Content-Type)
+      // Ne pas définir Content-Type car il n'est pas signé dans l'URL
+      xhr.open("PUT", signedUrl, true);
+      
+      // Ne pas définir de headers pour éviter les problèmes de correspondance
+      // L'URL signée est une simple PUT sans contraintes
+      xhr.send(file);
+    });
   }, [onUploadProgress]);
 
   // Fonction helper pour vérifier si le fichier est >= 1MB
@@ -139,60 +137,66 @@ export function FileUpload({
       return;
     }
 
-    // Valider la taille du fichier (max 3MB)
-    const maxSizeInBytes = 4 * 1024 * 1024; // 4MB
-    if (file.size > maxSizeInBytes) {
-      toast.error(`Fichier trop volumineux. Taille maximale: 4   MB (fichier: ${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-      onChange(null);
-      setUploadingFile(null);
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-      return;
-    }
-
-    // Si uploadToken est fourni, faire l'upload direct vers Vercel Blob (client SDK)
-    if (uploadToken && documentKind) {
+    // Si documentKind est fourni, faire l'upload direct vers S3 avec URL signée
+    if (documentKind) {
       setUploadingFile(file); // Stocker le fichier en cours d'upload
       setIsUploading(true);
       setUploadProgress(0);
       onUploadStateChange?.(true);
       
       try {
-        // 1. Récupérer le token d'upload depuis le serveur
+        // 1. Récupérer l'URL signée S3 depuis le serveur
         const tokenResponse = await fetch("/api/blob/generate-upload-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: uploadToken }),
+          body: JSON.stringify({ 
+            // Pour les intakes
+            ...(uploadToken && { token: uploadToken }),
+            // Pour les documents clients/propriétés
+            ...(documentClientId && { clientId: documentClientId }),
+            ...(documentPersonId && { personId: documentPersonId }),
+            ...(documentEntrepriseId && { entrepriseId: documentEntrepriseId }),
+            ...(documentPropertyId && { propertyId: documentPropertyId }),
+            ...(documentBailId && { bailId: documentBailId }),
+            // Commun
+            fileName: file.name,
+            contentType: file.type || "application/octet-stream",
+            documentKind: documentKind,
+          }),
         });
 
         if (!tokenResponse.ok) {
           const error = await tokenResponse.json();
-          throw new Error(error.error || "Erreur lors de la récupération du token");
+          throw new Error(error.error || "Erreur lors de la récupération de l'URL signée");
         }
 
-        const { token: blobToken } = await tokenResponse.json();
+        const { signedUrl, fileKey } = await tokenResponse.json();
 
-        // 2. Uploader directement vers Vercel Blob avec le client SDK
-        // Utilise multipart automatiquement pour fichiers > 100MB
-        const blob = await uploadFileOptimized(file, blobToken, uploadToken);
+        // 2. Uploader directement vers S3 avec l'URL signée (progression réelle)
+        // Ne pas envoyer Content-Type car il n'est pas signé dans l'URL
+        await uploadFileToS3(file, signedUrl);
 
-        // 3. Créer le document dans la DB via l'API
-        const createDocResponse = await fetch("/api/intakes/create-documents", {
+        // 3. Créer le document dans la DB via l'API générique
+        const createDocResponse = await fetch("/api/documents/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            token: uploadToken,
-            documents: [{
-              fileKey: blob.url,
-              kind: documentKind,
-              fileName: file.name,
-              mimeType: file.type,
-              size: file.size,
-              label: file.name,
-              personIndex: personIndex,
-            }],
-            clientId: clientId,
+            // Pour les intakes
+            ...(uploadToken && { token: uploadToken }),
+            // Pour les documents clients/propriétés
+            ...(documentClientId && { clientId: documentClientId }),
+            ...(documentPersonId && { personId: documentPersonId }),
+            ...(documentEntrepriseId && { entrepriseId: documentEntrepriseId }),
+            ...(documentPropertyId && { propertyId: documentPropertyId }),
+            ...(documentBailId && { bailId: documentBailId }),
+            // Données du document
+            fileKey: fileKey, // Clé S3 (pas l'URL complète)
+            kind: documentKind,
+            fileName: file.name,
+            mimeType: file.type,
+            size: file.size,
+            label: file.name,
+            ...(personIndex !== undefined && { personIndex }),
           }),
         });
 
@@ -200,17 +204,25 @@ export function FileUpload({
           const error = await createDocResponse.json();
           console.warn("[FileUpload] Erreur lors de la création du document:", error);
           // Ne pas faire échouer l'upload si la création du document échoue
-          // Le document sera créé lors du savePartialIntake
+          // Le document sera créé lors du savePartialIntake pour les intakes
+        } else {
+          toast.success("Fichier uploadé avec succès");
         }
-
-        toast.success("Fichier uploadé avec succès");
         
         if (onUploadComplete) {
-          onUploadComplete(blob.url);
+          onUploadComplete(fileKey);
         }
 
         // Déclencher l'événement pour recharger les documents
-        window.dispatchEvent(new CustomEvent(`document-uploaded-${uploadToken}`));
+        if (uploadToken) {
+          window.dispatchEvent(new CustomEvent(`document-uploaded-${uploadToken}`));
+        }
+        if (documentClientId) {
+          window.dispatchEvent(new CustomEvent(`document-uploaded-client-${documentClientId}`));
+        }
+        if (documentPropertyId) {
+          window.dispatchEvent(new CustomEvent(`document-uploaded-property-${documentPropertyId}`));
+        }
 
         // Garder le fichier dans le state pour l'affichage
         onChange(file);
@@ -239,74 +251,90 @@ export function FileUpload({
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file) {
-      // Valider la taille du fichier (max 3MB)
-      const maxSizeInBytes = 4 * 1024 * 1024; // 4MB
-      if (file.size > maxSizeInBytes) {
-        toast.error(`Fichier trop volumineux. Taille maximale: 4 MB (fichier: ${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-        onChange(null);
-        setUploadingFile(null);
-        if (inputRef.current) {
-          inputRef.current.value = "";
-        }
-        return;
-      }
-
       // Utiliser la même logique que handleFileChange
-      if (uploadToken && documentKind) {
+      if (documentKind) {
         setUploadingFile(file); // Stocker le fichier en cours d'upload
         setIsUploading(true);
         setUploadProgress(0);
         onUploadStateChange?.(true);
         
         try {
-          // 1. Récupérer le token d'upload
+          // 1. Récupérer l'URL signée S3
           const tokenResponse = await fetch("/api/blob/generate-upload-token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: uploadToken }),
+            body: JSON.stringify({ 
+              // Pour les intakes
+              ...(uploadToken && { token: uploadToken }),
+              // Pour les documents clients/propriétés
+              ...(documentClientId && { clientId: documentClientId }),
+              ...(documentPersonId && { personId: documentPersonId }),
+              ...(documentEntrepriseId && { entrepriseId: documentEntrepriseId }),
+              ...(documentPropertyId && { propertyId: documentPropertyId }),
+              ...(documentBailId && { bailId: documentBailId }),
+              // Commun
+              fileName: file.name,
+              contentType: file.type || "application/octet-stream",
+              documentKind: documentKind,
+            }),
           });
 
           if (!tokenResponse.ok) {
             const error = await tokenResponse.json();
-            throw new Error(error.error || "Erreur lors de la récupération du token");
+            throw new Error(error.error || "Erreur lors de la récupération de l'URL signée");
           }
 
-          const { token: blobToken } = await tokenResponse.json();
+          const { signedUrl, fileKey } = await tokenResponse.json();
 
-          // 2. Uploader directement vers Vercel Blob
-          const blob = await uploadFileOptimized(file, blobToken, uploadToken);
+          // 2. Uploader directement vers S3 avec l'URL signée
+          // Ne pas envoyer Content-Type car il n'est pas signé dans l'URL
+          await uploadFileToS3(file, signedUrl);
 
           // 3. Créer le document dans la DB
-          const createDocResponse = await fetch("/api/intakes/create-documents", {
+          const createDocResponse = await fetch("/api/documents/create", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              token: uploadToken,
-              documents: [{
-                fileKey: blob.url,
-                kind: documentKind,
-                fileName: file.name,
-                mimeType: file.type,
-                size: file.size,
-                label: file.name,
-                personIndex: personIndex,
-              }],
-              clientId: clientId,
+              // Pour les intakes
+              ...(uploadToken && { token: uploadToken }),
+              // Pour les documents clients/propriétés
+              ...(documentClientId && { clientId: documentClientId }),
+              ...(documentPersonId && { personId: documentPersonId }),
+              ...(documentEntrepriseId && { entrepriseId: documentEntrepriseId }),
+              ...(documentPropertyId && { propertyId: documentPropertyId }),
+              ...(documentBailId && { bailId: documentBailId }),
+              // Données du document
+              fileKey: fileKey, // Clé S3 (pas l'URL complète)
+              kind: documentKind,
+              fileName: file.name,
+              mimeType: file.type,
+              size: file.size,
+              label: file.name,
+              ...(personIndex !== undefined && { personIndex }),
             }),
           });
 
           if (!createDocResponse.ok) {
             const error = await createDocResponse.json();
             console.warn("[FileUpload] Erreur lors de la création du document:", error);
+          } else {
+            toast.success("Fichier uploadé avec succès");
           }
-
-          toast.success("Fichier uploadé avec succès");
           
           if (onUploadComplete) {
-            onUploadComplete(blob.url);
+            onUploadComplete(fileKey);
           }
 
-          window.dispatchEvent(new CustomEvent(`document-uploaded-${uploadToken}`));
+          // Déclencher l'événement pour recharger les documents
+          if (uploadToken) {
+            window.dispatchEvent(new CustomEvent(`document-uploaded-${uploadToken}`));
+          }
+          if (documentClientId) {
+            window.dispatchEvent(new CustomEvent(`document-uploaded-client-${documentClientId}`));
+          }
+          if (documentPropertyId) {
+            window.dispatchEvent(new CustomEvent(`document-uploaded-property-${documentPropertyId}`));
+          }
 
           onChange(file);
         } catch (error: any) {
@@ -380,7 +408,7 @@ export function FileUpload({
               <div className="mt-1 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md">
                 <p className="text-xs text-amber-800 dark:text-amber-200">
                   ⏱️ L'upload peut prendre du temps en raison de la taille du fichier ({(currentFile.size / 1024 / 1024).toFixed(2)} MB). 
-                  Veuillez ne pas quitter la page. Si l'upload prend trop de temps,{" "}
+                  Veuillez ne pas quitter la page. Si une erreur se confronte a vous,{" "}
                   <a href="/#contact" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-100">
                     contactez-nous
                   </a>.
@@ -466,7 +494,7 @@ export function FileUpload({
                   Cliquez ou glissez-déposez un fichier
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  PDF, DOC, DOCX, JPG, PNG (max 4MB)
+                  PDF, DOC, DOCX, JPG, PNG
                 </p>
               </>
             )}
@@ -521,7 +549,7 @@ export function FileUpload({
                   Cliquez ou glissez-déposez
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  PDF, DOC, JPG, PNG (max 4MB)
+                  PDF, DOC, JPG, PNG
                 </p>
               </>
             )}

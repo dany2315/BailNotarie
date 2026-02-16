@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "BailStatus" ADD VALUE 'CLIENT_CONTACTED';

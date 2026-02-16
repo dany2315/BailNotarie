@@ -212,3 +212,99 @@ export async function triggerNotaireWelcomeEmail(data: {
   });
 }
 
+/**
+ * Déclenche l'envoi d'un email de notification pour un nouveau message de chat
+ * Utilisé quand le destinataire n'est pas en ligne
+ */
+export async function triggerChatMessageNotificationEmail(data: {
+  recipientEmail: string;
+  recipientName?: string | null;
+  senderName: string;
+  senderRole: "notaire" | "client";
+  messagePreview: string;
+  bailAddress?: string | null;
+  chatUrl: string;
+}) {
+  await inngest.send({
+    name: "email/chat-message.send",
+    data,
+  });
+}
+
+/**
+ * Déclenche l'envoi d'un email pour une nouvelle demande de document
+ * Envoyé au client quand le notaire crée une demande
+ */
+export async function triggerDocumentRequestEmail(data: {
+  recipientEmail: string;
+  recipientName?: string | null;
+  notaireName: string;
+  requestTitle: string;
+  requestContent: string;
+  bailAddress?: string | null;
+  chatUrl: string;
+}) {
+  await inngest.send({
+    name: "email/document-request.send",
+    data,
+  });
+}
+
+/**
+ * Déclenche l'envoi d'un email de notification de changement de statut de completion
+ * Envoyé au client quand son statut de completion change
+ */
+export async function triggerCompletionStatusEmail(data: {
+  to: string;
+  clientName?: string | null;
+  entityType: "client" | "property";
+  entityName?: string | null;
+  oldStatus: string;
+  newStatus: string;
+  dashboardUrl: string;
+  profilType?: "PROPRIETAIRE" | "LOCATAIRE";
+}) {
+  const statusLabels: Record<string, string> = {
+    NOT_STARTED: "Non commencé",
+    PARTIAL: "Partiel",
+    PENDING_CHECK: "En vérification",
+    COMPLETED: "Complété",
+  };
+
+  const oldStatusLabel = statusLabels[data.oldStatus] || data.oldStatus;
+  const newStatusLabel = statusLabels[data.newStatus] || data.newStatus;
+  
+  const subject = data.newStatus === "COMPLETED"
+    ? "✅ Vérification complétée - BailNotarie"
+    : data.newStatus === "PENDING_CHECK"
+    ? "🔵 Vérification en cours - BailNotarie"
+    : `Statut de vérification mis à jour : ${oldStatusLabel} → ${newStatusLabel}`;
+
+  await inngest.send({
+    name: "email/completion-status.send",
+    data: {
+      ...data,
+      subject,
+    },
+  });
+}
+
+/**
+ * Déclenche l'envoi d'un email quand un document est reçu en réponse à une demande
+ * Envoyé au notaire quand le client répond
+ */
+export async function triggerDocumentReceivedEmail(data: {
+  notaireEmail: string;
+  notaireName?: string | null;
+  clientName: string;
+  requestTitle: string;
+  documentNames: string[];
+  bailAddress?: string | null;
+  chatUrl: string;
+}) {
+  await inngest.send({
+    name: "email/document-received.send",
+    data,
+  });
+}
+

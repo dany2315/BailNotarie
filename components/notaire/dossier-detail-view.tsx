@@ -10,13 +10,18 @@ import { formatDate, formatCurrency, formatDateTime } from "@/lib/utils/formatte
 import { FileText, User, Building2, Home, Euro, Calendar, MapPin, MessageSquare, Check, X, Copy } from "lucide-react";
 import { DocumentsList } from "@/components/leases/documents-list";
 import { NotaireRequests } from "@/components/notaire/notaire-requests";
+import { NotaireBailChatSheet } from "@/components/notaire/notaire-bail-chat-sheet";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { getBailTypeLabel } from "@/lib/utils/bails-labels";
 import { PropertyLegalStatusBadge } from "../shared/status-badge";
 import { getPropertyLegalStatusLabel } from "@/lib/utils/legaleStatus-label";
 import { BienLegalStatus } from "@prisma/client";
 import { copyToClipboard } from "@/lib/utils/copy";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Download, File } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 
 interface Dossier {
   id: string;
@@ -289,6 +294,30 @@ function DataFieldCard({ label, value, className }: { label: string; value: stri
 }
 
 export function DossierDetailView({ dossier }: DossierDetailViewProps) {
+  const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [annexDocuments, setAnnexDocuments] = useState<Array<{
+    partyId: string | null;
+    partyName: string;
+    profilType: string | null;
+    documents: Array<{
+      id: string;
+      label: string | null;
+      fileKey: string;
+      mimeType: string | null;
+      size: number | null;
+      createdAt: Date;
+      uploadedBy: {
+        id: string;
+        email: string;
+        name: string | null;
+      };
+      requestTitle: string;
+      requestId: string;
+    }>;
+  }>>([]);
+  const [isLoadingAnnexDocuments, setIsLoadingAnnexDocuments] = useState(false);
+
   const getClientName = () => {
     if (dossier.client.entreprise) {
       return dossier.client.entreprise.legalName || dossier.client.entreprise.name;
@@ -302,9 +331,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
 
   // Séparer les parties en propriétaires et locataires
   const proprietaires = dossier.bail?.parties?.filter((p: any) => p.profilType === "PROPRIETAIRE") || [];
-  console.log("proprietaires", proprietaires);
   const locataires = dossier.bail?.parties?.filter((p: any) => p.profilType === "LOCATAIRE") || [];
-  console.log("locataires", locataires);
 
   // Calculer le nombre total de personnes dans les propriétaires
   const totalProprietairesPersons = proprietaires.reduce((total: number, party: any) => {
@@ -333,6 +360,31 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
     return "Client";
   };
 
+  // Charger les documents annexes
+  useEffect(() => {
+    const loadAnnexDocuments = async () => {
+      setIsLoadingAnnexDocuments(true);
+      try {
+        const response = await fetch(`/api/notaire/dossiers/${dossier.id}/annex-documents`);
+        if (response.ok) {
+          const data = await response.json();
+          setAnnexDocuments(data);
+        }
+      } catch (error) {
+        console.error("Erreur lors du chargement des documents annexes:", error);
+      } finally {
+        setIsLoadingAnnexDocuments(false);
+      }
+    };
+
+    if (dossier.id) {
+      loadAnnexDocuments();
+    }
+  }, [dossier.id]);
+
+  // Calculer le nombre total de documents annexes
+  const totalAnnexDocuments = annexDocuments.reduce((total, group) => total + group.documents.length, 0);
+
   return (
     <div className="space-y-6">
 
@@ -356,11 +408,17 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
               Bail
             </TabsTrigger>
           )}
-         {/* <TabsTrigger value="requests" className="px-4 py-2">
+          <TabsTrigger value="requests" className="px-4 py-2">
             <MessageSquare className="mr-2 h-4 w-4" />
             Demandes ({dossier.requests?.length || 0})
           </TabsTrigger>
-          */}
+          {totalAnnexDocuments > 0 && (
+            <TabsTrigger value="annex-documents" className="px-4 py-2">
+              <File className="mr-2 h-4 w-4" />
+              Documents annexes ({totalAnnexDocuments})
+            </TabsTrigger>
+          )}
+         
         </TabsList>
 
         {/* Onglet Propriété */}
@@ -466,6 +524,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                 )}
               </CardContent>
             </Card>
+
           </TabsContent>
         )}
 
@@ -488,6 +547,24 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                       {proprietaires.length > 1 ? "s" : ""} au bail
                     </CardDescription>
                   </div>
+                  {dossier.bail && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Si plusieurs propriétaires, ouvrir le chat avec le premier
+                        // Sinon, ouvrir avec le seul propriétaire
+                        const firstProprietaire = proprietaires[0];
+                        if (firstProprietaire) {
+                          setSelectedPartyId(firstProprietaire.id);
+                          setChatOpen(true);
+                        }
+                      }}
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Discuter
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
 
@@ -521,7 +598,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                       >
                         <AccordionTrigger className="py-3  hover:no-underline ">
                           <div className="flex w-full items-start justify-between gap-4 ">
-                            <div className="min-w-0 text-left ml-2">
+                            <div className="min-w-0 text-left ml-2 flex-1">
                               <div className="flex items-center gap-2 ml-1">
                                 <p className="text-sm font-semibold truncate">{displayName}</p>
                                 
@@ -541,6 +618,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                                 )}
                               </div>
                             </div>
+                    
                           </div>
                         </AccordionTrigger>
 
@@ -723,7 +801,24 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                       {locataires.length > 1 ? "s" : ""} au bail
                     </CardDescription>
                   </div>
-
+                  {dossier.bail && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Si plusieurs locataires, ouvrir le chat avec le premier
+                        // Sinon, ouvrir avec le seul locataire
+                        const firstLocataire = locataires[0];
+                        if (firstLocataire) {
+                          setSelectedPartyId(firstLocataire.id);
+                          setChatOpen(true);
+                        }
+                      }}
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Discuter
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
 
@@ -757,7 +852,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                       >
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex w-full items-start justify-between gap-4 pr-2">
-                            <div className="min-w-0 text-left ml-2">
+                            <div className="min-w-0 text-left ml-2 flex-1">
                               <div className="flex items-center gap-2 ml-1">
                                 <p className="text-sm font-semibold truncate">{displayName}</p>
                               </div>
@@ -776,6 +871,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                                 )}
                               </div>
                             </div>
+
                           </div>
                         </AccordionTrigger>
 
@@ -948,13 +1044,91 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
 
 
         {/* Onglet Demandes */}
-         {/* <TabsContent value="requests">
+         <TabsContent value="requests">
             <NotaireRequests
               dossierId={dossier.id}
               initialRequests={dossier.requests || []}
               bailParties={dossier.bail?.parties || []}
             />
-          </TabsContent> */}
+          </TabsContent>
+
+        {/* Onglet Documents annexes */}
+        {totalAnnexDocuments > 0 && (
+          <TabsContent value="annex-documents" className="space-y-4">
+            {isLoadingAnnexDocuments ? (
+              <Card>
+                <CardContent className="py-6">
+                  <div className="flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">Chargement des documents...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                {annexDocuments.map((group) => (
+                  <Card key={group.partyId || "unknown"}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        {group.partyName}
+                        {group.profilType && (
+                          <Badge variant="outline">
+                            {group.profilType === "PROPRIETAIRE" ? "Propriétaire" : "Locataire"}
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        {group.documents.length} document{group.documents.length > 1 ? "s" : ""}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {group.documents.map((doc) => (
+                          <div
+                            key={doc.id}
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <File className="h-5 w-5 text-muted-foreground shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{doc.label || "Document sans nom"}</p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                  <span>Demande: {doc.requestTitle}</span>
+                                  <span>•</span>
+                                  <span>Envoyé par: {doc.uploadedBy.name || doc.uploadedBy.email}</span>
+                                  <span>•</span>
+                                  <span>{formatDateTime(doc.createdAt)}</span>
+                                  {doc.size && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{(doc.size / 1024).toFixed(1)} Ko</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const url = getS3PublicUrl(doc.fileKey) || doc.fileKey;
+                                window.open(url, "_blank");
+                              }}
+                              className="shrink-0"
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Télécharger
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        )}
       </Tabs>
 
             {/* Informations générales */}
@@ -974,6 +1148,23 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
           </div>}
         </CardContent>
       </Card>
+
+      {/* Chat avec les clients - accessible depuis tous les onglets */}
+      {dossier.bail && (
+        <NotaireBailChatSheet
+          bailId={dossier.bail.id}
+          dossierId={dossier.id}
+          bailParties={dossier.bail.parties || []}
+          selectedPartyId={selectedPartyId}
+          open={chatOpen}
+          onOpenChange={(isOpen) => {
+            setChatOpen(isOpen);
+            if (!isOpen) {
+              setSelectedPartyId(null);
+            }
+          }}
+        />
+      )}
 
     </div>
   );

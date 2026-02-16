@@ -5,6 +5,7 @@ import { randomBytes } from "crypto";
 import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
 import { triggerOwnerFormEmail, triggerRequestStatusEmail } from "@/lib/inngest/helpers";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
+import { createUserForClient } from "@/lib/utils/user-creation";
 import { z } from "zod";
 
 const startOwnerSchema = z.object({
@@ -20,7 +21,8 @@ const startTenantSchema = z.object({
 export type StartOwnerInput = z.infer<typeof startOwnerSchema>;
 export type StartTenantInput = z.infer<typeof startTenantSchema>;
 
-// Créer un intakeLink pour un propriétaire depuis la landing page (sans authentification)
+// Créer un intakeLink pour un propriétaire depuis la landing page
+// Retourne isExistingClient pour savoir où rediriger après vérification OTP
 export async function startAsOwner(data: StartOwnerInput) {
   const validated = startOwnerSchema.parse(data);
   const email = validated.email.toLowerCase().trim();
@@ -41,6 +43,7 @@ export async function startAsOwner(data: StartOwnerInput) {
   // Variable pour savoir si le client existait déjà
   const isExistingClient = !!client;
 
+  console.log(`[startAsOwner] email=${email}, isExistingClient=${isExistingClient}, clientId=${client?.id || "null"}`);
 
   // Si le client existe mais est un LOCATAIRE, retourner une erreur
   if (client && client.profilType === ProfilType.LOCATAIRE) {
@@ -69,6 +72,14 @@ export async function startAsOwner(data: StartOwnerInput) {
       },
     });
 
+    // Créer automatiquement un User pour ce client (nécessaire pour l'OTP Better Auth)
+    try {
+      await createUserForClient(client.id);
+    } catch (error) {
+      console.error("Erreur lors de la création du User pour le client:", error);
+      // On continue même si la création du User échoue
+    }
+
     const token = randomBytes(32).toString("hex");
     const intakeLink = await prisma.intakeLink.create({
       data: {
@@ -76,7 +87,6 @@ export async function startAsOwner(data: StartOwnerInput) {
         target: "OWNER",
         clientId: client?.id,
         status: "PENDING",
-        // Pas de createdById car pas d'authentification
       },
     });
 
@@ -85,38 +95,22 @@ export async function startAsOwner(data: StartOwnerInput) {
       NotificationType.CLIENT_CREATED_FROM_LANDING_PAGE,
       "CLIENT",
       client.id,
-      null, // Créé depuis la landing page, pas par un utilisateur
-      { createdByForm: true ,profileType: ProfilType.PROPRIETAIRE }
+      null,
+      { createdByForm: true, profileType: ProfilType.PROPRIETAIRE }
     );
 
-    // Envoyer un email au propriétaire avec le formulaire
-    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-    const ownerFormUrl = `${baseUrl}/commencer/proprietaire/${token}`;
-    
-    // Récupérer les informations de Person pour l'email
-    const ownerPersonData = await prisma.person.findFirst({
-      where: { clientId: client.id, isPrimary: true },
-    });
-
-    const firstName = ownerPersonData?.firstName || "";
-    const lastName = ownerPersonData?.lastName || "";
-    
+    // L'email OTP sera envoyé côté client via Better Auth
+    console.log(`[startAsOwner] Nouveau client créé. token=${intakeLink.token}, isExistingClient=false`);
+    return { success: true, token: intakeLink.token, isExistingClient: false };
+  } else {
+    // Client existant : s'assurer qu'un User existe pour l'OTP
     try {
-      await triggerOwnerFormEmail({
-        to: email,
-        firstName: firstName,
-        lastName: lastName,
-        formUrl: ownerFormUrl,
-        emailContext: "landing_owner",
-      });
+      await createUserForClient(client!.id);
     } catch (error) {
-      console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
-      // On continue même si l'email échoue
+      // Le User existe peut-être déjà, on continue
     }
 
-    return { success: true, token: intakeLink.token };
-  } else {
-    // Vérifier d'abord s'il y a un IntakeLink soumis
+    // Vérifier s'il y a un IntakeLink soumis
     const submittedIntakeLink = await prisma.intakeLink.findFirst({
       where: {
         clientId: client?.id,
@@ -126,76 +120,45 @@ export async function startAsOwner(data: StartOwnerInput) {
       orderBy: {
         createdAt: "desc",
       },
-      include: {
-        bail: {
-          include: {
-            property: true,
-          },
-        },
+    });
+
+    // Client existant avec IntakeLink soumis → on l'authentifie puis redirige vers l'espace client
+    if (submittedIntakeLink) {
+      console.log(`[startAsOwner] Client existant avec IntakeLink SUBMITTED. isExistingClient=true`);
+      return { 
+        success: true, 
+        isExistingClient: true,
+      };
+    }
+
+    // Vérifier s'il y a un IntakeLink en cours
+    const pendingIntakeLink = await prisma.intakeLink.findFirst({
+      where: {
+        clientId: client?.id,
+        target: "OWNER",
+        status: "PENDING",
+      },
+      orderBy: {
+        createdAt: "desc",
       },
     });
 
-    // Si un IntakeLink soumis existe, retourner une indication
-    if (submittedIntakeLink) {
-      return { 
-        success: false, 
-        alreadyExists: true,
-        alreadySubmitted: true,
-        message: "Vous êtes déjà client. Votre demande de bail notarié est en cours de traitement.",
-        redirectTo: "/commencer/suivi",
-      };
-    } else {
-      // Vérifier s'il y a un IntakeLink en cours
-      const pendingIntakeLink = await prisma.intakeLink.findFirst({
-        where: {
-          clientId: client?.id,
-          target: "OWNER",
-          status: "PENDING",
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-
-      if (pendingIntakeLink && client) {
-        // Envoyer un email au propriétaire avec le formulaire
-        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-        const ownerFormUrl = `${baseUrl}/commencer/proprietaire/${pendingIntakeLink.token}`;
-        
-        // Récupérer les informations de Person pour l'email
-        const ownerPersonData = await prisma.person.findFirst({
-          where: { clientId: client.id, isPrimary: true },
-        });
-
-        const firstName = ownerPersonData?.firstName || "";
-        const lastName = ownerPersonData?.lastName || "";
-        
-        try {
-          await triggerOwnerFormEmail({
-            to: email,
-            firstName: firstName,
-            lastName: lastName,
-            formUrl: ownerFormUrl,
-            emailContext: "landing_owner",
-          });
-        } catch (error) {
-          console.error("Erreur lors du déclenchement de l'email au propriétaire:", error);
-          // On continue même si l'email échoue
-        }
-
-        return {
-          success: true,
-          token: pendingIntakeLink.token,
-        };
-      }
-
-      return { 
-        success: false, 
-        alreadyExists: true, 
-        message: "Vous êtes déjà client. Contactez-nous pour plus d'informations.",
-        redirectTo: "/commencer/suivi",
+    if (pendingIntakeLink && client) {
+      // Client existant avec formulaire en cours → redirige vers l'espace client
+      console.log(`[startAsOwner] Client existant avec IntakeLink PENDING. token=${pendingIntakeLink.token}, isExistingClient=true`);
+      return {
+        success: true,
+        token: pendingIntakeLink.token,
+        isExistingClient: true,
       };
     }
+
+    // Client existant sans IntakeLink → on l'authentifie et redirige vers l'espace client
+    console.log(`[startAsOwner] Client existant sans IntakeLink. isExistingClient=true`);
+    return { 
+      success: true, 
+      isExistingClient: true,
+    };
   }  
 }
 
@@ -294,6 +257,14 @@ export async function startAsTenant(data: StartTenantInput) {
         },
       },
     });
+
+    // Créer automatiquement un User pour le propriétaire
+    try {
+      await createUserForClient(owner.id);
+    } catch (error) {
+      console.error("Erreur lors de la création du User pour le propriétaire:", error);
+      // On continue même si la création du User échoue
+    }
 
     // Notification pour création de propriétaire
     await createNotificationForAllUsers(

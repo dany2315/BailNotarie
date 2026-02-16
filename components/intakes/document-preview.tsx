@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { File, Eye, Download, Image, ImageDown, ImageIcon } from "lucide-react";
+import { File, Eye, Download, Image, ImageDown, ImageIcon, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getIntakeDocuments } from "@/lib/actions/intakes";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
+import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 
 interface DocumentPreviewProps {
   token: string;
@@ -21,6 +22,8 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [isLoadingSignedUrl, setIsLoadingSignedUrl] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const isViewerOpenRef = useRef(false);
   const hasLoadedRef = useRef(false);
@@ -93,23 +96,91 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
   // Mettre à jour la ref quand isViewerOpen change
   useEffect(() => {
     isViewerOpenRef.current = isViewerOpen;
+    // Réinitialiser l'URL signée quand le dialog se ferme
+    if (!isViewerOpen) {
+      setSignedUrl(null);
+    }
   }, [isViewerOpen]);
 
-  const handleViewDocument = (doc: any) => {
-    setSelectedDocument(doc);
-    setIsViewerOpen(true);
+  // Fonction pour obtenir une URL signée pour la lecture
+  const getSignedUrlForDocument = async (fileKey: string): Promise<string> => {
+    try {
+      const response = await fetch("/api/blob/get-signed-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la génération de l'URL signée");
+      }
+
+      const { signedUrl } = await response.json();
+      return signedUrl;
+    } catch (error) {
+      console.error("[DocumentPreview] Erreur lors de la génération de l'URL signée:", error);
+      // Fallback : générer l'URL publique depuis la clé S3
+      return getS3PublicUrl(fileKey) || fileKey;
+    }
   };
 
-  const handleDownloadDocument = (doc: any) => {
-    const link = document.createElement("a");
-    link.href = doc.fileKey.startsWith("http") 
-      ? doc.fileKey 
-      : doc.fileKey.startsWith("/") 
-        ? doc.fileKey 
-        : `/${doc.fileKey}`;
-    link.download = doc.label || `document-${doc.id}`;
-    link.target = "_blank";
-    link.click();
+  const handleViewDocument = async (doc: any) => {
+    setSelectedDocument(doc);
+    setIsViewerOpen(true);
+    setIsLoadingSignedUrl(true);
+    
+    // Générer une URL signée pour la lecture
+    try {
+      const url = await getSignedUrlForDocument(doc.fileKey);
+      setSignedUrl(url);
+    } catch (error) {
+      console.error("[DocumentPreview] Erreur:", error);
+      // Fallback : générer l'URL publique depuis la clé S3
+      setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
+    } finally {
+      setIsLoadingSignedUrl(false);
+    }
+  };
+
+  const handleDownloadDocument = async (doc: any) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      // Obtenir une URL signée pour le téléchargement (fonctionne avec clé S3 ou URL complète)
+      let downloadUrl = doc.fileKey;
+      
+      try {
+        downloadUrl = await getSignedUrlForDocument(doc.fileKey);
+      } catch (error) {
+        // Si c'est une URL complète (ancien format), utiliser directement
+        if (doc.fileKey?.startsWith("http")) {
+          downloadUrl = doc.fileKey;
+        } else {
+          // Sinon, générer l'URL publique depuis la clé S3
+          downloadUrl = getS3PublicUrl(doc.fileKey) || doc.fileKey;
+        }
+        console.warn("[DocumentPreview] Impossible d'obtenir une URL signée, utilisation de l'URL publique");
+      }
+      
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error("Erreur lors du téléchargement du fichier");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = doc.label || `document-${doc.id}`;
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("[DocumentPreview] Erreur lors du téléchargement:", error);
+    }
   };
 
   const getDocumentIcon = (mimeType?: string) => {
@@ -191,25 +262,28 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
           <div className="mt-4">
             {selectedDocument && (
               <div className="space-y-4">
-                {selectedDocument.mimeType?.includes("image") ? (
+                {isLoadingSignedUrl ? (
+                  <div className="flex items-center justify-center h-[70vh]">
+                    <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Chargement du document...</span>
+                  </div>
+                ) : selectedDocument.mimeType?.includes("image") ? (
                   <img
-                    src={selectedDocument.fileKey.startsWith("http") 
-                      ? selectedDocument.fileKey 
-                      : selectedDocument.fileKey.startsWith("/") 
-                        ? selectedDocument.fileKey 
-                        : `/${selectedDocument.fileKey}`}
+                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                     alt={selectedDocument.label || "Document"}
                     className="max-w-full max-h-[70vh] mx-auto object-contain"
+                    onError={(e) => {
+                      console.error("[DocumentPreview] Erreur de chargement de l'image:", e);
+                    }}
                   />
                 ) : selectedDocument.mimeType?.includes("pdf") ? (
                   <iframe
-                    src={selectedDocument.fileKey.startsWith("http") 
-                      ? selectedDocument.fileKey 
-                      : selectedDocument.fileKey.startsWith("/") 
-                        ? selectedDocument.fileKey 
-                        : `/${selectedDocument.fileKey}`}
+                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                     className="w-full h-[70vh] border rounded"
                     title={selectedDocument.label || "Document PDF"}
+                    onError={() => {
+                      console.error("[DocumentPreview] Erreur de chargement du PDF");
+                    }}
                   />
                 ) : (
                   <div className="text-center py-8">

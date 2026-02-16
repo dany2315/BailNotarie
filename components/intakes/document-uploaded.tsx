@@ -10,6 +10,7 @@ import { deleteDocument } from "@/lib/actions/documents";
 import { toast } from "sonner";
 import { DocumentKind } from "@prisma/client";
 import { documentKindLabels } from "@/lib/utils/document-labels";
+import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 
 interface DocumentUploadedProps {
   token: string;
@@ -34,6 +35,8 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
   const [document, setDocument] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [isLoadingSignedUrl, setIsLoadingSignedUrl] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false); // Ajouter cet état
@@ -153,11 +156,50 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
   // Mettre à jour la ref quand isViewerOpen change
   useEffect(() => {
     isViewerOpenRef.current = isViewerOpen;
+    // Réinitialiser l'URL signée quand le dialog se ferme
+    if (!isViewerOpen) {
+      setSignedUrl(null);
+    }
   }, [isViewerOpen]);
 
-  const handleViewDocument = (doc: any) => {
+  // Fonction pour obtenir une URL signée pour la lecture
+  const getSignedUrlForDocument = async (fileKey: string): Promise<string> => {
+    try {
+      const response = await fetch("/api/blob/get-signed-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la génération de l'URL signée");
+      }
+
+      const { signedUrl } = await response.json();
+      return signedUrl;
+    } catch (error) {
+      console.error("[DocumentUploaded] Erreur lors de la génération de l'URL signée:", error);
+      // Fallback : générer l'URL publique depuis la clé S3
+      return getS3PublicUrl(fileKey) || fileKey;
+    }
+  };
+
+  const handleViewDocument = async (doc: any) => {
     setSelectedDocument(doc);
     setIsViewerOpen(true);
+    setIsLoadingSignedUrl(true);
+    
+    // Générer une URL signée pour la lecture
+    try {
+      const url = await getSignedUrlForDocument(doc.fileKey);
+      setSignedUrl(url);
+    } catch (error) {
+      console.error("[DocumentUploaded] Erreur:", error);
+      // Fallback : générer l'URL publique depuis la clé S3
+      setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
+    } finally {
+      setIsLoadingSignedUrl(false);
+    }
   };
 
   const handleDownloadDocument = async (doc: any) => {
@@ -169,34 +211,37 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
 
     setIsDownloading(true); // Activer le loader
     try {
-      // Si fileKey est une URL complète (Vercel Blob), utiliser fetch pour télécharger
-      if (doc.fileKey?.startsWith("http")) {
-        const response = await fetch(doc.fileKey);
-        if (!response.ok) {
-          throw new Error("Erreur lors du téléchargement du fichier");
+      // Obtenir une URL signée pour le téléchargement (fonctionne avec clé S3 ou URL complète)
+      let downloadUrl = doc.fileKey;
+      
+      try {
+        downloadUrl = await getSignedUrlForDocument(doc.fileKey);
+      } catch (error) {
+        // Si c'est une URL complète (ancien format), utiliser directement
+        if (doc.fileKey?.startsWith("http")) {
+          downloadUrl = doc.fileKey;
+        } else {
+          // Sinon, générer l'URL publique depuis la clé S3
+          downloadUrl = getS3PublicUrl(doc.fileKey) || doc.fileKey;
         }
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const link = window.document.createElement("a");
-        link.href = url;
-        link.download = doc.label || doc.fileName || `document-${doc.kind}`;
-        window.document.body.appendChild(link);
-        link.click();
-        window.document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } else {
-        // Pour les chemins relatifs, utiliser l'approche classique
-        const link = window.document.createElement("a");
-        link.href = doc.fileKey?.startsWith("/") 
-          ? doc.fileKey 
-          : `/${doc.fileKey || ""}`;
-        link.download = doc.label || doc.fileName || `document-${doc.kind}`;
-        link.target = "_blank";
-        window.document.body.appendChild(link);
-        link.click();
-        window.document.body.removeChild(link);
+        console.warn("[DocumentUploaded] Impossible d'obtenir une URL signée, utilisation de l'URL publique");
       }
+      
+      // Télécharger le fichier
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error("Erreur lors du téléchargement du fichier");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = doc.label || doc.fileName || `document-${doc.kind}`;
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Erreur lors du téléchargement:", error);
       toast.error("Erreur lors du téléchargement du document");
@@ -363,25 +408,30 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
           <div className="mt-4">
             {selectedDocument && (
               <div className="space-y-4">
-                {selectedDocument.mimeType?.includes("image") ? (
+                {isLoadingSignedUrl ? (
+                  <div className="flex items-center justify-center h-[70vh]">
+                    <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Chargement du document...</span>
+                  </div>
+                ) : selectedDocument.mimeType?.includes("image") ? (
                   <img
-                    src={selectedDocument.fileKey.startsWith("http") 
-                      ? selectedDocument.fileKey 
-                      : selectedDocument.fileKey.startsWith("/") 
-                        ? selectedDocument.fileKey 
-                        : `/${selectedDocument.fileKey}`}
+                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                     alt={selectedDocument.label || "Document"}
                     className="max-w-full max-h-[70vh] mx-auto object-contain"
+                    onError={(e) => {
+                      console.error("[DocumentUploaded] Erreur de chargement de l'image:", e);
+                      toast.error("Impossible de charger l'image");
+                    }}
                   />
                 ) : selectedDocument.mimeType?.includes("pdf") ? (
                   <iframe
-                    src={selectedDocument.fileKey.startsWith("http") 
-                      ? selectedDocument.fileKey 
-                      : selectedDocument.fileKey.startsWith("/") 
-                        ? selectedDocument.fileKey 
-                        : `/${selectedDocument.fileKey}`}
+                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
                     className="w-full h-[70vh] border rounded"
                     title={selectedDocument.label || "Document PDF"}
+                    onError={() => {
+                      console.error("[DocumentUploaded] Erreur de chargement du PDF");
+                      toast.error("Impossible de charger le PDF");
+                    }}
                   />
                 ) : (
                   <div className="text-center py-8">

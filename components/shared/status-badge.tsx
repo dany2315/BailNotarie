@@ -78,7 +78,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     },
     PENDING_VALIDATION: { 
       variant: "secondary", 
-      label: "En validation",
+      label: "En cours de validation",
       icon: <CircleDot className="size-4" />
     },
     READY_FOR_NOTARY: { 
@@ -135,12 +135,12 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     },
     PARTIAL: { 
       variant: "outline", 
-      label: "Partiel",
+      label: "Partiellement complété",
       icon: <CircleDot className="size-4" />
     },
     PENDING_CHECK: { 
       variant: "outline", 
-      label: "En vérification",
+      label: "En cours de vérification",
       icon: <CircleDot className="size-4" />
     },
     COMPLETED: { 

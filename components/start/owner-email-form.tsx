@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -28,6 +28,7 @@ interface OwnerEmailFormProps {
 export function OwnerEmailForm({ onSuccess, onBack }: OwnerEmailFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [errorState, setErrorState] = useState<{
     message: string;
     redirectTo?: string;
@@ -52,18 +53,26 @@ export function OwnerEmailForm({ onSuccess, onBack }: OwnerEmailFormProps) {
       if (result.success) {
         if (result.tenantToken) {
           toast.success("Un email a été envoyé au propriétaire avec le formulaire");
-          onSuccess?.(result.tenantToken);
+          // Garder le loader actif pendant la redirection
+          setIsRedirecting(true);
+          startTransition(() => {
+            onSuccess?.(result.tenantToken);
+          });
+          // Ne pas mettre isLoading à false ici, laisser le loader actif
         }
       } else if (result.alreadyExists || result.isTenant) {
+        setIsLoading(false);
         setErrorState({
           message: result.message || "Le propriétaire a déjà fait sa demande. Votre demande de bail notarié est en cours de traitement.",
           redirectTo: result.redirectTo,
         });
+      } else {
+        setIsLoading(false);
       }
     } catch (error: any) {
-      toast.error(error.message || "Une erreur s'est produite");
-    } finally {
       setIsLoading(false);
+      setIsRedirecting(false);
+      toast.error(error.message || "Une erreur s'est produite");
     }
   };
 
@@ -102,7 +111,7 @@ export function OwnerEmailForm({ onSuccess, onBack }: OwnerEmailFormProps) {
                 placeholder="proprietaire@example.com"
                 className="pl-10"
                 {...form.register("ownerEmail")}
-                disabled={isLoading}
+                disabled={isLoading || isRedirecting}
               />
             </div>
             {form.formState.errors.ownerEmail && (
@@ -122,7 +131,7 @@ export function OwnerEmailForm({ onSuccess, onBack }: OwnerEmailFormProps) {
                 variant="outline"
                 onClick={onBack}
                 className="w-full sm:w-auto"
-                disabled={isLoading}
+                disabled={isLoading || isRedirecting}
               >
                 Retour
               </Button>
@@ -131,12 +140,12 @@ export function OwnerEmailForm({ onSuccess, onBack }: OwnerEmailFormProps) {
               type="submit"
               size="lg"
               className="w-full sm:flex-1"
-              disabled={isLoading}
+              disabled={isLoading || isRedirecting}
             >
-              {isLoading ? (
+              {(isLoading || isRedirecting) ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Envoi en cours...
+                  {isRedirecting ? "Redirection en cours..." : "Envoi en cours..."}
                 </>
               ) : (
                 <>

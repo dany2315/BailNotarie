@@ -40,6 +40,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import type { AddressData } from "@/lib/types/address";
 import {
   Select,
   SelectContent,
@@ -57,6 +59,9 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { DatePicker, formatDateToLocalString } from "@/components/ui/date-picker";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { RentControlAlert } from "@/components/ui/rent-control-alert";
+import { validateRentAmount } from "@/lib/utils/rent-validation";
+import type { RentValidationResult } from "@/lib/utils/rent-validation";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -142,6 +147,7 @@ type StepId = (typeof STEPS)[number]["id"];
 type IntakeLink = {
   token: string;
   clientId: string;
+  propertyId?: string | null;
   client: any;
   property: any;
   bail: any;
@@ -280,6 +286,16 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   // Bien
   const propertyLabel = property?.label ?? "";
   const propertyFullAddress = property?.fullAddress ?? "";
+  const propertyHousenumber = property?.housenumber ?? "";
+  const propertyStreet = property?.street ?? "";
+  const propertyCity = property?.city ?? "";
+  const propertyPostalCode = property?.postalCode ?? "";
+  const propertyDistrict = property?.district ?? "";
+  const propertyInseeCode = property?.inseeCode ?? "";
+  const propertyDepartment = property?.department ?? "";
+  const propertyRegion = property?.region ?? "";
+  const propertyLatitude = property?.latitude ? property.latitude.toString() : "";
+  const propertyLongitude = property?.longitude ? property.longitude.toString() : "";
   const propertySurfaceM2 = property?.surfaceM2?.toString() ?? "";
   const propertyType = property?.type ?? undefined;
   const propertyLegalStatus = property?.legalStatus ?? undefined;
@@ -369,6 +385,16 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       // Bien
       propertyLabel,
       propertyFullAddress,
+      propertyHousenumber,
+      propertyStreet,
+      propertyCity,
+      propertyPostalCode,
+      propertyDistrict,
+      propertyInseeCode,
+      propertyDepartment,
+      propertyRegion,
+      propertyLatitude,
+      propertyLongitude,
       propertySurfaceM2,
       propertyType,
       propertyLegalStatus,
@@ -430,6 +456,16 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       // Bien
       propertyLabel,
       propertyFullAddress,
+      propertyHousenumber,
+      propertyStreet,
+      propertyCity,
+      propertyPostalCode,
+      propertyDistrict,
+      propertyInseeCode,
+      propertyDepartment,
+      propertyRegion,
+      propertyLatitude,
+      propertyLongitude,
       propertySurfaceM2,
       propertyType,
       propertyLegalStatus,
@@ -488,6 +524,7 @@ const getRequiredFields = (
     case "property":
       return [
         "propertyFullAddress",
+        "propertyInseeCode",
         "propertySurfaceM2",
         "propertyType",
         "propertyLegalStatus",
@@ -1264,6 +1301,16 @@ const [clientType, setClientType] = useState<ClientType | "">(
         return [
           "propertyLabel",
           "propertyFullAddress",
+          "propertyHousenumber",
+          "propertyStreet",
+          "propertyCity",
+          "propertyPostalCode",
+          "propertyDistrict",
+          "propertyInseeCode",
+          "propertyDepartment",
+          "propertyRegion",
+          "propertyLatitude",
+          "propertyLongitude",
           "propertySurfaceM2",
           "propertyType",
           "propertyLegalStatus",
@@ -2215,7 +2262,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
           {STEPS[currentStep].id === "property" && (
             <PropertyStep form={form as any} isMobile={isMobile} />
           )}
-          {STEPS[currentStep].id === "bail" && <BailStep form={form as any} />}
+          {STEPS[currentStep].id === "bail" && <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} />}
           {STEPS[currentStep].id === "tenant" && <TenantStep form={form as any} />}
           {STEPS[currentStep].id === "documents" && (
             <DocumentsStep
@@ -2590,8 +2637,12 @@ const ClientInfoStep = ({
               id="entreprise.email" 
               type="email" 
               disabled={isEmailLocked}
+              className={isEmailLocked ? "bg-muted cursor-not-allowed" : ""}
               {...form.register("entreprise.email" as any)} 
             />
+            {isEmailLocked && (
+              <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
+            )}
             {form.formState.errors.entreprise?.email && (
               <p className="text-sm text-destructive">
                 {form.formState.errors.entreprise.email.message}
@@ -2723,7 +2774,11 @@ const ClientInfoStep = ({
                       type="email"
                       {...form.register(`persons.${index}.email` as any)}
                       disabled={isEmailLocked && index === 0}
+                      className={isEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}
                     />
+                    {isEmailLocked && index === 0 && (
+                      <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
+                    )}
                     {form.formState.errors.persons?.[index]?.email && (
                       <p className="text-sm text-destructive">
                         {form.formState.errors.persons[index]?.email?.message}
@@ -2745,6 +2800,9 @@ const ClientInfoStep = ({
                         />
                       )}
                     />
+                    {isPhoneLocked && index === 0 && (
+                      <p className="text-sm text-muted-foreground">Le téléphone ne peut pas être modifié</p>
+                    )}
                     {form.formState.errors.persons?.[index]?.phone && (
                       <p className="text-sm text-destructive">
                         {form.formState.errors.persons[index]?.phone?.message}
@@ -3184,12 +3242,61 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
       </div>
       <div className="space-y-2">
         <Label htmlFor="propertyFullAddress">Adresse complète du bien *</Label>
-        <Textarea id="propertyFullAddress" {...form.register("propertyFullAddress")} />
+        <AddressAutocomplete
+          value={form.watch("propertyFullAddress") || ""}
+          onAddressSelect={(addressData: AddressData) => {
+            console.log("📍 [OwnerIntakeForm] Adresse sélectionnée:", addressData);
+            form.setValue("propertyFullAddress", addressData.fullAddress);
+            form.setValue("propertyHousenumber", addressData.housenumber || "");
+            form.setValue("propertyStreet", addressData.street || "");
+            form.setValue("propertyCity", addressData.city);
+            form.setValue("propertyPostalCode", addressData.postalCode);
+            form.setValue("propertyDistrict", addressData.district || "");
+            form.setValue("propertyInseeCode", addressData.inseeCode);
+            form.setValue("propertyDepartment", addressData.department || "");
+            form.setValue("propertyRegion", addressData.region || "");
+            form.setValue("propertyLatitude", addressData.latitude);
+            form.setValue("propertyLongitude", addressData.longitude);
+          }}
+          onChange={(value) => form.setValue("propertyFullAddress", value)}
+          placeholder="Rechercher une adresse..."
+          error={form.formState.errors.propertyFullAddress?.message}
+        />
         {form.formState.errors.propertyFullAddress && (
           <p className="text-sm text-destructive">
             {form.formState.errors.propertyFullAddress.message}
           </p>
         )}
+      </div>
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="propertyPostalCode">Code postal *</Label>
+          <Input
+            id="propertyPostalCode"
+            {...form.register("propertyPostalCode")}
+            placeholder="75001"
+            value={form.watch("propertyPostalCode") || ""}
+          />
+          {form.formState.errors.propertyPostalCode && (
+            <p className="text-sm text-destructive">
+              {form.formState.errors.propertyPostalCode.message}
+            </p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="propertyCity">Ville *</Label>
+          <Input
+            id="propertyCity"
+            {...form.register("propertyCity")}
+            placeholder="Paris"
+            value={form.watch("propertyCity") || ""}
+          />
+          {form.formState.errors.propertyCity && (
+            <p className="text-sm text-destructive">
+              {form.formState.errors.propertyCity.message}
+            </p>
+          )}
+        </div>
       </div>
       <div className="grid gap-3 sm:gap-4 grid-cols-1">
         <div className="space-y-2">
@@ -3319,6 +3426,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
 
 type BailStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
+  propertyId?: string | null;
 };
 
 // Composant séparé pour afficher la validation du dépôt de garantie
@@ -3382,7 +3490,7 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
   );
 };
 
-const BailStep = ({ form }: BailStepProps) => {
+const BailStep = ({ form, propertyId }: BailStepProps) => {
   
   const isMobile = useIsMobile();
   
@@ -3399,6 +3507,44 @@ const BailStep = ({ form }: BailStepProps) => {
   // Vérifier si le bail actuel est un bail meublé
   const currentBailType = useWatch({ control: form.control, name: "bailType" });
   const isMeubleBail = currentBailType === BailType.BAIL_MEUBLE_1_ANS || currentBailType === BailType.BAIL_MEUBLE_9_MOIS;
+  
+  // Surveillance du loyer et de la surface pour validation zone tendue
+  const rentAmount = useWatch({ control: form.control, name: "bailRentAmount" });
+  const surfaceM2 = useWatch({ control: form.control, name: "propertySurfaceM2" });
+  const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
+  const [propertySurface, setPropertySurface] = useState<number | null>(null);
+
+  // Récupérer la surface du bien si propertyId existe
+  useEffect(() => {
+    if (propertyId) {
+      fetch(`/api/properties/${propertyId}`)
+        .then(res => res.json())
+        .then(data => {
+          setPropertySurface(data.surfaceM2 ? Number(data.surfaceM2) : null);
+        })
+        .catch(() => {
+          setPropertySurface(null);
+        });
+    } else {
+      setPropertySurface(surfaceM2 ? Number(surfaceM2) : null);
+    }
+  }, [propertyId, surfaceM2]);
+
+  // Valider le loyer quand il change
+  useEffect(() => {
+    if (propertyId && rentAmount) {
+      const rent = typeof rentAmount === 'number' ? rentAmount : parseFloat(String(rentAmount) || '0');
+      if (!isNaN(rent) && rent > 0) {
+        validateRentAmount(propertyId, rent, propertySurface)
+          .then(result => setRentValidationResult(result))
+          .catch(() => setRentValidationResult(null));
+      } else {
+        setRentValidationResult(null);
+      }
+    } else {
+      setRentValidationResult(null);
+    }
+  }, [propertyId, rentAmount, propertySurface]);
   
   // Nettoyer les erreurs de mobilier si on passe à un bail nu
   useEffect(() => {
@@ -3525,6 +3671,17 @@ const BailStep = ({ form }: BailStepProps) => {
           )}
         </div>
       </div>
+
+      {/* Avertissement zone tendue */}
+      {propertyId && (
+        <RentControlAlert
+          propertyId={propertyId}
+          rentAmount={rentAmount ? (typeof rentAmount === 'number' ? rentAmount : parseFloat(String(rentAmount) || '0')) : undefined}
+          surfaceM2={propertySurface}
+          validationResult={rentValidationResult}
+        />
+      )}
+
       <div className="grid gap-3 sm:gap-4 grid-cols-2">
         <div className="space-y-2">
           <div className="flex flex-row items-center gap-2">
@@ -3789,7 +3946,7 @@ const DocumentsStep = ({
                   }}
                   uploadToken={intakeLink.token}
                   documentKind="KBIS"
-                  clientId={intakeLink.clientId}
+                  documentClientId={intakeLink.clientId}
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>
@@ -3807,7 +3964,7 @@ const DocumentsStep = ({
                   }}
                   uploadToken={intakeLink.token}
                   documentKind="STATUTES"
-                  clientId={intakeLink.clientId}
+                  documentClientId={intakeLink.clientId}
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>
@@ -3849,7 +4006,7 @@ const DocumentsStep = ({
                           }}
                           uploadToken={intakeLink.token}
                           documentKind="ID_IDENTITY"
-                          clientId={intakeLink.clientId}
+                          documentClientId={intakeLink.clientId}
                           personIndex={index}
                           onUploadStateChange={onUploadStateChange}
                         />
@@ -3880,7 +4037,7 @@ const DocumentsStep = ({
                         }}
                         uploadToken={intakeLink.token}
                         documentKind="LIVRET_DE_FAMILLE"
-                        clientId={intakeLink.clientId}
+                        documentClientId={intakeLink.clientId}
                         onUploadStateChange={onUploadStateChange}
                       />
                     </DocumentUploaded>
@@ -3903,7 +4060,7 @@ const DocumentsStep = ({
                         }}
                         uploadToken={intakeLink.token}
                         documentKind="CONTRAT_DE_PACS"
-                        clientId={intakeLink.clientId}
+                        documentClientId={intakeLink.clientId}
                         onUploadStateChange={onUploadStateChange}
                       />
                     </DocumentUploaded>
@@ -3931,7 +4088,7 @@ const DocumentsStep = ({
               }}
               uploadToken={intakeLink.token}
               documentKind="INSURANCE"
-              clientId={intakeLink.clientId}
+              documentClientId={intakeLink.clientId}
               onUploadStateChange={onUploadStateChange}
             />
           </DocumentUploaded>
@@ -3949,7 +4106,7 @@ const DocumentsStep = ({
               }}
               uploadToken={intakeLink.token}
               documentKind="RIB"
-              clientId={intakeLink.clientId}
+              documentClientId={intakeLink.clientId}
               onUploadStateChange={onUploadStateChange}
             />
           </DocumentUploaded>
@@ -3967,7 +4124,7 @@ const DocumentsStep = ({
               }}
               uploadToken={intakeLink.token}
               documentKind="DIAGNOSTICS"
-              clientId={intakeLink.clientId}
+              documentClientId={intakeLink.clientId}
               onUploadStateChange={onUploadStateChange}
             />
           </DocumentUploaded>
@@ -3985,7 +4142,7 @@ const DocumentsStep = ({
               }}
               uploadToken={intakeLink.token}
               documentKind="TITLE_DEED"
-              clientId={intakeLink.clientId}
+              documentClientId={intakeLink.clientId}
               onUploadStateChange={onUploadStateChange}
             />
           </DocumentUploaded>
@@ -4007,7 +4164,7 @@ const DocumentsStep = ({
                 }}
                 uploadToken={intakeLink.token}
                 documentKind="REGLEMENT_COPROPRIETE"
-                clientId={intakeLink.clientId}
+                documentClientId={intakeLink.clientId}
                 onUploadStateChange={onUploadStateChange}
               />
             </DocumentUploaded>
@@ -4031,7 +4188,7 @@ const DocumentsStep = ({
                   }}
                   uploadToken={intakeLink.token}
                   documentKind="CAHIER_DE_CHARGE_LOTISSEMENT"
-                  clientId={intakeLink.clientId}
+                  documentClientId={intakeLink.clientId}
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>
@@ -4052,7 +4209,7 @@ const DocumentsStep = ({
                   }}
                   uploadToken={intakeLink.token}
                   documentKind="STATUT_DE_LASSOCIATION_SYNDICALE"
-                  clientId={intakeLink.clientId}
+                  documentClientId={intakeLink.clientId}
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>

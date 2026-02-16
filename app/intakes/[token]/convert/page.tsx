@@ -17,6 +17,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { convertLead, getLeadConversionLink } from "@/lib/actions/leads";
 import Image from "next/image";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 export default function ConvertLeadPage() {
   const params = useParams();
@@ -107,41 +108,10 @@ export default function ConvertLeadPage() {
 
   if (isValidating) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-6">
-          {/* Logo avec animation pulse */}
-          <div className="relative animate-pulse">
-            <Image
-              src="/logoLarge.png"
-              alt="BailNotarie"
-              width={200}
-              height={60}
-              className="h-16 sm:h-20 w-auto opacity-90"
-              priority
-            />
-          </div>
-          
-          {/* Spinner avec animation */}
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <div className="flex flex-col items-center gap-1">
-              <p className="text-sm font-medium text-foreground">
-                Chargement...
-              </p>
-              <p className="text-xs text-muted-foreground text-center max-w-xs px-4">
-                Vérification du lien de conversion
-              </p>
-            </div>
-          </div>
-          
-          {/* Animation de points de chargement */}
-          <div className="flex gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0s' }}></div>
-            <div className="h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-            <div className="h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-          </div>
-        </div>
-      </div>
+      <LoadingScreen 
+        message="Chargement..." 
+        description="Vérification du lien de conversion"
+      />
     );
   }
 

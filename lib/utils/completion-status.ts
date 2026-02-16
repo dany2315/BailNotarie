@@ -4,105 +4,13 @@ import {
   ProfilType, 
   FamilyStatus, 
   MatrimonialRegime, 
-  BienLegalStatus,
   CompletionStatus,
   DocumentKind,
   NotificationType,
   BailStatus
 } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
-
-/**
- * Détermine les champs de données requis pour un client selon son type et profil
- */
-export function getRequiredClientFields(
-  type: ClientType,
-  profilType: ProfilType,
-  familyStatus?: FamilyStatus | null,
-  matrimonialRegime?: MatrimonialRegime | null
-): {
-  requiredFields: string[];
-  requiredDocuments: DocumentKind[];
-} {
-  let requiredFields: string[] = [];
-  let requiredDocuments: DocumentKind[] = [];
-
-  // Champs communs à tous les clients
-  requiredFields.push("email");
-  
-  // Champs spécifiques selon le type
-  if (type === ClientType.PERSONNE_PHYSIQUE) {
-    requiredFields.push("firstName", "lastName", "nationality", "birthDate", "birthPlace");
-    
-    // Documents requis pour personne physique
-    requiredDocuments.push(DocumentKind.ID_IDENTITY);
-    
-    // Documents conditionnels selon le statut familial
-    if (familyStatus === FamilyStatus.MARIE) {
-      requiredDocuments.push(DocumentKind.LIVRET_DE_FAMILLE);
-      // Si marié, le régime matrimonial est requis
-      if (!matrimonialRegime) {
-        requiredFields.push("matrimonialRegime");
-      }
-    } else if (familyStatus === FamilyStatus.PACS) {
-      requiredDocuments.push(DocumentKind.CONTRAT_DE_PACS);
-    }
-    
-    // Si le statut familial nécessite un régime matrimonial
-    if (familyStatus === FamilyStatus.MARIE && !matrimonialRegime) {
-      requiredFields.push("matrimonialRegime");
-    }
-  } else if (type === ClientType.PERSONNE_MORALE) {
-    requiredFields.push("legalName", "registration");
-    
-    // Documents requis pour personne morale
-    requiredDocuments.push(DocumentKind.KBIS, DocumentKind.STATUTES);
-  }
-
-  // Champs communs selon le profil
-  if (profilType === ProfilType.PROPRIETAIRE) {
-    requiredFields.push("phone", "fullAddress");
-    // Ne pas ajouter INSURANCE et RIB ici car ils sont attachés au Property (bien)
-  } else if (profilType === ProfilType.LOCATAIRE) {
-    requiredFields.push("phone", "fullAddress");
-    // Pour les locataires, INSURANCE et RIB sont attachés au Client
-    requiredDocuments.push(DocumentKind.INSURANCE, DocumentKind.RIB);
-  } else if (profilType === ProfilType.LEAD) {
-    requiredFields = [];
-    requiredDocuments = [];
-  }
-
-  return { requiredFields, requiredDocuments };
-}
-
-/**
- * Détermine les champs de données requis pour un bien selon son statut légal
- */
-export function getRequiredPropertyFields(
-  legalStatus?: BienLegalStatus | null
-): {
-  requiredFields: string[];
-  requiredDocuments: DocumentKind[];
-} {
-  const requiredFields: string[] = ["fullAddress"];
-  const requiredDocuments: DocumentKind[] = [
-    DocumentKind.DIAGNOSTICS,
-    DocumentKind.TITLE_DEED,
-    // Documents du propriétaire attachés au Property (bien)
-    DocumentKind.INSURANCE,
-    DocumentKind.RIB,
-  ];
-
-  // Documents conditionnels selon le statut légal
-  if (legalStatus === BienLegalStatus.CO_PROPRIETE) {
-    requiredDocuments.push(DocumentKind.REGLEMENT_COPROPRIETE);
-  } else if (legalStatus === BienLegalStatus.LOTISSEMENT) {
-    requiredDocuments.push(DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT);
-    requiredDocuments.push(DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE);
-  }
-
-  return { requiredFields, requiredDocuments };
-}
+import { getRequiredClientFields, getRequiredPropertyFields } from "./required-fields";
 
 /**
  * Type pour les données manquantes détaillées par entité
@@ -791,11 +699,59 @@ async function checkAndUpdateBailStatus(bail: any): Promise<void> {
  * Met à jour le statut de complétion d'un client
  */
 export async function updateClientCompletionStatus(clientId: string): Promise<void> {
+  // Récupérer l'ancien statut
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { completionStatus: true, profilType: true },
+  });
+
+  if (!client) {
+    return;
+  }
+
+  const oldStatus = client.completionStatus;
   const newStatus = await calculateClientCompletionStatus(clientId);
   
+  // Mettre à jour le statut seulement s'il a changé
+  if (oldStatus === newStatus) {
+    // Vérifier quand même les baux au cas où
+    await checkAndUpdateBailStatusForClient(clientId);
+    return;
+  }
+
   await prisma.client.update({
     where: { id: clientId },
     data: { completionStatus: newStatus },
+  });
+
+  // Envoyer un email de notification au client (asynchrone)
+  const { getClientEmailAndName } = await import("./client-email");
+  const { triggerCompletionStatusEmail } = await import("../inngest/helpers");
+  
+  getClientEmailAndName(clientId).then(({ email, name, profilType }) => {
+    if (email) {
+      const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+      const dashboardPath = profilType === ProfilType.PROPRIETAIRE 
+        ? "/client/proprietaire" 
+        : profilType === ProfilType.LOCATAIRE
+        ? "/client/locataire"
+        : "/client";
+      
+      triggerCompletionStatusEmail({
+        to: email,
+        clientName: name,
+        entityType: "client",
+        entityName: name,
+        oldStatus,
+        newStatus,
+        dashboardUrl: `${baseUrl}${dashboardPath}`,
+        profilType: profilType === ProfilType.PROPRIETAIRE ? "PROPRIETAIRE" : profilType === ProfilType.LOCATAIRE ? "LOCATAIRE" : undefined,
+      }).catch((error) => {
+        console.error(`Erreur lors de l'envoi de l'email de changement de statut au client ${clientId}:`, error);
+      });
+    }
+  }).catch((error) => {
+    console.error(`Erreur lors de la récupération des informations du client ${clientId}:`, error);
   });
 
   // Vérifier et mettre à jour les baux si nécessaire
@@ -806,12 +762,71 @@ export async function updateClientCompletionStatus(clientId: string): Promise<vo
  * Met à jour le statut de complétion d'un bien
  */
 export async function updatePropertyCompletionStatus(propertyId: string): Promise<void> {
+  // Récupérer l'ancien statut et le propriétaire
+  const property = await prisma.property.findUnique({
+    where: { id: propertyId },
+    select: {
+      id: true,
+      completionStatus: true,
+      label: true,
+      fullAddress: true,
+      ownerId: true,
+      owner: {
+        select: { id: true, profilType: true },
+      },
+    },
+  });
+
+  if (!property) {
+    return;
+  }
+
+  const oldStatus = property.completionStatus;
   const newStatus = await calculatePropertyCompletionStatus(propertyId);
   
+  // Mettre à jour le statut seulement s'il a changé
+  if (oldStatus === newStatus) {
+    // Vérifier quand même les baux au cas où
+    await checkAndUpdateBailStatusForProperty(propertyId);
+    return;
+  }
+
   await prisma.property.update({
     where: { id: propertyId },
     data: { completionStatus: newStatus },
   });
+
+  // Envoyer un email de notification au propriétaire (asynchrone)
+  const { getClientEmailAndName } = await import("./client-email");
+  const { triggerCompletionStatusEmail } = await import("../inngest/helpers");
+  
+  if (property.ownerId) {
+    getClientEmailAndName(property.ownerId).then(({ email, name, profilType }) => {
+      if (email) {
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+        const dashboardPath = profilType === ProfilType.PROPRIETAIRE 
+          ? "/client/proprietaire" 
+          : "/client";
+        
+        const propertyName = property.label || property.fullAddress;
+        
+        triggerCompletionStatusEmail({
+          to: email,
+          clientName: name,
+          entityType: "property",
+          entityName: propertyName,
+          oldStatus,
+          newStatus,
+          dashboardUrl: `${baseUrl}${dashboardPath}`,
+          profilType: profilType === ProfilType.PROPRIETAIRE ? "PROPRIETAIRE" : undefined,
+        }).catch((error) => {
+          console.error(`Erreur lors de l'envoi de l'email de changement de statut au propriétaire ${property.ownerId}:`, error);
+        });
+      }
+    }).catch((error) => {
+      console.error(`Erreur lors de la récupération des informations du propriétaire ${property.ownerId}:`, error);
+    });
+  }
 
   // Vérifier et mettre à jour les baux si nécessaire
   await checkAndUpdateBailStatusForProperty(propertyId);

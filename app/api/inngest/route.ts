@@ -6,11 +6,14 @@ import { sendOwnerFormEmail, sendTenantFormEmail, sendRequestStatusEmail, sendIn
 import { sendLeadConversionEmail } from "@/lib/inngest/functions/leads";
 import { sendBlogCommentNotificationEmail } from "@/lib/inngest/functions/blog-comments";
 import { sendNotaireWelcomeEmail } from "@/lib/inngest/functions/notaires";
+import { sendChatMessageNotificationEmail } from "@/lib/inngest/functions/chat-messages";
+import { sendDocumentRequestEmail, sendDocumentReceivedEmail } from "@/lib/inngest/functions/document-requests";
 import { 
   calculateClientCompletionStatus, 
   calculatePropertyCompletionStatus,
   calculateCompletionStatuses 
 } from "@/lib/inngest/functions/completion-status";
+import { sendCompletionStatusEmail } from "@/lib/inngest/functions/completion-status-email";
 import { NextRequest } from "next/server";
 
 const handler = serve({
@@ -27,9 +30,13 @@ const handler = serve({
     sendLeadConversionEmail,
     sendBlogCommentNotificationEmail,
     sendNotaireWelcomeEmail,
+    sendChatMessageNotificationEmail,
+    sendDocumentRequestEmail,
+    sendDocumentReceivedEmail,
     calculateClientCompletionStatus,
     calculatePropertyCompletionStatus,
     calculateCompletionStatuses,
+    sendCompletionStatusEmail,
   ],
 });
 

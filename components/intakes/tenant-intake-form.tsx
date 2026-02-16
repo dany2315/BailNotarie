@@ -977,19 +977,101 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return null;
     }
 
-    // Uploader les fichiers via l'API route
-    const response = await fetch("/api/intakes/upload", {
-      method: "POST",
-      body: filesFormData,
-    });
+    // Uploader les fichiers via le nouveau système (upload individuel)
+    const uploadPromises: Promise<any>[] = [];
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Erreur lors de l'upload des fichiers");
+    // Fonction helper pour uploader un fichier
+    const uploadSingleFile = async (file: File, name: string, personIndex?: number): Promise<any> => {
+      const documentKind = fileToDocumentKind[name] || "ID_IDENTITY";
+      
+      // 1. Obtenir l'URL signée
+      const tokenResponse = await fetch("/api/blob/generate-upload-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: intakeLink.token,
+          fileName: file.name,
+          contentType: file.type || "application/octet-stream",
+          documentKind: documentKind,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const error = await tokenResponse.json();
+        throw new Error(error.error || "Erreur lors de la récupération de l'URL signée");
+      }
+
+      const { signedUrl, fileKey } = await tokenResponse.json();
+
+      // 2. Uploader vers S3
+      const xhr = new XMLHttpRequest();
+      await new Promise<void>((resolve, reject) => {
+        xhr.upload.addEventListener("progress", () => {});
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        });
+        xhr.addEventListener("error", () => reject(new Error("Upload failed")));
+        xhr.open("PUT", signedUrl);
+        xhr.send(file);
+      });
+
+      // 3. Créer le document dans la DB
+      const createDocResponse = await fetch("/api/documents/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: intakeLink.token,
+          fileKey: fileKey, // Clé S3 (pas l'URL complète)
+          kind: documentKind,
+          fileName: file.name,
+          mimeType: file.type,
+          size: file.size,
+          label: file.name,
+          ...(personIndex !== undefined && { personIndex }),
+        }),
+      });
+
+      if (!createDocResponse.ok) {
+        const error = await createDocResponse.json();
+        throw new Error(error.error || "Erreur lors de la création du document");
+      }
+
+      const docResult = await createDocResponse.json();
+      return {
+        ...docResult.document,
+        fileName: file.name,
+        target: personIndex !== undefined ? 'person' : 
+               (name === "kbis" || name === "statutes") ? 'entreprise' : 'client',
+        personIndex,
+      };
+    };
+
+    // Uploader tous les fichiers en parallèle
+    for (const [name, file] of filesFormData.entries()) {
+      if (name === "token" || name === "clientId") continue;
+      
+      const fileObj = file as File;
+      if (!fileObj || !(fileObj instanceof File)) continue;
+
+      // Extraire l'index de personne si présent (ex: idIdentity_0)
+      const personMatch = name.match(/^idIdentity_(\d+)$/);
+      const personIndex = personMatch ? parseInt(personMatch[1], 10) : undefined;
+      const baseName = personMatch ? "idIdentity" : name;
+
+      uploadPromises.push(
+        uploadSingleFile(fileObj, baseName, personIndex).catch((error) => {
+          console.error(`Erreur upload ${name}:`, error);
+          return null;
+        })
+      );
     }
 
-    const result = await response.json();
-    const uploadedDocuments = result.documents || [];
+    const results = await Promise.all(uploadPromises);
+    const uploadedDocuments = results.filter((doc): doc is any => doc !== null);
     
     console.log("[uploadFiles] Documents uploadés:", uploadedDocuments.length, uploadedDocuments);
 
@@ -2454,7 +2536,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     disabled={isSubmitting}
                     uploadToken={intakeLink.token}
                     documentKind="KBIS"
-                    clientId={client?.id}
+                    documentClientId={client?.id}
                     onUploadStateChange={handleUploadStateChange}
                   />
                 </DocumentUploaded>
@@ -2473,7 +2555,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     disabled={isSubmitting}
                     uploadToken={intakeLink.token}
                     documentKind="STATUTES"
-                    clientId={client?.id}
+                    documentClientId={client?.id}
                     onUploadStateChange={handleUploadStateChange}
                   />
                 </DocumentUploaded>
@@ -2516,7 +2598,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                             disabled={isSubmitting}
                             uploadToken={intakeLink.token}
                             documentKind="ID_IDENTITY"
-                            clientId={client?.id}
+                            documentClientId={client?.id}
                             personIndex={index}
                             onUploadStateChange={handleUploadStateChange}
                           />
@@ -2548,7 +2630,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           disabled={isSubmitting}
                           uploadToken={intakeLink.token}
                           documentKind="LIVRET_DE_FAMILLE"
-                          clientId={client?.id}
+                          documentClientId={client?.id}
                           onUploadStateChange={handleUploadStateChange}
                         />
                       </DocumentUploaded>
@@ -2572,7 +2654,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           disabled={isSubmitting}
                           uploadToken={intakeLink.token}
                           documentKind="CONTRAT_DE_PACS"
-                          clientId={client?.id}
+                          documentClientId={client?.id}
                           onUploadStateChange={handleUploadStateChange}
                         />
                       </DocumentUploaded>
@@ -2599,7 +2681,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   disabled={isSubmitting}
                   uploadToken={intakeLink.token}
                   documentKind="INSURANCE"
-                  clientId={client?.id}
+                  documentClientId={client?.id}
                   onUploadStateChange={handleUploadStateChange}
                 />
               </DocumentUploaded>
@@ -2618,7 +2700,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   disabled={isSubmitting}
                   uploadToken={intakeLink.token}
                   documentKind="RIB"
-                  clientId={client?.id}
+                  documentClientId={client?.id}
                   onUploadStateChange={handleUploadStateChange}
                 />
               </DocumentUploaded>

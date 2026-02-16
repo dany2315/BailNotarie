@@ -1,14 +1,15 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireRole } from "@/lib/auth-helpers";
+import { requireAuth, requireRole, requireProprietaireAuth } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
 import { revalidatePath } from "next/cache";
-import { BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType } from "@prisma/client";
+import { BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
+import { validateRentForProperty } from "@/lib/utils/rent-validation";
 
 export async function createLease(data: unknown) {
   const user = await requireAuth();
@@ -24,6 +25,19 @@ export async function createLease(data: unknown) {
     throw new Error("Bien introuvable");
   }
 
+  // Si l'utilisateur est un client, vérifier qu'il est propriétaire du bien
+  if (user.role === Role.UTILISATEUR) {
+    const { client } = await requireProprietaireAuth();
+    if (property.ownerId !== client.id) {
+      throw new Error("Vous ne pouvez créer des baux que pour vos propres biens");
+    }
+    // Vérifier le statut de completion
+    if (client.completionStatus !== CompletionStatus.PENDING_CHECK && 
+        client.completionStatus !== CompletionStatus.COMPLETED) {
+      throw new Error("Vous devez compléter vos informations personnelles et les soumettre à vérification avant de pouvoir créer un bail");
+    }
+  }
+
   // Vérifier que le locataire existe
   const tenant = await prisma.client.findUnique({
     where: { id: validated.tenantId },
@@ -31,6 +45,16 @@ export async function createLease(data: unknown) {
 
   if (!tenant) {
     throw new Error("Locataire introuvable");
+  }
+
+  // Valider le loyer selon les limitations de zone tendue
+  const rentValidation = await validateRentForProperty(validated.propertyId, validated.rentAmount);
+  if (!rentValidation.isValid && rentValidation.maxAllowed !== null) {
+    throw new Error(
+      `Le loyer de ${validated.rentAmount} € dépasse la limite autorisée de ${rentValidation.maxAllowed.toFixed(2)} € ` +
+      `(${rentValidation.maxRentPerM2?.toFixed(2)} €/m²). ` +
+      `Veuillez ajuster le loyer pour respecter la réglementation.`
+    );
   }
 
   // Mapper leaseType vers bailFamily
@@ -72,6 +96,56 @@ export async function createLease(data: unknown) {
     user.id
   );
 
+  // Créer un IntakeLink pour le locataire et envoyer l'email
+  const tenantParty = bail.parties.find((party) => party.profilType === ProfilType.LOCATAIRE);
+  if (tenantParty) {
+    // Vérifier si un IntakeLink existe déjà pour ce locataire et ce bail
+    let tenantIntakeLink = await prisma.intakeLink.findFirst({
+      where: {
+        clientId: tenantParty.id,
+        bailId: bail.id,
+        target: "TENANT",
+      },
+    });
+
+    if (!tenantIntakeLink) {
+      // Créer un nouvel IntakeLink
+      tenantIntakeLink = await prisma.intakeLink.create({
+        data: {
+          target: "TENANT",
+          clientId: tenantParty.id,
+          propertyId: validated.propertyId,
+          bailId: bail.id,
+          createdById: user.id,
+        },
+      });
+    }
+
+    // Récupérer l'email du locataire
+    const tenantPerson = await prisma.person.findFirst({
+      where: { clientId: tenantParty.id, isPrimary: true },
+    });
+    const tenantEmail = tenantPerson?.email;
+
+    if (tenantEmail) {
+      // Déclencher l'envoi d'email au locataire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
+      const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+      const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
+
+      try {
+        await triggerTenantFormEmail({
+          to: tenantEmail,
+          firstName: tenantPerson?.firstName || "",
+          lastName: tenantPerson?.lastName || "",
+          formUrl: tenantFormUrl,
+        });
+      } catch (error) {
+        console.error("Erreur lors du déclenchement de l'email au locataire:", error);
+        // On continue même si l'email échoue
+      }
+    }
+  }
+
   revalidatePath("/interface/baux");
   return bail;
 }
@@ -80,6 +154,30 @@ export async function updateLease(data: unknown) {
   const user = await requireAuth();
   const validated = updateLeaseSchema.parse(data);
   const { id, tenantId, leaseType, ...updateData } = validated;
+
+  // Récupérer le bail pour obtenir le propertyId
+  const bail = await prisma.bail.findUnique({
+    where: { id },
+    include: { property: true },
+  });
+
+  if (!bail) {
+    throw new Error("Bail introuvable");
+  }
+
+  const propertyId = updateData.propertyId || bail.propertyId;
+
+  // Valider le loyer si il est modifié
+  if (updateData.rentAmount !== undefined) {
+    const rentValidation = await validateRentForProperty(propertyId, updateData.rentAmount);
+    if (!rentValidation.isValid && rentValidation.maxAllowed !== null) {
+      throw new Error(
+        `Le loyer de ${updateData.rentAmount} € dépasse la limite autorisée de ${rentValidation.maxAllowed.toFixed(2)} € ` +
+        `(${rentValidation.maxRentPerM2?.toFixed(2)} €/m²). ` +
+        `Veuillez ajuster le loyer pour respecter la réglementation.`
+      );
+    }
+  }
 
   const updatePayload: any = {
     updatedById: user.id,
@@ -118,13 +216,13 @@ export async function updateLease(data: unknown) {
 
   // Si tenantId est fourni, mettre à jour les parties
   if (tenantId) {
-    const bail = await prisma.bail.findUnique({
+    const existingBailWithParties = await prisma.bail.findUnique({
       where: { id },
       include: { property: true, parties: true },
     });
 
-    if (bail) {
-      const owner = bail.parties.find((p) => p.profilType === ProfilType.PROPRIETAIRE);
+    if (existingBailWithParties) {
+      const owner = existingBailWithParties.parties.find((p) => p.profilType === ProfilType.PROPRIETAIRE);
       if (owner) {
         updatePayload.parties = {
           set: [
@@ -141,7 +239,7 @@ export async function updateLease(data: unknown) {
   const oldStatus = oldBail?.status;
   const newStatus = updatePayload.status || oldBail?.status;
 
-  const bail = await prisma.bail.update({
+  const updatedBail = await prisma.bail.update({
     where: { id },
     data: updatePayload,
     include: {
@@ -154,7 +252,7 @@ export async function updateLease(data: unknown) {
 
   revalidatePath("/interface/baux");
   revalidatePath(`/interface/baux/${id}`);
-  return bail;
+  return updatedBail;
 }
 
 export async function transitionLease(data: unknown) {
@@ -235,6 +333,16 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
           id: true,
         },
       },
+      messages: {
+        include: {
+          document: {
+            select: {
+              id: true,
+              fileKey: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -284,15 +392,31 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
   }
 
   // Si seulement un propriétaire, on peut supprimer
-  // Supprimer les documents et leurs fichiers blob
-  const documentFileKeys = bail.documents.map(doc => doc.fileKey);
-  if (documentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
-    await deleteBlobFiles(documentFileKeys);
+  // Collecter tous les documents (bail + messages)
+  const allDocumentFileKeys: string[] = [];
+  
+  // Documents du bail
+  allDocumentFileKeys.push(...bail.documents.map(doc => doc.fileKey));
+  
+  // Documents des messages
+  for (const message of bail.messages || []) {
+    if (message.document) {
+      allDocumentFileKeys.push(message.document.fileKey);
+    }
   }
 
-  // Supprimer les documents du bail
-  await prisma.document.deleteMany({
+  // Supprimer tous les fichiers AWS S3
+  if (allDocumentFileKeys.length > 0) {
+    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    await deleteBlobFiles(allDocumentFileKeys);
+  }
+
+  // Supprimer les documents du bail et des messages
+  const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+  await deleteDocumentsFromDB({ bailId: id });
+
+  // Supprimer les messages du bail (les documents associés sont déjà supprimés)
+  await prisma.bailMessage.deleteMany({
     where: { bailId: id },
   });
 
@@ -538,6 +662,15 @@ const createTenantForLeaseSchema = z.object({
     .trim(),
 });
 
+// Schéma pour créer un locataire depuis un email (sans bailId)
+const createTenantFromEmailSchema = z.object({
+  email: z.string()
+    .email("Email invalide")
+    .max(100, "L'email est trop long")
+    .toLowerCase()
+    .trim(),
+});
+
 // Créer un locataire pour un bail existant (avec juste l'email)
 export async function createTenantForLease(data: unknown) {
   const user = await requireAuth();
@@ -657,6 +790,104 @@ export async function createTenantForLease(data: unknown) {
   revalidatePath("/interface/clients");
 
   return { tenant, tenantIntakeLink };
+}
+
+// Créer un locataire depuis un email (sans bailId) - pour utilisation lors de la création de bail
+export async function createTenantFromEmail(data: unknown) {
+  const user = await requireAuth();
+  const validated = createTenantFromEmailSchema.parse(data);
+
+  // Chercher un locataire existant avec cet email dans ses persons
+  let tenant = await prisma.client.findFirst({
+    where: {
+      profilType: ProfilType.LOCATAIRE,
+      persons: {
+        some: {
+          email: validated.email,
+        },
+      },
+    },
+    include: {
+      persons: { where: { isPrimary: true }, take: 1 },
+      entreprise: true,
+    },
+  });
+
+  if (!tenant) {
+    // Créer un nouveau locataire avec une personne associée
+    tenant = await prisma.client.create({
+      data: {
+        type: ClientType.PERSONNE_PHYSIQUE,
+        profilType: ProfilType.LOCATAIRE,
+        createdById: user.id,
+        persons: {
+          create: {
+            email: validated.email,
+            isPrimary: true,
+            createdById: user.id,
+          },
+        },
+      },
+      include: {
+        persons: { where: { isPrimary: true }, take: 1 },
+        entreprise: true,
+      },
+    });
+
+    // Notification pour création de client
+    await createNotificationForAllUsers(
+      NotificationType.CLIENT_CREATED,
+      "CLIENT",
+      tenant.id,
+      user.id,
+      { createdByForm: false }
+    );
+  }
+
+  revalidatePath("/interface/clients");
+  return tenant;
+}
+
+// Récupérer les locataires qui étaient en commun dans un bail avec un propriétaire
+export async function getCommonTenantsForOwner(ownerId: string) {
+  await requireAuth();
+
+  // Récupérer tous les baux où ce propriétaire est partie
+  const bails = await prisma.bail.findMany({
+    where: {
+      parties: {
+        some: {
+          id: ownerId,
+        },
+      },
+      property: {
+        ownerId: ownerId,
+      },
+    },
+    include: {
+      parties: {
+        where: {
+          profilType: ProfilType.LOCATAIRE,
+        },
+        include: {
+          persons: { where: { isPrimary: true }, take: 1 },
+          entreprise: true,
+        },
+      },
+    },
+  });
+
+  // Extraire les locataires uniques
+  const tenantMap = new Map();
+  bails.forEach((bail) => {
+    bail.parties.forEach((party) => {
+      if (party.profilType === ProfilType.LOCATAIRE && !tenantMap.has(party.id)) {
+        tenantMap.set(party.id, party);
+      }
+    });
+  });
+
+  return Array.from(tenantMap.values());
 }
 
 // Types pour les données manquantes d'un bail
