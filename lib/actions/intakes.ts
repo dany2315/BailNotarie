@@ -210,11 +210,22 @@ export async function submitIntake(data: unknown) {
   // Si c'est un formulaire propriétaire avec clientId, utiliser submitOwnerForm
   if (intakeLink.target === "OWNER" && intakeLink.clientId) {
     try {
+      // Convertir explicitement latitude et longitude en chaînes avant validation Zod
+      const payloadWithStringCoords = {
+        ...payload,
+        propertyLatitude: payload.propertyLatitude !== undefined && payload.propertyLatitude !== null && payload.propertyLatitude !== ""
+          ? String(payload.propertyLatitude)
+          : "",
+        propertyLongitude: payload.propertyLongitude !== undefined && payload.propertyLongitude !== null && payload.propertyLongitude !== ""
+          ? String(payload.propertyLongitude)
+          : "",
+      };
+      
       // Valider avec ownerFormSchema
-      console.log("payload", payload);
+      console.log("payload", payloadWithStringCoords);
       const ownerData = ownerFormSchema.parse({
         clientId: intakeLink.clientId,
-        ...payload,
+        ...payloadWithStringCoords,
       });
       // Les fichiers sont maintenant uploadés directement via FileUpload avec upload direct client → S3
       // Plus besoin de passer formData

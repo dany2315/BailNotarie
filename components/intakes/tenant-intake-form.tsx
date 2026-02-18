@@ -1865,7 +1865,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Type de bail
                     </label>
                     <p className="text-base font-semibold">
-                      {bail.bailType === BailType.BAIL_NU_3_ANS ? "Bail nu" : bail.bailType === BailType.BAIL_NU_6_ANS ? "Bail nu" : bail.bailType === BailType.BAIL_MEUBLE_1_ANS ? "Bail meublé" : bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "Bail étudiant" : ""}
+                      {bail.bailType === BailType.BAIL_NU_3_ANS ? "Bail nue" : bail.bailType === BailType.BAIL_NU_6_ANS ? "Bail nue" : bail.bailType === BailType.BAIL_MEUBLE_1_ANS ? "Bail meublé" : bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "Bail étudiant" : ""}
                     </p>
                   </div>
                 )}

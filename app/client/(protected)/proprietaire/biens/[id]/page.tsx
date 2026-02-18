@@ -3,13 +3,14 @@ import { canAccessProperty } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Home, FileText, Plus, MapPin, Ruler, Building2, Calendar, User, Euro } from "lucide-react";
+import { Home, FileText, Plus, MapPin, Ruler, Building2, Calendar, User, Euro } from "lucide-react";
 import Link from "next/link";
 import { formatDate, formatDateTime } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CompletionStatus } from "@prisma/client";
+import { BackButton } from "@/components/client/back-button";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -96,25 +97,31 @@ export default async function ProprietaireBienDetailPage({
   return (
     <div className="p-6 space-y-6">
       {/* Header avec retour et titre */}
-      <div className="flex items-center gap-4">
-        <Link href="/client/proprietaire/biens">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold">{property.label || "Bien immobilier"}</h1>
-          <div className="flex items-center gap-2 mt-1 text-muted-foreground">
-            <MapPin className="h-4 w-4" />
-            <p className="text-sm">{property.fullAddress}</p>
+      <div className="space-y-4">
+        {/* Titre et informations */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold">{property.label || "Bien immobilier"}</h1>
+            <div className="flex items-center gap-2 mt-1 text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              <p className="text-sm">{property.fullAddress}</p>
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+            <Badge 
+              variant={completionStatusVariants[property.completionStatus]} 
+              className={`text-sm px-3 py-1 ${completionStatusColors[property.completionStatus]}`}
+            >
+              {completionStatusLabels[property.completionStatus]}
+            </Badge>
           </div>
+          </div>
+          
         </div>
-        <Badge 
-          variant={completionStatusVariants[property.completionStatus]} 
-          className={`text-sm px-3 py-1 ${completionStatusColors[property.completionStatus]}`}
-        >
-          {completionStatusLabels[property.completionStatus]}
-        </Badge>
+        
+        {/* Bouton retour en dessous du titre */}
+        <div className="flex w-full ">
+          <BackButton />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

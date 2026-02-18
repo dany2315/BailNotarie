@@ -40,7 +40,7 @@ const leaseFormSchema = z.object({
   
   if (rentAmount > 0 && securityDeposit > 0) {
     // MEUBLE = bail meublé → max 2 mois
-    // HABITATION = bail nu → max 1 mois
+    // HABITATION = bail nue → max 1 mois
     const isMeuble = data.leaseType === "MEUBLE";
     const maxDeposit = isMeuble ? rentAmount * 2 : rentAmount;
     

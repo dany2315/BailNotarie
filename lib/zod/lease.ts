@@ -12,7 +12,7 @@ function validateSecurityDeposit(
   }
   
   // MEUBLE = bail meublé → max 2 mois
-  // Autres = bail nu → max 1 mois
+  // Autres = bail nue → max 1 mois
   const isMeuble = leaseType === "MEUBLE";
   const maxDeposit = isMeuble ? rentAmount * 2 : rentAmount;
   

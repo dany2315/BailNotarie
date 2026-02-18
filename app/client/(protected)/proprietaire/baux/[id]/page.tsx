@@ -4,16 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { ArrowLeft, FileText, Home, User, Calendar, Euro, RotateCcw, MessageSquare, Download, MapPin, Building2, Ruler, Mail, ArrowUpDown, MoveUpRight } from "lucide-react";
+import { FileText, Home, User, Calendar, Euro, RotateCcw, MessageSquare, Download, MapPin, Building2, Ruler, Mail, ArrowUpDown, MoveUpRight } from "lucide-react";
 import Link from "next/link";
 import { formatDate, formatCurrency, formatDateTime } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ProfilType, BailStatus, BailType } from "@prisma/client";
+import { ProfilType, BailStatus, BailType, BailFamille } from "@prisma/client";
 import { BailChatSheet } from "@/components/client/bail-chat-sheet";
 import { BailDocumentPreview } from "@/components/client/bail-document-preview";
 import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
+import { BackButton } from "@/components/client/back-button";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -37,10 +38,15 @@ const statusColors: Record<BailStatus, string> = {
 };
 
 const bailTypeLabels: Record<BailType, string> = {
-  BAIL_NU_3_ANS: "Bail nu 3 ans",
-  BAIL_NU_6_ANS: "Bail nu 6 ans",
+  BAIL_NU_3_ANS: "Bail nue 3 ans",
+  BAIL_NU_6_ANS: "Bail nue 6 ans",
   BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
   BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
+};
+
+const bailFamilyLabels: Record<BailFamille, string> = {
+  HABITATION: "Bail d'habitation",
+  COMMERCIAL: "Bail commercial"
 };
 
 export default async function ProprietaireBailDetailPage({
@@ -128,24 +134,17 @@ export default async function ProprietaireBailDetailPage({
         {/* Header avec actions */}
         <div className="flex flex-col gap-6">
           {/* Navigation et titre */}
-          <div className="flex flex-col md:flex-row items-start justify-between gap-4">
-            <div className="flex items-center gap-4 flex-1">
-              <Link href="/client/proprietaire/baux">
-                <Button variant="ghost" size="icon" className="shrink-0">
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-              </Link>
-              <div className="flex-1 min-w-0">
-                <h1 className="text-3xl font-bold tracking-tight">Détail du bail</h1>
-                <p className="text-muted-foreground mt-1 flex items-center gap-2">
-                  <Home className="h-4 w-4" />
-                  {bail.property.label || bail.property.fullAddress}
-                </p>
-                <div className="flex items-center gap-3 mt-2">
-                  <Badge className={statusColors[bail.status]} variant="outline">
-                    {statusLabels[bail.status]}
-                  </Badge>
-                </div>
+          <div className="flex flex-col md:flex-row items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-3xl font-bold tracking-tight">Détail du bail</h1>
+              <p className="text-muted-foreground mt-1 flex items-center gap-2">
+                <Home className="h-4 w-4" />
+                {bail.property.label || bail.property.fullAddress}
+              </p>
+              <div className="flex items-center gap-3 mt-2">
+                <Badge className={statusColors[bail.status]} variant="outline">
+                  {statusLabels[bail.status]}
+                </Badge>
               </div>
             </div>
 
@@ -172,6 +171,9 @@ export default async function ProprietaireBailDetailPage({
               )}
             </ButtonGroup>
           </div>
+
+          {/* Bouton retour en dessous du titre */}
+          <BackButton />
         </div>
 
         {/* Contenu principal */}
@@ -190,14 +192,12 @@ export default async function ProprietaireBailDetailPage({
               <CardContent>
                 <div className="grid gap-4 grid-cols-2">
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Type de bail</p>
-                    <p className="font-medium">{bailTypeLabels[bail.bailType]}</p>
+                    <p className="text-sm text-muted-foreground">Catégorie de bail</p>
+                    <p className="font-medium">{bailFamilyLabels[bail.bailFamily]}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Statut</p>
-                    <Badge className={statusColors[bail.status]} variant="outline">
-                      {statusLabels[bail.status]}
-                    </Badge>
+                    <p className="text-sm text-muted-foreground">Type de bail</p>
+                    <p className="font-medium">{bailTypeLabels[bail.bailType]}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Date de début</p>
