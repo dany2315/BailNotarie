@@ -56,7 +56,7 @@ interface CreateBailFormProps {
   biens: Array<{
     id: string;
     label: string | null;
-    fullAddress: string;
+    fullAddress: string | null;
   }>;
   locataires: Array<{
     id: string;
@@ -291,7 +291,7 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                         <SelectItem 
                           key={bien.id} 
                           value={bien.id} 
-                          textValue={bien.label || bien.fullAddress}
+                          textValue={bien.label || bien.fullAddress || "Bien sans libellé"}
                           className="py-3"
                         >
                           <div className="flex flex-col gap-1 w-full">
@@ -301,7 +301,7 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                             </div>
                             <div className="flex items-center gap-2 pl-6">
                               <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
-                              <span className="text-xs text-muted-foreground truncate">{bien.fullAddress}</span>
+                              <span className="text-xs text-muted-foreground truncate">{bien.fullAddress || "Adresse non renseignée"}</span>
                             </div>
                           </div>
                         </SelectItem>

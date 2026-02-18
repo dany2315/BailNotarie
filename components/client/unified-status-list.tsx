@@ -14,36 +14,36 @@ import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
 type Property = {
   id: string;
   label: string | null;
-  fullAddress: string;
+  fullAddress: string | null;
   status: string;
-  completionStatus: CompletionStatus;
-  createdAt: Date;
+  completionStatus: string;
+  createdAt: string;
   bails: Array<{
     id: string;
     status: string;
-    effectiveDate: Date;
-    endDate: Date | null;
+    effectiveDate: string | null;
+    endDate: string | null;
   }>;
 };
 
 type Bail = {
   id: string;
-  bailType: BailType;
-  bailFamily: BailFamille;
-  status: BailStatus;
-  rentAmount: number;
-  effectiveDate: Date;
-  endDate: Date | null;
+  bailType: string;
+  bailFamily: string;
+  status: string;
+  rentAmount: number | null;
+  effectiveDate: string | null;
+  endDate: string | null;
   property: {
     id: string;
     label: string | null;
-    fullAddress: string;
+    fullAddress: string | null;
     status: string;
-    completionStatus: CompletionStatus;
+    completionStatus: string;
   };
   parties: Array<{
     id: string;
-    profilType: ProfilType;
+    profilType: string;
     persons?: Array<{
       firstName: string | null;
       lastName: string | null;
@@ -77,8 +77,8 @@ type UnifiedItem = {
   type: "property" | "bail";
   title: string;
   address: string;
-  completionStatus: CompletionStatus;
-  createdAt: Date | string;
+  completionStatus: string;
+  createdAt: Date | string | null;
   data: Property | Bail;
 };
 
@@ -106,8 +106,8 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
         items.push({
           id: property.id,
           type: "property",
-          title: property.label || property.fullAddress,
-          address: property.fullAddress,
+          title: property.label || property.fullAddress || "Bien sans libellé",
+          address: property.fullAddress || "Adresse non renseignée",
           completionStatus: property.completionStatus,
           createdAt: property.createdAt,
           data: property,
@@ -120,8 +120,8 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
       items.push({
         id: bail.id,
         type: "bail",
-        title: bail.property.label || bail.property.fullAddress,
-        address: bail.property.fullAddress,
+        title: bail.property.label || bail.property.fullAddress || "Bien sans libellé",
+        address: bail.property.fullAddress || "Adresse non renseignée",
         completionStatus: bail.property.completionStatus,
         createdAt: bail.effectiveDate,
         data: bail,
@@ -130,6 +130,8 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
 
     // Trier par date de création (plus récent en premier)
     return items.sort((a, b) => {
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
       const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
       const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
       return dateB - dateA;
@@ -264,8 +266,15 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
               } else {
                 const bail = item.data as Bail;
                 const otherPartyName = getOtherPartyName(bail);
-                const endDate = bail.endDate || calculateBailEndDate(bail.effectiveDate, bail.bailType);
-                const bailTypeLabel = bail.bailFamily === BailFamille.HABITATION ? "Bail d'habitation" : "Bail commercial";
+                const endDate = bail.endDate 
+                  ? (typeof bail.endDate === 'string' ? new Date(bail.endDate) : bail.endDate)
+                  : (bail.effectiveDate 
+                      ? calculateBailEndDate(
+                          typeof bail.effectiveDate === 'string' ? new Date(bail.effectiveDate) : bail.effectiveDate,
+                          bail.bailType as BailType
+                        )
+                      : null);
+                const bailTypeLabel = bail.bailFamily === BailFamille.HABITATION || bail.bailFamily === "HABITATION" ? "Bail d'habitation" : "Bail commercial";
 
                 return (
                   <Link key={`bail-${item.id}`} href={`${basePath}/baux/${item.id}`}>
@@ -298,7 +307,7 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
                               {/* Bien en question */}
                               <div className="mb-2 sm:mb-3">
                                 <p className="text-xs sm:text-sm text-muted-foreground">
-                                  Bien : <span className="font-medium text-foreground break-words">{bail.property.label || bail.property.fullAddress}</span>
+                                  Bien : <span className="font-medium text-foreground break-words">{bail.property.label || bail.property.fullAddress || "Bien sans libellé"}</span>
                                 </p>
                               </div>
 
@@ -317,7 +326,7 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
                                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                   <Euro className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
                                   <span className="text-muted-foreground">Loyer :</span>
-                                  <span className="font-semibold text-foreground">{bail.rentAmount.toLocaleString()} €</span>
+                                  <span className="font-semibold text-foreground">{bail.rentAmount ? bail.rentAmount.toLocaleString() : "-"} €</span>
                                   <span className="text-muted-foreground">/mois</span>
                                 </div>
                                 
