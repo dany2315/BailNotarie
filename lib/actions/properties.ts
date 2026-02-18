@@ -11,6 +11,67 @@ import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
 
+/**
+ * Fonction helper récursive pour sérialiser les Decimal de Prisma
+ * Convertit les Decimal en nombres et les Date en chaînes ISO
+ */
+function serializeDecimal(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  // Détecter et convertir les Decimal de Prisma
+  if (obj && typeof obj === 'object') {
+    // Vérifier si c'est un Decimal de Prisma
+    const isDecimal = 
+      obj.constructor?.name === 'Decimal' ||
+      (typeof obj.toNumber === 'function' && 
+       typeof obj.toString === 'function' && 
+       !Array.isArray(obj) && 
+       !(obj instanceof Date) &&
+       obj.constructor !== Object &&
+       obj.constructor !== RegExp);
+    
+    if (isDecimal) {
+      try {
+        if (typeof obj.toNumber === 'function') {
+          const num = obj.toNumber();
+          return isNaN(num) ? null : num;
+        }
+        const num = Number(obj);
+        return isNaN(num) ? null : num;
+      } catch {
+        try {
+          return parseFloat(obj.toString()) || null;
+        } catch {
+          return null;
+        }
+      }
+    }
+    
+    // Gérer les Date
+    if (obj instanceof Date) {
+      return obj.toISOString();
+    }
+    
+    // Gérer les tableaux
+    if (Array.isArray(obj)) {
+      return obj.map(serializeDecimal);
+    }
+    
+    // Gérer les objets (récursivement)
+    const serialized: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        serialized[key] = serializeDecimal(obj[key]);
+      }
+    }
+    return serialized;
+  }
+  
+  return obj;
+}
+
 export async function createProperty(data: unknown) {
   const user = await requireAuth();
   const validated = createPropertySchema.parse(data);
@@ -70,7 +131,10 @@ export async function createProperty(data: unknown) {
   );
 
   revalidatePath("/interface/properties");
-  return property;
+  
+  // Sérialiser les données pour convertir les Decimal en nombres et les Date en chaînes ISO
+  // Cela évite l'erreur "Only plain objects can be passed to Client Components"
+  return serializeDecimal(property);
 }
 
 export async function updateProperty(data: unknown) {

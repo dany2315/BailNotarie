@@ -281,18 +281,32 @@ const propertyFieldsSchema = {
   propertyInseeCode: z.string().max(10).trim().optional(),
   propertyDepartment: z.string().max(100).trim().optional(),
   propertyRegion: z.string().max(100).trim().optional(),
-  propertyLatitude: z.string().optional().transform((val) => {
-    if (!val) return null;
-    const num = parseFloat(val);
-    if (isNaN(num)) return null;
-    return num;
-  }),
-  propertyLongitude: z.string().optional().transform((val) => {
-    if (!val) return null;
-    const num = parseFloat(val);
-    if (isNaN(num)) return null;
-    return num;
-  }),
+  propertyLatitude: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === "") return undefined;
+      // Convertir les nombres en chaînes pour la validation
+      return typeof val === "number" ? String(val) : val;
+    },
+    z.string().optional().transform((val) => {
+      if (!val) return null;
+      const num = parseFloat(val);
+      if (isNaN(num)) return null;
+      return num;
+    })
+  ),
+  propertyLongitude: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === "") return undefined;
+      // Convertir les nombres en chaînes pour la validation
+      return typeof val === "number" ? String(val) : val;
+    },
+    z.string().optional().transform((val) => {
+      if (!val) return null;
+      const num = parseFloat(val);
+      if (isNaN(num)) return null;
+      return num;
+    })
+  ),
   propertyIsTightZone: z.boolean().optional(),
   propertyHasRentControl: z.boolean().optional(),
 
@@ -788,7 +802,7 @@ export const ownerFormSchema = z
     // ------------------------------------------------------------------
     // VALIDATION DÉPÔT DE GARANTIE
     // Bail meublé → max 2 mois de loyer hors charges
-    // Bail nu → max 1 mois de loyer hors charges
+    // Bail nue → max 1 mois de loyer hors charges
     // ------------------------------------------------------------------
     const rentAmount = typeof data.bailRentAmount === 'number' 
       ? data.bailRentAmount 

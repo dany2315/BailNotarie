@@ -14,43 +14,45 @@ import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
 type Property = {
   id: string;
   label: string | null;
-  fullAddress: string;
+  fullAddress: string | null;
   status: string;
-  completionStatus: CompletionStatus;
-  createdAt: Date;
+  completionStatus: string;
+  createdAt: string;
   bails: Array<{
     id: string;
     status: string;
-    effectiveDate: Date;
-    endDate: Date | null;
+    effectiveDate: string | null;
+    endDate: string | null;
   }>;
 };
 
 type Bail = {
   id: string;
-  bailType: BailType;
-  bailFamily: BailFamille;
-  status: BailStatus;
-  rentAmount: number;
-  effectiveDate: Date;
-  endDate: Date | null;
+  bailType: string;
+  bailFamily: string;
+  status: string;
+  rentAmount: number | null;
+  effectiveDate: string | null;
+  endDate: string | null;
   property: {
     id: string;
     label: string | null;
-    fullAddress: string;
+    fullAddress: string | null;
     status: string;
-    completionStatus: CompletionStatus;
+    completionStatus: string;
   };
   parties: Array<{
     id: string;
-    profilType: ProfilType;
+    profilType: string;
     persons?: Array<{
       firstName: string | null;
       lastName: string | null;
+      email: string | null;
     }>;
     entreprise?: {
       legalName: string | null;
       name: string | null;
+      email: string | null;
     } | null;
   }>;
   dossierAssignments: Array<{
@@ -75,8 +77,8 @@ type UnifiedItem = {
   type: "property" | "bail";
   title: string;
   address: string;
-  completionStatus: CompletionStatus;
-  createdAt: Date | string;
+  completionStatus: string;
+  createdAt: Date | string | null;
   data: Property | Bail;
 };
 
@@ -104,8 +106,8 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
         items.push({
           id: property.id,
           type: "property",
-          title: property.label || property.fullAddress,
-          address: property.fullAddress,
+          title: property.label || property.fullAddress || "Bien sans libellé",
+          address: property.fullAddress || "Adresse non renseignée",
           completionStatus: property.completionStatus,
           createdAt: property.createdAt,
           data: property,
@@ -118,8 +120,8 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
       items.push({
         id: bail.id,
         type: "bail",
-        title: bail.property.label || bail.property.fullAddress,
-        address: bail.property.fullAddress,
+        title: bail.property.label || bail.property.fullAddress || "Bien sans libellé",
+        address: bail.property.fullAddress || "Adresse non renseignée",
         completionStatus: bail.property.completionStatus,
         createdAt: bail.effectiveDate,
         data: bail,
@@ -128,6 +130,8 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
 
     // Trier par date de création (plus récent en premier)
     return items.sort((a, b) => {
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
       const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
       const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
       return dateB - dateA;
@@ -146,11 +150,11 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
     if (profilType === ProfilType.PROPRIETAIRE) {
       const locataire = bail.parties.find(p => p.profilType === ProfilType.LOCATAIRE);
       if (locataire?.entreprise) {
-        return locataire.entreprise.legalName || locataire.entreprise.name || "Non défini";
+        return locataire.entreprise.legalName || locataire.entreprise.name || locataire.entreprise.email || "Non défini";
       }
       if (locataire?.persons && locataire.persons.length > 0) {
         const person = locataire.persons[0];
-        return `${person.firstName || ""} ${person.lastName || ""}`.trim() || "Non défini";
+        return `${person.firstName || ""} ${person.lastName || ""}`.trim() || person.email || "Non défini";
       }
       return "Non défini";
     } else {
@@ -181,25 +185,26 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Statut de mes éléments ({totalItems})
+      <CardHeader className="px-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <FileText className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+              <span className="truncate">Statut de mes éléments ({totalItems})</span>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm mt-1">
               Liste unifiée de tous vos biens et baux avec leur statut de vérification
             </CardDescription>
           </div>
         </div>
-        <div className="flex items-center gap-2 mt-4">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2 mt-4">
+          <Filter className="h-4 w-4 text-muted-foreground shrink-0 hidden sm:block" />
+          <div className="flex gap-2 w-full sm:w-auto">
             <Button
               variant={filter === "all" ? "default" : "outline"}
               size="sm"
               onClick={() => setFilter("all")}
+              className="flex-1 sm:flex-initial text-xs sm:text-sm"
             >
               Tous ({totalItems})
             </Button>
@@ -207,13 +212,14 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
               variant={filter === "completed" ? "default" : "outline"}
               size="sm"
               onClick={() => setFilter("completed")}
+              className="flex-1 sm:flex-initial text-xs sm:text-sm"
             >
               Complétés ({completedItems})
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 sm:p-6">
         {filteredItems.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-muted-foreground">
@@ -223,37 +229,35 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-3 sm:space-y-5">
             {filteredItems.map((item) => {
               if (item.type === "property") {
                 const property = item.data as Property;
                 return (
                   <Link key={`property-${item.id}`} href={`${basePath}/biens/${item.id}`}>
-                    <div className="group border rounded-xl p-5 bg-card hover:bg-accent/50 transition-all duration-200 cursor-pointer hover:shadow-md hover:border-primary/20 mt-5">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1 flex flex-row justify-between items-center min-w-0">
-                          <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
-                              <Home className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <div className="group border rounded-lg sm:rounded-xl p-3 sm:px-5 bg-card hover:bg-accent/50 transition-all duration-200 cursor-pointer hover:shadow-md hover:border-primary/20 mt-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-start sm:items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                          <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
+                            <Home className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
+                              <h3 className="font-semibold text-sm sm:text-base truncate">{item.title}</h3>
+                              <Badge variant="outline" className="text-xs shrink-0 w-fit">
+                                Bien
+                              </Badge>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-base truncate">{item.title}</h3>
-                                <Badge variant="outline" className="text-xs shrink-0">
-                                  Bien
-                                </Badge>
+                            {property.label && (
+                              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                <MapPin className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                                <span className="truncate">{item.address}</span>
                               </div>
-                              {property.label && (
-                                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
-                                  <MapPin className="h-3.5 w-3.5 shrink-0" />
-                                  <span className="truncate">{item.address}</span>
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2 flex-wrap ml-[52px]">
-                            <StatusBadge status={item.completionStatus} />
-                          </div>
+                        </div>
+                        <div className="flex items-center justify-start sm:justify-end gap-2 sm:ml-0">
+                          <StatusBadge status={item.completionStatus} />
                         </div>
                       </div>
                     </div>
@@ -262,43 +266,56 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
               } else {
                 const bail = item.data as Bail;
                 const otherPartyName = getOtherPartyName(bail);
-                const endDate = bail.endDate || calculateBailEndDate(bail.effectiveDate, bail.bailType);
-                const bailTypeLabel = bail.bailFamily === BailFamille.HABITATION ? "Bail d'habitation" : "Bail commercial";
+                const endDate = bail.endDate 
+                  ? (typeof bail.endDate === 'string' ? new Date(bail.endDate) : bail.endDate)
+                  : (bail.effectiveDate 
+                      ? calculateBailEndDate(
+                          typeof bail.effectiveDate === 'string' ? new Date(bail.effectiveDate) : bail.effectiveDate,
+                          bail.bailType as BailType
+                        )
+                      : null);
+                const bailTypeLabel = bail.bailFamily === BailFamille.HABITATION || bail.bailFamily === "HABITATION" ? "Bail d'habitation" : "Bail commercial";
 
                 return (
                   <Link key={`bail-${item.id}`} href={`${basePath}/baux/${item.id}`}>
-                    <div className="group border rounded-xl p-5 bg-card hover:bg-accent/50 transition-all duration-200 cursor-pointer hover:shadow-md hover:border-primary/20">
-                      <div className="flex items-start justify-between gap-4">
+                    <div className="group border rounded-lg sm:rounded-xl p-3 sm:p-5 bg-card hover:bg-accent/50 transition-all duration-200 cursor-pointer hover:shadow-md hover:border-primary/20 mt-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start gap-3 mb-3">
-                            <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
-                              <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                          <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
+                            <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
+                              <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 dark:text-purple-400" />
                             </div>
                             <div className="flex-1 min-w-0">
                               {/* Type de bail */}
                               <div className="mb-2">
-                                <Badge variant="outline" className="text-sm font-medium">
+                                <Badge variant="outline" className="text-xs sm:text-sm font-medium">
                                   {bailTypeLabel}
                                 </Badge>
                               </div>
+
+                              <div className="mb-2 sm:mb-3 flex items-center justify-start sm:justify-end gap-2 shrink-0 sm:ml-0">
+                                <StatusBadge status={item.completionStatus} />
+                              </div>
                               
-                              {/* Bien de : [nom] */}
-                              <div className="mb-3">
-                                <p className="text-sm text-muted-foreground">
-                                  Locataire : <span className="font-medium text-foreground">{otherPartyName}</span>
+                              {/* Locataire/Propriétaire */}
+                              <div className="mb-2 sm:mb-3">
+                                <p className="text-xs sm:text-sm text-muted-foreground">
+                                  {profilType === ProfilType.PROPRIETAIRE ? "Locataire" : "Propriétaire"} : <span className="font-medium text-foreground break-words">{otherPartyName}</span>
                                 </p>
                               </div>
 
-                              {/*bien en question*/}
-                              <div className="mb-3">
-                                <p className="text-sm text-muted-foreground">Bien en question : <span className="font-medium text-foreground">{bail.property.label || bail.property.fullAddress}</span></p>
+                              {/* Bien en question */}
+                              <div className="mb-2 sm:mb-3">
+                                <p className="text-xs sm:text-sm text-muted-foreground">
+                                  Bien : <span className="font-medium text-foreground break-words">{bail.property.label || bail.property.fullAddress || "Bien sans libellé"}</span>
+                                </p>
                               </div>
 
                               {/* Informations du bail */}
-                              <div className="space-y-2 text-sm">
+                              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                                 {/* Date du bail */}
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                  <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
                                   <span className="text-muted-foreground">Du</span>
                                   <span className="font-medium text-foreground">{formatDate(bail.effectiveDate)}</span>
                                   <span className="text-muted-foreground">au</span>
@@ -306,28 +323,25 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
                                 </div>
                                 
                                 {/* Loyer */}
-                                <div className="flex items-center gap-2">
-                                  <Euro className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                  <Euro className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
                                   <span className="text-muted-foreground">Loyer :</span>
-                                  <span className="font-semibold text-foreground">{bail.rentAmount.toLocaleString()} €</span>
+                                  <span className="font-semibold text-foreground">{bail.rentAmount ? bail.rentAmount.toLocaleString() : "-"} €</span>
                                   <span className="text-muted-foreground">/mois</span>
                                 </div>
                                 
                                 {/* Notaire assigné */}
                                 {bail.dossierAssignments.length > 0 && (
-                                  <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                                    <User className="h-4 w-4 shrink-0" />
-                                    <span className="text-sm">
-                                      Notaire assigné : <span className="font-medium">{bail.dossierAssignments[0].notaire.name || bail.dossierAssignments[0].notaire.email}</span>
+                                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-blue-600 dark:text-blue-400">
+                                    <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                                    <span className="text-xs sm:text-sm break-words">
+                                      Notaire : <span className="font-medium">{bail.dossierAssignments[0].notaire.name || bail.dossierAssignments[0].notaire.email}</span>
                                     </span>
                                   </div>
                                 )}
                               </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2 shrink-0">
-                          <StatusBadge status={item.completionStatus} />
                         </div>
                       </div>
                     </div>

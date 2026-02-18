@@ -134,8 +134,8 @@ async function handleDownloadDocument(
         const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
         downloadUrl = getS3PublicUrl(fileKey) || fileKey;
       }
-      console.warn("[BailChatSheet] Impossible d'obtenir une URL signée, utilisation de l'URL publique");
-    }
+        console.warn("[BailChatSheet] Impossible d'obtenir une URL signée, utilisation de l'URL publique");
+      }
     
     // Télécharger le fichier
     const response = await fetch(downloadUrl);

@@ -10,10 +10,27 @@ import { CompletionStatus } from "@prisma/client";
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
+type PropertyWithBails = {
+  id: string;
+  label: string | null;
+  fullAddress: string;
+  status: string;
+  completionStatus: CompletionStatus;
+  surfaceM2: number | null;
+  createdAt: string;
+  updatedAt: string;
+  bails: Array<{
+    id: string;
+    status: string;
+    effectiveDate: string;
+    endDate: string | null;
+  }>;
+};
+
 export default async function ProprietaireBiensPage() {
   const { client } = await requireProprietaireAuth();
   
-  const biens = await getClientProperties(client.id);
+  const biens = await getClientProperties(client.id) as PropertyWithBails[];
 
   const completionStatusLabels: Record<CompletionStatus, string> = {
     NOT_STARTED: "Non commencé",
@@ -44,7 +61,7 @@ export default async function ProprietaireBiensPage() {
       </div>
 
       {/* Liste des biens avec carte d'ajout intégrée */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Carte d'ajout de bien */}
         <Link href="/client/proprietaire/biens/new">
           <Card className="h-full border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group p-0">
@@ -65,55 +82,61 @@ export default async function ProprietaireBiensPage() {
         </Link>
 
         {/* Liste des biens existants */}
-        {biens.map((bien) => (
-          <Link key={bien.id} href={`/client/proprietaire/biens/${bien.id}`}>
-            <Card className="h-full hover:shadow-md transition-all cursor-pointer p-0">
-              <CardContent className="p-6">
-                <div className="flex flex-col h-full">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-full bg-primary/10 p-2">
-                        <Home className="h-5 w-5 text-primary" />
+        {biens.map((bien) => {
+          const completionStatus: CompletionStatus = bien.completionStatus;
+          return (
+            <Link key={bien.id} href={`/client/proprietaire/biens/${bien.id}`}>
+              <Card className="h-full hover:shadow-md transition-all cursor-pointer p-0">
+                <CardContent className="p-6">
+                  <div className="flex flex-col h-full">
+                    <div className="flex items-start justify-between mb-4 flex-col">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-full bg-primary/10 p-2">
+                          <Home className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex flex-col gap-2 flex-1 min-w-0">
+                          <h3 className="font-semibold truncate">
+                            {bien.label || bien.fullAddress}
+                          </h3>
+                          <div className="w-auto">
+                          <Badge 
+                            variant={completionStatusVariants[completionStatus]} 
+                            className={`shrink-0 ${completionStatusColors[completionStatus]}`}
+                          >
+                            {completionStatusLabels[completionStatus]}
+                          </Badge>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold truncate">
-                          {bien.label || bien.fullAddress}
-                        </h3>
+                      
+                    </div>
+                    
+                    <div className="space-y-2 flex-1">
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {bien.fullAddress}
+                      </p>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        {bien.surfaceM2 && (
+                          <span>{bien.surfaceM2.toString()} m²</span>
+                        )}
+                        <span>{bien.bails.length} bail{bien.bails.length > 1 ? "x" : ""}</span>
                       </div>
                     </div>
-                    <Badge 
-                      variant={completionStatusVariants[bien.completionStatus]} 
-                      className={`shrink-0 ${completionStatusColors[bien.completionStatus]}`}
-                    >
-                      {completionStatusLabels[bien.completionStatus]}
-                    </Badge>
-                  </div>
-                  
-                  <div className="space-y-2 flex-1">
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {bien.fullAddress}
-                    </p>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      {bien.surfaceM2 && (
-                        <span>{bien.surfaceM2.toString()} m²</span>
-                      )}
-                      <span>{bien.bails.length} bail{bien.bails.length > 1 ? "x" : ""}</span>
+                    
+                    <div className="mt-4 pt-2 border-t flex flex-row justify-between">
+                      <span className="text-xs text-muted-foreground pt-2">
+                        Ajouté le {formatDateTime(bien.createdAt)}
+                      </span>
+                      <span className="flex flex-row items-center gap-1 bg-primary/10 cursor-pointer rounded-full hover:text-primary p-1.5 hover:scale-95 transition-colors">
+                      <ArrowRight className="h-4 w-4 text-primary hover:scale-95 transition-colors " />
+                      </span>
                     </div>
                   </div>
-                  
-                  <div className="mt-4 pt-2 border-t flex flex-row justify-between">
-                    <span className="text-xs text-muted-foreground pt-2">
-                      Ajouté le {formatDateTime(bien.createdAt)}
-                    </span>
-                    <span className="flex flex-row items-center gap-1 bg-primary/10 cursor-pointer rounded-full hover:text-primary p-1.5 hover:scale-95 transition-colors">
-                    <ArrowRight className="h-4 w-4 text-primary hover:scale-95 transition-colors " />
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
 
       {/* Message si aucun bien */}

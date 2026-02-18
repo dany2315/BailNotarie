@@ -4,6 +4,132 @@ import { prisma } from "@/lib/prisma";
 import { requireClientAuth, requireProprietaireAuth, requireLocataireAuth, getClientFromUser } from "@/lib/auth-helpers";
 import { ProfilType, BailStatus } from "@prisma/client";
 
+// Types pour les données sérialisées
+type SerializedProperty = {
+  id: string;
+  label: string | null;
+  fullAddress: string | null;
+  status: string;
+  completionStatus: string;
+  surfaceM2: number | null;
+  createdAt: string;
+  updatedAt: string;
+  bails: Array<{
+    id: string;
+    status: string;
+    effectiveDate: string | null;
+    endDate: string | null;
+  }>;
+};
+
+type SerializedBail = {
+  id: string;
+  bailType: string;
+  bailFamily: string;
+  status: string;
+  rentAmount: number | null;
+  effectiveDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  propertyId: string;
+  property: {
+    id: string;
+    label: string | null;
+    fullAddress: string | null;
+    status: string;
+    completionStatus: string;
+  };
+  parties: Array<{
+    id: string;
+    profilType: string;
+    persons: Array<{
+      firstName: string | null;
+      lastName: string | null;
+      email: string | null;
+    }>;
+    entreprise: {
+      legalName: string | null;
+      name: string | null;
+      email: string | null;
+    } | null;
+  }>;
+  dossierAssignments: Array<{
+    id: string;
+    notaire: {
+      id: string;
+      name: string;
+      email: string;
+    };
+    requests: Array<{
+      id: string;
+      status: string;
+      title: string;
+    }>;
+  }>;
+};
+
+/**
+ * Fonction helper récursive pour sérialiser les Decimal de Prisma
+ * Convertit les Decimal en nombres et les Date en chaînes ISO
+ */
+function serializeDecimal(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  // Détecter et convertir les Decimal de Prisma
+  if (obj && typeof obj === 'object') {
+    // Vérifier si c'est un Decimal de Prisma
+    const isDecimal = 
+      obj.constructor?.name === 'Decimal' ||
+      (typeof obj.toNumber === 'function' && 
+       typeof obj.toString === 'function' && 
+       !Array.isArray(obj) && 
+       !(obj instanceof Date) &&
+       obj.constructor !== Object &&
+       obj.constructor !== RegExp);
+    
+    if (isDecimal) {
+      try {
+        if (typeof obj.toNumber === 'function') {
+          const num = obj.toNumber();
+          return isNaN(num) ? null : num;
+        }
+        const num = Number(obj);
+        return isNaN(num) ? null : num;
+      } catch {
+        try {
+          return parseFloat(obj.toString()) || null;
+        } catch {
+          return null;
+        }
+      }
+    }
+    
+    // Gérer les Date
+    if (obj instanceof Date) {
+      return obj.toISOString();
+    }
+    
+    // Gérer les tableaux
+    if (Array.isArray(obj)) {
+      return obj.map(serializeDecimal);
+    }
+    
+    // Gérer les objets (récursivement)
+    const serialized: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        serialized[key] = serializeDecimal(obj[key]);
+      }
+    }
+    return serialized;
+  }
+  
+  return obj;
+}
+
 /**
  * Récupère les données du client lié à l'utilisateur avec profilType
  */
@@ -66,12 +192,14 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
             select: {
               firstName: true,
               lastName: true,
+              email: true,
             },
           },
           entreprise: {
             select: {
               legalName: true,
               name: true,
+              email: true,
             },
           },
         },
@@ -106,6 +234,7 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
   });
 
   // Filtrer selon le profilType
+  let filteredBails;
   if (profilType === ProfilType.PROPRIETAIRE) {
     // Pour les propriétaires, retourner les baux où ils sont propriétaires
     // (c'est-à-dire où le bien leur appartient)
@@ -114,11 +243,15 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
       select: { id: true },
     });
     
-    return bails.filter(bail => propertyIds.some(p => p.id === bail.propertyId));
+    filteredBails = bails.filter(bail => propertyIds.some(p => p.id === bail.propertyId));
   } else {
     // Pour les locataires, retourner les baux où ils sont parties
-    return bails.filter(bail => bail.parties.some(party => party.id === clientId && party.profilType === ProfilType.LOCATAIRE));
+    filteredBails = bails.filter(bail => bail.parties.some(party => party.id === clientId && party.profilType === ProfilType.LOCATAIRE));
   }
+
+  // Sérialiser les données pour convertir les Date en chaînes ISO
+  // Cela évite les problèmes de sérialisation avec les Client Components
+  return serializeDecimal(filteredBails) as SerializedBail[];
 }
 
 /**
@@ -155,7 +288,9 @@ export async function getClientProperties(clientId: string) {
     },
   });
 
-  return properties;
+  // Sérialiser les données pour convertir les Decimal en nombres et les Date en chaînes ISO
+  // Cela évite l'erreur "Only plain objects can be passed to Client Components"
+  return serializeDecimal(properties) as SerializedProperty[];
 }
 
 /**
@@ -167,12 +302,12 @@ export async function getProprietaireStats(clientId: string) {
 
   const stats = {
     totalProperties: properties.length,
-    propertiesLouees: properties.filter(p => p.status === "LOUER").length,
-    propertiesNonLouees: properties.filter(p => p.status === "NON_LOUER").length,
+    propertiesLouees: properties.filter((p: SerializedProperty) => p.status === "LOUER").length,
+    propertiesNonLouees: properties.filter((p: SerializedProperty) => p.status === "NON_LOUER").length,
     totalBaux: bails.length,
-    bauxActifs: bails.filter(b => b.status === BailStatus.SIGNED).length,
-    bauxTermines: bails.filter(b => b.status === BailStatus.TERMINATED).length,
-    bauxEnCours: bails.filter(b => 
+    bauxActifs: bails.filter((b: SerializedBail) => b.status === BailStatus.SIGNED).length,
+    bauxTermines: bails.filter((b: SerializedBail) => b.status === BailStatus.TERMINATED).length,
+    bauxEnCours: bails.filter((b: SerializedBail) => 
       b.status === BailStatus.DRAFT || 
       b.status === BailStatus.PENDING_VALIDATION || 
       b.status === BailStatus.READY_FOR_NOTARY
@@ -190,9 +325,9 @@ export async function getLocataireStats(clientId: string) {
 
   const stats = {
     totalBaux: bails.length,
-    bauxActifs: bails.filter(b => b.status === BailStatus.SIGNED).length,
-    bauxTermines: bails.filter(b => b.status === BailStatus.TERMINATED).length,
-    bauxEnCours: bails.filter(b => 
+    bauxActifs: bails.filter((b: SerializedBail) => b.status === BailStatus.SIGNED).length,
+    bauxTermines: bails.filter((b: SerializedBail) => b.status === BailStatus.TERMINATED).length,
+    bauxEnCours: bails.filter((b: SerializedBail) => 
       b.status === BailStatus.DRAFT || 
       b.status === BailStatus.PENDING_VALIDATION || 
       b.status === BailStatus.READY_FOR_NOTARY

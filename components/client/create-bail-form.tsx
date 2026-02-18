@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/drawer";
 import { createLease, createTenantFromEmail } from "@/lib/actions/leases";
 import { createProperty } from "@/lib/actions/properties";
-import { Loader2, ArrowLeft, Plus, Home, User, Building2, Users, Mail, MapPin, CheckCircle2 } from "lucide-react";
+import { Loader2, ArrowLeft, Plus, Home, User, Building2, Users, Mail, MapPin, CheckCircle2, X } from "lucide-react";
 import Link from "next/link";
 import { BailType, BailFamille, BailStatus } from "@prisma/client";
 import {
@@ -56,7 +56,7 @@ interface CreateBailFormProps {
   biens: Array<{
     id: string;
     label: string | null;
-    fullAddress: string;
+    fullAddress: string | null;
   }>;
   locataires: Array<{
     id: string;
@@ -100,6 +100,7 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
     register,
     handleSubmit,
     setValue,
+    resetField,
     watch,
     formState: { errors },
   } = useForm<CreateBailFormData>({
@@ -116,6 +117,8 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
   const rentAmount = watch("rentAmount");
   const [selectedProperty, setSelectedProperty] = useState<{ id: string; surfaceM2: number | null } | null>(null);
   const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
+  const [propertySelectKey, setPropertySelectKey] = useState(0);
+  const [tenantSelectKey, setTenantSelectKey] = useState(0);
 
   // Récupérer les informations du bien sélectionné
   useEffect(() => {
@@ -124,14 +127,24 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
       if (bien) {
         // Récupérer la surface depuis l'API
         fetch(`/api/properties/${propertyId}`)
-          .then(res => res.json())
+          .then(res => {
+            if (!res.ok) {
+              throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+          })
           .then(data => {
+            // Vérifier si la réponse contient une erreur
+            if (data.error) {
+              throw new Error(data.error);
+            }
             setSelectedProperty({
               id: propertyId,
               surfaceM2: data.surfaceM2 ? Number(data.surfaceM2) : null,
             });
           })
-          .catch(() => {
+          .catch((error) => {
+            console.error("Erreur lors de la récupération du bien:", error);
             setSelectedProperty({ id: propertyId, surfaceM2: null });
           });
       } else {
@@ -263,36 +276,65 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                 Bien *
               </Label>
               <div className="flex gap-2">
-                <Select
-                  value={propertyId}
-                  onValueChange={(value) => setValue("propertyId", value)}
-                  disabled={isLoading}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Sélectionner un bien">
-                      {propertyId && (() => {
-                        const selectedBien = localBiens.find(b => b.id === propertyId);
-                        return selectedBien ? (selectedBien.label || selectedBien.fullAddress) : "Sélectionner un bien";
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {localBiens.map((bien) => (
-                      <SelectItem key={bien.id} value={bien.id} className="py-3">
-                        <div className="flex flex-col gap-1 w-full">
-                          <div className="flex items-center gap-2">
-                            <Home className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span className="font-medium">{bien.label || "Bien sans libellé"}</span>
+                <div className="flex-1 relative">
+                  <Select
+                    key={`property-select-${propertySelectKey}`}
+                    value={propertyId && propertyId.trim() !== "" ? propertyId : undefined}
+                    onValueChange={(value) => setValue("propertyId", value)}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger className={cn("w-full", propertyId && propertyId.trim() !== "" && "pr-8")}>
+                      <SelectValue placeholder="Sélectionner un bien" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {localBiens.map((bien) => (
+                        <SelectItem 
+                          key={bien.id} 
+                          value={bien.id} 
+                          textValue={bien.label || bien.fullAddress || "Bien sans libellé"}
+                          className="py-3"
+                        >
+                          <div className="flex flex-col gap-1 w-full">
+                            <div className="flex items-center gap-2">
+                              <Home className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="font-medium">{bien.label || "Bien sans libellé"}</span>
+                            </div>
+                            <div className="flex items-center gap-2 pl-6">
+                              <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                              <span className="text-xs text-muted-foreground truncate">{bien.fullAddress || "Adresse non renseignée"}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 pl-6">
-                            <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
-                            <span className="text-xs text-muted-foreground truncate">{bien.fullAddress}</span>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {propertyId && propertyId.trim() !== "" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 hover:bg-destructive/10 hover:text-destructive z-20 pointer-events-auto"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setValue("propertyId", "", { shouldValidate: false, shouldDirty: true });
+                        setSelectedProperty(null);
+                        setPropertySelectKey(prev => prev + 1);
+                      }}
+                      disabled={isLoading}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
                 <Drawer 
                   open={isPropertyDrawerOpen} 
                   onOpenChange={setIsPropertyDrawerOpen}
@@ -379,20 +421,17 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                 Locataire *
               </Label>
               <div className="flex gap-2">
-                <Select
-                  value={tenantId}
-                  onValueChange={(value) => setValue("tenantId", value)}
-                  disabled={isLoading}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Sélectionner un locataire">
-                      {tenantId && (() => {
-                        const selectedTenant = localLocataires.find(t => t.id === tenantId);
-                        return selectedTenant ? getLocataireName(selectedTenant) : "Sélectionner un locataire";
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
+                <div className="flex-1 relative">
+                  <Select
+                    key={`tenant-select-${tenantSelectKey}`}
+                    value={tenantId && tenantId.trim() !== "" ? tenantId : undefined}
+                    onValueChange={(value) => setValue("tenantId", value)}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger className={cn("w-full", tenantId && tenantId.trim() !== "" && "pr-8")}>
+                      <SelectValue placeholder="Sélectionner un locataire" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
                     {localLocataires.length > 0 ? (
                       <>
                         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-2 sticky top-0 bg-background z-10">
@@ -402,7 +441,12 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                         {localLocataires.map((locataire) => {
                           const email = getLocataireEmail(locataire);
                           return (
-                            <SelectItem key={locataire.id} value={locataire.id} className="py-3">
+                            <SelectItem 
+                              key={locataire.id} 
+                              value={locataire.id} 
+                              textValue={getLocataireName(locataire)}
+                              className="py-3"
+                            >
                               <div className="flex flex-col gap-1 w-full">
                                 <div className="flex items-center gap-2">
                                   <User className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -430,6 +474,32 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                     )}
                   </SelectContent>
                 </Select>
+                {tenantId && tenantId.trim() !== "" && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 hover:bg-destructive/10 hover:text-destructive z-20 pointer-events-auto"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setValue("tenantId", "", { shouldValidate: false, shouldDirty: true });
+                      setTenantSelectKey(prev => prev + 1);
+                    }}
+                    disabled={isLoading}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                </div>
                 <Drawer 
                   open={isTenantDrawerOpen} 
                   onOpenChange={setIsTenantDrawerOpen}
@@ -523,8 +593,8 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                     <SelectValue placeholder="Sélectionner un type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
-                    <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nu 6 ans</SelectItem>
+                    <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nue 3 ans</SelectItem>
+                    <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nue 6 ans</SelectItem>
                     <SelectItem value={BailType.BAIL_MEUBLE_1_ANS}>Bail meublé 1 an</SelectItem>
                     <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS}>Bail meublé 9 mois</SelectItem>
                   </SelectContent>
