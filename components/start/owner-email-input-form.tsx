@@ -117,10 +117,10 @@ export function OwnerEmailInputForm({ onOtpSent }: OwnerEmailInputFormProps) {
               </div>
             </div>
             <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white">
-              Commencez votre bail notarié
+              Propriétaire ?
             </CardTitle>
             <CardDescription className="text-sm sm:text-base md:text-lg text-blue-100 max-w-2xl mx-auto">
-              Entrez votre adresse email pour démarrer la constitution de votre dossier en quelques minutes
+              Renseignez votre email pour constituer votre bail notarié (habitation ou commercial) en quelques minutes
             </CardDescription>
           </div>
         </div>

@@ -137,7 +137,7 @@ export default async function LocataireBauxPage() {
                             )}
                           </div>
                           <div className="space-y-1 text-sm text-muted-foreground">
-                            <p>{bail.rentAmount.toLocaleString()} € / mois</p>
+                            <p>{bail.rentAmount ? bail.rentAmount.toLocaleString() : "N/A"} € / mois</p>
                             <p>
                               Du {formatDateTime(bail.effectiveDate)} 
                               {bail.endDate && ` au ${formatDateTime(bail.endDate)}`}
@@ -150,8 +150,8 @@ export default async function LocataireBauxPage() {
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                          <Badge className={statusColors[bail.status]}>
-                            {statusLabels[bail.status]}
+                          <Badge className={statusColors[bail.status as BailStatus]}>
+                            {statusLabels[bail.status as BailStatus]}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
                             {formatDateTime(bail.createdAt)}

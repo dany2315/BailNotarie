@@ -108,7 +108,9 @@ import {
 } from "@/lib/actions/intakes";
 import { Separator } from "../ui/separator";
 
-type OwnerFormData = z.infer<typeof ownerFormSchema>;
+// Utiliser z.input pour obtenir le type d'entrée (avant transformation) au lieu de z.infer (après transformation)
+// Cela permet d'avoir propertyLatitude et propertyLongitude comme string dans le formulaire
+type OwnerFormData = z.input<typeof ownerFormSchema>;
 
 // Liste des champs de mobilier obligatoire pour location meublée
 const FURNITURE_FIELDS = [
@@ -1239,23 +1241,38 @@ const [clientType, setClientType] = useState<ClientType | "">(
       intakeLink.client?.persons?.[0]?.phone || 
       "";
     
+    // Convertir latitude et longitude en chaînes si elles sont des nombres (pour la validation Zod)
+    // Le schéma Zod attend des chaînes en entrée, même si le type TypeScript peut être number
+    const latValue: any = (data as any).propertyLatitude;
+    const lngValue: any = (data as any).propertyLongitude;
+    const propertyLatitude = latValue !== undefined && latValue !== null && String(latValue) !== ""
+      ? String(latValue)
+      : "";
+    const propertyLongitude = lngValue !== undefined && lngValue !== null && String(lngValue) !== ""
+      ? String(lngValue)
+      : "";
+    
     // Si PERSONNE_MORALE, utiliser entreprise
     if (data.type === ClientType.PERSONNE_MORALE && data.entreprise) {
       // Utiliser l'email de l'entreprise s'il a été modifié, sinon garder le mail racine
       const emailToUse = data.entreprise.email || rootEmail;
       const phoneToUse = data.entreprise.phone || rootPhone;
       
+      // Créer un nouvel objet sans propertyLatitude et propertyLongitude pour éviter les conflits
+      const { propertyLatitude: _, propertyLongitude: __, ...dataWithoutCoords } = data as any;
       return {
-        ...data,
+        ...dataWithoutCoords,
         email: emailToUse, // Email racine
         phone: phoneToUse, // Téléphone racine
         persons: [] as any, // Nettoyer les personnes
+        propertyLatitude: propertyLatitude,
+        propertyLongitude: propertyLongitude,
         entreprise: {
           ...data.entreprise,
           email: emailToUse, // Synchroniser avec l'email racine
           phone: phoneToUse, // Synchroniser avec le téléphone racine
         },
-      };
+      } as any;
     }
     
     // Sinon, PERSONNE_PHYSIQUE avec persons (toutes les personnes)
@@ -1277,13 +1294,17 @@ const [clientType, setClientType] = useState<ClientType | "">(
       ...persons.slice(1),
     ];
     
+    // Créer un nouvel objet sans propertyLatitude et propertyLongitude pour éviter les conflits
+    const { propertyLatitude: _, propertyLongitude: __, ...dataWithoutCoords } = data as any;
     return {
-      ...data,
+      ...dataWithoutCoords,
       email: emailToUse, // Email racine dans raw.payload
       phone: phoneToUse, // Téléphone racine dans raw.payload
+      propertyLatitude: propertyLatitude,
+      propertyLongitude: propertyLongitude,
       persons: updatedPersons as any,
       entreprise: undefined, // Nettoyer l'entreprise
-    };
+    } as any;
   };
 
   // Fonction pour obtenir les champs d'un step
@@ -2030,10 +2051,29 @@ const [clientType, setClientType] = useState<ClientType | "">(
         return;
       }
 
+      // Convertir explicitement latitude et longitude en chaînes AVANT le mapping
+      const dataWithStringCoords = {
+        ...data,
+        propertyLatitude: (data as any).propertyLatitude !== undefined && (data as any).propertyLatitude !== null && (data as any).propertyLatitude !== ""
+          ? String((data as any).propertyLatitude)
+          : "",
+        propertyLongitude: (data as any).propertyLongitude !== undefined && (data as any).propertyLongitude !== null && (data as any).propertyLongitude !== ""
+          ? String((data as any).propertyLongitude)
+          : "",
+      };
+      
       // Préparer le payload
-      let payload = mapPersonsToOwnerPayload(data as FormWithPersons);
+      let payload = mapPersonsToOwnerPayload(dataWithStringCoords as FormWithPersons);
+      
+      // S'assurer que les valeurs sont bien des chaînes (sécurité supplémentaire)
       const formattedData = {
         ...payload,
+        propertyLatitude: payload.propertyLatitude !== undefined && payload.propertyLatitude !== null && payload.propertyLatitude !== ""
+          ? String(payload.propertyLatitude)
+          : "",
+        propertyLongitude: payload.propertyLongitude !== undefined && payload.propertyLongitude !== null && payload.propertyLongitude !== ""
+          ? String(payload.propertyLongitude)
+          : "",
         persons: (payload.persons || []).map((person) => ({
           ...person,
           birthDate: toDateValue(person.birthDate) ?? undefined,
@@ -2554,11 +2594,27 @@ const ClientInfoStep = ({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [personToDeleteIndex, setPersonToDeleteIndex] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const primaryPerson = form.watch("persons")?.find((person) => person.isPrimary);
+  const persons = form.watch("persons") || [];
+  const primaryPerson = persons[0]; // La première personne est toujours la principale
   const rootEmail = form.watch(`entreprise.email` as any) || primaryPerson?.email || "";
   const rootPhone = form.watch(`entreprise.phone` as any) || primaryPerson?.phone || "";
   const isEmailLocked = !!rootEmail;
   const isPhoneLocked = !rootEmail && !!rootPhone;
+  
+  // Vérifier si la personne principale a déjà un email dans la base de données
+  // L'email de la personne principale ne peut pas être modifié car il est lié au client et à l'utilisateur
+  const primaryPersonEmailFromDb = intakeLink.client?.persons?.[0]?.email || intakeLink.client?.email || "";
+  const isPrimaryPersonEmailLocked = !!primaryPersonEmailFromDb;
+  
+  // Empêcher la modification de l'email de la personne principale
+  useEffect(() => {
+    if (isPrimaryPersonEmailLocked && personFields.length > 0) {
+      const currentPrimaryEmail = form.getValues(`persons.0.email` as any);
+      if (currentPrimaryEmail !== primaryPersonEmailFromDb) {
+        form.setValue(`persons.0.email` as any, primaryPersonEmailFromDb, { shouldDirty: false });
+      }
+    }
+  }, [isPrimaryPersonEmailLocked, primaryPersonEmailFromDb, form, personFields.length]);
   
   // Fonction pour vérifier si une personne a des erreurs
   const hasPersonErrors = (index: number): boolean => {
@@ -2773,12 +2829,10 @@ const ClientInfoStep = ({
                     <Input
                       type="email"
                       {...form.register(`persons.${index}.email` as any)}
-                      disabled={isEmailLocked && index === 0}
-                      className={isEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}
+                      disabled={isPrimaryPersonEmailLocked && index === 0}
+                      className={isPrimaryPersonEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}
                     />
-                    {isEmailLocked && index === 0 && (
-                      <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
-                    )}
+
                     {form.formState.errors.persons?.[index]?.email && (
                       <p className="text-sm text-destructive">
                         {form.formState.errors.persons[index]?.email?.message}
@@ -3227,48 +3281,51 @@ type PropertyStepProps = {
   isMobile: boolean;
 };
 
-const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
-  <Card>
-    <CardHeader>
-      <CardTitle>Informations du bien</CardTitle>
-      <CardDescription>
-        Remplissez les informations en rapport avec le bien.
-      </CardDescription>
-    </CardHeader>
-    <CardContent className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="propertyLabel">Libellé</Label>
-        <Input id="propertyLabel" {...form.register("propertyLabel")} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="propertyFullAddress">Adresse complète du bien *</Label>
-        <AddressAutocomplete
-          value={form.watch("propertyFullAddress") || ""}
-          onAddressSelect={(addressData: AddressData) => {
-            console.log("📍 [OwnerIntakeForm] Adresse sélectionnée:", addressData);
-            form.setValue("propertyFullAddress", addressData.fullAddress);
-            form.setValue("propertyHousenumber", addressData.housenumber || "");
-            form.setValue("propertyStreet", addressData.street || "");
-            form.setValue("propertyCity", addressData.city);
-            form.setValue("propertyPostalCode", addressData.postalCode);
-            form.setValue("propertyDistrict", addressData.district || "");
-            form.setValue("propertyInseeCode", addressData.inseeCode);
-            form.setValue("propertyDepartment", addressData.department || "");
-            form.setValue("propertyRegion", addressData.region || "");
-            form.setValue("propertyLatitude", addressData.latitude);
-            form.setValue("propertyLongitude", addressData.longitude);
-          }}
-          onChange={(value) => form.setValue("propertyFullAddress", value)}
-          placeholder="Rechercher une adresse..."
-          error={form.formState.errors.propertyFullAddress?.message}
-        />
-        {form.formState.errors.propertyFullAddress && (
-          <p className="text-sm text-destructive">
-            {form.formState.errors.propertyFullAddress.message}
-          </p>
-        )}
-      </div>
-      <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
+  const propertyInseeCode = useWatch({ control: form.control, name: "propertyInseeCode" });
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Informations du bien</CardTitle>
+        <CardDescription>
+          Remplissez les informations en rapport avec le bien.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="propertyLabel">Libellé</Label>
+          <Input id="propertyLabel" {...form.register("propertyLabel")} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="propertyFullAddress">Adresse complète du bien *</Label>
+          <AddressAutocomplete
+            value={form.watch("propertyFullAddress") || ""}
+            onAddressSelect={(addressData: AddressData) => {
+              console.log("📍 [OwnerIntakeForm] Adresse sélectionnée:", addressData);
+              form.setValue("propertyFullAddress", addressData.fullAddress);
+              form.setValue("propertyHousenumber", addressData.housenumber || "");
+              form.setValue("propertyStreet", addressData.street || "");
+              form.setValue("propertyCity", addressData.city);
+              form.setValue("propertyPostalCode", addressData.postalCode);
+              form.setValue("propertyDistrict", addressData.district || "");
+              form.setValue("propertyInseeCode", addressData.inseeCode);
+              form.setValue("propertyDepartment", addressData.department || "");
+              form.setValue("propertyRegion", addressData.region || "");
+              form.setValue("propertyLatitude", addressData.latitude ? addressData.latitude.toString() : "" as any);
+              form.setValue("propertyLongitude", addressData.longitude ? addressData.longitude.toString() : "" as any);
+            }}
+            onChange={(value) => form.setValue("propertyFullAddress", value)}
+            placeholder="Rechercher une adresse..."
+            error={form.formState.errors.propertyFullAddress?.message}
+          />
+          {form.formState.errors.propertyFullAddress && (
+            <p className="text-sm text-destructive">
+              {form.formState.errors.propertyFullAddress.message}
+            </p>
+          )}
+        </div>
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="propertyPostalCode">Code postal *</Label>
           <Input
@@ -3314,9 +3371,11 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
           <Controller
             name="propertyType"
             control={form.control}
-            render={({ field }) => (
+            render={({ field }) => {
+              const fieldValue = typeof field.value === 'string' ? field.value : undefined;
+              return (
               <RadioGroup
-                value={field.value || undefined}
+                value={fieldValue}
                 onValueChange={(value) => field.onChange(value as BienType)}
                 className="flex flex-row space-x-3 w-full items-center justify-between "
               >
@@ -3354,7 +3413,8 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
                   </div>
                 </Label>
               </RadioGroup>
-            )}
+              );
+            }}
           />
           {form.formState.errors.propertyType && (
             <p className="text-sm text-destructive">
@@ -3394,8 +3454,10 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
           <Controller
             name="propertyLegalStatus"
             control={form.control}
-            render={({ field }) => (
-              <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+            render={({ field }) => {
+              const fieldValue = typeof field.value === 'string' ? field.value : undefined;
+              return (
+              <Select value={fieldValue} onValueChange={field.onChange}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Sélectionner le régime juridique" />
                 </SelectTrigger>
@@ -3411,7 +3473,8 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
                   </SelectItem>
                 </SelectContent>
               </Select>
-            )}
+              );
+            }}
           />
           {form.formState.errors.propertyLegalStatus && (
             <p className="text-sm text-destructive">
@@ -3422,7 +3485,8 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => (
       </div>
     </CardContent>
   </Card>
-);
+  );
+};
 
 type BailStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
@@ -3473,7 +3537,7 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
       content={
         <>
           <p>Bail meublé → 2 mois de loyer hors charges maximum</p>
-          <p>Bail nu → 1 mois de loyer hors charges maximum</p>
+          <p>Bail nue → 1 mois de loyer hors charges maximum</p>
           {rentAmountNum > 0 && (
             <p className="mt-2 font-semibold">
               Maximum autorisé : {maxSecurityDeposit.toLocaleString('fr-FR')} €
@@ -3511,6 +3575,7 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
   // Surveillance du loyer et de la surface pour validation zone tendue
   const rentAmount = useWatch({ control: form.control, name: "bailRentAmount" });
   const surfaceM2 = useWatch({ control: form.control, name: "propertySurfaceM2" });
+  const propertyInseeCode = useWatch({ control: form.control, name: "propertyInseeCode" }) as string | null | undefined;
   const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
   const [propertySurface, setPropertySurface] = useState<number | null>(null);
 
@@ -3546,13 +3611,13 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
     }
   }, [propertyId, rentAmount, propertySurface]);
   
-  // Nettoyer les erreurs de mobilier si on passe à un bail nu
+  // Nettoyer les erreurs de mobilier si on passe à un bail nue
   useEffect(() => {
     if (!isMeubleBail) {
       FURNITURE_FIELDS.forEach(({ key }) => {
         form.clearErrors(key as keyof FormWithPersons);
       });
-      // Nettoyer aussi l'erreur sur bailType si elle existe et qu'on est sur un bail nu
+      // Nettoyer aussi l'erreur sur bailType si elle existe et qu'on est sur un bail nue
       if (form.formState.errors.bailType?.message?.includes('équipements')) {
         form.clearErrors('bailType');
       }
@@ -3578,7 +3643,7 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
                 field.onChange(value);
                 // Réinitialiser les erreurs de validation après changement
                 form.clearErrors("bailType");
-                // Si on passe à un bail nu, nettoyer toutes les erreurs de mobilier
+                // Si on passe à un bail nue, nettoyer toutes les erreurs de mobilier
                 const isNowMeuble = value === BailType.BAIL_MEUBLE_1_ANS || value === BailType.BAIL_MEUBLE_9_MOIS;
                 if (!isNowMeuble) {
                   FURNITURE_FIELDS.forEach(({ key }) => {
@@ -3591,9 +3656,9 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
                 <SelectValue placeholder="Sélectionner" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
+                <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nue 3 ans</SelectItem>
                 <SelectItem value={BailType.BAIL_NU_6_ANS}>
-                  Bail nu 6 ans (SCI)
+                  Bail nue 6 ans (SCI)
                 </SelectItem>
                 <SelectItem value={BailType.BAIL_MEUBLE_1_ANS}>
                   Bail meublé 1 an
@@ -3672,10 +3737,11 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
         </div>
       </div>
 
-      {/* Avertissement zone tendue */}
-      {propertyId && (
+      {/* Avertissement zone tendue - affiché dès l'entrée dans l'étape si le bien est en zone tendue */}
+      {(propertyId || (propertyInseeCode && typeof propertyInseeCode === 'string' && propertyInseeCode.trim() !== "")) && (
         <RentControlAlert
-          propertyId={propertyId}
+          propertyId={propertyId !== null ? propertyId : undefined}
+          inseeCode={propertyInseeCode && typeof propertyInseeCode === 'string' && propertyInseeCode.trim() !== "" ? propertyInseeCode : null}
           rentAmount={rentAmount ? (typeof rentAmount === 'number' ? rentAmount : parseFloat(String(rentAmount) || '0')) : undefined}
           surfaceM2={propertySurface}
           validationResult={rentValidationResult}

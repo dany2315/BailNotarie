@@ -21,9 +21,9 @@ const furnitureFieldsSchema = {
 export const createPropertySchema = z.object({
   label: z.string().max(200, "Le libellé est trop long").trim().optional(),
   fullAddress: z.string().min(1, "L'adresse est requise").max(500, "L'adresse est trop longue").trim(),
-  surfaceM2: z.string().optional().transform((val) => {
-    if (!val) return null;
-    const num = parseFloat(val);
+  surfaceM2: z.union([z.string(), z.number(), z.null(), z.undefined()]).optional().transform((val) => {
+    if (!val || val === null || val === undefined) return null;
+    const num = typeof val === 'string' ? parseFloat(val) : val;
     if (isNaN(num) || num < 0) return null;
     return num;
   }),
@@ -40,15 +40,15 @@ export const createPropertySchema = z.object({
   inseeCode: z.string().max(10).trim().optional(),
   department: z.string().max(100).trim().optional(),
   region: z.string().max(100).trim().optional(),
-  latitude: z.string().optional().transform((val) => {
-    if (!val) return null;
-    const num = parseFloat(val);
+  latitude: z.union([z.string(), z.number(), z.null(), z.undefined()]).optional().transform((val) => {
+    if (!val || val === null || val === undefined) return null;
+    const num = typeof val === 'string' ? parseFloat(val) : val;
     if (isNaN(num)) return null;
     return num;
   }),
-  longitude: z.string().optional().transform((val) => {
-    if (!val) return null;
-    const num = parseFloat(val);
+  longitude: z.union([z.string(), z.number(), z.null(), z.undefined()]).optional().transform((val) => {
+    if (!val || val === null || val === undefined) return null;
+    const num = typeof val === 'string' ? parseFloat(val) : val;
     if (isNaN(num)) return null;
     return num;
   }),

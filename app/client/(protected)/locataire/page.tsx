@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { requireLocataireAuth } from "@/lib/auth-helpers";
 import { getLocataireStats, getClientBails, getPendingNotaireRequests } from "@/lib/actions/client-space";
-import { ProfilType } from "@prisma/client";
+import { ProfilType, BailType, BailFamille, BailStatus, CompletionStatus } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, CheckCircle, XCircle, AlertCircle } from "lucide-react";
@@ -112,7 +112,7 @@ export default async function LocataireDashboardPage() {
                         </Link>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {bail.rentAmount.toLocaleString()} € / mois
+                        {bail.rentAmount ? bail.rentAmount.toLocaleString() : "N/A"} € / mois
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Du {formatDateTime(bail.effectiveDate)} au {bail.endDate ? formatDateTime(bail.endDate) : "indéterminé"}

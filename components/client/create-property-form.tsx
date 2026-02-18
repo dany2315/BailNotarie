@@ -309,6 +309,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [createdPropertyId, setCreatedPropertyId] = useState<string | null>(null);
+  const [uploadingCount, setUploadingCount] = useState(0);
   
   // Ref pour stocker le callback et éviter les boucles infinies
   const onLoadingChangeRef = useRef(onLoadingChange);
@@ -324,6 +325,20 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
   const reglementCoproprieteRef = useRef<HTMLInputElement>(null);
   const cahierChargeLotissementRef = useRef<HTMLInputElement>(null);
   const statutAssociationSyndicaleRef = useRef<HTMLInputElement>(null);
+
+  // Fonction pour gérer les changements d'état d'upload
+  const handleUploadStateChange = useCallback((uploading: boolean, propertyId?: string) => {
+    setUploadingCount((prev) => {
+      const newCount = uploading ? prev + 1 : Math.max(0, prev - 1);
+      return newCount;
+    });
+    
+    if (!uploading && propertyId) {
+      window.dispatchEvent(new CustomEvent(`document-uploaded-property-${propertyId}`));
+    }
+  }, []);
+
+  const isUploading = uploadingCount > 0;
 
   // États pour les fichiers de documents
   const [diagnosticsFile, setDiagnosticsFile] = useState<File | null>(null);
@@ -383,8 +398,9 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
     setValue("inseeCode" as any, addressData.inseeCode);
     setValue("department" as any, addressData.department || "");
     setValue("region" as any, addressData.region || "");
-    setValue("latitude" as any, addressData.latitude.toString());
-    setValue("longitude" as any, addressData.longitude.toString());
+    // Convertir en string pour le schéma Zod qui accepte string ou number
+    setValue("latitude" as any, addressData.latitude?.toString() || "");
+    setValue("longitude" as any, addressData.longitude?.toString() || "");
   };
 
   const type = watch("type" as any);
@@ -703,9 +719,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                     documentPropertyId={createdPropertyId || undefined}
                     documentClientId={ownerId}
                     onUploadStateChange={(uploading) => {
-                      if (!uploading && createdPropertyId) {
-                        window.dispatchEvent(new CustomEvent(`document-uploaded-property-${createdPropertyId}`));
-                      }
+                      handleUploadStateChange(uploading, createdPropertyId || undefined);
                     }}
                   />
                 </PropertyDocumentUploaded>
@@ -729,9 +743,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                     documentPropertyId={createdPropertyId || undefined}
                     documentClientId={ownerId}
                     onUploadStateChange={(uploading) => {
-                      if (!uploading && createdPropertyId) {
-                        window.dispatchEvent(new CustomEvent(`document-uploaded-property-${createdPropertyId}`));
-                      }
+                      handleUploadStateChange(uploading, createdPropertyId || undefined);
                     }}
                   />
                 </PropertyDocumentUploaded>
@@ -841,11 +853,11 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                       Annuler
                     </Button>
                   </Link>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? (
+                  <Button type="submit" disabled={isLoading || isUploading}>
+                    {isLoading || isUploading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Création...
+                        {isUploading ? "Upload en cours..." : "Création..."}
                       </>
                     ) : (
                         <>

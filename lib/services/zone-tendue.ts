@@ -5,6 +5,33 @@ import { BienType } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 
 /**
+ * Normalise le code INSEE pour gérer les arrondissements de Paris, Lyon et Marseille
+ * Les arrondissements de ces villes doivent être mappés vers le code INSEE de la ville principale
+ */
+function normalizeInseeCode(inseeCode: string): string {
+  // Paris : arrondissements 75101-7520 (20 arrondissements) -> 75056
+  if (inseeCode.startsWith("751") || inseeCode.startsWith("752")) {
+    return "75056";
+  }
+  
+  // Lyon : arrondissements 69381-69389 (9 arrondissements) -> 69123
+  if (inseeCode.startsWith("6938")) {
+    return "69123";
+  }
+  
+  // Marseille : arrondissements 13201-13216 (16 arrondissements) -> 13055
+  // Vérification précise pour éviter les collisions avec d'autres communes du 13
+  if (inseeCode.startsWith("132")) {
+    const codeNum = parseInt(inseeCode, 10);
+    if (codeNum >= 13201 && codeNum <= 13216) {
+      return "13055";
+    }
+  }
+  
+  return inseeCode;
+}
+
+/**
  * Vérifie si une commune est en zone tendue en utilisant son code INSEE
  */
 export async function checkTightZone(inseeCode: string | null | undefined): Promise<{
@@ -25,9 +52,12 @@ export async function checkTightZone(inseeCode: string | null | undefined): Prom
     };
   }
 
+  // Normaliser le code INSEE pour gérer les arrondissements
+  const normalizedInseeCode = normalizeInseeCode(inseeCode);
+
   const zoneTendue = await prisma.zoneTendue.findUnique({
     where: {
-      inseeCode,
+      inseeCode: normalizedInseeCode,
       isActive: true,
     },
   });
@@ -232,6 +262,7 @@ export async function updatePropertyZoneStatus(
     hasRentControl,
   };
 }
+
 
 
 
