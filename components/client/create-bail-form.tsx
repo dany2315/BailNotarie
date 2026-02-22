@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -52,6 +52,11 @@ const createBailSchema = z.object({
 
 type CreateBailFormData = z.infer<typeof createBailSchema>;
 
+export interface CreateBailFormRef {
+  submit: () => void;
+  isLoading: boolean;
+}
+
 interface CreateBailFormProps {
   biens: Array<{
     id: string;
@@ -71,9 +76,14 @@ interface CreateBailFormProps {
     } | null;
   }>;
   ownerId: string;
+  initialPropertyId?: string;
+  onBailCreated?: (bail: any) => void;
+  hideActions?: boolean;
+  onLoadingChange?: (isLoading: boolean) => void;
 }
 
-export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormProps) {
+export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>(
+  function CreateBailForm({ biens, locataires, ownerId, initialPropertyId, onBailCreated, hideActions = false, onLoadingChange }, ref) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isPropertyDrawerOpen, setIsPropertyDrawerOpen] = useState(false);
@@ -85,6 +95,7 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
   const [isMobile, setIsMobile] = useState(false);
   const propertyFormRef = useRef<CreatePropertyFormRef>(null);
   const [isPropertyFormLoading, setIsPropertyFormLoading] = useState(false);
+  const [isPropertyFormUploading, setIsPropertyFormUploading] = useState(false);
 
   // Détecter si on est sur mobile
   useEffect(() => {
@@ -119,6 +130,13 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
   const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
   const [propertySelectKey, setPropertySelectKey] = useState(0);
   const [tenantSelectKey, setTenantSelectKey] = useState(0);
+
+  // Initialiser avec initialPropertyId si fourni
+  useEffect(() => {
+    if (initialPropertyId && !propertyId) {
+      setValue("propertyId", initialPropertyId);
+    }
+  }, [initialPropertyId, propertyId, setValue]);
 
   // Récupérer les informations du bien sélectionné
   useEffect(() => {
@@ -236,6 +254,15 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
     toast.success("Bien créé avec succès");
   };
 
+  // Refs pour les callbacks stables
+  const onLoadingChangeRef = useRef(onLoadingChange);
+  const onBailCreatedRef = useRef(onBailCreated);
+
+  useEffect(() => {
+    onLoadingChangeRef.current = onLoadingChange;
+    onBailCreatedRef.current = onBailCreated;
+  }, [onLoadingChange, onBailCreated]);
+
   const onSubmit = async (data: CreateBailFormData) => {
     try {
       setIsLoading(true);
@@ -245,10 +272,16 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
         leaseType: "HABITATION",
         status: BailStatus.DRAFT,
       };
-      await createLease(bailData);
+      const bail = await createLease(bailData);
       toast.success("Bail créé avec succès");
-      router.push("/client/proprietaire/baux");
-      router.refresh();
+      
+      // Si onBailCreated est fourni, l'appeler au lieu de rediriger
+      if (onBailCreatedRef.current) {
+        onBailCreatedRef.current(bail);
+      } else {
+        router.push("/client/proprietaire/baux");
+        router.refresh();
+      }
     } catch (error: any) {
       toast.error("Erreur", {
         description: error.message || "Impossible de créer le bail",
@@ -257,6 +290,20 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
       setIsLoading(false);
     }
   };
+
+  const handleFormSubmit = handleSubmit(onSubmit);
+
+  useImperativeHandle(ref, () => ({
+    submit: handleFormSubmit,
+    isLoading,
+  }), [handleFormSubmit, isLoading]);
+
+  // Notifier le parent quand isLoading change
+  useEffect(() => {
+    if (onLoadingChangeRef.current) {
+      onLoadingChangeRef.current(isLoading);
+    }
+  }, [isLoading]);
 
   return (
     <>
@@ -362,6 +409,7 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                         onPropertyCreated={handlePropertyCreated}
                         hideActions={true}
                         onLoadingChange={setIsPropertyFormLoading}
+                        onUploadingChange={setIsPropertyFormUploading}
                       />
                     </div>
                     <DrawerFooter>
@@ -370,7 +418,7 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                           type="button"
                           variant="outline"
                           onClick={() => setIsPropertyDrawerOpen(false)}
-                          disabled={isPropertyFormLoading}
+                          disabled={isPropertyFormLoading || isPropertyFormUploading}
                         >
                           <ArrowLeft className="mr-2 h-4 w-4" />
                           Annuler
@@ -378,9 +426,14 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
                         <Button
                           type="button"
                           onClick={() => propertyFormRef.current?.submit()}
-                          disabled={isPropertyFormLoading}
+                          disabled={isPropertyFormLoading || isPropertyFormUploading}
                         >
-                          {isPropertyFormLoading ? (
+                          {isPropertyFormUploading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Upload en cours...
+                            </>
+                          ) : isPropertyFormLoading ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                               Création...
@@ -693,30 +746,35 @@ export function CreateBailForm({ biens, locataires, ownerId }: CreateBailFormPro
               </div>
             </div>
 
-            <Separator />
+            {!hideActions && (
+              <>
+                <Separator />
 
-            {/* Boutons d'action */}
-            <div className="flex gap-2 justify-end">
-              <Link href="/client/proprietaire/baux">
-                <Button type="button" variant="outline" disabled={isLoading}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Annuler
-                </Button>
-              </Link>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Création...
-                  </>
-                ) : (
-                  "Créer le bail"
-                )}
-              </Button>
-            </div>
+                {/* Boutons d'action */}
+                <div className="flex gap-2 justify-end">
+                  <Link href="/client/proprietaire/baux">
+                    <Button type="button" variant="outline" disabled={isLoading}>
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Annuler
+                    </Button>
+                  </Link>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Création...
+                      </>
+                    ) : (
+                      "Créer le bail"
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
           </form>
         </CardContent>
       </Card>
     </>
   );
-}
+  }
+);
