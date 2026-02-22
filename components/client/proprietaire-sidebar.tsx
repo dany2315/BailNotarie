@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, FileText, Home, Plus, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, Home, Plus, LogOut, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -10,8 +10,7 @@ import { toast } from "sonner";
 
 const navigation = [
   { name: "Dashboard", href: "/client/proprietaire", icon: LayoutDashboard },
-  { name: "Mes baux", href: "/client/proprietaire/baux", icon: FileText },
-  { name: "Mes biens", href: "/client/proprietaire/biens", icon: Home },
+  { name: "Demandes", href: "/client/proprietaire/demandes", icon: ClipboardList },
 ];
 
 function ProprietaireSidebarComponent() {
@@ -55,13 +54,13 @@ function ProprietaireSidebarComponent() {
           );
         })}
         <div className="pt-4 space-y-2">
-          <Link href="/client/proprietaire/biens/new">
+          <Link href="/client/proprietaire/demandes?open=bien-new">
             <Button variant="outline" className="w-full justify-start">
               <Plus className="mr-2 h-4 w-4" />
               Créer un bien
             </Button>
           </Link>
-          <Link href="/client/proprietaire/baux/new">
+          <Link href="/client/proprietaire/demandes?open=bail-new">
             <Button variant="outline" className="w-full justify-start">
               <Plus className="mr-2 h-4 w-4" />
               Créer un bail

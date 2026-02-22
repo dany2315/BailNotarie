@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Home, Plus, User } from "lucide-react";
+import { LayoutDashboard, FileText, Home, Plus, User, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +14,7 @@ import {
 
 const navigation = [
   { name: "Dashboard", href: "/client/proprietaire", icon: LayoutDashboard },
-  { name: "Mes biens", href: "/client/proprietaire/biens", icon: Home },
-  { name: "Mes baux", href: "/client/proprietaire/baux", icon: FileText },
+  { name: "Demandes", href: "/client/proprietaire/demandes", icon: ClipboardList },
   { name: "Mes informations", href: "/client/proprietaire/informations", icon: User },
 ];
 
@@ -58,13 +57,13 @@ export function ProprietaireNavigation() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
-                <Link href="/client/proprietaire/biens/new" className="cursor-pointer">
+                <Link href="/client/proprietaire/demandes?open=bien-new" className="cursor-pointer">
                   <Home className="mr-2 h-4 w-4" />
                   Créer un bien
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/client/proprietaire/baux/new" className="cursor-pointer">
+                <Link href="/client/proprietaire/demandes?open=bail-new" className="cursor-pointer">
                   <FileText className="mr-2 h-4 w-4" />
                   Créer un bail
                 </Link>
@@ -108,13 +107,13 @@ export function ProprietaireNavigation() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem asChild>
-                  <Link href="/client/proprietaire/biens/new" className="cursor-pointer">
+                  <Link href="/client/proprietaire/demandes?open=bien-new" className="cursor-pointer">
                     <Home className="mr-2 h-4 w-4" />
                     Créer un bien
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/client/proprietaire/baux/new" className="cursor-pointer">
+                  <Link href="/client/proprietaire/demandes?open=bail-new" className="cursor-pointer">
                     <FileText className="mr-2 h-4 w-4" />
                     Créer un bail
                   </Link>

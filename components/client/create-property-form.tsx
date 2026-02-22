@@ -127,6 +127,7 @@ interface CreatePropertyFormProps {
   hideActions?: boolean;
   renderActions?: (props: { onSubmit: () => void; isLoading: boolean }) => React.ReactNode;
   onLoadingChange?: (isLoading: boolean) => void;
+  onUploadingChange?: (isUploading: boolean) => void;
 }
 
 // Composant pour afficher un document uploadé pour une propriété
@@ -305,19 +306,23 @@ function PropertyDocumentUploaded({
 }
 
 export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreatePropertyFormProps>(
-  ({ ownerId, onPropertyCreated, hideActions = false, renderActions, onLoadingChange }, ref) => {
+  ({ ownerId, onPropertyCreated, hideActions = false, renderActions, onLoadingChange, onUploadingChange }, ref) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [createdPropertyId, setCreatedPropertyId] = useState<string | null>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
   
-  // Ref pour stocker le callback et éviter les boucles infinies
+  // Refs pour stocker les callbacks et éviter les boucles infinies
   const onLoadingChangeRef = useRef(onLoadingChange);
+  const onPropertyCreatedRef = useRef(onPropertyCreated);
+  const onUploadingChangeRef = useRef(onUploadingChange);
   
-  // Mettre à jour la ref quand le callback change
+  // Mettre à jour les refs quand les callbacks changent
   useEffect(() => {
     onLoadingChangeRef.current = onLoadingChange;
-  }, [onLoadingChange]);
+    onPropertyCreatedRef.current = onPropertyCreated;
+    onUploadingChangeRef.current = onUploadingChange;
+  }, [onLoadingChange, onPropertyCreated, onUploadingChange]);
   
   // Refs pour les fichiers de documents
   const diagnosticsRef = useRef<HTMLInputElement>(null);
@@ -435,8 +440,8 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
       toast.success("Bien créé avec succès");
       
       // Si onPropertyCreated est fourni, l'appeler au lieu de rediriger
-      if (onPropertyCreated) {
-        onPropertyCreated(property);
+      if (onPropertyCreatedRef.current) {
+        onPropertyCreatedRef.current(property);
       } else {
       router.push("/client/proprietaire/biens");
       router.refresh();
@@ -455,7 +460,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
   useImperativeHandle(ref, () => ({
     submit: handleFormSubmit,
     isLoading,
-  }));
+  }), [handleFormSubmit, isLoading]);
 
   // Mettre à jour le callback de chargement seulement quand isLoading change
   useEffect(() => {
@@ -463,6 +468,13 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
       onLoadingChangeRef.current(isLoading);
     }
   }, [isLoading]);
+
+  // Notifier le parent quand l'état d'upload change
+  useEffect(() => {
+    if (onUploadingChangeRef.current) {
+      onUploadingChangeRef.current(isUploading);
+    }
+  }, [isUploading]);
 
   return (
     <div className="space-y-6">
