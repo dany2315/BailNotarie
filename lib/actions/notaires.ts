@@ -90,7 +90,7 @@ export async function createNotaire(data: unknown) {
 
   // Envoyer un email de bienvenue via Inngest
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.bailnotarie.fr";
+    const baseUrl = process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
     const loginUrl = `${baseUrl}/notaire/login`;
 
     await triggerNotaireWelcomeEmail({
@@ -224,7 +224,7 @@ export async function assignDossierToNotaire(data: unknown) {
         clientName,
         propertyAddress,
         notes: validated.notes || undefined,
-        interfaceUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://www.bailnotarie.fr"}/notaire/dossiers`,
+        interfaceUrl: `${process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr"}/notaire/dossiers`,
       }),
     });
   } catch (emailError) {
@@ -628,7 +628,7 @@ export async function createNotaireRequest(data: unknown) {
       });
 
       if (bail) {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.bailnotarie.fr";
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
         const bailAddress = bail.property?.fullAddress || null;
         const notaireName = user.name || user.email;
 

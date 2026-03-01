@@ -1,19 +1,95 @@
 import { resend } from "@/lib/resend";
 
-// Rate limit: 3 requêtes par seconde pour être conservateur (Resend Free: 3/sec, Pro: 10/sec)
-const MIN_DELAY_MS = 350; // ~3 requêtes par seconde
-const MAX_REQUESTS_PER_SECOND = 3;
+function readPositiveNumber(envValue: string | undefined, fallback: number): number {
+  if (!envValue) return fallback;
+  const parsed = Number(envValue);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+// La limite Resend est appliquée au niveau équipe (team-wide), pas seulement par clé API.
+// Par défaut on reste à 2 req/s pour éviter les 429; augmente via env si Resend relève ton quota.
+const MAX_REQUESTS_PER_SECOND = readPositiveNumber(
+  process.env.RESEND_MAX_REQUESTS_PER_SECOND,
+  2
+);
+const MIN_DELAY_MS = Math.max(
+  readPositiveNumber(process.env.RESEND_MIN_DELAY_MS, 0),
+  Math.ceil(1000 / MAX_REQUESTS_PER_SECOND)
+);
 
 // Configuration du retry pour les erreurs 429
-const MAX_RETRIES = 5;
-const INITIAL_RETRY_DELAY_MS = 1000; // 1 seconde
-const MAX_RETRY_DELAY_MS = 30000; // 30 secondes maximum
+const MAX_RETRIES = readPositiveNumber(process.env.RESEND_MAX_RETRIES, 12);
+const INITIAL_RETRY_DELAY_MS = readPositiveNumber(
+  process.env.RESEND_INITIAL_RETRY_DELAY_MS,
+  1000
+);
+const MAX_RETRY_DELAY_MS = readPositiveNumber(
+  process.env.RESEND_MAX_RETRY_DELAY_MS,
+  120000
+);
+const MAX_TOTAL_RETRY_TIME_MS = readPositiveNumber(
+  process.env.RESEND_MAX_TOTAL_RETRY_TIME_MS,
+  15 * 60 * 1000
+);
 
 // Queue pour gérer les requêtes
 interface QueuedRequest {
   resolve: (value: any) => void;
   reject: (error: any) => void;
   sendFn: () => Promise<any>;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getHeaderValue(headers: unknown, key: string): string | null {
+  if (!headers) return null;
+
+  // Supporte Headers (fetch), Map-like et objets simples
+  if (
+    typeof headers === "object" &&
+    headers !== null &&
+    "get" in (headers as any) &&
+    typeof (headers as any).get === "function"
+  ) {
+    const value =
+      (headers as any).get(key) ??
+      (headers as any).get(key.toLowerCase()) ??
+      (headers as any).get(key.toUpperCase());
+    return typeof value === "string" ? value : null;
+  }
+
+  if (typeof headers === "object" && headers !== null) {
+    const source = headers as Record<string, unknown>;
+    const matchKey = Object.keys(source).find(
+      (k) => k.toLowerCase() === key.toLowerCase()
+    );
+    const value = matchKey ? source[matchKey] : null;
+    return typeof value === "string" ? value : null;
+  }
+
+  return null;
+}
+
+function parseRetryAfterToMs(rawRetryAfter: string | null): number | null {
+  if (!rawRetryAfter) return null;
+
+  // Format en secondes
+  const seconds = Number.parseInt(rawRetryAfter, 10);
+  if (!Number.isNaN(seconds) && seconds >= 0) {
+    return seconds * 1000;
+  }
+
+  // Format date HTTP
+  const dateMs = Date.parse(rawRetryAfter);
+  if (!Number.isNaN(dateMs)) {
+    const delta = dateMs - Date.now();
+    return delta > 0 ? delta : 0;
+  }
+
+  return null;
 }
 
 /**
@@ -23,12 +99,13 @@ function isRateLimitError(error: any): boolean {
   if (!error) return false;
   
   // Vérifier le status code
-  if (error.status === 429) return true;
+  if (error.status === 429 || error.statusCode === 429) return true;
   
   // Vérifier si c'est une réponse Resend avec une erreur
   if (error.error) {
     const resendError = error.error;
     if (resendError.statusCode === 429 || resendError.status === 429) return true;
+    if (resendError.code === "rate_limit_exceeded") return true;
     
     const errorMessage = (resendError.message || "").toLowerCase();
     if (errorMessage.includes("429") || 
@@ -61,34 +138,25 @@ function getRetryAfterDelay(error: any): number | null {
   // Vérifier dans l'erreur Resend
   if (error.error) {
     const resendError = error.error;
-    if (resendError.headers?.["retry-after"]) {
-      const retryAfter = parseInt(resendError.headers["retry-after"], 10);
-      if (!isNaN(retryAfter)) {
-        return retryAfter * 1000; // Convertir en millisecondes
-      }
-    }
+    const retryAfterHeader = getHeaderValue(resendError.headers, "retry-after");
+    const parsedHeaderDelay = parseRetryAfterToMs(retryAfterHeader);
+    if (parsedHeaderDelay !== null) return parsedHeaderDelay;
+
     if (resendError.retryAfter) {
-      const retryAfter = parseInt(resendError.retryAfter, 10);
-      if (!isNaN(retryAfter)) {
-        return retryAfter * 1000;
-      }
+      const parsedRetryAfter = parseRetryAfterToMs(String(resendError.retryAfter));
+      if (parsedRetryAfter !== null) return parsedRetryAfter;
     }
   }
   
   // Vérifier dans les headers de la réponse
-  if (error.headers?.["retry-after"]) {
-    const retryAfter = parseInt(error.headers["retry-after"], 10);
-    if (!isNaN(retryAfter)) {
-      return retryAfter * 1000; // Convertir en millisecondes
-    }
-  }
+  const retryAfterHeader = getHeaderValue(error.headers, "retry-after");
+  const parsedHeaderDelay = parseRetryAfterToMs(retryAfterHeader);
+  if (parsedHeaderDelay !== null) return parsedHeaderDelay;
   
   // Vérifier dans les données de l'erreur
   if (error.data?.retryAfter) {
-    const retryAfter = parseInt(error.data.retryAfter, 10);
-    if (!isNaN(retryAfter)) {
-      return retryAfter * 1000;
-    }
+    const parsedRetryAfter = parseRetryAfterToMs(String(error.data.retryAfter));
+    if (parsedRetryAfter !== null) return parsedRetryAfter;
   }
   
   return null;
@@ -113,50 +181,51 @@ function calculateRetryDelay(attempt: number, retryAfter: number | null): number
  * Retry une fonction avec backoff exponentiel en cas d'erreur 429
  */
 async function retryWithBackoff<T>(
-  sendFn: () => Promise<T>,
-  attempt: number = 0
+  sendFn: () => Promise<T>
 ): Promise<T> {
-  try {
-    const result = await sendFn();
-    
-    // Vérifier si Resend a retourné une réponse avec une erreur
-    if (result && typeof result === 'object' && 'error' in result) {
-      const resendResult = result as any;
-      if (resendResult.error && isRateLimitError(resendResult)) {
-        // Traiter comme une erreur 429
-        throw resendResult;
+  const startedAt = Date.now();
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const result = await sendFn();
+
+      // Le SDK Resend peut retourner { data, error } sans throw
+      if (result && typeof result === "object" && "error" in result) {
+        const resendResult = result as any;
+        if (resendResult.error && isRateLimitError(resendResult)) {
+          throw resendResult;
+        }
       }
-    }
-    
-    return result;
-  } catch (error: any) {
-    // Si ce n'est pas une erreur 429, propager l'erreur
-    if (!isRateLimitError(error)) {
-      throw error;
-    }
-    
-    // Si on a atteint le nombre maximum de tentatives, propager l'erreur
-    if (attempt >= MAX_RETRIES) {
-      console.error(`Erreur 429 persistante après ${MAX_RETRIES} tentatives:`, error);
-      throw new Error(
-        `Rate limit atteint après ${MAX_RETRIES} tentatives. Veuillez réessayer plus tard.`
+
+      return result;
+    } catch (error: any) {
+      if (!isRateLimitError(error)) {
+        throw error;
+      }
+
+      const elapsedMs = Date.now() - startedAt;
+      if (attempt >= MAX_RETRIES || elapsedMs >= MAX_TOTAL_RETRY_TIME_MS) {
+        console.error(
+          `Erreur 429 persistante après ${attempt} tentatives (${elapsedMs}ms):`,
+          error
+        );
+        throw new Error(
+          "Resend est temporairement limité malgré plusieurs tentatives. Réessayez plus tard."
+        );
+      }
+
+      const retryAfter = getRetryAfterDelay(error);
+      const delay = calculateRetryDelay(attempt, retryAfter);
+
+      console.warn(
+        `Erreur 429 détectée (tentative ${attempt + 1}/${MAX_RETRIES}, ` +
+          `attente ${delay}ms).`
       );
+
+      await sleep(delay);
+      attempt += 1;
     }
-    
-    // Calculer le délai d'attente
-    const retryAfter = getRetryAfterDelay(error);
-    const delay = calculateRetryDelay(attempt, retryAfter);
-    
-    console.warn(
-      `Erreur 429 détectée (tentative ${attempt + 1}/${MAX_RETRIES}). ` +
-      `Nouvelle tentative dans ${delay}ms...`
-    );
-    
-    // Attendre avant de réessayer
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
-    // Réessayer
-    return retryWithBackoff(sendFn, attempt + 1);
   }
 }
 
@@ -243,7 +312,7 @@ const rateLimiter = new RateLimiter();
 
 /**
  * Wrapper pour resend.emails.send avec rate limiting et retry automatique
- * Respecte la limite de 3 requêtes par seconde de Resend
+ * Respecte une limite locale conservatrice pour réduire les 429
  * Gère automatiquement les erreurs 429 avec retry et backoff exponentiel
  */
 export async function sendEmailWithRateLimit<T>(

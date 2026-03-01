@@ -1,8 +1,7 @@
 import { getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
-import { CheckCircle2, Mail } from "lucide-react";
+import { ArrowRight, CheckCircle2, Mail, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -48,6 +47,7 @@ export default async function IntakeSuccessPage({
   }
 
   const isOwner = intakeLink.target === "OWNER";
+  const clientSpaceUrl = isOwner ? "/client/proprietaire" : "/client/locataire";
   
   // Obtenir le nom du client depuis Person ou Entreprise
   let clientName = "Client";
@@ -64,99 +64,84 @@ export default async function IntakeSuccessPage({
     }
   }
 
+  const nextSteps = isOwner
+    ? [
+        "Vos informations ont bien été enregistrées.",
+        "Le locataire reçoit un lien pour compléter son formulaire.",
+        "Notre équipe vérifie votre dossier et vos pièces.",
+        "Un rendez-vous de signature avec notaire vous sera proposé.",
+      ]
+    : [
+        "Vos informations ont bien été enregistrées.",
+        "Notre équipe vérifie votre dossier et vos pièces.",
+        "Un rendez-vous de signature avec notaire vous sera proposé.",
+      ];
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Header />
-
-      <div className="flex items-center justify-center p-4 min-h-[calc(100vh-80px)]">
-        <Card className="max-w-2xl w-full">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-6">
-              <div className="flex flex-row items-center justify-center gap-2 ">
-                <div className="self-start rounded-full bg-green-100 dark:bg-green-900/20 p-2">
-                  <CheckCircle2 className="size-4 text-green-600 dark:text-green-400" />
+      <main className="min-h-[calc(100vh-80px)] px-4 py-8 sm:py-12">
+        <div className="mx-auto max-w-3xl">
+          <Card className="overflow-hidden border-0 shadow-2xl py-0">
+            <CardContent className="p-0">
+              <div className="bg-gradient-to-r from-emerald-600 to-green-600 px-6 py-5 text-white sm:px-10">
+                <div className="mx-auto mb-5 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur">
+                  <CheckCircle2 className="h-5 w-5" />
                 </div>
-                <h2 className="text-2xl font-bold text-start">Votre demande a été enregistrée avec succès</h2>
+                <h1 className="text-center text-2xl font-bold sm:text-3xl">
+                  Votre demande a été enregistrée avec succès
+                </h1>
+                <p className="mt-3 text-center text-emerald-50">
+                  Merci {clientName}. Votre dossier est bien pris en compte.
+                </p>
               </div>
 
-            <div className="space-y-2">
+              <div className="space-y-6 p-6 sm:p-8">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-emerald-800">
+                    <ShieldCheck className="h-5 w-5" />
+                    <span className="font-semibold">Confirmation envoyée</span>
+                  </div>
+                  <p className="text-sm text-emerald-700">
+                    {isOwner
+                      ? "Un email de confirmation vous sera envoyé. En cas de pièce manquante, nous vous contacterons rapidement."
+                      : "Un email de confirmation vous sera envoyé. Le propriétaire est informé de l’avancement de votre dossier."}
+                  </p>
+                </div>
 
-              <p className="text-lg text-muted-foreground">
-                Merci {clientName} pour votre confiance.
-              </p>
-            </div>
+                <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+                  <h2 className="mb-4 text-lg font-semibold text-slate-900">Prochaines étapes</h2>
+                  <ul className="space-y-3">
+                    {nextSteps.map((step, index) => (
+                      <li key={step} className="flex items-start gap-3 text-sm text-slate-700">
+                        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                          {index + 1}
+                        </div>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
 
-            <div className="bg-muted/50 rounded-lg px-6 py-2 space-y-4 text-left">
-              <div>
-                <h3 className="font-semibold mb-2">Ce qui se passe maintenant :</h3>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                {isOwner ? (
-                    <>
-                      <li className="flex flex-row items-center justify-start  gap-3">
-                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">1</div>
-                        <span>Vos informations ont été enregistrées avec succès.</span>
-                      </li>
-                      <li className="flex flex-row items-center justify-start  gap-3">
-                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">2</div>
-                        <span>Un email a été envoyé au locataire pour qu'il remplisse son formulaire.</span>
-                      </li>
-                      <li className="flex flex-row items-center justify-start  gap-3">
-                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">3</div>
-                        <span>Nous procédons à la vérification de vos informations et des pièces transmises.En cas de document manquant, nous vous en informerons.</span>
-                      </li>
-                      <li className="flex flex-row items-center justify-start  gap-3">
-                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">4</div>
-                        <span>Un rendez‑vous en visioconférence avec un notaire partenaire vous sera proposé pour la signature de votre acte authentique avec votre locataire</span>
-                      </li>
-                    </>
-                  ) : (
-                    <>
-                      <li className="flex flex-row items-center justify-start  gap-3">
-                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">1</div>
-                        <span>Vos informations ont été enregistrées avec succès.</span>
-                      </li>
-                      <li className="flex flex-row items-center justify-start  gap-3">
-                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">2</div>
-                        <span>Nous procédons à la vérification de vos informations et des pièces transmises.En cas de document manquant, nous vous en informerons.</span>
-                      </li>
-                      <li className="flex flex-row items-center justify-start  gap-3">
-                        <div className="self-start min-w-6 min-h-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">3</div>
-                        <span>Un rendez‑vous en visioconférence avec un notaire partenaire vous sera proposé pour la signature de votre acte authentique avec votre propriétaire</span>
-                      </li>
-                    </>
-                  )}
-                </ul>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Button asChild size="lg" className="h-11 bg-green-600 hover:bg-green-700">
+                    <a href={clientSpaceUrl} className="flex items-center justify-center gap-2">
+                      Accéder à mon espace client
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  </Button>
+                  <Button asChild variant="outline" size="lg" className="h-11">
+                    <a href="mailto:contact@bailnotarie.fr" target="_blank" className="flex items-center justify-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Contacter le support
+                    </a>
+                  </Button>
+                </div>
               </div>
-            </div>
-
-            <div className="pt-4">
-              <p className="text-sm text-muted-foreground">
-                {isOwner
-                  ? "Vous recevrez un email de confirmation sous peu. N'hésitez pas à nous contacter si vous avez des questions."
-                  : "Vous recevrez un email de confirmation sous peu. Le propriétaire sera informé de la complétion de votre dossier."}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2">
-
-              <Button asChild >
-                <a href="mailto:contact@bailnotarie.fr" target="_blank" className="flex flex-row items-center justify-center  gap-2">
-                  <Mail className="size-4" />
-                  Contacter nous
-                </a>  
-              </Button>
-
-              <Button asChild variant="outline" >
-                <a href="/">
-                  Retour à la page d'accueil
-                </a>
-              </Button>
-            </div>
-    
-          </div>
-        </CardContent>
-      </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
       <Footer />
     </div>
   );

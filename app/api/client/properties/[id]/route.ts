@@ -15,15 +15,15 @@ export async function GET(
     const property = await prisma.property.findUnique({
       where: { id: propertyId },
       include: {
-        bails: {
+        documents: {
           select: {
             id: true,
-            status: true,
-            effectiveDate: true,
-            endDate: true,
-            rentAmount: true,
-            bailType: true,
-            bailFamily: true,
+            kind: true,
+            label: true,
+            fileKey: true,
+            mimeType: true,
+            size: true,
+            createdAt: true,
           },
           orderBy: {
             createdAt: "desc",
@@ -67,6 +67,8 @@ export async function GET(
     );
   }
 }
+
+
 
 
 

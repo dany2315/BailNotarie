@@ -12,6 +12,7 @@ import {
   Link
 } from "@react-email/components";
 import * as React from "react";
+import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
 
 interface MailDocumentReceivedProps {
   notaireName?: string | null;
@@ -30,6 +31,27 @@ export default function MailDocumentReceived({
   bailAddress,
   chatUrl
 }: MailDocumentReceivedProps) {
+  const safeClientName =
+    typeof clientName === "string" && clientName.trim().length > 0
+      ? clientName
+      : "Client";
+  const safeRequestTitle =
+    typeof requestTitle === "string" && requestTitle.trim().length > 0
+      ? requestTitle
+      : "Demande de document";
+  const safeDocumentNames =
+    Array.isArray(documentNames) && documentNames.length > 0
+      ? documentNames.filter(
+          (name): name is string => typeof name === "string" && name.trim().length > 0
+        )
+      : [];
+  const normalizedDocumentNames =
+    safeDocumentNames.length > 0 ? safeDocumentNames : ["Document"];
+  const safeChatUrl =
+    typeof chatUrl === "string" && chatUrl.trim().length > 0
+      ? chatUrl
+      : EMAIL_BASE_URL;
+
   return (
     <Html>
       <Head />
@@ -57,7 +79,7 @@ export default function MailDocumentReceived({
             textAlign: "start"
           }}>
             <Link
-              href="https://www.bailnotarie.fr"
+              href={EMAIL_BASE_URL}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -67,7 +89,7 @@ export default function MailDocumentReceived({
               }}
             >
               <Img
-                src="https://www.bailnotarie.fr/logoSans.png"
+                src={EMAIL_LOGO_URL}
                 alt="BailNotarie - Plateforme de baux notariés"
                 width="40"
                 height="40"
@@ -125,7 +147,7 @@ export default function MailDocumentReceived({
               lineHeight: "1.6",
               margin: "0 0 24px 0"
             }}>
-              <strong>{clientName}</strong> a répondu à votre demande de document{bailAddress ? ` concernant le bail situé au ${bailAddress}` : ""}.
+              <strong>{safeClientName}</strong> a répondu à votre demande de document{bailAddress ? ` concernant le bail situé au ${bailAddress}` : ""}.
             </Text>
 
             {/* Détails de la demande */}
@@ -145,7 +167,7 @@ export default function MailDocumentReceived({
                 fontWeight: "bold",
                 margin: "0 0 16px 0"
               }}>
-                📋 Demande : {requestTitle}
+                📋 Demande : {safeRequestTitle}
               </Text>
               
               <Text style={{ 
@@ -154,10 +176,10 @@ export default function MailDocumentReceived({
                 fontWeight: "bold",
                 margin: "0 0 8px 0"
               }}>
-                📎 Document{documentNames.length > 1 ? "s" : ""} reçu{documentNames.length > 1 ? "s" : ""} :
+                📎 Document{normalizedDocumentNames.length > 1 ? "s" : ""} reçu{normalizedDocumentNames.length > 1 ? "s" : ""} :
               </Text>
               
-              {documentNames.map((name, index) => (
+              {normalizedDocumentNames.map((name, index) => (
                 <Text key={index} style={{ 
                   color: "#374151",
                   fontSize: "14px",
@@ -175,7 +197,7 @@ export default function MailDocumentReceived({
             {/* CTA principal */}
             <Section style={{ textAlign: "center", margin: "32px 0" }}>
               <Button
-                href={chatUrl}
+                href={safeChatUrl}
                 style={{ 
                   backgroundColor: "#16a34a",
                   color: "#ffffff",
@@ -229,7 +251,7 @@ export default function MailDocumentReceived({
               fontSize: "12px",
               margin: "0 0 8px 0"
             }}>
-              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href="https://www.bailnotarie.fr" style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
+              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
             </Text>
             <Text style={{ 
               color: "#9ca3af",

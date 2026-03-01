@@ -107,7 +107,7 @@ export function CreateBailDrawer({
       onOpenChange={handleOpenChange}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent className={isMobile ? "max-h-[95vh]" : "sm:max-w-2xl h-full"}>
+      <DrawerContent className={isMobile ? "max-h-[85vh]" : "sm:max-w-2xl h-full"}>
         {isSubmitting && (
           <div className="absolute inset-0 z-50 rounded-[inherit]">
             <LoadingScreen

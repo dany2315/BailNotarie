@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, Scale, X, Home, Settings, BookOpen, Mail, HelpCircle , FileText, Workflow, ChevronDown, StarIcon, ShieldCheck, PenTool, Phone, LogIn } from "lucide-react";
+import { Menu, Scale, X, Home, Settings, BookOpen, Mail, HelpCircle , FileText, Workflow, ChevronDown, StarIcon, ShieldCheck, PenTool, Phone, LogIn, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhoneButton } from "@/components/ui/phone-button";
 import { Separator } from "@/components/ui/separator";
@@ -112,15 +112,22 @@ export function Header() {
               </NavigationMenuItem>
 
 
-              <NavigationMenuItem>
-                <NavigationMenuTrigger>
-                  Bail Notarié 
-                  <Badge className="bg-[#4373f5] text-white border-0 px-1 py-1 ml-3 text-xs font-medium">
-                    <StarIcon className="w-4 h-4" />
-                  </Badge>
-                </NavigationMenuTrigger>
-                <NavigationMenuContent>
-                <ul className="grid gap-2 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
+              {currentUser?.role === "UTILISATEUR" && currentUser?.clientId ? (
+                <NavigationMenuItem>
+                  <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+                    <Link href="/client">Mon espace client</Link>
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+              ) : (
+                <NavigationMenuItem>
+                  <NavigationMenuTrigger>
+                    Bail Notarié
+                    <Badge className="bg-[#4373f5] text-white border-0 px-1 py-1 ml-3 text-xs font-medium">
+                      <StarIcon className="w-4 h-4" />
+                    </Badge>
+                  </NavigationMenuTrigger>
+                  <NavigationMenuContent>
+                    <ul className="grid gap-2 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
                       <li className="row-span-3 bg-logo ">
                         <NavigationMenuLink asChild>
                           <div
@@ -135,8 +142,9 @@ export function Header() {
                         </ListItem>
                       ))}
                     </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem> 
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+              )}
 
               <NavigationMenuItem>
                 <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
@@ -224,41 +232,52 @@ export function Header() {
                     <span className="font-medium">Nos avantages</span>
                   </Link>
 
-                  {/* Bail Notarié avec sous-menu */}
-                  <div className="flex flex-col">
-                    <div
-                      onClick={() => setIsBailNotarieOpen(!isBailNotarieOpen)}
-                      className="flex items-center justify-between px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group cursor-pointer"
+                  {/* Bail Notarié / Mon espace client */}
+                  {currentUser?.role === "UTILISATEUR" && currentUser?.clientId ? (
+                    <Link
+                      href="/client"
+                      onClick={handleMenuClick}
+                      className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group"
                     >
-                      <div className="flex items-center space-x-3">
-                        <PenTool className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
-                        <span className="font-medium">Bail Notarié</span>
-                        <Badge className="bg-[#4373f5] text-white border-0 px-1 py-1 ml-3 text-xs font-medium">
-                          <StarIcon className="w-4 h-4" />
-                        </Badge>
+                      <User className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
+                      <span className="font-medium">Mon espace client</span>
+                    </Link>
+                  ) : (
+                    <div className="flex flex-col">
+                      <div
+                        onClick={() => setIsBailNotarieOpen(!isBailNotarieOpen)}
+                        className="flex items-center justify-between px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <PenTool className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
+                          <span className="font-medium">Bail Notarié</span>
+                          <Badge className="bg-[#4373f5] text-white border-0 px-1 py-1 ml-3 text-xs font-medium">
+                            <StarIcon className="w-4 h-4" />
+                          </Badge>
+                        </div>
+                        <ChevronDown
+                          className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                            isBailNotarieOpen ? "rotate-180" : ""
+                          }`}
+                        />
                       </div>
-                      <ChevronDown 
-                        className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
-                          isBailNotarieOpen ? 'rotate-180' : ''
-                        }`} 
-                      />
+                      {isBailNotarieOpen && (
+                        <div className="ml-4 mt-2 space-y-1 border-l-2 border-blue-100 pl-4">
+                          {bailNotarieSubItems.map((subItem) => (
+                            <Link
+                              key={subItem.href}
+                              href={subItem.href}
+                              onClick={handleMenuClick}
+                              className="block px-4 py-2 text-sm text-gray-600 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200"
+                            >
+                              <div className="font-medium">{subItem.title}</div>
+                              <div className="text-xs text-gray-500 mt-1">{subItem.description}</div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {isBailNotarieOpen && (
-                      <div className="ml-4 mt-2 space-y-1 border-l-2 border-blue-100 pl-4">
-                        {bailNotarieSubItems.map((subItem) => (
-                          <Link
-                            key={subItem.href}
-                            href={subItem.href}
-                            onClick={handleMenuClick}
-                            className="block px-4 py-2 text-sm text-gray-600 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200"
-                          >
-                            <div className="font-medium">{subItem.title}</div>
-                            <div className="text-xs text-gray-500 mt-1">{subItem.description}</div>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  )}
 
                   {/* Blog */}
                   <Link

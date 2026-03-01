@@ -15,17 +15,28 @@ export const sendChatMessageNotificationEmail = inngest.createFunction(
   { event: "email/chat-message.send" },
   async ({ event, step }) => {
     await step.run("send-chat-message-notification-email", async () => {
+      const senderName =
+        typeof event.data.senderName === "string" && event.data.senderName.trim().length > 0
+          ? event.data.senderName
+          : "Un utilisateur";
+      const messagePreview =
+        typeof event.data.messagePreview === "string" ? event.data.messagePreview : "";
+      const chatUrl =
+        typeof event.data.chatUrl === "string" && event.data.chatUrl.trim().length > 0
+          ? event.data.chatUrl
+          : process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
+
       await resendSendEmail({
         from: "Messagerie BailNotarie <support@bailnotarie.fr>",
         to: event.data.recipientEmail,
-        subject: `💬 Nouveau message de ${event.data.senderName} - BailNotarie`,
+        subject: `💬 Nouveau message de ${senderName} - BailNotarie`,
         react: MailChatMessage({
           recipientName: event.data.recipientName,
-          senderName: event.data.senderName,
+          senderName,
           senderRole: event.data.senderRole,
-          messagePreview: event.data.messagePreview,
+          messagePreview,
           bailAddress: event.data.bailAddress,
-          chatUrl: event.data.chatUrl,
+          chatUrl,
         }),
       });
     });

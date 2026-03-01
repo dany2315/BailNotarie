@@ -6,5 +6,5 @@ export default async function ProprietaireBienDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const resolvedParams = await params;
-  redirect(`/client/proprietaire/demandes?selected=${resolvedParams.id}`);
+  redirect(`/client/proprietaire/demandes?open=bien-${resolvedParams.id}`);
 }
