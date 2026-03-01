@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { getIntakeDocuments } from "@/lib/actions/intakes";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
+import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 
 interface DocumentPreviewProps {
   token: string;
@@ -278,7 +279,9 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
                   />
                 ) : selectedDocument.mimeType?.includes("pdf") ? (
                   <iframe
-                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
+                    src={getPdfPreviewUrl(
+                      signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey
+                    )}
                     className="w-full h-[70vh] border rounded"
                     title={selectedDocument.label || "Document PDF"}
                     onError={() => {

@@ -79,7 +79,7 @@ export function PropertyDetailDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction={isMobile ? "bottom" : "right"}>
-      <DrawerContent className={isMobile ? "max-h-[85vh]" : "sm:max-w-lg h-full"}>
+      <DrawerContent className={isMobile ? "max-h-[95vh]" : "sm:max-w-lg h-full"}>
         <DrawerHeader className="border-b shrink-0">
           <DrawerTitle className="flex items-center gap-2">
             <Home className="h-5 w-5" />

@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Image as ImageIcon, File, ExternalLink, Loader2 } from "lucide-react";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
+import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 
 interface DocumentViewerProps {
   document: {
@@ -175,7 +176,9 @@ export function DocumentViewer({
             {fileType === "pdf" && !pdfError && (
               <div className="w-full h-full">
                 <iframe
-                  src={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
+                  src={getPdfPreviewUrl(
+                    signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey
+                  )}
                   className="w-full h-[70vh] rounded-lg border"
                   title={documentName}
                   onError={() => setPdfError(true)}

@@ -392,7 +392,7 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                       <Plus className="h-4 w-4" />
                     </Button>
                   </DrawerTrigger>
-                  <DrawerContent  className={cn("max-h-[98vh]", !isMobile && "sm:max-w-lg h-full")}>
+                  <DrawerContent  className={cn("max-h-[95vh]", !isMobile && "sm:max-w-lg h-full")}>
                     <DrawerHeader>
                       <DrawerTitle className="flex items-center gap-2">
                         <Building2 className="h-5 w-5" />
