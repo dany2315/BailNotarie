@@ -484,7 +484,7 @@ async function notifyOfflineRecipients(
       
       if (!isOnline && recipient.email) {
         // Déterminer l'URL du chat selon le type de destinataire
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.bailnotarie.fr";
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
         const chatUrl = sender.role === Role.UTILISATEUR
           ? `${baseUrl}/notaire/dossiers` // Le notaire accède au chat depuis ses dossiers
           : `${baseUrl}/client/proprietaire/baux/${bailId}`; // Le client accède au chat depuis son bail
@@ -1187,7 +1187,7 @@ export async function addDocumentToNotaireRequestWithS3Urls(
           }
         }
 
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.bailnotarie.fr";
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
         const documentNames = documents.map(doc => doc.label || "Document");
 
         console.log("[addDocumentToNotaireRequestWithS3Urls] Envoi de l'email via Inngest...");
@@ -1412,7 +1412,7 @@ export async function addDocumentToNotaireRequest(
           }
         }
 
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.bailnotarie.fr";
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
         const documentNames = documents.map(doc => doc.label || "Document");
 
         console.log("[addDocumentToNotaireRequest] Envoi de l'email via Inngest...");

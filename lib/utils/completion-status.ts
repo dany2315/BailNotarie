@@ -724,35 +724,9 @@ export async function updateClientCompletionStatus(clientId: string): Promise<vo
     data: { completionStatus: newStatus },
   });
 
-  // Envoyer un email de notification au client (asynchrone)
-  const { getClientEmailAndName } = await import("./client-email");
-  const { triggerCompletionStatusEmail } = await import("../inngest/helpers");
-  
-  getClientEmailAndName(clientId).then(({ email, name, profilType }) => {
-    if (email) {
-      const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-      const dashboardPath = profilType === ProfilType.PROPRIETAIRE 
-        ? "/client/proprietaire" 
-        : profilType === ProfilType.LOCATAIRE
-        ? "/client/locataire"
-        : "/client";
-      
-      triggerCompletionStatusEmail({
-        to: email,
-        clientName: name,
-        entityType: "client",
-        entityName: name,
-        oldStatus,
-        newStatus,
-        dashboardUrl: `${baseUrl}${dashboardPath}`,
-        profilType: profilType === ProfilType.PROPRIETAIRE ? "PROPRIETAIRE" : profilType === ProfilType.LOCATAIRE ? "LOCATAIRE" : undefined,
-      }).catch((error) => {
-        console.error(`Erreur lors de l'envoi de l'email de changement de statut au client ${clientId}:`, error);
-      });
-    }
-  }).catch((error) => {
-    console.error(`Erreur lors de la récupération des informations du client ${clientId}:`, error);
-  });
+  // IMPORTANT: Pas d'email ici.
+  // Les emails de changement de statut doivent être envoyés uniquement
+  // lors des changements manuels depuis les interfaces admin/notaire.
 
   // Vérifier et mettre à jour les baux si nécessaire
   await checkAndUpdateBailStatusForClient(clientId);
@@ -796,37 +770,9 @@ export async function updatePropertyCompletionStatus(propertyId: string): Promis
     data: { completionStatus: newStatus },
   });
 
-  // Envoyer un email de notification au propriétaire (asynchrone)
-  const { getClientEmailAndName } = await import("./client-email");
-  const { triggerCompletionStatusEmail } = await import("../inngest/helpers");
-  
-  if (property.ownerId) {
-    getClientEmailAndName(property.ownerId).then(({ email, name, profilType }) => {
-      if (email) {
-        const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-        const dashboardPath = profilType === ProfilType.PROPRIETAIRE 
-          ? "/client/proprietaire" 
-          : "/client";
-        
-        const propertyName = property.label || property.fullAddress;
-        
-        triggerCompletionStatusEmail({
-          to: email,
-          clientName: name,
-          entityType: "property",
-          entityName: propertyName,
-          oldStatus,
-          newStatus,
-          dashboardUrl: `${baseUrl}${dashboardPath}`,
-          profilType: profilType === ProfilType.PROPRIETAIRE ? "PROPRIETAIRE" : undefined,
-        }).catch((error) => {
-          console.error(`Erreur lors de l'envoi de l'email de changement de statut au propriétaire ${property.ownerId}:`, error);
-        });
-      }
-    }).catch((error) => {
-      console.error(`Erreur lors de la récupération des informations du propriétaire ${property.ownerId}:`, error);
-    });
-  }
+  // IMPORTANT: Pas d'email ici.
+  // Les emails de changement de statut doivent être envoyés uniquement
+  // lors des changements manuels depuis les interfaces admin/notaire.
 
   // Vérifier et mettre à jour les baux si nécessaire
   await checkAndUpdateBailStatusForProperty(propertyId);

@@ -44,7 +44,6 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { InputGroup, InputGroupTextarea, InputGroupButton } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPusherClient } from "@/lib/pusher-client";
 import type { Channel } from "pusher-js";
@@ -197,6 +196,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
   const pusherChannelRef = useRef<Channel | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const hasScrolledToBottomRef = useRef(false);
 
   const {
     register: registerMessage,
@@ -278,7 +278,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
         });
         
         // Scroll vers le bas seulement si l'utilisateur est déjà en bas
-        if (hasScrolledToBottom) {
+        if (hasScrolledToBottomRef.current) {
           requestAnimationFrame(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
           });
@@ -295,7 +295,11 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
         setRefreshing(false);
       }
     }
-  }, [open, bailId, selectedPartyId, hasScrolledToBottom]);
+  }, [open, bailId, selectedPartyId]);
+
+  useEffect(() => {
+    hasScrolledToBottomRef.current = hasScrolledToBottom;
+  }, [hasScrolledToBottom]);
 
   // Connexion Pusher pour les mises à jour en temps réel
   useEffect(() => {
@@ -1620,51 +1624,77 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
           )}
 
           {/* Formulaire d'envoi de message */}
-          <form onSubmit={handleSubmitMessage(onSubmitMessage)} className="border-t p-4">
-            <InputGroup className="max-w-none">
-              {/* Bouton pour créer une demande de document */}
-              <InputGroupButton
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (!selectedPartyId || selectedPartyId === "all") {
-                    toast.error("Destinataire requis", {
-                      description: "Veuillez sélectionner un propriétaire ou locataire pour créer une demande",
-                    });
-                    return;
-                  }
-                  setIsRequestDialogOpen(true);
-                }}
-                disabled={sending || uploading}
-                className="shrink-0"
-                title="Créer une demande de document"
-              >
-                <FileText className="h-4 w-4" />
-              </InputGroupButton>
-              {/* Bouton pour ajouter un fichier */}
-              <InputGroupButton
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending || uploading}
-                className="shrink-0"
-                title="Joindre un fichier"
-              >
-                <Paperclip className="h-4 w-4" />
-              </InputGroupButton>
-              <InputGroupTextarea
+          <form onSubmit={handleSubmitMessage(onSubmitMessage)} className="border-t bg-background/95 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground leading-none">
+                Écrivez un message ou joignez un document
+              </p>
+              {selectedFiles.length > 0 && (
+                <span className="text-xs font-medium text-primary leading-none">
+                  {selectedFiles.length} fichier{selectedFiles.length > 1 ? "s" : ""} prêt{selectedFiles.length > 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-end gap-2 rounded-xl border border-input bg-background px-2 py-2">
+              <div className="flex items-center gap-1 pb-1">
+                {/* Bouton pour créer une demande de document */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    if (!selectedPartyId || selectedPartyId === "all") {
+                      toast.error("Destinataire requis", {
+                        description: "Veuillez sélectionner un propriétaire ou locataire pour créer une demande",
+                      });
+                      return;
+                    }
+                    setIsRequestDialogOpen(true);
+                  }}
+                  disabled={sending || uploading}
+                  className="h-9 w-9 shrink-0"
+                  title="Créer une demande de document"
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+                {/* Bouton pour ajouter un fichier */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending || uploading}
+                  className="h-9 w-9 shrink-0"
+                  title="Joindre un fichier"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <Textarea
                 placeholder="Tapez votre message..."
                 {...registerMessage("content")}
                 disabled={sending || uploading}
                 rows={1}
-                className="max-h-32 resize-none"
+                className="min-h-[44px] max-h-32 flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!sending && !uploading && (watchMessage("content")?.trim() || selectedFiles.length > 0)) {
-                      // Arrêter l'indicateur de saisie avant d'envoyer
+                  // Entrée doit créer une nouvelle ligne.
+                  // L'envoi se fait uniquement via le bouton Envoyer.
+                  if (pusherChannelRef.current && session?.user?.id) {
+                    if (typingDebounceRef.current) {
+                      clearTimeout(typingDebounceRef.current);
+                    }
+                    try {
+                      pusherChannelRef.current.trigger("client-typing", {
+                        userId: session.user.id,
+                        isTyping: true,
+                      });
+                    } catch (error) {
+                      // Ignorer les erreurs
+                    }
+                    // Arrêter l'indicateur après 3 secondes d'inactivité
+                    typingDebounceRef.current = setTimeout(() => {
                       if (pusherChannelRef.current && session?.user?.id) {
                         try {
                           pusherChannelRef.current.trigger("client-typing", {
@@ -1675,53 +1705,25 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                           // Ignorer les erreurs
                         }
                       }
-                      handleSubmitMessage(onSubmitMessage)();
-                    }
-                  } else {
-                    // Émettre l'événement "typing" quand l'utilisateur tape
-                    if (pusherChannelRef.current && session?.user?.id) {
-                      if (typingDebounceRef.current) {
-                        clearTimeout(typingDebounceRef.current);
-                      }
-                      try {
-                        pusherChannelRef.current.trigger("client-typing", {
-                          userId: session.user.id,
-                          isTyping: true,
-                        });
-                      } catch (error) {
-                        // Ignorer les erreurs
-                      }
-                      // Arrêter l'indicateur après 3 secondes d'inactivité
-                      typingDebounceRef.current = setTimeout(() => {
-                        if (pusherChannelRef.current && session?.user?.id) {
-                          try {
-                            pusherChannelRef.current.trigger("client-typing", {
-                              userId: session.user.id,
-                              isTyping: false,
-                            });
-                          } catch (error) {
-                            // Ignorer les erreurs
-                          }
-                        }
-                      }, 3000);
-                    }
+                    }, 3000);
                   }
                 }}
               />
-              <InputGroupButton
+
+              <Button
                 type="submit"
-                variant="ghost"
-                size="sm"
+                variant="default"
+                size="icon"
                 disabled={sending || uploading || (selectedFiles.length === 0 && !watchMessage("content")?.trim())}
-                className="shrink-0"
+                className="h-9 w-9 shrink-0 self-end mb-1"
               >
                 {sending || uploading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-              </InputGroupButton>
-            </InputGroup>
+              </Button>
+            </div>
             <input
               ref={fileInputRef}
               type="file"

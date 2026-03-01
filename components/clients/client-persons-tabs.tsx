@@ -4,13 +4,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { DocumentsList } from "@/components/leases/documents-list";
-import { DocumentsListWithOwner } from "@/components/leases/documents-list-with-owner";
 import { Mail, Phone, MapPin, FileText, Users } from "lucide-react";
 import { FamilyStatusBadge, MatrimonialRegimeBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils/formatters";
 import { ClientType } from "@prisma/client";
-import { documentKindLabels } from "@/lib/utils/document-labels";
+import { BailDocumentPreview } from "@/components/client/bail-document-preview";
 
 interface Person {
   id: string;
@@ -74,6 +72,33 @@ export function ClientPersonsTabs({
   entreprise,
   clientDocuments = []
 }: ClientPersonsTabsProps) {
+  const renderDocumentPreviews = (
+    documents: Array<{
+      id: string;
+      kind: string;
+      fileKey: string;
+      mimeType: string | null;
+      label: string | null;
+      createdAt: Date | string;
+    }>
+  ) => (
+    <div className="space-y-2">
+      {documents.map((doc) => (
+        <BailDocumentPreview
+          key={doc.id}
+          document={{
+            id: doc.id,
+            label: doc.label,
+            kind: doc.kind,
+            fileKey: doc.fileKey,
+            mimeType: doc.mimeType,
+            createdAt: doc.createdAt,
+          }}
+        />
+      ))}
+    </div>
+  );
+
   if (clientType === ClientType.PERSONNE_PHYSIQUE) {
     // Si une seule personne, pas besoin d'onglets
     if (persons.length === 1) {
@@ -184,23 +209,7 @@ export function ClientPersonsTabs({
                     <FileText className="h-5 w-5" />
                     <h3 className="text-lg font-semibold">Documents de {[person.firstName, person.lastName].filter(Boolean).join(" ") || "cette personne"} ({personOnlyDocuments.length})</h3>
                   </div>
-                  <DocumentsListWithOwner
-                    documents={personOnlyDocuments.map((doc) => ({
-                      id: doc.id,
-                      kind: doc.kind,
-                      fileKey: doc.fileKey,
-                      mimeType: doc.mimeType,
-                      label: doc.label,
-                      createdAt: doc.createdAt,
-                      person: {
-                        id: person.id,
-                        firstName: person.firstName,
-                        lastName: person.lastName,
-                        isPrimary: person.isPrimary,
-                      },
-                    }))}
-                    documentKindLabels={documentKindLabels}
-                  />
+                  {renderDocumentPreviews(personOnlyDocuments)}
                 </div>
               </>
             )}
@@ -214,18 +223,7 @@ export function ClientPersonsTabs({
                     <FileText className="h-5 w-5" />
                     <h3 className="text-lg font-semibold">Documents du client ({clientOnlyDocuments.length})</h3>
                   </div>
-                  <DocumentsListWithOwner
-                    documents={clientOnlyDocuments.map((doc) => ({
-                      id: doc.id,
-                      kind: doc.kind,
-                      fileKey: doc.fileKey,
-                      mimeType: doc.mimeType,
-                      label: doc.label,
-                      createdAt: doc.createdAt,
-                    }))}
-                    documentKindLabels={documentKindLabels}
-                    ownerLabel="Client"
-                  />
+                  {renderDocumentPreviews(clientOnlyDocuments)}
                 </div>
               </>
             )}
@@ -362,23 +360,7 @@ export function ClientPersonsTabs({
                           <FileText className="h-5 w-5" />
                           <h3 className="text-lg font-semibold">Documents de {[person.firstName, person.lastName].filter(Boolean).join(" ") || "cette personne"} ({personOnlyDocuments.length})</h3>
                         </div>
-                        <DocumentsListWithOwner
-                          documents={personOnlyDocuments.map((doc) => ({
-                            id: doc.id,
-                            kind: doc.kind,
-                            fileKey: doc.fileKey,
-                            mimeType: doc.mimeType,
-                            label: doc.label,
-                            createdAt: doc.createdAt,
-                            person: {
-                              id: person.id,
-                              firstName: person.firstName,
-                              lastName: person.lastName,
-                              isPrimary: person.isPrimary,
-                            },
-                          }))}
-                          documentKindLabels={documentKindLabels}
-                        />
+                        {renderDocumentPreviews(personOnlyDocuments)}
                       </div>
                     </>
                   )}
@@ -392,18 +374,7 @@ export function ClientPersonsTabs({
                           <FileText className="h-5 w-5" />
                           <h3 className="text-lg font-semibold">Documents du client ({clientOnlyDocuments.length})</h3>
                         </div>
-                        <DocumentsListWithOwner
-                          documents={clientOnlyDocuments.map((doc) => ({
-                            id: doc.id,
-                            kind: doc.kind,
-                            fileKey: doc.fileKey,
-                            mimeType: doc.mimeType,
-                            label: doc.label,
-                            createdAt: doc.createdAt,
-                          }))}
-                          documentKindLabels={documentKindLabels}
-                          ownerLabel="Client"
-                        />
+                        {renderDocumentPreviews(clientOnlyDocuments)}
                       </div>
                     </>
                   )}
@@ -489,17 +460,7 @@ export function ClientPersonsTabs({
                   <FileText className="h-5 w-5" />
                   <h3 className="text-lg font-semibold">Documents ({allEntrepriseDocuments.length})</h3>
                 </div>
-                <DocumentsList
-                  documents={allEntrepriseDocuments.map((doc) => ({
-                    id: doc.id,
-                    kind: doc.kind,
-                    fileKey: doc.fileKey,
-                    mimeType: doc.mimeType,
-                    label: doc.label,
-                    createdAt: doc.createdAt,
-                  }))}
-                  documentKindLabels={documentKindLabels}
-                />
+                {renderDocumentPreviews(allEntrepriseDocuments)}
               </div>
             </>
           )}

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { FileText, Home, User, Calendar, Euro, RotateCcw, MessageSquare, MapPin, Building2, Ruler, Mail, ArrowUpDown, MoveUpRight } from "lucide-react";
+import { FileText, Home, User, Calendar, Euro, RotateCcw, MessageSquare, Mail, ArrowUpDown, MoveUpRight } from "lucide-react";
 import Link from "next/link";
 import { formatDate, formatCurrency } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,18 +122,33 @@ export function BailDetailDrawer({
       onOpenChange={onOpenChange}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent className={isMobile ? "max-h-[95vh]" : "sm:max-w-2xl h-full"}>
+      <DrawerContent className={isMobile ? "max-h-[85vh]" : "sm:max-w-2xl h-full"}>
         <DrawerHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0">
+          <div className="space-y-3">
+            <div className="min-w-0">
               <DrawerTitle className="text-xl">Détail du bail</DrawerTitle>
               {bail && (
                 <>
-                  <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-                    <Home className="h-4 w-4" />
-                    {bail.property?.label || bail.property?.fullAddress}
-                  </p>
-                  <div className="flex items-center gap-3 mt-2">
+                  {bail.property && (
+                    <div className="mt-1 flex items-center gap-2 flex-wrap">
+                      <p className="text-sm text-muted-foreground flex items-center gap-2 min-w-0">
+                        <Home className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{bail.property.label || bail.property.fullAddress}</span>
+                      </p>
+                      {onPropertyClick && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => onPropertyClick(bail.property.id)}
+                          title="Voir le bien"
+                        >
+                          <MoveUpRight className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center gap-3">
                     <Badge className={statusColors[bail.status as BailStatus]} variant="outline">
                       {statusLabels[bail.status as BailStatus]}
                     </Badge>
@@ -141,8 +156,9 @@ export function BailDetailDrawer({
                 </>
               )}
             </div>
+
             {bail && (
-              <ButtonGroup className="shrink-0">
+              <ButtonGroup className="w-full justify-end gap-2 sm:w-auto">
                 {bail.status === BailStatus.TERMINATED && (
                   <Link href={`/client/proprietaire/baux/${bailId}/renouveler`}>
                     <Button variant="default" size="sm">
@@ -152,12 +168,12 @@ export function BailDetailDrawer({
                   </Link>
                 )}
                 {notaire && (
-                  <BailChatSheet 
-                    bailId={bailId} 
+                  <BailChatSheet
+                    bailId={bailId}
                     trigger={
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" className="w-full">
                         <MessageSquare className="mr-2 h-4 w-4" />
-                        Discuter
+                        Discuter avec le notaire
                       </Button>
                     }
                   />
@@ -247,14 +263,14 @@ export function BailDetailDrawer({
                     </span>
                     <Separator className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-primary" />
                   </div>
-                  <Card>
+                  <Card className="gap-0 py-4">
                     <CardHeader>
                       <CardTitle className="flex items-center justify-center gap-2 text-base">
                         <User className="h-4 w-4" />
                         Locataire
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="p-0">
                       <div className="flex flex-col items-center justify-center">
                         <p className="font-semibold text-sm">{locataireName}</p>
                         {locataireEmail && (
@@ -271,71 +287,16 @@ export function BailDetailDrawer({
                 </>
               )}
 
-              {/* Informations du bien */}
-              {bail.property && (
-                <Card 
-                  className={onPropertyClick ? "hover:shadow-md transition-all cursor-pointer" : ""}
-                  onClick={() => onPropertyClick?.(bail.property.id)}
-                >
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between gap-2 text-base">
-                      <div className="flex items-center gap-2">
-                        <Home className="h-4 w-4" />
-                        Informations du bien lié
-                      </div>
-                      {onPropertyClick && <MoveUpRight className="h-4 w-4" />}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Adresse</p>
-                        <p className="text-sm font-medium flex items-start gap-2">
-                          <MapPin className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-                          {bail.property.fullAddress}
-                        </p>
-                      </div>
-                      {bail.property.label && (
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">Label</p>
-                          <p className="text-sm font-medium">{bail.property.label}</p>
-                        </div>
-                      )}
-                      <div className="grid gap-4 md:grid-cols-2 pt-2 border-t">
-                        {bail.property.surfaceM2 && (
-                          <div className="flex items-center gap-2">
-                            <Ruler className="h-3 w-3 text-muted-foreground" />
-                            <div>
-                              <p className="text-xs text-muted-foreground">Surface</p>
-                              <p className="text-sm font-medium">{bail.property.surfaceM2.toString()} m²</p>
-                            </div>
-                          </div>
-                        )}
-                        {bail.property.type && (
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-3 w-3 text-muted-foreground" />
-                            <div>
-                              <p className="text-xs text-muted-foreground">Type</p>
-                              <p className="text-sm font-medium">{bail.property.type}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               {/* Documents */}
               {bail.documents && bail.documents.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <FileText className="h-4 w-4" />
-                      Documents
+                      Pièces liées au bail
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      {bail.documents.length} document{bail.documents.length > 1 ? "s" : ""}
+                      {bail.documents.length} pièce{bail.documents.length > 1 ? "s" : ""}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>

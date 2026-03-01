@@ -85,7 +85,7 @@ export default async function NotaireDashboardPage() {
                 return (
                   <Link
                     key={dossier.id}
-                    href={`/notaire/dossiers/${dossier.id}`}
+                    href={`/notaire/dossiers?dossierId=${dossier.id}`}
                     className="block p-4 border rounded-lg hover:bg-accent transition-colors"
                   >
                     <div className="flex items-center justify-between">

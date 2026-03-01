@@ -1655,7 +1655,7 @@ export async function submitTenantForm(data: unknown) {
                 tenantFirstName: firstName,
                 tenantLastName: lastName,
                 propertyAddress: propertyAddress || undefined,
-                interfaceUrl: `${process.env.NEXT_PUBLIC_APP_URL}/suivi`,
+                interfaceUrl: `${process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr"}/suivi`,
               });
             } catch (error) {
               console.error("Erreur lors de l'envoi de l'email de notification au propriétaire:", error);

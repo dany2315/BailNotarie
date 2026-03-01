@@ -192,6 +192,12 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
         setSelectedBailId(bailId);
         setIsBailDetailDrawerOpen(true);
       }
+    } else if (open?.startsWith("bien-")) {
+      const propertyId = open.replace("bien-", "");
+      lastProcessedOpenParam.current = open;
+      setSelectedPropertyId(propertyId);
+      setSelectedPropertyDetailId(propertyId);
+      setIsPropertyDetailDrawerOpen(true);
     } else if (!open) {
       // Si le paramètre "open" n'existe plus, réinitialiser la ref
       lastProcessedOpenParam.current = null;
@@ -510,6 +516,8 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                                   <div className="flex items-center gap-3 flex-1 min-w-0">
                                     <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                                     <div className="flex-1 min-w-0 space-y-1">
+
+                                      
                                       {/* Locataire - toujours visible */}
                                       {locataire && (
                                         <div className="flex items-center gap-2">
@@ -537,16 +545,10 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                                           </div>
                                         </div>
                                       )}
+
+
                                     </div>
                                   </div>
-                                  <Badge
-                                    className={cn(
-                                      "text-xs shrink-0",
-                                      statusColors[bail.status] || "bg-gray-100 text-gray-800"
-                                    )}
-                                  >
-                                    {statusLabels[bail.status] || bail.status}
-                                  </Badge>
                                 </div>
                               </AccordionTrigger>
                               <AccordionContent className="px-4 pb-4">

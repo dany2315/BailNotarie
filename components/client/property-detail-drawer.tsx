@@ -7,13 +7,13 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Home, MapPin, Building2, Ruler, FileText, Calendar, Euro, Loader2 } from "lucide-react";
+import { Home, MapPin, Building2, Ruler, FileText, Calendar, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { formatDate } from "@/lib/utils/formatters";
 import { CompletionStatus } from "@prisma/client";
 import { cn } from "@/lib/utils";
+import { BailDocumentPreview } from "./bail-document-preview";
 
 const completionStatusLabels: Record<CompletionStatus, string> = {
   NOT_STARTED: "Non commencé",
@@ -78,15 +78,15 @@ export function PropertyDetailDrawer({
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className={cn("max-h-[96vh]", isMobile && "max-h-[98vh]")}>
-        <DrawerHeader className="border-b">
+    <Drawer open={open} onOpenChange={onOpenChange} direction={isMobile ? "bottom" : "right"}>
+      <DrawerContent className={isMobile ? "max-h-[85vh]" : "sm:max-w-lg h-full"}>
+        <DrawerHeader className="border-b shrink-0">
           <DrawerTitle className="flex items-center gap-2">
             <Home className="h-5 w-5" />
             Détails du bien
           </DrawerTitle>
         </DrawerHeader>
-        <div className="overflow-y-auto p-4 sm:p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -174,54 +174,32 @@ export function PropertyDetailDrawer({
                 </CardContent>
               </Card>
 
-              {/* Liste des baux */}
-              {property.bails && property.bails.length > 0 && (
+              {/* Pièces liées au bien */}
+              {property.documents && property.documents.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <FileText className="h-4 w-4" />
-                      Baux associés
+                      Pièces liées au bien
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      {property.bails.length} bail{property.bails.length > 1 ? "x" : ""}
+                      {property.documents.length} pièce{property.documents.length > 1 ? "s" : ""}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      {property.bails.map((bail: any) => (
-                        <div
-                          key={bail.id}
-                          className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm font-medium">Bail #{bail.id.slice(0, 8)}</span>
-                            </div>
-                            {bail.status && (
-                              <Badge variant="secondary" className="text-xs">
-                                {bail.status}
-                              </Badge>
-                            )}
-                          </div>
-                          {bail.effectiveDate && (
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              <span>
-                                Du {formatDate(bail.effectiveDate)}
-                                {bail.endDate && ` au ${formatDate(bail.endDate)}`}
-                              </span>
-                            </div>
-                          )}
-                          {bail.rentAmount && (
-                            <div className="flex items-center gap-2 text-xs mt-1">
-                              <Euro className="h-3 w-3 text-muted-foreground" />
-                              <span className="font-medium">
-                                {bail.rentAmount.toLocaleString()} € / mois
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                    <div className="space-y-2">
+                      {property.documents.map((document: any) => (
+                        <BailDocumentPreview
+                          key={document.id}
+                          document={{
+                            id: document.id,
+                            label: document.label,
+                            kind: document.kind,
+                            fileKey: document.fileKey,
+                            mimeType: document.mimeType,
+                            createdAt: document.createdAt,
+                          }}
+                        />
                       ))}
                     </div>
                   </CardContent>

@@ -11,6 +11,7 @@ import {
   Link
 } from "@react-email/components";
 import * as React from "react";
+import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
 
 interface MailNotaireOTPProps {
   userName?: string | null;
@@ -48,7 +49,7 @@ export default function MailNotaireOTP({
             textAlign: "start"
           }}>
             <Link
-              href="https://www.bailnotarie.fr"
+              href={EMAIL_BASE_URL}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -58,7 +59,7 @@ export default function MailNotaireOTP({
               }}
             >
               <Img
-                src="https://www.bailnotarie.fr/logoSans.png"
+                src={EMAIL_LOGO_URL}
                 alt="BailNotarie - Plateforme de baux notariés"
                 width="40"
                 height="40"
@@ -203,7 +204,7 @@ export default function MailNotaireOTP({
               fontSize: "12px",
               margin: "0 0 8px 0"
             }}>
-              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href="https://www.bailnotarie.fr" style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
+              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
             </Text>
             <Text style={{ 
               color: "#9ca3af",
