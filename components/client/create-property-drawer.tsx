@@ -105,7 +105,7 @@ export function CreatePropertyDrawer({
       onOpenChange={handleOpenChange}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent className={isMobile ? "max-h-[85vh]" : "sm:max-w-lg h-full"}>
+      <DrawerContent className={isMobile ? "max-h-[95vh]" : "sm:max-w-lg h-full"}>
         {isSubmitting && (
           <div className="absolute inset-0 z-50 rounded-[inherit]">
             <LoadingScreen

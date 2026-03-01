@@ -13,6 +13,7 @@ import { FileText, Download, Eye, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
 import { formatDateTime } from "@/lib/utils/formatters";
+import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 
 interface BailDocumentPreviewProps {
   document: {
@@ -198,7 +199,7 @@ export function BailDocumentPreview({ document }: BailDocumentPreviewProps) {
                   />
                 ) : isPdf ? (
                   <iframe
-                    src={signedUrl}
+                    src={getPdfPreviewUrl(signedUrl)}
                     className="w-full h-[70vh] border rounded"
                     title={document.label || document.kind}
                   />

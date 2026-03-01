@@ -122,7 +122,7 @@ export function BailDetailDrawer({
       onOpenChange={onOpenChange}
       direction={isMobile ? "bottom" : "right"}
     >
-      <DrawerContent className={isMobile ? "max-h-[85vh]" : "sm:max-w-2xl h-full"}>
+      <DrawerContent className={isMobile ? "max-h-[95vh]" : "sm:max-w-2xl h-full"}>
         <DrawerHeader>
           <div className="space-y-3">
             <div className="min-w-0">

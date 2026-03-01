@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { DocumentKind } from "@prisma/client";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
+import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 
 interface DocumentUploadedProps {
   token: string;
@@ -198,6 +199,18 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
       // Fallback : générer l'URL publique depuis la clé S3
       setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
     } finally {
+      setIsLoadingSignedUrl(false);
+    }
+  };
+
+  const handleViewerOpenChange = (open: boolean) => {
+    setIsViewerOpen(open);
+
+    if (!open) {
+      // Nettoyer l'état du viewer à la fermeture pour éviter les erreurs
+      // de chargement pendant l'animation de fermeture du Dialog.
+      setSelectedDocument(null);
+      setSignedUrl(null);
       setIsLoadingSignedUrl(false);
     }
   };
@@ -400,7 +413,7 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
         </div>
       </div>
 
-      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
+      <Dialog open={isViewerOpen} onOpenChange={handleViewerOpenChange}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>{selectedDocument?.label || "Aperçu du document"}</DialogTitle>
@@ -419,16 +432,20 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
                     alt={selectedDocument.label || "Document"}
                     className="max-w-full max-h-[70vh] mx-auto object-contain"
                     onError={(e) => {
+                      if (!isViewerOpenRef.current) return;
                       console.error("[DocumentUploaded] Erreur de chargement de l'image:", e);
                       toast.error("Impossible de charger l'image");
                     }}
                   />
                 ) : selectedDocument.mimeType?.includes("pdf") ? (
                   <iframe
-                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
+                    src={getPdfPreviewUrl(
+                      signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey
+                    )}
                     className="w-full h-[70vh] border rounded"
                     title={selectedDocument.label || "Document PDF"}
                     onError={() => {
+                      if (!isViewerOpenRef.current) return;
                       console.error("[DocumentUploaded] Erreur de chargement du PDF");
                       toast.error("Impossible de charger le PDF");
                     }}

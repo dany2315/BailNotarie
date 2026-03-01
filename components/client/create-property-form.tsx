@@ -16,6 +16,7 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { createProperty } from "@/lib/actions/properties";
 import { getDocuments } from "@/lib/actions/documents";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
+import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 import {
   Loader2,
   ArrowLeft,
@@ -282,7 +283,9 @@ function PropertyDocumentUploaded({
               </div>
             ) : selectedDocument?.mimeType?.includes("pdf") ? (
               <iframe
-                src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
+                src={getPdfPreviewUrl(
+                  signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey
+                )}
                 className="w-full h-[70vh] border rounded"
                 title={selectedDocument.label}
               />
