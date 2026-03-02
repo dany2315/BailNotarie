@@ -51,6 +51,7 @@ export function CreateBailDrawer({
   const [isMobile, setIsMobile] = useState(false);
   const formRef = useRef<CreateBailFormRef | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formInstanceKey, setFormInstanceKey] = useState(0);
   const onBailCreatedRef = useRef(onBailCreated);
   const onOpenChangeRef = useRef(onOpenChange);
 
@@ -72,6 +73,8 @@ export function CreateBailDrawer({
   useEffect(() => {
     if (open) {
       setIsSubmitting(false);
+      // Force un remount du formulaire pour réappliquer la préselection du bien
+      setFormInstanceKey((prev) => prev + 1);
     }
   }, [open]);
 
@@ -129,6 +132,7 @@ export function CreateBailDrawer({
         </DrawerHeader>
         <div className="flex-1 overflow-y-auto px-4">
           <CreateBailForm
+            key={`${formInstanceKey}-${initialPropertyId || "none"}`}
             ref={formRef}
             biens={biens}
             locataires={locataires}

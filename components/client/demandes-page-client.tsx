@@ -476,9 +476,9 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                             <Plus className="h-6 w-6 text-primary" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-base mb-1">Créer un bail pour ce bien</h3>
+                            <h3 className="font-semibold text-base mb-1">Créer un bail pour le bien</h3>
                             <p className="text-xs text-muted-foreground">
-                              Créez un nouveau bail pour ce bien
+                              {selectedProperty?.label || selectedProperty?.fullAddress || "Bien sélectionné"}
                             </p>
                           </div>
                         </div>
@@ -665,6 +665,8 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
           onPropertyClick={(propertyId) => {
             setIsBailDetailDrawerOpen(false);
             setSelectedPropertyId(propertyId);
+            setSelectedPropertyDetailId(propertyId);
+            setIsPropertyDetailDrawerOpen(true);
           }}
         />
       )}

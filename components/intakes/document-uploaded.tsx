@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { File, Eye, Download, Trash2, Loader2 } from "lucide-react";
+import { File, Eye, Download, Trash2, Loader2, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getIntakeDocuments, deleteDocumentFromRawPayload } from "@/lib/actions/intakes";
@@ -438,18 +438,32 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
                     }}
                   />
                 ) : selectedDocument.mimeType?.includes("pdf") ? (
-                  <iframe
-                    src={getPdfPreviewUrl(
-                      signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey
-                    )}
-                    className="w-full h-[70vh] border rounded"
-                    title={selectedDocument.label || "Document PDF"}
-                    onError={() => {
-                      if (!isViewerOpenRef.current) return;
-                      console.error("[DocumentUploaded] Erreur de chargement du PDF");
-                      toast.error("Impossible de charger le PDF");
-                    }}
-                  />
+                  <div className="space-y-2">
+                    <iframe
+                      src={getPdfPreviewUrl(
+                        signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey
+                      )}
+                      className="w-full h-[70vh] border rounded"
+                      title={selectedDocument.label || "Document PDF"}
+                      onError={() => {
+                        if (!isViewerOpenRef.current) return;
+                        console.error("[DocumentUploaded] Erreur de chargement du PDF");
+                        toast.error("Impossible de charger le PDF");
+                      }}
+                    />
+                    <div className="flex justify-end">
+                      <Button variant="outline" size="sm" asChild>
+                        <a
+                          href={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Ouvrir dans un nouvel onglet
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="text-center py-8">
                     <File className="size-16 mx-auto mb-4 text-muted-foreground" />
