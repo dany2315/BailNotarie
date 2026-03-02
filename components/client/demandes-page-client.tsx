@@ -262,7 +262,7 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 sm:p-6 border-b">
-        <h1 className="text-2xl sm:text-3xl font-bold">Demandes</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Mes dossiers</h1>
         <p className="text-sm sm:text-base text-muted-foreground mt-1">
           Gérez vos biens et leurs baux
         </p>
@@ -283,7 +283,7 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
               <div className="rounded-full bg-primary/10 p-2">
                 <Plus className="h-4 w-4 text-primary" />
               </div>
-              <span className="text-xs font-medium text-center">Ajouter</span>
+              <span className="text-xs font-medium text-center">Ajouter un <br /> bien</span>
             </button>
 
             {/* Liste des biens en scroll horizontal */}
@@ -307,7 +307,7 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                   >
                     <button
                       onClick={(e) => handleViewProperty(e, bien.id)}
-                      className="absolute top-2 right-2 p-1 rounded-full hover:bg-background transition-colors"
+                      className="absolute top-4 right-4 p-1 rounded-full hover:bg-background transition-colors"
                       title="Voir les détails"
                     >
                       <Eye className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />

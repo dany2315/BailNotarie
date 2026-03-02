@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Dashboard", href: "/client/proprietaire", icon: LayoutDashboard },
-  { name: "Mes beaux", href: "/client/proprietaire/demandes", icon: ClipboardList },
+  { name: "Mes dossiers", href: "/client/proprietaire/demandes", icon: ClipboardList },
   { name: "Mes informations", href: "/client/proprietaire/informations", icon: User },
 ];
 
