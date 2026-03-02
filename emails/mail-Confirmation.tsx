@@ -31,6 +31,8 @@ export default function MailConfirmation({
   message,
   role
 }: MailConfirmationProps) {
+  const clientSpaceUrl = `${EMAIL_BASE_URL}/client`;
+
   return (
     <Html>
       <Head />
@@ -343,7 +345,7 @@ export default function MailConfirmation({
             {/* CTA principal */}
             <Section style={{ textAlign: "center", margin: "32px 0" }}>
               <Button
-                href={EMAIL_BASE_URL}
+                href={clientSpaceUrl}
                 style={{ 
                   backgroundColor: "#2563eb",
                   color: "#ffffff",
@@ -355,7 +357,7 @@ export default function MailConfirmation({
                   display: "inline-block"
                 }}
               >
-                Retour à la page d'accueil
+                Accéder à mon espace client
               </Button>
             </Section>
           </Section>

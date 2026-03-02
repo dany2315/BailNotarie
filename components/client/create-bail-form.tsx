@@ -111,12 +111,12 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
     register,
     handleSubmit,
     setValue,
-    resetField,
     watch,
     formState: { errors },
   } = useForm<CreateBailFormData>({
     resolver: zodResolver(createBailSchema),
     defaultValues: {
+      propertyId: initialPropertyId || "",
       bailType: BailType.BAIL_NU_3_ANS,
       securityDeposit: "0",
     },
@@ -130,13 +130,6 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
   const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
   const [propertySelectKey, setPropertySelectKey] = useState(0);
   const [tenantSelectKey, setTenantSelectKey] = useState(0);
-
-  // Initialiser avec initialPropertyId si fourni
-  useEffect(() => {
-    if (initialPropertyId && !propertyId) {
-      setValue("propertyId", initialPropertyId);
-    }
-  }, [initialPropertyId, propertyId, setValue]);
 
   // Récupérer les informations du bien sélectionné
   useEffect(() => {
@@ -254,6 +247,26 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
     toast.success("Bien créé avec succès");
   };
 
+  const clearPropertySelection = useCallback(() => {
+    setValue("propertyId", "", {
+      shouldValidate: true,
+      shouldDirty: true,
+      shouldTouch: true,
+    });
+    setSelectedProperty(null);
+    setRentValidationResult(null);
+    setPropertySelectKey((prev) => prev + 1);
+  }, [setValue]);
+
+  const clearTenantSelection = useCallback(() => {
+    setValue("tenantId", "", {
+      shouldValidate: true,
+      shouldDirty: true,
+      shouldTouch: true,
+    });
+    setTenantSelectKey((prev) => prev + 1);
+  }, [setValue]);
+
   // Refs pour les callbacks stables
   const onLoadingChangeRef = useRef(onLoadingChange);
   const onBailCreatedRef = useRef(onBailCreated);
@@ -322,15 +335,20 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                 <Home className="h-4 w-4 text-muted-foreground" />
                 Bien *
               </Label>
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
+              <div className="flex min-w-0 items-start gap-2">
+                <div className="relative min-w-0 flex-1">
                   <Select
                     key={`property-select-${propertySelectKey}`}
                     value={propertyId && propertyId.trim() !== "" ? propertyId : undefined}
                     onValueChange={(value) => setValue("propertyId", value)}
                     disabled={isLoading}
                   >
-                    <SelectTrigger className={cn("w-full", propertyId && propertyId.trim() !== "" && "pr-8")}>
+                    <SelectTrigger
+                      className={cn(
+                        "w-full min-w-0 max-w-full overflow-hidden",
+                        propertyId && propertyId.trim() !== "" && "pr-10"
+                      )}
+                    >
                       <SelectValue placeholder="Sélectionner un bien" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
@@ -361,22 +379,17 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                       variant="ghost"
                       size="icon"
                       className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 hover:bg-destructive/10 hover:text-destructive z-20 pointer-events-auto"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setValue("propertyId", "", { shouldValidate: false, shouldDirty: true });
-                        setSelectedProperty(null);
-                        setPropertySelectKey(prev => prev + 1);
-                      }}
-                      disabled={isLoading}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
                       onPointerDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        clearPropertySelection();
                       }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        clearPropertySelection();
+                      }}
+                      disabled={isLoading}
                     >
                       <X className="h-3.5 w-3.5" />
                     </Button>
@@ -388,7 +401,13 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                   direction={isMobile ? "bottom" : "right"}
                 >
                   <DrawerTrigger asChild>
-                    <Button type="button" variant="outline" size="icon" disabled={isLoading}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={isLoading}
+                      className="h-10 w-10 shrink-0"
+                    >
                       <Plus className="h-4 w-4" />
                     </Button>
                   </DrawerTrigger>
@@ -473,15 +492,20 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                 <User className="h-4 w-4 text-muted-foreground" />
                 Locataire *
               </Label>
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
+              <div className="flex min-w-0 items-start gap-2">
+                <div className="relative min-w-0 flex-1">
                   <Select
                     key={`tenant-select-${tenantSelectKey}`}
                     value={tenantId && tenantId.trim() !== "" ? tenantId : undefined}
                     onValueChange={(value) => setValue("tenantId", value)}
                     disabled={isLoading}
                   >
-                    <SelectTrigger className={cn("w-full", tenantId && tenantId.trim() !== "" && "pr-8")}>
+                    <SelectTrigger
+                      className={cn(
+                        "w-full min-w-0 max-w-full overflow-hidden",
+                        tenantId && tenantId.trim() !== "" && "pr-10"
+                      )}
+                    >
                       <SelectValue placeholder="Sélectionner un locataire" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
@@ -533,21 +557,17 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                     variant="ghost"
                     size="icon"
                     className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 hover:bg-destructive/10 hover:text-destructive z-20 pointer-events-auto"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setValue("tenantId", "", { shouldValidate: false, shouldDirty: true });
-                      setTenantSelectKey(prev => prev + 1);
-                    }}
-                    disabled={isLoading}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
                     onPointerDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      clearTenantSelection();
                     }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      clearTenantSelection();
+                    }}
+                    disabled={isLoading}
                   >
                     <X className="h-3.5 w-3.5" />
                   </Button>
@@ -559,7 +579,13 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                   direction={isMobile ? "bottom" : "right"}
                 >
                   <DrawerTrigger asChild>
-                    <Button type="button" variant="outline" size="icon" disabled={isLoading}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={isLoading}
+                      className="h-10 w-10 shrink-0"
+                    >
                       <Plus className="h-4 w-4" />
                     </Button>
                   </DrawerTrigger>
@@ -642,7 +668,7 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                   onValueChange={(value) => setValue("bailType", value as BailType)}
                   disabled={isLoading}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Sélectionner un type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -657,7 +683,7 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="rentAmount">Loyer mensuel (€) *</Label>
                   <Input
@@ -701,7 +727,7 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="effectiveDate">Date de début *</Label>
                   <Input

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { File, Eye, Download, Image, ImageDown, ImageIcon, Loader2 } from "lucide-react";
+import { File, Eye, Download, Image, ImageDown, ImageIcon, Loader2, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getIntakeDocuments } from "@/lib/actions/intakes";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
@@ -278,16 +278,30 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
                     }}
                   />
                 ) : selectedDocument.mimeType?.includes("pdf") ? (
-                  <iframe
-                    src={getPdfPreviewUrl(
-                      signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey
-                    )}
-                    className="w-full h-[70vh] border rounded"
-                    title={selectedDocument.label || "Document PDF"}
-                    onError={() => {
-                      console.error("[DocumentPreview] Erreur de chargement du PDF");
-                    }}
-                  />
+                  <div className="space-y-2">
+                    <iframe
+                      src={getPdfPreviewUrl(
+                        signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey
+                      )}
+                      className="w-full h-[70vh] border rounded"
+                      title={selectedDocument.label || "Document PDF"}
+                      onError={() => {
+                        console.error("[DocumentPreview] Erreur de chargement du PDF");
+                      }}
+                    />
+                    <div className="flex justify-end">
+                      <Button variant="outline" size="sm" asChild>
+                        <a
+                          href={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Ouvrir dans un nouvel onglet
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="text-center py-8">
                     <File className="size-16 mx-auto mb-4 text-muted-foreground" />

@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Download, Eye, Loader2 } from "lucide-react";
+import { FileText, Download, Eye, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
 import { formatDateTime } from "@/lib/utils/formatters";
@@ -198,11 +198,21 @@ export function BailDocumentPreview({ document }: BailDocumentPreviewProps) {
                     className="max-w-full max-h-[70vh] object-contain mx-auto"
                   />
                 ) : isPdf ? (
-                  <iframe
-                    src={getPdfPreviewUrl(signedUrl)}
-                    className="w-full h-[70vh] border rounded"
-                    title={document.label || document.kind}
-                  />
+                  <div className="space-y-2">
+                    <iframe
+                      src={getPdfPreviewUrl(signedUrl)}
+                      className="w-full h-[70vh] border rounded"
+                      title={document.label || document.kind}
+                    />
+                    <div className="flex justify-end">
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={signedUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Ouvrir dans un nouvel onglet
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center gap-4 p-8">
                     <FileText className="h-16 w-16 text-muted-foreground" />

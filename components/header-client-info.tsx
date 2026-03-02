@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 import { getClientInfoForHeader } from "@/lib/actions/client-info";
@@ -161,13 +160,6 @@ export function HeaderClientInfo() {
             <p className="text-xs text-muted-foreground">{displayEmail}</p>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/client" className="cursor-pointer">
-            <User className="mr-2 h-4 w-4" />
-            Mon espace client
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
