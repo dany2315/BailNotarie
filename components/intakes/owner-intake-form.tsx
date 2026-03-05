@@ -541,7 +541,7 @@ const getRequiredFields = (
         "bailPaymentDay",
       ];
     case "tenant":
-      return ["tenantEmail"];
+      return [];
     case "documents":
       return [];
     default:
@@ -748,6 +748,7 @@ const [currentStep, setCurrentStep] = useState(0);
 const [isSaving, setIsSaving] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 const [isFileUploading, setIsFileUploading] = useState(false);
+const [documentsReadyForSubmission, setDocumentsReadyForSubmission] = useState(false);
 const [submissionProgress, setSubmissionProgress] = useState({
   step: 0,
   totalSteps: 4,
@@ -826,6 +827,15 @@ const [clientType, setClientType] = useState<ClientType | "">(
   });
 
   const personsWatch = watch("persons");
+  const tenantEmailWatch = watch("tenantEmail");
+  const hasTenantInCurrentBail =
+    intakeLink?.bail?.parties?.some(
+      (party: any) => party.profilType === ProfilType.LOCATAIRE
+    ) ?? false;
+  const hasTenantEmail =
+    typeof tenantEmailWatch === "string" && tenantEmailWatch.trim() !== "";
+  const canSubmitOwnerIntake = hasTenantInCurrentBail || hasTenantEmail;
+  const tenantStepIndex = STEPS.findIndex((step) => step.id === "tenant");
 
   // Fonction pour supprimer une personne et mettre à jour immédiatement le raw.payload
   const handleRemovePerson = async (index: number) => {
@@ -1771,6 +1781,32 @@ const [clientType, setClientType] = useState<ClientType | "">(
       const nextStep = Math.min(currentStep + 1, STEPS.length - 1);
       setCurrentStep(nextStep);
       return;
+    }
+
+    // Cas UX spécifique :
+    // Si l'utilisateur revient sur "tenant" après avoir déjà complété "documents",
+    // le clic sur "Suivant" doit soumettre directement (sans repasser par documents).
+    if (stepId === "tenant" && documentsReadyForSubmission) {
+      const tenantEmailValue = form.getValues("tenantEmail");
+      const hasTenantEmailNow =
+        typeof tenantEmailValue === "string" && tenantEmailValue.trim() !== "";
+
+      if (!hasTenantInCurrentBail && !hasTenantEmailNow) {
+        toast.error("Ajoutez un locataire avant de soumettre le dossier");
+        return;
+      }
+
+      try {
+        await saveCurrentStep(false, false);
+        await onSubmit(getValues() as FormWithPersons);
+      } catch (error: any) {
+        const message =
+          error?.message ||
+          error?.toString() ||
+          "Erreur lors de l'enregistrement";
+        toast.error(message);
+      }
+      return;
     } else {
       const fields = getRequiredFields(stepId, clientType);
   
@@ -1855,26 +1891,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
           }
         }
         
-        // Validation spéciale pour le step tenant : vérifier que tenantEmail n'est pas vide
-        // sauf si un locataire existe déjà dans le bail
-        if (stepId === "tenant") {
-          const hasTenant =
-            intakeLink?.bail?.parties?.some(
-              (party: any) => party.profilType === ProfilType.LOCATAIRE
-            ) ?? false;
-          
-          const tenantEmail = form.getValues("tenantEmail");
-          const isEmpty = (val: any) =>
-            val === undefined ||
-            val === null ||
-            val === "" ||
-            (typeof val === "string" && val.trim() === "");
-          
-          if (isEmpty(tenantEmail) && !hasTenant) {
-            toast.error("L'email du locataire est requis");
-            return;
-          }
-        }
+        // Le locataire peut être ajouté plus tard : cette étape est skippable.
       }
     }
   
@@ -2031,6 +2048,17 @@ const [clientType, setClientType] = useState<ClientType | "">(
   const onSubmit = async (data: FormWithPersons) => {
     setIsSubmitting(true);
     try {
+      const hasTenantEmailInPayload =
+        typeof data.tenantEmail === "string" && data.tenantEmail.trim() !== "";
+      if (!hasTenantInCurrentBail && !hasTenantEmailInPayload) {
+        toast.error("Ajoutez un locataire avant de soumettre le dossier");
+        if (tenantStepIndex !== -1) {
+          setCurrentStep(tenantStepIndex);
+        }
+        setIsSubmitting(false);
+        return;
+      }
+
       // Étape 1: Rafraîchir les données pour avoir les documents à jour
       setSubmissionProgress({
         step: 1,
@@ -2126,6 +2154,8 @@ const [clientType, setClientType] = useState<ClientType | "">(
   };
 
   const summaryValues = watch();
+  const currentStepId = STEPS[currentStep]?.id;
+  const isTenantStepCurrent = currentStepId === "tenant";
 
   const stepperSteps = useMemo(
     () => STEPS.map((step) => ({ title: step.title })),
@@ -2303,7 +2333,13 @@ const [clientType, setClientType] = useState<ClientType | "">(
             <PropertyStep form={form as any} isMobile={isMobile} />
           )}
           {STEPS[currentStep].id === "bail" && <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} />}
-          {STEPS[currentStep].id === "tenant" && <TenantStep form={form as any} />}
+          {STEPS[currentStep].id === "tenant" && (
+            <TenantStep
+              form={form as any}
+              hasTenantInCurrentBail={hasTenantInCurrentBail}
+              documentsReadyForSubmission={documentsReadyForSubmission}
+            />
+          )}
           {STEPS[currentStep].id === "documents" && (
             <DocumentsStep
               form={form as any}
@@ -2452,28 +2488,75 @@ const [clientType, setClientType] = useState<ClientType | "">(
                 {isSaving ? "Enregistrement..." : "Enregistrer"}
               </Button>
               {currentStep < STEPS.length - 1 ? (
-                <Button
-                  type="button"
-                  onClick={(e) => {
-                    console.log("🟦 [Button Next] onClick - currentStep:", currentStep, "stepId:", STEPS[currentStep]?.id);
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleNext();
-                  }}
-                  disabled={isSubmitting || isSaving || isFileUploading}
-                  size="icon"
-                  className="h-10 w-10"
-                >
-                  <ArrowRightIcon className="w-5 h-5" />
-                </Button>
+                isTenantStepCurrent ? (
+                  <Button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleNext();
+                    }}
+                    disabled={
+                      isSubmitting ||
+                      isSaving ||
+                      isFileUploading ||
+                      (documentsReadyForSubmission && !canSubmitOwnerIntake)
+                    }
+                    className="sm:w-auto h-10"
+                  >
+                    {documentsReadyForSubmission
+                      ? "Soumettre"
+                      : canSubmitOwnerIntake
+                      ? "Continuer"
+                      : "Continuer sans locataire"}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={(e) => {
+                      console.log("🟦 [Button Next] onClick - currentStep:", currentStep, "stepId:", STEPS[currentStep]?.id);
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleNext();
+                    }}
+                    disabled={isSubmitting || isSaving || isFileUploading}
+                    size="icon"
+                    className="h-10 w-10"
+                  >
+                    <ArrowRightIcon className="w-5 h-5" />
+                  </Button>
+                )
               ) : (
-                <Button
-                  type="submit"
-                  disabled={isSubmitting || isSaving || isFileUploading}
-                  className="sm:w-auto"
-                >
-                  {isSubmitting ? "Envoi en cours..." : "Soumettre"}
-                </Button>
+                canSubmitOwnerIntake ? (
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting || isSaving || isFileUploading}
+                    className="sm:w-auto"
+                  >
+                    {isSubmitting ? "Envoi en cours..." : "Soumettre"}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      const fileValidation = validateDocuments();
+                      if (!fileValidation.isValid) {
+                        toast.error("Veuillez joindre tous les documents requis", {
+                          description: fileValidation.errors.join(", "),
+                        });
+                        return;
+                      }
+                      setDocumentsReadyForSubmission(true);
+                      if (tenantStepIndex !== -1) {
+                        setCurrentStep(tenantStepIndex);
+                      }
+                    }}
+                    disabled={isSubmitting || isSaving || isFileUploading}
+                    className="sm:w-auto"
+                  >
+                    Suivant
+                  </Button>
+                )
               )}
             </div>
           </div>
@@ -3892,25 +3975,38 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
 
 type TenantStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
+  hasTenantInCurrentBail: boolean;
+  documentsReadyForSubmission: boolean;
 };
 
-const TenantStep = ({ form }: TenantStepProps) => (
+const TenantStep = ({
+  form,
+  hasTenantInCurrentBail,
+  documentsReadyForSubmission,
+}: TenantStepProps) => (
   <Card>
     <CardHeader>
       <CardTitle>Locataire</CardTitle>
       <CardDescription>
-        Ajoutez l'email du locataire principal pour pouvoir l'inviter.
+        Cette étape est optionnelle pour l’instant : vous pouvez continuer et revenir plus tard.
       </CardDescription>
     </CardHeader>
     <CardContent className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="tenantEmail">Email du locataire *</Label>
-        <Input id="tenantEmail" {...form.register("tenantEmail")} />
+        <Label htmlFor="tenantEmail">Email du locataire</Label>
+        <Input
+          id="tenantEmail"
+          placeholder="locataire@email.com"
+          {...form.register("tenantEmail")}
+        />
         {form.formState.errors.tenantEmail && (
           <p className="text-sm text-destructive">
             {form.formState.errors.tenantEmail.message as string}
           </p>
         )}
+        <p className="text-xs text-muted-foreground">
+          Le locataire recevra un lien pour compléter son formulaire.
+        </p>
       </div>
     </CardContent>
   </Card>

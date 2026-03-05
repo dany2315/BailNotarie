@@ -277,6 +277,30 @@ export async function getClientProperties(clientId: string) {
           status: true,
           effectiveDate: true,
           endDate: true,
+          rentAmount: true,
+          bailType: true,
+          bailFamily: true,
+          parties: {
+            select: {
+              id: true,
+              profilType: true,
+              persons: {
+                where: { isPrimary: true },
+                take: 1,
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+              entreprise: {
+                select: {
+                  legalName: true,
+                  name: true,
+                },
+              },
+            },
+          },
         },
         orderBy: {
           createdAt: "desc",
@@ -400,6 +424,71 @@ export async function getPendingNotaireRequests(clientId: string, profilType: Pr
   );
 
   return requests;
+}
+
+/**
+ * Récupère les détails complets d'un bail pour un client
+ */
+export async function getClientBailDetails(bailId: string, clientId: string) {
+  // Vérifier que le client a accès à ce bail
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    include: {
+      property: {
+        include: {
+          owner: {
+            include: {
+              persons: { where: { isPrimary: true }, take: 1 },
+              entreprise: true,
+            },
+          },
+        },
+      },
+      parties: {
+        include: {
+          persons: { where: { isPrimary: true }, take: 1 },
+          entreprise: true,
+        },
+      },
+      dossierAssignments: {
+        include: {
+          notaire: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        take: 1,
+      },
+      documents: {
+        where: {
+          OR: [
+            { clientId: clientId },
+            { clientId: null },
+          ],
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+    },
+  });
+
+  if (!bail) {
+    return null;
+  }
+
+  // Vérifier l'accès : le client doit être soit propriétaire du bien, soit partie du bail
+  const isOwner = bail.property.ownerId === clientId;
+  const isParty = bail.parties.some(p => p.id === clientId);
+  
+  if (!isOwner && !isParty) {
+    return null;
+  }
+
+  return serializeDecimal(bail);
 }
 
 /**

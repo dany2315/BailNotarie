@@ -45,10 +45,11 @@ export default async function ProprietaireInformationsPage() {
         <div>
           <h1 className="text-3xl font-bold">Mes informations personnelles</h1>
           <p className="text-muted-foreground">Consultez et gérez vos informations</p>
+          <Badge className={statusColors[clientData.completionStatus]}>
+            {statusLabels[clientData.completionStatus]}
+          </Badge>
         </div>
-        <Badge className={statusColors[clientData.completionStatus]}>
-          {statusLabels[clientData.completionStatus]}
-        </Badge>
+        
       </div>
 
       <ClientPersonsTabs

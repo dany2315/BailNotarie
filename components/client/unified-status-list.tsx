@@ -233,8 +233,11 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
             {filteredItems.map((item) => {
               if (item.type === "property") {
                 const property = item.data as Property;
+                const href = profilType === ProfilType.PROPRIETAIRE
+                  ? `${basePath}/demandes?open=bien-${item.id}`
+                  : `${basePath}/biens/${item.id}`;
                 return (
-                  <Link key={`property-${item.id}`} href={`${basePath}/biens/${item.id}`}>
+                  <Link key={`property-${item.id}`} href={href}>
                     <div className="group border rounded-lg sm:rounded-xl p-3 sm:px-5 bg-card hover:bg-accent/50 transition-all duration-200 cursor-pointer hover:shadow-md hover:border-primary/20 mt-3">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-start sm:items-center gap-2 sm:gap-3 flex-1 min-w-0">
@@ -276,8 +279,11 @@ export function UnifiedStatusList({ properties = [], bails, profilType, basePath
                       : null);
                 const bailTypeLabel = bail.bailFamily === BailFamille.HABITATION || bail.bailFamily === "HABITATION" ? "Bail d'habitation" : "Bail commercial";
 
+                const bailHref = profilType === ProfilType.PROPRIETAIRE
+                  ? `${basePath}/demandes?open=bail-${item.id}`
+                  : `${basePath}/baux/${item.id}`;
                 return (
-                  <Link key={`bail-${item.id}`} href={`${basePath}/baux/${item.id}`}>
+                  <Link key={`bail-${item.id}`} href={bailHref}>
                     <div className="group border rounded-lg sm:rounded-xl p-3 sm:p-5 bg-card hover:bg-accent/50 transition-all duration-200 cursor-pointer hover:shadow-md hover:border-primary/20 mt-3">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex-1 min-w-0">

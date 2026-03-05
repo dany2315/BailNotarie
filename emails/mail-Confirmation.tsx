@@ -12,6 +12,7 @@ import {
   Link
 } from "@react-email/components";
 import * as React from "react";
+import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
 
 interface MailConfirmationProps {
   firstName: string;
@@ -30,6 +31,8 @@ export default function MailConfirmation({
   message,
   role
 }: MailConfirmationProps) {
+  const clientSpaceUrl = `${EMAIL_BASE_URL}/client`;
+
   return (
     <Html>
       <Head />
@@ -57,7 +60,7 @@ export default function MailConfirmation({
             textAlign: "start"
           }}>
               <Link
-              href="https://www.bailnotarie.fr"
+              href={EMAIL_BASE_URL}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -67,7 +70,7 @@ export default function MailConfirmation({
               }}
             >
               <Img
-                src="https://www.bailnotarie.fr/logoSans.png"
+                src={EMAIL_LOGO_URL}
                 alt="BailNotarie - Plateforme de baux notariés"
                 width="40"
                 height="40"
@@ -342,7 +345,7 @@ export default function MailConfirmation({
             {/* CTA principal */}
             <Section style={{ textAlign: "center", margin: "32px 0" }}>
               <Button
-                href="https://www.bailnotarie.fr"
+                href={clientSpaceUrl}
                 style={{ 
                   backgroundColor: "#2563eb",
                   color: "#ffffff",
@@ -354,7 +357,7 @@ export default function MailConfirmation({
                   display: "inline-block"
                 }}
               >
-                Retour à la page d'accueil
+                Accéder à mon espace client
               </Button>
             </Section>
           </Section>
@@ -386,7 +389,7 @@ export default function MailConfirmation({
               fontSize: "12px",
               margin: "0 0 8px 0"
             }}>
-              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href="https://www.bailnotarie.fr" style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
+              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
             </Text>
             <Text style={{ 
               color: "#9ca3af",

@@ -77,17 +77,20 @@ export function ClientNameCell({ row }: ClientCellProps) {
     return row.phone ? [row.phone] : [];
   };
 
-  // Fonction pour obtenir le nom d'affichage
+  // Fonction pour obtenir le nom d'affichage (insensible à row.type manquant ou incohérent)
   const getDisplayName = () => {
-    if (row.type === ClientType.PERSONNE_PHYSIQUE) {
+    if (row.type === ClientType.PERSONNE_PHYSIQUE || (row.persons && row.persons.length > 0)) {
       const primaryPerson = row.persons?.find((p: any) => p.isPrimary) || row.persons?.[0];
       if (primaryPerson) {
-        return `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+        const name = `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim();
+        if (name) return name;
       }
-      return `${row.firstName || ""} ${row.lastName || ""}`.trim();
+      const fallback = `${(row as { firstName?: string }).firstName || ""} ${(row as { lastName?: string }).lastName || ""}`.trim();
+      if (fallback) return fallback;
     }
-    if (row.type === ClientType.PERSONNE_MORALE) {
-      return row.legalName || row.entreprise?.legalName || row.entreprise?.name || "-";
+    if (row.type === ClientType.PERSONNE_MORALE || row.entreprise) {
+      const name = (row as { legalName?: string }).legalName || row.entreprise?.legalName || row.entreprise?.name;
+      if (name) return name;
     }
     return "-";
   };
@@ -273,36 +276,24 @@ export function ClientEmailCell({ row }: ClientCellProps) {
   if (!row) {
     return <span className="text-muted-foreground">-</span>;
   }
-  
-  // Collecter tous les emails
+
+  // Collecter tous les emails depuis toutes les sources (insensible à row.type manquant ou incohérent)
   const emails: string[] = [];
-  
-  if (row.type === ClientType.PERSONNE_PHYSIQUE) {
-    if (row.persons && row.persons.length > 0) {
-      row.persons.forEach((person: any) => {
-        if (person.email && !emails.includes(person.email)) {
-          emails.push(person.email);
-        }
-      });
+  const add = (email: string | null | undefined) => {
+    if (email && typeof email === "string" && email.trim() && !emails.includes(email)) {
+      emails.push(email.trim());
     }
-    if (row.email && !emails.includes(row.email)) {
-      emails.push(row.email);
-    }
-  } else if (row.type === ClientType.PERSONNE_MORALE) {
-    if (row.entreprise?.email && !emails.includes(row.entreprise.email)) {
-      emails.push(row.entreprise.email);
-    }
-    if (row.email && !emails.includes(row.email)) {
-      emails.push(row.email);
-    }
-  } else {
-    if (row.email) emails.push(row.email);
+  };
+  if (row.persons && Array.isArray(row.persons)) {
+    row.persons.forEach((person: { email?: string | null }) => add(person?.email));
   }
-  
+  if (row.entreprise?.email) add(row.entreprise.email);
+  if ((row as { email?: string | null }).email) add((row as { email?: string | null }).email);
+
   if (emails.length === 0) {
     return <span className="text-muted-foreground">-</span>;
   }
-  
+
   return (
     <span className="text-sm" title={emails.length > 1 ? emails.join(", ") : undefined}>
       {emails.join(", ")}
@@ -314,36 +305,24 @@ export function ClientPhoneCell({ row }: ClientCellProps) {
   if (!row) {
     return <span className="text-muted-foreground">-</span>;
   }
-  
-  // Collecter tous les téléphones
+
+  // Collecter tous les téléphones depuis toutes les sources (insensible à row.type manquant ou incohérent)
   const phones: string[] = [];
-  
-  if (row.type === ClientType.PERSONNE_PHYSIQUE) {
-    if (row.persons && row.persons.length > 0) {
-      row.persons.forEach((person: any) => {
-        if (person.phone && !phones.includes(person.phone)) {
-          phones.push(person.phone);
-        }
-      });
+  const add = (phone: string | null | undefined) => {
+    if (phone && typeof phone === "string" && phone.trim() && !phones.includes(phone)) {
+      phones.push(phone.trim());
     }
-    if (row.phone && !phones.includes(row.phone)) {
-      phones.push(row.phone);
-    }
-  } else if (row.type === ClientType.PERSONNE_MORALE) {
-    if (row.entreprise?.phone && !phones.includes(row.entreprise.phone)) {
-      phones.push(row.entreprise.phone);
-    }
-    if (row.phone && !phones.includes(row.phone)) {
-      phones.push(row.phone);
-    }
-  } else {
-    if (row.phone) phones.push(row.phone);
+  };
+  if (row.persons && Array.isArray(row.persons)) {
+    row.persons.forEach((person: { phone?: string | null }) => add(person?.phone));
   }
-  
+  if (row.entreprise?.phone) add(row.entreprise.phone);
+  if ((row as { phone?: string | null }).phone) add((row as { phone?: string | null }).phone);
+
   if (phones.length === 0) {
     return <span className="text-muted-foreground">-</span>;
   }
-  
+
   return (
     <span className="text-sm" title={phones.length > 1 ? phones.join(", ") : undefined}>
       {phones.join(", ")}

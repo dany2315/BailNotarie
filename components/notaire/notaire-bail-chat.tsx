@@ -79,7 +79,8 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
   const { data: session } = useSession();
   const [messages, setMessages] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<Role | null>(null);
@@ -119,9 +120,13 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
   const targetProprietaire = watch("targetProprietaire");
   const targetLocataire = watch("targetLocataire");
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async (showSkeleton = false) => {
     try {
-      setLoading(true);
+      if (showSkeleton) {
+        setInitialLoading(true);
+      } else {
+        setRefreshing(true);
+      }
       // Si une partie est sélectionnée et que l'utilisateur est notaire, utiliser getBailMessagesAndRequests pour filtrer
       if (selectedPartyId) {
         const { messages: messagesData, requests: requestsData } = await getBailMessagesAndRequests(bailId, selectedPartyId);
@@ -141,16 +146,20 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
         description: error.message || "Impossible de charger les messages",
       });
     } finally {
-      setLoading(false);
+      if (showSkeleton) {
+        setInitialLoading(false);
+      } else {
+        setRefreshing(false);
+      }
     }
   }, [bailId, selectedPartyId]);
 
   useEffect(() => {
     if (!session?.user?.id) return; // Ne pas charger si pas de session
     
-    loadMessages();
+    loadMessages(true);
     // Recharger les messages toutes les 30 secondes
-    const interval = setInterval(loadMessages, 30000);
+    const interval = setInterval(() => loadMessages(false), 30000);
     return () => clearInterval(interval);
   }, [bailId, selectedPartyId, loadMessages, session?.user?.id]);
 
@@ -270,7 +279,7 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
     return "Client";
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         Chargement des messages...
@@ -295,6 +304,11 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
       
       {/* Zone de messages */}
       <div className="border rounded-lg p-4 max-h-96 overflow-y-auto space-y-4">
+        {refreshing && (
+          <div className="flex justify-center py-1">
+            <span className="text-xs text-muted-foreground">Mise à jour...</span>
+          </div>
+        )}
         {messages.length === 0 && requests.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             Aucun message pour le moment. Commencez la conversation !

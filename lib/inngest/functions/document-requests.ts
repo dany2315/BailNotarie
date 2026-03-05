@@ -40,17 +40,32 @@ export const sendDocumentReceivedEmail = inngest.createFunction(
   { event: "email/document-received.send" },
   async ({ event, step }) => {
     await step.run("send-document-received-email", async () => {
+      const requestTitle =
+        typeof event.data.requestTitle === "string" && event.data.requestTitle.trim().length > 0
+          ? event.data.requestTitle
+          : "Demande de document";
+      const documentNames = Array.isArray(event.data.documentNames)
+        ? event.data.documentNames.filter(
+            (name: unknown): name is string =>
+              typeof name === "string" && name.trim().length > 0
+          )
+        : [];
+      const chatUrl =
+        typeof event.data.chatUrl === "string" && event.data.chatUrl.trim().length > 0
+          ? event.data.chatUrl
+          : process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
+
       await resendSendEmail({
         from: "BailNotarie – Client <contact@bailnotarie.fr>",
         to: event.data.notaireEmail,
-        subject: `✅ Document reçu pour : ${event.data.requestTitle} - BailNotarie`,
+        subject: `✅ Document reçu pour : ${requestTitle} - BailNotarie`,
         react: MailDocumentReceived({
           notaireName: event.data.notaireName,
           clientName: event.data.clientName,
-          requestTitle: event.data.requestTitle,
-          documentNames: event.data.documentNames,
+          requestTitle,
+          documentNames,
           bailAddress: event.data.bailAddress,
-          chatUrl: event.data.chatUrl,
+          chatUrl,
         }),
       });
     });

@@ -38,7 +38,7 @@
   }
 
   .shadcn-input-style {
-    @apply w-full border border-input bg-background rounded-md px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply w-full border border-input bg-background rounded-md px-3 py-2 text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   /* Flip Card 3D Animation */

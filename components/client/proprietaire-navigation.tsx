@@ -2,20 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Home, Plus, User } from "lucide-react";
+import { LayoutDashboard, User, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 const navigation = [
   { name: "Dashboard", href: "/client/proprietaire", icon: LayoutDashboard },
-  { name: "Mes biens", href: "/client/proprietaire/biens", icon: Home },
-  { name: "Mes baux", href: "/client/proprietaire/baux", icon: FileText },
+  { name: "Mes dossiers", href: "/client/proprietaire/demandes", icon: ClipboardList },
   { name: "Mes informations", href: "/client/proprietaire/informations", icon: User },
 ];
 
@@ -48,35 +40,11 @@ export function ProprietaireNavigation() {
             );
           })}
         </div>
-        <div className="ml-auto px-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Créer
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href="/client/proprietaire/biens/new" className="cursor-pointer">
-                  <Home className="mr-2 h-4 w-4" />
-                  Créer un bien
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/client/proprietaire/baux/new" className="cursor-pointer">
-                  <FileText className="mr-2 h-4 w-4" />
-                  Créer un bail
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </nav>
 
       {/* Navigation Mobile - Tabs horizontales scrollables */}
       <nav className="md:hidden border-b bg-background">
-        <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto scrollbar-hide pr-16">
+        <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
           <div className="flex items-center gap-2 min-w-max">
             {navigation.map((item) => {
               const isActive =
@@ -98,29 +66,6 @@ export function ProprietaireNavigation() {
                 </Link>
               );
             })}
-          </div>
-          <div className="fixed right-3 ml-auto shrink-0">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="rounded-full px-2.5 bg-primary-foreground  text-primary">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link href="/client/proprietaire/biens/new" className="cursor-pointer">
-                    <Home className="mr-2 h-4 w-4" />
-                    Créer un bien
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/client/proprietaire/baux/new" className="cursor-pointer">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Créer un bail
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
       </nav>
