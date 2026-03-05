@@ -31,13 +31,17 @@ import useIsMobile from '@/hooks/useIsMobile';
 interface BlogPageClientProps {
   article: any;
   relatedArticles: any[];
+  faqItems?: Array<{ question: string; answer: string }>;
 }
 
-export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps) {
+export function BlogPageClient({ article, relatedArticles, faqItems = [] }: BlogPageClientProps) {
   const commentsSectionRef = useRef<CommentsSectionRef>(null);
   // Utiliser readTime de l'article si disponible, sinon calculer depuis content ou description
   const readTime = (article as any).readTime || calculateReadTime(article.content || article.description || '');
   const isMobile = useIsMobile();
+  // Keep H1 aligned with metadata title to reduce Google title rewrites.
+  const displayTitle = article.metaTitle || article.title;
+  const hasDifferentEditorialTitle = Boolean(article.metaTitle && article.metaTitle !== article.title);
   const handleCommentClick = () => {
     commentsSectionRef.current?.openModal();
   };
@@ -53,7 +57,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
           className="object-cover"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20"></div>
+        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/40 to-black/20"></div>
         
         {/* Contenu superposé */}
         <div className="absolute inset-0 flex items-end">
@@ -72,8 +76,13 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
               </Badge>
               
               <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight">
-                {article.title}
+                {displayTitle}
               </h1>
+              {hasDifferentEditorialTitle && (
+                <p className="text-white/85 text-base md:text-lg">
+                  {article.title}
+                </p>
+              )}
               
               <div className="flex flex-wrap items-center gap-6 text-white/80 text-sm">
                 <div className="flex items-center gap-2">
@@ -147,6 +156,23 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
                     }
                     return <div dangerouslySetInnerHTML={{ __html: article.content || '' }} />;
                   })()}
+
+                  {faqItems.length > 0 && (
+                    <section aria-labelledby="faq-visible" className="mt-12">
+                      {/* FAQ content is visible to users and matches JSON-LD entries. */}
+                      <h2 id="faq-visible" className="text-2xl font-bold text-gray-900 mb-6">
+                        Questions fréquentes
+                      </h2>
+                      <div className="space-y-4">
+                        {faqItems.map((faq, index) => (
+                          <div key={`${faq.question}-${index}`} className="border border-gray-200 rounded-lg p-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">{faq.question}</h3>
+                            <p className="text-gray-700">{faq.answer}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                 </div>
               </article>
               
@@ -177,7 +203,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
               </div>
 
               {/* CTA Mobile */}
-              { isMobile && <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 mt-10 ">
+              { isMobile && <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 mt-10 ">
                 <h3 className="font-bold text-gray-900 mb-3">
                   Besoin d'aide ?
                 </h3>
@@ -258,7 +284,7 @@ export function BlogPageClient({ article, relatedArticles }: BlogPageClientProps
               </div>
 
               {/* CTA */}
-              { !isMobile && <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 ">
+              { !isMobile && <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 ">
                 <h3 className="font-bold text-gray-900 mb-3">
                   Besoin d'aide ?
                 </h3>

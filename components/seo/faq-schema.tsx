@@ -1,4 +1,4 @@
-import React from "react";
+"use client";
 
 interface FAQItem {
   question: string;
@@ -7,6 +7,7 @@ interface FAQItem {
 
 interface FAQSchemaProps {
   faqs?: FAQItem[];
+  items?: FAQItem[];
   /** URL absolue de la page (ex: https://www.bailnotarie.fr/#faq ou la page dédiée) */
   pageUrl?: string;
   /** Langue BCP47 */
@@ -15,9 +16,13 @@ interface FAQSchemaProps {
 
 export function FAQSchema({
   faqs = [],
+  items = [],
   pageUrl = "https://www.bailnotarie.fr",
   lang = "fr-FR",
 }: FAQSchemaProps) {
+  const allFaqs = faqs.length ? faqs : items;
+  if (!allFaqs.length) return null;
+
   // Petite normalisation du texte
   const norm = (s: string) => s.trim();
 
@@ -30,7 +35,7 @@ export function FAQSchema({
       "@type": "WebPage",
       "@id": pageUrl,
     },
-    "mainEntity": faqs.map((faq) => ({
+    "mainEntity": allFaqs.map((faq) => ({
       "@type": "Question",
       "name": norm(faq.question),
       "acceptedAnswer": {
@@ -47,6 +52,10 @@ export function FAQSchema({
       dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
     />
   );
+}
+
+export function FaqSchema(props: { items: FAQItem[]; pageUrl?: string; lang?: string }) {
+  return <FAQSchema items={props.items} pageUrl={props.pageUrl} lang={props.lang} />;
 }
 
 export default FAQSchema;

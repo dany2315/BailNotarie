@@ -14,10 +14,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
-    default: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
+    default: "Bail notarié en ligne : prix, procédure et force exécutoire | BailNotarie",
     template: "%s | BailNotarie"
   },
-  description: "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+  description: "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
   keywords: [
     "bail notarié",
     "bail notarié en ligne",
@@ -77,9 +77,6 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: "/",
-    languages: {
-      'fr-FR': '/',
-    },
   },
   verification: {
     google: "google-site-verification=x_2ORStLKvXGVFbuibksag2S99sccQgdX387oacodLs",
@@ -103,10 +100,10 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "fr_FR",
-    url: "/",
+    url: "https://www.bailnotarie.fr/",
     siteName: "BailNotarie",
-    title: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
-    description: "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+    title: "Bail notarié en ligne : prix, procédure et force exécutoire | BailNotarie",
+    description: "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
     images: [
       { 
         url: "/og-cover-v2.png",
@@ -118,8 +115,8 @@ export const metadata: Metadata = {
   },
   twitter: {  
     card: "summary_large_image",
-    title: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
-    description: "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+    title: "Bail notarié en ligne : prix, procédure et force exécutoire | BailNotarie",
+    description: "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
     images: ["/og-cover-v2.png"],

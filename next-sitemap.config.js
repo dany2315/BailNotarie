@@ -4,12 +4,31 @@ module.exports = {
   siteUrl: process.env.SITE_URL || "https://www.bailnotarie.fr",
   generateRobotsTxt: true,
   generateIndexSitemap: false, // un seul sitemap.xml
-  exclude: ["/server-sitemap-index.xml","/login","/register"],
+  exclude: [
+    "/server-sitemap-index.xml",
+    "/login",
+    "/register",
+    "/client/login",
+    "/notaire/login",
+    "/blog/page/*",
+  ],
 
   robotsTxtOptions: {
     policies: [
       { userAgent: "*", allow: "/" },
-      { userAgent: "*", disallow: ["/api/", "/_next/", "/interface/"] },
+      {
+        userAgent: "*",
+        disallow: [
+          "/api/",
+          "/_next/",
+          "/interface/",
+          "/login",
+          "/register",
+          "/client/login",
+          "/notaire/login",
+          "/blog/page/",
+        ],
+      },
     ],
     additionalSitemaps: [
       "https://www.bailnotarie.fr/sitemap.xml",

@@ -1,4 +1,3 @@
-import { Header } from "@/components/header";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -12,19 +11,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ClientLoginLayout({
+export default function NotaireLoginLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex flex-col min-h-full">
-      <Header />
-      <div className="flex-1">
-        {children}
-      </div>
-    </div>
-  );
+  return children;
 }
-
-
