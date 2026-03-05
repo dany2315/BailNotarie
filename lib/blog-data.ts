@@ -36,7 +36,7 @@ export const blogCategories = [
     {
         id: "1",
         name: "Bail Notarié",
-        slug: "bail-notarié",
+        slug: "bail-notarie",
     },
 ]
 
@@ -65,8 +65,8 @@ export const blogData = [
         description: "Guide étape par étape pour établir un bail notarié, de la préparation des documents à la signature chez le notaire.",
         content: "", // Le contenu est maintenant géré par le composant React
         readTime: 6, // Temps de lecture estimé en minutes
-        metaTitle: "Les étapes pour établir un bail notarié : guide complet",
-        metaDescription: "Toutes les étapes pour créer un bail notarié : dossier, documents, procédure chez le notaire et signature. Guide clair pour sécuriser votre location.",
+        metaTitle: "Faire un bail notarié : étapes, documents, coût et délais (2026)",
+        metaDescription: "Comment établir un bail notarié en pratique : étapes, pièces à fournir, coût, délais et signature chez le notaire. Guide clair pour bailleurs en 2026.",
         metaKeywords: "étapes bail notarié, comment faire un bail notarié, procédure bail notarié, dossier bail notarié, documents bail notarié, signature bail chez notaire, créer un bail notarié en ligne, bail notarié processus, bail authentique démarches",        imageUrl: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-10"),
@@ -94,8 +94,8 @@ export const blogData = [
         description: "Comparaison détaillée entre le bail notarié et le bail sous seing privé pour vous aider à faire le bon choix.",
         content: "", // Le contenu est maintenant géré par le composant React
         readTime: 7, // Temps de lecture estimé en minutes
-        metaTitle: "Bail notarié vs bail classique : analyse comparative",
-        metaDescription: "Comparaison détaillée entre le bail notarié et le bail sous seing privé pour vous aider à faire le bon choix.",
+        metaTitle: "Bail notarié vs bail classique : coût, force exécutoire, risques",
+        metaDescription: "Bail notarié ou bail classique : comparez coût, force exécutoire, sécurité juridique et gestion des impayés pour choisir la meilleure option.",
         metaKeywords: "bail notarié, bail classique, analyse comparative, propriétaire, locataire, notaire",
         imageUrl: "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
@@ -125,9 +125,9 @@ export const blogData = [
           "Tarifs réglementés, estimation du coût d'un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
         content: "",
         readTime: 6,
-        metaTitle: "Coût d'un bail de location notarié : tarifs, partage des frais et exemples concrets",
+        metaTitle: "Combien coûte un bail de location notarié en France ?",
         metaDescription:
-          "Tarifs réglementés, estimation du coût d'un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
+          "Prix d'un bail de location notarié en France : barème 2026, qui paie quoi, frais annexes et estimation claire selon le loyer.",
         metaKeywords:
           "bail notarié prix, coût bail de location notarié, coût bail notarié, frais bail de location notarié, frais bail notarié, tarif notaire bail habitation, emolument bail notarié, moitié loyer hors charges, procuration authentique à distance, copies formalités notaire, débours bail notarié",
         imageUrl:
@@ -163,9 +163,9 @@ export const blogData = [
           "Le décret du 1er juillet 2025 a déjudiciarisé la saisie sur salaire. Découvrez comment le Bail Notarié permet d'activer cette procédure de recouvrement accélérée sans passer par les tribunaux.",
         content: "",
         readTime: 7,
-        metaTitle: "Saisie sur salaire et Bail Notarié : La procédure de recouvrement accélérée (Réforme 2025)",
+        metaTitle: "Saisie sur salaire avec bail notarié : procédure 2025-2026",
         metaDescription:
-          "Réforme 2025 : la saisie sur salaire est déjudiciarisée. Avec un Bail Notarié (titre exécutoire), récupérez les loyers impayés directement via Commissaire de Justice sans procédure judiciaire.",
+          "Loyers impayés : comment activer la saisie sur salaire avec un bail notarié (titre exécutoire), les étapes et délais depuis la réforme 2025.",
         metaKeywords:
           "saisie sur salaire, saisie sur salaire bail notarié, recouvrement loyers impayés 2025, décret 2025-125 saisie rémunérations, titre exécutoire notarié, commandement de payer loyer, commissaire de justice saisie salaire, quotité saisissable loyer, procédure recouvrement locatif, bail notarié force exécutoire, saisie rémunérations sans juge, recouvrement accéléré loyers, impayés locatifs solution 2025",
         imageUrl:

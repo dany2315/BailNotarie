@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
 
 export function Blog2Content() {
   const piecesObligatoires = [
@@ -86,6 +87,32 @@ export function Blog2Content() {
         </p>
       </section>
 
+      <section aria-labelledby="checklist-rapide" className="my-8">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h2 id="checklist-rapide" className="text-xl font-bold text-gray-900 mb-3">
+            Checklist rapide avant envoi au notaire
+          </h2>
+          <div className="grid md:grid-cols-2 gap-4 text-gray-700">
+            <div>
+              <h3 className="font-semibold mb-2">Cote bailleur</h3>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>Titre de propriete et diagnostics a jour</li>
+                <li>Etat civil complet et piece d'identite valide</li>
+                <li>Conditions du bail deja arbitrees (loyer, depot, duree)</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-2">Cote locataire</h3>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>Piece d'identite valide</li>
+                <li>Etat civil complet et RIB</li>
+                <li>Justificatifs demandes selon le dossier</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section aria-labelledby="etape1" className="my-12">
         <h2 id="etape1" className="text-2xl font-bold text-gray-900 mb-4">Étape 1 — Constituer son dossier (la base de tout bail notarié)</h2>
         
@@ -105,7 +132,7 @@ export function Blog2Content() {
           <ul className="space-y-2">
             {piecesObligatoires.map((piece, index) => (
               <li key={index} className="flex items-start text-gray-700">
-                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 shrink-0" aria-hidden="true" />
                 <span>{piece}</span>
               </li>
             ))}
@@ -124,7 +151,7 @@ export function Blog2Content() {
           <ul className="space-y-2">
             {piecesPersonneMorale.map((piece, index) => (
               <li key={index} className="flex items-start text-gray-700">
-                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 shrink-0" aria-hidden="true" />
                 <span>{piece}</span>
               </li>
             ))}
@@ -143,7 +170,7 @@ export function Blog2Content() {
           <ul className="space-y-2">
             {documentsBien.map((doc, index) => (
               <li key={index} className="flex items-start text-gray-700">
-                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 shrink-0" aria-hidden="true" />
                 <span>{doc}</span>
               </li>
             ))}
@@ -162,7 +189,7 @@ export function Blog2Content() {
           <ul className="space-y-2">
             {conditionsBail.map((condition, index) => (
               <li key={index} className="flex items-start text-gray-700">
-                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 shrink-0" aria-hidden="true" />
                 <span>{condition}</span>
               </li>
             ))}
@@ -218,6 +245,21 @@ export function Blog2Content() {
         </ul>
       </section>
 
+      <section aria-labelledby="delais-reels" className="my-12">
+        <h2 id="delais-reels" className="text-2xl font-bold text-gray-900 mb-4">
+          Delais reels : ou ca bloque le plus souvent
+        </h2>
+        <p className="text-gray-700 mb-4">
+          Un bail notarie peut avancer vite quand le dossier est complet. En pratique, les retards viennent surtout de :
+        </p>
+        <ul className="list-disc list-inside text-gray-700 space-y-2">
+          <li>diagnostics immobiliers manquants ou perimes,</li>
+          <li>etat civil incomplet (noms, regimes matrimoniaux, pieces incoherentes),</li>
+          <li>documents de societe non a jour (statuts, KBIS, pouvoir du signataire),</li>
+          <li>allers-retours sur les clauses financieres (loyer, depot, repartition des frais).</li>
+        </ul>
+      </section>
+
       <section aria-labelledby="bailnotarie" className="my-12">
         <h2 id="bailnotarie" className="text-2xl font-bold text-gray-900 mb-4">Pourquoi choisir BailNotarie.fr pour ces étapes ?</h2>
         
@@ -231,7 +273,7 @@ export function Blog2Content() {
           <ul className="space-y-2">
             {avantagesBailNotarie.map((avantage, index) => (
               <li key={index} className="flex items-start text-gray-700">
-                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 shrink-0" aria-hidden="true" />
                 <span>{avantage}</span>
               </li>
             ))}
@@ -249,7 +291,7 @@ export function Blog2Content() {
           <ul className="space-y-2">
             {erreursCourantes.map((erreur, index) => (
               <li key={index} className="flex items-start text-gray-700">
-                <AlertCircle className="h-4 w-4 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                <AlertCircle className="h-4 w-4 text-yellow-600 mr-2 mt-0.5 shrink-0" aria-hidden="true" />
                 <span>{erreur}</span>
               </li>
             ))}
@@ -289,6 +331,14 @@ export function Blog2Content() {
         <p className="text-lg text-gray-700 leading-relaxed">
           Avec une plateforme comme BailNotarie.fr, tu passes : d'un parcours opaque → à un parcours sécurisé, guidé et juridique.
         </p>
+        <div className="mt-6">
+          <Link
+            href="/commencer"
+            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
+          >
+            Demarrer mon bail notarie
+          </Link>
+        </div>
       </section>
     </article>
   );
