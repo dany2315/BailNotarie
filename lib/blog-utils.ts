@@ -1,5 +1,13 @@
 import { Article } from '@/types/blog';
 
+const SITE_URL = "https://www.bailnotarie.fr";
+
+function buildSeoTitle(rawTitle: string, hasCustomMetaTitle: boolean): string {
+  if (hasCustomMetaTitle) return rawTitle;
+  const shortSuffix = " | BailNotarie";
+  return rawTitle.length <= 52 ? `${rawTitle}${shortSuffix}` : rawTitle;
+}
+
 /**
  * Génère un slug à partir d'un titre
  */
@@ -65,8 +73,11 @@ export function extractExcerpt(content: string, maxLength: number = 150): string
  * Génère les métadonnées SEO pour un article
  */
 export function generateArticleMetadata(article: Article) {
-  const title = article.metaTitle || `${article.title} - Blog BailNotarie`;
+  const baseTitle = article.metaTitle || article.title;
+  const title = buildSeoTitle(baseTitle, Boolean(article.metaTitle));
   const description = article.metaDescription || article.description;
+  const canonical = `/blog/${article.slug}`;
+  const canonicalAbsolute = new URL(canonical, SITE_URL).toString();
   const keywords = article.metaKeywords 
     ? article.metaKeywords.split(',').map(k => k.trim())
     : [
@@ -85,13 +96,25 @@ export function generateArticleMetadata(article: Article) {
     title,
     description,
     keywords,
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+      },
+    },
+    alternates: {
+      canonical,
+    },
     openGraph: {
       title: article.metaTitle || article.title,
       description,
-      url: `https://www.bailnotarie.fr/blog/${article.slug}`,
+      url: canonicalAbsolute,
       type: "article",
       publishedTime: article.createdAt.toISOString(),
       authors: ["Équipe BailNotarie"],
+      locale: "fr_FR",
       images: [
         {
           url: ogImage,

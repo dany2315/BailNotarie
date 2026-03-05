@@ -186,7 +186,6 @@ export default function MentionsLegalesPage() {
 
                 <ul className="list-disc pl-6 space-y-2">
                   <li>Conditions générales d'utilisation (CGU)</li>
-                  <li>Conditions générales de vente (CGV)</li>
                   <li>Politique de confidentialité</li>
                 </ul>
               </section>

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+const SITE_URL = "https://www.bailnotarie.fr";
+
 export interface PageMetadata {
   title: string;
   description: string;
@@ -12,13 +14,13 @@ export interface PageMetadata {
 }
 
 export const defaultMetadata: Metadata = {
-  metadataBase: new URL("https://www.bailnotarie.fr"),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
+    default: "Bail notarié en ligne : prix, procédure et force exécutoire | BailNotarie",
     template: "%s | BailNotarie",
   },
   description:
-    "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+    "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
   keywords: [
     "bail notarié",
     "bail notarié en ligne",
@@ -52,10 +54,6 @@ export const defaultMetadata: Metadata = {
   },
   alternates: {
     canonical: "/", // ✅ canonical globale
-    languages: {
-      "fr-FR": "/",
-      "x-default": "/",
-    },
   },
   verification: {
     // ✅ uniquement le token
@@ -75,11 +73,11 @@ export const defaultMetadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "fr_FR",
-    url: "/", // ✅ aligne avec canonical
+    url: `${SITE_URL}/`, // URL absolue pour Open Graph
     siteName: "BailNotarie",
-    title: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
+    title: "Bail notarié en ligne : prix, procédure et force exécutoire | BailNotarie",
     description:
-      "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+      "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
     images: [
       {
         url: "/og-cover-v2.png",
@@ -91,9 +89,9 @@ export const defaultMetadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "BailNotarie - Procédure de bail notarié 100% en ligne, avec force exécutoire immédiate",
+    title: "Bail notarié en ligne : prix, procédure et force exécutoire | BailNotarie",
     description:
-      "Constituer votre dossier de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+      "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
     images: ["/og-cover-v2.png"],
@@ -102,11 +100,14 @@ export const defaultMetadata: Metadata = {
 
 // utilitaire
 const stripHash = (path: string) => path.split("#")[0] || "/";
+const toAbsoluteUrl = (path: string) => new URL(path, SITE_URL).toString();
 
 export function generatePageMetadata(pageData: PageMetadata): Metadata {
   // canonical propre, sans fragment
   const canonicalClean = stripHash(pageData.canonical ?? "/");
   const ogImage = pageData.ogImage || "/og-cover-v2.png";
+  const canonicalAbsolute = toAbsoluteUrl(canonicalClean);
+  const ogImageAbsolute = ogImage.startsWith("http") ? ogImage : toAbsoluteUrl(ogImage);
 
   return {
     title: pageData.title,
@@ -129,10 +130,6 @@ export function generatePageMetadata(pageData: PageMetadata): Metadata {
         },
     alternates: {
       canonical: canonicalClean, // ✅ relative + sans #
-      languages: {
-        "fr-FR": canonicalClean,
-        "x-default": canonicalClean,
-      },
     },
     verification: {
       google: "x_2ORStLKvXGVFbuibksag2S99sccQgdX387oacodLs",
@@ -141,13 +138,13 @@ export function generatePageMetadata(pageData: PageMetadata): Metadata {
     openGraph: {
       type: pageData.ogType || "website",
       locale: "fr_FR",
-      url: canonicalClean,          // ✅ OG url = canonical
+      url: canonicalAbsolute, // URL absolue pour éviter les ambiguïtés OG
       siteName: "BailNotarie",
       title: pageData.title,
       description: pageData.description,
       images: [
         {
-          url: ogImage.startsWith("http") ? ogImage : ogImage, // relatif OK avec metadataBase
+          url: ogImageAbsolute,
           width: 1200,
           height: 630,
           alt: pageData.title,
@@ -160,7 +157,7 @@ export function generatePageMetadata(pageData: PageMetadata): Metadata {
       description: pageData.description,
       site: "@bailnotarie",
       creator: "@bailnotarie",
-      images: [ogImage],
+      images: [ogImageAbsolute],
     },
   };
 }
@@ -169,9 +166,9 @@ export function generatePageMetadata(pageData: PageMetadata): Metadata {
 export const pageMetadata = {
   home: {
     title:
-      "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
+      "Bail notarié en ligne : prix, procédure et force exécutoire | BailNotarie",
     description:
-      "Procédure de bail notarié 100% en ligne. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
+      "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
     keywords: [
       "bail notarié",
       "bail notarié en ligne",

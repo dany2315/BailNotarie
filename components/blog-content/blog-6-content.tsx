@@ -2,16 +2,32 @@
 
 import React from 'react';
 import { CheckCircle } from 'lucide-react';
+import Link from 'next/link';
 
 export function Blog6Content() {
   return (
     <article>
       <section aria-labelledby="introduction">
         <p className="text-lg text-gray-700 mb-6 leading-relaxed">
-          Le <strong>bail notarié d'habitation</strong> est un <strong>acte authentique</strong> soumis aux dispositions de la 
+          En <strong>France</strong>, le <strong>bail de location notarié</strong> est un <strong>acte authentique</strong> soumis aux dispositions de la 
           <strong> loi n° 89-462 du 6 juillet 1989</strong>. Au-delà de la <strong>sécurité juridique</strong> qu'il procure, 
           son <strong>coût obéit à une réglementation nationale stricte</strong>.
         </p>
+      </section>
+
+      <section aria-labelledby="reponse-rapide" className="my-8">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h2 id="reponse-rapide" className="text-xl font-bold text-gray-900 mb-3">
+            Reponse rapide : combien coute un bail notarie ?
+          </h2>
+          <p className="text-gray-700 mb-2">
+            Dans la plupart des dossiers, le cout total se situe souvent <strong>entre 200 et 600 EUR</strong>,
+            selon le loyer, les options de signature et les formalites.
+          </p>
+          <p className="text-sm text-gray-600">
+            Estimation indicative : le montant exact depend du dossier et des pieces necessaires.
+          </p>
+        </div>
       </section>
 
       <section aria-labelledby="tarif-reglemente" className="my-12">
@@ -107,9 +123,46 @@ export function Blog6Content() {
         </div>
       </section>
 
+      <section aria-labelledby="exemples-loyers" className="my-12">
+        <h2 id="exemples-loyers" className="text-2xl font-bold text-gray-900 mb-6">
+          3. Exemples rapides selon le loyer mensuel
+        </h2>
+        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+          <table className="w-full border-collapse" role="table" aria-label="Exemples de cout d'un bail notarie">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Loyer hors charges</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Base emolument</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Estimation totale TTC</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-gray-100">
+                <td className="py-3 px-4 text-gray-700">500 EUR</td>
+                <td className="py-3 px-4 text-gray-700">Environ 250 EUR HT</td>
+                <td className="py-3 px-4 text-gray-700">Environ 350 a 450 EUR</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-3 px-4 text-gray-700">1 000 EUR</td>
+                <td className="py-3 px-4 text-gray-700">Environ 500 EUR HT</td>
+                <td className="py-3 px-4 text-gray-700">Environ 600 a 900 EUR</td>
+              </tr>
+              <tr>
+                <td className="py-3 px-4 text-gray-700">1 500 EUR</td>
+                <td className="py-3 px-4 text-gray-700">Environ 750 EUR HT</td>
+                <td className="py-3 px-4 text-gray-700">Environ 900 a 1 300 EUR</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-sm text-gray-600 mt-3">
+          Ces fourchettes sont indicatives. Le total varie selon les formalites, debours et options (procuration, signature a distance).
+        </p>
+      </section>
+
       <section aria-labelledby="repartition-frais" className="my-12">
         <h2 id="repartition-frais" className="text-2xl font-bold text-gray-900 mb-6">
-          3. Qui paie les frais ? (La répartition légale)
+          4. Qui paie les frais ? (La repartition legale)
         </h2>
         <p className="text-gray-700 mb-6">
           La question du paiement est régie par l'<strong>article 5 de la loi du 6 juillet 1989</strong>.
@@ -136,11 +189,23 @@ export function Blog6Content() {
             </li>
           </ul>
         </div>
+
+        <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 my-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Cas pratique : zone tendue et plafond au m2</h3>
+          <ul className="space-y-3 text-gray-700">
+            <li>
+              <strong>Cas 1 - Zone tendue :</strong> la part du locataire est plafonnee, meme si le bailleur souhaite partager davantage.
+            </li>
+            <li>
+              <strong>Cas 2 - Plafond par m2 :</strong> si le plafond legal est depasse, l'excedent reste a la charge du bailleur.
+            </li>
+          </ul>
+        </div>
       </section>
 
       <section aria-labelledby="cout-perspective" className="my-12">
         <h2 id="cout-perspective" className="text-2xl font-bold text-gray-900 mb-6">
-          4. Le coût à mettre en perspective avec le risque
+          5. Le coût à mettre en perspective avec le risque
         </h2>
         <p className="text-gray-700 mb-6">
           Bien que le <strong>bail notarié</strong> représente un <strong>coût initial supérieur</strong> à un contrat sous seing privé, 
@@ -171,7 +236,7 @@ export function Blog6Content() {
       </section>
 
       <section aria-labelledby="a-retenir" className="my-12">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-8 border border-blue-200">
+        <div className="bg-linear-to-r from-blue-50 to-indigo-50 rounded-lg p-8 border border-blue-200">
           <h2 id="a-retenir" className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
             <CheckCircle className="h-6 w-6 text-blue-600 mr-3" aria-hidden="true" />
             À RETENIR
@@ -202,6 +267,23 @@ export function Blog6Content() {
               </span>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="cta-bail-notarie" className="my-12">
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h2 id="cta-bail-notarie" className="text-xl font-bold text-gray-900 mb-3">
+            Besoin d'une estimation adaptee a votre dossier ?
+          </h2>
+          <p className="text-gray-700 mb-4">
+            Lancez votre procedure en ligne et obtenez un cadrage clair des pieces et couts avant signature.
+          </p>
+          <Link
+            href="/commencer"
+            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
+          >
+            Commencer ma procedure
+          </Link>
         </div>
       </section>
     </article>

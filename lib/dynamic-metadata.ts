@@ -43,12 +43,21 @@ export function generateBlogPostMetadata(post: {
   publishedAt: string; // utile si tu ajoutes JSON-LD
   image?: string;      // peut être relatif: '/og-cover-v2.png'
   tags?: string[];
+  metaTitle?: string;
+  metaDescription?: string;
 }): Metadata {
   const canonical = `/blog/${post.slug}`;
+  const rawTitle = post.metaTitle ?? post.title;
+  const title = post.metaTitle
+    ? rawTitle
+    : rawTitle.length <= 52
+      ? `${rawTitle} | BailNotarie`
+      : rawTitle;
+  const description = post.metaDescription ?? post.description;
 
   return generatePageMetadata({
-    title: `${post.title} | Blog BailNotarie`,
-    description: post.description,
+    title,
+    description,
     keywords: [
       'blog bail notarié',
       'article bail notarié',
