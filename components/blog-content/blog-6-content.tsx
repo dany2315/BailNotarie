@@ -33,6 +33,11 @@ export function Blog6Content() {
           <p className="text-sm text-gray-600">
             Estimation indicative : le montant exact depend du dossier et des pieces necessaires.
           </p>
+          <div className="mt-4">
+            <Link href="/simulateur-prix-bail-notarie" className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+              Simuler mon prix de bail notarié
+            </Link>
+          </div>
         </div>
       </section>
 
