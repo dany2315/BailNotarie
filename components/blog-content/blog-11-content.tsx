@@ -114,6 +114,12 @@ export function Blog11Content() {
           </table>
         </div>
 
+        <p className="text-gray-700 mb-4">
+          Vous pouvez aussi obtenir une estimation immédiate avec notre{" "}
+          <Link href="/simulateur-prix-bail-notarie" className="text-blue-700 hover:underline">
+            simulateur de prix du bail notarié
+          </Link>.
+        </p>
         <p className="text-gray-700">
           Pour une vue detaillee avec exemples, consultez le guide{" "}
           <Link

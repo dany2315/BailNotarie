@@ -48,7 +48,8 @@ export function Header() {
   
   const bailNotarieSubItems = [
     { href: "/commencer", title: "Démarrer un bail", description: "Créer votre bail en quelques minutes" },
-    { href: "/commencer/suivi", title: "Suivi en temps réel", description: "Voir l’état de votre demande instantanément" },    
+    { href: "/commencer/suivi", title: "Suivi en temps réel", description: "Voir l’état de votre demande instantanément" },
+    { href: "/simulateur-prix-bail-notarie", title: "Simuler le prix", description: "Estimer le coût de votre bail notarié" },
   ];
 
   const handleMenuClick = () => {
@@ -149,6 +150,12 @@ export function Header() {
               <NavigationMenuItem>
                 <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
                   <Link href="/blog">Blog</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+
+              <NavigationMenuItem>
+                <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+                  <Link href="/simulateur-prix-bail-notarie">Simulateur de prix</Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
 
@@ -287,6 +294,15 @@ export function Header() {
                   >
                     <BookOpen className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
                     <span className="font-medium">Blog</span>
+                  </Link>
+
+                  <Link
+                    href="/simulateur-prix-bail-notarie"
+                    onClick={handleMenuClick}
+                    className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-[#4373f5] hover:bg-blue-50 rounded-lg transition-all duration-200 group"
+                  >
+                    <Scale className="h-5 w-5 text-gray-400 group-hover:text-[#4373f5] transition-colors" />
+                    <span className="font-medium">Simulateur de prix</span>
                   </Link>
 
                   {/* FAQ */}
