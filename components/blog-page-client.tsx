@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, Calendar, CheckCircle2, ChevronRight, Clock, FileText, PhoneCall, User } from 'lucide-react';
+import { ArrowLeft, ArrowUp, ArrowUpDown, ArrowUpRight, Calendar, CheckCircle2, ChevronRight, Clock, FileText, PhoneCall, User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { ShareButtonSimple } from '@/components/share-button-simple';
@@ -116,7 +116,6 @@ const articleExperiences: Record<string, ArticleExperience> = {
   'blog-6': {
     quickAnswer: "Le coût d’un bail notarié d’habitation se situe souvent autour d’une base proche d’un demi-loyer hors charges, avec TVA et formalités.",
     keyPoints: [
-      "Page la plus transactionnelle du blog",
       "Réponses claires sur le prix, les frais et le partage",
       "Exemples concrets selon le loyer mensuel",
     ],
@@ -150,7 +149,6 @@ const articleExperiences: Record<string, ArticleExperience> = {
     keyPoints: [
       "Sujet fort pour bailleurs sensibles au risque d’impayé",
       "Angle juridique différenciant",
-      "Très bon levier de conversion vers les profils prudents",
     ],
     toc: [
       { id: 'titre-executoire', label: 'Titre exécutoire' },
@@ -162,9 +160,9 @@ const articleExperiences: Record<string, ArticleExperience> = {
   'blog-9': {
     quickAnswer: "Les diagnostics immobiliers influencent directement la validité du dossier locatif et la sécurité juridique du bail.",
     keyPoints: [
-      "Page informative à fort volume d’impressions",
-      "Besoin de lier davantage le sujet au dossier de bail",
-      "Très utile pour préqualifier un futur client",
+      "Validité illimitée, temporaire ou volatile selon le diagnostic (DPE, électricité, gaz, amiante, plomb, ERP)",
+      "Un diagnostic périmé peut annuler votre bail ou bloquer votre vente",
+      "Risques juridiques : annulation, responsabilité pénale, sanction indécence (logements G interdits à la location)",
     ],
     toc: [
       { id: 'illimites', label: 'Validité illimitée' },
@@ -179,7 +177,6 @@ const articleExperiences: Record<string, ArticleExperience> = {
     keyPoints: [
       "Clarifie un sujet juridique souvent mal compris",
       "Met en avant le titre exécutoire et la réaction rapide",
-      "Bon contenu de réassurance pour bailleurs prudents",
     ],
     toc: [
       { id: 'expulsion', label: 'Expulsion' },
@@ -191,9 +188,7 @@ const articleExperiences: Record<string, ArticleExperience> = {
   'blog-11': {
     quickAnswer: "Le bail authentique est un bail notarié : un bail de location signé devant notaire, sous forme d’acte authentique, avec une protection juridique renforcée.",
     keyPoints: [
-      "Page pilier pour la requête “bail authentique notaire”",
       "Définition, prix, procédure et différences avec un bail classique",
-      "Page à forte intention business",
     ],
     toc: [
       { id: 'reponse-rapide-bail-authentique', label: 'Réponse rapide' },
@@ -209,8 +204,6 @@ const articleExperiences: Record<string, ArticleExperience> = {
     quickAnswer: "BailNotarie est une plateforme digitale qui prépare, structure et transmet les dossiers de bail notarié à des notaires partenaires.",
     keyPoints: [
       "Clarifie le positionnement du service",
-      "Rassure sur le rôle de la plateforme et du notaire",
-      "Bon contenu de conversion pour visiteurs déjà chauds",
     ],
     toc: [
       { id: 'positionnement-bailnotarie', label: 'Positionnement' },
@@ -222,7 +215,6 @@ const articleExperiences: Record<string, ArticleExperience> = {
   'blog-13': {
     quickAnswer: "Le bail commercial notarié sécurise davantage un bail 3/6/9 grâce à l’acte authentique, à la date certaine et à un meilleur cadre de recouvrement.",
     keyPoints: [
-      "Article à fort potentiel sur les recherches “bail commercial notarié”",
       "Explique le rôle du notaire, le coût et les obligations",
       "Très adapté aux bailleurs et exploitants professionnels",
     ],
@@ -287,9 +279,18 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
     commentsSectionRef.current?.openModal();
   };
 
+  const handleTocClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.history.pushState(null, '', `#${targetId}`);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gray-50 pb-28 lg:pb-0">
-      <section className="relative min-h-[44vh] md:min-h-[52vh] overflow-hidden">
+      <section className="relative min-h-[39vh] md:min-h-[40vh] overflow-hidden">
         <Image
           src={article.imageUrl || "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200"}
           alt={article.title}
@@ -299,21 +300,14 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
         />
         <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/50 to-black/25" />
         <div className="absolute inset-0 flex items-end pt-21">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 md:pb-14 w-full">
-            <Link
-              href="/blog"
-              className="inline-flex items-center text-white/80 hover:text-white transition-colors mb-5"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Retour au blog
-            </Link>
-
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 md:pb-25 w-full">
+          
             <div className="max-w-6xl space-y-4">
               <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
                 {article.category.name}
               </Badge>
 
-              <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight text-balance">
+              <h1 className="text-2xl md:text-5xl font-bold text-white leading-tight text-balance">
                 {displayTitle}
               </h1>
               {hasDifferentEditorialTitle && (
@@ -331,39 +325,8 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                   <Calendar className="h-4 w-4" />
                   <span>{formatDate(article.createdAt)}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span>{readTime} min de lecture</span>
-                </div>
               </div>
 
-              <p className="text-white/90 text-base md:text-lg max-w-4xl">
-                {article.description}
-              </p>
-
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <ShareButtonSimple
-                  url={shareUrl}
-                  title={article.title}
-                  description={article.description}
-                  variant="outline"
-                  size="sm"
-                  className="bg-transparent text-white border-white/50 hover:bg-white/10"
-                />
-                <CommentButton
-                  variant="outline"
-                  size="sm"
-                  className="bg-transparent text-white border-white/50 hover:bg-white/10"
-                  onCommentClick={handleCommentClick}
-                />
-                <Link
-                  href="/commencer"
-                  className="inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100 transition-colors"
-                >
-                  {articleExperience.ctaLabel || 'Créer mon bail notarié'}
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Link>
-              </div>
             </div>
           </div>
         </div>
@@ -372,61 +335,45 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
       <section className="relative -mt-10 md:-mt-14 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-white rounded-2xl border shadow-lg p-5 md:p-8">
-            <div className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
+            <div className="flex flex-col gap-4">
               <div>
-                <div className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 mb-4">
-                  Réponse rapide
+                <Link
+                  href="/blog"
+                  className="inline-flex items-center text-blue-700 hover:text-blue-800 transition-colors mb-2"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Retour au blog
+                </Link>
+                <div className="flex justify-between w-full items-center gap-2">
+                  <div className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 mb-4">
+                    Réponse rapide
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 pt-2 mb-4">
+                    <ShareButtonSimple
+                      url={shareUrl}
+                      title={article.title}
+                      description={article.description}
+                      variant="outline"
+                      onlyIcon={true}
+                      size="sm"
+                      className=" text-blue-700 border-white/50 rounded-xl"
+                    />
+                    <CommentButton
+                      variant="outline"
+                      size="sm"
+                      className=" text-blue-700 border-white/50  rounded-xl"
+                      onCommentClick={handleCommentClick}
+                      onlyIcon={true}
+                    />
+                 </div>
                 </div>
+                
                 <p className="text-base md:text-lg text-gray-800 leading-relaxed">
                   {articleExperience.quickAnswer}
                 </p>
-
-                {articleExperience.keyPoints.length > 0 && (
-                  <div className="grid sm:grid-cols-3 gap-3 mt-6">
-                    {articleExperience.keyPoints.map((point) => (
-                      <div key={point} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                        <div className="flex items-start gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                          <p className="text-sm text-gray-700">{point}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
-              <div className="rounded-2xl border border-blue-200 bg-linear-to-br from-blue-50 to-indigo-50 p-5">
-                <div className="flex items-center gap-2 text-blue-700 font-semibold text-sm mb-3">
-                  <FileText className="h-4 w-4" />
-                  Dossier de bail notarié
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-3">
-                  Passez de la lecture à l'action
-                </h2>
-                <p className="text-sm text-gray-700 mb-5">
-                  {articleExperience.ctaDescription || "Préparez votre dossier en ligne avec un parcours simple, clair et orienté signature notariale."}
-                </p>
-                <div className="space-y-3">
-                  <Link
-                    href="/commencer"
-                    className="inline-flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-                  >
-                    {articleExperience.ctaLabel || 'Créer mon bail notarié'}
-                  </Link>
-                  <a
-                    href={faqItems.length > 0 ? '#faq-visible' : '#comments-section'}
-                    className="inline-flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50 transition-colors"
-                  >
-                    {faqItems.length > 0 ? 'Voir la FAQ' : 'Poser une question'}
-                  </a>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-gray-600">
-                  <div className="rounded-lg bg-white/70 p-3">France entière</div>
-                  <div className="rounded-lg bg-white/70 p-3">100% en ligne</div>
-                  <div className="rounded-lg bg-white/70 p-3">Notaires partenaires</div>
-                  <div className="rounded-lg bg-white/70 p-3">Acte authentique</div>
-                </div>
-              </div>
             </div>
 
             {articleExperience.toc.length > 0 && (
@@ -440,14 +387,39 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                     <a
                       key={item.id}
                       href={`#${item.id}`}
+                      onClick={(e) => handleTocClick(e, item.id)}
                       className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:border-blue-200 hover:text-blue-700 transition-colors"
                     >
                       {item.label}
+
+                      <ArrowUpRight className="ml-2 h-4 w-4" />
                     </a>
                   ))}
+                    <a
+                      href={faqItems.length > 0 ? '#faq-visible' : '#comments-section'}
+                      onClick={(e) => handleTocClick(e, faqItems.length > 0 ? 'faq-visible' : 'comments-section')}
+                      className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                    >
+                      {faqItems.length > 0 ? 'Voir la FAQ' : 'Poser une question'}
+                      <ArrowUpRight className="ml-2 h-4 w-4" />
+                    </a>
+
                 </div>
               </div>
             )}
+
+               {articleExperience.keyPoints.length > 0 && (
+                  <div className="hidden sm:grid sm:grid-cols-3 pt-5 border-t border-gray-100 gap-3 mt-6">
+                    {articleExperience.keyPoints.map((point) => (
+                      <div key={point} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                          <p className="text-sm text-gray-700">{point}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
           </div>
         </div>
       </section>
@@ -455,8 +427,8 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
       <section className="pb-16 pt-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <article className="prose prose-lg max-w-none prose-headings:scroll-mt-28 prose-h2:text-gray-900 prose-h3:text-gray-900">
+            <div className="lg:col-span-2 blog-content-anchors">
+              <article className="prose prose-lg max-w-none prose-h2:text-gray-900 prose-h3:text-gray-900">
                 <div className="bg-white rounded-2xl border shadow-sm pt-5 pb-8 px-5 sm:px-8">
                   {(() => {
                     const articleId = article.id;
@@ -489,7 +461,7 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
               </article>
 
               <div className="mt-8 rounded-2xl border border-blue-200 bg-linear-to-br from-blue-50 to-indigo-50 p-6">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+                <div className="flex flex-col  md:justify-between gap-5">
                   <div>
                     <p className="text-sm font-semibold text-blue-700 mb-2">Besoin d'aide pour passer à l'acte ?</p>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">
@@ -499,13 +471,13 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                       Un parcours plus clair, des pièces mieux préparées et une transmission plus fluide vers le notaire.
                     </p>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <Link
-                      href="/commencer"
-                      className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-                    >
-                      {articleExperience.ctaLabel || 'Créer mon bail notarié'}
-                    </Link>
+                  <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 text-xs text-gray-600">
+                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" /> France entière</div>
+                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" /> 100% en ligne</div>
+                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" /> Notaires partenaires</div>
+                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" /> Acte authentique</div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 sm:self-end">
                     <a
                       href="tel:0749387756"
                       className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50 transition-colors"
@@ -513,6 +485,12 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                       <PhoneCall className="mr-2 h-4 w-4" />
                       Appeler maintenant
                     </a>
+                    <Link
+                      href="/commencer"
+                      className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                    >
+                      {articleExperience.ctaLabel || 'Créer mon bail notarié'}
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -595,12 +573,21 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                       <a
                         key={item.id}
                         href={`#${item.id}`}
+                        onClick={(e) => handleTocClick(e, item.id)}
                         className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-700 transition-colors"
                       >
                         <span>{item.label}</span>
                         <ChevronRight className="h-4 w-4" />
                       </a>
                     ))}
+                     <a
+                      href={faqItems.length > 0 ? '#faq-visible' : '#comments-section'}
+                      onClick={(e) => handleTocClick(e, faqItems.length > 0 ? 'faq-visible' : 'comments-section')}
+                      className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-700 transition-colors"
+                    >
+                      {faqItems.length > 0 ? 'Voir la FAQ' : 'Poser une question'}
+                      <ChevronRight className="h-4 w-4" />
+                    </a>
                   </div>
                 </div>
               )}
@@ -644,12 +631,15 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
       <div className="lg:hidden fixed inset-x-4 bottom-4 z-40">
         <div className="rounded-2xl border border-gray-200 bg-white/95 backdrop-blur shadow-xl p-3">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
+            <div className="min-w-0 overflow-hidden">
               <p className="text-xs font-semibold text-blue-700">Besoin d'aller plus loin ?</p>
-              <p className="text-sm text-gray-700 truncate">
-                Préparez votre dossier de bail notarié en ligne.
+              <p className="text-sm text-gray-700 whitespace-nowrap">
+                <span className="inline-block animate-marquee">
+                  Préparez votre dossier de bail notarié en ligne.
+                </span>
               </p>
             </div>
+            
             <div className="flex items-center gap-2 shrink-0">
               <a
                 href="tel:0749387756"
