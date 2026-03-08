@@ -85,6 +85,12 @@ export function Blog2Content() {
           Mais comment se déroule concrètement la procédure ? Quelles pièces fournir ? Et comment éviter les erreurs ? 
           Voici le guide complet, étape par étape.
         </p>
+        <p className="text-gray-700 mb-6">
+          Si vous recherchez une vue d'ensemble definition + prix + procedure, consultez notre page{" "}
+          <Link href="/blog/bail-authentique-notaire" className="text-blue-700 hover:underline">
+            bail authentique chez le notaire
+          </Link>.
+        </p>
       </section>
 
       <section aria-labelledby="checklist-rapide" className="my-8">
