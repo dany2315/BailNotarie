@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
 import { Zap, Shield, FileText, CheckCircle, Lock, AlertCircle, Users, Scale } from 'lucide-react';
 
 export function Blog3Content() {
@@ -36,6 +37,12 @@ export function Blog3Content() {
         <p className="text-gray-700 mb-6">
           Un bail locatif établi sous la forme d'un <strong>acte authentique</strong> (c'est-à-dire un bail notarié) 
           bénéficie de cette force exécutoire, à condition qu'il soit rédigé correctement.
+        </p>
+        <p className="text-gray-700 mb-6">
+          Pour une synthese complete (definition, cout, procedure), voir aussi{" "}
+          <Link href="/blog/bail-authentique-notaire" className="text-blue-700 hover:underline">
+            bail authentique chez le notaire
+          </Link>.
         </p>
 
         <div className="bg-gradient-to-r from-blue-200 to-indigo-200 rounded-xl p-6 text-accent-foreground my-8">

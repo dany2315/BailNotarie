@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { CheckCircle, Clock, Scale, Shield } from 'lucide-react';
 
 export function Blog4Content() {
@@ -152,6 +153,12 @@ export function Blog4Content() {
       <h2>Conclusion</h2>
       <p>Le choix dépend de votre situation et de votre appétence au risque. 
         <span className="font-bold">Pour une sécurité maximale, le bail notarié reste le choix le plus judicieux.</span></p>
+      <p>
+        Pour un comparatif orienté intention de recherche, consultez aussi{" "}
+        <Link href="/blog/bail-authentique-notaire" className="text-blue-700 hover:underline">
+          différence bail authentique / bail classique
+        </Link>.
+      </p>
     </>
   );
 }

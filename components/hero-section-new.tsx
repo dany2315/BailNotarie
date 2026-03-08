@@ -72,7 +72,7 @@ export function HeroSectionNew() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <Link
                   href="/commencer"
-                  className="inline-flex items-center justify-center bg-[#4373f5] hover:bg-blue-700 text-white sm:text-lg text-md px-8 py-3 h-auto rounded-xl shadow-md transition-all duration-200 font-medium"
+                  className="inline-flex items-center justify-center bg-[#4373f5] hover:bg-blue-700 text-white text-md px-8 py-3 h-auto rounded-xl shadow-md transition-all duration-200 font-medium"
                 >
                   Constituer mon dossier 
                   <ArrowRight className="ml-2 h-5 w-5" />
@@ -83,7 +83,7 @@ export function HeroSectionNew() {
               <div className="flex flex-wrap justify-center sm:justify-start items-center gap-6 text-sm text-gray-600">
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-[#4373f5]" />
-                  <span>Bail sécurisé</span>
+                  <span>Interface sécurisé</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#4373f5]" />

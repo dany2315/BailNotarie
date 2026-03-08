@@ -338,3 +338,21 @@ html {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
 }
+
+/* Ancres blog : scroll-margin pour éviter que le header sticky masque la section */
+.blog-content-anchors [id] {
+  scroll-margin-top: 7rem;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(5%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 12s linear infinite;
+}

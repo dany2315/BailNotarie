@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
 import { CheckCircle, Video, Shield, FileText, Users, Clock } from 'lucide-react';
 
 export function Blog7Content() {
@@ -100,6 +101,12 @@ export function Blog7Content() {
         <p className="text-gray-700 mb-4">
           Le prix est <strong>réglementé</strong> et reste très accessible. Il faut compter environ 
           <strong> 40 €</strong> pour l'établissement de la procuration.
+        </p>
+        <p className="text-gray-700 mb-4">
+          Pour estimer le budget global (bail + options), testez notre{" "}
+          <Link href="/simulateur-prix-bail-notarie" className="text-blue-700 hover:underline">
+            simulateur de prix du bail notarié
+          </Link>.
         </p>
         <div className="bg-gray-50 rounded-lg p-5 border border-gray-200 my-6">
           <p className="text-gray-700 text-sm italic">

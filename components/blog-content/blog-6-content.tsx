@@ -13,6 +13,12 @@ export function Blog6Content() {
           <strong> loi n° 89-462 du 6 juillet 1989</strong>. Au-delà de la <strong>sécurité juridique</strong> qu'il procure, 
           son <strong>coût obéit à une réglementation nationale stricte</strong>.
         </p>
+        <p className="text-gray-700 mb-6">
+          Besoin d'une vue globale avant de chiffrer ? Consultez{" "}
+          <Link href="/blog/bail-authentique-notaire" className="text-blue-700 hover:underline">
+            bail authentique chez le notaire
+          </Link>.
+        </p>
       </section>
 
       <section aria-labelledby="reponse-rapide" className="my-8">
@@ -27,6 +33,11 @@ export function Blog6Content() {
           <p className="text-sm text-gray-600">
             Estimation indicative : le montant exact depend du dossier et des pieces necessaires.
           </p>
+          <div className="mt-4">
+            <Link href="/simulateur-prix-bail-notarie" className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+              Simuler mon prix de bail notarié
+            </Link>
+          </div>
         </div>
       </section>
 
