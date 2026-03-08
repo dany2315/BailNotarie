@@ -100,6 +100,126 @@ function getRelatedArticles(categoryId: string, currentSlug: string) {
 }
 
 function getFaqForSlug(slug: string) {
+  if (slug === "bail-derogatoire-article-l145-5-code-commerce") {
+    return [
+      {
+        question: "Qu'est-ce qu'un bail dérogatoire ?",
+        answer:
+          "Le bail dérogatoire est un contrat de location commerciale de courte durée conclu hors statut des baux commerciaux, dans la limite de 36 mois.",
+      },
+      {
+        question: "Quelle est la durée maximale d'un bail dérogatoire ?",
+        answer:
+          "La durée totale du bail dérogatoire, renouvellements et avenants compris, ne peut pas dépasser 36 mois.",
+      },
+      {
+        question: "Quelle différence entre bail dérogatoire et convention d'occupation précaire ?",
+        answer:
+          "Le bail dérogatoire repose sur une durée courte prévue par l'article L.145-5, tandis que la convention d'occupation précaire repose sur une situation objective de précarité.",
+      },
+      {
+        question: "Quand y a-t-il un risque de requalification en bail commercial ?",
+        answer:
+          "Le risque apparaît notamment si la durée maximale est dépassée ou si le locataire reste dans les lieux après l'échéance sans opposition du bailleur dans le délai utile.",
+      },
+      {
+        question: "Faut-il mentionner l'article L.145-5 dans le contrat ?",
+        answer:
+          "Oui, il est fortement recommandé de viser expressément l'article L.145-5 du Code de commerce pour rendre la volonté de déroger au statut des baux commerciaux claire et non équivoque.",
+      },
+    ];
+  }
+
+  if (slug === "bailnotarie-plateforme-digitale-bail-notarie") {
+    return [
+      {
+        question: "Qu'est-ce que BailNotarie ?",
+        answer:
+          "BailNotarie est une plateforme digitale qui prépare les dossiers de bail notarié, les structure et les transmet à des notaires partenaires pour signature.",
+      },
+      {
+        question: "BailNotarie est-il un notaire ?",
+        answer:
+          "Non. BailNotarie n'est pas une étude notariale. La plateforme intervient en amont pour fluidifier la constitution du dossier, tandis que l'acte authentique est signé devant notaire.",
+      },
+      {
+        question: "Que fait concrètement BailNotarie ?",
+        answer:
+          "La plateforme collecte les pièces, organise les informations, facilite la transmission au notaire et permet un suivi plus fluide du dossier.",
+      },
+      {
+        question: "À qui s'adresse BailNotarie ?",
+        answer:
+          "BailNotarie s'adresse aux bailleurs, professionnels de l'immobilier, gestionnaires et notaires qui souhaitent des dossiers plus structurés et plus rapides à traiter.",
+      },
+      {
+        question: "Pourquoi passer par BailNotarie pour préparer un bail notarié ?",
+        answer:
+          "Parce qu'un dossier mieux préparé réduit les oublis, les allers-retours et les délais avant signature, tout en améliorant la lisibilité pour l'étude notariale.",
+      },
+    ];
+  }
+
+  if (slug === "bail-commercial-notarie-contrat-3-6-9") {
+    return [
+      {
+        question: "Pourquoi faire un bail commercial notarié ?",
+        answer:
+          "Le bail commercial notarié offre un acte authentique, une meilleure force probante et un titre exécutoire utile pour le recouvrement des loyers impayés.",
+      },
+      {
+        question: "Le notaire est-il obligatoire pour un bail commercial 3/6/9 ?",
+        answer:
+          "Non, pas dans la majorité des cas. En revanche, certaines situations particulières rendent le recours au notaire nécessaire, notamment pour certains baux de longue durée.",
+      },
+      {
+        question: "Combien coûte un bail commercial notarié ?",
+        answer:
+          "Le coût n'est pas encadré comme en bail d'habitation. Il dépend de l'étude notariale et de la complexité du dossier, souvent avec un raisonnement en forfait ou sur la triennale.",
+      },
+      {
+        question: "L'enregistrement du bail commercial est-il automatique chez le notaire ?",
+        answer:
+          "Avec un notaire, l'enregistrement et la date certaine sont en pratique beaucoup plus simples à obtenir dans le cadre de l'acte authentique.",
+      },
+      {
+        question: "Le bail commercial notarié permet-il d'expulser sans juge ?",
+        answer:
+          "Non. Le titre exécutoire aide surtout au recouvrement des sommes dues. Pour l'expulsion, une procédure judiciaire reste nécessaire.",
+      },
+    ];
+  }
+
+  if (slug === "bail-authentique-notaire") {
+    return [
+      {
+        question: "C'est quoi un bail authentique chez le notaire ?",
+        answer:
+          "Un bail authentique est un bail notarié : un contrat de location rédigé et signé devant notaire, avec la valeur juridique d'un acte authentique.",
+      },
+      {
+        question: "Combien coûte un bail authentique ?",
+        answer:
+          "Le coût dépend du loyer, des formalités et des options du dossier. Une base proche d'un demi-loyer hors charges est souvent observée, avec TVA et frais éventuels.",
+      },
+      {
+        question: "Qui paie les frais ?",
+        answer:
+          "Les frais peuvent être répartis entre bailleur et locataire selon les règles légales, avec des plafonds pour la part imputable au locataire.",
+      },
+      {
+        question: "Quelle différence avec un bail classique ?",
+        answer:
+          "Le bail authentique (notarié) offre une sécurité juridique renforcée et une exécution plus efficace en cas d'impayés, contrairement au bail sous seing privé.",
+      },
+      {
+        question: "Est-ce obligatoire ?",
+        answer:
+          "Non. Le bail authentique n'est pas obligatoire en location d'habitation, mais il est souvent choisi pour sa sécurité juridique et sa force exécutoire.",
+      },
+    ];
+  }
+
   if (slug === "cout-dun-bail-de-location-notarie-tarifs-partage-des-frais-et-exemples-concrets") {
     return [
       {

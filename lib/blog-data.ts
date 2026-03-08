@@ -212,4 +212,80 @@ export const blogData = [
         createdAt: new Date("2026-01-20"),
         categoryId: "1",
       },
+      {
+        id: "blog-11",
+        title: "Bail authentique chez le notaire : définition, prix et procédure",
+        slug: "bail-authentique-notaire",
+        description:
+          "Le bail authentique est un bail notarié : définition, avantages, prix, répartition des frais et procédure complète pour une location d'habitation en France.",
+        content: "",
+        readTime: 8,
+        metaTitle: "Bail authentique chez le notaire : définition, prix, avantages (2026)",
+        metaDescription:
+          "Bail authentique notaire : découvrez la définition (bail notarié), le coût, les avantages (force exécutoire), qui paie les frais et la procédure complète en France.",
+        metaKeywords:
+          "bail authentique notaire, bail authentique, bail notarié, acte authentique bail de location, prix bail authentique, coût bail authentique, différence bail authentique bail classique, bail de location en France",
+        imageUrl:
+          "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=1200&h=630&fit=crop&q=80",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2026-03-08"),
+        categoryId: "1",
+      },
+      {
+        id: "blog-12",
+        title: "BailNotarie : la plateforme qui simplifie la préparation des baux notariés",
+        slug: "bailnotarie-plateforme-digitale-bail-notarie",
+        description:
+          "Découvrez BailNotarie, la plateforme digitale qui structure, qualifie et transmet les dossiers de bail notarié aux notaires partenaires partout en France.",
+        content: "",
+        readTime: 7,
+        metaTitle: "BailNotarie : plateforme digitale pour préparer un bail notarié (2026)",
+        metaDescription:
+          "BailNotarie simplifie la préparation du bail notarié : collecte des pièces, structuration du dossier, transmission au notaire et suivi en temps réel partout en France.",
+        metaKeywords:
+          "BailNotarie, plateforme bail notarié, préparation bail notarié, dossier bail notarié, plateforme digitale notaire, infrastructure digitale bail, notaires partenaires, bail notarié en France",
+        imageUrl:
+          "https://images.pexels.com/photos/3183197/pexels-photo-3183197.jpeg?auto=compress&cs=tinysrgb&w=1200",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2026-03-08"),
+        categoryId: "1",
+      },
+      {
+        id: "blog-13",
+        title: "Bail commercial notarié : notaire, coût, obligations et bail 3/6/9",
+        slug: "bail-commercial-notarie-contrat-3-6-9",
+        description:
+          "Bail commercial notarié : découvrez pourquoi passer par un notaire pour votre bail 3/6/9, le rôle du titre exécutoire, les obligations, l'enregistrement et le coût.",
+        content: "",
+        readTime: 8,
+        metaTitle: "Bail commercial notarié : notaire, coût, obligations, bail 3/6/9 (2026)",
+        metaDescription:
+          "Pourquoi faire un bail commercial notarié ? Avantages du notaire, titre exécutoire, enregistrement, cas où il est obligatoire et coût d'un bail 3/6/9 en 2026.",
+        metaKeywords:
+          "bail commercial notarié, bail commercial notaire, bail 3/6/9 notarié, coût bail commercial notarié, notaire bail commercial, acte authentique bail commercial, enregistrement bail commercial, titre exécutoire bail commercial",
+        imageUrl:
+          "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=1200&h=630&fit=crop&q=80",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2026-03-08"),
+        categoryId: "1",
+      },
+      {
+        id: "blog-14",
+        title: "Bail dérogatoire : article L.145-5, durée, requalification et pièges",
+        slug: "bail-derogatoire-article-l145-5-code-commerce",
+        description:
+          "Bail dérogatoire : définition juridique, conditions de validité, durée maximale de 36 mois, risque de requalification et points clés de l'article L.145-5 du Code de commerce.",
+        content: "",
+        readTime: 8,
+        metaTitle: "Bail dérogatoire : article L.145-5, durée, requalification (2026)",
+        metaDescription:
+          "Tout comprendre au bail dérogatoire : article L.145-5 du Code de commerce, durée maximale, différence avec la convention d'occupation précaire, requalification et rédaction.",
+        metaKeywords:
+          "bail dérogatoire, article L145-5, article L.145-5 Code de commerce, bail précaire, durée bail dérogatoire, requalification bail commercial, bail de courte durée commercial, convention d'occupation précaire",
+        imageUrl:
+          "https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?w=1200&h=630&fit=crop&q=80",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2026-03-08"),
+        categoryId: "1",
+      },
 ]

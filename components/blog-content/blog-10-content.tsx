@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
 import { Scale, AlertTriangle, Zap, Shield, FileText, CheckCircle, Clock, ArrowRight } from 'lucide-react';
 
 export function Blog10Content() {
@@ -199,6 +200,12 @@ export function Blog10Content() {
           </p>
           <p className="text-gray-700 leading-relaxed">
             En permettant un recouvrement accéléré des créances et en exerçant une pression dissuasive efficace, l'acte authentique transforme la gestion des impayés locatifs en un processus sécurisé et optimisé.
+          </p>
+          <p className="text-gray-700 leading-relaxed mt-4">
+            Pour une vue plus large sur le sujet, consultez aussi{" "}
+            <Link href="/blog/bail-authentique-notaire" className="text-blue-700 hover:underline">
+              bail authentique chez le notaire
+            </Link>.
           </p>
         </div>
       </section>

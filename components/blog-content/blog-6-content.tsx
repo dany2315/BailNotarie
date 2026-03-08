@@ -13,6 +13,12 @@ export function Blog6Content() {
           <strong> loi n° 89-462 du 6 juillet 1989</strong>. Au-delà de la <strong>sécurité juridique</strong> qu'il procure, 
           son <strong>coût obéit à une réglementation nationale stricte</strong>.
         </p>
+        <p className="text-gray-700 mb-6">
+          Besoin d'une vue globale avant de chiffrer ? Consultez{" "}
+          <Link href="/blog/bail-authentique-notaire" className="text-blue-700 hover:underline">
+            bail authentique chez le notaire
+          </Link>.
+        </p>
       </section>
 
       <section aria-labelledby="reponse-rapide" className="my-8">
