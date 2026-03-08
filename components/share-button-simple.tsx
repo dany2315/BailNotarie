@@ -10,6 +10,8 @@ interface ShareButtonSimpleProps {
   variant?: "default" | "outline";
   size?: "default" | "sm" | "lg";
   className?: string;
+  //que icon
+  onlyIcon?: boolean;
 }
 
 export function ShareButtonSimple({ 
@@ -18,7 +20,8 @@ export function ShareButtonSimple({
   description, 
   variant = "outline", 
   size = "sm",
-  className = ""
+  className = "",
+  onlyIcon = false
 }: ShareButtonSimpleProps) {
   const handleShare = async () => {
     if (navigator.share) {
@@ -49,8 +52,12 @@ export function ShareButtonSimple({
       className={className}
       onClick={handleShare}
     >
-      <Share2 className="h-4 w-4" />
+      {onlyIcon ? <Share2 className="h-4 w-4" /> : 
+      <>
+      <Share2 className="h-4 w-4 mr-2" />
       <span className="sm:inline">Partager</span>
+      </>
+      }
     </Button>
   );
 }

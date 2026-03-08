@@ -8,13 +8,15 @@ interface CommentButtonProps {
   size?: "default" | "sm" | "lg";
   className?: string;
   onCommentClick?: () => void;
+  onlyIcon?: boolean;
 }
 
 export function CommentButton({ 
   variant = "outline", 
   size = "sm",
   className = "",
-  onCommentClick
+  onCommentClick,
+  onlyIcon = false
 }: CommentButtonProps) {
   const handleClick = () => {
     if (onCommentClick) {
@@ -36,8 +38,12 @@ export function CommentButton({
       className={className}
       onClick={handleClick}
     >
+      {onlyIcon ? <MessageCircle className="h-4 w-4 " /> : 
+      <>
       <MessageCircle className="h-4 w-4 mr-2" />
-      Commenter
+      <span className="sm:inline">Commenter</span>
+      </>
+      }
     </Button>
   );
 }
