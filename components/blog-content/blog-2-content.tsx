@@ -90,6 +90,10 @@ export function Blog2Content() {
           <Link href="/blog/bail-authentique-notaire" className="text-blue-700 hover:underline">
             bail authentique chez le notaire
           </Link>.
+          Pour une estimation chiffrée instantanée, utilisez aussi notre{" "}
+          <Link href="/simulateur-prix-bail-notarie" className="text-blue-700 hover:underline">
+            simulateur de prix
+          </Link>.
         </p>
       </section>
 

@@ -185,6 +185,12 @@ export function Blog13Content() {
           appliquent un forfait. A titre indicatif, un calcul autour de <strong>5 % de la
           triennale</strong> est frequemment evoque, mais il ne s'agit pas d'une regle absolue.
         </p>
+        <p className="text-gray-700 mb-6">
+          Pour les baux d'habitation, vous pouvez obtenir une estimation immédiate avec notre{" "}
+          <Link href="/simulateur-prix-bail-notarie" className="text-blue-700 hover:underline">
+            simulateur de prix du bail notarié
+          </Link>.
+        </p>
 
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">A retenir sur les frais</h3>
