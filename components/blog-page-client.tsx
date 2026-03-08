@@ -126,7 +126,7 @@ const articleExperiences: Record<string, ArticleExperience> = {
       { id: 'repartition-frais', label: 'Qui paie ?' },
       { id: 'a-retenir', label: 'À retenir' },
     ],
-    ctaLabel: 'Estimer mon dossier',
+    ctaLabel: 'Constituer mon dossier',
     ctaDescription: "Obtenez un cadrage simple sur le coût et les pièces à fournir pour votre bail.",
   },
   'blog-7': {
@@ -197,7 +197,7 @@ const articleExperiences: Record<string, ArticleExperience> = {
       { id: 'procedure-bail-authentique', label: 'Procédure' },
       { id: 'difference-bail-authentique-classique', label: 'Différences' },
     ],
-    ctaLabel: 'Commencer mon dossier',
+    ctaLabel: 'Constituer mon dossier',
     ctaDescription: "Accédez à l’acte authentique avec un parcours plus simple et un dossier préparé en ligne.",
   },
   'blog-12': {
@@ -225,7 +225,7 @@ const articleExperiences: Record<string, ArticleExperience> = {
       { id: 'notaire-obligatoire-bail-commercial', label: 'Notaire obligatoire ?' },
       { id: 'cout-bail-commercial-notarie', label: 'Coût' },
     ],
-    ctaLabel: 'Être accompagné',
+    ctaLabel: 'Constituer mon dossier',
     ctaDescription: "Préparez un dossier plus propre avant transmission au notaire ou à votre conseil.",
   },
   'blog-14': {
@@ -242,7 +242,7 @@ const articleExperiences: Record<string, ArticleExperience> = {
       { id: 'risque-requalification', label: 'Requalification' },
       { id: 'conseils-pratiques-bail-derogatoire', label: 'Conseils pratiques' },
     ],
-    ctaLabel: 'Parler de mon dossier',
+    ctaLabel: 'Constituer mon dossier',
     ctaDescription: "Sécurisez la rédaction et les échéances clés avant de signer votre contrat.",
   },
 };
@@ -256,8 +256,8 @@ function getArticleExperience(article: any): ArticleExperience {
       "Lien direct vers la constitution de votre dossier si besoin",
     ],
     toc: [],
-    ctaLabel: 'Créer mon bail notarié',
-    ctaDescription: "Préparez votre dossier en ligne et avancez plus vite vers la signature.",
+    ctaLabel: 'Constituer mon dossier',
+    ctaDescription: "Préparez votre dossier de bail notarié en ligne avec un parcours simple et clair.",
   };
 }
 
