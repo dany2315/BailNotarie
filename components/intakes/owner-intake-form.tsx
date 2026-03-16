@@ -104,6 +104,7 @@ import {
   submitIntake,
   savePartialIntake,
   getIntakeLinkByToken,
+  getIntakeDocuments,
   deletePersonFromClient,
 } from "@/lib/actions/intakes";
 import { Separator } from "../ui/separator";
@@ -749,6 +750,7 @@ const [isSaving, setIsSaving] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 const [isFileUploading, setIsFileUploading] = useState(false);
 const [documentsReadyForSubmission, setDocumentsReadyForSubmission] = useState(false);
+const hasMountedCurrentStepRef = useRef(false);
 const [submissionProgress, setSubmissionProgress] = useState({
   step: 0,
   totalSteps: 4,
@@ -762,6 +764,15 @@ const initialClientType =
 const [clientType, setClientType] = useState<ClientType | "">(
   initialClientType
 );
+
+useEffect(() => {
+  if (!hasMountedCurrentStepRef.current) {
+    hasMountedCurrentStepRef.current = true;
+    return;
+  }
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}, [currentStep]);
 
   const [openAccordionValue, setOpenAccordionValue] = useState<string>(`person-0`);
 
@@ -1109,7 +1120,8 @@ const [clientType, setClientType] = useState<ClientType | "">(
     ref: RefObject<HTMLInputElement | null> | null,
     stateFile: File | null,
     kind: string,
-    personIndex?: number
+    personIndex?: number,
+    uploadedDocuments: any[] = []
   ) => {
     if (ref?.current?.files?.[0]) return true;
     if (stateFile) return true;
@@ -1129,6 +1141,14 @@ const [clientType, setClientType] = useState<ClientType | "">(
       const personDocs = values.persons?.flatMap((p: any) => p.documents || []) || [];
       if (personDocs.some((d: any) => d.kind === kind)) return true;
     }
+
+    if (personIndex !== undefined) {
+      if (uploadedDocuments.some((d: any) => d.kind === kind && d.personIndex === personIndex)) {
+        return true;
+      }
+    } else if (uploadedDocuments.some((d: any) => d.kind === kind)) {
+      return true;
+    }
     
     // Documents de l'entreprise (KBIS, STATUTES)
     const entrepriseDocs = values.entreprise?.documents || [];
@@ -1146,16 +1166,20 @@ const [clientType, setClientType] = useState<ClientType | "">(
   };
   
 
-  const validateDocuments = (): { isValid: boolean; errors: string[] } => {
+  const validateDocuments = async (): Promise<{ isValid: boolean; errors: string[] }> => {
     const errors: string[] = [];
     const values = getValues() as FormWithPersons;
     const propertyLegalStatus = values.propertyLegalStatus;
+    const uploadedDocuments = await getIntakeDocuments(intakeLink.token).catch((error) => {
+      console.error("[OwnerIntakeForm] Erreur lors de la récupération des documents pour validation:", error);
+      return [];
+    });
 
     if (clientType === ClientType.PERSONNE_MORALE) {
-      if (!hasDocument(kbisRef, kbisFile, "KBIS")) {
+      if (!hasDocument(kbisRef, kbisFile, "KBIS", undefined, uploadedDocuments)) {
         errors.push("KBIS requis");
       }
-      if (!hasDocument(statutesRef, statutesFile, "STATUTES")) {
+      if (!hasDocument(statutesRef, statutesFile, "STATUTES", undefined, uploadedDocuments)) {
         errors.push("Statuts requis");
       }
     } else {
@@ -1169,7 +1193,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
         const personRefs = personDocumentRefs.current[index];
         const personFiles = personDocumentFiles[index] || { idIdentity: null };
         
-        if (!hasDocument(personRefs?.idIdentity || null, personFiles.idIdentity, "ID_IDENTITY", index)) {
+        if (!hasDocument(personRefs?.idIdentity || null, personFiles.idIdentity, "ID_IDENTITY", index, uploadedDocuments)) {
           errors.push(`Pièce d'identité requise pour ${personName}`);
         }
       });
@@ -1178,21 +1202,21 @@ const [clientType, setClientType] = useState<ClientType | "">(
       // Utiliser le statut familial de la première personne
       const primaryPerson = persons[0];
       if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
-        if (!hasDocument(livretDeFamilleRef, livretDeFamilleFile, "LIVRET_DE_FAMILLE")) {
+        if (!hasDocument(livretDeFamilleRef, livretDeFamilleFile, "LIVRET_DE_FAMILLE", undefined, uploadedDocuments)) {
           errors.push("Livret de famille requis");
         }
       }
       if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
-        if (!hasDocument(contratDePacsRef, contratDePacsFile, "CONTRAT_DE_PACS")) {
+        if (!hasDocument(contratDePacsRef, contratDePacsFile, "CONTRAT_DE_PACS", undefined, uploadedDocuments)) {
           errors.push("Contrat de PACS requis");
         }
       }
     }
 
-    if (!hasDocument(diagnosticsRef, diagnosticsFile, "DIAGNOSTICS")) {
+    if (!hasDocument(diagnosticsRef, diagnosticsFile, "DIAGNOSTICS", undefined, uploadedDocuments)) {
       errors.push("Diagnostics du bien requis");
     }
-    if (!hasDocument(titleDeedRef, titleDeedFile, "TITLE_DEED")) {
+    if (!hasDocument(titleDeedRef, titleDeedFile, "TITLE_DEED", undefined, uploadedDocuments)) {
       errors.push("Titre de propriété requis");
     }
     if (
@@ -1200,7 +1224,9 @@ const [clientType, setClientType] = useState<ClientType | "">(
       !hasDocument(
         reglementCoproprieteRef,
         reglementCoproprieteFile,
-        "REGLEMENT_COPROPRIETE"
+        "REGLEMENT_COPROPRIETE",
+        undefined,
+        uploadedDocuments
       )
     ) {
       errors.push("Règlement de copropriété requis");
@@ -1210,7 +1236,9 @@ const [clientType, setClientType] = useState<ClientType | "">(
         !hasDocument(
           cahierChargeLotissementRef,
           cahierChargeLotissementFile,
-          "CAHIER_DE_CHARGE_LOTISSEMENT"
+          "CAHIER_DE_CHARGE_LOTISSEMENT",
+          undefined,
+          uploadedDocuments
         )
       ) {
         errors.push("Cahier des charges du lotissement requis");
@@ -1219,17 +1247,19 @@ const [clientType, setClientType] = useState<ClientType | "">(
         !hasDocument(
           statutAssociationSyndicaleRef,
           statutAssociationSyndicaleFile,
-          "STATUT_DE_LASSOCIATION_SYNDICALE"
+          "STATUT_DE_LASSOCIATION_SYNDICALE",
+          undefined,
+          uploadedDocuments
         )
       ) {
         errors.push("Statut de l'association syndicale requis");
       }
     }
 
-    if (!hasDocument(insuranceOwnerRef, insuranceOwnerFile, "INSURANCE")) {
+    if (!hasDocument(insuranceOwnerRef, insuranceOwnerFile, "INSURANCE", undefined, uploadedDocuments)) {
       errors.push("Assurance propriétaire requise");
     }
-    if (!hasDocument(ribOwnerRef, ribOwnerFile, "RIB")) {
+    if (!hasDocument(ribOwnerRef, ribOwnerFile, "RIB", undefined, uploadedDocuments)) {
       errors.push("RIB requis");
     }
 
@@ -2069,7 +2099,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
       await refreshIntakeLinkData();
       
       // Étape 2: Validation des documents
-      const fileValidation = validateDocuments();
+      const fileValidation = await validateDocuments();
       if (!fileValidation.isValid) {
         toast.error("Veuillez joindre tous les documents requis", {
           description: fileValidation.errors.join(", "),
@@ -2538,8 +2568,8 @@ const [clientType, setClientType] = useState<ClientType | "">(
                 ) : (
                   <Button
                     type="button"
-                    onClick={() => {
-                      const fileValidation = validateDocuments();
+                    onClick={async () => {
+                      const fileValidation = await validateDocuments();
                       if (!fileValidation.isValid) {
                         toast.error("Veuillez joindre tous les documents requis", {
                           description: fileValidation.errors.join(", "),

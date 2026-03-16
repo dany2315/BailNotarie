@@ -6,7 +6,7 @@ import { DocumentViewer } from "@/components/leases/document-viewer";
 import { useDownloadFile } from "@/hooks/use-download-file";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, Download, Eye, Loader2, Trash2 } from "lucide-react";
+import { Download, Eye, File, FileText, Image as ImageIcon, Loader2, Trash2 } from "lucide-react";
 
 interface StackDocument {
   id: string;
@@ -42,6 +42,30 @@ function formatSize(size?: number | null) {
   }
 
   return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function getDocumentIcon(document: StackDocument) {
+  const mime = document.mimeType;
+  if (mime?.startsWith("image/")) {
+    return <ImageIcon className="size-4 text-sky-600" />;
+  }
+
+  if (mime === "application/pdf") {
+    return <FileText className="size-4 text-rose-600" />;
+  }
+
+  const name = document.label || document.fileKey || "";
+  const ext = name.split(".").pop()?.toLowerCase();
+
+  if (["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext || "")) {
+    return <ImageIcon className="size-4 text-sky-600" />;
+  }
+
+  if (ext === "pdf") {
+    return <FileText className="size-4 text-rose-600" />;
+  }
+
+  return <File className="size-4 text-muted-foreground" />;
 }
 
 export function DocumentStackList({
@@ -123,7 +147,7 @@ export function DocumentStackList({
               )}
             >
               <div className="mt-0.5 shrink-0 rounded-full bg-primary/10 p-2 text-primary">
-                <CheckCircle2 className="size-4 text-emerald-600" />
+                {getDocumentIcon(document)}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-3">

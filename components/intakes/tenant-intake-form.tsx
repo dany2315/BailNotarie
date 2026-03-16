@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { submitIntake, savePartialIntake, getIntakeLinkByToken } from "@/lib/actions/intakes";
+import { submitIntake, savePartialIntake, getIntakeLinkByToken, getIntakeDocuments } from "@/lib/actions/intakes";
 import { DocumentUploaded } from "./document-uploaded";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -243,6 +243,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isFileUploading, setIsFileUploading] = useState(false);
+  const hasMountedCurrentStepRef = useRef(false);
   const [submissionProgress, setSubmissionProgress] = useState({
     step: 0,
     totalSteps: 4,
@@ -252,6 +253,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   
   // États pour stocker les données qui peuvent être rafraîchies après l'upload
   const [intakeLink, setIntakeLink] = useState(initialIntakeLink);
+
+  useEffect(() => {
+    if (!hasMountedCurrentStepRef.current) {
+      hasMountedCurrentStepRef.current = true;
+      return;
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentStep]);
 
   // Fonction pour gérer les changements d'état d'upload
   const handleUploadStateChange = (isUploading: boolean) => {
@@ -1278,7 +1288,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   
     // 1. Validation
     if (stepId === "documents") {
-      const filesCheck = validateRequiredFiles();
+      const filesCheck = await validateRequiredFiles();
       if (!filesCheck.isValid) {
         toast.error("Veuillez joindre tous les documents requis", {
           description: filesCheck.errors.join(", "),
@@ -1464,11 +1474,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   };
 
 
-  const validateRequiredFiles = (): { isValid: boolean; errors: string[] } => {
+  const validateRequiredFiles = async (): Promise<{ isValid: boolean; errors: string[] }> => {
     const errors: string[] = [];
     const currentClientType = clientType;
     const values = getValues();
     const persons = values.persons || [];
+    const uploadedDocuments = await getIntakeDocuments(intakeLink.token).catch((error) => {
+      console.error("[TenantIntakeForm] Erreur lors de la récupération des documents pour validation:", error);
+      return [];
+    });
 
     // Validation selon le type de client
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
@@ -1477,8 +1491,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         const personRef = personDocumentRefs.current[index];
         const personFiles = personDocumentFiles[index];
         const personDocs = intakeLink.client?.persons?.[index]?.documents || [];
+        const personUploadedDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === index);
         
         const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
+          personUploadedDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
           personRef?.idIdentity.current?.files?.[0] || personFiles?.idIdentity;
         
         if (!hasIdIdentity) {
@@ -1490,9 +1506,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const primaryPerson = persons[0];
       const familyStatus = primaryPerson?.familyStatus;
       const clientDocs = intakeLink.client?.documents || [];
+      const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === undefined);
       
       if (familyStatus === FamilyStatus.MARIE) {
         const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
+          uploadedClientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
           livretDeFamilleRef.current?.files?.[0] || livretDeFamilleFile;
         if (!hasLivret) {
           errors.push("Le livret de famille est requis");
@@ -1500,6 +1518,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
       if (familyStatus === FamilyStatus.PACS) {
         const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
+          uploadedClientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
           contratDePacsRef.current?.files?.[0] || contratDePacsFile;
         if (!hasPacs) {
           errors.push("Le contrat de PACS est requis");
@@ -1507,9 +1526,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
       const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
+      const uploadedEntrepriseDocs = uploadedDocuments.filter((doc: any) => doc.kind === "KBIS" || doc.kind === "STATUTES");
       const hasKbis = entrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
+        uploadedEntrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
         kbisRef.current?.files?.[0] || kbisFile;
       const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
+        uploadedEntrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
         statutesRef.current?.files?.[0] || statutesFile;
       
       if (!hasKbis) {
@@ -1522,9 +1544,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
     // Validation des documents du client (assurance et RIB - toujours requis)
     const clientDocs = intakeLink.client?.documents || [];
+    const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === undefined);
     const hasInsurance = clientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
+      uploadedClientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
       insuranceTenantRef.current?.files?.[0] || insuranceTenantFile;
     const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB") ||
+      uploadedClientDocs.some((doc: any) => doc.kind === "RIB") ||
       ribTenantRef.current?.files?.[0] || ribTenantFile;
     
     if (!hasInsurance) {
@@ -1553,7 +1578,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       await refreshIntakeLinkData();
       
       // Étape 2: Validation des documents
-      const fileValidation = validateRequiredFiles();
+      const fileValidation = await validateRequiredFiles();
       if (!fileValidation.isValid) {
         toast.error("Veuillez joindre tous les documents requis", {
           description: fileValidation.errors.join(", "),
