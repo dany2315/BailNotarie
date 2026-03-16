@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { OtpCodeInput } from "@/components/ui/otp-code-input";
 import { Loader2, Mail, User, Lock, ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { authClient, useSession } from "@/lib/auth-client";
@@ -348,28 +348,20 @@ export default function ClientLoginPage() {
                 </form>
               ) : (
                 <form onSubmit={handleSubmitOTP(onOTPSubmit)} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="otp">Code de vérification</Label>
-                    <Controller
-                      name="code"
-                      control={controlOTP}
-                      render={({ field }) => (
-                        <InputOTP maxLength={6} {...field} disabled={isLoading}>
-                          <InputOTPGroup>
-                            <InputOTPSlot index={0} />
-                            <InputOTPSlot index={1} />
-                            <InputOTPSlot index={2} />
-                            <InputOTPSlot index={3} />
-                            <InputOTPSlot index={4} />
-                            <InputOTPSlot index={5} />
-                          </InputOTPGroup>
-                        </InputOTP>
-                      )}
-                    />
-                    {otpErrors.code && (
-                      <p className="text-sm text-destructive">{otpErrors.code.message}</p>
+                  <Controller
+                    name="code"
+                    control={controlOTP}
+                    render={({ field }) => (
+                      <OtpCodeInput
+                        id="client-login-otp-code"
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        disabled={isLoading}
+                        autoFocus
+                        error={otpErrors.code?.message}
+                      />
                     )}
-                  </div>
+                  />
 
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? (
