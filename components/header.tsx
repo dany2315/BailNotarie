@@ -48,7 +48,6 @@ export function Header() {
   
   const bailNotarieSubItems = [
     { href: "/commencer", title: "Démarrer un bail", description: "Créer votre bail en quelques minutes" },
-    { href: "/commencer/suivi", title: "Suivi en temps réel", description: "Voir l’état de votre demande instantanément" },
     { href: "/simulateur-prix-bail-notarie", title: "Simuler le prix", description: "Estimer le coût de votre bail notarié" },
   ];
 

@@ -149,7 +149,8 @@ export async function createNotificationForAllUsers(
     })),
   });
 
-  // Déclencher l'envoi d'email à chaque utilisateur via Inngest (asynchrone, ne bloque pas le rendu)
+  // Déclencher l'envoi d'email à chaque utilisateur via Inngest.
+  // On attend explicitement l'enqueue pour éviter les pertes sur les runtimes serverless.
   const emailPromises = users
     .filter((user) => user.email) // Seulement les utilisateurs avec un email
     .map(async (user) => {
@@ -166,10 +167,7 @@ export async function createNotificationForAllUsers(
       }
     });
 
-  // Déclencher tous les emails en parallèle (sans attendre)
-  Promise.all(emailPromises).catch((error) => {
-    console.error("Erreur lors du déclenchement des emails de notification:", error);
-  });
+  await Promise.all(emailPromises);
 }
 
 /**
@@ -268,7 +266,8 @@ export async function createNotificationForUsers(
   const notificationMessage = getNotificationMessageText(type, metadata);
   const interfaceUrl = getNotificationInterfaceLink(targetType, targetId);
 
-  // Déclencher l'envoi d'email à chaque utilisateur via Inngest (asynchrone, ne bloque pas le rendu)
+  // Déclencher l'envoi d'email à chaque utilisateur via Inngest.
+  // On attend explicitement l'enqueue pour éviter les pertes sur les runtimes serverless.
   const emailPromises = users
     .filter((user) => user.email) // Seulement les utilisateurs avec un email
     .map(async (user) => {
@@ -285,9 +284,6 @@ export async function createNotificationForUsers(
       }
     });
 
-  // Déclencher tous les emails en parallèle (sans attendre)
-  Promise.all(emailPromises).catch((error) => {
-    console.error("Erreur lors du déclenchement des emails de notification:", error);
-  });
+  await Promise.all(emailPromises);
 }
 
