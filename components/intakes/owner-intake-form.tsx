@@ -2230,9 +2230,9 @@ useEffect(() => {
                   {/* Étapes détaillées */}
                   <div className="space-y-2 mt-4">
                     {[
-                      { id: 1, name: "Vérification des données", icon: "âœ“" },
-                      { id: 2, name: "Soumission du formulaire", icon: "ðŸ“" },
-                      { id: 3, name: "Redirection...", icon: "â†’" },
+                      { id: 1, name: "Vérification des données", icon: "✓" },
+                      { id: 2, name: "Soumission du formulaire", icon: "✓" },
+                      { id: 3, name: "Redirection...", icon: "✓" },
                     ].map((step) => {
                       const isCompleted = step.id < submissionProgress.step;
                       const isCurrent = step.id === submissionProgress.step;
