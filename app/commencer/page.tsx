@@ -38,6 +38,8 @@ export default function StartPage() {
 
     if (!existingClient && otpToken) {
       try {
+        // Filet de sécurité: la notification est déjà déclenchée côté serveur
+        // à la création du client, mais on retente ici de façon idempotente.
         await notifyAdminsForNewOwnerFromLanding({ token: otpToken });
       } catch (error) {
         console.error("[StartPage] Failed to notify admins after OTP verification:", error);
