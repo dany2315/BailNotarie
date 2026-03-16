@@ -34,12 +34,16 @@ const statusColors: Record<BailStatus, string> = {
 
 export default async function LocataireBailDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { user, client } = await requireLocataireAuth();
   const resolvedParams = await params;
   const bailId = resolvedParams.id;
+  const resolvedSearch = await searchParams;
+  const openChat = resolvedSearch?.chat === "1";
 
   // Vérifier que le client peut accéder à ce bail
   const hasAccess = await canAccessBail(user.id, bailId);
@@ -232,7 +236,7 @@ export default async function LocataireBailDetailPage({
       {/* Chat avec le notaire */}
       {notaire && (
         <div className="flex justify-end">
-          <BailChatSheet bailId={bailId} />
+          <BailChatSheet bailId={bailId} defaultOpen={openChat} />
         </div>
       )}
 

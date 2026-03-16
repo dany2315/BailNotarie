@@ -628,7 +628,8 @@ export async function createNotaireRequest(data: unknown) {
       });
 
       if (bail) {
-        const baseUrl = process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
+        const rawBase = process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
+        const baseUrl = rawBase.trim().endsWith("/") ? rawBase.trim().slice(0, -1) : rawBase.trim();
         const bailAddress = bail.property?.fullAddress || null;
         const notaireName = user.name || user.email;
 
@@ -656,10 +657,10 @@ export async function createNotaireRequest(data: unknown) {
               (party.entreprise?.legalName || party.entreprise?.name) ||
               null;
 
-            // URL du chat pour le client
+            // Lien complet vers le chat (même cible que "Répondre" sur le dashboard), avec ?chat=1 pour ouvrir le chat directement
             const chatUrl = party.profilType === "PROPRIETAIRE"
-              ? `${baseUrl}/client/proprietaire/baux/${dossier.bailId}`
-              : `${baseUrl}/client/locataire/baux/${dossier.bailId}`;
+              ? `${baseUrl}/client/proprietaire/demandes?open=bail-${dossier.bailId}&chat=1`
+              : `${baseUrl}/client/locataire/baux/${dossier.bailId}?chat=1`;
 
             await triggerDocumentRequestEmail({
               recipientEmail: partyUser.email,

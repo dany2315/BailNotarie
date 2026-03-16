@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatCurrency, formatDateTime } from "@/lib/utils/formatters";
 import { FileText, User, Building2, Home, Euro, Calendar, MapPin, MessageSquare, Check, X, Copy } from "lucide-react";
-import { DocumentsList } from "@/components/leases/documents-list";
+import { DocumentsStackByKind } from "@/components/documents/documents-stack-by-kind";
 import { NotaireRequests } from "@/components/notaire/notaire-requests";
 import { NotaireBailChatSheet } from "@/components/notaire/notaire-bail-chat-sheet";
 import { documentKindLabels } from "@/lib/utils/document-labels";
@@ -477,7 +477,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                 {dossier.property.documents && dossier.property.documents.length > 0 && (
                   <div className="pt-4 mt-4 border-t">
                     <p className="text-sm font-medium mb-3">Documents de la propriété ({dossier.property.documents.length})</p>
-                    <DocumentsList documents={dossier.property.documents} documentKindLabels={documentKindLabels} />
+                    <DocumentsStackByKind documents={dossier.property.documents} documentKindLabels={documentKindLabels} />
                   </div>
                 )}
               </CardContent>
@@ -519,7 +519,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                 {dossier.bail.documents && dossier.bail.documents.length > 0 && (
                   <div className="pt-4 mt-4 border-t">
                     <p className="text-sm font-medium mb-3">Documents du bail ({dossier.bail.documents.length})</p>
-                    <DocumentsList documents={dossier.bail.documents} documentKindLabels={documentKindLabels} />
+                    <DocumentsStackByKind documents={dossier.bail.documents} documentKindLabels={documentKindLabels} />
                   </div>
                 )}
               </CardContent>
@@ -670,7 +670,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                                       </p>
                                       <Badge variant="outline">{party.entreprise.documents.length}</Badge>
                                     </div>
-                                    <DocumentsList
+                                    <DocumentsStackByKind
                                       documents={party.entreprise.documents}
                                       documentKindLabels={documentKindLabels}
                                     />
@@ -753,7 +753,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                                           </span>
                                           <Badge variant="outline">{person.documents.length}</Badge>
                                         </div>
-                                        <DocumentsList
+                                        <DocumentsStackByKind
                                           documents={person.documents}
                                           documentKindLabels={documentKindLabels}
                                         />
@@ -770,7 +770,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                                   <p className="text-sm text-muted-foreground">Document{party.documents.length > 1 ? "s" : ""} de la partie</p>
                                   <Badge variant="outline">{party.documents.length}</Badge>
                                 </div>
-                                <DocumentsList
+                                <DocumentsStackByKind
                                   documents={party.documents}
                                   documentKindLabels={documentKindLabels}
                                 />
@@ -923,7 +923,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                                       </p>
                                       <Badge variant="outline">{party.entreprise.documents.length}</Badge>
                                     </div>
-                                    <DocumentsList
+                                    <DocumentsStackByKind
                                       documents={party.entreprise.documents}
                                       documentKindLabels={documentKindLabels}
                                     />
@@ -1006,7 +1006,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                                             </span>
                                           <Badge variant="outline">{person.documents.length}</Badge>
                                         </div>
-                                        <DocumentsList
+                                        <DocumentsStackByKind
                                           documents={person.documents}
                                           documentKindLabels={documentKindLabels}
                                         />
@@ -1023,7 +1023,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                                   <p className="text-sm text-muted-foreground">Document{party.documents.length > 1 ? "s" : ""} de la partie</p>
                                   <Badge variant="outline">{party.documents.length}</Badge>
                                 </div>
-                                <DocumentsList
+                                <DocumentsStackByKind
                                   documents={party.documents}
                                   documentKindLabels={documentKindLabels}
                                 />

@@ -42,6 +42,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1638,38 +1644,42 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
 
             <div className="flex items-end gap-2 rounded-xl border border-input bg-background px-2 py-2">
               <div className="flex items-center gap-1 pb-1">
-                {/* Bouton pour créer une demande de document */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    if (!selectedPartyId || selectedPartyId === "all") {
-                      toast.error("Destinataire requis", {
-                        description: "Veuillez sélectionner un propriétaire ou locataire pour créer une demande",
-                      });
-                      return;
-                    }
-                    setIsRequestDialogOpen(true);
-                  }}
-                  disabled={sending || uploading}
-                  className="h-9 w-9 shrink-0"
-                  title="Créer une demande de document"
-                >
-                  <FileText className="h-4 w-4" />
-                </Button>
-                {/* Bouton pour ajouter un fichier */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={sending || uploading}
-                  className="h-9 w-9 shrink-0"
-                  title="Joindre un fichier"
-                >
-                  <Paperclip className="h-4 w-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={sending || uploading}
+                      className="h-9 w-9 shrink-0"
+                      title="Ajouter"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" side="top" className="w-56">
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        if (!selectedPartyId || selectedPartyId === "all") {
+                          toast.error("Destinataire requis", {
+                            description: "Veuillez sélectionner un propriétaire ou locataire pour créer une demande",
+                          });
+                          return;
+                        }
+                        setIsRequestDialogOpen(true);
+                      }}
+                    >
+                      <FileText className="h-4 w-4 mr-2 shrink-0" />
+                      Demande de document
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => fileInputRef.current?.click()}
+                    >
+                      <Paperclip className="h-4 w-4 mr-2 shrink-0" />
+                      Ajouter photo / fichiers
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <Textarea

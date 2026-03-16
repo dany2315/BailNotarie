@@ -1083,20 +1083,20 @@ export async function addDocumentToNotaireRequestWithS3Urls(
     throw new Error("Demande introuvable ou non liée à un bail");
   }
 
-  // Créer les documents dans la base de données avec les clés S3
+  // Créer les documents : liés uniquement à la demande et au client, pas au bail (kind OTHER)
   const documents = await Promise.all(
     files.map(async (file) => {
       return prisma.document.create({
         data: {
           kind: "OTHER",
           label: file.fileName,
-          fileKey: file.fileKey, // Clé S3 (pas l'URL complète)
+          fileKey: file.fileKey,
           mimeType: file.mimeType,
           size: file.size,
-          bailId: request.dossier.bailId,
-          clientId: userClientId, // Lier le document au client qui l'envoie
+          bailId: null, // Ne pas lier au bail : document de réponse à une demande uniquement
+          clientId: userClientId,
           uploadedById: user.id,
-          notaireRequestId: requestId, // Rattacher directement le document à la demande
+          notaireRequestId: requestId,
         },
       });
     })
@@ -1222,7 +1222,7 @@ export async function addDocumentToNotaireRequestWithS3Urls(
   revalidatePath(`/client/proprietaire/baux/${request.dossier.bailId}`);
   revalidatePath(`/client/locataire/baux/${request.dossier.bailId}`);
 
-  return documents[0]; // Retourner le premier document
+  return documents;
 }
 
 export async function addDocumentToNotaireRequest(
@@ -1309,18 +1309,18 @@ export async function addDocumentToNotaireRequest(
       file.type || "application/octet-stream"
     );
 
-    // Créer le document dans la base de données avec le clientId et notaireRequestId
+    // Document lié uniquement à la demande et au client, pas au bail (kind OTHER)
     return prisma.document.create({
       data: {
         kind: "OTHER",
         label: file.name,
-        fileKey: s3Result.fileKey, // Clé S3 (pas l'URL complète)
+        fileKey: s3Result.fileKey,
         mimeType: file.type,
         size: file.size,
-        bailId: request.dossier.bailId,
-        clientId: userClientId, // Lier le document au client qui l'envoie
+        bailId: null,
+        clientId: userClientId,
         uploadedById: user.id,
-        notaireRequestId: requestId, // Rattacher directement le document à la demande
+        notaireRequestId: requestId,
       },
     });
   });
@@ -1447,7 +1447,7 @@ export async function addDocumentToNotaireRequest(
   revalidatePath(`/client/proprietaire/baux/${request.dossier.bailId}`);
   revalidatePath(`/client/locataire/baux/${request.dossier.bailId}`);
 
-  return documents[0]; // Retourner le premier document
+  return documents;
 }
 
 /**
@@ -1737,4 +1737,5 @@ export async function getChatOtherUserByParty(bailId: string, partyId: string) {
     profilType: profilTypeLabel,
   };
 }
+
 

@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Image as ImageIcon, File, ExternalLink, Loader2 } from "lucide-react";
+import { FileText, Image as ImageIcon, File, ExternalLink, Loader2 } from "lucide-react";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 
@@ -114,7 +114,24 @@ export function DocumentViewer({
 
   return (
     <>
-      <div onClick={() => setOpen(true)} className="cursor-pointer">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.nativeEvent.stopImmediatePropagation();
+          setOpen(true);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(true);
+          }
+        }}
+        className="cursor-pointer inline-flex"
+      >
         {children}
       </div>
       <Dialog open={open} onOpenChange={handleDialogOpenChange}>
@@ -128,124 +145,70 @@ export function DocumentViewer({
             </DialogTitle>
           </DialogHeader>
           
-          <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-muted/30 rounded-lg">
-            {isLoadingSignedUrl ? (
-              <div className="flex items-center justify-center h-[70vh]">
-                <Loader2 className="size-8 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-muted-foreground">Chargement du document...</span>
-              </div>
-            ) : fileType === "image" && !imageError && (
-              <div className="w-full h-full flex items-center justify-center">
-                <img
-                  src={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
-                  alt={documentName}
-                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
-                  onError={() => setImageError(true)}
-                />
-              </div>
-            )}
-            
-            {fileType === "image" && imageError && (
-              <div className="text-center p-8 space-y-4">
-                <ImageIcon className="size-16 mx-auto text-muted-foreground" />
-                <div>
-                  <p className="text-muted-foreground mb-4">Impossible de charger l'image</p>
-                  <div className="flex gap-2 justify-center">
-                    <Button asChild>
-                      <a href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey} download className="inline-flex items-center gap-2">
-                        <Download className="size-4" />
-                        Télécharger
-                      </a>
-                    </Button>
-                    <Button variant="outline" asChild>
-                      <a
-                        href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2"
-                      >
-                        <ExternalLink className="size-4" />
-                        Ouvrir dans un nouvel onglet
-                      </a>
-                    </Button>
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 overflow-auto p-4 bg-muted/30 rounded-lg min-h-[50vh]">
+              {isLoadingSignedUrl ? (
+                <div className="flex flex-col items-center justify-center w-full min-h-[60vh] gap-6">
+                  <div className="flex flex-col items-center justify-center gap-4 rounded-xl border bg-background/80 px-10 py-12 shadow-sm">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                      <Loader2 className="size-7 animate-spin text-primary" />
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="text-sm font-medium text-foreground">Chargement du document</p>
+                      <p className="text-xs text-muted-foreground truncate max-w-[280px]" title={documentName}>
+                        {documentName}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5" aria-hidden>
+                    <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse" />
+                    <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse [animation-delay:150ms]" />
+                    <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse [animation-delay:300ms]" />
                   </div>
                 </div>
-              </div>
-            )}
-            
-            {fileType === "pdf" && !pdfError && (
-              <div className="w-full h-full">
-                <iframe
-                  src={getPdfPreviewUrl(
-                    signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey
-                  )}
-                  className="w-full h-[70vh] rounded-lg border"
-                  title={documentName}
-                  onError={() => setPdfError(true)}
-                />
-              </div>
-            )}
-            
-            {fileType === "pdf" && pdfError && (
-              <div className="text-center p-8 space-y-4">
-                <FileText className="size-16 mx-auto text-muted-foreground" />
-                <div>
-                  <p className="text-muted-foreground mb-4">Impossible de charger le PDF</p>
-                  <div className="flex gap-2 justify-center">
-                    <Button asChild>
-                      <a href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey} download className="inline-flex items-center gap-2">
-                        <Download className="size-4" />
-                        Télécharger
-                      </a>
-                    </Button>
-                    <Button variant="outline" asChild>
-                      <a
-                        href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2"
-                      >
-                        <ExternalLink className="size-4" />
-                        Ouvrir dans un nouvel onglet
-                      </a>
-                    </Button>
-                  </div>
+              ) : fileType === "image" && !imageError ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  <img
+                    src={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
+                    alt={documentName}
+                    className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                    onError={() => setImageError(true)}
+                  />
                 </div>
-              </div>
-            )}
-            
-            {fileType === "other" && (
-              <div className="text-center p-8 space-y-4">
-                <FileText className="size-16 mx-auto text-muted-foreground" />
-                <div>
-                  <p className="text-lg font-medium mb-2">{documentName}</p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Ce type de fichier ne peut pas être prévisualisé
+              ) : fileType === "pdf" && !pdfError ? (
+                <div className="w-full h-full">
+                  <iframe
+                    src={getPdfPreviewUrl(signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey)}
+                    className="w-full h-[70vh] rounded-lg border"
+                    title={documentName}
+                    onError={() => setPdfError(true)}
+                  />
+                </div>
+              ) : (
+                <div className="text-center p-8 space-y-4">
+                  {fileType === "image" && <ImageIcon className="size-16 mx-auto text-muted-foreground" />}
+                  {fileType === "pdf" && <FileText className="size-16 mx-auto text-muted-foreground" />}
+                  {fileType === "other" && <File className="size-16 mx-auto text-muted-foreground" />}
+                  <p className="text-muted-foreground">
+                    {fileType === "other"
+                      ? "Ce type de fichier ne peut pas être prévisualisé"
+                      : "Impossible de charger le fichier"}
                   </p>
-                  <div className="flex gap-2 justify-center">
-                    <Button asChild>
-                      <a
-                        href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
-                        download
-                        className="inline-flex items-center gap-2"
-                      >
-                        <Download className="size-4" />
-                        Télécharger
-                      </a>
-                    </Button>
-                    <Button variant="outline" asChild>
-                      <a
-                        href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2"
-                      >
-                        <ExternalLink className="size-4" />
-                        Ouvrir dans un nouvel onglet
-                      </a>
-                    </Button>
-                  </div>
                 </div>
+              )}
+            </div>
+            {signedUrl && (
+              <div className="flex justify-end pt-3 border-t mt-2">
+                <Button variant="outline" size="sm" asChild>
+                  <a
+                    href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="size-4 mr-2" />
+                    Ouvrir dans un onglet
+                  </a>
+                </Button>
               </div>
             )}
           </div>

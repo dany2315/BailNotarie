@@ -1,10 +1,10 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { requireLocataireAuth } from "@/lib/auth-helpers";
-import { getLocataireStats, getClientBails, getPendingNotaireRequests } from "@/lib/actions/client-space";
+import { getLocataireStats, getClientBails, getPendingNotaireRequests, getActiveIntakeLinkForClient } from "@/lib/actions/client-space";
 import { ProfilType, BailType, BailFamille, BailStatus, CompletionStatus } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { FileText, CheckCircle, XCircle, AlertCircle, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { UnifiedStatusList } from "@/components/client/unified-status-list";
@@ -16,10 +16,11 @@ export const fetchCache = "force-no-store";
 export default async function LocataireDashboardPage() {
   const { user, client } = await requireLocataireAuth();
   
-  const [stats, baux, pendingRequests] = await Promise.all([
+  const [stats, baux, pendingRequests, activeIntake] = await Promise.all([
     getLocataireStats(client.id),
     getClientBails(client.id, ProfilType.LOCATAIRE),
     getPendingNotaireRequests(client.id, ProfilType.LOCATAIRE),
+    getActiveIntakeLinkForClient(client.id),
   ]);
 
   const bauxActifs = baux.filter(b => b.status === "SIGNED");
@@ -167,7 +168,7 @@ export default async function LocataireDashboardPage() {
                       </p>
                     </div>
                     {request.bail ? (
-                      <Link href={`/client/locataire/baux/${request.bail.id}`}>
+                      <Link href={`/client/locataire/baux/${request.bail.id}?chat=1`}>
                         <Button variant="outline" size="sm">
                           Répondre
                         </Button>
@@ -185,7 +186,8 @@ export default async function LocataireDashboardPage() {
         </Card>
       )}
 
-      {pendingRequests.length === 0 && (
+      {/* Si aucun formulaire en cours : on garde la card des demandes du notaire (ou "Aucune demande") */}
+      {pendingRequests.length === 0 && !activeIntake && (
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-sm text-muted-foreground">
@@ -195,12 +197,36 @@ export default async function LocataireDashboardPage() {
         </Card>
       )}
 
-      {/* Liste unifiée des baux avec filtres */}
-      <UnifiedStatusList 
-        bails={baux} 
-        profilType={ProfilType.LOCATAIRE}
-        basePath="/client/locataire"
-      />
+      {/* Si formulaire en cours : on affiche uniquement le lien. Sinon : on garde la card demandes du notaire + statut des éléments */}
+      {activeIntake ? (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              <div>
+                <CardTitle>Demande incomplète</CardTitle>
+                <CardDescription>
+                  Votre dossier ne peut pas avancer sans les informations manquantes.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex justify-end">
+            <Button asChild>
+              <Link href={activeIntake.intakeUrl}>
+                Finaliser ma demande
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        /* Aucun formulaire en cours : on affiche le statut de mes éléments */
+        <UnifiedStatusList 
+          bails={baux} 
+          profilType={ProfilType.LOCATAIRE}
+          basePath="/client/locataire"
+        />
+      )}
     </div>
   );
 }

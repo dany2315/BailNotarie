@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireClientAuth, requireProprietaireAuth, requireLocataireAuth, getClientFromUser } from "@/lib/auth-helpers";
-import { ProfilType, BailStatus } from "@prisma/client";
+import { ProfilType, BailStatus, IntakeTarget } from "@prisma/client";
 
 // Types pour les données sérialisées
 type SerializedProperty = {
@@ -424,6 +424,31 @@ export async function getPendingNotaireRequests(clientId: string, profilType: Pr
   );
 
   return requests;
+}
+
+/**
+ * Récupère l'intake en cours (non soumis, non révoqué) pour un client.
+ * Utilisé sur le dashboard client pour afficher "Intake en cours" avec lien.
+ */
+export async function getActiveIntakeLinkForClient(clientId: string): Promise<{
+  token: string;
+  target: IntakeTarget;
+  intakeUrl: string;
+} | null> {
+  const link = await prisma.intakeLink.findFirst({
+    where: {
+      clientId,
+      status: "PENDING",
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { token: true, target: true },
+  });
+  if (!link) return null;
+  const intakeUrl =
+    link.target === "OWNER"
+      ? `/commencer/proprietaire/${link.token}`
+      : `/intakes/${link.token}`;
+  return { token: link.token, target: link.target, intakeUrl };
 }
 
 /**

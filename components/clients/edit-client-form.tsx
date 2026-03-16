@@ -28,6 +28,7 @@ import { NationalitySelect } from "@/components/ui/nationality-select";
 import { deleteDocument, getDocuments } from "@/lib/actions/documents";
 import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentViewer } from "@/components/leases/document-viewer";
+import { ClientDocumentUploaded } from "@/components/documents/client-document-uploaded";
 import { getRequiredClientFields } from "@/lib/utils/required-fields";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { useDownloadFile } from "@/hooks/use-download-file";
@@ -509,8 +510,8 @@ export function EditClientForm({ client }: EditClientFormProps) {
                         </CardHeader>
                         <CardContent className="space-y-4">
                         <div className="grid gap-4 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor={`persons.${index}.firstName`}>Prénom</Label>
+                        <div className="space-y-2">
+                          <Label htmlFor={`persons.${index}.firstName`}>Prénom</Label>
                             <Input
                               {...form.register(`persons.${index}.firstName`)}
                               placeholder="Prénom"
@@ -687,117 +688,35 @@ export function EditClientForm({ client }: EditClientFormProps) {
                           />
                         </div>
                         
-                        {/* Documents de la personne */}
+                        {/* Documents de la personne — même rendu que formulaire intake */}
                         <div className="mt-6 pt-6 border-t">
                           <Label className="text-base font-semibold mb-4 block">Documents de la personne</Label>
                           {personRequiredDocuments.length > 0 && (
-                            <div className="space-y-2 mb-4">
-                              {personRequiredDocuments.map((kind) => {
-                                const hasDocument = personDocuments.some((doc: any) => doc.kind === kind);
-                                const existingDoc = personDocuments.find((doc: any) => doc.kind === kind);
-                                const isUploading = uploadingDocumentKind === kind && isUploadingDocument;
-                                const fileForKind = uploadingFiles[`${kind}-${personId}`];
-                                
-                                return (
-                                  <div
-                                    key={kind}
-                                    className={`p-3 border rounded-md transition-colors ${
-                                      hasDocument
-                                        ? "bg-muted/30 hover:bg-muted/50"
-                                        : "bg-destructive/5 border-destructive/20 hover:bg-destructive/10"
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                                        <FileText className={`size-4 shrink-0 ${hasDocument ? "text-muted-foreground" : "text-destructive"}`} />
-                                        <div className="flex-1 min-w-0">
-                                          <p className={`text-sm font-medium truncate ${hasDocument ? "" : "text-destructive"}`}>
-                                            {documentKindLabels[kind] || kind}
-                                            {!hasDocument && <span className="text-destructive ml-1">*</span>}
-                                          </p>
-                                          {existingDoc?.label && (
-                                            <p className="text-xs text-muted-foreground truncate">
-                                              {existingDoc.label}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        {existingDoc ? (
-                                          <>
-                                            <DocumentViewer
-                                              document={existingDoc}
-                                              documentKindLabels={documentKindLabels}
-                                            >
-                                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                <Eye className="size-4" />
-                                              </Button>
-                                            </DocumentViewer>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-8 w-8"
-                                              onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
-                                              disabled={isDownloading}
-                                            >
-                                              {isDownloading ? (
-                                                <Loader2 className="size-4 animate-spin" />
-                                              ) : (
-                                                <Download className="size-4" />
-                                              )}
-                                            </Button>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-8 w-8 text-destructive hover:text-destructive"
-                                              onClick={() => handleDeleteDocument(existingDoc.id)}
-                                              disabled={isLoading}
-                                            >
-                                              <Trash2 className="size-4" />
-                                            </Button>
-                                          </>
-                                        ) : (
-                                          <span className="text-xs text-destructive">Manquant</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    
-                                    {!hasDocument && (
-                                      <div className="mt-2 pt-2 border-t border-destructive/20">
-                                        <FileUpload
-                                          label=""
-                                          value={fileForKind || null}
-                                          onChange={(file: File | null) => {
-                                            setUploadingFiles((prev) => ({ ...prev, [`${kind}-${personId}`]: file }));
-                                            if (file) {
-                                              // L'upload se fait automatiquement via FileUpload
-                                              setTimeout(() => refreshDocuments(), 1000);
-                                            }
-                                          }}
-                                          accept="application/pdf,image/*"
-                                          disabled={isUploading}
-                                          documentKind={kind}
-                                          documentPersonId={personId}
-                                          onUploadComplete={() => {
-                                            setUploadingFiles((prev) => ({ ...prev, [`${kind}-${personId}`]: null }));
-                                            refreshDocuments();
-                                            // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
-                                          }}
-                                        />
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 mb-4">
+                              {personRequiredDocuments.map((kind) => (
+                                <div key={kind} className="min-w-0 w-full overflow-visible">
+                                  <ClientDocumentUploaded
+                                    clientId={client.id}
+                                    documentKind={kind}
+                                    documents={personDocuments.filter((doc: any) => doc.kind === kind)}
+                                    onDelete={handleDeleteDocument}
+                                    onRefresh={refreshDocuments}
+                                    label={`${documentKindLabels[kind] || kind} *`}
+                                    required
+                                    personId={personId}
+                                    personIndex={index}
+                                    disabled={isLoading}
+                                  />
+                                </div>
+                              ))}
                             </div>
                           )}
                           
                           {/* Autres documents de la personne */}
-                          {personDocuments.filter((doc: any) => !personRequiredDocuments.includes(doc.kind as any)).length > 0 && (
+                          {personDocuments.filter((doc: any, index: number, list: any[]) => !personRequiredDocuments.includes(doc.kind as any) || list.findIndex((item: any) => item.kind === doc.kind) !== index).length > 0 && (
                             <div className="space-y-2">
                               <Label className="text-sm">Autres documents</Label>
-                              {personDocuments
-                                .filter((doc: any) => !personRequiredDocuments.includes(doc.kind as any))
+                              {personDocuments.filter((doc: any, index: number, list: any[]) => !personRequiredDocuments.includes(doc.kind as any) || list.findIndex((item: any) => item.kind === doc.kind) !== index)
                                 .map((doc: any) => (
                                   <div
                                     key={doc.id}
@@ -882,232 +801,58 @@ export function EditClientForm({ client }: EditClientFormProps) {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {/* Documents requis pour le client */}
+                      {/* Documents requis pour le client — même rendu que formulaire intake */}
                       {clientRequiredDocuments.length > 0 && (
                         <div className="space-y-2">
                           <Label>Documents requis</Label>
-                          <div className="space-y-1.5">
-                            {clientRequiredDocuments.map((kind) => {
-                              const hasDocument = clientDocuments.some((doc: any) => doc.kind === kind);
-                              const existingDoc = clientDocuments.find((doc: any) => doc.kind === kind);
-                              const isUploading = uploadingDocumentKind === kind && isUploadingDocument;
-                              const fileForKind = uploadingFiles[`${kind}-client`];
-                              
-                              return (
-                                <div
-                                  key={kind}
-                                  className={`p-3 border rounded-md transition-colors ${
-                                    hasDocument
-                                      ? "bg-muted/30 hover:bg-muted/50"
-                                      : "bg-destructive/5 border-destructive/20 hover:bg-destructive/10"
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                      <FileText className={`size-4 shrink-0 ${hasDocument ? "text-muted-foreground" : "text-destructive"}`} />
-                                      <div className="flex-1 min-w-0">
-                                        <p className={`text-sm font-medium truncate ${hasDocument ? "" : "text-destructive"}`}>
-                                          {documentKindLabels[kind] || kind}
-                                          {!hasDocument && <span className="text-destructive ml-1">*</span>}
-                                        </p>
-                                        {existingDoc?.label && (
-                                          <p className="text-xs text-muted-foreground truncate">
-                                            {existingDoc.label}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      {existingDoc ? (
-                                        <>
-                                          <DocumentViewer
-                                            document={existingDoc}
-                                            documentKindLabels={documentKindLabels}
-                                          >
-                                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                              <Eye className="size-4" />
-                                            </Button>
-                                          </DocumentViewer>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8"
-                                            onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
-                                            disabled={isDownloading}
-                                          >
-                                            {isDownloading ? (
-                                              <Loader2 className="size-4 animate-spin" />
-                                            ) : (
-                                              <Download className="size-4" />
-                                            )}
-                                          </Button>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 text-destructive hover:text-destructive"
-                                            onClick={() => handleDeleteDocument(existingDoc.id)}
-                                            disabled={isLoading}
-                                          >
-                                            <Trash2 className="size-4" />
-                                          </Button>
-                                        </>
-                                      ) : (
-                                        <span className="text-xs text-destructive">Manquant</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  
-                                  {!hasDocument && (
-                                    <div className="mt-2 pt-2 border-t border-destructive/20">
-                                      <FileUpload
-                                        label=""
-                                        value={fileForKind || null}
-                                        onChange={(file: File | null) => {
-                                          setUploadingFiles((prev) => ({ ...prev, [`${kind}-client`]: file }));
-                                          if (file) {
-                                            // L'upload se fait automatiquement via FileUpload
-                                            setTimeout(() => refreshDocuments(), 1000);
-                                          }
-                                        }}
-                                        accept="application/pdf,image/*"
-                                        disabled={isUploading}
-                                        documentKind={kind}
-                                        documentClientId={client.id}
-                                        onUploadComplete={() => {
-                                          setUploadingFiles((prev) => ({ ...prev, [`${kind}-client`]: null }));
-                                          refreshDocuments();
-                                          // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
-                                        }}
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                          <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                            {clientRequiredDocuments.map((kind) => (
+                              <div key={kind} className="min-w-0 w-full overflow-visible">
+                                <ClientDocumentUploaded
+                                  clientId={client.id}
+                                  documentKind={kind}
+                                  documents={clientDocuments.filter((doc: any) => doc.kind === kind)}
+                                  onDelete={handleDeleteDocument}
+                                  onRefresh={refreshDocuments}
+                                  label={`${documentKindLabels[kind] || kind} *`}
+                                  required
+                                  disabled={isLoading}
+                                />
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}
                       
-                      {/* Documents requis selon le profil */}
+                      {/* Documents requis selon le profil — même rendu que formulaire intake */}
                       {profilRequiredDocuments.length > 0 && (
                         <div className="space-y-2">
                           <Label>Documents requis selon le profil</Label>
-                          <div className="space-y-1.5">
-                            {profilRequiredDocuments.map((kind) => {
-                              // Chercher dans tous les documents (personnes, entreprise, client)
-                              const hasDocument = allDocuments.some((doc: any) => doc.kind === kind);
-                              const existingDoc = allDocuments.find((doc: any) => doc.kind === kind);
-                              const isUploading = uploadingDocumentKind === kind && isUploadingDocument;
-                              const fileForKind = uploadingFiles[`${kind}-profil`];
-                              
-                              return (
-                                <div
-                                  key={kind}
-                                  className={`p-3 border rounded-md transition-colors ${
-                                    hasDocument
-                                      ? "bg-muted/30 hover:bg-muted/50"
-                                      : "bg-destructive/5 border-destructive/20 hover:bg-destructive/10"
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                      <FileText className={`size-4 shrink-0 ${hasDocument ? "text-muted-foreground" : "text-destructive"}`} />
-                                      <div className="flex-1 min-w-0">
-                                        <p className={`text-sm font-medium truncate ${hasDocument ? "" : "text-destructive"}`}>
-                                          {documentKindLabels[kind] || kind}
-                                          {!hasDocument && <span className="text-destructive ml-1">*</span>}
-                                        </p>
-                                        {existingDoc?.label && (
-                                          <p className="text-xs text-muted-foreground truncate">
-                                            {existingDoc.label}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      {existingDoc ? (
-                                        <>
-                                          <DocumentViewer
-                                            document={existingDoc}
-                                            documentKindLabels={documentKindLabels}
-                                          >
-                                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                              <Eye className="size-4" />
-                                            </Button>
-                                          </DocumentViewer>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8"
-                                            onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
-                                            disabled={isDownloading}
-                                          >
-                                            {isDownloading ? (
-                                              <Loader2 className="size-4 animate-spin" />
-                                            ) : (
-                                              <Download className="size-4" />
-                                            )}
-                                          </Button>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 text-destructive hover:text-destructive"
-                                            onClick={() => handleDeleteDocument(existingDoc.id)}
-                                            disabled={isLoading}
-                                          >
-                                            <Trash2 className="size-4" />
-                                          </Button>
-                                        </>
-                                      ) : (
-                                        <span className="text-xs text-destructive">Manquant</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  
-                                  {!hasDocument && (
-                                    <div className="mt-2 pt-2 border-t border-destructive/20">
-                                      <FileUpload
-                                        label=""
-                                        value={fileForKind || null}
-                                        onChange={(file: File | null) => {
-                                          setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil`]: file }));
-                                          if (file) {
-                                            // L'upload se fait automatiquement via FileUpload
-                                            setTimeout(() => refreshDocuments(), 1000);
-                                          }
-                                        }}
-                                        accept="application/pdf,image/*"
-                                        disabled={isUploading}
-                                        documentKind={kind}
-                                        documentClientId={client.id}
-                                        onUploadComplete={() => {
-                                          setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil`]: null }));
-                                          refreshDocuments();
-                                          // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
-                                        }}
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                          <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                            {profilRequiredDocuments.map((kind) => (
+                              <div key={kind} className="min-w-0 w-full overflow-visible">
+                                <ClientDocumentUploaded
+                                  clientId={client.id}
+                                  documentKind={kind}
+                                  documents={clientDocuments.filter((doc: any) => doc.kind === kind)}
+                                  onDelete={handleDeleteDocument}
+                                  onRefresh={refreshDocuments}
+                                  label={`${documentKindLabels[kind] || kind} *`}
+                                  required
+                                  disabled={isLoading}
+                                />
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}
                       
                       {/* Autres documents du client */}
-                      {clientDocuments.filter((doc: any) => 
-                        !clientRequiredDocuments.includes(doc.kind as DocumentKind) && 
-                        !profilRequiredDocuments.includes(doc.kind as DocumentKind)
-                      ).length > 0 && (
+                      {clientDocuments.filter((doc: any, index: number, list: any[]) => (!clientRequiredDocuments.includes(doc.kind as DocumentKind) && !profilRequiredDocuments.includes(doc.kind as DocumentKind)) || list.findIndex((item: any) => item.kind === doc.kind) !== index).length > 0 && (
                         <div className="space-y-2">
                           <Label>Autres documents</Label>
                           <div className="space-y-1.5">
-                            {clientDocuments
-                              .filter((doc: any) => 
-                                !clientRequiredDocuments.includes(doc.kind as DocumentKind) && 
-                                !profilRequiredDocuments.includes(doc.kind as DocumentKind)
-                              )
+                            {clientDocuments.filter((doc: any, index: number, list: any[]) => (!clientRequiredDocuments.includes(doc.kind as DocumentKind) && !profilRequiredDocuments.includes(doc.kind as DocumentKind)) || list.findIndex((item: any) => item.kind === doc.kind) !== index)
                               .map((doc: any) => (
                                 <div
                                   key={doc.id}
@@ -1235,8 +980,8 @@ export function EditClientForm({ client }: EditClientFormProps) {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Téléphone</Label>
                     <Controller
                       name="phone"
                       control={form.control}
@@ -1289,226 +1034,60 @@ export function EditClientForm({ client }: EditClientFormProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Documents requis pour l'entreprise */}
+            {/* Documents requis pour l'entreprise — même rendu que formulaire intake */}
             {entrepriseRequiredDocuments.length > 0 && (
               <div className="space-y-2">
                 <Label>Documents requis</Label>
-                <div className="space-y-1.5">
-                  {entrepriseRequiredDocuments.map((kind) => {
-                    const hasDocument = entrepriseDocuments.some((doc: any) => doc.kind === kind);
-                    const existingDoc = entrepriseDocuments.find((doc: any) => doc.kind === kind);
-                    const isUploading = uploadingDocumentKind === kind && isUploadingDocument;
-                    const fileForKind = uploadingFiles[`${kind}-entreprise`];
-                  
-                  return (
-                    <div
-                      key={kind}
-                      className={`p-3 border rounded-md transition-colors ${
-                        hasDocument
-                          ? "bg-muted/30 hover:bg-muted/50"
-                          : "bg-destructive/5 border-destructive/20 hover:bg-destructive/10"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <FileText className={`size-4 shrink-0 ${hasDocument ? "text-muted-foreground" : "text-destructive"}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${hasDocument ? "" : "text-destructive"}`}>
-                              {documentKindLabels[kind] || kind}
-                              {!hasDocument && <span className="text-destructive ml-1">*</span>}
-                            </p>
-                            {existingDoc?.label && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {existingDoc.label}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {existingDoc ? (
-                            <>
-                              <DocumentViewer
-                                document={existingDoc}
-                                documentKindLabels={documentKindLabels}
-                              >
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Eye className="size-4" />
-                                </Button>
-                              </DocumentViewer>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
-                                disabled={isDownloading}
-                              >
-                                {isDownloading ? (
-                                  <Loader2 className="size-4 animate-spin" />
-                                ) : (
-                                  <Download className="size-4" />
-                                )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                onClick={() => handleDeleteDocument(existingDoc.id)}
-                                disabled={isLoading}
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <span className="text-xs text-destructive">Manquant</span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Formulaire d'upload pour les documents manquants */}
-                      {!hasDocument && (
-                        <div className="mt-2 pt-2 border-t border-destructive/20">
-                          <FileUpload
-                            label=""
-                            value={fileForKind || null}
-                            onChange={(file: File | null) => {
-                              setUploadingFiles((prev) => ({ ...prev, [`${kind}-entreprise`]: file }));
-                              if (file) {
-                                // L'upload se fait automatiquement via FileUpload
-                                setTimeout(() => refreshDocuments(), 1000);
-                              }
-                            }}
-                            accept="application/pdf,image/*"
-                            disabled={isUploading}
-                            documentKind={kind}
-                            documentEntrepriseId={client.entreprise?.id}
-                            onUploadComplete={() => {
-                              setUploadingFiles((prev) => ({ ...prev, [`${kind}-entreprise`]: null }));
-                              refreshDocuments();
-                              // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
-                            }}
-                          />
-                        </div>
-                      )}
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                  {entrepriseRequiredDocuments.map((kind) => (
+                    <div key={kind} className="min-w-0 w-full overflow-visible">
+                      <ClientDocumentUploaded
+                        clientId={client.id}
+                        documentKind={kind}
+                        documents={entrepriseDocuments.filter((doc: any) => doc.kind === kind)}
+                        onDelete={handleDeleteDocument}
+                        onRefresh={refreshDocuments}
+                        label={`${documentKindLabels[kind] || kind} *`}
+                        required
+                        documentEntrepriseId={client.entreprise?.id}
+                        disabled={isLoading}
+                      />
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+              </div>
+            )}
+          
+          {/* Documents requis selon le profil pour entreprise — même rendu que formulaire intake */}
+          {profilRequiredDocuments.length > 0 && (
+            <div className="space-y-2">
+              <Label>Documents requis selon le profil</Label>
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                {profilRequiredDocuments.map((kind) => (
+                  <div key={kind} className="min-w-0 w-full overflow-visible">
+                    <ClientDocumentUploaded
+                      clientId={client.id}
+                      documentKind={kind}
+                      documents={entrepriseDocuments.filter((doc: any) => doc.kind === kind)}
+                      onDelete={handleDeleteDocument}
+                      onRefresh={refreshDocuments}
+                      label={`${documentKindLabels[kind] || kind} *`}
+                      required
+                      documentEntrepriseId={client.entreprise?.id}
+                      disabled={isLoading}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           )}
           
-          {/* Documents requis selon le profil pour entreprise */}
-          {profilRequiredDocuments.length > 0 && (
-            <div className="space-y-2">
-              <Label>Documents requis selon le profil</Label>
-              <div className="space-y-1.5">
-                {profilRequiredDocuments.map((kind) => {
-                  const hasDocument = allDocuments.some((doc: any) => doc.kind === kind);
-                  const existingDoc = allDocuments.find((doc: any) => doc.kind === kind);
-                  const isUploading = uploadingDocumentKind === kind && isUploadingDocument;
-                  const fileForKind = uploadingFiles[`${kind}-profil-entreprise`];
-                  
-                  return (
-                    <div
-                      key={kind}
-                      className={`p-3 border rounded-md transition-colors ${
-                        hasDocument
-                          ? "bg-muted/30 hover:bg-muted/50"
-                          : "bg-destructive/5 border-destructive/20 hover:bg-destructive/10"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <FileText className={`size-4 shrink-0 ${hasDocument ? "text-muted-foreground" : "text-destructive"}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${hasDocument ? "" : "text-destructive"}`}>
-                              {documentKindLabels[kind] || kind}
-                              {!hasDocument && <span className="text-destructive ml-1">*</span>}
-                            </p>
-                            {existingDoc?.label && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {existingDoc.label}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {existingDoc ? (
-                            <>
-                              <DocumentViewer
-                                document={existingDoc}
-                                documentKindLabels={documentKindLabels}
-                              >
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Eye className="size-4" />
-                                </Button>
-                              </DocumentViewer>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => downloadFile(existingDoc.fileKey, existingDoc.label || `document-${existingDoc.id}`)}
-                                disabled={isDownloading}
-                              >
-                                {isDownloading ? (
-                                  <Loader2 className="size-4 animate-spin" />
-                                ) : (
-                                  <Download className="size-4" />
-                                )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                onClick={() => handleDeleteDocument(existingDoc.id)}
-                                disabled={isLoading}
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <span className="text-xs text-destructive">Manquant</span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {!hasDocument && (
-                        <div className="mt-2 pt-2 border-t border-destructive/20">
-                          <FileUpload
-                            label=""
-                            value={fileForKind || null}
-                            onChange={(file: File | null) => {
-                              setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil-entreprise`]: file }));
-                              if (file) {
-                                // L'upload se fait automatiquement via FileUpload
-                                setTimeout(() => refreshDocuments(), 1000);
-                              }
-                            }}
-                            accept="application/pdf,image/*"
-                            disabled={isUploading}
-                            documentKind={kind}
-                            documentEntrepriseId={client.entreprise?.id}
-                            onUploadComplete={() => {
-                              setUploadingFiles((prev) => ({ ...prev, [`${kind}-profil-entreprise`]: null }));
-                              refreshDocuments();
-                              // Ne pas rafraîchir la page pour éviter d'interrompre les autres uploads en cours
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Autres documents de l'entreprise (non requis) */}
-          {entrepriseDocuments.filter((doc: any) => !entrepriseRequiredDocuments.includes(doc.kind as any) && !profilRequiredDocuments.includes(doc.kind as any)).length > 0 && (
+          {entrepriseDocuments.filter((doc: any, index: number, list: any[]) => (!entrepriseRequiredDocuments.includes(doc.kind as any) && !profilRequiredDocuments.includes(doc.kind as any)) || list.findIndex((item: any) => item.kind === doc.kind) !== index).length > 0 && (
             <div className="space-y-2">
               <Label>Autres documents</Label>
               <div className="space-y-1.5">
-                {entrepriseDocuments
-                  .filter((doc: any) => !entrepriseRequiredDocuments.includes(doc.kind as any) && !profilRequiredDocuments.includes(doc.kind as any))
+                {entrepriseDocuments.filter((doc: any, index: number, list: any[]) => (!entrepriseRequiredDocuments.includes(doc.kind as any) && !profilRequiredDocuments.includes(doc.kind as any)) || list.findIndex((item: any) => item.kind === doc.kind) !== index)
                   .map((doc: any) => (
                     <div
                       key={doc.id}
@@ -1586,5 +1165,9 @@ export function EditClientForm({ client }: EditClientFormProps) {
     </form>
   );
 }
+
+
+
+
 
 

@@ -222,9 +222,9 @@ export const blogData = [
         readTime: 8,
         metaTitle: "Bail authentique chez le notaire : définition, prix, avantages (2026)",
         metaDescription:
-          "Bail authentique notaire : découvrez la définition (bail notarié), le coût, les avantages (force exécutoire), qui paie les frais et la procédure complète en France.",
+        "Bail authentique chez le notaire : définition, prix 2026, avantages, qui paie les frais et procédure complète pour une location d’habitation en France.",
         metaKeywords:
-          "bail authentique notaire, bail authentique, bail notarié, acte authentique bail de location, prix bail authentique, coût bail authentique, différence bail authentique bail classique, bail de location en France",
+          "bail authentique notaire, bail authentique, acte authentique bail de location, prix bail authentique, coût bail authentique, différence bail authentique bail classique, bail de location en France",
         imageUrl:
           "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=1200&h=630&fit=crop&q=80",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
