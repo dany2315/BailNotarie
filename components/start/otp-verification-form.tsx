@@ -5,9 +5,8 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { OtpCodeInput } from "@/components/ui/otp-code-input";
 import { ArrowLeft, CheckCircle2, Loader2, Mail, RefreshCw, ShieldCheck, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
@@ -160,39 +159,20 @@ export function OtpVerificationForm({
 
           <form onSubmit={handleSubmit(onOTPSubmit)} className="space-y-6 sm:space-y-8">
             {/* Champ OTP */}
-            <div className="space-y-3">
-              <Label className="text-base sm:text-lg font-semibold text-center block">
-                Code de vérification
-              </Label>
-              <div className="flex justify-center">
-                <Controller
-                  name="code"
-                  control={control}
-                  render={({ field }) => (
-                    <InputOTP
-                      maxLength={6}
-                      {...field}
-                      disabled={isLoading}
-                      autoFocus
-                    >
-                      <InputOTPGroup className="gap-2 sm:gap-3">
-                        <InputOTPSlot index={0} className="h-12 w-12 sm:h-14 sm:w-14 text-lg sm:text-xl border-2 rounded-lg" />
-                        <InputOTPSlot index={1} className="h-12 w-12 sm:h-14 sm:w-14 text-lg sm:text-xl border-2 rounded-lg" />
-                        <InputOTPSlot index={2} className="h-12 w-12 sm:h-14 sm:w-14 text-lg sm:text-xl border-2 rounded-lg" />
-                        <InputOTPSlot index={3} className="h-12 w-12 sm:h-14 sm:w-14 text-lg sm:text-xl border-2 rounded-lg" />
-                        <InputOTPSlot index={4} className="h-12 w-12 sm:h-14 sm:w-14 text-lg sm:text-xl border-2 rounded-lg" />
-                        <InputOTPSlot index={5} className="h-12 w-12 sm:h-14 sm:w-14 text-lg sm:text-xl border-2 rounded-lg" />
-                      </InputOTPGroup>
-                    </InputOTP>
-                  )}
+            <Controller
+              name="code"
+              control={control}
+              render={({ field }) => (
+                <OtpCodeInput
+                  id="start-otp-code"
+                  value={field.value || ""}
+                  onChange={field.onChange}
+                  disabled={isLoading}
+                  autoFocus
+                  error={errors.code?.message}
                 />
-              </div>
-              {errors.code && (
-                <p className="text-sm text-destructive text-center">
-                  {errors.code.message}
-                </p>
               )}
-            </div>
+            />
 
             {/* Info validité */}
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">

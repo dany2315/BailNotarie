@@ -1574,7 +1574,70 @@ export async function submitTenantForm(data: unknown) {
     }
   }
   
-  // Retourner le résultat AVANT les notifications pour que l'utilisateur voie le statut immédiatement
+  // S'assurer que l'événement Inngest du mail propriétaire est bien enregistré
+  // avant de retourner la réponse. On n'attend pas l'envoi réel du mail.
+  try {
+    const clientData = await prisma.client.findUnique({
+      where: { id: validated.clientId },
+      include: {
+        persons: {
+          where: { isPrimary: true },
+          take: 1,
+        },
+        entreprise: true,
+      },
+    });
+
+    if (clientData) {
+      let firstName = "";
+      let lastName = "";
+
+      if (clientData.type === ClientType.PERSONNE_PHYSIQUE && clientData.persons.length > 0) {
+        const primaryPerson = clientData.persons[0];
+        firstName = primaryPerson.firstName || "";
+        lastName = primaryPerson.lastName || "";
+      } else if (clientData.type === ClientType.PERSONNE_MORALE && clientData.entreprise) {
+        firstName = clientData.entreprise.name || clientData.entreprise.legalName || "";
+        lastName = "";
+      }
+
+      const owner = intakeLink.bail?.property?.owner || intakeLink.property?.owner;
+      const propertyAddress = intakeLink.bail?.property?.fullAddress || intakeLink.property?.fullAddress;
+
+      if (owner) {
+        let ownerEmail = "";
+        let ownerFirstName = "";
+        let ownerLastName = "";
+
+        if (owner.type === ClientType.PERSONNE_PHYSIQUE && owner.persons && owner.persons.length > 0) {
+          const ownerPrimaryPerson = owner.persons[0];
+          ownerEmail = ownerPrimaryPerson.email || "";
+          ownerFirstName = ownerPrimaryPerson.firstName || "";
+          ownerLastName = ownerPrimaryPerson.lastName || "";
+        } else if (owner.type === ClientType.PERSONNE_MORALE && owner.entreprise) {
+          ownerEmail = owner.entreprise.email || "";
+          ownerFirstName = owner.entreprise.name || owner.entreprise.legalName || "";
+          ownerLastName = "";
+        }
+
+        if (ownerEmail) {
+          await triggerTenantSubmittedNotificationEmail({
+            ownerEmail,
+            ownerFirstName,
+            ownerLastName,
+            tenantFirstName: firstName,
+            tenantLastName: lastName,
+            propertyAddress: propertyAddress || undefined,
+            interfaceUrl: `${process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr"}/suivi`,
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Erreur lors du déclenchement de l'email de notification au propriétaire:", error);
+  }
+
+  // Retourner le résultat AVANT les autres notifications pour que l'utilisateur voie le statut immédiatement
   const result = { success: true };
 
   // Déclencher les notifications et l'email de confirmation en arrière-plan (après le return, ne bloque pas le rendu)
@@ -1626,42 +1689,6 @@ export async function submitTenantForm(data: unknown) {
           }
         }
 
-        // Envoyer une notification au propriétaire que le locataire a soumis son formulaire
-        const owner = intakeLink.bail?.property?.owner || intakeLink.property?.owner;
-        const propertyAddress = intakeLink.bail?.property?.fullAddress || intakeLink.property?.fullAddress;
-        
-        if (owner) {
-          let ownerEmail = "";
-          let ownerFirstName = "";
-          let ownerLastName = "";
-
-          if (owner.type === ClientType.PERSONNE_PHYSIQUE && owner.persons && owner.persons.length > 0) {
-            const ownerPrimaryPerson = owner.persons[0];
-            ownerEmail = ownerPrimaryPerson.email || "";
-            ownerFirstName = ownerPrimaryPerson.firstName || "";
-            ownerLastName = ownerPrimaryPerson.lastName || "";
-          } else if (owner.type === ClientType.PERSONNE_MORALE && owner.entreprise) {
-            ownerEmail = owner.entreprise.email || "";
-            ownerFirstName = owner.entreprise.name || owner.entreprise.legalName || "";
-            ownerLastName = "";
-          }
-
-          if (ownerEmail) {
-            try {
-              await triggerTenantSubmittedNotificationEmail({
-                ownerEmail,
-                ownerFirstName,
-                ownerLastName,
-                tenantFirstName: firstName,
-                tenantLastName: lastName,
-                propertyAddress: propertyAddress || undefined,
-                interfaceUrl: `${process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr"}/suivi`,
-              });
-            } catch (error) {
-              console.error("Erreur lors de l'envoi de l'email de notification au propriétaire:", error);
-            }
-          }
-        }
       }
 
       // Notification pour soumission d'intake via formulaire
