@@ -6,7 +6,6 @@ import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStat
 import { triggerOwnerFormEmail, triggerRequestStatusEmail } from "@/lib/inngest/helpers";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { createUserForClient } from "@/lib/utils/user-creation";
-import { requireClientAuth } from "@/lib/auth-helpers";
 import { z } from "zod";
 
 const startOwnerSchema = z.object({
@@ -79,6 +78,21 @@ export async function startAsOwner(data: StartOwnerInput) {
     } catch (error) {
       console.error("Erreur lors de la création du User pour le client:", error);
       // On continue même si la création du User échoue
+    }
+
+    // Déclencher la notification ici pour éviter toute dépendance fragile
+    // à la session OTP côté client selon l'environnement.
+    try {
+      await createNotificationForAllUsers(
+        NotificationType.CLIENT_CREATED_FROM_LANDING_PAGE,
+        "CLIENT",
+        client.id,
+        null,
+        { createdByForm: true, profileType: ProfilType.PROPRIETAIRE }
+      );
+    } catch (error) {
+      console.error("Erreur lors de la création de la notification admin landing page:", error);
+      // On continue même si la notification échoue
     }
 
     const token = randomBytes(32).toString("hex");
@@ -164,11 +178,6 @@ export async function notifyAdminsForNewOwnerFromLanding(data: { token: string }
     return { success: false, notified: false, reason: "missing-token" as const };
   }
 
-  const authResult = await requireClientAuth().catch(() => null);
-  if (!authResult?.client) {
-    return { success: false, notified: false, reason: "unauthorized" as const };
-  }
-
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     select: {
@@ -179,10 +188,6 @@ export async function notifyAdminsForNewOwnerFromLanding(data: { token: string }
 
   if (!intakeLink || intakeLink.target !== "OWNER" || !intakeLink.clientId) {
     return { success: false, notified: false, reason: "invalid-intake-link" as const };
-  }
-
-  if (authResult.client.id !== intakeLink.clientId) {
-    return { success: false, notified: false, reason: "client-mismatch" as const };
   }
 
   const existingNotification = await prisma.notification.findFirst({
