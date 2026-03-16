@@ -7,8 +7,8 @@ export const sendNotificationEmail = inngest.createFunction(
   { event: "email/notification.send" },
   async ({ event, step }) => {
     await step.run("send-notification-email", async () => {
-      await resendSendEmail({
-        from: "Support BailNotarie <support@bailnotarie.fr>",
+      const result = await resendSendEmail({
+        from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.to,
         subject: "Nouvelle notification - BailNotarie",
         react: MailNotification({
@@ -17,6 +17,12 @@ export const sendNotificationEmail = inngest.createFunction(
           interfaceUrl: event.data.interfaceUrl,
         }),
       });
+
+      if (result.error) {
+        throw new Error(`Erreur Resend: ${result.error.message}`);
+      }
+
+      return result;
     });
   }
 );
