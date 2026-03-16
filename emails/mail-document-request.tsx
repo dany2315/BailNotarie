@@ -29,8 +29,16 @@ export default function MailDocumentRequest({
   requestTitle,
   requestContent,
   bailAddress,
-  chatUrl
+  chatUrl: chatUrlProp
 }: MailDocumentRequestProps) {
+  // Lien toujours complet (absolu) pour que le clic dans l'email fonctionne partout
+  const chatUrl =
+    typeof chatUrlProp === "string" && chatUrlProp.trim().length > 0
+      ? chatUrlProp.startsWith("http://") || chatUrlProp.startsWith("https://")
+        ? chatUrlProp.trim()
+        : `${EMAIL_BASE_URL.replace(/\/$/, "")}/${chatUrlProp.trim().replace(/^\//, "")}`
+      : EMAIL_BASE_URL;
+
   return (
     <Html>
       <Head />
@@ -108,7 +116,7 @@ export default function MailDocumentRequest({
               margin: "0 0 16px 0",
               textAlign: "center"
             }}>
-              📄 Demande de document
+              Demande de document
             </Heading>
             
             <Text style={{ 

@@ -14,10 +14,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.bailnotarie.fr"),
   title: {
-    default: "Bail notarié en ligne : prix, procédure et force exécutoire | BailNotarie",
+    default: "Bail notarié en ligne : prix, procédure et force exécutoire bail authentique | BailNotarie",
     template: "%s | BailNotarie"
   },
-  description: "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
+  description: "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire bail authentique. Sécurisez votre location partout en France.",
   keywords: [
     "bail notarié",
     "bail notarié en ligne",

@@ -31,6 +31,7 @@ import { formatDateTime } from "@/lib/utils/formatters";
 import { Role, BailMessageType, NotaireRequestStatus } from "@prisma/client";
 import { useSession } from "@/lib/auth-client";
 import { Input } from "@/components/ui/input";
+import { FileUpload } from "@/components/ui/file-upload";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -164,18 +165,6 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
   const [isResponding, setIsResponding] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [responseFiles, setResponseFiles] = useState<File[]>([]);
-  const responseFileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleResponseFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      setResponseFiles(prev => [...prev, ...files]);
-    }
-  };
-
-  const removeResponseFile = (index: number) => {
-    setResponseFiles(prev => prev.filter((_, i) => i !== index));
-  };
 
   const handleResponseSubmit = async () => {
     if (responseFiles.length === 0) {
@@ -188,29 +177,22 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
     try {
       setIsResponding(true);
       setUploadProgress(0);
-      
-      // Récupérer le bailId depuis la demande (nécessaire pour générer les URLs signées)
-      // On va utiliser une approche différente : uploader chaque fichier vers S3 puis créer les documents
-      const uploadedFiles: Array<{ fileKey: string; fileName: string; mimeType: string; size: number }> = [];
-      
-      // Calculer la progression totale (chaque fichier = 100%)
-      const progressPerFile = 100 / responseFiles.length;
-      let currentProgress = 0;
 
-      // Uploader chaque fichier vers S3
-      for (let i = 0; i < responseFiles.length; i++) {
-        const file = responseFiles[i];
+      const uploadedFiles: Array<{ fileKey: string; fileName: string; mimeType: string; size: number }> = [];
+      const progressPerFile = 100 / responseFiles.length;
+
+      for (let index = 0; index < responseFiles.length; index++) {
+        const file = responseFiles[index];
         const fileProgress = (progress: number) => {
-          const fileProgressValue = (i * progressPerFile) + (progress * progressPerFile / 100);
+          const fileProgressValue = index * progressPerFile + (progress * progressPerFile) / 100;
           setUploadProgress(Math.min(fileProgressValue, 100));
         };
 
-        // 1. Récupérer l'URL signée S3
         const tokenResponse = await fetch("/api/blob/generate-upload-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            bailId: bailId,
+            bailId,
             fileName: file.name,
             contentType: file.type || "application/octet-stream",
           }),
@@ -222,19 +204,16 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
         }
 
         const { signedUrl, fileKey } = await tokenResponse.json();
-
-        // 2. Uploader directement vers S3
         await uploadFileToS3(file, signedUrl, fileProgress);
 
         uploadedFiles.push({
-          fileKey, // Clé S3 (pas l'URL complète)
+          fileKey,
           fileName: file.name,
           mimeType: file.type || "application/octet-stream",
           size: file.size,
         });
       }
 
-      // 3. Créer les documents dans la DB via l'API
       const createResponse = await fetch("/api/notaire-requests/add-document-with-s3", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -248,13 +227,9 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
         const error = await createResponse.json();
         throw new Error(error.error || "Erreur lors de la création des documents");
       }
-      
+
       toast.success(`${responseFiles.length} document${responseFiles.length > 1 ? "s" : ""} ajouté${responseFiles.length > 1 ? "s" : ""} à la demande`);
       setResponseFiles([]);
-      if (responseFileInputRef.current) {
-        responseFileInputRef.current.value = "";
-      }
-      
       setUploadProgress(0);
       onSuccess?.();
     } catch (error: any) {
@@ -268,89 +243,44 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
   };
 
   return (
-    <div className="mt-3 space-y-2 border-t pt-3">
-      <Label className="text-xs font-medium">Répondre avec des documents</Label>
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => responseFileInputRef.current?.click()}
-            disabled={isResponding}
-            className="flex-1"
-          >
-            <Paperclip className="mr-2 h-4 w-4" />
-            Choisir des fichiers
-          </Button>
-          <input
-            ref={responseFileInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-            onChange={handleResponseFileSelect}
-            disabled={isResponding}
-            className="hidden"
-            multiple
-          />
-        </div>
-        {responseFiles.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-xs text-muted-foreground">
-              {responseFiles.length} fichier{responseFiles.length > 1 ? "s" : ""} sélectionné{responseFiles.length > 1 ? "s" : ""}
+    <div className="mt-3 space-y-3 border-t pt-3">
+      <FileUpload
+        label="Répondre avec des documents"
+        files={responseFiles}
+        onFilesChange={setResponseFiles}
+        multiple
+        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+        disabled={isResponding}
+      />
+      <div className="space-y-2">
+        {isResponding && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Upload en cours...</span>
+              <span>{Math.round(uploadProgress)}%</span>
             </div>
-            <div className="space-y-1 max-h-24 overflow-y-auto">
-              {responseFiles.map((file, index) => (
-                <div key={index} className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 p-1.5 rounded">
-                  <FileText className="h-3 w-3 shrink-0" />
-                  <span className="flex-1 truncate">{file.name}</span>
-                  <span className="text-xs shrink-0">
-                    ({(file.size / 1024).toFixed(0)} KB)
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0 shrink-0 hover:bg-destructive/10"
-                    onClick={() => removeResponseFile(index)}
-                    disabled={isResponding}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-2">
-              {isResponding && (
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Upload en cours...</span>
-                    <span>{Math.round(uploadProgress)}%</span>
-                  </div>
-                  <Progress value={uploadProgress} className="h-2" />
-                </div>
-              )}
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleResponseSubmit}
-                disabled={isResponding}
-                className="w-full"
-              >
-                {isResponding ? (
-                  <>
-                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                    Envoi en cours...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-3 w-3" />
-                    Envoyer {responseFiles.length} fichier{responseFiles.length > 1 ? "s" : ""}
-                  </>
-                )}
-              </Button>
-            </div>
+            <Progress value={uploadProgress} className="h-2" />
           </div>
         )}
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleResponseSubmit}
+          disabled={isResponding || responseFiles.length === 0}
+          className="w-full"
+        >
+          {isResponding ? (
+            <>
+              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+              Envoi en cours...
+            </>
+          ) : (
+            <>
+              <Send className="mr-2 h-3 w-3" />
+              Envoyer {responseFiles.length} fichier{responseFiles.length > 1 ? "s" : ""}
+            </>
+          )}
+        </Button>
       </div>
     </div>
   );
@@ -359,11 +289,13 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
 interface BailChatSheetProps {
   bailId: string;
   trigger?: React.ReactNode;
+  /** Ouvrir le chat à l'affichage (ex. depuis "Répondre" sur une demande du notaire) */
+  defaultOpen?: boolean;
 }
 
-export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
+export function BailChatSheet({ bailId, trigger, defaultOpen = false }: BailChatSheetProps) {
   const { data: session } = useSession();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -1098,7 +1030,7 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
                 )}
                 <div className="flex-1 min-w-0">
                   <SheetTitle className="text-lg">
-                    {otherUser ? (`Maître ${otherUser.name}` || otherUser.email || "Utilisateur") : "Discussion sur le bail"} 
+                    {otherUser ? (`Maitre ${otherUser.name}` || otherUser.email || "Utilisateur") : "Discussion sur le bail"} 
                     {otherUser && <Badge variant="outline" className="text-xs font-light text-muted-foreground ml-2">Notaire</Badge>}
                   </SheetTitle>
                   <div className="flex items-center gap-2 mt-1">
@@ -1626,4 +1558,5 @@ export function BailChatSheet({ bailId, trigger }: BailChatSheetProps) {
     </Sheet>
   );
 }
+
 

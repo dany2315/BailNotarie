@@ -8,15 +8,15 @@ export function Blog11Content() {
   return (
     <article>
       <section aria-labelledby="definition-bail-authentique">
-        <p className="text-lg text-gray-700 mb-4 leading-relaxed">
-          Le <strong>bail authentique</strong> est un <strong>bail notarie</strong> : il s'agit d'un
-          <strong> bail de location en France</strong> redige et signe devant notaire, sous forme
-          d'<strong>acte authentique</strong>.
-        </p>
-        <p className="text-gray-700 mb-6">
-          Cette forme apporte une <strong>force executoire</strong> qui facilite le recouvrement en
-          cas d'impayes, tout en renforcant la securite juridique du bailleur et du locataire.
-        </p>
+      <p className="text-lg text-gray-700 mb-4 leading-relaxed">
+        Le <strong>bail authentique</strong> est un <strong>bail de location en France</strong>
+        rédigé et signé devant notaire, sous forme d’<strong>acte authentique</strong>
+        (aussi appelé <strong>bail notarié</strong>).
+      </p>
+      <p className="text-gray-700 mb-6">
+        Il renforce la sécurité juridique et peut faciliter l’exécution du contrat en cas d’impayés,
+        notamment grâce à la <strong>force exécutoire</strong> lorsqu’elle s’applique.
+      </p>
       </section>
 
       <section aria-labelledby="reponse-rapide-bail-authentique" className="my-8">
@@ -25,9 +25,8 @@ export function Blog11Content() {
             Reponse rapide : c'est quoi un bail authentique chez le notaire ?
           </h2>
           <p className="text-gray-700">
-            C'est un bail notarie signe devant notaire. Il a la valeur d'un acte authentique, avec
-            date certaine, preuve renforcee et possibilites d'execution plus rapides qu'un bail
-            classique en cas de manquement.
+            C’est un bail signé devant notaire, sous forme d’acte authentique : date certaine,
+            preuve renforcée, et exécution plus efficace qu’un bail classique selon la situation.
           </p>
         </div>
       </section>

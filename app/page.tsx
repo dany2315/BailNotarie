@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
+import { Metadata } from "next";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Header } from "@/components/header";
 import { HeroSectionNew } from "@/components/hero-section-new";
 import { Footer } from "@/components/footer";
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
+import { DefinitionSection } from "@/components/DefinitionSection";
 
 // Lazy load des sections below-the-fold pour améliorer le LCP
 const HowItWorksSection = dynamic(() => import("@/components/how-it-works-section").then(mod => ({ default: mod.HowItWorksSection })));
@@ -23,7 +25,9 @@ export default function Home() {
       
       {/* Hero Section - Solution 100% en ligne */}
       <HeroSectionNew />
-      
+
+      {/* Definition Section */}
+      <DefinitionSection />
       {/* Comment ça marche - 3 étapes */}
       <HowItWorksSection />
       

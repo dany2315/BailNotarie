@@ -17,7 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { ClientType, BailStatus, ProfilType } from "@prisma/client";
 import { CommentsDrawer } from "@/components/comments/comments-drawer";
-import { DocumentsList } from "@/components/leases/documents-list";
+import { DocumentsStackByKind } from "@/components/documents/documents-stack-by-kind";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { DeletePropertyButton } from "@/components/properties/delete-property-button";
 import { documentKindLabels } from "@/lib/utils/document-labels";
@@ -288,11 +288,11 @@ export default async function PropertyDetailPage({
 
           <Separator />
 
-          {/* Section Documents */}
+          {/* Section Documents — stack par type comme intake */}
           {propertyDocuments.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Documents du bien ({propertyDocuments.length})</p>
-              <DocumentsList
+              <DocumentsStackByKind
                 documents={propertyDocuments}
                 documentKindLabels={documentKindLabels}
               />
@@ -440,10 +440,10 @@ export default async function PropertyDetailPage({
 
           <Separator />
 
-          {/* Section Documents */}
+          {/* Section Documents — stack par type comme intake */}
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Documents du propriétaire ({ownerDocuments.length})</p>
-            <DocumentsList
+            <DocumentsStackByKind
               documents={ownerDocuments}
               documentKindLabels={documentKindLabels}
             />

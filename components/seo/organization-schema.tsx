@@ -178,10 +178,6 @@ export function OrganizationSchema({
     },
     "review": reviews.map(review => ({
       "@type": "Review",
-      "itemReviewed": {
-        "@type": "Organization",
-        "name": name
-      },
       "author": {
         "@type": "Person",
         "name": review.author

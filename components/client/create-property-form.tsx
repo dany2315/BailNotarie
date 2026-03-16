@@ -15,8 +15,6 @@ import { Separator } from "@/components/ui/separator";
 import { FileUpload } from "@/components/ui/file-upload";
 import { createProperty } from "@/lib/actions/properties";
 import { getDocuments } from "@/lib/actions/documents";
-import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
-import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 import {
   Loader2,
   ArrowLeft,
@@ -40,10 +38,6 @@ import {
   InfoIcon,
   CheckCircle2,
   FileText,
-  File,
-  Eye,
-  Download,
-  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { BienType, BienLegalStatus, DocumentKind } from "@prisma/client";
@@ -56,10 +50,9 @@ import {
 } from "@/components/ui/select";
 import { createPropertySchema } from "@/lib/zod/property";
 import { deleteDocument } from "@/lib/actions/documents";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import type { AddressData } from "@/lib/types/address";
-
+import { DocumentStackList } from "@/components/documents/document-stack-list";
 // Type pour le formulaire - correspond au schéma d'entrée avec valeurs par défaut appliquées
 type CreatePropertyFormData = {
   label?: string;
@@ -131,180 +124,134 @@ interface CreatePropertyFormProps {
   onUploadingChange?: (isUploading: boolean) => void;
 }
 
-// Composant pour afficher un document uploadé pour une propriété
-function PropertyDocumentUploaded({ 
-  propertyId, 
-  documentKind, 
-  children 
-}: { 
-  propertyId: string | null; 
-  documentKind: DocumentKind; 
-  children: React.ReactNode;
+// Bloc document bien : même rendu que formulaire intake / interface client.
+// Label → FileUpload (compact si documents existent) → DocumentStackList.
+function PropertyDocumentUploaded({
+  propertyId,
+  documentKind,
+  label,
+  ownerId,
+  onUploadStateChange,
+  required = false,
+  disabled = false,
+}: {
+  propertyId: string | null;
+  documentKind: DocumentKind;
+  label: string;
+  ownerId: string;
+  onUploadStateChange?: (uploading: boolean, propertyId?: string) => void;
+  required?: boolean;
+  disabled?: boolean;
 }) {
-  const [document, setDocument] = useState<any | null>(null);
+  const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [isLoadingSignedUrl, setIsLoadingSignedUrl] = useState(false);
-  const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!propertyId) {
-      setDocument(null);
-      return;
-    }
-
-    const loadDocument = async () => {
+    const loadDocuments = async () => {
       setLoading(true);
       try {
-        const docs = await getDocuments({ propertyId });
-        const foundDoc = docs.find((d: any) => d.kind === documentKind);
-        setDocument(foundDoc || null);
-      } catch (error) {
-        console.error("Erreur lors du chargement du document:", error);
+        if (propertyId) {
+          const docs = await getDocuments({ propertyId });
+          setDocuments(
+            docs
+              .filter((d: any) => d.kind === documentKind)
+              .sort(
+                (a: any, b: any) =>
+                  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              )
+          );
+        } else if (ownerId) {
+          // Bien pas encore créé : documents rattachés au client (owner)
+          const docs = await getDocuments({ clientId: ownerId });
+          setDocuments(
+            docs
+              .filter(
+                (d: any) =>
+                  d.kind === documentKind &&
+                  (d.propertyId === null || d.propertyId === undefined)
+              )
+              .sort(
+                (a: any, b: any) =>
+                  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              )
+          );
+        } else {
+          setDocuments([]);
+        }
+      } catch (loadError) {
+        console.error("Erreur lors du chargement des documents:", loadError);
       } finally {
         setLoading(false);
       }
     };
 
-    loadDocument();
+    loadDocuments();
 
-    // Écouter les événements de rechargement
-    const handleRefresh = () => {
-      loadDocument();
-    };
-    window.addEventListener(`document-uploaded-property-${propertyId}`, handleRefresh);
-    
-    return () => {
-      window.removeEventListener(`document-uploaded-property-${propertyId}`, handleRefresh);
-    };
-  }, [propertyId, documentKind]);
-
-  const handleViewDocument = async (doc: any) => {
-    setSelectedDocument(doc);
-    setIsViewerOpen(true);
-    setIsLoadingSignedUrl(true);
-    
-    try {
-      const response = await fetch("/api/blob/get-signed-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey: doc.fileKey }),
-      });
-      if (response.ok) {
-        const { signedUrl } = await response.json();
-        setSignedUrl(signedUrl);
-      } else {
-        // Fallback : générer l'URL publique depuis la clé S3
-        const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
-        setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
-      }
-    } catch (error) {
-      // Fallback : générer l'URL publique depuis la clé S3
-      const { getS3PublicUrl } = await import("@/hooks/use-s3-public-url");
-      setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
-    } finally {
-      setIsLoadingSignedUrl(false);
+    const handleRefresh = () => loadDocuments();
+    if (propertyId) {
+      window.addEventListener(`document-uploaded-property-${propertyId}`, handleRefresh);
+      return () =>
+        window.removeEventListener(`document-uploaded-property-${propertyId}`, handleRefresh);
     }
-  };
+    if (ownerId) {
+      window.addEventListener(`document-uploaded-client-${ownerId}`, handleRefresh);
+      return () =>
+        window.removeEventListener(`document-uploaded-client-${ownerId}`, handleRefresh);
+    }
+  }, [propertyId, ownerId, documentKind]);
 
-  const handleDelete = async () => {
-    if (!document) return;
-    setIsDeleting(true);
+  const handleDelete = async (documentId: string) => {
+    setDeletingId(documentId);
     try {
-      await deleteDocument(document.id);
+      await deleteDocument(documentId);
       toast.success("Document supprimé avec succès");
-      setDocument(null);
-      window.dispatchEvent(new CustomEvent(`document-uploaded-property-${propertyId}`));
-    } catch (error: any) {
-      toast.error(error.message || "Erreur lors de la suppression");
+      setDocuments((current) => current.filter((document) => document.id !== documentId));
+      if (propertyId) {
+        window.dispatchEvent(new CustomEvent(`document-uploaded-property-${propertyId}`));
+      } else if (ownerId) {
+        window.dispatchEvent(new CustomEvent(`document-uploaded-client-${ownerId}`));
+      }
+    } catch (deleteError: any) {
+      toast.error(deleteError.message || "Erreur lors de la suppression");
     } finally {
-      setIsDeleting(false);
+      setDeletingId(null);
     }
   };
 
-  if (loading) {
-    return <div className="space-y-2">{children}</div>;
-  }
-
-  if (!document) {
-    return <>{children}</>;
-  }
+  const hasDocuments = documents.length > 0;
 
   return (
-    <>
-      <div className="p-3 border rounded-md bg-muted/50">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <File className="size-4" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{document.label || documentKind}</p>
-              <p className="text-xs text-muted-foreground">
-                {document.size ? `${(document.size / 1024).toFixed(2)} KB` : ""}
-                {document.createdAt && ` • ${new Date(document.createdAt).toLocaleDateString()}`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={() => handleViewDocument(document)}
-              disabled={isDeleting}
-            >
-              <Eye className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-destructive hover:text-destructive"
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
-              {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-            </Button>
-          </div>
-        </div>
+    <div className="min-w-0 w-full overflow-visible space-y-3">
+      <div className="space-y-2 min-w-0 overflow-visible">
+        <FileUpload
+          label={label}
+          multiple
+          accept="application/pdf,image/*"
+          disabled={disabled}
+          required={required}
+          documentKind={documentKind}
+          documentPropertyId={propertyId || undefined}
+          documentClientId={ownerId}
+          compact={hasDocuments}
+          onUploadComplete={() => {
+            if (propertyId) {
+              window.dispatchEvent(new CustomEvent(`document-uploaded-property-${propertyId}`));
+            } else if (ownerId) {
+              window.dispatchEvent(new CustomEvent(`document-uploaded-client-${ownerId}`));
+            }
+          }}
+          onUploadStateChange={(uploading) => onUploadStateChange?.(uploading, propertyId || undefined)}
+        />
       </div>
-
-      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>{selectedDocument?.label || "Aperçu du document"}</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4">
-            {isLoadingSignedUrl ? (
-              <div className="flex items-center justify-center h-[70vh]">
-                <Loader2 className="size-8 animate-spin" />
-              </div>
-            ) : selectedDocument?.mimeType?.includes("pdf") ? (
-              <iframe
-                src={getPdfPreviewUrl(
-                  signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey
-                )}
-                className="w-full h-[70vh] border rounded"
-                title={selectedDocument.label}
-              />
-            ) : selectedDocument?.mimeType?.includes("image") ? (
-              <img
-                src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
-                alt={selectedDocument.label}
-                className="max-w-full max-h-[70vh] mx-auto object-contain"
-              />
-            ) : (
-              <div className="text-center py-8">
-                <File className="size-16 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground">Aperçu non disponible</p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+      <div className="min-w-0 overflow-visible">
+        <DocumentStackList
+          documents={documents}
+          deletingId={deletingId}
+          onDelete={handleDelete}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -327,13 +274,6 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
     onUploadingChangeRef.current = onUploadingChange;
   }, [onLoadingChange, onPropertyCreated, onUploadingChange]);
   
-  // Refs pour les fichiers de documents
-  const diagnosticsRef = useRef<HTMLInputElement>(null);
-  const titleDeedRef = useRef<HTMLInputElement>(null);
-  const reglementCoproprieteRef = useRef<HTMLInputElement>(null);
-  const cahierChargeLotissementRef = useRef<HTMLInputElement>(null);
-  const statutAssociationSyndicaleRef = useRef<HTMLInputElement>(null);
-
   // Fonction pour gérer les changements d'état d'upload
   const handleUploadStateChange = useCallback((uploading: boolean, propertyId?: string) => {
     setUploadingCount((prev) => {
@@ -347,13 +287,6 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
   }, []);
 
   const isUploading = uploadingCount > 0;
-
-  // États pour les fichiers de documents
-  const [diagnosticsFile, setDiagnosticsFile] = useState<File | null>(null);
-  const [titleDeedFile, setTitleDeedFile] = useState<File | null>(null);
-  const [reglementCoproprieteFile, setReglementCoproprieteFile] = useState<File | null>(null);
-  const [cahierChargeLotissementFile, setCahierChargeLotissementFile] = useState<File | null>(null);
-  const [statutAssociationSyndicaleFile, setStatutAssociationSyndicaleFile] = useState<File | null>(null);
 
   const {
     register,
@@ -646,7 +579,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
               <p className="text-sm text-muted-foreground">
                 Cochez les équipements présents dans le bien. Pour louer en meublé, tous les équipements doivent être présents.
               </p>
-              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 ">
+              <div className="grid gap-3 grid-cols-1  ">
                 {FURNITURE_FIELDS.map(({ key, label, icon: Icon }) => (
                   <Controller
                     key={key}
@@ -713,139 +646,71 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
               <p className="text-sm text-muted-foreground">
                 Ajoutez les documents obligatoires pour votre bien. Certains documents sont requis selon le régime juridique.
               </p>
-              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                {/* Documents toujours requis */}
-                <PropertyDocumentUploaded 
-                  propertyId={createdPropertyId} 
-                  documentKind={DocumentKind.DIAGNOSTICS}
-                >
-                  <FileUpload
-                    label="Diagnostics *"
-                    value={diagnosticsFile}
-                    onChange={(file) => {
-                      setDiagnosticsFile(file);
-                      if (diagnosticsRef.current) {
-                        const dt = new DataTransfer();
-                        if (file) dt.items.add(file);
-                        diagnosticsRef.current.files = dt.files;
-                      }
-                    }}
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                {/* Documents toujours requis — même rendu que formulaire intake / interface client */}
+                <div className="min-w-0 w-full overflow-visible">
+                  <PropertyDocumentUploaded
+                    propertyId={createdPropertyId}
                     documentKind={DocumentKind.DIAGNOSTICS}
-                    documentPropertyId={createdPropertyId || undefined}
-                    documentClientId={ownerId}
-                    onUploadStateChange={(uploading) => {
-                      handleUploadStateChange(uploading, createdPropertyId || undefined);
-                    }}
+                    label="Diagnostics *"
+                    ownerId={ownerId}
+                    onUploadStateChange={handleUploadStateChange}
+                    required
+                    disabled={isLoading}
                   />
-                </PropertyDocumentUploaded>
-
-                <PropertyDocumentUploaded 
-                  propertyId={createdPropertyId} 
-                  documentKind={DocumentKind.TITLE_DEED}
-                >
-                  <FileUpload
-                    label="Titre de propriété *"
-                    value={titleDeedFile}
-                    onChange={(file) => {
-                      setTitleDeedFile(file);
-                      if (titleDeedRef.current) {
-                        const dt = new DataTransfer();
-                        if (file) dt.items.add(file);
-                        titleDeedRef.current.files = dt.files;
-                      }
-                    }}
+                </div>
+                <div className="min-w-0 w-full overflow-visible">
+                  <PropertyDocumentUploaded
+                    propertyId={createdPropertyId}
                     documentKind={DocumentKind.TITLE_DEED}
-                    documentPropertyId={createdPropertyId || undefined}
-                    documentClientId={ownerId}
-                    onUploadStateChange={(uploading) => {
-                      handleUploadStateChange(uploading, createdPropertyId || undefined);
-                    }}
+                    label="Titre de propriété *"
+                    ownerId={ownerId}
+                    onUploadStateChange={handleUploadStateChange}
+                    required
+                    disabled={isLoading}
                   />
-                </PropertyDocumentUploaded>
+                </div>
 
                 {/* Documents conditionnels - Copropriété */}
                 {legalStatus === BienLegalStatus.CO_PROPRIETE && (
-                  <PropertyDocumentUploaded 
-                    propertyId={createdPropertyId} 
-                    documentKind={DocumentKind.REGLEMENT_COPROPRIETE}
-                  >
-                    <FileUpload
-                      label="Règlement de copropriété *"
-                      value={reglementCoproprieteFile}
-                      onChange={(file) => {
-                        setReglementCoproprieteFile(file);
-                        if (reglementCoproprieteRef.current) {
-                          const dt = new DataTransfer();
-                          if (file) dt.items.add(file);
-                          reglementCoproprieteRef.current.files = dt.files;
-                        }
-                      }}
+                  <div className="min-w-0 w-full overflow-visible">
+                    <PropertyDocumentUploaded
+                      propertyId={createdPropertyId}
                       documentKind={DocumentKind.REGLEMENT_COPROPRIETE}
-                      documentPropertyId={createdPropertyId || undefined}
-                      documentClientId={ownerId}
-                      onUploadStateChange={(uploading) => {
-                        if (!uploading && createdPropertyId) {
-                          window.dispatchEvent(new CustomEvent(`document-uploaded-property-${createdPropertyId}`));
-                        }
-                      }}
+                      label="Règlement de copropriété *"
+                      ownerId={ownerId}
+                      onUploadStateChange={handleUploadStateChange}
+                      required
+                      disabled={isLoading}
                     />
-                  </PropertyDocumentUploaded>
+                  </div>
                 )}
 
                 {/* Documents conditionnels - Lotissement */}
                 {legalStatus === BienLegalStatus.LOTISSEMENT && (
                   <>
-                    <PropertyDocumentUploaded 
-                      propertyId={createdPropertyId} 
-                      documentKind={DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT}
-                    >
-                      <FileUpload
-                        label="Cahier des charges lotissement *"
-                        value={cahierChargeLotissementFile}
-                        onChange={(file) => {
-                          setCahierChargeLotissementFile(file);
-                          if (cahierChargeLotissementRef.current) {
-                            const dt = new DataTransfer();
-                            if (file) dt.items.add(file);
-                            cahierChargeLotissementRef.current.files = dt.files;
-                          }
-                        }}
+                    <div className="min-w-0 w-full overflow-visible">
+                      <PropertyDocumentUploaded
+                        propertyId={createdPropertyId}
                         documentKind={DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT}
-                        documentPropertyId={createdPropertyId || undefined}
-                        documentClientId={ownerId}
-                        onUploadStateChange={(uploading) => {
-                          if (!uploading && createdPropertyId) {
-                            window.dispatchEvent(new CustomEvent(`document-uploaded-property-${createdPropertyId}`));
-                          }
-                        }}
+                        label="Cahier des charges lotissement *"
+                        ownerId={ownerId}
+                        onUploadStateChange={handleUploadStateChange}
+                        required
+                        disabled={isLoading}
                       />
-                    </PropertyDocumentUploaded>
-
-                    <PropertyDocumentUploaded 
-                      propertyId={createdPropertyId} 
-                      documentKind={DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE}
-                    >
-                      <FileUpload
-                        label="Statut de l'association syndicale *"
-                        value={statutAssociationSyndicaleFile}
-                        onChange={(file) => {
-                          setStatutAssociationSyndicaleFile(file);
-                          if (statutAssociationSyndicaleRef.current) {
-                            const dt = new DataTransfer();
-                            if (file) dt.items.add(file);
-                            statutAssociationSyndicaleRef.current.files = dt.files;
-                          }
-                        }}
+                    </div>
+                    <div className="min-w-0 w-full overflow-visible">
+                      <PropertyDocumentUploaded
+                        propertyId={createdPropertyId}
                         documentKind={DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE}
-                        documentPropertyId={createdPropertyId || undefined}
-                        documentClientId={ownerId}
-                        onUploadStateChange={(uploading) => {
-                          if (!uploading && createdPropertyId) {
-                            window.dispatchEvent(new CustomEvent(`document-uploaded-property-${createdPropertyId}`));
-                          }
-                        }}
+                        label="Statut de l'association syndicale *"
+                        ownerId={ownerId}
+                        onUploadStateChange={handleUploadStateChange}
+                        required
+                        disabled={isLoading}
                       />
-                    </PropertyDocumentUploaded>
+                    </div>
                   </>
                 )}
               </div>
@@ -895,6 +760,10 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
 );
 
 CreatePropertyForm.displayName = "CreatePropertyForm";
+
+
+
+
 
 
 

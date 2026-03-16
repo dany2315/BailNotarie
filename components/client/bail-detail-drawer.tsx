@@ -56,6 +56,8 @@ interface BailDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
   bailId: string;
   onPropertyClick?: (propertyId: string) => void;
+  /** Ouvrir le chat à l'affichage du drawer (ex. depuis "Répondre" sur une demande du notaire) */
+  defaultOpenChat?: boolean;
 }
 
 export function BailDetailDrawer({
@@ -63,6 +65,7 @@ export function BailDetailDrawer({
   onOpenChange,
   bailId,
   onPropertyClick,
+  defaultOpenChat = false,
 }: BailDetailDrawerProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [bail, setBail] = useState<any>(null);
@@ -170,6 +173,7 @@ export function BailDetailDrawer({
                 {notaire && (
                   <BailChatSheet
                     bailId={bailId}
+                    defaultOpen={defaultOpenChat}
                     trigger={
                       <Button variant="outline" size="sm" className="w-full">
                         <MessageSquare className="mr-2 h-4 w-4" />

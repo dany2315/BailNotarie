@@ -5,7 +5,7 @@ import { requireAuth, requireProprietaireAuth } from "@/lib/auth-helpers";
 import { createPropertySchema, updatePropertySchema } from "@/lib/zod/property";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
-import { PropertyStatus, CompletionStatus, NotificationType, Role, ProfilType } from "@prisma/client";
+import { PropertyStatus, CompletionStatus, NotificationType, Role, ProfilType, DocumentKind } from "@prisma/client";
 import { updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus } from "@/lib/utils/completion-status";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
@@ -120,6 +120,23 @@ export async function createProperty(data: unknown) {
 
   // Mettre à jour le statut de complétion
   await calculateAndUpdatePropertyStatus(property.id);
+
+  // Réattacher au bien les documents "bien" uploadés avant création (rattachés au client)
+  const propertyDocumentKinds: DocumentKind[] = [
+    DocumentKind.DIAGNOSTICS,
+    DocumentKind.TITLE_DEED,
+    DocumentKind.REGLEMENT_COPROPRIETE,
+    DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT,
+    DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE,
+  ];
+  await prisma.document.updateMany({
+    where: {
+      clientId: validated.ownerId,
+      propertyId: null,
+      kind: { in: propertyDocumentKinds },
+    },
+    data: { propertyId: property.id },
+  });
 
   // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le bien)
   await createNotificationForAllUsers(

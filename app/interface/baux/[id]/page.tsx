@@ -16,8 +16,7 @@ import { formatDate, formatCurrency, formatSurface, formatDateTime } from "@/lib
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { DocumentsList } from "@/components/leases/documents-list";
-import { DocumentsListWithOwner } from "@/components/leases/documents-list-with-owner";
+import { DocumentsStackByKind } from "@/components/documents/documents-stack-by-kind";
 import { CommentsDrawer } from "@/components/comments/comments-drawer";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { TenantCreateButton } from "@/components/leases/tenant-create-button";
@@ -447,10 +446,10 @@ export default async function LeaseDetailPage({
                                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                                   Documents de {personName} ({personDocs.length})
                                 </p>
-                                <DocumentsListWithOwner
+                                <DocumentsStackByKind
                                   documents={personDocs}
                                   documentKindLabels={documentKindLabels}
-                                  ownerLabel={personName}
+                                  getOwnerLabel={() => personName}
                                 />
                               </div>
                             )}
@@ -516,10 +515,10 @@ export default async function LeaseDetailPage({
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                         Documents communs ({ownerCommonDocuments.length})
                       </p>
-                      <DocumentsListWithOwner
+                      <DocumentsStackByKind
                         documents={ownerCommonDocuments}
                         documentKindLabels={documentKindLabels}
-                        ownerLabel="Propriétaire"
+                        getOwnerLabel={() => "Propriétaire"}
                       />
                     </div>
                   </>
@@ -667,10 +666,10 @@ export default async function LeaseDetailPage({
                                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                                   Documents de {personName} ({personDocs.length})
                                 </p>
-                                <DocumentsListWithOwner
+                                <DocumentsStackByKind
                                   documents={personDocs}
                                   documentKindLabels={documentKindLabels}
-                                  ownerLabel={personName}
+                                  getOwnerLabel={() => personName}
                                 />
                               </div>
                             )}
@@ -736,10 +735,10 @@ export default async function LeaseDetailPage({
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                         Documents communs ({tenantCommonDocuments.length})
                       </p>
-                      <DocumentsListWithOwner
+                      <DocumentsStackByKind
                         documents={tenantCommonDocuments}
                         documentKindLabels={documentKindLabels}
-                        ownerLabel="Locataire"
+                        getOwnerLabel={() => "Locataire"}
                       />
                     </div>
                   </>
@@ -828,7 +827,7 @@ export default async function LeaseDetailPage({
               {/* Section Documents */}
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Documents du bien ({propertyDocuments.length})</p>
-                <DocumentsList
+                <DocumentsStackByKind
                   documents={propertyDocuments}
                   documentKindLabels={documentKindLabels}
                 />
@@ -851,7 +850,7 @@ export default async function LeaseDetailPage({
             <CardDescription>Documents associés au bail ({bailDocuments.length})</CardDescription>
           </CardHeader>
           <CardContent>
-            <DocumentsList
+            <DocumentsStackByKind
               documents={bailDocuments}
               documentKindLabels={documentKindLabels}
             />
