@@ -156,14 +156,20 @@ export async function POST(request: NextRequest) {
         targetEntrepriseId = client.entreprise.id;
       }
     }
-    // Documents bien (PROPERTY)
+    // Documents bien (PROPERTY) — en intake la propriété peut ne pas exister encore : rattacher au client pour que getIntakeDocuments les retourne
     else if (["DIAGNOSTICS", "TITLE_DEED", "REGLEMENT_COPROPRIETE", "CAHIER_DE_CHARGE_LOTISSEMENT", "STATUT_DE_LASSOCIATION_SYNDICALE"].includes(documentKind)) {
       targetPropertyId = finalPropertyId || null;
+      if (!targetPropertyId && finalClientId) {
+        targetClientId = finalClientId;
+      }
     }
-    // Documents INSURANCE et RIB : attachés au Property pour les propriétaires, au Client pour les locataires
+    // Documents INSURANCE et RIB : attachés au Property pour les propriétaires, au Client pour les locataires (ou client si pas encore de propriété)
     else if (documentKind === "INSURANCE" || documentKind === "RIB") {
       if (client && client.profilType === "PROPRIETAIRE") {
         targetPropertyId = finalPropertyId || null;
+        if (!targetPropertyId && finalClientId) {
+          targetClientId = finalClientId;
+        }
       } else {
         targetClientId = finalClientId;
       }
@@ -251,6 +257,7 @@ export async function POST(request: NextRequest) {
         fileKey: document.fileKey,
         mimeType: document.mimeType,
         size: document.size,
+        createdAt: document.createdAt?.toISOString?.() ?? new Date().toISOString(),
       },
     });
   } catch (error: any) {

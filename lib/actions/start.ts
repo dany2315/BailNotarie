@@ -80,6 +80,21 @@ export async function startAsOwner(data: StartOwnerInput) {
       // On continue même si la création du User échoue
     }
 
+    // Déclencher la notification ici pour éviter toute dépendance fragile
+    // à la session OTP côté client selon l'environnement.
+    try {
+      await createNotificationForAllUsers(
+        NotificationType.CLIENT_CREATED_FROM_LANDING_PAGE,
+        "CLIENT",
+        client.id,
+        null,
+        { createdByForm: true, profileType: ProfilType.PROPRIETAIRE }
+      );
+    } catch (error) {
+      console.error("Erreur lors de la création de la notification admin landing page:", error);
+      // On continue même si la notification échoue
+    }
+
     const token = randomBytes(32).toString("hex");
     const intakeLink = await prisma.intakeLink.create({
       data: {
@@ -90,14 +105,7 @@ export async function startAsOwner(data: StartOwnerInput) {
       },
     });
 
-    // Notification pour création de propriétaire
-    await createNotificationForAllUsers(
-      NotificationType.CLIENT_CREATED_FROM_LANDING_PAGE,
-      "CLIENT",
-      client.id,
-      null,
-      { createdByForm: true, profileType: ProfilType.PROPRIETAIRE }
-    );
+
 
     // L'email OTP sera envoyé côté client via Better Auth
     console.log(`[startAsOwner] Nouveau client créé. token=${intakeLink.token}, isExistingClient=false`);
@@ -160,6 +168,50 @@ export async function startAsOwner(data: StartOwnerInput) {
       isExistingClient: true,
     };
   }  
+}
+
+// Créer les intakeLinks pour un locataire et envoyer un email au propriétaire
+export async function notifyAdminsForNewOwnerFromLanding(data: { token: string }) {
+  const token = data.token?.trim();
+
+  if (!token) {
+    return { success: false, notified: false, reason: "missing-token" as const };
+  }
+
+  const intakeLink = await prisma.intakeLink.findUnique({
+    where: { token },
+    select: {
+      target: true,
+      clientId: true,
+    },
+  });
+
+  if (!intakeLink || intakeLink.target !== "OWNER" || !intakeLink.clientId) {
+    return { success: false, notified: false, reason: "invalid-intake-link" as const };
+  }
+
+  const existingNotification = await prisma.notification.findFirst({
+    where: {
+      type: NotificationType.CLIENT_CREATED_FROM_LANDING_PAGE,
+      targetType: "CLIENT",
+      targetId: intakeLink.clientId,
+    },
+    select: { id: true },
+  });
+
+  if (existingNotification) {
+    return { success: true, notified: false, reason: "already-notified" as const };
+  }
+
+  await createNotificationForAllUsers(
+    NotificationType.CLIENT_CREATED_FROM_LANDING_PAGE,
+    "CLIENT",
+    intakeLink.clientId,
+    null,
+    { createdByForm: true, profileType: ProfilType.PROPRIETAIRE }
+  );
+
+  return { success: true, notified: true };
 }
 
 // Créer les intakeLinks pour un locataire et envoyer un email au propriétaire

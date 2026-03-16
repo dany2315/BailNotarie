@@ -27,18 +27,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const document = await addDocumentToNotaireRequestWithS3Urls(
+    const documents = await addDocumentToNotaireRequestWithS3Urls(
       requestId,
       files
     );
 
     return NextResponse.json({
       success: true,
-      document: {
+      documents: documents.map((document: any) => ({
         id: document.id,
         label: document.label,
         fileKey: document.fileKey,
-      },
+      })),
     });
   } catch (error: any) {
     console.error("[notaire-requests/add-document-with-s3] Erreur:", error);
@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 
 
 

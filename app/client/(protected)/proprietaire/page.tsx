@@ -1,10 +1,10 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
-import { getProprietaireStats, getPendingNotaireRequests, getClientBails, getClientProperties } from "@/lib/actions/client-space";
+import { getProprietaireStats, getPendingNotaireRequests, getClientBails, getClientProperties, getActiveIntakeLinkForClient } from "@/lib/actions/client-space";
 import { ProfilType, BailStatus } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Home, CheckCircle, AlertCircle } from "lucide-react";
+import { Home, CheckCircle, AlertCircle, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { UnifiedStatusList } from "@/components/client/unified-status-list";
@@ -16,11 +16,12 @@ export const fetchCache = "force-no-store";
 export default async function ProprietaireDashboardPage() {
   const { user, client } = await requireProprietaireAuth();
   
-  const [stats, pendingRequests, baux, properties] = await Promise.all([
+  const [stats, pendingRequests, baux, properties, activeIntake] = await Promise.all([
     getProprietaireStats(client.id),
     getPendingNotaireRequests(client.id, ProfilType.PROPRIETAIRE),
     getClientBails(client.id, ProfilType.PROPRIETAIRE),
     getClientProperties(client.id),
+    getActiveIntakeLinkForClient(client.id),
   ]);
 
   return (
@@ -104,7 +105,7 @@ export default async function ProprietaireDashboardPage() {
                       </p>
                     </div>
                     {request.bail ? (
-                      <Link href={`/client/proprietaire/baux/${request.bail.id}`}>
+                      <Link href={`/client/proprietaire/demandes?open=bail-${request.bail.id}&chat=1`}>
                         <Button variant="outline" size="sm">
                           Répondre
                         </Button>
@@ -122,7 +123,8 @@ export default async function ProprietaireDashboardPage() {
         </Card>
       )}
 
-      {pendingRequests.length === 0 && (
+      {/* Si aucun formulaire en cours : on garde la card des demandes du notaire (ou "Aucune demande") */}
+      {pendingRequests.length === 0 && !activeIntake && (
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-sm text-muted-foreground">
@@ -132,13 +134,37 @@ export default async function ProprietaireDashboardPage() {
         </Card>
       )}
 
-      {/* Liste unifiée des biens et baux avec filtres */}
-      <UnifiedStatusList 
-        properties={properties}
-        bails={baux} 
-        profilType={ProfilType.PROPRIETAIRE}
-        basePath="/client/proprietaire"
-      />
+      {/* Si formulaire en cours : on affiche uniquement le lien. Sinon : on garde la card demandes du notaire + statut des éléments */}
+      {activeIntake ? (
+        <Card>
+          <CardHeader>
+            <div className="flex items-start gap-4">
+              <ClipboardList className="h-8 w-8 text-primary" />
+              <div>
+                <CardTitle>Demande incomplète</CardTitle>
+                <CardDescription>
+                  Votre dossier ne peut pas avancer sans les informations manquantes.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex justify-end">
+            <Button asChild>
+              <Link href={activeIntake.intakeUrl}>
+                Finaliser ma demande
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        /* Aucun formulaire en cours : on affiche le statut de mes éléments */
+        <UnifiedStatusList 
+          properties={properties}
+          bails={baux} 
+          profilType={ProfilType.PROPRIETAIRE}
+          basePath="/client/proprietaire"
+        />
+      )}
     </div>
   );
 }

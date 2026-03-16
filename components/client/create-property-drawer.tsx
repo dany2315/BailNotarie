@@ -125,7 +125,7 @@ export function CreatePropertyDrawer({
             Remplissez les informations pour créer un nouveau bien immobilier
           </DrawerDescription>
         </DrawerHeader>
-        <div className="flex-1 overflow-y-auto px-4">
+        <div className="flex-1 overflow-y-auto overflow-x-visible px-4 min-w-0">
           <CreatePropertyForm
             ref={formRef}
             ownerId={ownerId}

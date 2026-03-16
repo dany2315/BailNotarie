@@ -136,6 +136,8 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
   const [isBailDrawerOpen, setIsBailDrawerOpen] = useState(false);
   const [isBailDetailDrawerOpen, setIsBailDetailDrawerOpen] = useState(false);
   const [selectedBailId, setSelectedBailId] = useState<string | null>(null);
+  /** Quand défini, le chat du drawer bail s'ouvre à l'affichage (lien "Répondre" depuis le dashboard) */
+  const [openChatWithBailId, setOpenChatWithBailId] = useState<string | null>(null);
   const [isPropertyDetailDrawerOpen, setIsPropertyDetailDrawerOpen] = useState(false);
   const [selectedPropertyDetailId, setSelectedPropertyDetailId] = useState<string | null>(null);
   const [localBiens, setLocalBiens] = useState(biens);
@@ -187,9 +189,11 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
       setIsBailDrawerOpen(true);
     } else if (open?.startsWith("bail-")) {
       const bailId = open.replace("bail-", "");
+      const wantChat = searchParams.get("chat") === "1";
       if (selectedBailId !== bailId) {
         lastProcessedOpenParam.current = open;
         setSelectedBailId(bailId);
+        setOpenChatWithBailId(wantChat ? bailId : null);
         setIsBailDetailDrawerOpen(true);
       }
     } else if (open?.startsWith("bien-")) {
@@ -660,8 +664,12 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
       {selectedBailId && (
         <BailDetailDrawer
           open={isBailDetailDrawerOpen}
-          onOpenChange={setIsBailDetailDrawerOpen}
+          onOpenChange={(open) => {
+            if (!open) setOpenChatWithBailId(null);
+            setIsBailDetailDrawerOpen(open);
+          }}
           bailId={selectedBailId}
+          defaultOpenChat={openChatWithBailId === selectedBailId}
           onPropertyClick={(propertyId) => {
             setIsBailDetailDrawerOpen(false);
             setSelectedPropertyId(propertyId);

@@ -421,7 +421,7 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                         Remplissez les informations pour créer un nouveau bien immobilier
                       </DrawerDescription>
                     </DrawerHeader>
-                    <div className="no-scrollbar overflow-y-auto px-4">
+                    <div className="no-scrollbar overflow-y-auto overflow-x-visible px-4 min-w-0">
                       <CreatePropertyForm 
                         ref={propertyFormRef}
                         ownerId={ownerId}

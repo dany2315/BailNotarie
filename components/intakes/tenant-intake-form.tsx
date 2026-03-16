@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { submitIntake, savePartialIntake, getIntakeLinkByToken } from "@/lib/actions/intakes";
+import { submitIntake, savePartialIntake, getIntakeLinkByToken, getIntakeDocuments } from "@/lib/actions/intakes";
 import { DocumentUploaded } from "./document-uploaded";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -243,6 +243,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isFileUploading, setIsFileUploading] = useState(false);
+  const hasMountedCurrentStepRef = useRef(false);
   const [submissionProgress, setSubmissionProgress] = useState({
     step: 0,
     totalSteps: 4,
@@ -252,6 +253,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   
   // États pour stocker les données qui peuvent être rafraîchies après l'upload
   const [intakeLink, setIntakeLink] = useState(initialIntakeLink);
+
+  useEffect(() => {
+    if (!hasMountedCurrentStepRef.current) {
+      hasMountedCurrentStepRef.current = true;
+      return;
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentStep]);
 
   // Fonction pour gérer les changements d'état d'upload
   const handleUploadStateChange = (isUploading: boolean) => {
@@ -1278,7 +1288,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   
     // 1. Validation
     if (stepId === "documents") {
-      const filesCheck = validateRequiredFiles();
+      const filesCheck = await validateRequiredFiles();
       if (!filesCheck.isValid) {
         toast.error("Veuillez joindre tous les documents requis", {
           description: filesCheck.errors.join(", "),
@@ -1464,11 +1474,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   };
 
 
-  const validateRequiredFiles = (): { isValid: boolean; errors: string[] } => {
+  const validateRequiredFiles = async (): Promise<{ isValid: boolean; errors: string[] }> => {
     const errors: string[] = [];
     const currentClientType = clientType;
     const values = getValues();
     const persons = values.persons || [];
+    const uploadedDocuments = await getIntakeDocuments(intakeLink.token).catch((error) => {
+      console.error("[TenantIntakeForm] Erreur lors de la récupération des documents pour validation:", error);
+      return [];
+    });
 
     // Validation selon le type de client
     if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
@@ -1477,8 +1491,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         const personRef = personDocumentRefs.current[index];
         const personFiles = personDocumentFiles[index];
         const personDocs = intakeLink.client?.persons?.[index]?.documents || [];
+        const personUploadedDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === index);
         
         const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
+          personUploadedDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
           personRef?.idIdentity.current?.files?.[0] || personFiles?.idIdentity;
         
         if (!hasIdIdentity) {
@@ -1490,9 +1506,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const primaryPerson = persons[0];
       const familyStatus = primaryPerson?.familyStatus;
       const clientDocs = intakeLink.client?.documents || [];
+      const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === undefined);
       
       if (familyStatus === FamilyStatus.MARIE) {
         const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
+          uploadedClientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
           livretDeFamilleRef.current?.files?.[0] || livretDeFamilleFile;
         if (!hasLivret) {
           errors.push("Le livret de famille est requis");
@@ -1500,6 +1518,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
       if (familyStatus === FamilyStatus.PACS) {
         const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
+          uploadedClientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
           contratDePacsRef.current?.files?.[0] || contratDePacsFile;
         if (!hasPacs) {
           errors.push("Le contrat de PACS est requis");
@@ -1507,9 +1526,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
       const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
+      const uploadedEntrepriseDocs = uploadedDocuments.filter((doc: any) => doc.kind === "KBIS" || doc.kind === "STATUTES");
       const hasKbis = entrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
+        uploadedEntrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
         kbisRef.current?.files?.[0] || kbisFile;
       const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
+        uploadedEntrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
         statutesRef.current?.files?.[0] || statutesFile;
       
       if (!hasKbis) {
@@ -1522,9 +1544,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
     // Validation des documents du client (assurance et RIB - toujours requis)
     const clientDocs = intakeLink.client?.documents || [];
+    const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === undefined);
     const hasInsurance = clientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
+      uploadedClientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
       insuranceTenantRef.current?.files?.[0] || insuranceTenantFile;
     const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB") ||
+      uploadedClientDocs.some((doc: any) => doc.kind === "RIB") ||
       ribTenantRef.current?.files?.[0] || ribTenantFile;
     
     if (!hasInsurance) {
@@ -1553,7 +1578,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       await refreshIntakeLinkData();
       
       // Étape 2: Validation des documents
-      const fileValidation = validateRequiredFiles();
+      const fileValidation = await validateRequiredFiles();
       if (!fileValidation.isValid) {
         toast.error("Veuillez joindre tous les documents requis", {
           description: fileValidation.errors.join(", "),
@@ -2521,44 +2546,50 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             <h3 className="text-lg font-semibold">Documents Locataire *</h3>
             {clientType === ClientType.PERSONNE_MORALE ? (
               <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                <DocumentUploaded token={intakeLink.token} documentKind="KBIS">
-                  <FileUpload
-                    label="KBIS *"
-                    value={kbisFile}
-                    onChange={(file) => {
-                      setKbisFile(file);
-                      if (kbisRef.current) {
-                        const dt = new DataTransfer();
-                        if (file) dt.items.add(file);
-                        kbisRef.current.files = dt.files;
-                      }
-                    }}
-                    disabled={isSubmitting}
-                    uploadToken={intakeLink.token}
-                    documentKind="KBIS"
-                    documentClientId={client?.id}
-                    onUploadStateChange={handleUploadStateChange}
-                  />
-                </DocumentUploaded>
-                <DocumentUploaded token={intakeLink.token} documentKind="STATUTES">
-                  <FileUpload
-                    label="Statuts *"
-                    value={statutesFile}
-                    onChange={(file) => {
-                      setStatutesFile(file);
-                      if (statutesRef.current) {
-                        const dt = new DataTransfer();
-                        if (file) dt.items.add(file);
-                        statutesRef.current.files = dt.files;
-                      }
-                    }}
-                    disabled={isSubmitting}
-                    uploadToken={intakeLink.token}
-                    documentKind="STATUTES"
-                    documentClientId={client?.id}
-                    onUploadStateChange={handleUploadStateChange}
-                  />
-                </DocumentUploaded>
+                <div className="min-w-0 w-full overflow-visible">
+                  <DocumentUploaded token={intakeLink.token} documentKind="KBIS">
+                    <FileUpload
+                      label="KBIS *"
+                      multiple
+                      value={kbisFile}
+                      onChange={(file) => {
+                        setKbisFile(file);
+                        if (kbisRef.current) {
+                          const dt = new DataTransfer();
+                          if (file) dt.items.add(file);
+                          kbisRef.current.files = dt.files;
+                        }
+                      }}
+                      disabled={isSubmitting || isFileUploading}
+                      uploadToken={intakeLink.token}
+                      documentKind="KBIS"
+                      documentClientId={client?.id}
+                      onUploadStateChange={handleUploadStateChange}
+                    />
+                  </DocumentUploaded>
+                </div>
+                <div className="min-w-0 w-full overflow-visible">
+                  <DocumentUploaded token={intakeLink.token} documentKind="STATUTES">
+                    <FileUpload
+                      label="Statuts *"
+                      multiple
+                      value={statutesFile}
+                      onChange={(file) => {
+                        setStatutesFile(file);
+                        if (statutesRef.current) {
+                          const dt = new DataTransfer();
+                          if (file) dt.items.add(file);
+                          statutesRef.current.files = dt.files;
+                        }
+                      }}
+                      disabled={isSubmitting || isFileUploading}
+                      uploadToken={intakeLink.token}
+                      documentKind="STATUTES"
+                      documentClientId={client?.id}
+                      onUploadStateChange={handleUploadStateChange}
+                    />
+                  </DocumentUploaded>
+                </div>
               </div>
             ) : (
               <>
@@ -2571,38 +2602,41 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   const personFiles = personDocumentFiles[index] || { idIdentity: null };
                   
                   return (
-                    <div key={index} className="space-y-4 border rounded-lg p-4">
+                    <div key={index} className="space-y-4 border rounded-lg p-4 min-w-0 w-full overflow-visible">
                       <h4 className="text-md font-medium">
                         Documents de {personName} {index === 0 && "(Principale)"} *
                       </h4>
                       <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                        <DocumentUploaded 
-                          token={intakeLink.token} 
-                          documentKind="ID_IDENTITY"
-                          personIndex={index}
-                        >
-                          <FileUpload
-                            label="Pièce d'identité *"
-                            value={personFiles.idIdentity}
-                            onChange={(file) => {
-                              setPersonDocumentFiles(prev => ({
-                                ...prev,
-                                [index]: { ...prev[index], idIdentity: file }
-                              }));
-                              if (personRefs?.idIdentity.current) {
-                                const dt = new DataTransfer();
-                                if (file) dt.items.add(file);
-                                personRefs.idIdentity.current.files = dt.files;
-                              }
-                            }}
-                            disabled={isSubmitting}
-                            uploadToken={intakeLink.token}
+                        <div className="min-w-0 w-full overflow-visible">
+                          <DocumentUploaded
+                            token={intakeLink.token}
                             documentKind="ID_IDENTITY"
-                            documentClientId={client?.id}
                             personIndex={index}
-                            onUploadStateChange={handleUploadStateChange}
-                          />
-                        </DocumentUploaded>
+                          >
+                            <FileUpload
+                              label="Pièce d'identité *"
+                              multiple
+                              value={personFiles.idIdentity}
+                              onChange={(file) => {
+                                setPersonDocumentFiles(prev => ({
+                                  ...prev,
+                                  [index]: { ...prev[index], idIdentity: file }
+                                }));
+                                if (personRefs?.idIdentity.current) {
+                                  const dt = new DataTransfer();
+                                  if (file) dt.items.add(file);
+                                  personRefs.idIdentity.current.files = dt.files;
+                                }
+                              }}
+                              disabled={isSubmitting || isFileUploading}
+                              uploadToken={intakeLink.token}
+                              documentKind="ID_IDENTITY"
+                              documentClientId={client?.id}
+                              personIndex={index}
+                              onUploadStateChange={handleUploadStateChange}
+                            />
+                          </DocumentUploaded>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2612,98 +2646,113 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 {persons.length > 0 && (
                   <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
                     {form.watch(`persons.0.familyStatus`) === FamilyStatus.MARIE && (
-                      <DocumentUploaded
-                        token={intakeLink.token}
-                        documentKind="LIVRET_DE_FAMILLE"
-                      >
-                        <FileUpload
-                          label="Livret de famille *"
-                          value={livretDeFamilleFile}
-                          onChange={(file) => {
-                            setLivretDeFamilleFile(file);
-                            if (livretDeFamilleRef.current) {
-                              const dt = new DataTransfer();
-                              if (file) dt.items.add(file);
-                              livretDeFamilleRef.current.files = dt.files;
-                            }
-                          }}
-                          disabled={isSubmitting}
-                          uploadToken={intakeLink.token}
+                      <div className="min-w-0 w-full overflow-visible">
+                        <DocumentUploaded
+                          token={intakeLink.token}
                           documentKind="LIVRET_DE_FAMILLE"
-                          documentClientId={client?.id}
-                          onUploadStateChange={handleUploadStateChange}
-                        />
-                      </DocumentUploaded>
+                        >
+                          <FileUpload
+                            label="Livret de famille *"
+                            multiple
+                            value={livretDeFamilleFile}
+                            onChange={(file) => {
+                              setLivretDeFamilleFile(file);
+                              if (livretDeFamilleRef.current) {
+                                const dt = new DataTransfer();
+                                if (file) dt.items.add(file);
+                                livretDeFamilleRef.current.files = dt.files;
+                              }
+                            }}
+                            disabled={isSubmitting || isFileUploading}
+                            uploadToken={intakeLink.token}
+                            documentKind="LIVRET_DE_FAMILLE"
+                            documentClientId={client?.id}
+                            onUploadStateChange={handleUploadStateChange}
+                          />
+                        </DocumentUploaded>
+                      </div>
                     )}
                     {form.watch(`persons.0.familyStatus`) === FamilyStatus.PACS && (
-                      <DocumentUploaded
-                        token={intakeLink.token}
-                        documentKind="CONTRAT_DE_PACS"
-                      >
-                        <FileUpload
-                          label="Contrat de PACS *"
-                          value={contratDePacsFile}
-                          onChange={(file) => {
-                            setContratDePacsFile(file);
-                            if (contratDePacsRef.current) {
-                              const dt = new DataTransfer();
-                              if (file) dt.items.add(file);
-                              contratDePacsRef.current.files = dt.files;
-                            }
-                          }}
-                          disabled={isSubmitting}
-                          uploadToken={intakeLink.token}
+                      <div className="min-w-0 w-full overflow-visible">
+                        <DocumentUploaded
+                          token={intakeLink.token}
                           documentKind="CONTRAT_DE_PACS"
-                          documentClientId={client?.id}
-                          onUploadStateChange={handleUploadStateChange}
-                        />
-                      </DocumentUploaded>
+                        >
+                          <FileUpload
+                            label="Contrat de PACS *"
+                            multiple
+                            value={contratDePacsFile}
+                            onChange={(file) => {
+                              setContratDePacsFile(file);
+                              if (contratDePacsRef.current) {
+                                const dt = new DataTransfer();
+                                if (file) dt.items.add(file);
+                                contratDePacsRef.current.files = dt.files;
+                              }
+                            }}
+                            disabled={isSubmitting || isFileUploading}
+                            uploadToken={intakeLink.token}
+                            documentKind="CONTRAT_DE_PACS"
+                            documentClientId={client?.id}
+                            onUploadStateChange={handleUploadStateChange}
+                          />
+                        </DocumentUploaded>
+                      </div>
                     )}
                   </div>
                 )}
               </>
             )}
             
-            {/* Documents du locataire (assurance et RIB) */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-              <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE" clientId={client?.id}>
-                <FileUpload
-                  label="Assurance locataire *"
-                  value={insuranceTenantFile}
-                  onChange={(file) => {
-                    setInsuranceTenantFile(file);
-                    if (insuranceTenantRef.current) {
-                      const dt = new DataTransfer();
-                      if (file) dt.items.add(file);
-                      insuranceTenantRef.current.files = dt.files;
-                    }
-                  }}
-                  disabled={isSubmitting}
-                  uploadToken={intakeLink.token}
-                  documentKind="INSURANCE"
-                  documentClientId={client?.id}
-                  onUploadStateChange={handleUploadStateChange}
-                />
-              </DocumentUploaded>
-              <DocumentUploaded token={intakeLink.token} documentKind="RIB" clientId={client?.id}>
-                <FileUpload
-                  label="RIB signé locataire *"
-                  value={ribTenantFile}
-                  onChange={(file) => {
-                    setRibTenantFile(file);
-                    if (ribTenantRef.current) {
-                      const dt = new DataTransfer();
-                      if (file) dt.items.add(file);
-                      ribTenantRef.current.files = dt.files;
-                    }
-                  }}
-                  disabled={isSubmitting}
-                  uploadToken={intakeLink.token}
-                  documentKind="RIB"
-                  documentClientId={client?.id}
-                  onUploadStateChange={handleUploadStateChange}
-                />
-              </DocumentUploaded>
+            {/* Documents du locataire (assurance et RIB) — même rendu que intake propriétaire */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Documents du bail (assurance et RIB)</h3>
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                <div className="min-w-0 w-full overflow-visible">
+                  <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE" clientId={client?.id}>
+                    <FileUpload
+                      label="Assurance locataire *"
+                      multiple
+                      value={insuranceTenantFile}
+                      onChange={(file) => {
+                        setInsuranceTenantFile(file);
+                        if (insuranceTenantRef.current) {
+                          const dt = new DataTransfer();
+                          if (file) dt.items.add(file);
+                          insuranceTenantRef.current.files = dt.files;
+                        }
+                      }}
+                      disabled={isSubmitting || isFileUploading}
+                      uploadToken={intakeLink.token}
+                      documentKind="INSURANCE"
+                      documentClientId={client?.id}
+                      onUploadStateChange={handleUploadStateChange}
+                    />
+                  </DocumentUploaded>
+                </div>
+                <div className="min-w-0 w-full overflow-visible">
+                  <DocumentUploaded token={intakeLink.token} documentKind="RIB" clientId={client?.id}>
+                    <FileUpload
+                      label="RIB signé locataire *"
+                      multiple
+                      value={ribTenantFile}
+                      onChange={(file) => {
+                        setRibTenantFile(file);
+                        if (ribTenantRef.current) {
+                          const dt = new DataTransfer();
+                          if (file) dt.items.add(file);
+                          ribTenantRef.current.files = dt.files;
+                        }
+                      }}
+                      disabled={isSubmitting || isFileUploading}
+                      uploadToken={intakeLink.token}
+                      documentKind="RIB"
+                      documentClientId={client?.id}
+                      onUploadStateChange={handleUploadStateChange}
+                    />
+                  </DocumentUploaded>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -2766,9 +2815,9 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   {/* Étapes détaillées */}
                   <div className="space-y-2 mt-4">
                     {[
-                      { id: 1, name: "Vérification des données", icon: "✓" },
-                      { id: 2, name: "Soumission du formulaire", icon: "📝" },
-                      { id: 3, name: "Redirection...", icon: "→" },
+                      { id: 1, name: "Vérification des données", icon: "âœ“" },
+                      { id: 2, name: "Soumission du formulaire", icon: "ðŸ“" },
+                      { id: 3, name: "Redirection...", icon: "â†’" },
                     ].map((step) => {
                       const isCompleted = step.id < submissionProgress.step;
                       const isCurrent = step.id === submissionProgress.step;
@@ -2794,7 +2843,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                             }`}
                           >
                             {isCompleted ? (
-                              <span className="text-xs">✓</span>
+                              <span className="text-xs">âœ“</span>
                             ) : isCurrent ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
@@ -2924,3 +2973,4 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     </div>
   );
 }
+

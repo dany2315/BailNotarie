@@ -1,110 +1,85 @@
 "use client";
 
-import { useState, useEffect, useRef, ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { File, Eye, Download, Trash2, Loader2, ExternalLink } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getIntakeDocuments, deleteDocumentFromRawPayload } from "@/lib/actions/intakes";
 import { deleteDocument } from "@/lib/actions/documents";
+import {
+  deleteDocumentFromRawPayload,
+  getIntakeDocuments,
+} from "@/lib/actions/intakes";
+import { DocumentStackList } from "@/components/documents/document-stack-list";
 import { toast } from "sonner";
-import { DocumentKind } from "@prisma/client";
-import { documentKindLabels } from "@/lib/utils/document-labels";
-import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
-import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 
 interface DocumentUploadedProps {
   token: string;
   documentKind: string;
-  clientId?: string; // Optionnel : pour filtrer les documents par client (utile pour le formulaire locataire)
-  personIndex?: number; // Optionnel : pour filtrer les documents par personne (index dans le tableau persons)
+  clientId?: string;
+  personIndex?: number;
   onDelete?: (documentId: string) => void;
   children?: ReactNode;
 }
 
-// Cache global pour éviter les chargements multiples du même token
 const tokenDocumentsCache = new Map<string, Promise<any[]>>();
 const tokenDocumentsData = new Map<string, any[]>();
 
-// Fonction pour invalider le cache d'un token
 export function invalidateDocumentCache(token: string) {
   tokenDocumentsCache.delete(token);
   tokenDocumentsData.delete(token);
 }
 
-export function DocumentUploaded({ token, documentKind, clientId, personIndex, onDelete, children }: DocumentUploadedProps) {
-  const [document, setDocument] = useState<any | null>(null);
+export function DocumentUploaded({
+  token,
+  documentKind,
+  clientId,
+  personIndex,
+  onDelete,
+  children,
+}: DocumentUploadedProps) {
+  const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [isLoadingSignedUrl, setIsLoadingSignedUrl] = useState(false);
-  const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false); // Ajouter cet état
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [documentToDelete, setDocumentToDelete] = useState<any | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const isViewerOpenRef = useRef(false);
   const hasLoadedRef = useRef(false);
 
-  // Utiliser les labels centralisés
-  const getDocumentLabel = (kind: string) => {
-    return documentKindLabels[kind] || `Document ${kind}`;
-  };
-
-  // Charger tous les documents pour ce token
   useEffect(() => {
-    // Réinitialiser hasLoadedRef si refreshKey change
     hasLoadedRef.current = false;
 
-      const loadDocuments = async () => {
-      // Vérifier si les documents sont déjà en cache
+    const filterDocuments = (allDocs: any[]) => {
+      let filtered = allDocs.filter((doc) => doc.kind === documentKind);
+
+      if (clientId) {
+        filtered = filtered.filter((doc) => doc.clientId === clientId);
+      }
+
+      if (personIndex !== undefined) {
+        filtered = filtered.filter((doc) => doc.personIndex === personIndex);
+      }
+
+      return filtered.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    };
+
+    const loadDocuments = async () => {
       if (tokenDocumentsData.has(token)) {
-        const allDocs = tokenDocumentsData.get(token) || [];
-        // Filtrer par kind et optionnellement par clientId ou personIndex
-        let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
-        if (clientId) {
-          filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
-        }
-        // Si personIndex est fourni, filtrer par personIndex
-        if (personIndex !== undefined) {
-          filteredDocs = filteredDocs.filter((doc) => doc.personIndex === personIndex);
-        }
-        const foundDoc = filteredDocs
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-        setDocument(foundDoc || null);
+        setDocuments(filterDocuments(tokenDocumentsData.get(token) || []));
         setLoading(false);
         return;
       }
 
-      // Vérifier si un chargement est déjà en cours
       const existingPromise = tokenDocumentsCache.get(token);
       if (existingPromise) {
         try {
           const allDocs = await existingPromise;
-          if (allDocs) {
-            // Filtrer par kind et optionnellement par clientId ou personIndex
-            let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
-            if (clientId) {
-              filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
-            }
-            // Si personIndex est fourni, filtrer par personIndex
-            if (personIndex !== undefined) {
-              filteredDocs = filteredDocs.filter((doc) => doc.personIndex === personIndex);
-            }
-            const foundDoc = filteredDocs
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-            setDocument(foundDoc || null);
-          }
-          setLoading(false);
-        } catch (error) {
-          console.error("Erreur lors du chargement des documents:", error);
+          setDocuments(filterDocuments(allDocs || []));
+        } catch (loadError) {
+          console.error("Erreur lors du chargement des documents:", loadError);
+        } finally {
           setLoading(false);
         }
         return;
       }
 
-      // Lancer le chargement et le mettre en cache
       setLoading(true);
       const loadPromise = getIntakeDocuments(token);
       tokenDocumentsCache.set(token, loadPromise);
@@ -112,22 +87,10 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
       try {
         const allDocs = await loadPromise;
         tokenDocumentsData.set(token, allDocs);
-        tokenDocumentsCache.delete(token); // Nettoyer le cache de promesses
-
-        // Filtrer par kind et optionnellement par clientId ou personIndex
-        let filteredDocs = allDocs.filter((doc) => doc.kind === documentKind);
-        if (clientId) {
-          filteredDocs = filteredDocs.filter((doc) => doc.clientId === clientId);
-        }
-        // Si personIndex est fourni, filtrer par personIndex
-        if (personIndex !== undefined) {
-          filteredDocs = filteredDocs.filter((doc) => doc.personIndex === personIndex);
-        }
-        const foundDoc = filteredDocs
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-        setDocument(foundDoc || null);
-      } catch (error) {
-        console.error("Erreur lors du chargement des documents:", error);
+        tokenDocumentsCache.delete(token);
+        setDocuments(filterDocuments(allDocs));
+      } catch (loadError) {
+        console.error("Erreur lors du chargement des documents:", loadError);
         tokenDocumentsCache.delete(token);
       } finally {
         setLoading(false);
@@ -135,208 +98,83 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
     };
 
     loadDocuments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, documentKind, clientId, personIndex, refreshKey]);
+  }, [clientId, documentKind, personIndex, refreshKey, token]);
 
-  // Écouter les événements de rechargement
   useEffect(() => {
-    const handleRefresh = () => {
+    const handleRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ documents?: Array<{ id: string; kind: string; personIndex?: number }> }>)?.detail;
+      const newDocs = detail?.documents ?? [];
+      // Affichage optimiste : ajouter tout de suite les documents qui correspondent à ce bloc
+      if (newDocs.length > 0) {
+        setDocuments((prev) => {
+          const toAdd = newDocs.filter(
+            (d) =>
+              d.kind === documentKind &&
+              (personIndex === undefined || d.personIndex === personIndex)
+          );
+          if (toAdd.length === 0) return prev;
+          const merged = [...prev];
+          for (const doc of toAdd) {
+            if (!merged.some((x) => x.id === doc.id)) {
+              merged.push({ ...doc, createdAt: (doc as any).createdAt ?? new Date().toISOString() });
+            }
+          }
+          return merged.sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        });
+      }
       invalidateDocumentCache(token);
       hasLoadedRef.current = false;
-      setRefreshKey(prev => prev + 1);
+      setRefreshKey((previous) => previous + 1);
     };
 
-    // Écouter l'événement personnalisé pour ce token
     window.addEventListener(`document-uploaded-${token}`, handleRefresh);
-    
+
     return () => {
       window.removeEventListener(`document-uploaded-${token}`, handleRefresh);
     };
-  }, [token]);
+  }, [documentKind, personIndex, token]);
 
-  // Mettre à jour la ref quand isViewerOpen change
-  useEffect(() => {
-    isViewerOpenRef.current = isViewerOpen;
-    // Réinitialiser l'URL signée quand le dialog se ferme
-    if (!isViewerOpen) {
-      setSignedUrl(null);
-    }
-  }, [isViewerOpen]);
+  const handleDeleteDocument = async (document: any) => {
+    setDeletingId(document.id);
 
-  // Fonction pour obtenir une URL signée pour la lecture
-  const getSignedUrlForDocument = async (fileKey: string): Promise<string> => {
     try {
-      const response = await fetch("/api/blob/get-signed-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey }),
-      });
+      const isFromRawPayload = document.id?.startsWith("raw_");
 
-      if (!response.ok) {
-        throw new Error("Erreur lors de la génération de l'URL signée");
-      }
-
-      const { signedUrl } = await response.json();
-      return signedUrl;
-    } catch (error) {
-      console.error("[DocumentUploaded] Erreur lors de la génération de l'URL signée:", error);
-      // Fallback : générer l'URL publique depuis la clé S3
-      return getS3PublicUrl(fileKey) || fileKey;
-    }
-  };
-
-  const handleViewDocument = async (doc: any) => {
-    setSelectedDocument(doc);
-    setIsViewerOpen(true);
-    setIsLoadingSignedUrl(true);
-    
-    // Générer une URL signée pour la lecture
-    try {
-      const url = await getSignedUrlForDocument(doc.fileKey);
-      setSignedUrl(url);
-    } catch (error) {
-      console.error("[DocumentUploaded] Erreur:", error);
-      // Fallback : générer l'URL publique depuis la clé S3
-      setSignedUrl(getS3PublicUrl(doc.fileKey) || doc.fileKey);
-    } finally {
-      setIsLoadingSignedUrl(false);
-    }
-  };
-
-  const handleViewerOpenChange = (open: boolean) => {
-    setIsViewerOpen(open);
-
-    if (!open) {
-      // Nettoyer l'état du viewer à la fermeture pour éviter les erreurs
-      // de chargement pendant l'animation de fermeture du Dialog.
-      setSelectedDocument(null);
-      setSignedUrl(null);
-      setIsLoadingSignedUrl(false);
-    }
-  };
-
-  const handleDownloadDocument = async (doc: any) => {
-    // Vérifier que nous sommes dans le navigateur
-    if (typeof window === "undefined" || typeof window.document === "undefined") {
-      toast.error("Téléchargement non disponible dans cet environnement");
-      return;
-    }
-
-    setIsDownloading(true); // Activer le loader
-    try {
-      // Obtenir une URL signée pour le téléchargement (fonctionne avec clé S3 ou URL complète)
-      let downloadUrl = doc.fileKey;
-      
-      try {
-        downloadUrl = await getSignedUrlForDocument(doc.fileKey);
-      } catch (error) {
-        // Si c'est une URL complète (ancien format), utiliser directement
-        if (doc.fileKey?.startsWith("http")) {
-          downloadUrl = doc.fileKey;
-        } else {
-          // Sinon, générer l'URL publique depuis la clé S3
-          downloadUrl = getS3PublicUrl(doc.fileKey) || doc.fileKey;
-        }
-        console.warn("[DocumentUploaded] Impossible d'obtenir une URL signée, utilisation de l'URL publique");
-      }
-      
-      // Télécharger le fichier
-      const response = await fetch(downloadUrl);
-      if (!response.ok) {
-        throw new Error("Erreur lors du téléchargement du fichier");
-      }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = window.document.createElement("a");
-      link.href = url;
-      link.download = doc.label || doc.fileName || `document-${doc.kind}`;
-      window.document.body.appendChild(link);
-      link.click();
-      window.document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Erreur lors du téléchargement:", error);
-      toast.error("Erreur lors du téléchargement du document");
-    } finally {
-      setIsDownloading(false); // Désactiver le loader
-    }
-  };
-
-  const handleDeleteClick = (doc: any) => {
-    setDocumentToDelete(doc);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!documentToDelete) return;
-
-    setIsDeleting(true);
-    setIsDeleteDialogOpen(false);
-    
-    try {
-      // Vérifier si le document vient de rawPayload (ID commence par "raw_")
-      const isFromRawPayload = documentToDelete.id?.startsWith("raw_");
-      
       if (isFromRawPayload) {
-        // Supprimer depuis rawPayload
         await deleteDocumentFromRawPayload({
           token,
-          fileKey: documentToDelete.fileKey,
-          kind: documentToDelete.kind,
-          personIndex: documentToDelete.personIndex,
+          fileKey: document.fileKey,
+          kind: document.kind,
+          personIndex: document.personIndex,
         });
       } else {
-        // Supprimer depuis la DB (document déjà soumis)
-        await deleteDocument(documentToDelete.id);
+        await deleteDocument(document.id);
       }
-      
+
       toast.success("Document supprimé avec succès");
-      
-      // Mettre à jour le cache local
+
       if (tokenDocumentsData.has(token)) {
         const allDocs = tokenDocumentsData.get(token) || [];
-        const updatedDocs = allDocs.filter((d) => d.id !== documentToDelete.id);
-        tokenDocumentsData.set(token, updatedDocs);
+        tokenDocumentsData.set(
+          token,
+          allDocs.filter((doc) => doc.id !== document.id)
+        );
       }
-      
-      // Réinitialiser le document pour afficher le FileUpload
-      setDocument(null);
-      hasLoadedRef.current = false;
-      
-      // Appeler le callback si fourni
-      if (onDelete) {
-        onDelete(documentToDelete.id);
-      }
-      
-      setDocumentToDelete(null);
-      
-      // Invalider le cache et déclencher un refresh
+
+      setDocuments((current) => current.filter((doc) => doc.id !== document.id));
+      onDelete?.(document.id);
       invalidateDocumentCache(token);
-      setRefreshKey(prev => prev + 1);
-    } catch (error: any) {
-      toast.error(error.message || "Erreur lors de la suppression du document");
-      console.error("Erreur lors de la suppression:", error);
+      setRefreshKey((previous) => previous + 1);
+    } catch (deleteError: any) {
+      toast.error(deleteError.message || "Erreur lors de la suppression du document");
+      console.error("Erreur lors de la suppression:", deleteError);
     } finally {
-      setIsDeleting(false);
+      setDeletingId(null);
     }
   };
 
-  const getDocumentIcon = (mimeType?: string) => {
-    if (!mimeType) return <File className="size-4" />;
-    if (mimeType.includes("pdf")) return <File className="size-4 text-red-500" />;
-    if (mimeType.includes("image")) return <File className="size-4 text-blue-500" />;
-    return <File className="size-4" />;
-  };
-
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return "Taille inconnue";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  };
-
-  // Si en chargement, afficher un skeleton
   if (loading) {
     return (
       <div className="space-y-2">
@@ -346,179 +184,31 @@ export function DocumentUploaded({ token, documentKind, clientId, personIndex, o
     );
   }
 
-  // Si aucun document, retourner children
-  if (!document) {
-    return children ? <>{children}</> : null;
-  }
+  const hasDocuments = documents.length > 0;
 
   return (
-    <>
-      <div className="p-3 border rounded-md bg-muted/50">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            {getDocumentIcon(document.mimeType)}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">
-                { getDocumentLabel(document.kind) }
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {formatFileSize(document.size)}
-                {document.createdAt && ` • ${new Date(document.createdAt).toLocaleDateString()}`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={() => handleViewDocument(document)}
-              title="Voir le document"
-              disabled={isDeleting}
-            >
-              <Eye className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={() => handleDownloadDocument(document)}
-              title="Télécharger le document"
-              disabled={isDeleting || isDownloading}
-            >
-              {isDownloading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Download className="size-4" />
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-destructive hover:text-destructive"
-              onClick={() => handleDeleteClick(document)}
-              title="Supprimer le document"
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <Loader2 className="size-4 animate-spin text-destructive" />
-              ) : (
-                <Trash2 className="size-4" />
-              )}
-            </Button>
-          </div>
+    <div className="min-w-0 space-y-3 overflow-visible">
+      {children ? (
+        <div className="space-y-2 min-w-0 overflow-visible">
+          {React.Children.map(children, (child) =>
+            React.isValidElement(child)
+              ? React.cloneElement(child as React.ReactElement<{ compact?: boolean }>, { compact: hasDocuments })
+              : child
+          )}
         </div>
+      ) : null}
+      <div className="min-w-0 overflow-visible">
+        <DocumentStackList
+          documents={documents}
+          deletingId={deletingId}
+          onDelete={(documentId) => {
+            const document = documents.find((item) => item.id === documentId);
+            if (document) {
+              return handleDeleteDocument(document);
+            }
+          }}
+        />
       </div>
-
-      <Dialog open={isViewerOpen} onOpenChange={handleViewerOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>{selectedDocument?.label || "Aperçu du document"}</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4">
-            {selectedDocument && (
-              <div className="space-y-4">
-                {isLoadingSignedUrl ? (
-                  <div className="flex items-center justify-center h-[70vh]">
-                    <Loader2 className="size-8 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-muted-foreground">Chargement du document...</span>
-                  </div>
-                ) : selectedDocument.mimeType?.includes("image") ? (
-                  <img
-                    src={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
-                    alt={selectedDocument.label || "Document"}
-                    className="max-w-full max-h-[70vh] mx-auto object-contain"
-                    onError={(e) => {
-                      if (!isViewerOpenRef.current) return;
-                      console.error("[DocumentUploaded] Erreur de chargement de l'image:", e);
-                      toast.error("Impossible de charger l'image");
-                    }}
-                  />
-                ) : selectedDocument.mimeType?.includes("pdf") ? (
-                  <div className="space-y-2">
-                    <iframe
-                      src={getPdfPreviewUrl(
-                        signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey
-                      )}
-                      className="w-full h-[70vh] border rounded"
-                      title={selectedDocument.label || "Document PDF"}
-                      onError={() => {
-                        if (!isViewerOpenRef.current) return;
-                        console.error("[DocumentUploaded] Erreur de chargement du PDF");
-                        toast.error("Impossible de charger le PDF");
-                      }}
-                    />
-                    <div className="flex justify-end">
-                      <Button variant="outline" size="sm" asChild>
-                        <a
-                          href={signedUrl || getS3PublicUrl(selectedDocument.fileKey) || selectedDocument.fileKey}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Ouvrir dans un nouvel onglet
-                        </a>
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <File className="size-16 mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-muted-foreground">
-                      Aperçu non disponible pour ce type de fichier
-                    </p>
-                    <Button
-                      onClick={() => handleDownloadDocument(selectedDocument)}
-                      className="mt-4"
-                    >
-                      <Download className="size-4 mr-2" />
-                      Télécharger le document
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirmer la suppression</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground">
-              Êtes-vous sûr de vouloir supprimer le document <span className="font-bold">{getDocumentLabel(documentToDelete?.kind)}</span> "{documentToDelete?.label || `Document ${documentToDelete?.kind}`}" ?
-              Cette action est irréversible.
-            </p>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsDeleteDialogOpen(false);
-                setDocumentToDelete(null);
-              }}
-              disabled={isDeleting}
-            >
-              Annuler
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleConfirmDelete}
-              disabled={isDeleting}
-            >
-              {isDeleting ? "Suppression..." : "Supprimer"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+    </div>
   );
 }

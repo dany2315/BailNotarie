@@ -151,7 +151,7 @@ export default function MailTenantSubmitted({
               margin: "20px 0 0 0",
               fontStyle: "italic"
             }}>
-              Notre équipe vérifie les informations et vous tiendra informé des prochaines étapes.
+              Notre équipe vérifie les informations et un notaire partenaire va vous contacter dans les plus brefs délais.
             </Text>
           </Section>
 

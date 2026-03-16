@@ -104,6 +104,7 @@ import {
   submitIntake,
   savePartialIntake,
   getIntakeLinkByToken,
+  getIntakeDocuments,
   deletePersonFromClient,
 } from "@/lib/actions/intakes";
 import { Separator } from "../ui/separator";
@@ -117,7 +118,7 @@ const FURNITURE_FIELDS = [
   { key: "hasLiterie", label: "Literie avec couette ou couverture", icon: Bed },
   { key: "hasRideaux", label: "Volets ou rideaux dans les chambres", icon: Square },
   { key: "hasPlaquesCuisson", label: "Plaques de cuisson", icon: ChefHat },
-  { key: "hasFour", label: "Four ou four à micro-onde", icon: Microwave },
+  { key: "hasFour", label: "Four ou four à micro-ondes", icon: Microwave },
   { key: "hasRefrigerateur", label: "Réfrigérateur", icon: Refrigerator },
   { key: "hasCongelateur", label: "Congélateur ou compartiment à congélation (-6° max)", icon: Snowflake },
   { key: "hasVaisselle", label: "Vaisselle en nombre suffisant", icon: UtensilsCrossed },
@@ -749,6 +750,7 @@ const [isSaving, setIsSaving] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 const [isFileUploading, setIsFileUploading] = useState(false);
 const [documentsReadyForSubmission, setDocumentsReadyForSubmission] = useState(false);
+const hasMountedCurrentStepRef = useRef(false);
 const [submissionProgress, setSubmissionProgress] = useState({
   step: 0,
   totalSteps: 4,
@@ -762,6 +764,15 @@ const initialClientType =
 const [clientType, setClientType] = useState<ClientType | "">(
   initialClientType
 );
+
+useEffect(() => {
+  if (!hasMountedCurrentStepRef.current) {
+    hasMountedCurrentStepRef.current = true;
+    return;
+  }
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}, [currentStep]);
 
   const [openAccordionValue, setOpenAccordionValue] = useState<string>(`person-0`);
 
@@ -854,10 +865,10 @@ const [clientType, setClientType] = useState<ClientType | "">(
         stepId: "clientInfo", // La suppression d'une personne concerne toujours l'étape clientInfo
       });
       
-      // ✅ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
+      // ✓ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
       const refreshed = await refreshIntakeLinkData();
       
-      // ✅ Mettre à jour lastSavedValues avec les valeurs réelles de la base de données
+      // ✓ Mettre à jour lastSavedValues avec les valeurs réelles de la base de données
       if (refreshed) {
         const refreshedValues = buildDefaultValues(refreshed);
         lastSavedValues.current = refreshedValues as FormWithPersons;
@@ -1061,7 +1072,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
       if (clientType === ClientType.PERSONNE_MORALE) {
         const currentEntreprise = getValues("entreprise") as EntrepriseForm | undefined;
     
-        // Si aucune entreprise encore initialisée → on en crée une "vide".
+        // Si aucune entreprise encore initialisée â†’ on en crée une "vide".
         // L'email / téléphone racine seront synchronisés par le hook
         // "Synchroniser entreprise avec les champs racine".
         if (!currentEntreprise) {
@@ -1109,7 +1120,8 @@ const [clientType, setClientType] = useState<ClientType | "">(
     ref: RefObject<HTMLInputElement | null> | null,
     stateFile: File | null,
     kind: string,
-    personIndex?: number
+    personIndex?: number,
+    uploadedDocuments: any[] = []
   ) => {
     if (ref?.current?.files?.[0]) return true;
     if (stateFile) return true;
@@ -1129,6 +1141,14 @@ const [clientType, setClientType] = useState<ClientType | "">(
       const personDocs = values.persons?.flatMap((p: any) => p.documents || []) || [];
       if (personDocs.some((d: any) => d.kind === kind)) return true;
     }
+
+    if (personIndex !== undefined) {
+      if (uploadedDocuments.some((d: any) => d.kind === kind && d.personIndex === personIndex)) {
+        return true;
+      }
+    } else if (uploadedDocuments.some((d: any) => d.kind === kind)) {
+      return true;
+    }
     
     // Documents de l'entreprise (KBIS, STATUTES)
     const entrepriseDocs = values.entreprise?.documents || [];
@@ -1146,16 +1166,20 @@ const [clientType, setClientType] = useState<ClientType | "">(
   };
   
 
-  const validateDocuments = (): { isValid: boolean; errors: string[] } => {
+  const validateDocuments = async (): Promise<{ isValid: boolean; errors: string[] }> => {
     const errors: string[] = [];
     const values = getValues() as FormWithPersons;
     const propertyLegalStatus = values.propertyLegalStatus;
+    const uploadedDocuments = await getIntakeDocuments(intakeLink.token).catch((error) => {
+      console.error("[OwnerIntakeForm] Erreur lors de la récupération des documents pour validation:", error);
+      return [];
+    });
 
     if (clientType === ClientType.PERSONNE_MORALE) {
-      if (!hasDocument(kbisRef, kbisFile, "KBIS")) {
+      if (!hasDocument(kbisRef, kbisFile, "KBIS", undefined, uploadedDocuments)) {
         errors.push("KBIS requis");
       }
-      if (!hasDocument(statutesRef, statutesFile, "STATUTES")) {
+      if (!hasDocument(statutesRef, statutesFile, "STATUTES", undefined, uploadedDocuments)) {
         errors.push("Statuts requis");
       }
     } else {
@@ -1169,7 +1193,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
         const personRefs = personDocumentRefs.current[index];
         const personFiles = personDocumentFiles[index] || { idIdentity: null };
         
-        if (!hasDocument(personRefs?.idIdentity || null, personFiles.idIdentity, "ID_IDENTITY", index)) {
+        if (!hasDocument(personRefs?.idIdentity || null, personFiles.idIdentity, "ID_IDENTITY", index, uploadedDocuments)) {
           errors.push(`Pièce d'identité requise pour ${personName}`);
         }
       });
@@ -1178,21 +1202,21 @@ const [clientType, setClientType] = useState<ClientType | "">(
       // Utiliser le statut familial de la première personne
       const primaryPerson = persons[0];
       if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
-        if (!hasDocument(livretDeFamilleRef, livretDeFamilleFile, "LIVRET_DE_FAMILLE")) {
+        if (!hasDocument(livretDeFamilleRef, livretDeFamilleFile, "LIVRET_DE_FAMILLE", undefined, uploadedDocuments)) {
           errors.push("Livret de famille requis");
         }
       }
       if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
-        if (!hasDocument(contratDePacsRef, contratDePacsFile, "CONTRAT_DE_PACS")) {
+        if (!hasDocument(contratDePacsRef, contratDePacsFile, "CONTRAT_DE_PACS", undefined, uploadedDocuments)) {
           errors.push("Contrat de PACS requis");
         }
       }
     }
 
-    if (!hasDocument(diagnosticsRef, diagnosticsFile, "DIAGNOSTICS")) {
+    if (!hasDocument(diagnosticsRef, diagnosticsFile, "DIAGNOSTICS", undefined, uploadedDocuments)) {
       errors.push("Diagnostics du bien requis");
     }
-    if (!hasDocument(titleDeedRef, titleDeedFile, "TITLE_DEED")) {
+    if (!hasDocument(titleDeedRef, titleDeedFile, "TITLE_DEED", undefined, uploadedDocuments)) {
       errors.push("Titre de propriété requis");
     }
     if (
@@ -1200,7 +1224,9 @@ const [clientType, setClientType] = useState<ClientType | "">(
       !hasDocument(
         reglementCoproprieteRef,
         reglementCoproprieteFile,
-        "REGLEMENT_COPROPRIETE"
+        "REGLEMENT_COPROPRIETE",
+        undefined,
+        uploadedDocuments
       )
     ) {
       errors.push("Règlement de copropriété requis");
@@ -1210,7 +1236,9 @@ const [clientType, setClientType] = useState<ClientType | "">(
         !hasDocument(
           cahierChargeLotissementRef,
           cahierChargeLotissementFile,
-          "CAHIER_DE_CHARGE_LOTISSEMENT"
+          "CAHIER_DE_CHARGE_LOTISSEMENT",
+          undefined,
+          uploadedDocuments
         )
       ) {
         errors.push("Cahier des charges du lotissement requis");
@@ -1219,17 +1247,19 @@ const [clientType, setClientType] = useState<ClientType | "">(
         !hasDocument(
           statutAssociationSyndicaleRef,
           statutAssociationSyndicaleFile,
-          "STATUT_DE_LASSOCIATION_SYNDICALE"
+          "STATUT_DE_LASSOCIATION_SYNDICALE",
+          undefined,
+          uploadedDocuments
         )
       ) {
         errors.push("Statut de l'association syndicale requis");
       }
     }
 
-    if (!hasDocument(insuranceOwnerRef, insuranceOwnerFile, "INSURANCE")) {
+    if (!hasDocument(insuranceOwnerRef, insuranceOwnerFile, "INSURANCE", undefined, uploadedDocuments)) {
       errors.push("Assurance propriétaire requise");
     }
-    if (!hasDocument(ribOwnerRef, ribOwnerFile, "RIB")) {
+    if (!hasDocument(ribOwnerRef, ribOwnerFile, "RIB", undefined, uploadedDocuments)) {
       errors.push("RIB requis");
     }
 
@@ -1736,10 +1766,10 @@ const [clientType, setClientType] = useState<ClientType | "">(
         stepId: stepId, // Envoyer l'ID de l'étape pour que le backend sache quelle étape traiter
       });
 
-      // ✅ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
+      // ✓ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
       const refreshed = await refreshIntakeLinkData();
       
-      // ✅ Mettre à jour lastSavedValues avec les valeurs réelles de la base de données
+      // ✓ Mettre à jour lastSavedValues avec les valeurs réelles de la base de données
       if (refreshed) {
         const refreshedValues = buildDefaultValues(refreshed as IntakeLink);
         lastSavedValues.current = refreshedValues as FormWithPersons;
@@ -2069,7 +2099,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
       await refreshIntakeLinkData();
       
       // Étape 2: Validation des documents
-      const fileValidation = validateDocuments();
+      const fileValidation = await validateDocuments();
       if (!fileValidation.isValid) {
         toast.error("Veuillez joindre tous les documents requis", {
           description: fileValidation.errors.join(", "),
@@ -2201,8 +2231,8 @@ const [clientType, setClientType] = useState<ClientType | "">(
                   <div className="space-y-2 mt-4">
                     {[
                       { id: 1, name: "Vérification des données", icon: "✓" },
-                      { id: 2, name: "Soumission du formulaire", icon: "📝" },
-                      { id: 3, name: "Redirection...", icon: "→" },
+                      { id: 2, name: "Soumission du formulaire", icon: "✓" },
+                      { id: 3, name: "Redirection...", icon: "✓" },
                     ].map((step) => {
                       const isCompleted = step.id < submissionProgress.step;
                       const isCurrent = step.id === submissionProgress.step;
@@ -2228,7 +2258,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
                             }`}
                           >
                             {isCompleted ? (
-                              <span className="text-xs">✓</span>
+                              <span className="text-xs">âœ“</span>
                             ) : isCurrent ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
@@ -2514,7 +2544,7 @@ const [clientType, setClientType] = useState<ClientType | "">(
                   <Button
                     type="button"
                     onClick={(e) => {
-                      console.log("🟦 [Button Next] onClick - currentStep:", currentStep, "stepId:", STEPS[currentStep]?.id);
+                      console.log("ðŸŸ¦ [Button Next] onClick - currentStep:", currentStep, "stepId:", STEPS[currentStep]?.id);
                       e.preventDefault();
                       e.stopPropagation();
                       handleNext();
@@ -2538,8 +2568,8 @@ const [clientType, setClientType] = useState<ClientType | "">(
                 ) : (
                   <Button
                     type="button"
-                    onClick={() => {
-                      const fileValidation = validateDocuments();
+                    onClick={async () => {
+                      const fileValidation = await validateDocuments();
                       if (!fileValidation.isValid) {
                         toast.error("Veuillez joindre tous les documents requis", {
                           description: fileValidation.errors.join(", "),
@@ -3385,7 +3415,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           <AddressAutocomplete
             value={form.watch("propertyFullAddress") || ""}
             onAddressSelect={(addressData: AddressData) => {
-              console.log("📍 [OwnerIntakeForm] Adresse sélectionnée:", addressData);
+              console.log("ðŸ“ [OwnerIntakeForm] Adresse sélectionnée:", addressData);
               form.setValue("propertyFullAddress", addressData.fullAddress);
               form.setValue("propertyHousenumber", addressData.housenumber || "");
               form.setValue("propertyStreet", addressData.street || "");
@@ -3619,8 +3649,8 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
     <InfoTooltip 
       content={
         <>
-          <p>Bail meublé → 2 mois de loyer hors charges maximum</p>
-          <p>Bail nue → 1 mois de loyer hors charges maximum</p>
+          <p>Bail meublé â†’ 2 mois de loyer hors charges maximum</p>
+          <p>Bail nue â†’ 1 mois de loyer hors charges maximum</p>
           {rentAmountNum > 0 && (
             <p className="mt-2 font-semibold">
               Maximum autorisé : {maxSecurityDeposit.toLocaleString('fr-FR')} €
@@ -3806,12 +3836,12 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
         </div>
         <div className="space-y-2">
           <Label>Charges mensuelles *</Label>
-          <NumberInputGroup
-            field={form.register("bailMonthlyCharges")}
-            min={0}
-            step={1}
-            unit="€"
-          />
+      <NumberInputGroup
+        field={form.register("bailMonthlyCharges")}
+        min={0}
+        step={1}
+        unit="€"
+      />
           {form.formState.errors.bailMonthlyCharges && (
             <p className="text-sm text-destructive">
               {form.formState.errors.bailMonthlyCharges.message}
@@ -4094,42 +4124,48 @@ const DocumentsStep = ({
           <h3 className="text-lg font-semibold">Documents client *</h3>
           {clientType === ClientType.PERSONNE_MORALE ? (
             <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-              <DocumentUploaded token={intakeLink.token} documentKind="KBIS">
-                <FileUpload
-                  label="KBIS *"
-                  value={fileStates.kbisFile}
-                  onChange={(file) => {
-                    setFileStates.setKbisFile(file);
-                    if (fileRefs.kbisRef.current) {
-                      const dt = new DataTransfer();
-                      if (file) dt.items.add(file);
-                      fileRefs.kbisRef.current.files = dt.files;
-                    }
-                  }}
-                  uploadToken={intakeLink.token}
-                  documentKind="KBIS"
-                  documentClientId={intakeLink.clientId}
-                  onUploadStateChange={onUploadStateChange}
-                />
-              </DocumentUploaded>
-              <DocumentUploaded token={intakeLink.token} documentKind="STATUTES">
-                <FileUpload
-                  label="Statuts *"
-                  value={fileStates.statutesFile}
-                  onChange={(file) => {
-                    setFileStates.setStatutesFile(file);
-                    if (fileRefs.statutesRef.current) {
-                      const dt = new DataTransfer();
-                      if (file) dt.items.add(file);
-                      fileRefs.statutesRef.current.files = dt.files;
-                    }
-                  }}
-                  uploadToken={intakeLink.token}
-                  documentKind="STATUTES"
-                  documentClientId={intakeLink.clientId}
-                  onUploadStateChange={onUploadStateChange}
-                />
-              </DocumentUploaded>
+              <div className="min-w-0 w-full overflow-visible">
+                <DocumentUploaded token={intakeLink.token} documentKind="KBIS">
+                  <FileUpload
+                    label="KBIS *"
+                    multiple
+                    value={fileStates.kbisFile}
+                    onChange={(file) => {
+                      setFileStates.setKbisFile(file);
+                      if (fileRefs.kbisRef.current) {
+                        const dt = new DataTransfer();
+                        if (file) dt.items.add(file);
+                        fileRefs.kbisRef.current.files = dt.files;
+                      }
+                    }}
+                    uploadToken={intakeLink.token}
+                    documentKind="KBIS"
+                    documentClientId={intakeLink.clientId}
+                    onUploadStateChange={onUploadStateChange}
+                  />
+                </DocumentUploaded>
+              </div>
+              <div className="min-w-0 w-full overflow-visible">
+                <DocumentUploaded token={intakeLink.token} documentKind="STATUTES">
+                  <FileUpload
+                    label="Statuts *"
+                    multiple
+                    value={fileStates.statutesFile}
+                    onChange={(file) => {
+                      setFileStates.setStatutesFile(file);
+                      if (fileRefs.statutesRef.current) {
+                        const dt = new DataTransfer();
+                        if (file) dt.items.add(file);
+                        fileRefs.statutesRef.current.files = dt.files;
+                      }
+                    }}
+                    uploadToken={intakeLink.token}
+                    documentKind="STATUTES"
+                    documentClientId={intakeLink.clientId}
+                    onUploadStateChange={onUploadStateChange}
+                  />
+                </DocumentUploaded>
+              </div>
             </div>
           ) : (
             <>
@@ -4147,32 +4183,35 @@ const DocumentsStep = ({
                       Documents de {personName} {index === 0 && "(Principale)"} *
                     </h4>
                     <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                      <DocumentUploaded 
-                        token={intakeLink.token} 
-                        documentKind="ID_IDENTITY"
-                        personIndex={index}
-                      >
-                        <FileUpload
-                          label="Pièce d'identité *"
-                          value={personFiles.idIdentity}
-                          onChange={(file) => {
-                            setPersonDocumentFiles(prev => ({
-                              ...prev,
-                              [index]: { ...prev[index], idIdentity: file }
-                            }));
-                            if (personRefs?.idIdentity.current) {
-                              const dt = new DataTransfer();
-                              if (file) dt.items.add(file);
-                              personRefs.idIdentity.current.files = dt.files;
-                            }
-                          }}
-                          uploadToken={intakeLink.token}
+                      <div className="min-w-0 w-full overflow-visible">
+                        <DocumentUploaded
+                          token={intakeLink.token}
                           documentKind="ID_IDENTITY"
-                          documentClientId={intakeLink.clientId}
                           personIndex={index}
-                          onUploadStateChange={onUploadStateChange}
-                        />
-                      </DocumentUploaded>
+                        >
+                          <FileUpload
+                            label="Pièce d'identité *"
+                            multiple
+                            value={personFiles.idIdentity}
+                            onChange={(file) => {
+                              setPersonDocumentFiles(prev => ({
+                                ...prev,
+                                [index]: { ...prev[index], idIdentity: file }
+                              }));
+                              if (personRefs?.idIdentity.current) {
+                                const dt = new DataTransfer();
+                                if (file) dt.items.add(file);
+                                personRefs.idIdentity.current.files = dt.files;
+                              }
+                            }}
+                            uploadToken={intakeLink.token}
+                            documentKind="ID_IDENTITY"
+                            documentClientId={intakeLink.clientId}
+                            personIndex={index}
+                            onUploadStateChange={onUploadStateChange}
+                          />
+                        </DocumentUploaded>
+                      </div>
                     </div>
                   </div>
                 );
@@ -4182,50 +4221,56 @@ const DocumentsStep = ({
               {persons.length > 0 && (
                 <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
                   {form.watch(`persons.0.familyStatus`) === FamilyStatus.MARIE && (
-                    <DocumentUploaded
-                      token={intakeLink.token}
-                      documentKind="LIVRET_DE_FAMILLE"
-                    >
-                      <FileUpload
-                        label="Livret de famille *"
-                        value={fileStates.livretDeFamilleFile}
-                        onChange={(file) => {
-                          setFileStates.setLivretDeFamilleFile(file);
-                          if (fileRefs.livretDeFamilleRef.current) {
-                            const dt = new DataTransfer();
-                            if (file) dt.items.add(file);
-                            fileRefs.livretDeFamilleRef.current.files = dt.files;
-                          }
-                        }}
-                        uploadToken={intakeLink.token}
+                    <div className="min-w-0 w-full overflow-visible">
+                      <DocumentUploaded
+                        token={intakeLink.token}
                         documentKind="LIVRET_DE_FAMILLE"
-                        documentClientId={intakeLink.clientId}
-                        onUploadStateChange={onUploadStateChange}
-                      />
-                    </DocumentUploaded>
+                      >
+                        <FileUpload
+                          label="Livret de famille *"
+                          multiple
+                          value={fileStates.livretDeFamilleFile}
+                          onChange={(file) => {
+                            setFileStates.setLivretDeFamilleFile(file);
+                            if (fileRefs.livretDeFamilleRef.current) {
+                              const dt = new DataTransfer();
+                              if (file) dt.items.add(file);
+                              fileRefs.livretDeFamilleRef.current.files = dt.files;
+                            }
+                          }}
+                          uploadToken={intakeLink.token}
+                          documentKind="LIVRET_DE_FAMILLE"
+                          documentClientId={intakeLink.clientId}
+                          onUploadStateChange={onUploadStateChange}
+                        />
+                      </DocumentUploaded>
+                    </div>
                   )}
                   {form.watch(`persons.0.familyStatus`) === FamilyStatus.PACS && (
-                    <DocumentUploaded
-                      token={intakeLink.token}
-                      documentKind="CONTRAT_DE_PACS"
-                    >
-                      <FileUpload
-                        label="Contrat de PACS *"
-                        value={fileStates.contratDePacsFile}
-                        onChange={(file) => {
-                          setFileStates.setContratDePacsFile(file);
-                          if (fileRefs.contratDePacsRef.current) {
-                            const dt = new DataTransfer();
-                            if (file) dt.items.add(file);
-                            fileRefs.contratDePacsRef.current.files = dt.files;
-                          }
-                        }}
-                        uploadToken={intakeLink.token}
+                    <div className="min-w-0 w-full overflow-visible">
+                      <DocumentUploaded
+                        token={intakeLink.token}
                         documentKind="CONTRAT_DE_PACS"
-                        documentClientId={intakeLink.clientId}
-                        onUploadStateChange={onUploadStateChange}
-                      />
-                    </DocumentUploaded>
+                      >
+                        <FileUpload
+                          label="Contrat de PACS *"
+                          multiple
+                          value={fileStates.contratDePacsFile}
+                          onChange={(file) => {
+                            setFileStates.setContratDePacsFile(file);
+                            if (fileRefs.contratDePacsRef.current) {
+                              const dt = new DataTransfer();
+                              if (file) dt.items.add(file);
+                              fileRefs.contratDePacsRef.current.files = dt.files;
+                            }
+                          }}
+                          uploadToken={intakeLink.token}
+                          documentKind="CONTRAT_DE_PACS"
+                          documentClientId={intakeLink.clientId}
+                          onUploadStateChange={onUploadStateChange}
+                        />
+                      </DocumentUploaded>
+                    </div>
                   )}
                 </div>
               )}
@@ -4236,145 +4281,166 @@ const DocumentsStep = ({
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Documents du bien et du bail</h3>
         <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-          <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE">
-            <FileUpload
-              label="Assurance propriétaire *"
-              value={fileStates.insuranceOwnerFile}
-              onChange={(file) => {
-                setFileStates.setInsuranceOwnerFile(file);
-                if (fileRefs.insuranceOwnerRef.current) {
-                  const dt = new DataTransfer();
-                  if (file) dt.items.add(file);
-                  fileRefs.insuranceOwnerRef.current.files = dt.files;
-                }
-              }}
-              uploadToken={intakeLink.token}
-              documentKind="INSURANCE"
-              documentClientId={intakeLink.clientId}
-              onUploadStateChange={onUploadStateChange}
-            />
-          </DocumentUploaded>
-          <DocumentUploaded token={intakeLink.token} documentKind="RIB">
-            <FileUpload
-              label="RIB signé propriétaire *"
-              value={fileStates.ribOwnerFile}
-              onChange={(file) => {
-                setFileStates.setRibOwnerFile(file);
-                if (fileRefs.ribOwnerRef.current) {
-                  const dt = new DataTransfer();
-                  if (file) dt.items.add(file);
-                  fileRefs.ribOwnerRef.current.files = dt.files;
-                }
-              }}
-              uploadToken={intakeLink.token}
-              documentKind="RIB"
-              documentClientId={intakeLink.clientId}
-              onUploadStateChange={onUploadStateChange}
-            />
-          </DocumentUploaded>
-          <DocumentUploaded token={intakeLink.token} documentKind="DIAGNOSTICS">
-            <FileUpload
-              label="Diagnostics *"
-              value={fileStates.diagnosticsFile}
-              onChange={(file) => {
-                setFileStates.setDiagnosticsFile(file);
-                if (fileRefs.diagnosticsRef.current) {
-                  const dt = new DataTransfer();
-                  if (file) dt.items.add(file);
-                  fileRefs.diagnosticsRef.current.files = dt.files;
-                }
-              }}
-              uploadToken={intakeLink.token}
-              documentKind="DIAGNOSTICS"
-              documentClientId={intakeLink.clientId}
-              onUploadStateChange={onUploadStateChange}
-            />
-          </DocumentUploaded>
-          <DocumentUploaded token={intakeLink.token} documentKind="TITLE_DEED">
-            <FileUpload
-              label="Titre de propriété *"
-              value={fileStates.titleDeedFile}
-              onChange={(file) => {
-                setFileStates.setTitleDeedFile(file);
-                if (fileRefs.titleDeedRef.current) {
-                  const dt = new DataTransfer();
-                  if (file) dt.items.add(file);
-                  fileRefs.titleDeedRef.current.files = dt.files;
-                }
-              }}
-              uploadToken={intakeLink.token}
-              documentKind="TITLE_DEED"
-              documentClientId={intakeLink.clientId}
-              onUploadStateChange={onUploadStateChange}
-            />
-          </DocumentUploaded>
-          {form.watch("propertyLegalStatus") === BienLegalStatus.CO_PROPRIETE && (
-            <DocumentUploaded
-              token={intakeLink.token}
-              documentKind="REGLEMENT_COPROPRIETE"
-            >
+          <div className="min-w-0 w-full overflow-visible">
+            <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE">
               <FileUpload
-                label="Règlement de copropriété *"
-                value={fileStates.reglementCoproprieteFile}
+                label="Assurance propriétaire *"
+                multiple
+                value={fileStates.insuranceOwnerFile}
                 onChange={(file) => {
-                  setFileStates.setReglementCoproprieteFile(file);
-                  if (fileRefs.reglementCoproprieteRef.current) {
+                  setFileStates.setInsuranceOwnerFile(file);
+                  if (fileRefs.insuranceOwnerRef.current) {
                     const dt = new DataTransfer();
                     if (file) dt.items.add(file);
-                    fileRefs.reglementCoproprieteRef.current.files = dt.files;
+                    fileRefs.insuranceOwnerRef.current.files = dt.files;
                   }
                 }}
                 uploadToken={intakeLink.token}
-                documentKind="REGLEMENT_COPROPRIETE"
+                documentKind="INSURANCE"
                 documentClientId={intakeLink.clientId}
                 onUploadStateChange={onUploadStateChange}
               />
             </DocumentUploaded>
+          </div>
+          <div className="min-w-0 w-full overflow-visible">
+            <DocumentUploaded token={intakeLink.token} documentKind="RIB">
+              <FileUpload
+                label="RIB signé propriétaire *"
+                multiple
+                value={fileStates.ribOwnerFile}
+                onChange={(file) => {
+                  setFileStates.setRibOwnerFile(file);
+                  if (fileRefs.ribOwnerRef.current) {
+                    const dt = new DataTransfer();
+                    if (file) dt.items.add(file);
+                    fileRefs.ribOwnerRef.current.files = dt.files;
+                  }
+                }}
+                uploadToken={intakeLink.token}
+                documentKind="RIB"
+                documentClientId={intakeLink.clientId}
+                onUploadStateChange={onUploadStateChange}
+              />
+            </DocumentUploaded>
+          </div>
+          <div className="min-w-0 w-full overflow-visible">
+            <DocumentUploaded token={intakeLink.token} documentKind="DIAGNOSTICS">
+              <FileUpload
+                label="Diagnostics *"
+                multiple
+                value={fileStates.diagnosticsFile}
+                onChange={(file) => {
+                  setFileStates.setDiagnosticsFile(file);
+                  if (fileRefs.diagnosticsRef.current) {
+                    const dt = new DataTransfer();
+                    if (file) dt.items.add(file);
+                    fileRefs.diagnosticsRef.current.files = dt.files;
+                  }
+                }}
+                uploadToken={intakeLink.token}
+                documentKind="DIAGNOSTICS"
+                documentClientId={intakeLink.clientId}
+                onUploadStateChange={onUploadStateChange}
+              />
+            </DocumentUploaded>
+          </div>
+          <div className="min-w-0 w-full overflow-visible">
+            <DocumentUploaded token={intakeLink.token} documentKind="TITLE_DEED">
+              <FileUpload
+                label="Titre de propriété *"
+                multiple
+                value={fileStates.titleDeedFile}
+                onChange={(file) => {
+                  setFileStates.setTitleDeedFile(file);
+                  if (fileRefs.titleDeedRef.current) {
+                    const dt = new DataTransfer();
+                    if (file) dt.items.add(file);
+                    fileRefs.titleDeedRef.current.files = dt.files;
+                  }
+                }}
+                uploadToken={intakeLink.token}
+                documentKind="TITLE_DEED"
+                documentClientId={intakeLink.clientId}
+                onUploadStateChange={onUploadStateChange}
+              />
+            </DocumentUploaded>
+          </div>
+          {form.watch("propertyLegalStatus") === BienLegalStatus.CO_PROPRIETE && (
+            <div className="min-w-0 w-full overflow-visible">
+              <DocumentUploaded
+                token={intakeLink.token}
+                documentKind="REGLEMENT_COPROPRIETE"
+              >
+                <FileUpload
+                  label="Règlement de copropriété *"
+                  multiple
+                  value={fileStates.reglementCoproprieteFile}
+                  onChange={(file) => {
+                    setFileStates.setReglementCoproprieteFile(file);
+                    if (fileRefs.reglementCoproprieteRef.current) {
+                      const dt = new DataTransfer();
+                      if (file) dt.items.add(file);
+                      fileRefs.reglementCoproprieteRef.current.files = dt.files;
+                    }
+                  }}
+                  uploadToken={intakeLink.token}
+                  documentKind="REGLEMENT_COPROPRIETE"
+                  documentClientId={intakeLink.clientId}
+                  onUploadStateChange={onUploadStateChange}
+                />
+              </DocumentUploaded>
+            </div>
           )}
           {form.watch("propertyLegalStatus") === BienLegalStatus.LOTISSEMENT && (
             <>
-              <DocumentUploaded
-                token={intakeLink.token}
-                documentKind="CAHIER_DE_CHARGE_LOTISSEMENT"
-              >
-                <FileUpload
-                  label="Cahier des charges lotissement *"
-                  value={fileStates.cahierChargeLotissementFile}
-                  onChange={(file) => {
-                    setFileStates.setCahierChargeLotissementFile(file);
-                    if (fileRefs.cahierChargeLotissementRef.current) {
-                      const dt = new DataTransfer();
-                      if (file) dt.items.add(file);
-                      fileRefs.cahierChargeLotissementRef.current.files = dt.files;
-                    }
-                  }}
-                  uploadToken={intakeLink.token}
+              <div className="min-w-0 w-full overflow-visible">
+                <DocumentUploaded
+                  token={intakeLink.token}
                   documentKind="CAHIER_DE_CHARGE_LOTISSEMENT"
-                  documentClientId={intakeLink.clientId}
-                  onUploadStateChange={onUploadStateChange}
-                />
-              </DocumentUploaded>
-              <DocumentUploaded
-                token={intakeLink.token}
-                documentKind="STATUT_DE_LASSOCIATION_SYNDICALE"
-              >
-                <FileUpload
-                  label="Statut de l'association syndicale *"
-                  value={fileStates.statutAssociationSyndicaleFile}
-                  onChange={(file) => {
-                    setFileStates.setStatutAssociationSyndicaleFile(file);
-                    if (fileRefs.statutAssociationSyndicaleRef.current) {
-                      const dt = new DataTransfer();
-                      if (file) dt.items.add(file);
-                      fileRefs.statutAssociationSyndicaleRef.current.files = dt.files;
-                    }
-                  }}
-                  uploadToken={intakeLink.token}
+                >
+                  <FileUpload
+                    label="Cahier des charges lotissement *"
+                    multiple
+                    value={fileStates.cahierChargeLotissementFile}
+                    onChange={(file) => {
+                      setFileStates.setCahierChargeLotissementFile(file);
+                      if (fileRefs.cahierChargeLotissementRef.current) {
+                        const dt = new DataTransfer();
+                        if (file) dt.items.add(file);
+                        fileRefs.cahierChargeLotissementRef.current.files = dt.files;
+                      }
+                    }}
+                    uploadToken={intakeLink.token}
+                    documentKind="CAHIER_DE_CHARGE_LOTISSEMENT"
+                    documentClientId={intakeLink.clientId}
+                    onUploadStateChange={onUploadStateChange}
+                  />
+                </DocumentUploaded>
+              </div>
+              <div className="min-w-0 w-full overflow-visible">
+                <DocumentUploaded
+                  token={intakeLink.token}
                   documentKind="STATUT_DE_LASSOCIATION_SYNDICALE"
-                  documentClientId={intakeLink.clientId}
-                  onUploadStateChange={onUploadStateChange}
-                />
-              </DocumentUploaded>
+                >
+                  <FileUpload
+                    label="Statut de l'association syndicale *"
+                    multiple
+                    value={fileStates.statutAssociationSyndicaleFile}
+                    onChange={(file) => {
+                      setFileStates.setStatutAssociationSyndicaleFile(file);
+                      if (fileRefs.statutAssociationSyndicaleRef.current) {
+                        const dt = new DataTransfer();
+                        if (file) dt.items.add(file);
+                        fileRefs.statutAssociationSyndicaleRef.current.files = dt.files;
+                      }
+                    }}
+                    uploadToken={intakeLink.token}
+                    documentKind="STATUT_DE_LASSOCIATION_SYNDICALE"
+                    documentClientId={intakeLink.clientId}
+                    onUploadStateChange={onUploadStateChange}
+                  />
+                </DocumentUploaded>
+              </div>
             </>
           )}
         </div>
@@ -4383,3 +4449,5 @@ const DocumentsStep = ({
   </Card>
   );
 };
+
+

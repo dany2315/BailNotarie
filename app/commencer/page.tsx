@@ -6,6 +6,7 @@ import { OtpVerificationForm } from "@/components/start/otp-verification-form";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { notifyAdminsForNewOwnerFromLanding } from "@/lib/actions/start";
 
 type Step = "email-input" | "otp-verification";
 
@@ -29,11 +30,22 @@ export default function StartPage() {
   };
 
   // Callback après vérification OTP réussie
-  const handleOtpSuccess = (
+  const handleOtpSuccess = async (
     existingClient: boolean,
     otpToken: string | undefined
   ) => {
     console.log(`[StartPage] handleOtpSuccess: existingClient=${existingClient}, otpToken=${otpToken}`);
+
+    if (!existingClient && otpToken) {
+      try {
+        // Filet de sécurité: la notification est déjà déclenchée côté serveur
+        // à la création du client, mais on retente ici de façon idempotente.
+        await notifyAdminsForNewOwnerFromLanding({ token: otpToken });
+      } catch (error) {
+        console.error("[StartPage] Failed to notify admins after OTP verification:", error);
+      }
+    }
+
     startTransition(() => {
       if (existingClient) {
         // Client existant → espace client propriétaire

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { OtpCodeInput } from "@/components/ui/otp-code-input";
 import { Loader2, Mail, Scale, Shield, Lock, ArrowLeft } from "lucide-react";
 import { authClient, useSession } from "@/lib/auth-client";
 import Image from "next/image";
@@ -409,38 +409,20 @@ export default function NotaireLoginPage() {
                 </form>
               ) : (
                 <form onSubmit={handleSubmitOTP(onOTPSubmit)} className="space-y-4 sm:space-y-6">
-                  <div className="space-y-3 sm:space-y-4 flex flex-col items-center justify-center">
-                    <Label htmlFor="code" className="text-xs sm:text-sm font-semibold text-center">
-                      Code de vérification
-                    </Label>
-                    <Controller
-                      name="code"
-                      control={controlOTP}
-                      render={({ field }) => (
-                        <div className="space-y-2 w-full">
-                          <InputOTP
-                            maxLength={6}
-                            value={field.value}
-                            onChange={field.onChange}
-                            aria-invalid={otpErrors.code ? "true" : "false"}
-                            className="justify-center w-full"
-                          >
-                            <InputOTPGroup className="gap-2 sm:gap-3">
-                              <InputOTPSlot index={0} className="h-12 w-12 sm:h-14 sm:w-14 text-base sm:text-lg font-semibold border-2" />
-                              <InputOTPSlot index={1} className="h-12 w-12 sm:h-14 sm:w-14 text-base sm:text-lg font-semibold border-2" />
-                              <InputOTPSlot index={2} className="h-12 w-12 sm:h-14 sm:w-14 text-base sm:text-lg font-semibold border-2" />
-                              <InputOTPSlot index={3} className="h-12 w-12 sm:h-14 sm:w-14 text-base sm:text-lg font-semibold border-2" />
-                              <InputOTPSlot index={4} className="h-12 w-12 sm:h-14 sm:w-14 text-base sm:text-lg font-semibold border-2" />
-                              <InputOTPSlot index={5} className="h-12 w-12 sm:h-14 sm:w-14 text-base sm:text-lg font-semibold border-2" />
-                            </InputOTPGroup>
-                          </InputOTP>
-                        </div>
-                      )}
-                    />
-                    {otpErrors.code && (
-                      <p className="text-xs sm:text-sm text-destructive text-center px-2">{otpErrors.code.message}</p>
+                  <Controller
+                    name="code"
+                    control={controlOTP}
+                    render={({ field }) => (
+                      <OtpCodeInput
+                        id="notaire-login-otp-code"
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        disabled={isLoading}
+                        autoFocus
+                        error={otpErrors.code?.message}
+                      />
                     )}
-                  </div>
+                  />
                   <div className="space-y-2 sm:space-y-3">
                     <Button 
                       type="submit" 

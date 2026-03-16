@@ -7,7 +7,7 @@ export const sendNotificationEmail = inngest.createFunction(
   { event: "email/notification.send" },
   async ({ event, step }) => {
     await step.run("send-notification-email", async () => {
-      await resendSendEmail({
+      const result = await resendSendEmail({
         from: "Support BailNotarie <support@bailnotarie.fr>",
         to: event.data.to,
         subject: "Nouvelle notification - BailNotarie",
@@ -17,6 +17,12 @@ export const sendNotificationEmail = inngest.createFunction(
           interfaceUrl: event.data.interfaceUrl,
         }),
       });
+
+      if (result.error) {
+        throw new Error(`Erreur Resend: ${result.error.message}`);
+      }
+
+      return result;
     });
   }
 );
