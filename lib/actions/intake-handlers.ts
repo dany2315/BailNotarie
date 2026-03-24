@@ -339,7 +339,7 @@ export async function handleOwnerBailStep(
       const newBail = await tx.bail.create({
         data: {
           bailType: payload.bailType || BailType.BAIL_NU_3_ANS,
-          bailFamily: payload.bailFamily || BailFamille.HABITATION,
+          bailFamily: payload.bailFamily || intakeLink.bailFamilyPreference || BailFamille.HABITATION,
           status: BailStatus.DRAFT,
           rentAmount: typeof payload.bailRentAmount === 'string'
             ? parseInt(payload.bailRentAmount, 10) || 0
