@@ -45,7 +45,7 @@ export function HeroSectionNew() {
                 </strong>{" "}
                 pour constituer leur dossier de{" "}
                 <strong className="font-semibold text-gray-900">
-                  bail notarié d'habitation en France
+                  bail notarié en France
                 </strong>.
               </p>
 

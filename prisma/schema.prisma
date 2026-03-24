@@ -521,8 +521,10 @@ model IntakeLink {
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id])
 
-  status      IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
-  submittedAt DateTime?
+  status               IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
+  submittedAt          DateTime?
+
+  bailFamilyPreference BailFamille?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

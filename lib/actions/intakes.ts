@@ -488,15 +488,22 @@ async function savePartialOwnerIntake(
     case "property":
       return await handleOwnerPropertyStep(intakeLink, payload, clientId);
     
+    case "bailFamilySelection":
+      await prisma.intakeLink.update({
+        where: { token: intakeLink.token },
+        data: { bailFamilyPreference: payload.bailFamily ?? null },
+      });
+      return;
+
     case "bail":
       return await handleOwnerBailStep(intakeLink, payload, clientId);
-    
+
     case "tenant":
       return await handleOwnerTenantStep(intakeLink, payload, clientId);
-    
+
     case "documents":
       return await handleOwnerDocumentsStep(intakeLink, payload, clientId);
-    
+
     default:
       // Si pas de stepId, utiliser l'ancien comportement pour compatibilité
       return await handleOwnerLegacySave(intakeLink, payload, clientId);

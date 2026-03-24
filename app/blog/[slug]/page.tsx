@@ -100,6 +100,56 @@ function getRelatedArticles(categoryId: string, currentSlug: string) {
 }
 
 function getFaqForSlug(slug: string) {
+  if (slug === "bail-commercial") {
+    return [
+      {
+        question: "Qu'est-ce qu'un bail commercial ?",
+        answer:
+          "Le bail commercial est un contrat de location d'un local dans lequel est exploité un fonds de commerce ou artisanal. Il est régi par les articles L.145-1 et suivants du Code de commerce et offre au locataire commerçant une protection forte : durée minimale de 9 ans, droit au renouvellement et indemnité d'éviction en cas de refus.",
+      },
+      {
+        question: "Quelle est la durée d'un bail commercial ?",
+        answer:
+          "La durée minimale d'un bail commercial est de 9 ans. C'est la règle des 3-6-9 : le locataire peut donner congé à l'expiration de chaque période triennale (3 ans, 6 ans ou 9 ans) avec un préavis de 6 mois. Le bailleur ne peut pas mettre fin au bail avant les 9 ans, sauf exceptions strictement limitées par la loi.",
+      },
+      {
+        question: "Qui peut bénéficier d'un bail commercial ?",
+        answer:
+          "Le bail commercial bénéficie aux commerçants immatriculés au RCS (Registre du Commerce et des Sociétés) et aux artisans immatriculés au RNE (Registre National des Entreprises). Les professions libérales (médecins, avocats, architectes...) ne peuvent pas en bénéficier : elles relèvent du bail professionnel.",
+      },
+      {
+        question: "Comment fonctionne le renouvellement du bail commercial ?",
+        answer:
+          "À l'expiration du bail de 9 ans, le locataire bénéficie d'un droit au renouvellement. Il peut demander le renouvellement dans les 6 mois avant l'expiration. Si le bailleur refuse, il doit verser une indemnité d'éviction, qui représente généralement la valeur marchande du fonds de commerce.",
+      },
+      {
+        question: "Qu'est-ce que l'indemnité d'éviction ?",
+        answer:
+          "L'indemnité d'éviction est la compensation financière due par le bailleur au locataire lorsqu'il refuse le renouvellement du bail commercial. Elle couvre la valeur marchande du fonds de commerce, les frais de déménagement et de réinstallation. Son montant peut atteindre plusieurs centaines de milliers d'euros pour un fonds important.",
+      },
+      {
+        question: "Comment est fixé et révisé le loyer d'un bail commercial ?",
+        answer:
+          "Le loyer initial est librement fixé entre les parties. En cours de bail, il peut être révisé tous les 3 ans, mais la révision est plafonnée à la variation de l'indice ILC (commerces) ou ILAT (activités tertiaires). Une clause d'indexation annuelle peut prévoir une actualisation automatique selon ces indices.",
+      },
+      {
+        question: "Le notaire est-il obligatoire pour un bail commercial ?",
+        answer:
+          "Non, pas pour un bail commercial de 9 ans standard. En revanche, si la durée convenue dépasse 12 ans, la loi impose la forme authentique (acte notarié). Même sans obligation légale, recourir à un notaire offre des avantages décisifs : acte authentique, titre exécutoire pour le recouvrement des loyers impayés, et sécurité juridique renforcée.",
+      },
+      {
+        question: "Combien coûte la rédaction d'un bail commercial ?",
+        answer:
+          "La rédaction d'un bail commercial coûte environ 500 à 2 000 € chez un avocat (bail sous seing privé) ou 1 500 à 4 000 € chez un notaire (acte authentique), selon la complexité et le loyer. Pour un bail de plus de 12 ans nécessitant un acte notarié et une publication, le coût peut atteindre 6 000 €.",
+      },
+      {
+        question: "Quelle est la différence entre bail commercial et bail professionnel ?",
+        answer:
+          "Le bail commercial (durée 9 ans, droit au renouvellement, indemnité d'éviction) s'adresse aux commerçants et artisans immatriculés. Le bail professionnel (durée 6 ans, pas de droit au renouvellement) s'adresse aux professions libérales. Le bail commercial offre une protection beaucoup plus forte pour le locataire.",
+      },
+    ];
+  }
+
   if (slug === "bail-derogatoire-article-l145-5-code-commerce") {
     return [
       {

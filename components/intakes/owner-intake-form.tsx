@@ -85,6 +85,7 @@ import {
   Layers,
   Lightbulb,
   Sparkles,
+  Home,
 } from "lucide-react";
 import {
   BailFamille,
@@ -136,6 +137,7 @@ const hasAllFurniture = (values: Record<string, unknown>): boolean => {
 };
 
 const STEPS = [
+  { id: "bailFamilySelection", title: "Type de bail" },
   { id: "clientType", title: "Type de client" },
   { id: "clientInfo", title: "Informations client" },
   { id: "summary", title: "Récapitulatif" },
@@ -151,6 +153,7 @@ type IntakeLink = {
   token: string;
   clientId: string;
   propertyId?: string | null;
+  bailFamilyPreference?: BailFamille | null;
   client: any;
   property: any;
   bail: any;
@@ -320,7 +323,7 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   const hasMaterielEntretien = property?.hasMaterielEntretien ?? false;
 
   // Bail
-  const bailFamily = bail?.bailFamily ?? BailFamille.HABITATION;
+  const bailFamily = bail?.bailFamily ?? intakeLink.bailFamilyPreference ?? BailFamille.HABITATION;
   const bailType = bail?.bailType ?? BailType.BAIL_NU_3_ANS;
   const bailRentAmount = bail?.rentAmount?.toString() ?? "";
   const bailMonthlyCharges = bail?.monthlyCharges?.toString() ?? "";
@@ -513,6 +516,8 @@ const getRequiredFields = (
   clientType: ClientType | ""
 ): (keyof FormWithPersons)[] => {
   switch (stepId) {
+    case "bailFamilySelection":
+      return ["bailFamily"];
     case "clientType":
       return ["type"];
     case "clientInfo":
@@ -571,25 +576,28 @@ const findFirstIncompleteStep = (
     intakeLink.bail
   );
   
-  // Toujours permettre à l'utilisateur de voir et modifier le type de client
-  // si le formulaire n'a pas encore été vraiment commencé par l'utilisateur
-  // (même si le type est prérempli lors de la création)
-  if (isEmpty(values.type) || !hasStarted) {
+  // Formulaire non commencé → step 0 (sélection type de bail)
+  if (!hasStarted) {
     return 0;
   }
 
-  // Vérification complète du step 1 (Informations client)
+  // Step 1 : type de client
+  if (isEmpty(values.type)) {
+    return 1;
+  }
+
+  // Vérification complète du step 2 (Informations client)
   if (clientType === ClientType.PERSONNE_PHYSIQUE) {
     // Vérifier que persons existe et n'est pas vide
     if (isEmpty(values.persons) || !Array.isArray(values.persons) || values.persons.length === 0) {
-      return 1;
+      return 2;
     }
 
     // Vérifier toutes les personnes (personne principale + autres)
     for (let i = 0; i < values.persons.length; i++) {
       const person = values.persons[i];
       if (!person) {
-        return 1;
+        return 2;
       }
 
       // Vérifier tous les champs requis pour chaque personne
@@ -605,30 +613,30 @@ const findFirstIncompleteStep = (
         isEmpty(person.birthPlace) ||
         isEmpty(person.birthDate)
       ) {
-        return 1;
+        return 2;
       }
 
       // Vérifier le régime matrimonial si marié
       if (person.familyStatus === FamilyStatus.MARIE && isEmpty(person.matrimonialRegime)) {
-        return 1;
+        return 2;
       }
     }
 
     // Vérifier aussi email et phone au niveau racine (pour compatibilité)
     if (isEmpty(values.email)) {
-      return 1;
+      return 2;
     }
     // Le téléphone peut être au niveau racine ou dans la personne principale
     const hasPhoneAtRoot = !isEmpty(values.phone);
     const primaryPerson = values.persons.find((p: any) => p.isPrimary) || values.persons[0];
     const hasPhoneInPerson = primaryPerson && !isEmpty(primaryPerson.phone);
     if (!hasPhoneAtRoot && !hasPhoneInPerson) {
-      return 1;
+      return 2;
     }
   } else if (clientType === ClientType.PERSONNE_MORALE) {
     // Vérifier que entreprise existe
     if (!values.entreprise) {
-      return 1;
+      return 2;
     }
 
     // Vérifier tous les champs requis pour l'entreprise
@@ -640,15 +648,15 @@ const findFirstIncompleteStep = (
       isEmpty(values.entreprise.phone) ||
       isEmpty(values.entreprise.fullAddress)
     ) {
-      return 1;
+      return 2;
     }
 
     // Vérifier aussi email et phone au niveau racine
     if (isEmpty(values.email)) {
-      return 1;
+      return 2;
     }
     if (isEmpty(values.phone)) {
-      return 1;
+      return 2;
     }
   }
 
@@ -658,7 +666,7 @@ const findFirstIncompleteStep = (
     isEmpty(values.propertyType) ||
     isEmpty(values.propertyLegalStatus)
   ) {
-    return 3;
+    return 4;
   }
 
   if (
@@ -669,7 +677,7 @@ const findFirstIncompleteStep = (
     isEmpty(values.bailSecurityDeposit) ||
     isEmpty(values.bailPaymentDay)
   ) {
-    return 4;
+    return 5;
   }
 
   const hasTenant =
@@ -677,7 +685,7 @@ const findFirstIncompleteStep = (
       (party: any) => party.profilType === ProfilType.LOCATAIRE
     ) ?? false;
   if (isEmpty(values.tenantEmail) && !hasTenant) {
-    return 5;
+    return 6;
   }
 
   const clientDocs = intakeLink.client?.documents || [];
@@ -687,24 +695,24 @@ const findFirstIncompleteStep = (
   if (clientType === ClientType.PERSONNE_MORALE) {
     const hasKbis = clientDocs.some((d: any) => d.kind === "KBIS");
     const hasStatutes = clientDocs.some((d: any) => d.kind === "STATUTES");
-    if (!hasKbis || !hasStatutes) return 6;
+    if (!hasKbis || !hasStatutes) return 7;
   } else if (clientType === ClientType.PERSONNE_PHYSIQUE) {
     const hasId = clientDocs.some((d: any) => d.kind === "ID_IDENTITY");
-    if (!hasId) return 6;
+    if (!hasId) return 7;
     const hasLivret = clientDocs.some((d: any) => d.kind === "LIVRET_DE_FAMILLE");
     const hasPacs = clientDocs.some((d: any) => d.kind === "CONTRAT_DE_PACS");
-    if (!hasLivret || !hasPacs) return 6;
+    if (!hasLivret || !hasPacs) return 7;
   }
 
   const hasDiagnostics = propertyDocs.some((d: any) => d.kind === "DIAGNOSTICS");
   const hasTitleDeed = propertyDocs.some((d: any) => d.kind === "TITLE_DEED");
-  if (!hasDiagnostics || !hasTitleDeed) return 6;
+  if (!hasDiagnostics || !hasTitleDeed) return 7;
 
   if (
     values.propertyLegalStatus === BienLegalStatus.CO_PROPRIETE &&
     !propertyDocs.some((d: any) => d.kind === "REGLEMENT_COPROPRIETE")
   ) {
-    return 6;
+    return 7;
   }
   if (values.propertyLegalStatus === BienLegalStatus.LOTISSEMENT) {
     const hasCahier = propertyDocs.some(
@@ -713,12 +721,12 @@ const findFirstIncompleteStep = (
     const hasStatut = propertyDocs.some(
       (d: any) => d.kind === "STATUT_DE_LASSOCIATION_SYNDICALE"
     );
-    if (!hasCahier || !hasStatut) return 6;
+    if (!hasCahier || !hasStatut) return 7;
   }
 
   const hasInsurance = bailDocs.some((d: any) => d.kind === "INSURANCE");
   const hasRib = bailDocs.some((d: any) => d.kind === "RIB");
-  if (!hasInsurance || !hasRib) return 6;
+  if (!hasInsurance || !hasRib) return 7;
 
   return STEPS.length - 1;
 };
@@ -1351,6 +1359,8 @@ useEffect(() => {
   const getFieldsForStep = (step: number): (keyof FormWithPersons)[] => {
     const stepId = STEPS[step]?.id;
     switch (stepId) {
+      case "bailFamilySelection":
+        return ["bailFamily"];
       case "clientType":
         return ["type"];
       case "clientInfo":
@@ -2333,6 +2343,9 @@ useEffect(() => {
         className="space-y-4"
       >
         <div className="pt-6">
+          {STEPS[currentStep].id === "bailFamilySelection" && (
+            <BailFamilySelectionStep form={form} />
+          )}
           {STEPS[currentStep].id === "clientType" && (
             <ClientTypeStep
               form={form}
@@ -2602,6 +2615,109 @@ type ClientTypeStepProps = {
   onClientTypeChange: (type: ClientType) => void;
   isMobile: boolean;
 };
+
+const BailFamilySelectionStep = ({ form }: { form: any }) => (
+  <div className="w-full animate-fade-in">
+    <Card>
+      <CardHeader>
+        <CardTitle>Quel type de bail souhaitez-vous créer ?</CardTitle>
+        <CardDescription>Sélectionnez le type de bail pour votre bien</CardDescription>
+      </CardHeader>
+      {/*
+            Quel type de bail souhaitez-vous créer ?
+            Sélectionnez le type de bail pour votre bien
+      */}
+      <CardContent className="space-y-8">
+        <Controller
+          name="bailFamily"
+          control={form.control}
+          render={({ field }) => (
+            <RadioGroup
+              value={field.value}
+              onValueChange={field.onChange}
+              className="flex flex-row space-x-3 w-full items-center justify-between"
+            >
+              <Label
+                htmlFor="bail-habitation"
+                className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
+                  field.value === BailFamille.HABITATION
+                    ? "bg-accent"
+                    : ""
+                }`}
+              >
+                <RadioGroupItem value={BailFamille.HABITATION} id="bail-habitation" className="hidden" />
+                {/*
+                  field.value === BailFamille.HABITATION ? "animate-fade-in" : ""
+                }`}>
+                  <div className={`p-3 md:p-4 rounded-xl transition-all duration-300 ${
+                    field.value === BailFamille.HABITATION
+                      ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg"
+                      : "bg-blue-100 text-blue-600 group-hover:bg-blue-200"
+                  }`}>
+                    <Home className="h-10 w-10 md:h-12 md:w-12" />
+                  </div>
+                  <div className="text-center space-y-1 md:space-y-2">
+                    <span className="text-lg md:text-2xl font-bold block">Habitation</span>
+                    <span className="text-xs md:text-sm text-muted-foreground block px-2">
+                      Pour louer un logement à usage d'habitation 
+                    </span>
+                  </div>
+                  {field.value === BailFamille.HABITATION && (
+                    <div className="absolute top-3 right-3 animate-fade-in">
+                      <CheckCircle2 className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+                    </div>
+                  )}
+                */}
+                <Home className="size-5 text-muted-foreground" />
+                <div className="text-sm font-medium text-center">Habitation</div>
+              </Label>
+
+              <Label
+                htmlFor="bail-commercial"
+                className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
+                  field.value === BailFamille.COMMERCIAL
+                    ? "bg-accent"
+                    : ""
+                }`}
+              >
+                <RadioGroupItem value={BailFamille.COMMERCIAL} id="bail-commercial" className="hidden" />
+                {/*
+                  field.value === BailFamille.COMMERCIAL ? "animate-fade-in" : ""
+                }`}>
+                  <div className={`p-3 md:p-4 rounded-xl transition-all duration-300 ${
+                    field.value === BailFamille.COMMERCIAL
+                      ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg"
+                      : "bg-indigo-100 text-indigo-600 group-hover:bg-indigo-200"
+                  }`}>
+                    <Building2 className="h-10 w-10 md:h-12 md:w-12" />
+                  </div>
+                  <div className="text-center space-y-1 md:space-y-2">
+                    <span className="text-lg md:text-2xl font-bold block">Commercial</span>
+                    <span className="text-xs md:text-sm text-muted-foreground block px-2">
+                      Pour louer un local commercial ou professionnel
+                    </span>
+                  </div>
+                  {field.value === BailFamille.COMMERCIAL && (
+                    <div className="absolute top-3 right-3 animate-fade-in">
+                      <CheckCircle2 className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+                    </div>
+                  )}
+                */}
+                <Building2 className="size-5 text-muted-foreground" />
+                <div className="text-sm font-medium text-center">Commercial</div>
+              </Label>
+            </RadioGroup>
+          )}
+        />
+        {form.formState.errors.bailFamily && (
+          <p className="text-sm text-destructive text-center mt-4">
+            {form.formState.errors.bailFamily.message}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  </div>
+);
 
 const ClientTypeStep = ({
   form,
@@ -4449,5 +4565,3 @@ const DocumentsStep = ({
   </Card>
   );
 };
-
-
