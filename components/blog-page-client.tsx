@@ -10,7 +10,7 @@ import { ShareButtonSimple } from '@/components/share-button-simple';
 import { CommentButton } from '@/components/comment-button';
 import { CommentsSection, CommentsSectionRef } from '@/components/comments-section';
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
-import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content } from '@/components/blog-content';
+import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content } from '@/components/blog-content';
 
 type TocItem = {
   id: string;
@@ -40,6 +40,7 @@ const contentComponents: Record<string, React.ComponentType> = {
   'blog-12': Blog12Content,
   'blog-13': Blog13Content,
   'blog-14': Blog14Content,
+  'blog-15': Blog15Content,
 };
 
 const articleExperiences: Record<string, ArticleExperience> = {
@@ -244,6 +245,28 @@ const articleExperiences: Record<string, ArticleExperience> = {
     ],
     ctaLabel: 'Constituer mon dossier',
     ctaDescription: "Sécurisez la rédaction et les échéances clés avant de signer votre contrat.",
+  },
+  'blog-15': {
+    quickAnswer: "Le bail commercial est un contrat de location d'un local commercial pour 9 ans minimum, avec droit au renouvellement et indemnité d'éviction. La règle des 3-6-9 permet au locataire de partir à chaque période triennale.",
+    keyPoints: [
+      "Définition, conditions d'éligibilité et caractéristiques essentielles",
+      "Règle des 3-6-9, loyer, renouvellement, résiliation et indemnité d'éviction",
+      "Rôle du notaire, bail commercial notarié et tarifs 2026",
+    ],
+    toc: [
+      { id: 'definition-bail-commercial', label: 'Définition' },
+      { id: 'duree-bail-commercial-3-6-9', label: 'Durée : la règle des 3-6-9' },
+      { id: 'conditions-eligibilite-bail-commercial', label: "Conditions d'éligibilité" },
+      { id: 'contenu-bail-commercial', label: 'Contenu obligatoire' },
+      { id: 'loyer-bail-commercial', label: 'Loyer et indexation' },
+      { id: 'renouvellement-bail-commercial', label: 'Renouvellement' },
+      { id: 'resiliation-bail-commercial', label: 'Résiliation' },
+      { id: 'role-notaire-bail-commercial', label: 'Rôle du notaire' },
+      { id: 'prix-bail-commercial', label: 'Prix et honoraires' },
+      { id: 'bail-commercial-vs-professionnel', label: 'Bail commercial vs professionnel' },
+    ],
+    ctaLabel: 'Constituer mon dossier de bail commercial',
+    ctaDescription: "Préparez votre dossier en ligne et transmettez-le à un notaire partenaire pour sécuriser votre bail commercial.",
   },
 };
 
