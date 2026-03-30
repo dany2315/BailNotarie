@@ -60,11 +60,12 @@ export async function createLease(data: unknown) {
   // Mapper leaseType vers bailFamily
   const bailFamilyMap: Record<string, BailFamille> = {
     HABITATION: BailFamille.HABITATION,
+    COMMERCIAL: BailFamille.COMMERCIAL,
   };
 
   const bail = await prisma.bail.create({
     data: {
-      bailType: BailType.BAIL_NU_3_ANS, // Par défaut
+      bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
       bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
       status: validated.status as BailStatus,
       rentAmount: validated.rentAmount,
@@ -153,7 +154,8 @@ export async function createLease(data: unknown) {
 export async function updateLease(data: unknown) {
   const user = await requireAuth();
   const validated = updateLeaseSchema.parse(data);
-  const { id, tenantId, leaseType, ...updateData } = validated;
+  const { id, tenantId, leaseType, bailType: validatedBailType, ...updateData } = validated;
+  // bailType est géré séparément car il n'est pas dans updateData spread
 
   // Récupérer le bail pour obtenir le propertyId
   const bail = await prisma.bail.findUnique({
@@ -207,8 +209,12 @@ export async function updateLease(data: unknown) {
   if (leaseType) {
     const bailFamilyMap: Record<string, BailFamille> = {
       HABITATION: BailFamille.HABITATION,
+      COMMERCIAL: BailFamille.COMMERCIAL,
     };
     updatePayload.bailFamily = bailFamilyMap[leaseType] || BailFamille.HABITATION;
+  }
+  if (validatedBailType) {
+    updatePayload.bailType = validatedBailType as BailType;
   }
   if (updateData.propertyId) {
     updatePayload.propertyId = updateData.propertyId;
@@ -262,9 +268,9 @@ export async function transitionLease(data: unknown) {
   // Garde des rôles selon la transition
   if (nextStatus === "READY_FOR_NOTARY") {
     await requireRole(["ADMINISTRATEUR", "OPERATEUR", "REVIEWER"]);
-  } else if (nextStatus === "ACTIVE") {
+  } else if (nextStatus === "SIGNED") {
     await requireRole(["ADMINISTRATEUR", "NOTAIRE"]);
-  } else if (nextStatus === "TERMINATED" || nextStatus === "CANCELED") {
+  } else if (nextStatus === "TERMINATED") {
     await requireRole(["ADMINISTRATEUR", "NOTAIRE", "OPERATEUR"]);
   } else {
     await requireAuth();

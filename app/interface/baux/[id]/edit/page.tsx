@@ -10,61 +10,32 @@ import { ArrowLeft } from "lucide-react";
 
 async function handleSubmit(data: FormData) {
   "use server";
-  
-  // Convertir FormData en objet
-  const formData: any = {
-    id: data.get("id") as string,
-  };
-  
-  const propertyId = data.get("propertyId");
-  if (propertyId) formData.propertyId = propertyId.toString();
-  
-  const tenantId = data.get("tenantId");
-  if (tenantId) formData.tenantId = tenantId.toString();
-  
-  const leaseType = data.get("leaseType");
-  if (leaseType) formData.leaseType = leaseType.toString();
-  
-  const status = data.get("status");
-  if (status) formData.status = status.toString();
-  
-  const effectiveDate = data.get("effectiveDate");
-  if (effectiveDate && effectiveDate.toString().trim() !== "") {
-    formData.effectiveDate = effectiveDate.toString().trim();
-  }
-  
-  const endDate = data.get("endDate");
-  if (endDate && endDate.toString().trim() !== "") {
-    formData.endDate = endDate.toString().trim();
-  }
-  
-  const rentAmount = data.get("rentAmount");
-  if (rentAmount && rentAmount.toString().trim() !== "") {
-    formData.rentAmount = rentAmount.toString().trim();
-  }
-  
-  const monthlyCharges = data.get("monthlyCharges");
-  if (monthlyCharges && monthlyCharges.toString().trim() !== "") {
-    formData.monthlyCharges = monthlyCharges.toString().trim();
-  }
-  
-  const securityDeposit = data.get("securityDeposit");
-  if (securityDeposit && securityDeposit.toString().trim() !== "") {
-    formData.securityDeposit = securityDeposit.toString().trim();
-  }
-  
-  const paymentDay = data.get("paymentDay");
-  if (paymentDay && paymentDay.toString().trim() !== "") {
-    formData.paymentDay = paymentDay.toString().trim();
+
+  const formData: any = { id: data.get("id") as string };
+
+  const fields = [
+    "propertyId",
+    "tenantId",
+    "leaseType",
+    "bailType",
+    "status",
+    "effectiveDate",
+    "endDate",
+    "rentAmount",
+    "monthlyCharges",
+    "securityDeposit",
+    "paymentDay",
+  ] as const;
+
+  for (const field of fields) {
+    const val = data.get(field);
+    if (val !== null && val.toString().trim() !== "") {
+      formData[field] = val.toString().trim();
+    }
   }
 
-  // Validation avec Zod avant d'appeler updateLease
-  try {
-    updateLeaseSchema.parse(formData);
-    await updateLease(formData);
-  } catch (error: any) {
-    throw error;
-  }
+  updateLeaseSchema.parse(formData);
+  await updateLease(formData);
 }
 
 export default async function EditLeasePage({
@@ -79,51 +50,33 @@ export default async function EditLeasePage({
     notFound();
   }
 
-  // Récupérer la liste des propriétés et des clients (locataires) pour les selects
   const [propertiesResult, allClients] = await Promise.all([
-    getProperties({
-      page: 1,
-      pageSize: 1000,
-    }),
+    getProperties({ page: 1, pageSize: 1000 }),
     getAllClients(),
   ]);
 
-  // S'assurer que la propriété actuelle est dans la liste
   let properties = propertiesResult.data;
   if (lease.property && !properties.find((p: any) => p.id === lease.property.id)) {
     properties = [lease.property, ...properties];
   }
 
-  // Trouver le locataire dans les parties du bail
   const tenant = lease.parties?.find((p: any) => p.profilType === "LOCATAIRE");
-
-  // Filtrer pour ne garder que les locataires
-  let tenants = allClients.filter((client: any) => client.profilType === "LOCATAIRE");
-  
-  // S'assurer que le locataire actuel est dans la liste (s'il existe)
+  let tenants = allClients.filter((c: any) => c.profilType === "LOCATAIRE");
   if (tenant && !tenants.find((t: any) => t.id === tenant.id)) {
     tenants = [tenant, ...tenants];
   }
-  
-  // Mapper bailFamily vers leaseType pour le formulaire
-  const bailFamilyToLeaseType: Record<string, string> = {
-    HABITATION: "HABITATION",
-    MEUBLE: "MEUBLE",
-    COMMERCIAL: "COMMERCIAL",
-    PROFESSIONNEL: "PROFESSIONNEL",
-    SAISONNIER: "SAISONNIER",
-    OTHER: "OTHER",
-  };
 
-  // Préparer les données initiales pour le formulaire
-  const initialData: any = {
+  const initialData = {
     id: lease.id,
-    leaseType: bailFamilyToLeaseType[lease.bailFamily] || "HABITATION",
+    leaseType: lease.bailFamily || "HABITATION",
+    bailType: lease.bailType || "BAIL_NU_3_ANS",
     status: lease.status,
     propertyId: lease.propertyId,
     tenantId: tenant?.id || "",
-    effectiveDate: lease.effectiveDate ? new Date(lease.effectiveDate).toISOString().split('T')[0] : "",
-    endDate: lease.endDate ? new Date(lease.endDate).toISOString().split('T')[0] : "",
+    effectiveDate: lease.effectiveDate
+      ? new Date(lease.effectiveDate).toISOString().split("T")[0]
+      : "",
+    endDate: lease.endDate ? new Date(lease.endDate).toISOString().split("T")[0] : "",
     rentAmount: lease.rentAmount ? lease.rentAmount.toString() : "",
     monthlyCharges: lease.monthlyCharges ? lease.monthlyCharges.toString() : "",
     securityDeposit: lease.securityDeposit ? lease.securityDeposit.toString() : "",
@@ -139,9 +92,11 @@ export default async function EditLeasePage({
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold">Modifier le bail #{lease.id.slice(-8)}</h1>
-          <p className="text-muted-foreground mt-1">
-            Modifier les informations du bail
+          <h1 className="text-2xl sm:text-3xl font-bold">
+            Modifier le bail #{lease.id.slice(-8).toUpperCase()}
+          </h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Modifiez les informations du bail notarié
           </p>
         </div>
       </div>
@@ -155,4 +110,3 @@ export default async function EditLeasePage({
     </div>
   );
 }
-
