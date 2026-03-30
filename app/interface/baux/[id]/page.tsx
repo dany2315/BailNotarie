@@ -153,11 +153,7 @@ export default async function LeaseDetailPage({
 
   const bailFamilyLabels: Record<string, string> = {
     HABITATION: "Habitation",
-    MEUBLE: "Meublé",
     COMMERCIAL: "Commercial",
-    PROFESSIONNEL: "Professionnel",
-    SAISONNIER: "Saisonnier",
-    OTHER: "Autre",
   };
 
   const bailTypeLabels: Record<string, string> = {
@@ -449,7 +445,7 @@ export default async function LeaseDetailPage({
                                 <DocumentsStackByKind
                                   documents={personDocs}
                                   documentKindLabels={documentKindLabels}
-                                  getOwnerLabel={() => personName}
+                                  ownerLabel={personName}
                                 />
                               </div>
                             )}
@@ -518,7 +514,7 @@ export default async function LeaseDetailPage({
                       <DocumentsStackByKind
                         documents={ownerCommonDocuments}
                         documentKindLabels={documentKindLabels}
-                        getOwnerLabel={() => "Propriétaire"}
+                        ownerLabel="Propriétaire"
                       />
                     </div>
                   </>
@@ -669,7 +665,7 @@ export default async function LeaseDetailPage({
                                 <DocumentsStackByKind
                                   documents={personDocs}
                                   documentKindLabels={documentKindLabels}
-                                  getOwnerLabel={() => personName}
+                                  ownerLabel={personName}
                                 />
                               </div>
                             )}
@@ -738,7 +734,7 @@ export default async function LeaseDetailPage({
                       <DocumentsStackByKind
                         documents={tenantCommonDocuments}
                         documentKindLabels={documentKindLabels}
-                        getOwnerLabel={() => "Locataire"}
+                        ownerLabel="Locataire"
                       />
                     </div>
                   </>
