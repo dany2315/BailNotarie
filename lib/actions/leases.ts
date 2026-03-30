@@ -373,31 +373,8 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
     return client.legalName || client.email || "Client";
   };
 
-  // Vérifier s'il y a un locataire connecté au bail
-  const hasTenant = bail.parties.some(party => party.profilType === ProfilType.LOCATAIRE);
-  
-  if (hasTenant) {
-    // Trouver le nom du locataire pour le message d'erreur
-    const tenant = bail.parties.find(party => party.profilType === ProfilType.LOCATAIRE);
-    if (tenant) {
-      const tenantName = getClientName(tenant);
-      
-      return {
-        success: false,
-        error: `Impossible de supprimer le bail. ` +
-          `Un locataire est connecté à ce bail. ` +
-          `Vous devez d'abord supprimer le locataire concerné.`,
-        blockingEntities: [{
-          id: tenant.id,
-          name: tenantName,
-          type: "CLIENT",
-          link: `/interface/clients/${tenant.id}`,
-        }],
-      };
-    }
-  }
-
-  // Si seulement un propriétaire, on peut supprimer
+  // La suppression du bail déconnecte automatiquement les parties (relation many-to-many)
+  // Le locataire reste dans le système, seul le lien avec le bail est supprimé
   // Collecter tous les documents (bail + messages)
   const allDocumentFileKeys: string[] = [];
   

@@ -10,9 +10,10 @@ import { DeleteLeaseDialog } from "./delete-lease-dialog";
 
 interface DeleteLeaseButtonProps {
   leaseId: string;
+  tenant?: { id: string; name: string } | null;
 }
 
-export function DeleteLeaseButton({ leaseId }: DeleteLeaseButtonProps) {
+export function DeleteLeaseButton({ leaseId, tenant }: DeleteLeaseButtonProps) {
   const router = useRouter();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -72,6 +73,7 @@ export function DeleteLeaseButton({ leaseId }: DeleteLeaseButtonProps) {
           }
         }}
         leaseId={leaseId}
+        tenant={tenant}
         onConfirm={handleConfirmDelete}
         isLoading={isDeleting}
         error={deleteError}
