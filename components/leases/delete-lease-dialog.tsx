@@ -10,13 +10,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, ExternalLink, User } from "lucide-react";
+import { AlertTriangle, ExternalLink, Info, User } from "lucide-react";
 import { DeletionBlockingEntity } from "@/lib/types/deletion-errors";
 
 interface DeleteLeaseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   leaseId: string;
+  tenant?: { id: string; name: string } | null;
   onConfirm: () => void;
   isLoading?: boolean;
   error?: {
@@ -29,6 +30,7 @@ export function DeleteLeaseDialog({
   open,
   onOpenChange,
   leaseId,
+  tenant,
   onConfirm,
   isLoading = false,
   error = null,
@@ -49,14 +51,36 @@ export function DeleteLeaseDialog({
             </DialogDescription>
           )}
         </DialogHeader>
+
+        {!isErrorState && tenant && (
+          <div className="flex items-start gap-3 rounded-lg border bg-muted/50 p-3 text-sm">
+            <Info className="size-4 mt-0.5 shrink-0 text-muted-foreground" />
+            <div className="space-y-1">
+              <p className="font-medium">Le locataire sera déconnecté du bail</p>
+              <p className="text-muted-foreground">
+                <span className="font-medium text-foreground">{tenant.name}</span> restera dans le
+                système en tant que client. Seul son lien avec ce bail sera supprimé.
+              </p>
+              <Link
+                href={`/interface/clients/${tenant.id}`}
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                onClick={() => onOpenChange(false)}
+              >
+                Voir le dossier du locataire
+                <ExternalLink className="size-3" />
+              </Link>
+            </div>
+          </div>
+        )}
+
         {isErrorState && (
           <div className="space-y-4 mt-2">
             <div className="text-sm text-destructive font-medium">{error.message}</div>
             {error.blockingEntities && error.blockingEntities.length > 0 && (
               <div className="space-y-2">
                 <div className="text-sm font-medium text-foreground">
-                  {error.blockingEntities.length === 1 
-                    ? "Entité bloquante :" 
+                  {error.blockingEntities.length === 1
+                    ? "Entité bloquante :"
                     : "Entités bloquantes :"}
                 </div>
                 <div className="space-y-2">
@@ -83,6 +107,7 @@ export function DeleteLeaseDialog({
             )}
           </div>
         )}
+
         <DialogFooter>
           <Button
             variant="outline"
@@ -92,12 +117,8 @@ export function DeleteLeaseDialog({
             {isErrorState ? "Fermer" : "Annuler"}
           </Button>
           {!isErrorState && (
-            <Button
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={isLoading}
-            >
-              {isLoading ? "Suppression..." : "Supprimer"}
+            <Button variant="destructive" onClick={onConfirm} disabled={isLoading}>
+              {isLoading ? "Suppression..." : "Supprimer le bail"}
             </Button>
           )}
         </DialogFooter>
@@ -105,4 +126,3 @@ export function DeleteLeaseDialog({
     </Dialog>
   );
 }
-
