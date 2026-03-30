@@ -197,7 +197,10 @@ export default async function LeaseDetailPage({
                 bailId={lease.id}
               />
               <CommentsDrawer target="BAIL" targetId={lease.id} />
-              <DeleteLeaseButton leaseId={lease.id} />
+              <DeleteLeaseButton
+                leaseId={lease.id}
+                tenant={tenant && tenantName ? { id: tenant.id, name: tenantName } : null}
+              />
             </ButtonGroup>
             
           </div>
