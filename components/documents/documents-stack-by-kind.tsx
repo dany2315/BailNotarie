@@ -21,7 +21,9 @@ interface DocumentsStackByKindProps {
   documentKindLabels?: Record<string, string>;
   onDelete?: (documentId: string) => void | Promise<void>;
   deletingId?: string | null;
-  /** Si fourni, chaque document sera affiché avec ce label (ex. nom de la personne ou entreprise) */
+  /** Label constant affiché pour tous les documents (sérialisable depuis Server Components) */
+  ownerLabel?: string | null;
+  /** @deprecated Utiliser ownerLabel (string) à la place — les fonctions ne peuvent pas être passées depuis Server Components */
   getOwnerLabel?: (doc: DocumentForStack) => string | null;
   className?: string;
 }
@@ -35,6 +37,7 @@ export function DocumentsStackByKind({
   documentKindLabels = defaultLabels,
   onDelete,
   deletingId,
+  ownerLabel,
   getOwnerLabel,
   className,
 }: DocumentsStackByKindProps) {
@@ -69,7 +72,7 @@ export function DocumentsStackByKind({
         const list = byKind.get(kind)!;
         const stackDocuments = list.map((doc) => ({
           ...doc,
-          ownerLabel: getOwnerLabel ? getOwnerLabel(doc) : null,
+          ownerLabel: ownerLabel ?? (getOwnerLabel ? getOwnerLabel(doc) : null),
         }));
         const kindLabel = labels[kind] || kind;
         return (
