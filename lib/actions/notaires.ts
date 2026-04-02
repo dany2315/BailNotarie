@@ -1112,4 +1112,42 @@ export async function getNotaireRequestsByDossier(dossierId: string) {
   return requests;
 }
 
+/**
+ * Mettre à jour le statut d'un bail depuis le notaire
+ */
+const updateBailStatusSchema = z.object({
+  bailId: z.string().min(1, "Le bail est requis"),
+  status: z.enum(["READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "DESISTE", "CLASSE_SANS_SUITE"]),
+});
 
+export async function updateBailStatusByNotaire(data: unknown) {
+  const user = await requireAuth();
+
+  if (user.role !== Role.NOTAIRE && user.role !== Role.ADMINISTRATEUR) {
+    throw new Error("Non autorisé");
+  }
+
+  const validated = updateBailStatusSchema.parse(data);
+
+  // Vérifier que le notaire a accès à un dossier lié à ce bail
+  const assignment = await prisma.dossierNotaireAssignment.findFirst({
+    where: {
+      bailId: validated.bailId,
+      ...(user.role === Role.NOTAIRE ? { notaireId: user.id } : {}),
+    },
+  });
+
+  if (!assignment) {
+    throw new Error("Dossier introuvable ou non autorisé");
+  }
+
+  const bail = await prisma.bail.update({
+    where: { id: validated.bailId },
+    data: { status: validated.status },
+  });
+
+  revalidatePath("/notaire");
+  revalidatePath("/notaire/dossiers");
+
+  return { success: true, status: bail.status };
+}

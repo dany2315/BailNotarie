@@ -1,17 +1,19 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { getDossiersByNotaire } from "@/lib/actions/notaires";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Users } from "lucide-react";
+import { FileText, Users, Phone, Settings2, CheckCircle, Archive } from "lucide-react";
 import { KPICard } from "@/components/shared/kpi-card";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { DOSSIER_TAB_STATUSES } from "@/lib/utils/bails-labels";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
 export default async function NotaireDashboardPage() {
   const user = await getCurrentUser();
-  
+
   if (!user) {
     return null;
   }
@@ -19,11 +21,20 @@ export default async function NotaireDashboardPage() {
   const dossiers = await getDossiersByNotaire(user.id);
   type DossierType = Awaited<ReturnType<typeof getDossiersByNotaire>>[number];
 
+  const getBailStatus = (d: DossierType) => d.bail?.status || "READY_FOR_NOTARY";
+
   const stats = {
-    total: dossiers.length,
-    avecBail: dossiers.filter((d: DossierType) => d.bailId).length,
-    sansBail: dossiers.filter((d: DossierType) => !d.bailId).length,
+    enCours: dossiers.filter((d: DossierType) => DOSSIER_TAB_STATUSES.en_cours.includes(getBailStatus(d))).length,
+    aContacter: dossiers.filter((d: DossierType) => getBailStatus(d) === "READY_FOR_NOTARY").length,
+    enTraitement: dossiers.filter((d: DossierType) => getBailStatus(d) === "CLIENT_CONTACTED").length,
+    signes: dossiers.filter((d: DossierType) => getBailStatus(d) === "SIGNED").length,
+    classes: dossiers.filter((d: DossierType) => DOSSIER_TAB_STATUSES.classes.includes(getBailStatus(d))).length,
   };
+
+  // Uniquement les dossiers en cours pour la liste récente
+  const dossiersEnCours = dossiers.filter((d: DossierType) =>
+    DOSSIER_TAB_STATUSES.en_cours.includes(getBailStatus(d))
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -35,32 +46,38 @@ export default async function NotaireDashboardPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title="Total dossiers"
-          value={stats.total}
+          title="En cours"
+          value={stats.enCours}
           icon={FileText}
-          description="Dossiers assignés"
+          description="Dossiers actifs"
         />
         <KPICard
-          title="Dossiers avec bail"
-          value={stats.avecBail}
-          icon={FileText}
-          description="Baux notariés"
+          title="À contacter"
+          value={stats.aContacter}
+          icon={Phone}
+          description="En attente de prise de contact"
         />
         <KPICard
-          title="Dossiers sans bail"
-          value={stats.sansBail}
-          icon={Users}
-          description="En attente"
+          title="En traitement"
+          value={stats.enTraitement}
+          icon={Settings2}
+          description="Client déjà contacté"
+        />
+        <KPICard
+          title="Signés"
+          value={stats.signes}
+          icon={CheckCircle}
+          description="Dossiers finalisés"
         />
       </div>
 
-      {/* Dossiers récents */}
+      {/* Dossiers en cours récents */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Dossiers récents</CardTitle>
+            <CardTitle>Dossiers en cours</CardTitle>
             <Link href="/notaire/dossiers">
               <Button variant="outline" size="sm">
                 Voir tous
@@ -69,19 +86,22 @@ export default async function NotaireDashboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {dossiers.length === 0 ? (
+          {dossiersEnCours.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
-              Aucun dossier assigné pour le moment.
+              Aucun dossier en cours pour le moment.
             </p>
           ) : (
             <div className="space-y-4">
-              {dossiers.slice(0, 5).map((dossier: DossierType) => {
+              {dossiersEnCours.slice(0, 5).map((dossier: DossierType) => {
                 const clientName = dossier.client.entreprise?.legalName ||
-                  (dossier.client.persons?.[0] 
+                  (dossier.client.persons?.[0]
                     ? `${dossier.client.persons[0].firstName || ""} ${dossier.client.persons[0].lastName || ""}`.trim()
                     : "Client") ||
                   "Client";
-                
+
+                const status = getBailStatus(dossier);
+                const isAContacter = status === "READY_FOR_NOTARY";
+
                 return (
                   <Link
                     key={dossier.id}
@@ -97,11 +117,17 @@ export default async function NotaireDashboardPage() {
                           </p>
                         )}
                       </div>
-                      {dossier.bail && (
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                          Avec bail
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={isAContacter
+                            ? "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border-orange-200 dark:border-orange-800"
+                            : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+                          }
+                        >
+                          {isAContacter ? "À contacter" : "En traitement"}
+                        </Badge>
+                      </div>
                     </div>
                   </Link>
                 );
@@ -113,4 +139,3 @@ export default async function NotaireDashboardPage() {
     </div>
   );
 }
-

@@ -87,6 +87,8 @@ enum BailStatus {
   CLIENT_CONTACTED // client contacté
   SIGNED // signé
   TERMINATED // terminé
+  DESISTE // le client s'est désisté / a renoncé
+  CLASSE_SANS_SUITE // dossier classé sans suite
 }
 
 enum IntakeTarget {

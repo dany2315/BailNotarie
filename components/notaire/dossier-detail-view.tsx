@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatCurrency, formatDateTime } from "@/lib/utils/formatters";
-import { FileText, User, Building2, Home, Euro, Calendar, MapPin, MessageSquare, Check, X, Copy } from "lucide-react";
+import { FileText, User, Building2, Home, Euro, Calendar, MapPin, MessageSquare, Check, X, Copy, ChevronDown } from "lucide-react";
 import { DocumentsStackByKind } from "@/components/documents/documents-stack-by-kind";
 import { NotaireRequests } from "@/components/notaire/notaire-requests";
 import { NotaireBailChatSheet } from "@/components/notaire/notaire-bail-chat-sheet";
 import { documentKindLabels } from "@/lib/utils/document-labels";
-import { getBailTypeLabel } from "@/lib/utils/bails-labels";
+import { getBailTypeLabel, getBailStatusLabel } from "@/lib/utils/bails-labels";
+import { updateBailStatusByNotaire } from "@/lib/actions/notaires";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PropertyLegalStatusBadge } from "../shared/status-badge";
 import { getPropertyLegalStatusLabel } from "@/lib/utils/legaleStatus-label";
 import { BienLegalStatus } from "@prisma/client";
@@ -293,9 +295,19 @@ function DataFieldCard({ label, value, className }: { label: string; value: stri
   );
 }
 
+const NOTAIRE_STATUS_OPTIONS = [
+  { value: "READY_FOR_NOTARY", label: "À contacter", className: "text-orange-600" },
+  { value: "CLIENT_CONTACTED", label: "En traitement", className: "text-blue-600" },
+  { value: "SIGNED", label: "Signé", className: "text-green-600" },
+  { value: "DESISTE", label: "Désisté", className: "text-red-600" },
+  { value: "CLASSE_SANS_SUITE", label: "Classé sans suite", className: "text-gray-600" },
+] as const;
+
 export function DossierDetailView({ dossier }: DossierDetailViewProps) {
   const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [bailStatus, setBailStatus] = useState(dossier.bail?.status || "READY_FOR_NOTARY");
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [annexDocuments, setAnnexDocuments] = useState<Array<{
     partyId: string | null;
     partyName: string;
@@ -385,8 +397,58 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
   // Calculer le nombre total de documents annexes
   const totalAnnexDocuments = annexDocuments.reduce((total, group) => total + group.documents.length, 0);
 
+  const handleStatusChange = async (newStatus: string) => {
+    if (!dossier.bail?.id || newStatus === bailStatus) return;
+    setIsUpdatingStatus(true);
+    try {
+      await updateBailStatusByNotaire({ bailId: dossier.bail.id, status: newStatus });
+      setBailStatus(newStatus);
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du statut:", error);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const currentStatusOption = NOTAIRE_STATUS_OPTIONS.find(o => o.value === bailStatus);
+
   return (
     <div className="space-y-6">
+
+      {/* En-tête avec nom client et changement de statut */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold">{getClientName()}</h2>
+          {dossier.property && (
+            <p className="text-sm text-muted-foreground">{dossier.property.fullAddress}</p>
+          )}
+        </div>
+        {dossier.bail && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={isUpdatingStatus} className="gap-2">
+                <span className={currentStatusOption?.className}>
+                  {currentStatusOption?.label || getBailStatusLabel(bailStatus)}
+                </span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {NOTAIRE_STATUS_OPTIONS.map((option) => (
+                <DropdownMenuItem
+                  key={option.value}
+                  onClick={() => handleStatusChange(option.value)}
+                  className={cn("cursor-pointer", option.className)}
+                  disabled={option.value === bailStatus}
+                >
+                  {option.value === bailStatus && <Check className="mr-2 h-4 w-4" />}
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
 
       <Tabs defaultValue="parties" className="space-y-4">
         <TabsList className="p-2 h-auto gap-2">
