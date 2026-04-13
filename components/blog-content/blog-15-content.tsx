@@ -55,7 +55,7 @@ export function Blog15Content() {
           </li>
           <li>
             <a href="#duree-bail-commercial-3-6-9" className="text-blue-600 hover:underline">
-              La durée du bail commercial : la règle des 3-6-9
+              La durée du bail commercial : la règle des 3/6/9
             </a>
           </li>
           <li>
@@ -126,7 +126,7 @@ export function Blog15Content() {
           <p className="text-gray-700">
             Le bail commercial est un contrat de location d'un immeuble ou d'un local dans lequel
             est exploité un fonds de commerce ou artisanal. Sa durée minimale est de 9 ans (règle
-            des 3-6-9), avec des facultés de résiliation tous les 3 ans. Il confère au locataire un
+            des 3/6/9), avec des facultés de résiliation tous les 3 ans. Il confère au locataire un
             droit au renouvellement et, à défaut, une indemnité d'éviction versée par le bailleur.
           </p>
         </div>
@@ -228,7 +228,7 @@ export function Blog15Content() {
           id="duree-bail-commercial-3-6-9"
           className="text-2xl font-bold text-gray-900 mb-6"
         >
-          2. La durée du bail commercial : la règle des 3-6-9
+          2. La durée du bail commercial : la règle des 3/6/9
         </h2>
         <p className="text-gray-700 mb-4">
           Le bail commercial a une durée minimale de 9 ans (art. L.145-4 du Code de commerce).
@@ -236,7 +236,7 @@ export function Blog15Content() {
           (art. L.145-5) dans la limite de 36 mois au total.
         </p>
         <p className="text-gray-700 mb-4">
-          La règle des <strong>3-6-9</strong> signifie que le locataire peut donner congé à
+          La règle des <strong>3/6/9</strong> signifie que le locataire peut donner congé à
           l'expiration de chaque période triennale (3 ans, 6 ans ou 9 ans), moyennant un préavis
           de 6 mois donné par acte extrajudiciaire ou lettre recommandée avec avis de réception.
           Le bailleur, lui, ne peut mettre fin au bail avant le terme des 9 ans, sauf exceptions
@@ -246,7 +246,7 @@ export function Blog15Content() {
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-6 my-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Clock className="h-5 w-5 text-gray-600" />
-            Schéma de la règle des 3-6-9
+            Schéma de la règle des 3/6/9
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3  gap-4 text-center">
             <div className="bg-white border border-gray-300 rounded-lg p-4">
