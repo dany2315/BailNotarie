@@ -6,13 +6,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/utils/formatters";
-import { FileText, MapPin, Calendar, Search, Phone, Settings2 } from "lucide-react";
+import { FileText, MapPin, Calendar, Search, Phone, Settings2, ArrowLeft } from "lucide-react";
 import { DossierDetailView } from "./dossier-detail-view";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { getBailTypeLabel, getBailStatusLabel } from "@/lib/utils/bails-labels";
 import type { DossierFilterTab, DossierSubFilter } from "@/lib/utils/bails-labels";
-import { DOSSIER_FILTER_TABS, DOSSIER_TAB_STATUSES, DOSSIER_SUB_FILTERS } from "@/lib/utils/bails-labels";
+import { DOSSIER_FILTER_TABS, DOSSIER_TAB_STATUSES, DOSSIER_SUB_FILTERS, getBailStatusColor } from "@/lib/utils/bails-labels";
+import { toast } from "sonner";
 
 interface Dossier {
   id: string;
@@ -35,23 +37,9 @@ function getBailStatus(dossier: Dossier): string {
   return dossier.bail?.status || "READY_FOR_NOTARY";
 }
 
-function getStatusBadgeVariant(status: string): { className: string; label: string } {
-  switch (status) {
-    case "READY_FOR_NOTARY":
-      return { className: "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border-orange-200 dark:border-orange-800", label: "À contacter" };
-    case "CLIENT_CONTACTED":
-      return { className: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border-blue-200 dark:border-blue-800", label: "En traitement" };
-    case "SIGNED":
-      return { className: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400 border-green-200 dark:border-green-800", label: "Signé" };
-    case "DESISTE":
-      return { className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400 border-red-200 dark:border-red-800", label: "Désisté" };
-    case "CLASSE_SANS_SUITE":
-      return { className: "bg-gray-100 text-gray-700 dark:bg-gray-950 dark:text-gray-400 border-gray-200 dark:border-gray-800", label: "Classé sans suite" };
-    case "TERMINATED":
-      return { className: "bg-gray-100 text-gray-700 dark:bg-gray-950 dark:text-gray-400 border-gray-200 dark:border-gray-800", label: "Terminé" };
-    default:
-      return { className: "", label: getBailStatusLabel(status) };
-  }
+function getStatusBadgeVariant(status: string) {
+  const color = getBailStatusColor(status);
+  return { className: color.badge, label: color.label };
 }
 
 export function DossiersSidebar({ dossiers: initialDossiers }: DossiersSidebarProps) {
@@ -63,6 +51,7 @@ export function DossiersSidebar({ dossiers: initialDossiers }: DossiersSidebarPr
   const [activeTab, setActiveTab] = useState<DossierFilterTab>("en_cours");
   const [subFilter, setSubFilter] = useState<DossierSubFilter>("all");
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(dossierIdParam);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedDossier, setSelectedDossier] = useState<any>(null);
   const [isLoadingDossier, setIsLoadingDossier] = useState(false);
 
@@ -153,8 +142,9 @@ export function DossiersSidebar({ dossiers: initialDossiers }: DossiersSidebarPr
 
       setSelectedDossier(data);
       setSelectedDossierId(id);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erreur lors du chargement du dossier:", error);
+      toast.error("Impossible de charger le dossier. Veuillez réessayer.");
       setSelectedDossier(null);
     } finally {
       setIsLoadingDossier(false);
@@ -193,138 +183,231 @@ export function DossiersSidebar({ dossiers: initialDossiers }: DossiersSidebarPr
     );
   }
 
+  // Sur mobile, déterminer si on affiche la liste ou le détail
+  const showMobileDetail = selectedDossierId && selectedDossier;
+
+  const handleBackToList = () => {
+    setSelectedDossierId(null);
+    setSelectedDossier(null);
+    router.replace("/notaire/dossiers");
+  };
+
+  // Couleur du dot indicateur par statut
+  const statusDotColor: Record<string, string> = {
+    READY_FOR_NOTARY: "bg-orange-500",
+    CLIENT_CONTACTED: "bg-blue-500",
+    SIGNED: "bg-emerald-500",
+    DESISTE: "bg-red-500",
+    CLASSE_SANS_SUITE: "bg-gray-400",
+    TERMINATED: "bg-gray-400",
+  };
+
   return (
-    <div className="flex h-full gap-4 p">
-      {/* Sidebar */}
-      <div className="w-[25%] border-r bg-background flex flex-col h-full min-w-0 py-6 px-4">
+    <div className="flex h-full">
+      {/* Sidebar liste */}
+      <div className={cn(
+        "border-r bg-background flex flex-col h-full min-w-0",
+        "w-full lg:w-[340px] lg:shrink-0",
+        showMobileDetail ? "hidden lg:flex" : "flex"
+      )}>
         {/* Header fixe */}
-        <div className="p-4 border-b shrink-0">
-          <h1 className="text-xl font-bold mb-2">Mes dossiers</h1>
+        <div className="px-4 pt-6 pb-4 shrink-0">
+          <h1 className="text-lg font-semibold tracking-tight mb-4 pl-10 lg:pl-0">Mes dossiers</h1>
 
-          {/* Onglets de filtrage */}
-          <div className="flex gap-1 mb-3">
-            {DOSSIER_FILTER_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => {
-                  setActiveTab(tab.value);
-                  setSubFilter("all");
-                }}
-                className={cn(
-                  "flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors",
-                  activeTab === tab.value
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                )}
-              >
-                {tab.label} ({tabCounts[tab.value]})
-              </button>
-            ))}
-          </div>
-
-          {/* Sous-filtres pour l'onglet "En cours" */}
-          {activeTab === "en_cours" && (
-            <div className="flex gap-1 mb-3">
-              {DOSSIER_SUB_FILTERS.map((filter) => (
+          {/* Onglets principaux */}
+          <div className="flex gap-1 mb-3 bg-secondary dark:bg-muted rounded-lg p-1" role="tablist" aria-label="Filtrer les dossiers par statut">
+            {DOSSIER_FILTER_TABS.map((tab) => {
+              const isActive = activeTab === tab.value;
+              const tabCountColors: Record<DossierFilterTab, string> = {
+                en_cours: "bg-primary/10 text-primary",
+                signes: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
+                classes: "bg-slate-200/80 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400",
+              };
+              return (
                 <button
-                  key={filter.value}
-                  onClick={() => setSubFilter(filter.value)}
+                  key={tab.value}
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    setActiveTab(tab.value);
+                    setSubFilter("all");
+                  }}
                   className={cn(
-                    "px-2 py-1 text-xs rounded-full border transition-colors",
-                    subFilter === filter.value
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:bg-muted"
+                    "flex-1 px-3 py-2 text-sm font-medium rounded-md transition-all min-h-[40px] flex items-center justify-center gap-1.5",
+                    isActive
+                      ? "bg-background dark:bg-card text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/50 dark:hover:bg-white/5"
                   )}
                 >
-                  {filter.label} ({subFilterCounts[filter.value]})
+                  {tab.label}
+                  <span className={cn(
+                    "inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] tabular-nums font-semibold leading-none transition-all",
+                    isActive
+                      ? tabCountColors[tab.value]
+                      : "bg-muted-foreground/15 text-muted-foreground/60"
+                  )}>
+                    {tabCounts[tab.value]}
+                  </span>
                 </button>
-              ))}
+              );
+            })}
+          </div>
+
+          {/* Sous-filtres pour "En cours" */}
+          {activeTab === "en_cours" && (
+            <div className="flex gap-1.5 mb-3" role="tablist" aria-label="Sous-filtres en cours">
+              {DOSSIER_SUB_FILTERS.map((filter) => {
+                const isActive = subFilter === filter.value;
+                const subFilterActiveColors: Record<DossierSubFilter, string> = {
+                  all: "border-primary/25 bg-primary/8 text-primary",
+                  a_contacter: "border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-700/60 dark:bg-orange-950/40 dark:text-orange-400",
+                  en_traitement: "border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-700/60 dark:bg-blue-950/40 dark:text-blue-400",
+                };
+                const subFilterDotColors: Record<DossierSubFilter, string | null> = {
+                  all: null,
+                  a_contacter: "bg-orange-400",
+                  en_traitement: "bg-blue-400",
+                };
+                const dotColor = subFilterDotColors[filter.value];
+                return (
+                  <button
+                    key={filter.value}
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setSubFilter(filter.value)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border border-2 transition-all min-h-[36px]",
+                      isActive
+                        ? subFilterActiveColors[filter.value]
+                        : "border-border/70 bg-background/60 dark:bg-muted/50 text-muted-foreground hover:bg-background dark:hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    {dotColor && (
+                      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0 opacity-80", dotColor)} />
+                    )}
+                    {filter.label}
+                    <span className="tabular-nums opacity-60 text-[10px]">
+                      {subFilterCounts[filter.value]}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
-          <p className="text-sm text-muted-foreground mb-4">
-            {filteredDossiers.length} dossier{filteredDossiers.length > 1 ? "s" : ""}
-          </p>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
             <Input
-              placeholder="Rechercher..."
+              placeholder="Nom, adresse..."
+              aria-label="Rechercher un dossier par nom ou adresse"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-9 h-10 bg-muted/40 border-transparent focus:border-border focus:bg-background transition-colors"
             />
           </div>
+        </div>
+
+        {/* Séparateur avec compteur */}
+        <div className="px-4 py-2 border-t border-b bg-muted/20 flex items-center gap-2">
+          <span className={cn(
+            "inline-flex items-center justify-center rounded-full w-5 h-5 text-[10px] tabular-nums font-semibold",
+            activeTab === "en_cours" && "bg-primary/12 text-primary",
+            activeTab === "signes" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
+            activeTab === "classes" && "bg-slate-200/80 text-slate-600 dark:bg-slate-700/60 dark:text-slate-400",
+          )}>
+            {filteredDossiers.length}
+          </span>
+          <p className="text-xs text-muted-foreground">
+            dossier{filteredDossiers.length > 1 ? "s" : ""}
+          </p>
         </div>
 
         {/* Liste scrollable */}
         <div className="flex-1 overflow-y-auto min-h-0">
           {filteredDossiers.length === 0 ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              Aucun dossier dans cette catégorie.
+            <div className="p-6 text-center">
+              <FileText className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
+              <p className="text-sm text-muted-foreground">Aucun dossier trouvé</p>
             </div>
           ) : (
-            <div className="p-2 space-y-2">
+            <div className="p-2 space-y-1">
               {filteredDossiers.map((dossier) => {
                 const clientName = getClientName(dossier.client);
                 const isSelected = selectedDossierId === dossier.id;
                 const status = getBailStatus(dossier);
                 const statusBadge = getStatusBadgeVariant(status);
+                const dotColor = statusDotColor[status] || "bg-gray-400";
 
                 return (
                   <button
                     key={dossier.id}
                     onClick={() => handleDossierClick(dossier.id)}
+                    aria-current={isSelected ? "true" : undefined}
                     className={cn(
-                      "w-full text-left p-3 rounded-lg border transition-colors cursor-pointer",
+                      "w-full text-left px-3 py-3 rounded-lg transition-all cursor-pointer min-h-[44px] group ",
                       isSelected
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card hover:bg-accent border-border"
+                        ? "bg-primary/8 ring-1 ring-primary/20"
+                        : "hover:bg-muted/60"
                     )}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      {/* Indicateur de statut coloré */}
+                      <div className={cn(
+                        "w-2 h-2 rounded-full mt-1.5 shrink-0 ring-2",
+                        dotColor,
+                        isSelected ? "ring-primary/20" : "ring-background"
+                      )} />
+
+                      {/* Contenu principal */}
                       <div className="flex-1 min-w-0">
-                        <div className={cn(
-                          "font-medium truncate",
-                          isSelected ? "text-primary-foreground" : ""
-                        )}>
-                          {clientName}
-                        </div>
-                        {dossier.property && (
-                          <div className={cn(
-                            "flex items-center gap-1.5 mt-1 text-xs truncate",
-                            isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={cn(
+                            "text-sm font-medium truncate leading-tight",
+                            isSelected ? "text-primary" : "text-foreground"
                           )}>
-                            <MapPin className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{dossier.property.fullAddress}</span>
+                            {clientName}
+                          </p>
+                          {dossier.bail && (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] shrink-0 px-1.5 py-0 h-5 font-normal",
+                                isSelected ? "border-primary/20 text-primary" : ""
+                              )}
+                            >
+                              {getBailTypeLabel(dossier.bail.bailType)}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {dossier.property && (
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+                            <span className="text-xs text-muted-foreground truncate">
+                              {dossier.property.fullAddress}
+                            </span>
                           </div>
                         )}
-                        <div className={cn(
-                          "flex items-center gap-1.5 mt-1 text-xs",
-                          isSelected ? "text-primary-foreground/70" : "text-muted-foreground"
-                        )}>
-                          <Calendar className="h-3 w-3 shrink-0" />
-                          {formatDateTime(dossier.assignedAt)}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {dossier.bail && (
+
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+                            <span className="text-xs text-muted-foreground/70">
+                              {formatDateTime(dossier.assignedAt)}
+                            </span>
+                          </div>
                           <Badge
-                            variant={isSelected ? "secondary" : "outline"}
-                            className="text-xs"
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-1.5 py-0 h-5 font-medium border-0",
+                              isSelected
+                                ? "bg-primary/10 text-primary"
+                                : statusBadge.className
+                            )}
                           >
-                            {getBailTypeLabel(dossier.bail.bailType)}
+                            {statusBadge.label}
                           </Badge>
-                        )}
-                        {/* Badge de statut */}
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-xs",
-                            isSelected ? "" : statusBadge.className
-                          )}
-                        >
-                          {statusBadge.label}
-                        </Badge>
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -335,23 +418,43 @@ export function DossiersSidebar({ dossiers: initialDossiers }: DossiersSidebarPr
         </div>
       </div>
 
-      {/* Contenu principal avec scroll indépendant */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      {/* Contenu principal */}
+      <div className={cn(
+        "flex-1 overflow-y-auto min-h-0 bg-muted/20",
+        showMobileDetail ? "flex flex-col" : "hidden lg:block"
+      )}>
+        {/* Bouton retour mobile */}
+        {showMobileDetail && (
+          <div className="lg:hidden p-4 border-b bg-background shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBackToList}
+              className="gap-2 min-h-[44px] text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Retour aux dossiers
+            </Button>
+          </div>
+        )}
+
         {isLoadingDossier ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <div className="flex items-center justify-center h-full" role="status" aria-label="Chargement du dossier">
+            <Loader2 className="h-6 w-6 animate-spin text-primary/40" />
           </div>
         ) : selectedDossier ? (
-          <div className="p-6">
+          <div className="p-4 lg:p-6">
             <DossierDetailView dossier={selectedDossier} />
           </div>
         ) : (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Sélectionnez un dossier</h3>
-              <p className="text-muted-foreground">
-                Cliquez sur un dossier dans la liste pour voir ses détails.
+              <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-muted/60 flex items-center justify-center">
+                <FileText className="h-6 w-6 text-muted-foreground/50" />
+              </div>
+              <h3 className="text-sm font-medium text-foreground mb-1">Sélectionnez un dossier</h3>
+              <p className="text-xs text-muted-foreground">
+                Cliquez sur un dossier pour voir ses détails
               </p>
             </div>
           </div>

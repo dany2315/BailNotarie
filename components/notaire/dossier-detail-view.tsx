@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatCurrency, formatDateTime } from "@/lib/utils/formatters";
-import { FileText, User, Building2, Home, Euro, Calendar, MapPin, MessageSquare, Check, X, Copy, ChevronDown } from "lucide-react";
+import { FileText, User, Building2, Home, Euro, Calendar, MapPin, MessageSquare, Check, X, Copy, ChevronDown, Loader2 } from "lucide-react";
 import { DocumentsStackByKind } from "@/components/documents/documents-stack-by-kind";
 import { NotaireRequests } from "@/components/notaire/notaire-requests";
 import { NotaireBailChatSheet } from "@/components/notaire/notaire-bail-chat-sheet";
 import { documentKindLabels } from "@/lib/utils/document-labels";
-import { getBailTypeLabel, getBailStatusLabel } from "@/lib/utils/bails-labels";
+import { getBailTypeLabel, getBailStatusLabel, getBailStatusColor } from "@/lib/utils/bails-labels";
 import { updateBailStatusByNotaire } from "@/lib/actions/notaires";
+import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PropertyLegalStatusBadge } from "../shared/status-badge";
 import { getPropertyLegalStatusLabel } from "@/lib/utils/legaleStatus-label";
@@ -218,7 +219,7 @@ const FURNITURE_FIELDS = [
 // Composant helper pour afficher une donnée avec un bouton de copie
 function DataField({ label, value, className }: { label: string; value: string | number | null | undefined; className?: string }) {
   const [copied, setCopied] = useState(false);
-  
+
   const handleCopy = async () => {
     if (!value) return;
     const success = await copyToClipboard(String(value));
@@ -232,24 +233,23 @@ function DataField({ label, value, className }: { label: string; value: string |
 
   return (
     <div className={className}>
-      
       <p className="text-sm text-muted-foreground">{label}</p>
       <div className="flex items-center justify-start gap-4">
         <p className="font-medium">{value}</p>
         <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0"
-            onClick={handleCopy}
-            title="Copier"
-          >
-            {copied ? (
-              <Check className="h-3 w-3 text-green-600" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
-          </Button>
-        </div>
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={handleCopy}
+          aria-label={`Copier ${label}`}
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-green-600" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -257,7 +257,7 @@ function DataField({ label, value, className }: { label: string; value: string |
 // Composant helper pour afficher une donnée dans une carte avec un bouton de copie
 function DataFieldCard({ label, value, className }: { label: string; value: string | number | null | undefined; className?: string }) {
   const [copied, setCopied] = useState(false);
-  
+
   const handleCopy = async () => {
     if (!value) return;
     const success = await copyToClipboard(String(value));
@@ -270,38 +270,212 @@ function DataFieldCard({ label, value, className }: { label: string; value: stri
   if (value === null || value === undefined) return null;
 
   return (
-    <div className={`rounded-lg border bg-background p-3 ${className || ""}`}>
-     
-        <p className="text-xs text-muted-foreground">{label}</p>
-
-        <div className="flex items-center justify-start gap-4">
-          <p className="text-sm font-medium wrap-break-word">{value}</p>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 shrink-0"
-            onClick={handleCopy}
-            title="Copier"
-          >
-            {copied ? (
-              <Check className="h-3 w-3 text-green-600" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
-          </Button>
-        </div>
-      
+    <div className={cn("rounded-lg border bg-background p-3", className)}>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="flex items-center justify-start gap-4">
+        <p className="text-sm font-medium break-words">{value}</p>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={handleCopy}
+          aria-label={`Copier ${label}`}
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-green-600" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
 
+// Composant réutilisable pour une section de parties (propriétaires ou locataires)
+type BailParty = NonNullable<NonNullable<Dossier["bail"]>["parties"]>[number];
+
+function PartySection({
+  title,
+  parties,
+  totalPersons,
+  prefix,
+  hasBail,
+  onChat,
+}: {
+  title: string;
+  parties: BailParty[];
+  totalPersons: number;
+  prefix: string;
+  hasBail: boolean;
+  onChat: (partyId: string) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              {title}{parties.length > 1 ? "s" : ""}
+            </CardTitle>
+            <CardDescription>
+              {totalPersons} {title.toLowerCase()}{parties.length > 1 ? "s" : ""} associé
+              {parties.length > 1 ? "s" : ""} au bail
+            </CardDescription>
+          </div>
+          {hasBail && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-[44px]"
+              onClick={() => {
+                const first = parties[0];
+                if (first) onChat(first.id);
+              }}
+            >
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Discuter
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        <Accordion type="multiple" className="w-full">
+          {parties.map((party, index) => {
+            const isCompany = !!party.entreprise;
+            const primaryPerson =
+              party.persons?.find((p) => p.isPrimary) || party.persons?.[0];
+
+            const displayName = isCompany
+              ? party.entreprise?.legalName || party.entreprise?.name || "Entreprise"
+              : [primaryPerson?.firstName, primaryPerson?.lastName].filter(Boolean).join(" ") ||
+                "Personne";
+
+            const personsCount = party.persons?.length ?? 0;
+
+            const docsCount =
+              (party.documents?.length ?? 0) +
+              (party.entreprise?.documents?.length ?? 0) +
+              (party.persons?.reduce(
+                (acc: number, p) => acc + (p.documents?.length ?? 0),
+                0
+              ) ?? 0);
+
+            return (
+              <AccordionItem
+                key={party.id || index}
+                value={`${prefix}-${party.id || index}`}
+                className="rounded-xl border overflow-hidden bg-muted/10 px-2 data-[state=open]:bg-muted/20"
+              >
+                <AccordionTrigger className="py-3 hover:no-underline">
+                  <div className="flex w-full items-start justify-between gap-4 pr-2">
+                    <div className="min-w-0 text-left ml-2 flex-1">
+                      <p className="text-sm font-semibold truncate ml-1">{displayName}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {!isCompany && personsCount > 0 && (
+                          <Badge variant="outline">
+                            {personsCount} personne{personsCount > 1 ? "s" : ""}
+                          </Badge>
+                        )}
+                        <Badge variant="secondary">{isCompany ? "Entreprise" : "Particulier"}</Badge>
+                        {docsCount > 0 && (
+                          <Badge variant="outline">
+                            {docsCount} document{docsCount > 1 ? "s" : ""}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+
+                <AccordionContent className="pb-4">
+                  <div className="px-1 space-y-4">
+                    {party.entreprise ? (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <DataFieldCard label="Raison sociale" value={party.entreprise.legalName || party.entreprise.name} />
+                          {party.entreprise.registration && <DataFieldCard label="SIRET" value={party.entreprise.registration} />}
+                          {party.entreprise.email && <DataFieldCard label="Email" value={party.entreprise.email} />}
+                          {party.entreprise.phone && <DataFieldCard label="Téléphone" value={party.entreprise.phone} />}
+                          {party.entreprise.fullAddress && <DataFieldCard label="Adresse" value={party.entreprise.fullAddress} className="md:col-span-2" />}
+                        </div>
+
+                        {party.entreprise.documents && party.entreprise.documents.length > 0 && (
+                          <div className="pt-4 border-t">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="text-sm text-muted-foreground">Documents de l&apos;entreprise</p>
+                              <Badge variant="outline">{party.entreprise.documents.length}</Badge>
+                            </div>
+                            <DocumentsStackByKind documents={party.entreprise.documents} documentKindLabels={documentKindLabels} />
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="space-y-3">
+                        {party.persons?.map((person, pIndex) => (
+                          <div key={person.id || pIndex} className="rounded-lg border bg-background p-4">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-semibold">{person.firstName} {person.lastName}</h4>
+                              {person.isPrimary && <Badge variant="secondary">Principal</Badge>}
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {person.email && <DataFieldCard label="Email" value={person.email} />}
+                              {person.phone && <DataFieldCard label="Téléphone" value={person.phone} />}
+                              {person.fullAddress && <DataFieldCard label="Adresse" value={person.fullAddress} className="md:col-span-2" />}
+                              {person.birthDate && <DataFieldCard label="Date de naissance" value={formatDate(person.birthDate)} />}
+                              {person.birthPlace && <DataFieldCard label="Lieu de naissance" value={person.birthPlace} />}
+                              {person.nationality && <DataFieldCard label="Nationalité" value={person.nationality} />}
+                              {person.familyStatus && <DataFieldCard label="Situation familiale" value={person.familyStatus} />}
+                              {person.matrimonialRegime && <DataFieldCard label="Régime matrimonial" value={person.matrimonialRegime} />}
+                            </div>
+
+                            {person.documents && person.documents.length > 0 && (
+                              <div className="pt-4 mt-4 border-t">
+                                <div className="flex items-center gap-3 text-sm text-muted-foreground mb-2">
+                                  <span>Documents de <span className="font-medium text-foreground">{person.firstName} {person.lastName}</span></span>
+                                  <Badge variant="outline">{person.documents.length}</Badge>
+                                </div>
+                                <DocumentsStackByKind documents={person.documents} documentKindLabels={documentKindLabels} />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {party.documents && party.documents.length > 0 && (
+                      <div className="pt-4 border-t">
+                        <div className="flex items-center gap-3 mb-2">
+                          <p className="text-sm text-muted-foreground">Documents de la partie</p>
+                          <Badge variant="outline">{party.documents.length}</Badge>
+                        </div>
+                        <DocumentsStackByKind documents={party.documents} documentKindLabels={documentKindLabels} />
+                      </div>
+                    )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+      </CardContent>
+    </Card>
+  );
+}
+
 const NOTAIRE_STATUS_OPTIONS = [
-  { value: "READY_FOR_NOTARY", label: "À contacter", className: "text-orange-600" },
-  { value: "CLIENT_CONTACTED", label: "En traitement", className: "text-blue-600" },
-  { value: "SIGNED", label: "Signé", className: "text-green-600" },
-  { value: "DESISTE", label: "Désisté", className: "text-red-600" },
-  { value: "CLASSE_SANS_SUITE", label: "Classé sans suite", className: "text-gray-600" },
-] as const;
+  "READY_FOR_NOTARY",
+  "CLIENT_CONTACTED",
+  "SIGNED",
+  "DESISTE",
+  "CLASSE_SANS_SUITE",
+].map((value) => {
+  const color = getBailStatusColor(value);
+  return { value, label: color.label, className: color.text };
+});
 
 export function DossierDetailView({ dossier }: DossierDetailViewProps) {
   const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
@@ -342,35 +516,24 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
   };
 
   // Séparer les parties en propriétaires et locataires
-  const proprietaires = dossier.bail?.parties?.filter((p: any) => p.profilType === "PROPRIETAIRE") || [];
-  const locataires = dossier.bail?.parties?.filter((p: any) => p.profilType === "LOCATAIRE") || [];
+  const proprietaires = dossier.bail?.parties?.filter((p) => p.profilType === "PROPRIETAIRE") || [];
+  const locataires = dossier.bail?.parties?.filter((p) => p.profilType === "LOCATAIRE") || [];
 
   // Calculer le nombre total de personnes dans les propriétaires
-  const totalProprietairesPersons = proprietaires.reduce((total: number, party: any) => {
+  const totalProprietairesPersons = proprietaires.reduce((total, party) => {
     if (party.entreprise) {
-      return total + 1; // Une entreprise compte pour 1
+      return total + 1;
     }
     return total + (party.persons?.length || 0);
   }, 0);
 
   // Calculer le nombre total de personnes dans les locataires
-  const totalLocatairesPersons = locataires.reduce((total: number, party: any) => {
+  const totalLocatairesPersons = locataires.reduce((total, party) => {
     if (party.entreprise) {
-      return total + 1; // Une entreprise compte pour 1
+      return total + 1;
     }
     return total + (party.persons?.length || 0);
   }, 0);
-
-  const getPartyName = (party: any) => {
-    if (party?.entreprise) {
-      return party.entreprise.legalName || party.entreprise.name;
-    }
-    const primaryPerson = party?.persons?.find((p: any) => p.isPrimary) || party?.persons?.[0];
-    if (primaryPerson) {
-      return `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || "Client";
-    }
-    return "Client";
-  };
 
   // Charger les documents annexes
   useEffect(() => {
@@ -384,6 +547,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
         }
       } catch (error) {
         console.error("Erreur lors du chargement des documents annexes:", error);
+        toast.error("Impossible de charger les documents annexes.");
       } finally {
         setIsLoadingAnnexDocuments(false);
       }
@@ -399,12 +563,20 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
 
   const handleStatusChange = async (newStatus: string) => {
     if (!dossier.bail?.id || newStatus === bailStatus) return;
+
+    // Update optimiste — on montre le changement immédiatement
+    const previousStatus = bailStatus;
+    setBailStatus(newStatus);
     setIsUpdatingStatus(true);
+
     try {
       await updateBailStatusByNotaire({ bailId: dossier.bail.id, status: newStatus });
-      setBailStatus(newStatus);
+      toast.success("Statut mis à jour");
     } catch (error) {
+      // Rollback en cas d'erreur
+      setBailStatus(previousStatus);
       console.error("Erreur lors de la mise à jour du statut:", error);
+      toast.error("Impossible de mettre à jour le statut. Veuillez réessayer.");
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -426,10 +598,14 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
         {dossier.bail && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={isUpdatingStatus} className="gap-2">
-                <span className={currentStatusOption?.className}>
-                  {currentStatusOption?.label || getBailStatusLabel(bailStatus)}
-                </span>
+              <Button variant="outline" size="sm" disabled={isUpdatingStatus} className="gap-2 min-h-[44px]">
+                {isUpdatingStatus ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <span className={currentStatusOption?.className}>
+                    {currentStatusOption?.label || getBailStatusLabel(bailStatus)}
+                  </span>
+                )}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -507,11 +683,6 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                 {dossier.property.legalStatus && (
                   <DataField label="Statut légal" value={getPropertyLegalStatusLabel(dossier.property.legalStatus as BienLegalStatus)} />
                 )}
-                {/* <div>
-                  <p className="text-sm text-muted-foreground">Statut</p>
-                  <Badge>{dossier.property.status}</Badge>
-                </div> */}
-                
                 {/* Mobilier présent */}
                 <div className="pt-4 mt-4 border-t">
                   <p className="text-sm font-medium mb-3">Mobilier présent</p>
@@ -558,10 +729,6 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* <div>
-                  <p className="text-sm text-muted-foreground">Statut</p>
-                  <Badge>{dossier.bail.status}</Badge>
-                </div> */}
                 <Separator />
                 
                 {dossier.bail.bailType && (
@@ -594,511 +761,25 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
 
       {(proprietaires.length > 0 || locataires.length > 0) && (
         <TabsContent value="parties" className="space-y-4">
-          {/* Propriétaires */}
           {proprietaires.length > 0 && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <User className="h-5 w-5" />
-                      Propriétaire{proprietaires.length > 1 ? "s" : ""}
-                    </CardTitle>
-                    <CardDescription>
-                      {totalProprietairesPersons} propriétaire{proprietaires.length > 1 ? "s" : ""} associé
-                      {proprietaires.length > 1 ? "s" : ""} au bail
-                    </CardDescription>
-                  </div>
-                  {dossier.bail && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Si plusieurs propriétaires, ouvrir le chat avec le premier
-                        // Sinon, ouvrir avec le seul propriétaire
-                        const firstProprietaire = proprietaires[0];
-                        if (firstProprietaire) {
-                          setSelectedPartyId(firstProprietaire.id);
-                          setChatOpen(true);
-                        }
-                      }}
-                    >
-                      <MessageSquare className="mr-2 h-4 w-4" />
-                      Discuter
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-3">
-                <Accordion type="multiple" className="w-full">
-                  {proprietaires.map((party: any, index: number) => {
-                    const isCompany = !!party.entreprise;
-                    const primaryPerson =
-                      party.persons?.find((p: any) => p.isPrimary) || party.persons?.[0];
-
-                    const displayName = isCompany
-                      ? party.entreprise?.legalName || party.entreprise?.name || "Entreprise"
-                      : [primaryPerson?.firstName, primaryPerson?.lastName].filter(Boolean).join(" ") ||
-                        "Personne";
-
-                    const personsCount = party.persons?.length ?? 0;
-
-                    const docsCount =
-                      (party.documents?.length ?? 0) +
-                      (party.entreprise?.documents?.length ?? 0) +
-                      (party.persons?.reduce(
-                        (acc: number, p: any) => acc + (p.documents?.length ?? 0),
-                        0
-                      ) ?? 0);
-
-                    return (
-                      <AccordionItem
-                        key={party.id || index}
-                        value={`owner-${party.id || index}`}
-                        className="rounded-xl border overflow-hidden shadow-lg  bg-muted/10 px-2 data-[state=open]:bg-muted/20"
-                      >
-                        <AccordionTrigger className="py-3  hover:no-underline ">
-                          <div className="flex w-full items-start justify-between gap-4 ">
-                            <div className="min-w-0 text-left ml-2 flex-1">
-                              <div className="flex items-center gap-2 ml-1">
-                                <p className="text-sm font-semibold truncate">{displayName}</p>
-                                
-                              </div>
-
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                {!isCompany && personsCount > 0 && (
-                                  <Badge variant="outline">
-                                    {personsCount} personne{personsCount > 1 ? "s" : ""}
-                                  </Badge>
-                                )}
-                                <Badge variant="secondary">{isCompany ? "Entreprise" : "Particulier"}</Badge>
-                                {docsCount > 0 && (
-                                  <Badge variant="outline">
-                                    {docsCount} document{docsCount > 1 ? "s" : ""}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                    
-                          </div>
-                        </AccordionTrigger>
-
-                        <AccordionContent className="pb-4">
-                          <div className="px-1 space-y-4">
-                            {party.entreprise ? (
-                              <>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  <DataFieldCard
-                                    label="Raison sociale"
-                                    value={party.entreprise.legalName || party.entreprise.name}
-                                  />
-
-                                  {party.entreprise.registration && (
-                                    <DataFieldCard
-                                      label="SIRET"
-                                      value={party.entreprise.registration}
-                                    />
-                                  )}
-
-                                  {party.entreprise.email && (
-                                    <DataFieldCard
-                                      label="Email"
-                                      value={party.entreprise.email}
-                                    />
-                                  )}
-
-                                  {party.entreprise.phone && (
-                                    <DataFieldCard
-                                      label="Téléphone"
-                                      value={party.entreprise.phone}
-                                    />
-                                  )}
-
-                                  {party.entreprise.fullAddress && (
-                                    <DataFieldCard
-                                      label="Adresse"
-                                      value={party.entreprise.fullAddress}
-                                      className="md:col-span-2"
-                                    />
-                                  )}
-                                </div>
-
-                                {party.entreprise.documents && party.entreprise.documents.length > 0 && (
-                                  <div className="rounded-xl border bg-background p-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <p className="text-xs text-muted-foreground">
-                                        Documents de l’entreprise
-                                      </p>
-                                      <Badge variant="outline">{party.entreprise.documents.length}</Badge>
-                                    </div>
-                                    <DocumentsStackByKind
-                                      documents={party.entreprise.documents}
-                                      documentKindLabels={documentKindLabels}
-                                    />
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <div className="space-y-3">
-                                {party.persons?.map((person: any, pIndex: number) => (
-                                  <div
-                                    key={person.id || pIndex}
-                                    className="rounded-xl border bg-background p-4"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="text-sm font-semibold">
-                                        {person.firstName} {person.lastName}
-                                      </h4>
-                                      {person.isPrimary && <Badge variant="secondary">Principal</Badge>}
-                                    </div>
-
-                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                      {person.email && (
-                                        <DataFieldCard
-                                          label="Email"
-                                          value={person.email}
-                                        />
-                                      )}
-                                      {person.phone && (
-                                        <DataFieldCard
-                                          label="Téléphone"
-                                          value={person.phone}
-                                        />
-                                      )}
-                                      {person.fullAddress && (
-                                        <DataFieldCard
-                                          label="Adresse"
-                                          value={person.fullAddress}
-                                          className="md:col-span-2"
-                                        />
-                                      )}
-                                      {person.birthDate && (
-                                        <DataFieldCard
-                                          label="Date de naissance"
-                                          value={formatDate(person.birthDate)}
-                                        />
-                                      )}
-                                      {person.birthPlace && (
-                                        <DataFieldCard
-                                          label="Lieu de naissance"
-                                          value={person.birthPlace}
-                                        />
-                                      )}
-                                      {person.nationality && (
-                                        <DataFieldCard
-                                          label="Nationalité"
-                                          value={person.nationality}
-                                        />
-                                      )}
-                                      {person.familyStatus && (
-                                        <DataFieldCard
-                                          label="Situation familiale"
-                                          value={person.familyStatus}
-                                        />
-                                      )}
-                                      {person.matrimonialRegime && (
-                                        <DataFieldCard
-                                          label="Régime matrimonial"
-                                          value={person.matrimonialRegime}
-                                        />
-                                      )}
-                                    </div>
-
-                                    {person.documents && person.documents.length > 0 && (
-                                      <div className="pt-4 mt-4 border-t">
-                                        <div className="text-sm text-muted-foreground mb-2">
-                                          Document
-                                          {person.documents.length > 1 ? "s" : ""}{" "}de{" "}
-                                          <span className="font-medium text-foreground mr-3">
-                                            {person.firstName} {person.lastName}
-                                          </span>
-                                          <Badge variant="outline">{person.documents.length}</Badge>
-                                        </div>
-                                        <DocumentsStackByKind
-                                          documents={person.documents}
-                                          documentKindLabels={documentKindLabels}
-                                        />
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {party.documents && party.documents.length > 0 && (
-                              <div className="rounded-xl border bg-background p-4">
-                                <div className="flex items-center justify-start mb-2 gap-3">
-                                  <p className="text-sm text-muted-foreground">Document{party.documents.length > 1 ? "s" : ""} de la partie</p>
-                                  <Badge variant="outline">{party.documents.length}</Badge>
-                                </div>
-                                <DocumentsStackByKind
-                                  documents={party.documents}
-                                  documentKindLabels={documentKindLabels}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    );
-                  })}
-                </Accordion>
-              </CardContent>
-            </Card>
+            <PartySection
+              title="Propriétaire"
+              parties={proprietaires}
+              totalPersons={totalProprietairesPersons}
+              prefix="owner"
+              hasBail={!!dossier.bail}
+              onChat={(partyId) => { setSelectedPartyId(partyId); setChatOpen(true); }}
+            />
           )}
-
-          {/* Locataires */}
           {locataires.length > 0 && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <User className="h-5 w-5" />
-                      Locataire{locataires.length > 1 ? "s" : ""}
-                    </CardTitle>
-                    <CardDescription>
-                      {totalLocatairesPersons} locataire{locataires.length > 1 ? "s" : ""} associé
-                      {locataires.length > 1 ? "s" : ""} au bail
-                    </CardDescription>
-                  </div>
-                  {dossier.bail && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Si plusieurs locataires, ouvrir le chat avec le premier
-                        // Sinon, ouvrir avec le seul locataire
-                        const firstLocataire = locataires[0];
-                        if (firstLocataire) {
-                          setSelectedPartyId(firstLocataire.id);
-                          setChatOpen(true);
-                        }
-                      }}
-                    >
-                      <MessageSquare className="mr-2 h-4 w-4" />
-                      Discuter
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-3">
-                <Accordion type="multiple" className="w-full">
-                  {locataires.map((party: any, index: number) => {
-                    const isCompany = !!party.entreprise;
-                    const primaryPerson =
-                      party.persons?.find((p: any) => p.isPrimary) || party.persons?.[0];
-
-                    const displayName = isCompany
-                      ? party.entreprise?.legalName || party.entreprise?.name || "Entreprise"
-                      : [primaryPerson?.firstName, primaryPerson?.lastName].filter(Boolean).join(" ") ||
-                        "Personne";
-
-                    const personsCount = party.persons?.length ?? 0;
-
-                    const docsCount =
-                      (party.documents?.length ?? 0) +
-                      (party.entreprise?.documents?.length ?? 0) +
-                      (party.persons?.reduce(
-                        (acc: number, p: any) => acc + (p.documents?.length ?? 0),
-                        0
-                      ) ?? 0);
-
-                    return (
-                      <AccordionItem
-                        key={party.id || index}
-                        value={`tenant-${party.id || index}`}
-                        className="rounded-xl border overflow-hidden shadow-lg bg-muted/10 px-2 data-[state=open]:bg-muted/20"
-                      >
-                        <AccordionTrigger className="py-3 hover:no-underline">
-                          <div className="flex w-full items-start justify-between gap-4 pr-2">
-                            <div className="min-w-0 text-left ml-2 flex-1">
-                              <div className="flex items-center gap-2 ml-1">
-                                <p className="text-sm font-semibold truncate">{displayName}</p>
-                              </div>
-
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                {!isCompany && personsCount > 0 && (
-                                  <Badge variant="outline">
-                                    {personsCount} personne{personsCount > 1 ? "s" : ""}
-                                  </Badge>
-                                )}  
-                                <Badge variant="secondary">{isCompany ? "Entreprise" : "Particulier"}</Badge>
-                                {docsCount > 0 && (
-                                  <Badge variant="outline">
-                                    {docsCount} document{docsCount > 1 ? "s" : ""}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-
-                          </div>
-                        </AccordionTrigger>
-
-                        <AccordionContent className="pb-4">
-                          <div className="px-1 space-y-4">
-                            {party.entreprise ? (
-                              <>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  <DataFieldCard
-                                    label="Raison sociale"
-                                    value={party.entreprise.legalName || party.entreprise.name}
-                                  />
-
-                                  {party.entreprise.registration && (
-                                    <DataFieldCard
-                                      label="SIRET"
-                                      value={party.entreprise.registration}
-                                    />
-                                  )}
-
-                                  {party.entreprise.email && (
-                                    <DataFieldCard
-                                      label="Email"
-                                      value={party.entreprise.email}
-                                    />
-                                  )}
-
-                                  {party.entreprise.phone && (
-                                    <DataFieldCard
-                                      label="Téléphone"
-                                      value={party.entreprise.phone}
-                                    />
-                                  )}
-
-                                  {party.entreprise.fullAddress && (
-                                    <DataFieldCard
-                                      label="Adresse"
-                                      value={party.entreprise.fullAddress}
-                                      className="md:col-span-2"
-                                    />
-                                  )}
-                                </div>
-
-                                {party.entreprise.documents && party.entreprise.documents.length > 0 && (
-                                  <div className="rounded-xl border bg-background p-4">
-                                    <div className="flex items-center justify-start gap-3 mb-2">
-                                      <p className="text-sm text-muted-foreground">
-                                        Document{party.entreprise.documents.length > 1 ? "s" : ""} de l’entreprise
-                                      </p>
-                                      <Badge variant="outline">{party.entreprise.documents.length}</Badge>
-                                    </div>
-                                    <DocumentsStackByKind
-                                      documents={party.entreprise.documents}
-                                      documentKindLabels={documentKindLabels}
-                                    />
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <div className="space-y-3">
-                                {party.persons?.map((person: any, pIndex: number) => (
-                                  <div
-                                    key={person.id || pIndex}
-                                    className="rounded-xl border bg-background p-4"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="text-sm font-semibold">
-                                        {person.firstName} {person.lastName}
-                                      </h4>
-                                      {person.isPrimary && <Badge variant="secondary">Principal</Badge>}
-                                    </div>
-
-                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                      {person.email && (
-                                        <DataFieldCard
-                                          label="Email"
-                                          value={person.email}
-                                        />
-                                      )}
-                                      {person.phone && (
-                                        <DataFieldCard
-                                          label="Téléphone"
-                                          value={person.phone}
-                                        />
-                                      )}
-                                      {person.fullAddress && (
-                                        <DataFieldCard
-                                          label="Adresse"
-                                          value={person.fullAddress}
-                                          className="md:col-span-2"
-                                        />
-                                      )}
-                                      {person.birthDate && (
-                                        <DataFieldCard
-                                          label="Date de naissance"
-                                          value={formatDate(person.birthDate)}
-                                        />
-                                      )}
-                                      {person.birthPlace && (
-                                        <DataFieldCard
-                                          label="Lieu de naissance"
-                                          value={person.birthPlace}
-                                        />
-                                      )}
-                                      {person.nationality && (
-                                        <DataFieldCard
-                                          label="Nationalité"
-                                          value={person.nationality}
-                                        />
-                                      )}
-                                      {person.familyStatus && (
-                                        <DataFieldCard
-                                          label="Situation familiale"
-                                          value={person.familyStatus}
-                                        />
-                                      )}
-                                      {person.matrimonialRegime && (
-                                        <DataFieldCard
-                                          label="Régime matrimonial"
-                                          value={person.matrimonialRegime}
-                                        />
-                                      )}
-                                    </div>
-
-                                    {person.documents && person.documents.length > 0 && (
-                                      <div className="pt-4 mt-4 border-t">
-                                        <div className="text-sm text-muted-foreground mb-2">
-                                          Document 
-                                          {person.documents.length > 1 ? "s" : ""}{" "}de{" "}
-                                          <span className="font-medium text-foreground mr-3 ">
-                                            {person.firstName} {person.lastName}
-                                            </span>
-                                          <Badge variant="outline">{person.documents.length}</Badge>
-                                        </div>
-                                        <DocumentsStackByKind
-                                          documents={person.documents}
-                                          documentKindLabels={documentKindLabels}
-                                        />
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {party.documents && party.documents.length > 0 && (
-                              <div className="rounded-xl border bg-background p-4">
-                                <div className="flex items-center justify-start gap-3 mb-2">
-                                  <p className="text-sm text-muted-foreground">Document{party.documents.length > 1 ? "s" : ""} de la partie</p>
-                                  <Badge variant="outline">{party.documents.length}</Badge>
-                                </div>
-                                <DocumentsStackByKind
-                                  documents={party.documents}
-                                  documentKindLabels={documentKindLabels}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    );
-                  })}
-                </Accordion>
-              </CardContent>
-            </Card>
+            <PartySection
+              title="Locataire"
+              parties={locataires}
+              totalPersons={totalLocatairesPersons}
+              prefix="tenant"
+              hasBail={!!dossier.bail}
+              onChat={(partyId) => { setSelectedPartyId(partyId); setChatOpen(true); }}
+            />
           )}
         </TabsContent>
       )}

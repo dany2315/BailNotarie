@@ -154,10 +154,10 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
 
   // Classes de couleur personnalisées pour les statuts de complétion
   const completionStatusClasses: Record<string, string> = {
-    NOT_STARTED: "!border-slate-300 !text-slate-700 !bg-slate-50 dark:!border-slate-600 dark:!text-slate-300 dark:!bg-slate-900/50 space-x-2 px-2 py-1",
-    PARTIAL: "!border-amber-400 !text-amber-700 !bg-amber-50 dark:!border-amber-600 dark:!text-amber-400 dark:!bg-amber-950/40 space-x-2 px-2 py-1",
-    PENDING_CHECK: "!border-blue-400 !text-blue-700 !bg-blue-50 dark:!border-blue-500 dark:!text-blue-300 dark:!bg-blue-950/40 space-x-2 px-2 py-1",
-    COMPLETED: "!border-emerald-400 !text-emerald-700 !bg-emerald-50 dark:!border-emerald-500 dark:!text-emerald-300 dark:!bg-emerald-950/40 space-x-2 px-2 py-1",
+    NOT_STARTED: "border-slate-300 text-slate-700 bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:bg-slate-900/50 space-x-2 px-2 py-1",
+    PARTIAL: "border-amber-400 text-amber-700 bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:bg-amber-950/40 space-x-2 px-2 py-1",
+    PENDING_CHECK: "border-blue-400 text-blue-700 bg-blue-50 dark:border-blue-500 dark:text-blue-300 dark:bg-blue-950/40 space-x-2 px-2 py-1",
+    COMPLETED: "border-emerald-400 text-emerald-700 bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:bg-emerald-950/40 space-x-2 px-2 py-1",
   };
 
   // Appliquer les classes personnalisées pour les statuts de complétion
@@ -171,10 +171,10 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
         isCompletionStatus && "font-medium",
         customClasses,
         className
-      ) + "space-x-2 px-2 py-1"}
+      , "space-x-2 px-2 py-1")}
     >
       {config.icon}
-      <span >{config.label}</span>
+      <span>{config.label}</span>
     </Badge>
   );
 }
@@ -197,9 +197,9 @@ export function PropertyTypeBadge({ type, className }: { type: string; className
   const config = configs[type] || { label: type, icon: null, variant: "outline" as const };
 
   return (
-    <Badge variant={config.variant} className={cn(className) + "space-x-2 px-2 py-1"}>
+    <Badge variant={config.variant} className={cn("space-x-2 px-2 py-1", className)}>
       {config.icon}
-      <span >{config.label}</span>
+      <span>{config.label}</span>
     </Badge>
   );
 }
@@ -227,9 +227,9 @@ export function PropertyLegalStatusBadge({ status, className }: { status: string
   const config = configs[status] || { label: status, icon: null, variant: "outline" as const };
 
   return (
-    <Badge variant={config.variant} className={cn(className) + "space-x-2 px-2 py-1"}>
+    <Badge variant={config.variant} className={cn("space-x-2 px-2 py-1", className)}>
       {config.icon}
-      <span >{config.label}</span>
+      <span>{config.label}</span>
     </Badge>
   );
 }
@@ -267,9 +267,9 @@ export function FamilyStatusBadge({ status, className }: { status: string; class
   const config = configs[status] || { label: status, icon: null, variant: "outline" as const };
 
   return (
-    <Badge variant={config.variant} className={cn(className) + "space-x-2 px-2 py-1"}>
+    <Badge variant={config.variant} className={cn("space-x-2 px-2 py-1", className)}>
       {config.icon}
-      <span >{config.label}</span>
+      <span>{config.label}</span>
     </Badge>
   );
 }
@@ -302,9 +302,9 @@ export function MatrimonialRegimeBadge({ regime, className }: { regime: string; 
   const config = configs[regime] || { label: regime, icon: null, variant: "outline" as const };
 
   return (
-    <Badge variant={config.variant} className={cn(className) + "space-x-2 px-2 py-1"}>
+    <Badge variant={config.variant} className={cn("space-x-2 px-2 py-1", className)}>
       {config.icon}
-      <span >{config.label}</span>  
+      <span>{config.label}</span>
     </Badge>
   );
 }
