@@ -247,15 +247,15 @@ const articleExperiences: Record<string, ArticleExperience> = {
     ctaDescription: "Sécurisez la rédaction et les échéances clés avant de signer votre contrat.",
   },
   'blog-15': {
-    quickAnswer: "Le bail commercial est un contrat de location d'un local commercial pour 9 ans minimum, avec droit au renouvellement et indemnité d'éviction. La règle des 3-6-9 permet au locataire de partir à chaque période triennale.",
+    quickAnswer: "Le bail commercial est un contrat de location d'un local commercial pour 9 ans minimum, avec droit au renouvellement et indemnité d'éviction. La règle des 3/6/9 permet au locataire de partir à chaque période triennale.",
     keyPoints: [
       "Définition, conditions d'éligibilité et caractéristiques essentielles",
-      "Règle des 3-6-9, loyer, renouvellement, résiliation et indemnité d'éviction",
+      "Règle des 3/6/9, loyer, renouvellement, résiliation et indemnité d'éviction",
       "Rôle du notaire, bail commercial notarié et tarifs 2026",
     ],
     toc: [
       { id: 'definition-bail-commercial', label: 'Définition' },
-      { id: 'duree-bail-commercial-3-6-9', label: 'Durée : la règle des 3-6-9' },
+      { id: 'duree-bail-commercial-3-6-9', label: 'Durée : la règle des 3/6/9' },
       { id: 'conditions-eligibilite-bail-commercial', label: "Conditions d'éligibilité" },
       { id: 'contenu-bail-commercial', label: 'Contenu obligatoire' },
       { id: 'loyer-bail-commercial', label: 'Loyer et indexation' },

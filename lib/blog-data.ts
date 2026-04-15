@@ -293,12 +293,12 @@ export const blogData = [
         title: "Bail Commercial : Guide Complet 2026 — Définition, Durée, Loyer, Notaire",
         slug: "bail-commercial",
         description:
-          "Tout comprendre au bail commercial : définition, durée 3-6-9, conditions d'éligibilité, loyer, renouvellement, résiliation, indemnité d'éviction, rôle du notaire et honoraires.",
+          "Tout comprendre au bail commercial : définition, durée 3/6/9, conditions d'éligibilité, loyer, renouvellement, résiliation, indemnité d'éviction, rôle du notaire et honoraires.",
         content: "",
         readTime: 18,
-        metaTitle: "Bail Commercial : Guide Complet 2026 — Durée 3-6-9, Loyer, Résiliation",
+        metaTitle: "Bail Commercial : Guide Complet 2026 — Durée 3/6/9, Loyer, Résiliation",
         metaDescription:
-          "Bail commercial : définition, durée 3-6-9, loyer, renouvellement, résiliation, indemnité d'éviction et rôle du notaire. Guide expert 2026. Sécurisez votre bail commercial notarié.",
+          "Bail commercial : définition, durée 3/6/9, loyer, renouvellement, résiliation, indemnité d'éviction et rôle du notaire. Guide expert 2026. Sécurisez votre bail commercial notarié.",
         metaKeywords:
           "bail commercial, bail commercial définition, durée bail commercial, bail commercial 3 6 9, loyer bail commercial, renouvellement bail commercial, résiliation bail commercial, indemnité d'éviction bail commercial, bail commercial notarié, contenu bail commercial, charges bail commercial, bail commercial notaire, clause bail commercial, fonds de commerce, local commercial, droit au bail, commerçant locataire, bail commercial prix, bail commercial obligations, statut baux commerciaux",
         imageUrl:

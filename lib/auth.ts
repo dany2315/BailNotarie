@@ -17,6 +17,8 @@ export const auth = betterAuth({
   },
   trustedOrigins: [
     "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
     "https://staging.bailnotarie.fr",
     "https://www.bailnotarie.fr",
   ],

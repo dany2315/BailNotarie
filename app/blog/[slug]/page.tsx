@@ -110,7 +110,7 @@ function getFaqForSlug(slug: string) {
       {
         question: "Quelle est la durée d'un bail commercial ?",
         answer:
-          "La durée minimale d'un bail commercial est de 9 ans. C'est la règle des 3-6-9 : le locataire peut donner congé à l'expiration de chaque période triennale (3 ans, 6 ans ou 9 ans) avec un préavis de 6 mois. Le bailleur ne peut pas mettre fin au bail avant les 9 ans, sauf exceptions strictement limitées par la loi.",
+          "La durée minimale d'un bail commercial est de 9 ans. C'est la règle des 3/6/9 : le locataire peut donner congé à l'expiration de chaque période triennale (3 ans, 6 ans ou 9 ans) avec un préavis de 6 mois. Le bailleur ne peut pas mettre fin au bail avant les 9 ans, sauf exceptions strictement limitées par la loi.",
       },
       {
         question: "Qui peut bénéficier d'un bail commercial ?",
