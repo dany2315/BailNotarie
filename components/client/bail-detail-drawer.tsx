@@ -28,6 +28,8 @@ const statusLabels: Record<BailStatus, string> = {
   CLIENT_CONTACTED: "Client contacté",
   SIGNED: "Signé",
   TERMINATED: "Terminé",
+  DESISTE: "Désisté",
+  CLASSE_SANS_SUITE: "Classé sans suite",
 };
 
 const statusColors: Record<BailStatus, string> = {
@@ -37,6 +39,8 @@ const statusColors: Record<BailStatus, string> = {
   CLIENT_CONTACTED: "bg-purple-100 text-purple-800 border-purple-200 text-xs",
   SIGNED: "bg-green-100 text-green-800 border-green-200 text-xs",
   TERMINATED: "bg-gray-100 text-gray-800 border-gray-200 text-xs",
+  DESISTE: "bg-red-100 text-red-800 border-red-200 text-xs",
+  CLASSE_SANS_SUITE: "bg-gray-100 text-gray-800 border-gray-200 text-xs",
 };
 
 const bailTypeLabels: Record<BailType, string> = {
