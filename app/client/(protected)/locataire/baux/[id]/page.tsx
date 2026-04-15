@@ -21,6 +21,8 @@ const statusLabels: Record<BailStatus, string> = {
   CLIENT_CONTACTED: "Client contacté",
   SIGNED: "Actif",
   TERMINATED: "Terminé",
+  DESISTE: "Désisté",
+  CLASSE_SANS_SUITE: "Classé sans suite",
 };
 
 const statusColors: Record<BailStatus, string> = {
@@ -30,6 +32,8 @@ const statusColors: Record<BailStatus, string> = {
   CLIENT_CONTACTED: "bg-purple-100 text-purple-800",
   SIGNED: "bg-green-100 text-green-800",
   TERMINATED: "bg-gray-100 text-gray-800",
+  DESISTE: "bg-red-100 text-red-800",
+  CLASSE_SANS_SUITE: "bg-gray-100 text-gray-800",
 };
 
 export default async function LocataireBailDetailPage({
