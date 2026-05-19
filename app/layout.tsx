@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     "prix bail notarié",
     "prix d'un bail notarié",
     "bail notarié France",
-    "bail notarié en 48h",
+    "bail notarié en 1 semaine",
     "bail location notarié",
     "notaire bail habitation",
     "contrat de location notarié",

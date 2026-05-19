@@ -67,6 +67,8 @@ import {
   ArrowRightIcon,
   Loader2,
   InfoIcon,
+  Check,
+  AlertTriangle,
   Building2,
   Building,
   User2,
@@ -109,6 +111,7 @@ import {
   deletePersonFromClient,
 } from "@/lib/actions/intakes";
 import { Separator } from "../ui/separator";
+import { PaymentStep } from "./payment-step";
 
 // Utiliser z.input pour obtenir le type d'entrée (avant transformation) au lieu de z.infer (après transformation)
 // Cela permet d'avoir propertyLatitude et propertyLongitude comme string dans le formulaire
@@ -145,6 +148,7 @@ const STEPS = [
   { id: "bail", title: "Données du bail" },
   { id: "tenant", title: "Locataire" },
   { id: "documents", title: "Documents" },
+  { id: "payment", title: "Paiement" },
 ] as const;
 
 type StepId = (typeof STEPS)[number]["id"];
@@ -758,6 +762,7 @@ const [isSaving, setIsSaving] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 const [isFileUploading, setIsFileUploading] = useState(false);
 const [documentsReadyForSubmission, setDocumentsReadyForSubmission] = useState(false);
+const [acceptedTerms, setAcceptedTerms] = useState(false);
 const hasMountedCurrentStepRef = useRef(false);
 const [submissionProgress, setSubmissionProgress] = useState({
   step: 0,
@@ -1080,7 +1085,7 @@ useEffect(() => {
       if (clientType === ClientType.PERSONNE_MORALE) {
         const currentEntreprise = getValues("entreprise") as EntrepriseForm | undefined;
     
-        // Si aucune entreprise encore initialisée â†’ on en crée une "vide".
+        // Si aucune entreprise encore initialisée → on en crée une "vide".
         // L'email / téléphone racine seront synchronisés par le hook
         // "Synchroniser entreprise avec les champs racine".
         if (!currentEntreprise) {
@@ -1823,22 +1828,32 @@ useEffect(() => {
       return;
     }
 
-    // Cas UX spécifique :
-    // Si l'utilisateur revient sur "tenant" après avoir déjà complété "documents",
-    // le clic sur "Suivant" doit soumettre directement (sans repasser par documents).
-    if (stepId === "tenant" && documentsReadyForSubmission) {
-      const tenantEmailValue = form.getValues("tenantEmail");
-      const hasTenantEmailNow =
-        typeof tenantEmailValue === "string" && tenantEmailValue.trim() !== "";
-
-      if (!hasTenantInCurrentBail && !hasTenantEmailNow) {
-        toast.error("Ajoutez un locataire avant de soumettre le dossier");
+    // Cas documents → valider les pièces et aller au paiement
+    if (stepId === "documents") {
+      const fileValidation = await validateDocuments();
+      if (!fileValidation.isValid) {
+        toast.error("Veuillez joindre tous les documents requis", {
+          description: fileValidation.errors.join(", "),
+        });
         return;
       }
+      if (!acceptedTerms) {
+        toast.error("Veuillez accepter les conditions générales de vente avant de continuer");
+        return;
+      }
+      await saveCurrentStep(false, false);
+      setDocumentsReadyForSubmission(true);
+      const paymentIdx = STEPS.findIndex((s) => s.id === "payment");
+      setCurrentStep(paymentIdx);
+      return;
+    }
 
+    // Cas tenant avec documents prêts → aller directement au paiement (locataire optionnel)
+    if (stepId === "tenant" && documentsReadyForSubmission) {
       try {
         await saveCurrentStep(false, false);
-        await onSubmit(getValues() as FormWithPersons);
+        const paymentIdx = STEPS.findIndex((s) => s.id === "payment");
+        setCurrentStep(paymentIdx);
       } catch (error: any) {
         const message =
           error?.message ||
@@ -1968,12 +1983,6 @@ useEffect(() => {
     try {
       await saveCurrentStep(false, shouldSkipIfUnchanged);
       
-      // NE PAS refresh ici si on passe à l'étape documents
-      // Le refresh doit se faire uniquement si on EST déjà sur l'étape documents
-      if (stepId === "documents") {
-        await refreshIntakeLinkData();
-      }
-  
       // Passer à l'étape suivante APRÈS la sauvegarde
       setCurrentStep(nextStep);
     } catch (error: any) {
@@ -2187,6 +2196,82 @@ useEffect(() => {
     }
   };
 
+  // Soumission après paiement Stripe confirmé
+  const submitAfterPayment = async (paymentIntentId: string) => {
+    setIsSubmitting(true);
+    try {
+      const data = getValues() as FormWithPersons;
+
+      setSubmissionProgress({
+        step: 1,
+        totalSteps: 3,
+        currentStepName: "Vérification du paiement",
+      });
+
+      const dataWithStringCoords = {
+        ...data,
+        propertyLatitude:
+          (data as any).propertyLatitude != null && (data as any).propertyLatitude !== ""
+            ? String((data as any).propertyLatitude)
+            : "",
+        propertyLongitude:
+          (data as any).propertyLongitude != null && (data as any).propertyLongitude !== ""
+            ? String((data as any).propertyLongitude)
+            : "",
+      };
+
+      let payload = mapPersonsToOwnerPayload(dataWithStringCoords as FormWithPersons);
+      const formattedData = {
+        ...payload,
+        propertyLatitude:
+          payload.propertyLatitude != null && payload.propertyLatitude !== ""
+            ? String(payload.propertyLatitude)
+            : "",
+        propertyLongitude:
+          payload.propertyLongitude != null && payload.propertyLongitude !== ""
+            ? String(payload.propertyLongitude)
+            : "",
+        persons: (payload.persons || []).map((person) => ({
+          ...person,
+          birthDate: toDateValue(person.birthDate) ?? undefined,
+        })),
+      };
+
+      setSubmissionProgress({
+        step: 2,
+        totalSteps: 3,
+        currentStepName: "Finalisation du dossier",
+      });
+
+      await submitIntake({
+        token: intakeLink.token,
+        payload: formattedData,
+        paymentIntentId,
+      });
+
+      setSubmissionProgress({
+        step: 3,
+        totalSteps: 3,
+        currentStepName: "Redirection...",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const successPath = pathname?.includes("/commencer")
+        ? `/commencer/success?token=${intakeLink.token}`
+        : `/intakes/${intakeLink.token}/success`;
+
+      router.push(successPath);
+    } catch (error: any) {
+      const message =
+        error?.message || error?.toString() || "Erreur lors de la soumission";
+      toast.error(message);
+      setSubmissionProgress({ step: 0, totalSteps: 3, currentStepName: "" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleFormKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
     if (e.key === "Enter" && currentStep < STEPS.length - 1) {
       e.preventDefault();
@@ -2196,6 +2281,8 @@ useEffect(() => {
   const summaryValues = watch();
   const currentStepId = STEPS[currentStep]?.id;
   const isTenantStepCurrent = currentStepId === "tenant";
+  const isDocumentsStepCurrent = currentStepId === "documents";
+  const isPaymentStepCurrent = currentStepId === "payment";
 
   const stepperSteps = useMemo(
     () => STEPS.map((step) => ({ title: step.title })),
@@ -2268,7 +2355,7 @@ useEffect(() => {
                             }`}
                           >
                             {isCompleted ? (
-                              <span className="text-xs">âœ“</span>
+                              <Check className="h-3 w-3" />
                             ) : isCurrent ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
@@ -2381,6 +2468,13 @@ useEffect(() => {
               form={form as any}
               hasTenantInCurrentBail={hasTenantInCurrentBail}
               documentsReadyForSubmission={documentsReadyForSubmission}
+            />
+          )}
+          {STEPS[currentStep].id === "payment" && (
+            <PaymentStep
+              token={intakeLink.token}
+              onPaymentSuccess={submitAfterPayment}
+              isSubmitting={isSubmitting}
             />
           )}
           {STEPS[currentStep].id === "documents" && (
@@ -2504,6 +2598,29 @@ useEffect(() => {
           );
         })}
 
+        {(isDocumentsStepCurrent || (isTenantStepCurrent && documentsReadyForSubmission)) && (
+          <div className="max-w-3xl mx-auto px-3 sm:px-4 pb-3">
+            <div className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 bg-gray-50">
+              <Checkbox
+                id="acceptedTerms"
+                checked={acceptedTerms}
+                onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                className="mt-0.5"
+              />
+              <label htmlFor="acceptedTerms" className="text-sm text-gray-600 cursor-pointer leading-snug">
+                J&apos;accepte la{" "}
+                <a href="/politique-confidentialite" target="_blank" className="underline hover:text-gray-900">
+                  politique de confidentialité
+                </a>{" "}
+                et les{" "}
+                <a href="/cgv" target="_blank" className="underline hover:text-gray-900">
+                  conditions générales de vente
+                </a>
+              </label>
+            </div>
+          </div>
+        )}
+
         <div className="p-3 sm:p-4">
           <div className="max-w-3xl mx-auto flex flex-row justify-between gap-3 sm:gap-4">
             <div>
@@ -2521,85 +2638,62 @@ useEffect(() => {
               )}
             </div>
             <div className="flex flex-row gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleManualSave}
-                disabled={isSubmitting || isSaving || isFileUploading}
-                className="sm:w-auto h-10"
-              >
-                {isSaving ? "Enregistrement..." : "Enregistrer"}
-              </Button>
-              {currentStep < STEPS.length - 1 ? (
-                isTenantStepCurrent ? (
-                  <Button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleNext();
-                    }}
-                    disabled={
-                      isSubmitting ||
-                      isSaving ||
-                      isFileUploading ||
-                      (documentsReadyForSubmission && !canSubmitOwnerIntake)
-                    }
-                    className="sm:w-auto h-10"
-                  >
-                    {documentsReadyForSubmission
-                      ? "Soumettre"
-                      : canSubmitOwnerIntake
-                      ? "Continuer"
-                      : "Continuer sans locataire"}
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    onClick={(e) => {
-                      console.log("ðŸŸ¦ [Button Next] onClick - currentStep:", currentStep, "stepId:", STEPS[currentStep]?.id);
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleNext();
-                    }}
-                    disabled={isSubmitting || isSaving || isFileUploading}
-                    size="icon"
-                    className="h-10 w-10"
-                  >
-                    <ArrowRightIcon className="w-5 h-5" />
-                  </Button>
-                )
+              {!isPaymentStepCurrent && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleManualSave}
+                  disabled={isSubmitting || isSaving || isFileUploading}
+                  className="sm:w-auto h-10"
+                >
+                  {isSaving ? "Enregistrement..." : "Enregistrer"}
+                </Button>
+              )}
+              {isPaymentStepCurrent ? null : isDocumentsStepCurrent ? (
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleNext();
+                  }}
+                  disabled={isSubmitting || isSaving || isFileUploading}
+                  className="sm:w-auto h-10"
+                >
+                  Continuer vers le paiement
+                  <ArrowRightIcon className="ml-2 w-4 h-4" />
+                </Button>
+              ) : isTenantStepCurrent ? (
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleNext();
+                  }}
+                  disabled={isSubmitting || isSaving || isFileUploading}
+                  className="sm:w-auto h-10"
+                >
+                  {documentsReadyForSubmission
+                    ? "Continuer vers le paiement"
+                    : canSubmitOwnerIntake
+                    ? "Continuer"
+                    : "Continuer sans locataire"}
+                </Button>
               ) : (
-                canSubmitOwnerIntake ? (
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting || isSaving || isFileUploading}
-                    className="sm:w-auto"
-                  >
-                    {isSubmitting ? "Envoi en cours..." : "Soumettre"}
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    onClick={async () => {
-                      const fileValidation = await validateDocuments();
-                      if (!fileValidation.isValid) {
-                        toast.error("Veuillez joindre tous les documents requis", {
-                          description: fileValidation.errors.join(", "),
-                        });
-                        return;
-                      }
-                      setDocumentsReadyForSubmission(true);
-                      if (tenantStepIndex !== -1) {
-                        setCurrentStep(tenantStepIndex);
-                      }
-                    }}
-                    disabled={isSubmitting || isSaving || isFileUploading}
-                    className="sm:w-auto"
-                  >
-                    Suivant
-                  </Button>
-                )
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleNext();
+                  }}
+                  disabled={isSubmitting || isSaving || isFileUploading}
+                  size="icon"
+                  className="h-10 w-10"
+                >
+                  <ArrowRightIcon className="w-5 h-5" />
+                </Button>
               )}
             </div>
           </div>
@@ -3765,8 +3859,8 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
     <InfoTooltip 
       content={
         <>
-          <p>Bail meublé â†’ 2 mois de loyer hors charges maximum</p>
-          <p>Bail nue â†’ 1 mois de loyer hors charges maximum</p>
+          <p>Bail meublé → 2 mois de loyer hors charges maximum</p>
+          <p>Bail nue → 1 mois de loyer hors charges maximum</p>
           {rentAmountNum > 0 && (
             <p className="mt-2 font-semibold">
               Maximum autorisé : {maxSecurityDeposit.toLocaleString('fr-FR')} €
@@ -4106,11 +4200,12 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
           </div>
           {/* Indicateur de complétion pour bail meublé */}
           <div className={`p-4 rounded-lg ${allFurniturePresent ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800" : "bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800"}`}>
-            <p className={`text-sm font-medium ${allFurniturePresent ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
-              {allFurniturePresent 
-                ? "✓ Tous les équipements sont présents. Vous pouvez louer ce bien en meublé." 
-                : "⚠ Équipements incomplets. Pour louer en meublé, tous les équipements doivent être présents."
-              }
+            <p className={`flex items-center gap-2 text-sm font-medium ${allFurniturePresent ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
+              {allFurniturePresent ? (
+                <><Check className="h-4 w-4 shrink-0" />Tous les équipements sont présents. Vous pouvez louer ce bien en meublé.</>
+              ) : (
+                <><AlertTriangle className="h-4 w-4 shrink-0" />Équipements incomplets. Pour louer en meublé, tous les équipements doivent être présents.</>
+              )}
             </p>
           </div>
         </div>

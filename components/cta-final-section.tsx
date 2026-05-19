@@ -11,9 +11,9 @@ export function CTAFinalSection() {
   };
 
   const guarantees = [
-    "100% en ligne et gratuit",
+    "100% en ligne",
     "Transmission automatique au notaire",
-    "Bail notarié en 48h",
+    "Bail notarié en 1 semaine",
     "Signature digitale sécurisée"
   ];
 
@@ -34,11 +34,11 @@ export function CTAFinalSection() {
 
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
               Prêt à constituer votre dossier{" "}
-              <span className="text-blue-600">gratuitement</span> ?
+              <span className="text-blue-600">de bail notarié</span> ?
             </h2>
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-              Commencez dès maintenant. Votre dossier sera transmis automatiquement 
-              au notaire partenaire pour une signature en ligne. Bail notarié en 48h.
+              Commencez dès maintenant. Votre dossier sera transmis automatiquement
+              au notaire partenaire pour une signature en ligne. Bail notarié en 1 semaine.
             </p>
 
             {/* Garanties */}
@@ -58,7 +58,7 @@ export function CTAFinalSection() {
                 onClick={scrollToContact}
                 className="bg-blue-600 hover:bg-blue-700 text-white text-lg px-8 py-6 h-auto"
               >
-                Constituer mon dossier gratuitement
+                Constituer mon dossier — 39,90€ TTC
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <PhoneButton
@@ -69,7 +69,7 @@ export function CTAFinalSection() {
             </div>
 
             <p className="text-sm text-gray-500 mt-6">
-              Sans engagement • Réponse sous 24h • 100% sécurisé
+              Frais de dossier : 39,90€ TTC • 100% sécurisé
             </p>
           </CardContent>
         </Card>

@@ -33,7 +33,7 @@ export function ProcessSection() {
       icon: Send,
       title: "Transmission au notaire",
       description: "Vérification et validation des pièces",
-      duration: "48h",
+      duration: "1 semaine",
       color: "bg-purple-500",
       details: "Votre dossier est transmis au notaire qui vérifie la conformité de tous les documents."
     },

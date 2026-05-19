@@ -13,7 +13,8 @@ export const intakePayloadSchema = z.any();
 export const submitIntakeSchema = z.object({
   token: z.string().min(1, "Le token est requis"),
   payload: intakePayloadSchema,
-  stepId: z.string().optional(), // ID de l'étape pour la sauvegarde partielle
+  stepId: z.string().optional(),
+  paymentIntentId: z.string().optional(), // ID du PaymentIntent Stripe
 });
 
 export type CreateIntakeLinkInput = z.infer<typeof createIntakeLinkSchema>;

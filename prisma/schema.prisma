@@ -526,6 +526,9 @@ model IntakeLink {
   status               IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
   submittedAt          DateTime?
 
+  stripePaymentIntentId String?   @db.Text
+  paidAt                DateTime?
+
   bailFamilyPreference BailFamille?
 
   createdAt   DateTime @default(now())

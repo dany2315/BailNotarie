@@ -70,13 +70,18 @@ export function HeroSectionNew() {
               <SocialProof />
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <Link
-                  href="/commencer"
-                  className="inline-flex items-center justify-center bg-[#4373f5] hover:bg-blue-700 text-white text-md px-8 py-3 h-auto rounded-xl shadow-md transition-all duration-200 font-medium"
-                >
-                  Constituer mon dossier 
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
+                <div className="flex flex-col gap-1">
+                  <Link
+                    href="/commencer"
+                    className="inline-flex items-center justify-center bg-[#4373f5] hover:bg-blue-700 text-white text-md px-8 py-3 h-auto rounded-xl shadow-md transition-all duration-200 font-medium"
+                  >
+                    Constituer mon dossier
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                  <span className="text-xs text-gray-500 text-center">
+                    Frais de dossier : <strong>39,90€ TTC</strong> — Remboursé si le dossier n'aboutit pas*
+                  </span>
+                </div>
               </div>
 
               {/* Garanties / arguments rassurants */}
@@ -87,7 +92,7 @@ export function HeroSectionNew() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#4373f5]" />
-                  <span>Bail notarié en 48h</span>
+                  <span>Bail notarié en 1 semaine</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Globe className="w-4 h-4 text-green-600" />
@@ -95,7 +100,7 @@ export function HeroSectionNew() {
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-600" />
-                  <span>Sans engagement</span>
+                  <span>Tarif transparent</span>
                 </div>
               </div>
             </div>
@@ -172,7 +177,7 @@ export function HeroSectionNew() {
                       Délai moyen 
                     </span>
                     <span className="text-2xl font-bold text-[#4373f5]">
-                      48h
+                      1 semaine
                     </span>
                   </div>
                 </div>

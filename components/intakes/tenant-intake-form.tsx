@@ -26,7 +26,7 @@ import { formatDate, formatCurrency, formatSurface } from "@/lib/utils/formatter
 import { FamilyStatus, MatrimonialRegime, ClientType, DocumentKind, BailType } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Stepper } from "@/components/ui/stepper";
-import { ArrowLeftIcon, ArrowRightIcon, Loader2, Building2, User2, MapPin, Calendar, Euro, Home, Info } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, Loader2, Building2, User2, MapPin, Calendar, Euro, Home, Info, Check } from "lucide-react";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -2815,9 +2815,9 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   {/* Étapes détaillées */}
                   <div className="space-y-2 mt-4">
                     {[
-                      { id: 1, name: "Vérification des données", icon: "âœ“" },
-                      { id: 2, name: "Soumission du formulaire", icon: "ðŸ“" },
-                      { id: 3, name: "Redirection...", icon: "â†’" },
+                      { id: 1, name: "Vérification des données" },
+                      { id: 2, name: "Soumission du formulaire" },
+                      { id: 3, name: "Redirection..." },
                     ].map((step) => {
                       const isCompleted = step.id < submissionProgress.step;
                       const isCurrent = step.id === submissionProgress.step;
@@ -2843,7 +2843,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                             }`}
                           >
                             {isCompleted ? (
-                              <span className="text-xs">âœ“</span>
+                              <Check className="h-3 w-3" />
                             ) : isCurrent ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (

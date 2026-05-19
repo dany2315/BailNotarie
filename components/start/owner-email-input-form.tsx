@@ -180,7 +180,7 @@ export function OwnerEmailInputForm({ onOtpSent }: OwnerEmailInputFormProps) {
               </div>
               <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
                 <Sparkles className="h-4 w-4 text-blue-500" />
-                <span>Sans engagement</span>
+                <span>39,90€ TTC</span>
               </div>
             </div>
           </form>
