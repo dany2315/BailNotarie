@@ -55,6 +55,7 @@ type CreateBailFormData = z.infer<typeof createBailSchema>;
 export interface CreateBailFormRef {
   submit: () => void;
   isLoading: boolean;
+  getValidatedData: () => Promise<CreateBailFormData | null>;
 }
 
 interface CreateBailFormProps {
@@ -306,10 +307,20 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
 
   const handleFormSubmit = handleSubmit(onSubmit);
 
+  const getValidatedData = useCallback((): Promise<CreateBailFormData | null> => {
+    return new Promise((resolve) => {
+      handleSubmit(
+        (data) => resolve(data),
+        () => resolve(null)
+      )();
+    });
+  }, [handleSubmit]);
+
   useImperativeHandle(ref, () => ({
     submit: handleFormSubmit,
     isLoading,
-  }), [handleFormSubmit, isLoading]);
+    getValidatedData,
+  }), [handleFormSubmit, isLoading, getValidatedData]);
 
   // Notifier le parent quand isLoading change
   useEffect(() => {

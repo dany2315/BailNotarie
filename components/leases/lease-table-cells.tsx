@@ -2,7 +2,7 @@
 
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate, formatCurrency } from "@/lib/utils/formatters";
-import { ArrowRight, Building2, User, GraduationCap } from "lucide-react";
+import { ArrowRight, Building2, User, GraduationCap, CheckCircle2, CreditCard } from "lucide-react";
 import Link from "next/link";
 
 interface LeaseCellProps {
@@ -209,6 +209,23 @@ export function LeaseDepositCell({ row }: LeaseCellProps) {
     return <span className="text-muted-foreground">-</span>;
   }
   return <>{formatCurrency(Number(row.securityDeposit))}</>;
+}
+
+export function LeasePaymentCell({ row }: LeaseCellProps) {
+  if (row?.paidAt) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+        <CheckCircle2 className="h-3 w-3 shrink-0" />
+        Payé
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+      <CreditCard className="h-3 w-3 shrink-0" />
+      Non payé
+    </span>
+  );
 }
 
 export function LeaseNotaireCell({ row }: LeaseCellProps) {

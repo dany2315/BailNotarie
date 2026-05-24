@@ -459,6 +459,9 @@ model Bail {
   createdBy   User?    @relation("BailCreatedBy", fields: [createdById], references: [id])
   updatedBy   User?    @relation("BailUpdatedBy", fields: [updatedById], references: [id])
 
+  stripePaymentIntentId String?   @db.Text
+  paidAt                DateTime?
+
   documents Document[]
   intakes   IntakeLink[] @relation("BailIntakes")
 
@@ -526,8 +529,7 @@ model IntakeLink {
   status               IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
   submittedAt          DateTime?
 
-  stripePaymentIntentId String?   @db.Text
-  paidAt                DateTime?
+  stripePaymentIntentId String?   @db.Text // Temporaire : cache pour réutiliser le PaymentIntent
 
   bailFamilyPreference BailFamille?
 

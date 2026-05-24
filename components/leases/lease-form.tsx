@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, forwardRef, useImperativeHandle } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,6 +20,9 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { AlertCircle, Loader2, Sofa } from "lucide-react";
 import { z } from "zod";
+import { RentControlAlert } from "@/components/ui/rent-control-alert";
+import { validateRentAmount } from "@/lib/utils/rent-validation";
+import type { RentValidationResult } from "@/lib/utils/rent-validation";
 
 /** Vérifie que le bien possède les 13 éléments obligatoires pour une location meublée (Décret 2015-981) */
 function isPropertyMeuble(property: any): boolean {
@@ -127,6 +130,7 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
 ) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
 
   const form = useForm<LeaseFormData>({
     resolver: zodResolver(leaseFormSchema) as any,
@@ -193,9 +197,27 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
 
   // Bien sélectionné et capacité meublée
   const selectedPropertyId = form.watch("propertyId");
+  const watchedRentAmount = form.watch("rentAmount");
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId) ?? null;
   const isCommercial = form.watch("leaseType") === "COMMERCIAL";
   const canMeuble = !isCommercial && isPropertyMeuble(selectedProperty);
+
+  // Validation zone tendue — même logique que le formulaire client
+  useEffect(() => {
+    if (selectedPropertyId && watchedRentAmount) {
+      const rent = parseFloat(watchedRentAmount);
+      if (!isNaN(rent) && rent > 0) {
+        const surfaceM2 = selectedProperty?.surfaceM2 ? Number(selectedProperty.surfaceM2) : null;
+        validateRentAmount(selectedPropertyId, rent, surfaceM2)
+          .then((result) => setRentValidationResult(result))
+          .catch(() => setRentValidationResult(null));
+      } else {
+        setRentValidationResult(null);
+      }
+    } else {
+      setRentValidationResult(null);
+    }
+  }, [selectedPropertyId, watchedRentAmount, selectedProperty?.surfaceM2]);
 
   const getPartyName = (party: any) => {
     if (party.type === "PERSONNE_PHYSIQUE") {
@@ -302,6 +324,16 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
           </div>
         </CardContent>
       </Card>
+
+      {/* Alerte zone tendue */}
+      {selectedPropertyId && (
+        <RentControlAlert
+          propertyId={selectedPropertyId}
+          rentAmount={watchedRentAmount ? parseFloat(watchedRentAmount) : undefined}
+          surfaceM2={selectedProperty?.surfaceM2 ? Number(selectedProperty.surfaceM2) : null}
+          validationResult={rentValidationResult}
+        />
+      )}
 
       {/* Bail */}
       <Card>

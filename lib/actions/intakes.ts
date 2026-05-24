@@ -246,15 +246,21 @@ export async function submitIntake(data: unknown) {
       // Plus besoin de passer formData
       await submitOwnerForm(ownerData);
 
-      // Enregistrer le paiement sur l'IntakeLink
+      // Enregistrer le paiement sur le Bail (source de vérité unique)
       if (paymentIntentId) {
-        await prisma.intakeLink.update({
+        const updatedIntakeLink = await prisma.intakeLink.findUnique({
           where: { token },
-          data: {
-            stripePaymentIntentId: paymentIntentId,
-            paidAt: new Date(),
-          },
+          select: { bailId: true },
         });
+        if (updatedIntakeLink?.bailId) {
+          await prisma.bail.update({
+            where: { id: updatedIntakeLink.bailId },
+            data: {
+              stripePaymentIntentId: paymentIntentId,
+              paidAt: new Date(),
+            },
+          });
+        }
       }
 
       return { success: true };

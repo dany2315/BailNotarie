@@ -15,6 +15,7 @@ import {
   LeaseDepositCell,
   LeaseNotaireCell,
   LeaseCreatedDateCell,
+  LeasePaymentCell,
 } from "@/components/leases/lease-table-cells";
 import { BailStatusFilterWrapper } from "@/components/leases/bail-status-filter-wrapper";
 
@@ -82,6 +83,11 @@ export default async function LeasesPage({
       id: "property",
       header: "Bien",
       cell: LeasePropertyCell,
+    },
+    {
+      id: "payment",
+      header: "Paiement",
+      cell: LeasePaymentCell,
     },
     {
       id: "notaire",

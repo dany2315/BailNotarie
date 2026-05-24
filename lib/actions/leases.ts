@@ -11,7 +11,7 @@ import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { validateRentForProperty } from "@/lib/utils/rent-validation";
 
-export async function createLease(data: unknown) {
+export async function createLease(data: unknown, paymentIntentId?: string) {
   const user = await requireAuth();
   const validated = createLeaseSchema.parse(data);
 
@@ -75,6 +75,8 @@ export async function createLease(data: unknown) {
       endDate: validated.endDate || null,
       paymentDay: validated.paymentDay || null,
       propertyId: validated.propertyId,
+      stripePaymentIntentId: paymentIntentId || null,
+      paidAt: paymentIntentId ? new Date() : null,
       parties: {
         connect: [
           { id: property.ownerId }, // Propriétaire
