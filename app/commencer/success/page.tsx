@@ -1,10 +1,11 @@
 import { getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
-import { ArrowRight, CheckCircle2, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Mail, ShieldCheck, Receipt, Download } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { stripe } from "@/lib/stripe";
 
 export default async function IntakeSuccessPage({
   searchParams,
@@ -61,6 +62,21 @@ export default async function IntakeSuccessPage({
       }
     } else if (client.type === "PERSONNE_MORALE" && client.entreprise) {
       clientName = client.entreprise.legalName || client.entreprise.name || client.entreprise.email || "Client";
+    }
+  }
+
+  // Récupérer le reçu Stripe si disponible
+  let receiptUrl: string | null = null;
+  const paymentIntentId = (intakeLink as any).bail?.stripePaymentIntentId;
+  if (isOwner && paymentIntentId) {
+    try {
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ["latest_charge"],
+      });
+      const charge = paymentIntent.latest_charge as any;
+      receiptUrl = charge?.receipt_url ?? null;
+    } catch {
+      // On continue sans reçu si l'appel Stripe échoue
     }
   }
 
@@ -122,6 +138,37 @@ export default async function IntakeSuccessPage({
                     ))}
                   </ul>
                 </div>
+
+                {/* Reçu de paiement */}
+                {isOwner && (
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="h-4 w-4 text-slate-500" />
+                        <h2 className="text-sm font-semibold text-slate-700">Reçu de paiement</h2>
+                      </div>
+                      {receiptUrl && (
+                        <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
+                          <a href={receiptUrl} target="_blank" rel="noopener noreferrer">
+                            <Download className="h-3.5 w-3.5" />
+                            Télécharger le reçu
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Frais de dossier BailNotarie</span>
+                      <span className="font-bold text-slate-900">39,90 € TTC</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
+                      <span>Réf. {token.slice(0, 8).toUpperCase()}</span>
+                      <span>Paiement unique</span>
+                    </div>
+                    <p className="mt-3 text-xs text-slate-400 leading-snug">
+                      Ces frais couvrent la constitution, vérification et transmission de votre dossier. Les émoluments du notaire seront facturés séparément.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Button asChild size="lg" className="h-11 bg-green-600 hover:bg-green-700">

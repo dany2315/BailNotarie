@@ -15,8 +15,10 @@ import {
   CreditCard,
   Loader2,
   AlertCircle,
+  TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -72,6 +74,7 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [cgvAccepted, setCgvAccepted] = useState(false);
 
   const handleSubmit = async () => {
     if (!stripe || !elements || isProcessing || isSubmitting || !isReady)
@@ -102,7 +105,7 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
     }
   };
 
-  const disabled = !stripe || !isReady || isProcessing || isSubmitting;
+  const disabled = !stripe || !isReady || isProcessing || isSubmitting || !cgvAccepted;
 
   return (
     <div className="space-y-5">
@@ -117,6 +120,37 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
         />
       </div>
 
+      {/* Acceptation CGV */}
+      <label className={cn(
+        "flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all",
+        cgvAccepted
+          ? "border-[#4373f5] bg-blue-50/60"
+          : "border-gray-200 bg-gray-50 hover:border-gray-300"
+      )}>
+        <input
+          type="checkbox"
+          checked={cgvAccepted}
+          onChange={(e) => setCgvAccepted(e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-[#4373f5] shrink-0 cursor-pointer"
+        />
+        <span className={cn("text-xs leading-snug transition-colors", cgvAccepted ? "text-blue-900" : "text-gray-600")}>
+          J'accepte les{" "}
+          <a href="/cgv" target="_blank" className="underline font-medium hover:text-[#4373f5]" onClick={(e) => e.stopPropagation()}>
+            Conditions Générales de Vente
+          </a>{" "}
+          et les{" "}
+          <a href="/cgu" target="_blank" className="underline font-medium hover:text-[#4373f5]" onClick={(e) => e.stopPropagation()}>
+            Conditions Générales d'Utilisation
+          </a>
+        </span>
+      </label>
+
+      {!cgvAccepted && isReady && (
+        <p className="text-center text-xs text-amber-600 font-medium">
+          ↑ Acceptez les conditions pour activer le paiement
+        </p>
+      )}
+
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -128,7 +162,7 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
         type="button"
         onClick={handleSubmit}
         disabled={disabled}
-        className="w-full h-12 text-base font-semibold bg-[#4373f5] hover:bg-blue-700 text-white rounded-xl shadow-md transition-all duration-200"
+        className="w-full h-12 text-base font-semibold bg-[#4373f5] hover:bg-blue-700 text-white rounded-xl shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isProcessing || isSubmitting ? (
           <>
@@ -237,14 +271,16 @@ export function PaymentStep({
           ))}
         </div>
 
-        <div className="border-t border-blue-100 pt-3 flex items-center justify-between text-sm text-gray-500">
-          <span>Frais notariés (fixés par l'État)</span>
-          <span className="font-medium">Facturés par le notaire</span>
+        <div className="flex items-center justify-between font-semibold text-gray-900 text-sm bg-white/60 rounded-lg px-4 py-2.5">
+          <span>À payer maintenant</span>
+          <span className="text-[#4373f5] text-lg">39,90€ TTC</span>
         </div>
 
-        <div className="flex items-center justify-between font-semibold text-gray-900 text-sm bg-white/60 rounded-lg px-4 py-2.5">
-          <span>Total à payer maintenant</span>
-          <span className="text-[#4373f5] text-lg">39,90€ TTC</span>
+        <div className="flex items-start gap-2 text-xs text-gray-500 pt-1">
+          <TriangleAlert className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+          <span>
+            Ce montant ne comprend <strong className="text-gray-700">pas</strong> les émoluments du notaire — ceux-ci sont facturés séparément avant la signature.
+          </span>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { requireLocataireAuth } from "@/lib/auth-helpers";
-import { getLocataireStats, getClientBails, getPendingNotaireRequests, getActiveIntakeLinkForClient } from "@/lib/actions/client-space";
+import { getLocataireStats, getClientBails, getPendingNotaireRequests, getActiveIntakeLinksForClient } from "@/lib/actions/client-space";
 import { ProfilType, BailType, BailFamille, BailStatus, CompletionStatus } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,13 @@ export const fetchCache = "force-no-store";
 export default async function LocataireDashboardPage() {
   const { user, client } = await requireLocataireAuth();
   
-  const [stats, baux, pendingRequests, activeIntake] = await Promise.all([
+  const [stats, baux, pendingRequests, activeIntakes] = await Promise.all([
     getLocataireStats(client.id),
     getClientBails(client.id, ProfilType.LOCATAIRE),
     getPendingNotaireRequests(client.id, ProfilType.LOCATAIRE),
-    getActiveIntakeLinkForClient(client.id),
+    getActiveIntakeLinksForClient(client.id),
   ]);
+  const activeIntake = activeIntakes[0] ?? null;
 
   const bauxActifs = baux.filter(b => b.status === "SIGNED");
 

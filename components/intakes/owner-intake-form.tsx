@@ -762,7 +762,6 @@ const [isSaving, setIsSaving] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 const [isFileUploading, setIsFileUploading] = useState(false);
 const [documentsReadyForSubmission, setDocumentsReadyForSubmission] = useState(false);
-const [acceptedTerms, setAcceptedTerms] = useState(false);
 const hasMountedCurrentStepRef = useRef(false);
 const [submissionProgress, setSubmissionProgress] = useState({
   step: 0,
@@ -1837,10 +1836,6 @@ useEffect(() => {
         });
         return;
       }
-      if (!acceptedTerms) {
-        toast.error("Veuillez accepter les conditions générales de vente avant de continuer");
-        return;
-      }
       await saveCurrentStep(false, false);
       setDocumentsReadyForSubmission(true);
       const paymentIdx = STEPS.findIndex((s) => s.id === "payment");
@@ -2598,28 +2593,7 @@ useEffect(() => {
           );
         })}
 
-        {(isDocumentsStepCurrent || (isTenantStepCurrent && documentsReadyForSubmission)) && (
-          <div className="max-w-3xl mx-auto px-3 sm:px-4 pb-3">
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 bg-gray-50">
-              <Checkbox
-                id="acceptedTerms"
-                checked={acceptedTerms}
-                onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
-                className="mt-0.5"
-              />
-              <label htmlFor="acceptedTerms" className="text-sm text-gray-600 cursor-pointer leading-snug">
-                J&apos;accepte la{" "}
-                <a href="/politique-confidentialite" target="_blank" className="underline hover:text-gray-900">
-                  politique de confidentialité
-                </a>{" "}
-                et les{" "}
-                <a href="/cgv" target="_blank" className="underline hover:text-gray-900">
-                  conditions générales de vente
-                </a>
-              </label>
-            </div>
-          </div>
-        )}
+
 
         <div className="p-3 sm:p-4">
           <div className="max-w-3xl mx-auto flex flex-row justify-between gap-3 sm:gap-4">

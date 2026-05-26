@@ -3,6 +3,7 @@ import { getClientProfilType } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
 import { Role, ProfilType } from "@prisma/client";
 import { ProprietaireHeader } from "@/components/client/proprietaire-header";
+import { HideOnRoute } from "@/components/ui/hide-on-route";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -36,14 +37,16 @@ export default async function ProprietaireProtectedLayout({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-        <ProprietaireHeader 
+      <HideOnRoute paths={["/client/proprietaire/baux/new"]}>
+        <ProprietaireHeader
           userId={user.id}
           userName={user.name}
           userEmail={user.email}
         />
-        <main className="flex-1 overflow-y-auto min-h-0">
-          {children}
-        </main>
+      </HideOnRoute>
+      <main className="flex-1 overflow-y-auto min-h-0">
+        {children}
+      </main>
     </div>
   );
 }

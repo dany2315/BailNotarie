@@ -11,16 +11,23 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Plus, Home, FileText, MapPin, Ruler, Building2, User, Calendar, Euro, Eye } from "lucide-react";
+import { Plus, Home, FileText, MapPin, Ruler, Building2, User, Calendar, Euro, Eye, Loader2, CheckCircle2 } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils/formatters";
 import { DemandesTabs } from "./demandes-tabs";
 import { CompletionStatus, BailStatus, BailType, BailFamille, ProfilType } from "@prisma/client";
 import { cn } from "@/lib/utils";
-import { CreatePropertyDrawer } from "./create-property-drawer";
-import { CreateBailDrawer } from "./create-bail-drawer";
 import { BailDetailDrawer } from "./bail-detail-drawer";
 import { PropertyDetailDrawer } from "./property-detail-drawer";
 import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
+import { CreatePropertyForm, CreatePropertyFormRef } from "./create-property-form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type PropertyWithBails = {
   id: string;
@@ -133,7 +140,9 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
   );
   const [activeTab, setActiveTab] = useState("baux");
   const [isPropertyDrawerOpen, setIsPropertyDrawerOpen] = useState(false);
-  const [isBailDrawerOpen, setIsBailDrawerOpen] = useState(false);
+  const [isPropertyFormLoading, setIsPropertyFormLoading] = useState(false);
+  const [isPropertyFormUploading, setIsPropertyFormUploading] = useState(false);
+  const propertyFormRef = useRef<CreatePropertyFormRef>(null);
   const [isBailDetailDrawerOpen, setIsBailDetailDrawerOpen] = useState(false);
   const [selectedBailId, setSelectedBailId] = useState<string | null>(null);
   /** Quand défini, le chat du drawer bail s'ouvre à l'affichage (lien "Répondre" depuis le dashboard) */
@@ -184,9 +193,8 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
     if (open === "bien-new" && !isPropertyDrawerOpen) {
       lastProcessedOpenParam.current = open;
       setIsPropertyDrawerOpen(true);
-    } else if (open === "bail-new" && !isBailDrawerOpen) {
-      lastProcessedOpenParam.current = open;
-      setIsBailDrawerOpen(true);
+    } else if (open === "bail-new") {
+      router.push("/client/proprietaire/baux/new");
     } else if (open?.startsWith("bail-")) {
       const bailId = open.replace("bail-", "");
       const wantChat = searchParams.get("chat") === "1";
@@ -213,16 +221,6 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
     setLocalBiens((prev) => [...prev, { ...property, bails: property.bails || [] }]);
     setSelectedPropertyId(property.id);
     // Ne pas fermer le drawer ici, il sera fermé par le drawer lui-même
-    // Réinitialiser la ref pour permettre de rouvrir le drawer si nécessaire
-    lastProcessedOpenParam.current = null;
-    // Nettoyer les query params
-    router.replace("/client/proprietaire/demandes", { scroll: false });
-  }, [router]);
-
-  const handleBailCreated = useCallback((bail: any) => {
-    // Rafraîchir les biens pour mettre à jour les baux
-    router.refresh();
-    setIsBailDrawerOpen(false);
     // Réinitialiser la ref pour permettre de rouvrir le drawer si nécessaire
     lastProcessedOpenParam.current = null;
     // Nettoyer les query params
@@ -309,13 +307,16 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                         : "border-border hover:border-primary/50 hover:bg-muted/50"
                     )}
                   >
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={(e) => handleViewProperty(e, bien.id)}
-                      className="absolute top-4 right-4 p-1 rounded-full hover:bg-background transition-colors"
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setSelectedPropertyDetailId(bien.id); setIsPropertyDetailDrawerOpen(true); } }}
+                      className="absolute top-4 right-4 p-1 rounded-full hover:bg-background transition-colors cursor-pointer"
                       title="Voir les détails"
                     >
                       <Eye className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                    </button>
+                    </div>
                     <div className={cn(
                       "rounded-full p-2",
                       isSelected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
@@ -470,8 +471,8 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
               {/* Contenu */}
               <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6">
                 <div className="space-y-4">
-                    <Card 
-                      onClick={() => setIsBailDrawerOpen(true)}
+                    <Card
+                      onClick={() => router.push(`/client/proprietaire/baux/new${selectedPropertyId ? `?propertyId=${selectedPropertyId}` : ""}`)}
                       className="border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group"
                     >
                       <CardContent className="flex flex-col items-center justify-center px-0">
@@ -480,8 +481,8 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                             <Plus className="h-6 w-6 text-primary" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-base mb-1">Créer un bail pour le bien</h3>
-                            <p className="text-xs text-muted-foreground">
+                            <h3 className="font-semibold text-base mb-1">Démarrer un dossier pour</h3>
+                            <p className="text-sm text-muted-foreground">
                               {selectedProperty?.label || selectedProperty?.fullAddress || "Bien sélectionné"}
                             </p>
                           </div>
@@ -621,10 +622,6 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                           <p className="text-muted-foreground mb-4">
                             Ce bien n'a pas encore de bail associé
                           </p>
-                          <Button onClick={() => setIsBailDrawerOpen(true)}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Créer un bail
-                          </Button>
                         </CardContent>
                       </Card>
                     )}
@@ -645,22 +642,61 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
         </div>
       </div>
 
-      {/* Drawers */}
-      <CreatePropertyDrawer
-        open={isPropertyDrawerOpen}
-        onOpenChange={handlePropertyDrawerOpenChange}
-        ownerId={ownerId}
-        onPropertyCreated={handlePropertyCreated}
-      />
-      <CreateBailDrawer
-        open={isBailDrawerOpen}
-        onOpenChange={setIsBailDrawerOpen}
-        biens={localBiens.map(b => ({ id: b.id, label: b.label, fullAddress: b.fullAddress || '' }))}
-        locataires={locataires}
-        ownerId={ownerId}
-        initialPropertyId={selectedPropertyId || undefined}
-        onBailCreated={handleBailCreated}
-      />
+      {/* Dialog : créer un bien */}
+      <Dialog open={isPropertyDrawerOpen} onOpenChange={(open) => { if (!isPropertyFormLoading && !isPropertyFormUploading) handlePropertyDrawerOpenChange(open); }}>
+        <DialogContent className="max-h-[90vh] flex flex-col gap-0 p-0 sm:max-w-lg overflow-hidden" showCloseButton={!isPropertyFormLoading && !isPropertyFormUploading}>
+          {(isPropertyFormLoading || isPropertyFormUploading) && (
+            <div className="absolute inset-0 z-10 bg-background/90 flex flex-col items-center justify-center gap-3 rounded-lg">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm font-medium text-muted-foreground">
+                {isPropertyFormUploading ? "Upload des fichiers en cours..." : "Création du bien en cours..."}
+              </p>
+            </div>
+          )}
+          <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Créer un nouveau bien
+            </DialogTitle>
+            <DialogDescription>
+              Remplissez les informations du bien immobilier
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
+            <CreatePropertyForm
+              ref={propertyFormRef}
+              ownerId={ownerId}
+              onPropertyCreated={handlePropertyCreated}
+              hideActions={true}
+              onLoadingChange={setIsPropertyFormLoading}
+              onUploadingChange={setIsPropertyFormUploading}
+            />
+          </div>
+          <DialogFooter className="px-6 py-4 border-t shrink-0 flex-col sm:flex-col gap-2">
+            <Button
+              onClick={() => propertyFormRef.current?.submit()}
+              disabled={isPropertyFormLoading || isPropertyFormUploading}
+              className="w-full"
+            >
+              {isPropertyFormUploading ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Upload en cours...</>
+              ) : isPropertyFormLoading ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</>
+              ) : (
+                <><CheckCircle2 className="mr-2 h-4 w-4" />Créer le bien</>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handlePropertyDrawerOpenChange(false)}
+              disabled={isPropertyFormLoading || isPropertyFormUploading}
+              className="w-full"
+            >
+              Annuler
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {selectedBailId && (
         <BailDetailDrawer
           open={isBailDetailDrawerOpen}

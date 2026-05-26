@@ -19,6 +19,7 @@ export const auth = betterAuth({
     "http://localhost:3000",
     "http://localhost:3001",
     "http://localhost:3002",
+    "http://192.168.1.113:3000",
     "https://staging.bailnotarie.fr",
     "https://www.bailnotarie.fr",
   ],

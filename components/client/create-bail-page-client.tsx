@@ -4,21 +4,14 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,13 +27,12 @@ import { CreatePropertyForm, CreatePropertyFormRef } from "./create-property-for
 import { BailPaymentStep } from "./bail-payment-step";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { RentControlAlert } from "@/components/ui/rent-control-alert";
-import { createLease, createTenantFromEmail } from "@/lib/actions/leases";
+import { createLease, createTenantFromEmail, saveBailDraft } from "@/lib/actions/leases";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
 import { BailType, BailStatus } from "@prisma/client";
 import { toast } from "sonner";
 import {
-  X,
   ArrowLeft,
   ChevronRight,
   Home,
@@ -52,11 +44,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ─── Schema ──────────────────────────��───────────────────��───────────────────
+// ─── Schema ──────────────────────────────────────────────────────────────────
 
 const schema = z.object({
   propertyId: z.string().min(1, "Le bien est requis"),
-  tenantId: z.string().min(1, "Le locataire est requis"),
+  tenantId: z.string().optional().or(z.literal("")),
   bailType: z.nativeEnum(BailType),
   rentAmount: z.string().min(1, "Le loyer est requis"),
   monthlyCharges: z.string().min(1, "Les charges mensuelles sont requises"),
@@ -72,16 +64,27 @@ const STEP_LABELS = ["Bien", "Locataire", "Bail", "Dates", "Paiement"];
 
 const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
   0: ["propertyId"],
-  1: ["tenantId"],
+  1: [], // tenantId est optionnel
   2: ["bailType", "rentAmount", "monthlyCharges"],
   3: ["effectiveDate", "paymentDay"],
 };
 
-// ─── Props ───────────────────────��──────────────────────────────────���────────
+// ─── Props ────────────────────────────────────────────────────────────────────
 
-interface CreateBailDrawerProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface DraftBailData {
+  id: string;
+  bailType: string | null;
+  rentAmount: number;
+  monthlyCharges: number;
+  securityDeposit: number;
+  effectiveDate: string | null;
+  endDate: string | null;
+  paymentDay: number | null;
+  propertyId: string;
+  tenantId: string | null;
+}
+
+interface CreateBailPageClientProps {
   biens: Array<{
     id: string;
     label: string | null;
@@ -98,23 +101,32 @@ interface CreateBailDrawerProps {
   }>;
   ownerId: string;
   initialPropertyId?: string;
-  onBailCreated?: (bail: any) => void;
+  draftBail?: DraftBailData | null;
 }
 
-// ─── Component ──────────────────────────────────────────────���────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
-export function CreateBailDrawer({
-  open,
-  onOpenChange,
+export function CreateBailPageClient({
   biens,
   locataires,
   ownerId,
   initialPropertyId,
-  onBailCreated,
-}: CreateBailDrawerProps) {
-  const [step, setStep] = useState(0);
+  draftBail,
+}: CreateBailPageClientProps) {
+  const router = useRouter();
+
+  const getInitialStep = () => {
+    if (!draftBail) return 0;
+    if (!draftBail.tenantId) return 1;
+    if (!draftBail.rentAmount || draftBail.rentAmount === 0) return 2;
+    return 3;
+  };
+
+  const [step, setStep] = useState(getInitialStep);
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftBail?.id ?? null);
 
   const [localBiens, setLocalBiens] = useState(biens);
   const [localLocataires, setLocalLocataires] = useState(locataires);
@@ -133,15 +145,7 @@ export function CreateBailDrawer({
   const [rentValidationResult, setRentValidationResult] =
     useState<RentValidationResult | null>(null);
 
-  // Refs
   const propertyFormRef = useRef<CreatePropertyFormRef>(null);
-  const onOpenChangeRef = useRef(onOpenChange);
-  const onBailCreatedRef = useRef(onBailCreated);
-
-  useEffect(() => {
-    onOpenChangeRef.current = onOpenChange;
-    onBailCreatedRef.current = onBailCreated;
-  }, [onOpenChange, onBailCreated]);
 
   // ─── Formulaire ────────────────────────────────────────────────────────────
 
@@ -151,14 +155,19 @@ export function CreateBailDrawer({
     setValue,
     watch,
     trigger,
-    reset,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      propertyId: initialPropertyId || "",
-      bailType: BailType.BAIL_NU_3_ANS,
-      securityDeposit: "0",
+      propertyId: draftBail?.propertyId || initialPropertyId || "",
+      tenantId: draftBail?.tenantId || "",
+      bailType: (draftBail?.bailType as BailType) || BailType.BAIL_NU_3_ANS,
+      rentAmount: draftBail?.rentAmount ? String(draftBail.rentAmount) : "",
+      monthlyCharges: draftBail?.monthlyCharges ? String(draftBail.monthlyCharges) : "",
+      securityDeposit: draftBail?.securityDeposit ? String(draftBail.securityDeposit) : "0",
+      effectiveDate: draftBail?.effectiveDate || "",
+      endDate: draftBail?.endDate || "",
+      paymentDay: draftBail?.paymentDay ? String(draftBail.paymentDay) : "",
     },
   });
 
@@ -166,20 +175,6 @@ export function CreateBailDrawer({
   const tenantId = watch("tenantId");
   const bailType = watch("bailType");
   const rentAmount = watch("rentAmount");
-
-  // Réinitialiser à l'ouverture
-  useEffect(() => {
-    if (open) {
-      setStep(0);
-      setPendingFormData(null);
-      setIsSubmitting(false);
-      reset({
-        propertyId: initialPropertyId || "",
-        bailType: BailType.BAIL_NU_3_ANS,
-        securityDeposit: "0",
-      });
-    }
-  }, [open, initialPropertyId, reset]);
 
   // Surface du bien pour la validation loyer
   useEffect(() => {
@@ -216,11 +211,15 @@ export function CreateBailDrawer({
     }
   }, [propertyId, rentAmount, selectedProperty]);
 
-  // ─── Handlers ──────────────────────────��──────────────────────────��────────
+  // ─── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleClose = useCallback(() => {
-    onOpenChangeRef.current(false);
-  }, []);
+  const handleBack = useCallback(() => {
+    if (step > 0) {
+      setStep((s) => s - 1);
+    } else {
+      router.back();
+    }
+  }, [step, router]);
 
   const handleNext = useCallback(async () => {
     const fields = STEP_FIELDS[step];
@@ -238,6 +237,35 @@ export function CreateBailDrawer({
     setStep((s) => s + 1);
   }, [step, trigger, handleSubmit]);
 
+  const handleSaveDraft = useCallback(async () => {
+    const currentPropertyId = watch("propertyId");
+    if (!currentPropertyId) {
+      toast.error("Sélectionnez d'abord un bien");
+      return;
+    }
+    try {
+      setIsSavingDraft(true);
+      const result = await saveBailDraft({
+        propertyId: currentPropertyId,
+        draftBailId: currentDraftId ?? undefined,
+        tenantId: watch("tenantId") || undefined,
+        bailType: watch("bailType") || undefined,
+        rentAmount: watch("rentAmount") || undefined,
+        monthlyCharges: watch("monthlyCharges") || undefined,
+        securityDeposit: watch("securityDeposit") || undefined,
+        effectiveDate: watch("effectiveDate") || undefined,
+        endDate: watch("endDate") || undefined,
+        paymentDay: watch("paymentDay") || undefined,
+      });
+      setCurrentDraftId(result.bailId);
+      toast.success("Brouillon sauvegardé");
+    } catch (error: any) {
+      toast.error("Erreur", { description: error.message });
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [currentDraftId, watch]);
+
   const handlePaymentSuccess = useCallback(
     async (paymentIntentId: string) => {
       if (!pendingFormData) return;
@@ -250,11 +278,11 @@ export function CreateBailDrawer({
             leaseType: "HABITATION",
             status: BailStatus.DRAFT,
           },
-          paymentIntentId
+          paymentIntentId,
+          currentDraftId ?? undefined
         );
         toast.success("Bail créé avec succès");
-        onBailCreatedRef.current?.(bail);
-        onOpenChangeRef.current(false);
+        router.push("/client/proprietaire/demandes");
       } catch (error: any) {
         toast.error("Erreur lors de la création du bail", {
           description: error.message || "Veuillez réessayer",
@@ -263,7 +291,7 @@ export function CreateBailDrawer({
         setIsSubmitting(false);
       }
     },
-    [pendingFormData]
+    [pendingFormData, router, currentDraftId]
   );
 
   const getLocataireName = (loc: (typeof locataires)[0]) => {
@@ -308,7 +336,7 @@ export function CreateBailDrawer({
     }
   };
 
-  // ─── Contenu par étape ───────────────────────────────────────────────────��──
+  // ─── Contenu par étape ─────────────────────────────────────────────────────
 
   const renderStep = () => {
     switch (step) {
@@ -386,7 +414,7 @@ export function CreateBailDrawer({
             <div>
               <p className="text-xl font-semibold">Quel locataire ?</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Sélectionnez le locataire pour ce bail
+                Sélectionnez le locataire pour ce bail, ou passez cette étape si vous ne l'avez pas encore trouvé.
               </p>
             </div>
             <div className="space-y-2.5">
@@ -451,9 +479,19 @@ export function CreateBailDrawer({
                 <span className="text-sm font-medium">Ajouter un nouveau locataire</span>
               </button>
             </div>
-            {errors.tenantId && (
-              <p className="text-sm text-destructive">{errors.tenantId.message}</p>
-            )}
+            <button
+                type="button"
+                onClick={() => { setValue("tenantId", ""); setStep((s) => s + 1); }}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-dashed border-border hover:border-muted-foreground/40 text-muted-foreground hover:text-foreground transition-all"
+              >
+                <div className="p-2 rounded-lg bg-muted shrink-0">
+                  <ChevronRight className="h-4 w-4" />
+                </div>
+                <div className="text-left">
+                  <span className="text-sm font-medium block">Passer cette étape</span>
+                  <span className="text-xs opacity-70">Vous pourrez ajouter le locataire plus tard</span>
+                </div>
+              </button>
           </div>
         );
 
@@ -594,19 +632,14 @@ export function CreateBailDrawer({
     }
   };
 
-  // ─── Render ───────────────────────��─────────────────────────────────���───────
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
-      <div
-        className={cn(
-          "fixed inset-0 z-50 bg-background flex flex-col",
-          !open && "hidden"
-        )}
-      >
+      <div className="relative h-full bg-background flex flex-col overflow-hidden">
         {/* Overlay de soumission */}
         {isSubmitting && (
-          <div className="absolute inset-0 z-10 bg-background/95 flex items-center justify-center">
+          <div className="absolute inset-0 z-50 bg-background/95 flex items-center justify-center">
             <LoadingScreen
               variant="inline"
               message="Création du bail en cours..."
@@ -618,30 +651,30 @@ export function CreateBailDrawer({
 
         {/* Header */}
         <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b">
-          {step > 0 && (
-            <button
-              type="button"
-              onClick={() => setStep((s) => s - 1)}
-              disabled={isSubmitting}
-              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleBack}
+            disabled={isSubmitting}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm leading-tight">Nouveau bail</p>
             <p className="text-xs text-muted-foreground">
               {STEP_LABELS[step]} · Étape {step + 1}/{STEP_LABELS.length}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={isSubmitting}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {step > 0 && step < 4 && (
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={isSubmitting || isSavingDraft}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-muted"
+            >
+              {isSavingDraft ? "Sauvegarde..." : "Sauvegarder"}
+            </button>
+          )}
         </div>
 
         {/* Barre de progression */}
@@ -657,13 +690,17 @@ export function CreateBailDrawer({
           {renderStep()}
         </div>
 
-        {/* Footer — toujours au-dessus du clavier */}
+        {/* Footer — toujours visible au-dessus du clavier */}
         {step < 4 && (
           <div
             className="shrink-0 border-t bg-background px-4 py-3"
             style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
           >
-            <Button onClick={handleNext} className="w-full h-12 text-base">
+            <Button
+              onClick={handleNext}
+              disabled={isSubmitting}
+              className="w-full h-12 text-base"
+            >
               {step === 3 ? "Continuer vers le paiement" : "Continuer"}
               {step < 3 && <ChevronRight className="ml-2 h-4 w-4" />}
             </Button>
@@ -674,6 +711,7 @@ export function CreateBailDrawer({
       {/* Dialog : ajouter un bien */}
       <Dialog open={isPropertyDrawerOpen} onOpenChange={(open) => { if (!isPropertyFormLoading && !isPropertyFormUploading) setIsPropertyDrawerOpen(open); }}>
         <DialogContent className="max-h-[90vh] flex flex-col gap-0 p-0 sm:max-w-lg overflow-hidden" showCloseButton={!isPropertyFormLoading && !isPropertyFormUploading}>
+          {/* Loader overlay */}
           {(isPropertyFormLoading || isPropertyFormUploading) && (
             <div className="absolute inset-0 z-10 bg-background/90 flex flex-col items-center justify-center gap-3 rounded-lg">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -727,44 +765,39 @@ export function CreateBailDrawer({
         </DialogContent>
       </Dialog>
 
-      {/* Sub-drawer : ajouter un locataire */}
-      <Drawer
-        open={isTenantDrawerOpen}
-        onOpenChange={setIsTenantDrawerOpen}
-        direction="bottom"
-      >
-        <DrawerContent className="flex flex-col">
-          <DrawerHeader>
-            <DrawerTitle className="flex items-center gap-2">
+      {/* Dialog : ajouter un locataire */}
+      <Dialog open={isTenantDrawerOpen} onOpenChange={setIsTenantDrawerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
               Ajouter un locataire
-            </DrawerTitle>
-            <DrawerDescription>
+            </DialogTitle>
+            <DialogDescription>
               Entrez l'email pour créer un nouveau locataire
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className="px-4 pb-2">
-            <div className="space-y-2">
-              <Label>Email *</Label>
-              <Input
-                type="email"
-                placeholder="locataire@example.com"
-                value={newTenantEmail}
-                onChange={(e) => setNewTenantEmail(e.target.value)}
-                disabled={isCreatingTenant}
-                inputMode="email"
-                autoComplete="email"
-                className="h-11"
-              />
-              <p className="text-xs text-muted-foreground">
-                Un lien d'invitation sera envoyé une fois le bail créé.
-              </p>
-            </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Email *</Label>
+            <Input
+              type="email"
+              placeholder="locataire@example.com"
+              value={newTenantEmail}
+              onChange={(e) => setNewTenantEmail(e.target.value)}
+              disabled={isCreatingTenant}
+              inputMode="email"
+              autoComplete="email"
+              className="h-11"
+            />
+            <p className="text-xs text-muted-foreground">
+              Un lien d'invitation sera envoyé une fois le bail créé.
+            </p>
           </div>
-          <DrawerFooter>
+          <DialogFooter className="flex-col sm:flex-col gap-2">
             <Button
               onClick={handleCreateTenant}
               disabled={isCreatingTenant || !newTenantEmail}
+              className="w-full"
             >
               {isCreatingTenant ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</>
@@ -779,12 +812,13 @@ export function CreateBailDrawer({
                 setNewTenantEmail("");
               }}
               disabled={isCreatingTenant}
+              className="w-full"
             >
               Annuler
             </Button>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

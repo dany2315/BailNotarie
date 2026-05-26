@@ -77,7 +77,7 @@ const createLeaseBaseSchema = z.object({
       return num;
     }),
   propertyId: z.string().cuid("ID bien invalide").min(1, "Le bien est requis"),
-  tenantId: z.string().cuid("ID locataire invalide").min(1, "Le locataire est requis"),
+  tenantId: z.string().cuid("ID locataire invalide").optional().or(z.literal("")),
 });
 
 // Schéma de création avec validation du dépôt de garantie

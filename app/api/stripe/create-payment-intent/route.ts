@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
         client: {
           select: {
             persons: { select: { email: true, firstName: true, lastName: true }, take: 1 },
+            users: { select: { email: true }, take: 1 },
           },
         },
       },
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const firstPerson = intakeLink.client?.persons?.[0];
-    const clientEmail = firstPerson?.email ?? undefined;
+    const clientEmail = firstPerson?.email || intakeLink.client?.users?.[0]?.email || undefined;
     const clientName = firstPerson
       ? `${firstPerson.firstName ?? ""} ${firstPerson.lastName ?? ""}`.trim()
       : undefined;
