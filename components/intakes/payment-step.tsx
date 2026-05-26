@@ -237,51 +237,30 @@ export function PaymentStep({
   ];
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {/* Titre */}
-      <div className="text-center space-y-1">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 mb-2">
-          <CreditCard className="w-6 h-6 text-[#4373f5]" />
+    <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+      {/* Récapitulatif compact */}
+      <div className="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+        <div className="min-w-0">
+          <p className="font-semibold text-sm text-gray-900">Frais de dossier BailNotarie</p>
+          <div className="flex flex-col gap-0.5 mt-1">
+            {inclus.map((item) => (
+              <div key={item} className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
+                <span className="text-xs text-gray-600">{item}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900">Paiement sécurisé</h2>
-        <p className="text-gray-500 text-sm">
-          Dernière étape — réglez les frais de dossier pour finaliser votre demande
-        </p>
+        <div className="text-right shrink-0 ml-4">
+          <p className="text-2xl font-bold text-[#4373f5]">39,90€</p>
+          <p className="text-xs text-gray-400">TTC</p>
+        </div>
       </div>
 
-      {/* Récapitulatif commande */}
-      <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-gray-900">Frais de dossier BailNotarie</p>
-            <p className="text-xs text-gray-500 mt-0.5">Prestation administrative — paiement unique</p>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-[#4373f5]">39,90€</p>
-            <p className="text-xs text-gray-400">TTC</p>
-          </div>
-        </div>
-
-        <div className="border-t border-blue-100 pt-4 space-y-2">
-          {inclus.map((item) => (
-            <div key={item} className="flex items-start gap-2.5 text-sm text-gray-700">
-              <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
-              <span>{item}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center justify-between font-semibold text-gray-900 text-sm bg-white/60 rounded-lg px-4 py-2.5">
-          <span>À payer maintenant</span>
-          <span className="text-[#4373f5] text-lg">39,90€ TTC</span>
-        </div>
-
-        <div className="flex items-start gap-2 text-xs text-gray-500 pt-1">
-          <TriangleAlert className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-          <span>
-            Ce montant ne comprend <strong className="text-gray-700">pas</strong> les émoluments du notaire — ceux-ci sont facturés séparément avant la signature.
-          </span>
-        </div>
+      {/* Avertissement notaire condensé */}
+      <div className="flex items-start gap-1.5 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-gray-500">
+        <TriangleAlert className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+        <span>Hors émoluments du notaire, facturés séparément avant la signature.</span>
       </div>
 
       {/* Formulaire Stripe */}

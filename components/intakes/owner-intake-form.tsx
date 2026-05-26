@@ -11,6 +11,7 @@ import React, {
 import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { cn } from "@/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -65,6 +66,7 @@ import type { RentValidationResult } from "@/lib/utils/rent-validation";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  CheckCircle2,
   Loader2,
   InfoIcon,
   Check,
@@ -2285,7 +2287,7 @@ useEffect(() => {
   );
 
   return (
-    <div className="relative">
+    <div className="relative h-full flex flex-col overflow-hidden bg-background">
       {(isSaving || isSubmitting) && (
         <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-100 flex items-center justify-center animate-in fade-in duration-300">
           <div className="flex flex-col items-center gap-8 w-full max-w-md px-6">
@@ -2381,15 +2383,38 @@ useEffect(() => {
         </div>
       )}
 
-      <div className="fixed top-18 left-0 right-0 bg-background border-b border-border/40 z-40 w-full">
-        <Stepper
-          steps={stepperSteps}
-          currentStep={currentStep}
-          onStepClick={(step) => {
-            if (step < currentStep) {
-              setCurrentStep(step);
-            }
-          }}
+      {/* Header — même structure que baux/new */}
+      <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b bg-background">
+        <button
+          type="button"
+          onClick={handlePrevious}
+          disabled={isSubmitting || isSaving}
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          <ArrowLeftIcon className="h-5 w-5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm leading-tight">Formulaire bail notarié</p>
+          <p className="text-xs text-muted-foreground">
+            {STEPS[currentStep].title} · Étape {currentStep + 1}/{STEPS.length}
+          </p>
+        </div>
+        {!isPaymentStepCurrent && (
+          <button
+            type="button"
+            onClick={handleManualSave}
+            disabled={isSubmitting || isSaving || isFileUploading}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-muted"
+          >
+            {isSaving ? "Enregistrement..." : "Enregistrer"}
+          </button>
+        )}
+      </div>
+      {/* Barre de progression fine */}
+      <div className="shrink-0 h-0.5 bg-muted">
+        <div
+          className="h-full bg-primary transition-all duration-300 ease-out"
+          style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
         />
       </div>
 
@@ -2422,9 +2447,9 @@ useEffect(() => {
           }
         })}
         onKeyDown={handleFormKeyDown}
-        className="space-y-4"
+        className="flex-1 min-h-0 flex flex-col overflow-hidden"
       >
-        <div className="pt-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-6">
           {STEPS[currentStep].id === "bailFamilySelection" && (
             <BailFamilySelectionStep form={form} />
           )}
@@ -2595,83 +2620,34 @@ useEffect(() => {
 
 
 
-        <div className="p-3 sm:p-4">
-          <div className="max-w-3xl mx-auto flex flex-row justify-between gap-3 sm:gap-4">
-            <div>
-              {currentStep > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePrevious}
-                  disabled={isSubmitting || isSaving || isFileUploading}
-                  size="icon"
-                  className="h-10 w-10"
-                >
-                  <ArrowLeftIcon className="w-5 h-5" />
-                </Button>
-              )}
-            </div>
-            <div className="flex flex-row gap-2">
-              {!isPaymentStepCurrent && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleManualSave}
-                  disabled={isSubmitting || isSaving || isFileUploading}
-                  className="sm:w-auto h-10"
-                >
-                  {isSaving ? "Enregistrement..." : "Enregistrer"}
-                </Button>
-              )}
-              {isPaymentStepCurrent ? null : isDocumentsStepCurrent ? (
-                <Button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleNext();
-                  }}
-                  disabled={isSubmitting || isSaving || isFileUploading}
-                  className="sm:w-auto h-10"
-                >
-                  Continuer vers le paiement
-                  <ArrowRightIcon className="ml-2 w-4 h-4" />
-                </Button>
-              ) : isTenantStepCurrent ? (
-                <Button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleNext();
-                  }}
-                  disabled={isSubmitting || isSaving || isFileUploading}
-                  className="sm:w-auto h-10"
-                >
-                  {documentsReadyForSubmission
+        {/* Footer — toujours visible, au-dessus du clavier */}
+        {!isPaymentStepCurrent && (
+          <div
+            className="shrink-0 border-t bg-background px-4 py-3"
+            style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
+          >
+            <Button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleNext();
+              }}
+              disabled={isSubmitting || isSaving || isFileUploading}
+              className="w-full h-12 text-base"
+            >
+              {isDocumentsStepCurrent
+                ? "Continuer vers le paiement"
+                : isTenantStepCurrent
+                ? (documentsReadyForSubmission
                     ? "Continuer vers le paiement"
                     : canSubmitOwnerIntake
                     ? "Continuer"
-                    : "Continuer sans locataire"}
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleNext();
-                  }}
-                  disabled={isSubmitting || isSaving || isFileUploading}
-                  size="icon"
-                  className="h-10 w-10"
-                >
-                  <ArrowRightIcon className="w-5 h-5" />
-                </Button>
-              )}
-            </div>
+                    : "Continuer sans locataire")
+                : "Continuer"}
+            </Button>
           </div>
-        </div>
+        )}
       </form>
     </div>
   );
@@ -2685,105 +2661,67 @@ type ClientTypeStepProps = {
 };
 
 const BailFamilySelectionStep = ({ form }: { form: any }) => (
-  <div className="w-full animate-fade-in">
-    <Card>
-      <CardHeader>
-        <CardTitle>Quel type de bail souhaitez-vous créer ?</CardTitle>
-        <CardDescription>Sélectionnez le type de bail pour votre bien</CardDescription>
-      </CardHeader>
-      {/*
-            Quel type de bail souhaitez-vous créer ?
-            Sélectionnez le type de bail pour votre bien
-      */}
-      <CardContent className="space-y-8">
-        <Controller
-          name="bailFamily"
-          control={form.control}
-          render={({ field }) => (
-            <RadioGroup
-              value={field.value}
-              onValueChange={field.onChange}
-              className="flex flex-row space-x-3 w-full items-center justify-between"
-            >
-              <Label
-                htmlFor="bail-habitation"
-                className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                  field.value === BailFamille.HABITATION
-                    ? "bg-accent"
-                    : ""
-                }`}
-              >
-                <RadioGroupItem value={BailFamille.HABITATION} id="bail-habitation" className="hidden" />
-                {/*
-                  field.value === BailFamille.HABITATION ? "animate-fade-in" : ""
-                }`}>
-                  <div className={`p-3 md:p-4 rounded-xl transition-all duration-300 ${
-                    field.value === BailFamille.HABITATION
-                      ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg"
-                      : "bg-blue-100 text-blue-600 group-hover:bg-blue-200"
-                  }`}>
-                    <Home className="h-10 w-10 md:h-12 md:w-12" />
-                  </div>
-                  <div className="text-center space-y-1 md:space-y-2">
-                    <span className="text-lg md:text-2xl font-bold block">Habitation</span>
-                    <span className="text-xs md:text-sm text-muted-foreground block px-2">
-                      Pour louer un logement à usage d'habitation 
-                    </span>
-                  </div>
-                  {field.value === BailFamille.HABITATION && (
-                    <div className="absolute top-3 right-3 animate-fade-in">
-                      <CheckCircle2 className="h-5 w-5 md:h-6 md:w-6 text-primary" />
-                    </div>
-                  )}
-                */}
-                <Home className="size-5 text-muted-foreground" />
-                <div className="text-sm font-medium text-center">Habitation</div>
-              </Label>
+  <div className="w-full space-y-4 px-4">
+    <div>
+      <p className="text-xl font-semibold">Quel type de bail ?</p>
+      <p className="text-sm text-muted-foreground mt-1">
+        Sélectionnez le type de bail pour votre bien
+      </p>
+    </div>
+    <Controller
+      name="bailFamily"
+      control={form.control}
+      render={({ field }) => (
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={() => field.onChange(BailFamille.HABITATION)}
+            className={cn(
+              "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+              field.value === BailFamille.HABITATION
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/30 hover:bg-muted/40"
+            )}
+          >
+            <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", field.value === BailFamille.HABITATION ? "bg-primary/10" : "bg-muted")}>
+              <Home className={cn("h-4 w-4", field.value === BailFamille.HABITATION ? "text-primary" : "text-muted-foreground")} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">Habitation</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Pour louer un logement à usage d'habitation</p>
+            </div>
+            {field.value === BailFamille.HABITATION && (
+              <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            )}
+          </button>
 
-              <Label
-                htmlFor="bail-commercial"
-                className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                  field.value === BailFamille.COMMERCIAL
-                    ? "bg-accent"
-                    : ""
-                }`}
-              >
-                <RadioGroupItem value={BailFamille.COMMERCIAL} id="bail-commercial" className="hidden" />
-                {/*
-                  field.value === BailFamille.COMMERCIAL ? "animate-fade-in" : ""
-                }`}>
-                  <div className={`p-3 md:p-4 rounded-xl transition-all duration-300 ${
-                    field.value === BailFamille.COMMERCIAL
-                      ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg"
-                      : "bg-indigo-100 text-indigo-600 group-hover:bg-indigo-200"
-                  }`}>
-                    <Building2 className="h-10 w-10 md:h-12 md:w-12" />
-                  </div>
-                  <div className="text-center space-y-1 md:space-y-2">
-                    <span className="text-lg md:text-2xl font-bold block">Commercial</span>
-                    <span className="text-xs md:text-sm text-muted-foreground block px-2">
-                      Pour louer un local commercial ou professionnel
-                    </span>
-                  </div>
-                  {field.value === BailFamille.COMMERCIAL && (
-                    <div className="absolute top-3 right-3 animate-fade-in">
-                      <CheckCircle2 className="h-5 w-5 md:h-6 md:w-6 text-primary" />
-                    </div>
-                  )}
-                */}
-                <Building2 className="size-5 text-muted-foreground" />
-                <div className="text-sm font-medium text-center">Commercial</div>
-              </Label>
-            </RadioGroup>
-          )}
-        />
-        {form.formState.errors.bailFamily && (
-          <p className="text-sm text-destructive text-center mt-4">
-            {form.formState.errors.bailFamily.message}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          <button
+            type="button"
+            onClick={() => field.onChange(BailFamille.COMMERCIAL)}
+            className={cn(
+              "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+              field.value === BailFamille.COMMERCIAL
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/30 hover:bg-muted/40"
+            )}
+          >
+            <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", field.value === BailFamille.COMMERCIAL ? "bg-primary/10" : "bg-muted")}>
+              <Building2 className={cn("h-4 w-4", field.value === BailFamille.COMMERCIAL ? "text-primary" : "text-muted-foreground")} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">Commercial</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Pour louer un local commercial ou professionnel</p>
+            </div>
+            {field.value === BailFamille.COMMERCIAL && (
+              <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            )}
+          </button>
+        </div>
+      )}
+    />
+    {form.formState.errors.bailFamily && (
+      <p className="text-sm text-destructive">{form.formState.errors.bailFamily.message}</p>
+    )}
   </div>
 );
 
@@ -2793,69 +2731,72 @@ const ClientTypeStep = ({
   onClientTypeChange,
   isMobile,
 }: ClientTypeStepProps) => (
-  <Card>
-    <CardHeader>
-      <CardTitle>Qui êtes-vous ?</CardTitle>
-      <CardDescription>Choisissez votre profil.</CardDescription>
-    </CardHeader>
-    <CardContent className="space-y-8">
-      <div className="space-y-2">
-        <Controller
-          name="type"
-          control={form.control}
-          render={({ field }) => (
-            <RadioGroup
-              value={field.value || undefined}
-              onValueChange={(value) => {
-                const selectedType = value as ClientType;
-                field.onChange(selectedType);
-                onClientTypeChange(selectedType);
-              }}
-              className="flex flex-row space-x-3 w-full items-center justify-between"
-            >
-              <Label
-                htmlFor="personnePhysique"
-                className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                  clientType === ClientType.PERSONNE_PHYSIQUE ? "bg-accent" : ""
-                }`}
-              >
-                <RadioGroupItem
-                  value={ClientType.PERSONNE_PHYSIQUE}
-                  className="hidden"
-                  id="personnePhysique"
-                />
-                <User2 className="size-5 text-muted-foreground" />
-                <div className="text-sm font-medium text-center">
-                 Particulier
-                </div>
-              </Label>
-              <Label
-                htmlFor="personneMorale"
-                className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                  clientType === ClientType.PERSONNE_MORALE ? "bg-accent" : ""
-                }`}
-              >
-                <RadioGroupItem
-                  value={ClientType.PERSONNE_MORALE}
-                  className="hidden"
-                  id="personneMorale"
-                />
-                <Building2 className="size-5 text-muted-foreground" />
-                <div className="text-sm font-medium text-center">
-                Entreprise
-                </div>
-              </Label>
-            </RadioGroup>
-          )}
-        />
-        {form.formState.errors.type && (
-          <p className="text-sm text-destructive">
-            {form.formState.errors.type.message}
-          </p>
-        )}
-      </div>
-    </CardContent>
-  </Card>
+  <div className="w-full space-y-4 px-4">
+    <div>
+      <p className="text-xl font-semibold">Qui êtes-vous ?</p>
+      <p className="text-sm text-muted-foreground mt-1">Choisissez votre profil de propriétaire</p>
+    </div>
+    <Controller
+      name="type"
+      control={form.control}
+      render={({ field }) => (
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              field.onChange(ClientType.PERSONNE_PHYSIQUE);
+              onClientTypeChange(ClientType.PERSONNE_PHYSIQUE);
+            }}
+            className={cn(
+              "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+              clientType === ClientType.PERSONNE_PHYSIQUE
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/30 hover:bg-muted/40"
+            )}
+          >
+            <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", clientType === ClientType.PERSONNE_PHYSIQUE ? "bg-primary/10" : "bg-muted")}>
+              <User2 className={cn("h-4 w-4", clientType === ClientType.PERSONNE_PHYSIQUE ? "text-primary" : "text-muted-foreground")} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">Particulier</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Personne physique propriétaire du bien</p>
+            </div>
+            {clientType === ClientType.PERSONNE_PHYSIQUE && (
+              <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              field.onChange(ClientType.PERSONNE_MORALE);
+              onClientTypeChange(ClientType.PERSONNE_MORALE);
+            }}
+            className={cn(
+              "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+              clientType === ClientType.PERSONNE_MORALE
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/30 hover:bg-muted/40"
+            )}
+          >
+            <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", clientType === ClientType.PERSONNE_MORALE ? "bg-primary/10" : "bg-muted")}>
+              <Building2 className={cn("h-4 w-4", clientType === ClientType.PERSONNE_MORALE ? "text-primary" : "text-muted-foreground")} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">Entreprise</p>
+              <p className="text-xs text-muted-foreground mt-0.5">SCI, SARL ou autre personne morale</p>
+            </div>
+            {clientType === ClientType.PERSONNE_MORALE && (
+              <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            )}
+          </button>
+        </div>
+      )}
+    />
+    {form.formState.errors.type && (
+      <p className="text-sm text-destructive">{form.formState.errors.type.message}</p>
+    )}
+  </div>
 );
 
 type ClientInfoStepProps = {
