@@ -188,16 +188,17 @@ interface BailPaymentStepProps {
   onPaymentSuccess: (paymentIntentId: string) => void;
   isSubmitting: boolean;
   rentAmount?: number;
+  peopleCount?: number;
 }
 
 export function BailPaymentStep({
   onPaymentSuccess,
   isSubmitting,
   rentAmount = 0,
+  peopleCount = 2,
 }: BailPaymentStepProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [estimatePeopleCount, setEstimatePeopleCount] = useState(2);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -282,12 +283,7 @@ export function BailPaymentStep({
       </div>
 
       {rentAmount > 0 && (
-        <BailCostEstimate
-          rentAmount={rentAmount}
-          peopleCount={estimatePeopleCount}
-          onPeopleCountChange={setEstimatePeopleCount}
-          disabled={isSubmitting}
-        />
+        <BailCostEstimate rentAmount={rentAmount} peopleCount={peopleCount} />
       )}
 
       {/* Formulaire Stripe */}

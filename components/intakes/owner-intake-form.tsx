@@ -2490,14 +2490,22 @@ useEffect(() => {
               documentsReadyForSubmission={documentsReadyForSubmission}
             />
           )}
-          {STEPS[currentStep].id === "payment" && (
-            <PaymentStep
-              token={intakeLink.token}
-              onPaymentSuccess={submitAfterPayment}
-              isSubmitting={isSubmitting}
-              rentAmount={parseFloat(String(form.watch("bailRentAmount") ?? "0")) || 0}
-            />
-          )}
+          {STEPS[currentStep].id === "payment" && (() => {
+            const ownerPeopleCount =
+              clientType === ClientType.PERSONNE_MORALE
+                ? 1
+                : Math.max(1, personsWatch?.length ?? 1);
+            const totalPeopleCount = Math.max(2, ownerPeopleCount + 1);
+            return (
+              <PaymentStep
+                token={intakeLink.token}
+                onPaymentSuccess={submitAfterPayment}
+                isSubmitting={isSubmitting}
+                rentAmount={parseFloat(String(form.watch("bailRentAmount") ?? "0")) || 0}
+                peopleCount={totalPeopleCount}
+              />
+            );
+          })()}
           {STEPS[currentStep].id === "documents" && (
             <DocumentsStep
               form={form as any}

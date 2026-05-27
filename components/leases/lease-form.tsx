@@ -23,7 +23,6 @@ import { z } from "zod";
 import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
-import { BailCostEstimate } from "@/components/leases/bail-cost-estimate";
 
 /** Vérifie que le bien possède les 13 éléments obligatoires pour une location meublée (Décret 2015-981) */
 function isPropertyMeuble(property: any): boolean {
@@ -132,7 +131,6 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
-  const [estimatePeopleCount, setEstimatePeopleCount] = useState(2);
 
   const form = useForm<LeaseFormData>({
     resolver: zodResolver(leaseFormSchema) as any,
@@ -538,13 +536,6 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
             />
             <SecurityDepositValidation control={form.control} />
           </div>
-
-          <BailCostEstimate
-            rentAmount={parseFloat(form.watch("rentAmount") || "0") || 0}
-            peopleCount={estimatePeopleCount}
-            onPeopleCountChange={setEstimatePeopleCount}
-            disabled={isLoading}
-          />
         </CardContent>
       </Card>
 

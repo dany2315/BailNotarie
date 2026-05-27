@@ -100,6 +100,7 @@ interface CreateBailPageClientProps {
     entreprise: { legalName: string; name: string } | null;
   }>;
   ownerId: string;
+  ownerPeopleCount: number;
   initialPropertyId?: string;
   draftBail?: DraftBailData | null;
 }
@@ -110,6 +111,7 @@ export function CreateBailPageClient({
   biens,
   locataires,
   ownerId,
+  ownerPeopleCount,
   initialPropertyId,
   draftBail,
 }: CreateBailPageClientProps) {
@@ -622,14 +624,23 @@ export function CreateBailPageClient({
           </div>
         );
 
-      case 4:
+      case 4: {
+        const selectedTenant = locataires.find((l) => l.id === tenantId);
+        const tenantPeopleCount = selectedTenant
+          ? selectedTenant.entreprise
+            ? 1
+            : Math.max(1, selectedTenant.persons.length)
+          : 1;
+        const totalPeopleCount = Math.max(2, ownerPeopleCount + tenantPeopleCount);
         return (
           <BailPaymentStep
             onPaymentSuccess={handlePaymentSuccess}
             isSubmitting={isSubmitting}
             rentAmount={parseFloat(rentAmount || "0") || 0}
+            peopleCount={totalPeopleCount}
           />
         );
+      }
     }
   };
 

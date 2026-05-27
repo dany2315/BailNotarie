@@ -193,6 +193,7 @@ interface PaymentStepProps {
   onPaymentSuccess: (paymentIntentId: string) => void;
   isSubmitting: boolean;
   rentAmount?: number;
+  peopleCount?: number;
 }
 
 export function PaymentStep({
@@ -200,10 +201,10 @@ export function PaymentStep({
   onPaymentSuccess,
   isSubmitting,
   rentAmount = 0,
+  peopleCount = 2,
 }: PaymentStepProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [estimatePeopleCount, setEstimatePeopleCount] = useState(2);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -268,12 +269,7 @@ export function PaymentStep({
       </div>
 
       {rentAmount > 0 && (
-        <BailCostEstimate
-          rentAmount={rentAmount}
-          peopleCount={estimatePeopleCount}
-          onPeopleCountChange={setEstimatePeopleCount}
-          disabled={isSubmitting}
-        />
+        <BailCostEstimate rentAmount={rentAmount} peopleCount={peopleCount} />
       )}
 
       {/* Formulaire Stripe */}
