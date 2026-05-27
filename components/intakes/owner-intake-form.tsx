@@ -63,7 +63,6 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
-import { useStepHistoryGuard } from "@/hooks/use-step-history-guard";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -2011,9 +2010,6 @@ useEffect(() => {
   const handlePrevious = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
-
-  // Intercept iOS swipe-back / browser back: step back instead of leaving
-  useStepHistoryGuard(currentStep, handlePrevious);
 
   const handleManualSave = async () => {
     const stepId = STEPS[currentStep].id;

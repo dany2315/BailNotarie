@@ -30,7 +30,6 @@ import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { createLease, createTenantFromEmail, saveBailDraft } from "@/lib/actions/leases";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
-import { useStepHistoryGuard } from "@/hooks/use-step-history-guard";
 import { BailType, BailStatus } from "@prisma/client";
 import { toast } from "sonner";
 import {
@@ -257,9 +256,6 @@ export function CreateBailPageClient({
       router.back();
     }
   }, [step, router]);
-
-  // Intercept iOS swipe-back / browser back: step back instead of leaving
-  useStepHistoryGuard(step, () => setStep((s) => Math.max(0, s - 1)));
 
   const handleNext = useCallback(async () => {
     const fields = STEP_FIELDS[step];
