@@ -3009,41 +3009,57 @@ const ClientInfoStep = ({
           onValueChange={(value) => setOpenAccordionValue(value || `person-0`)}
         >
           {personFields.map((field, index) => (
-            <AccordionItem key={field.id} value={`person-${index}`}>
-              <AccordionTrigger className="flex flex-row items-start gap-2 py-4">
-                <div className="flex flex-row items-center justify-between w-full pr-4">
-                  <div className="flex flex-row items-center gap-4">
-                    <div className="flex flex-col items-start ">
-                      <div className="flex flex-row items-center gap-2">
-                        {form.watch(`persons.${index}.firstName`) && form.watch(`persons.${index}.lastName`) ? form.watch(`persons.${index}.firstName`) + " " + form.watch(`persons.${index}.lastName`) : "Personne " + (index + 1)}
-                        {index === 0 && " (Principale)"}
+            <AccordionItem
+              key={field.id}
+              value={`person-${index}`}
+              className="border rounded-xl px-4 mb-3 last:mb-0 data-[state=open]:bg-muted/30"
+            >
+              <AccordionTrigger className="hover:no-underline py-3">
+                <div className="flex w-full items-center justify-between gap-3 pr-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+                      {index + 1}
+                    </div>
+                    <div className="flex flex-col items-start min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium truncate">
+                          {form.watch(`persons.${index}.firstName`) && form.watch(`persons.${index}.lastName`)
+                            ? `${form.watch(`persons.${index}.firstName`)} ${form.watch(`persons.${index}.lastName`)}`
+                            : `Personne ${index + 1}`}
+                        </span>
+                        {index === 0 && (
+                          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                            Principale
+                          </span>
+                        )}
                         {hasPersonErrors(index) && (
                           <AlertCircle className="size-4 text-destructive shrink-0" />
                         )}
-                        {
-                        index > 0 && (
-                            <div
-                              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-10 w-10 shrink-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPersonToDeleteIndex(index);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="size-4 text-red-400" />
-                            </div>)
-                        }
                       </div>
                       {hasPersonErrors(index) && getPersonMainError(index) && (
-                        <p className="text-sm text-destructive w-full text-left pr-4">
-                          {getPersonMainError(index)&&"Erreurs détectées."}
+                        <p className="text-xs text-destructive text-left">
+                          Erreurs détectées.
                         </p>
                       )}
                     </div>
                   </div>
+                  {index > 0 && (
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="inline-flex items-center justify-center rounded-md h-9 w-9 shrink-0 hover:bg-destructive/10 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPersonToDeleteIndex(index);
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </div>
+                  )}
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="space-y-4  pt-4">
+              <AccordionContent className="space-y-4 pt-2 pb-4">
                 <div className="grid gap-4 grid-cols-2 ">
                   <div className="space-y-2">
                     <Label htmlFor={`persons.${index}.firstName`}>
@@ -3544,9 +3560,12 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
         </p>
       </div>
       <div className="space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Adresse
+        </p>
         <div className="space-y-2">
           <Label htmlFor="propertyLabel">Libellé</Label>
-          <Input id="propertyLabel" {...form.register("propertyLabel")} />
+          <Input id="propertyLabel" className="h-11" {...form.register("propertyLabel")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="propertyFullAddress">Adresse complète du bien *</Label>
@@ -3581,6 +3600,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           <Label htmlFor="propertyPostalCode">Code postal *</Label>
           <Input
             id="propertyPostalCode"
+            className="h-11"
             {...form.register("propertyPostalCode")}
             placeholder="75001"
             value={form.watch("propertyPostalCode") || ""}
@@ -3595,6 +3615,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           <Label htmlFor="propertyCity">Ville *</Label>
           <Input
             id="propertyCity"
+            className="h-11"
             {...form.register("propertyCity")}
             placeholder="Paris"
             value={form.watch("propertyCity") || ""}
@@ -3606,6 +3627,9 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           )}
         </div>
       </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
+        Caractéristiques
+      </p>
       <div className="grid gap-3 sm:gap-4 grid-cols-1">
         <div className="space-y-2">
           <div className="flex items-center gap-2 pb-2">
@@ -3709,7 +3733,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
               const fieldValue = typeof field.value === 'string' ? field.value : undefined;
               return (
               <Select value={fieldValue} onValueChange={field.onChange}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full h-11">
                   <SelectValue placeholder="Sélectionner le régime juridique" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3882,14 +3906,17 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
       <p className="text-sm text-muted-foreground mt-1">Renseignez les paramètres du bail.</p>
     </div>
     <div className="space-y-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Type de contrat
+      </p>
       <div className="space-y-2">
         <Label htmlFor="bailType">Type de bail *</Label>
         <Controller
           name="bailType"
           control={form.control}
           render={({ field }) => (
-            <Select 
-              value={field.value ?? undefined} 
+            <Select
+              value={field.value ?? undefined}
               onValueChange={(value) => {
                 field.onChange(value);
                 // Réinitialiser les erreurs de validation après changement
@@ -3903,7 +3930,7 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
                 }
               }}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full h-11">
                 <SelectValue placeholder="Sélectionner" />
               </SelectTrigger>
               <SelectContent>
@@ -3934,6 +3961,9 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
           </p>
         )}
       </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
+        Loyer & charges
+      </p>
       <div className="grid gap-3 sm:gap-4 grid-cols-2">
         <div className="space-y-2">
           <div className="flex flex-row items-center gap-2">
