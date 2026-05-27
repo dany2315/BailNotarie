@@ -74,7 +74,7 @@ export default function StartPage() {
   return (
     <div className="h-dvh flex flex-col overflow-hidden">
       <Header />
-      <main className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center py-4 sm:py-6 md:py-8 lg:py-12 px-3 sm:px-4 md:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50/50 relative">
+      <main className="flex-1 min-h-0 overflow-y-auto bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50/50 relative">
         {/* Motifs décoratifs en arrière-plan */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 left-1/4 w-48 h-48 sm:w-64 sm:h-64 md:w-96 md:h-96 bg-blue-200/20 rounded-full blur-3xl animate-pulse"></div>
@@ -82,19 +82,21 @@ export default function StartPage() {
           <div className="absolute top-1/2 left-0 w-32 h-32 sm:w-48 sm:h-48 md:w-64 md:h-64 bg-purple-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
         </div>
 
-        <div className="w-full max-w-4xl relative z-10 my-auto">
-          {currentStep === "email-input" && (
-            <OwnerEmailInputForm onOtpSent={handleOtpSent} />
-          )}
-          {currentStep === "otp-verification" && (
-            <OtpVerificationForm
-              email={email}
-              token={token}
-              isExistingClient={isExistingClient}
-              onSuccess={handleOtpSuccess}
-              onBack={handleBack}
-            />
-          )}
+        <div className="min-h-full flex items-center justify-center py-4 sm:py-6 md:py-8 lg:py-12 px-3 sm:px-4 md:px-6 lg:px-8">
+          <div className="w-full max-w-4xl relative z-10">
+            {currentStep === "email-input" && (
+              <OwnerEmailInputForm onOtpSent={handleOtpSent} />
+            )}
+            {currentStep === "otp-verification" && (
+              <OtpVerificationForm
+                email={email}
+                token={token}
+                isExistingClient={isExistingClient}
+                onSuccess={handleOtpSuccess}
+                onBack={handleBack}
+              />
+            )}
+          </div>
         </div>
       </main>
       <Footer />
