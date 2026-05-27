@@ -2890,14 +2890,14 @@ const ClientInfoStep = ({
 
   if (clientType === ClientType.PERSONNE_MORALE) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Informations de l'entreprise</CardTitle>
-          <CardDescription>
-          Renseignez les informations concernant votre société.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="space-y-5">
+        <div>
+          <p className="text-xl font-semibold">Informations de l&apos;entreprise</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Renseignez les informations concernant votre société.
+          </p>
+        </div>
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="entreprise.legalName">Raison sociale *</Label>
             <Input 
@@ -2983,21 +2983,21 @@ const ClientInfoStep = ({
               </p>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informations du ou des propriétaires</CardTitle>
-        <CardDescription>
-        Renseignez les informations concernant le ou les propriétaires du bien.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <Accordion 
+    <div className="space-y-5">
+      <div>
+        <p className="text-xl font-semibold">Informations du ou des propriétaires</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Renseignez les informations concernant le ou les propriétaires du bien.
+        </p>
+      </div>
+      <div className="space-y-6">
+        <Accordion
           type="single" 
           className="w-full" 
           collapsible
@@ -3285,7 +3285,7 @@ const ClientInfoStep = ({
         >
           Ajouter une personne
         </Button>}
-      </CardContent>
+      </div>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
@@ -3360,7 +3360,7 @@ const ClientInfoStep = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 };
 
@@ -3532,14 +3532,14 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
   const propertyInseeCode = useWatch({ control: form.control, name: "propertyInseeCode" });
   
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informations du bien</CardTitle>
-        <CardDescription>
+    <div className="space-y-5">
+      <div>
+        <p className="text-xl font-semibold">Informations du bien</p>
+        <p className="text-sm text-muted-foreground mt-1">
           Remplissez les informations en rapport avec le bien.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </p>
+      </div>
+      <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="propertyLabel">Libellé</Label>
           <Input id="propertyLabel" {...form.register("propertyLabel")} />
@@ -3730,8 +3730,8 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           )}
         </div>
       </div>
-    </CardContent>
-  </Card>
+    </div>
+  </div>
   );
 };
 
@@ -3872,12 +3872,12 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
   }, [isMeubleBail, form]);
   
   return (
-  <Card>
-    <CardHeader>
-      <CardTitle>Informations du bail</CardTitle>
-      <CardDescription>Renseignez les paramètres du bail.</CardDescription>
-    </CardHeader>
-    <CardContent className="space-y-4">
+  <div className="space-y-5">
+    <div>
+      <p className="text-xl font-semibold">Informations du bail</p>
+      <p className="text-sm text-muted-foreground mt-1">Renseignez les paramètres du bail.</p>
+    </div>
+    <div className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="bailType">Type de bail *</Label>
         <Controller
@@ -4134,8 +4134,8 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
           </div>
         </div>
       )}
-    </CardContent>
-  </Card>
+    </div>
+  </div>
 )}
 
 type TenantStepProps = {
