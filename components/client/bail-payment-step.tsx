@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { BailCostEstimate } from "@/components/leases/bail-cost-estimate";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -186,14 +187,17 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
 interface BailPaymentStepProps {
   onPaymentSuccess: (paymentIntentId: string) => void;
   isSubmitting: boolean;
+  rentAmount?: number;
 }
 
 export function BailPaymentStep({
   onPaymentSuccess,
   isSubmitting,
+  rentAmount = 0,
 }: BailPaymentStepProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [estimatePeopleCount, setEstimatePeopleCount] = useState(2);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -276,6 +280,15 @@ export function BailPaymentStep({
           </span>
         </div>
       </div>
+
+      {rentAmount > 0 && (
+        <BailCostEstimate
+          rentAmount={rentAmount}
+          peopleCount={estimatePeopleCount}
+          onPeopleCountChange={setEstimatePeopleCount}
+          disabled={isSubmitting}
+        />
+      )}
 
       {/* Formulaire Stripe */}
       {loadError ? (

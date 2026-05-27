@@ -45,7 +45,6 @@ import { cn } from "@/lib/utils";
 import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
-import { BailCostEstimate } from "@/components/leases/bail-cost-estimate";
 
 const createBailSchema = z.object({
   propertyId: z.string().min(1, "Le bien est requis"),
@@ -137,7 +136,6 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
   const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
   const [propertySelectKey, setPropertySelectKey] = useState(0);
   const [tenantSelectKey, setTenantSelectKey] = useState(0);
-  const [estimatePeopleCount, setEstimatePeopleCount] = useState(2);
 
   // Récupérer les informations du bien sélectionné
   useEffect(() => {
@@ -736,13 +734,6 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                     <p className="text-sm text-destructive">{errors.securityDeposit.message}</p>
                   )}
                 </div>
-
-                <BailCostEstimate
-                  rentAmount={parseFloat(rentAmount || "0") || 0}
-                  peopleCount={estimatePeopleCount}
-                  onPeopleCountChange={setEstimatePeopleCount}
-                  disabled={isLoading}
-                />
               </div>
 
               <div className="grid grid-cols-1 gap-4">

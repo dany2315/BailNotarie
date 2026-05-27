@@ -2495,6 +2495,7 @@ useEffect(() => {
               token={intakeLink.token}
               onPaymentSuccess={submitAfterPayment}
               isSubmitting={isSubmitting}
+              rentAmount={parseFloat(String(form.watch("bailRentAmount") ?? "0")) || 0}
             />
           )}
           {STEPS[currentStep].id === "documents" && (

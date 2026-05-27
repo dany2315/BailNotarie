@@ -627,6 +627,7 @@ export function CreateBailPageClient({
           <BailPaymentStep
             onPaymentSuccess={handlePaymentSuccess}
             isSubmitting={isSubmitting}
+            rentAmount={parseFloat(rentAmount || "0") || 0}
           />
         );
     }
