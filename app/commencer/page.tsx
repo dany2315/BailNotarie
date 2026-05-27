@@ -72,7 +72,7 @@ export default function StartPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-dvh flex flex-col overflow-hidden">
       <Header />
       <main className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center py-4 sm:py-6 md:py-8 lg:py-12 px-3 sm:px-4 md:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50/50 relative">
         {/* Motifs décoratifs en arrière-plan */}

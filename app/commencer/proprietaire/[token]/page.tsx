@@ -85,7 +85,7 @@ export default async function OwnerFormPage({
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-background">
+    <div className="h-dvh overflow-hidden bg-background">
       <OwnerIntakeForm intakeLink={intakeLink} />
     </div>
   );
