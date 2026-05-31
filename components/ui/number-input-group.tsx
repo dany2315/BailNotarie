@@ -70,8 +70,10 @@ export function NumberInputGroup({
         className="text-left"
       />
       {unit && (
-        <InputGroupAddon align="inline-end" className="pr-3 text-muted-foreground">
-          <InputGroupText className="text-sm">{unit}</InputGroupText>
+        <InputGroupAddon align="inline-end" className="pr-1.5 py-1.5">
+          <span className="bg-muted text-muted-foreground rounded-md px-2.5 py-1 text-sm leading-none">
+            {unit}
+          </span>
         </InputGroupAddon>
       )}
     </InputGroup>
