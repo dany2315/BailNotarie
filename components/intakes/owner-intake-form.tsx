@@ -146,8 +146,12 @@ const STEPS = [
   { id: "clientType", title: "Type de client" },
   { id: "clientInfo", title: "Informations client" },
   { id: "summary", title: "Récapitulatif" },
-  { id: "property", title: "Données du bien" },
-  { id: "bail", title: "Données du bail" },
+  { id: "propertyAddress", title: "Adresse du bien" },
+  { id: "propertyDetails", title: "Caractéristiques du bien" },
+  { id: "bailType", title: "Type de contrat" },
+  { id: "bailRent", title: "Loyer & charges" },
+  { id: "bailFurniture", title: "Mobilier" },
+  { id: "bailDates", title: "Dates du bail" },
   { id: "tenant", title: "Locataire" },
   { id: "documents", title: "Documents" },
   { id: "payment", title: "Paiement" },
@@ -535,21 +539,30 @@ const getRequiredFields = (
       return [
         "entreprise",
       ];
-    case "property":
+    case "propertyAddress":
       return [
         "propertyFullAddress",
         "propertyInseeCode",
+      ];
+    case "propertyDetails":
+      return [
         "propertySurfaceM2",
         "propertyType",
         "propertyLegalStatus",
       ];
-    case "bail":
+    case "bailType":
+      return ["bailType"];
+    case "bailRent":
       return [
-        "bailType",
         "bailRentAmount",
-        "bailEffectiveDate",
         "bailMonthlyCharges",
         "bailSecurityDeposit",
+      ];
+    case "bailFurniture":
+      return [];
+    case "bailDates":
+      return [
+        "bailEffectiveDate",
         "bailPaymentDay",
       ];
     case "tenant":
@@ -666,24 +679,38 @@ const findFirstIncompleteStep = (
     }
   }
 
+  // Indices résolus dynamiquement (la STEPS array a évolué)
+  const idxPropertyAddress = STEPS.findIndex((s) => s.id === "propertyAddress");
+  const idxPropertyDetails = STEPS.findIndex((s) => s.id === "propertyDetails");
+  const idxBailType = STEPS.findIndex((s) => s.id === "bailType");
+  const idxBailRent = STEPS.findIndex((s) => s.id === "bailRent");
+  const idxBailDates = STEPS.findIndex((s) => s.id === "bailDates");
+  const idxTenant = STEPS.findIndex((s) => s.id === "tenant");
+  const idxDocuments = STEPS.findIndex((s) => s.id === "documents");
+
+  if (isEmpty(values.propertyFullAddress)) {
+    return idxPropertyAddress;
+  }
   if (
-    isEmpty(values.propertyFullAddress) ||
     isEmpty(values.propertySurfaceM2) ||
     isEmpty(values.propertyType) ||
     isEmpty(values.propertyLegalStatus)
   ) {
-    return 4;
+    return idxPropertyDetails;
   }
 
+  if (isEmpty(values.bailType)) {
+    return idxBailType;
+  }
   if (
-    isEmpty(values.bailType) ||
     isEmpty(values.bailRentAmount) ||
-    isEmpty(values.bailEffectiveDate) ||
     isEmpty(values.bailMonthlyCharges) ||
-    isEmpty(values.bailSecurityDeposit) ||
-    isEmpty(values.bailPaymentDay)
+    isEmpty(values.bailSecurityDeposit)
   ) {
-    return 5;
+    return idxBailRent;
+  }
+  if (isEmpty(values.bailEffectiveDate) || isEmpty(values.bailPaymentDay)) {
+    return idxBailDates;
   }
 
   const hasTenant =
@@ -691,7 +718,7 @@ const findFirstIncompleteStep = (
       (party: any) => party.profilType === ProfilType.LOCATAIRE
     ) ?? false;
   if (isEmpty(values.tenantEmail) && !hasTenant) {
-    return 6;
+    return idxTenant;
   }
 
   const clientDocs = intakeLink.client?.documents || [];
@@ -701,24 +728,24 @@ const findFirstIncompleteStep = (
   if (clientType === ClientType.PERSONNE_MORALE) {
     const hasKbis = clientDocs.some((d: any) => d.kind === "KBIS");
     const hasStatutes = clientDocs.some((d: any) => d.kind === "STATUTES");
-    if (!hasKbis || !hasStatutes) return 7;
+    if (!hasKbis || !hasStatutes) return idxDocuments;
   } else if (clientType === ClientType.PERSONNE_PHYSIQUE) {
     const hasId = clientDocs.some((d: any) => d.kind === "ID_IDENTITY");
-    if (!hasId) return 7;
+    if (!hasId) return idxDocuments;
     const hasLivret = clientDocs.some((d: any) => d.kind === "LIVRET_DE_FAMILLE");
     const hasPacs = clientDocs.some((d: any) => d.kind === "CONTRAT_DE_PACS");
-    if (!hasLivret || !hasPacs) return 7;
+    if (!hasLivret || !hasPacs) return idxDocuments;
   }
 
   const hasDiagnostics = propertyDocs.some((d: any) => d.kind === "DIAGNOSTICS");
   const hasTitleDeed = propertyDocs.some((d: any) => d.kind === "TITLE_DEED");
-  if (!hasDiagnostics || !hasTitleDeed) return 7;
+  if (!hasDiagnostics || !hasTitleDeed) return idxDocuments;
 
   if (
     values.propertyLegalStatus === BienLegalStatus.CO_PROPRIETE &&
     !propertyDocs.some((d: any) => d.kind === "REGLEMENT_COPROPRIETE")
   ) {
-    return 7;
+    return idxDocuments;
   }
   if (values.propertyLegalStatus === BienLegalStatus.LOTISSEMENT) {
     const hasCahier = propertyDocs.some(
@@ -727,7 +754,7 @@ const findFirstIncompleteStep = (
     const hasStatut = propertyDocs.some(
       (d: any) => d.kind === "STATUT_DE_LASSOCIATION_SYNDICALE"
     );
-    if (!hasCahier || !hasStatut) return 7;
+    if (!hasCahier || !hasStatut) return idxDocuments;
   }
 
   const hasInsurance = bailDocs.some((d: any) => d.kind === "INSURANCE");
@@ -1374,7 +1401,7 @@ useEffect(() => {
           return ["persons"];
         }
         return ["entreprise"];
-      case "property":
+      case "propertyAddress":
         return [
           "propertyLabel",
           "propertyFullAddress",
@@ -1388,22 +1415,24 @@ useEffect(() => {
           "propertyRegion",
           "propertyLatitude",
           "propertyLongitude",
+        ];
+      case "propertyDetails":
+        return [
           "propertySurfaceM2",
           "propertyType",
           "propertyLegalStatus",
           "propertyStatus",
         ];
-      case "bail":
+      case "bailType":
+        return ["bailType", "bailFamily"];
+      case "bailRent":
         return [
-          "bailType",
-          "bailFamily",
           "bailRentAmount",
           "bailMonthlyCharges",
           "bailSecurityDeposit",
-          "bailPaymentDay",
-          "bailEffectiveDate",
-          "bailEndDate",
-          // Mobilier - sauvegardé avec le step bail
+        ];
+      case "bailFurniture":
+        return [
           "hasLiterie",
           "hasRideaux",
           "hasPlaquesCuisson",
@@ -1417,6 +1446,12 @@ useEffect(() => {
           "hasEtageresRangement",
           "hasLuminaires",
           "hasMaterielEntretien",
+        ];
+      case "bailDates":
+        return [
+          "bailPaymentDay",
+          "bailEffectiveDate",
+          "bailEndDate",
         ];
       case "tenant":
         return ["tenantEmail"];
@@ -1889,14 +1924,13 @@ useEffect(() => {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
         if (!valid) return;
-        
-        // Validation spéciale pour le step bail : vérifier le mobilier si bail meublé
-        if (stepId === "bail") {
+
+        // Validation spéciale pour le step bailFurniture : vérifier le mobilier si bail meublé
+        if (stepId === "bailFurniture") {
           const bailType = form.getValues("bailType");
           const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
-          
+
           if (isMeubleBail) {
-            // Vérifier que tous les équipements sont présents
             const furnitureFields = [
               'hasLiterie',
               'hasRideaux',
@@ -1912,47 +1946,56 @@ useEffect(() => {
               'hasLuminaires',
               'hasMaterielEntretien',
             ] as const;
-            
+
             const values = form.getValues();
             const missingFurniture = furnitureFields.filter(
               (field) => !values[field] || values[field] !== true
             );
-            
+
             if (missingFurniture.length > 0) {
-              // Ajouter des erreurs sur les champs manquants
               missingFurniture.forEach((field) => {
                 form.setError(field as keyof FormWithPersons, {
                   type: 'manual',
                   message: 'Cet équipement est requis pour un bail meublé',
                 });
               });
-              
-              // Ajouter une erreur sur bailType
+
               form.setError('bailType', {
                 type: 'manual',
                 message: 'Tous les équipements doivent être présents pour un bail meublé',
               });
-              
+
               toast.error("Mobilier incomplet", {
                 description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
                 duration: 6000,
               });
-              
+
               return;
             }
           }
         }
-        
+
         // Le locataire peut être ajouté plus tard : cette étape est skippable.
       }
     }
   
     // 2. Calcul du step suivant
     const summaryIndex = STEPS.findIndex((s) => s.id === "summary");
-    const nextStep =
-      stepId === "clientInfo" && summaryIndex !== -1
-        ? summaryIndex
-        : Math.min(currentStep + 1, STEPS.length - 1);
+    const bailDatesIndex = STEPS.findIndex((s) => s.id === "bailDates");
+    const computedBailType = form.getValues("bailType");
+    const isMeubleBail =
+      computedBailType === BailType.BAIL_MEUBLE_1_ANS ||
+      computedBailType === BailType.BAIL_MEUBLE_9_MOIS;
+
+    let nextStep: number;
+    if (stepId === "clientInfo" && summaryIndex !== -1) {
+      nextStep = summaryIndex;
+    } else if (stepId === "bailRent" && !isMeubleBail && bailDatesIndex !== -1) {
+      // Skip "bailFurniture" lorsque le bail n'est pas meublé
+      nextStep = bailDatesIndex;
+    } else {
+      nextStep = Math.min(currentStep + 1, STEPS.length - 1);
+    }
   
     // 3. Sauvegarde
     // Pour l'étape clientInfo, toujours sauvegarder si des données de personnes sont présentes
@@ -2008,17 +2051,30 @@ useEffect(() => {
   
 
   const handlePrevious = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 0));
+    setCurrentStep((prev) => {
+      const target = Math.max(prev - 1, 0);
+      // Skip bailFurniture en arrière si le bail n'est pas meublé
+      if (STEPS[target]?.id === "bailFurniture") {
+        const bailType = form.getValues("bailType");
+        const isMeubleBail =
+          bailType === BailType.BAIL_MEUBLE_1_ANS ||
+          bailType === BailType.BAIL_MEUBLE_9_MOIS;
+        if (!isMeubleBail) {
+          return Math.max(target - 1, 0);
+        }
+      }
+      return target;
+    });
   };
 
   const handleManualSave = async () => {
     const stepId = STEPS[currentStep].id;
     
-    // Validation spéciale pour le step bail : vérifier le mobilier si bail meublé
-    if (stepId === "bail") {
+    // Validation spéciale pour le step bailFurniture : vérifier le mobilier si bail meublé
+    if (stepId === "bailFurniture") {
       const bailType = form.getValues("bailType");
       const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
-      
+
       if (isMeubleBail) {
         // Vérifier que tous les équipements sont présents
         const furnitureFields = [
@@ -2036,12 +2092,12 @@ useEffect(() => {
           'hasLuminaires',
           'hasMaterielEntretien',
         ] as const;
-        
+
         const values = form.getValues();
         const missingFurniture = furnitureFields.filter(
           (field) => !values[field] || values[field] !== true
         );
-        
+
         if (missingFurniture.length > 0) {
           // Ajouter des erreurs sur les champs manquants
           missingFurniture.forEach((field) => {
@@ -2050,13 +2106,13 @@ useEffect(() => {
               message: 'Cet équipement est requis pour un bail meublé',
             });
           });
-          
+
           // Ajouter une erreur sur bailType
           form.setError('bailType', {
             type: 'manual',
             message: 'Tous les équipements doivent être présents pour un bail meublé',
           });
-          
+
           toast.error("Mobilier incomplet", {
             description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
             duration: 6000,
@@ -2479,10 +2535,24 @@ useEffect(() => {
           {STEPS[currentStep].id === "summary" && (
             <SummaryStep values={summaryValues as FormWithPersons} clientType={clientType} />
           )}
-          {STEPS[currentStep].id === "property" && (
-            <PropertyStep form={form as any} isMobile={isMobile} />
+          {STEPS[currentStep].id === "propertyAddress" && (
+            <PropertyStep form={form as any} isMobile={isMobile} slice="address" />
           )}
-          {STEPS[currentStep].id === "bail" && <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} />}
+          {STEPS[currentStep].id === "propertyDetails" && (
+            <PropertyStep form={form as any} isMobile={isMobile} slice="details" />
+          )}
+          {STEPS[currentStep].id === "bailType" && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="type" />
+          )}
+          {STEPS[currentStep].id === "bailRent" && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="rent" />
+          )}
+          {STEPS[currentStep].id === "bailFurniture" && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="furniture" />
+          )}
+          {STEPS[currentStep].id === "bailDates" && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="dates" />
+          )}
           {STEPS[currentStep].id === "tenant" && (
             <TenantStep
               form={form as any}
@@ -3542,23 +3612,28 @@ const SummaryStep = ({ values, clientType }: SummaryStepProps) => {
 type PropertyStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
   isMobile: boolean;
+  slice?: "address" | "details";
 };
 
-const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
+const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
   const propertyInseeCode = useWatch({ control: form.control, name: "propertyInseeCode" });
+  const showAddress = !slice || slice === "address";
+  const showDetails = !slice || slice === "details";
   
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xl font-semibold">Informations du bien</p>
+        <p className="text-xl font-semibold">
+          {slice === "details" ? "Caractéristiques du bien" : "Adresse du bien"}
+        </p>
         <p className="text-sm text-muted-foreground mt-1">
-          Remplissez les informations en rapport avec le bien.
+          {slice === "details"
+            ? "Type d'habitat, surface et régime juridique."
+            : "Adresse complète du bien à louer."}
         </p>
       </div>
       <div className="space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Adresse
-        </p>
+        {showAddress && (<>
         <div className="space-y-2">
           <Label htmlFor="propertyLabel">Libellé</Label>
           <Input id="propertyLabel" className="h-11" {...form.register("propertyLabel")} />
@@ -3623,9 +3698,8 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           )}
         </div>
       </div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
-        Caractéristiques
-      </p>
+        </>)}
+        {showDetails && (<>
       <div className="grid gap-3 sm:gap-4 grid-cols-1">
         <div className="space-y-2">
           <div className="flex items-center gap-2 pb-2">
@@ -3754,6 +3828,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           )}
         </div>
       </div>
+        </>)}
     </div>
   </div>
   );
@@ -3762,6 +3837,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
 type BailStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
   propertyId?: string | null;
+  slice?: "type" | "rent" | "furniture" | "dates";
 };
 
 // Composant séparé pour afficher la validation du dépôt de garantie
@@ -3825,7 +3901,11 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
   );
 };
 
-const BailStep = ({ form, propertyId }: BailStepProps) => {
+const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
+  const showType = !slice || slice === "type";
+  const showRent = !slice || slice === "rent";
+  const showFurniture = !slice || slice === "furniture";
+  const showDates = !slice || slice === "dates";
   
   const isMobile = useIsMobile();
   
@@ -3895,16 +3975,22 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
     }
   }, [isMeubleBail, form]);
   
+  const titles: Record<NonNullable<typeof slice>, { title: string; subtitle: string }> = {
+    type: { title: "Type de contrat", subtitle: "Choisissez le type de bail à mettre en place." },
+    rent: { title: "Loyer & charges", subtitle: "Montant du loyer, charges et dépôt de garantie." },
+    furniture: { title: "Mobilier du logement", subtitle: "Cochez tous les équipements obligatoires pour un bail meublé." },
+    dates: { title: "Dates du bail", subtitle: "Date de prise d'effet, fin éventuelle et jour de paiement." },
+  };
+  const header = slice ? titles[slice] : { title: "Informations du bail", subtitle: "Renseignez les paramètres du bail." };
+
   return (
   <div className="space-y-5">
     <div>
-      <p className="text-xl font-semibold">Informations du bail</p>
-      <p className="text-sm text-muted-foreground mt-1">Renseignez les paramètres du bail.</p>
+      <p className="text-xl font-semibold">{header.title}</p>
+      <p className="text-sm text-muted-foreground mt-1">{header.subtitle}</p>
     </div>
     <div className="space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Type de contrat
-      </p>
+      {showType && (<>
       <div className="space-y-2">
         <Label htmlFor="bailType">Type de bail *</Label>
         <Controller
@@ -3957,9 +4043,8 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
           </p>
         )}
       </div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
-        Loyer & charges
-      </p>
+      </>)}
+      {showRent && (<>
       <div className="grid gap-3 sm:gap-4 grid-cols-2">
         <div className="space-y-2">
           <div className="flex flex-row items-center gap-2">
@@ -4025,34 +4110,34 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
         />
       )}
 
-      <div className="grid gap-3 sm:gap-4 grid-cols-2">
-        <div className="space-y-2">
-          <div className="flex flex-row items-center gap-2">
+      <div className="space-y-2">
+        <div className="flex flex-row items-center gap-2">
           <Label>Dépôt de garantie *</Label>
           <SecurityDepositTooltipContent control={form.control} isMobile={isMobile} />
-          </div>
-          <NumberInputGroup
-            field={form.register("bailSecurityDeposit")}
-            min={0}
-            step={1}
-            unit="€"
-          />
-          <SecurityDepositValidation control={form.control} />
         </div>
-        <div className="space-y-2">
-          <Label>Jour de paiement *</Label>
-          <NumberInputGroup
-            field={form.register("bailPaymentDay")}
-            min={1}
-            max={28}
-            step={1}
-          />
-          {form.formState.errors.bailPaymentDay && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.bailPaymentDay.message}
-            </p>
-          )}
-        </div>
+        <NumberInputGroup
+          field={form.register("bailSecurityDeposit")}
+          min={0}
+          step={1}
+          unit="€"
+        />
+        <SecurityDepositValidation control={form.control} />
+      </div>
+      </>)}
+      {showDates && (<>
+      <div className="space-y-2">
+        <Label>Jour de paiement *</Label>
+        <NumberInputGroup
+          field={form.register("bailPaymentDay")}
+          min={1}
+          max={28}
+          step={1}
+        />
+        {form.formState.errors.bailPaymentDay && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.bailPaymentDay.message}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-3 sm:gap-4 grid-cols-2">
@@ -4088,10 +4173,11 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
           />
         </div>
       </div>
+      </>)}
 
-      {/* Section Mobilier pour location meublée - affichée uniquement si bail meublé sélectionné */}
-      {isMeubleBail && (
-        <div className="space-y-4 pt-4 border-t">
+      {/* Section Mobilier pour location meublée - rendue uniquement sur le slice furniture */}
+      {showFurniture && isMeubleBail && (
+        <div className="space-y-4">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold">Mobilier du logement</h3>
             <InfoTooltip
