@@ -4235,58 +4235,56 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
       </div>
       </>)}
       {showRent && (<>
-      <div className="grid gap-3 sm:gap-4 grid-cols-2">
-        <div className="space-y-2">
-          <div className="flex flex-row items-center gap-2">
+      <div className="space-y-2">
+        <div className="flex flex-row items-center gap-2">
           <Label>Loyer mensuel *</Label>
-          <InfoTooltip 
-                content={
-                  <div className="max-w-xs">
-                    <p className="mb-2">LIMITATIONS DES LOYERS</p>
-                    <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
-                    <a 
-                      href="https://www.service-public.fr/simulateur/calcul/zones-tendues" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary underline hover:text-primary/80"
-                    >
-                      https://www.service-public.fr/simulateur/calcul/zones-tendues
-                    </a>
-                  </div>
-                }
-                className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
-              >
-                <button type="button" className="inline-flex items-center">
-                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </InfoTooltip>
-            </div>
-          <NumberInputGroup
-            field={form.register("bailRentAmount")}
-            min={0}
-            step={1}
-            unit="€"
-          />
-          {form.formState.errors.bailRentAmount && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.bailRentAmount.message}
-            </p>
-          )}
+          <InfoTooltip
+            content={
+              <div className="max-w-xs">
+                <p className="mb-2">LIMITATIONS DES LOYERS</p>
+                <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
+                <a
+                  href="https://www.service-public.fr/simulateur/calcul/zones-tendues"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline hover:text-primary/80"
+                >
+                  https://www.service-public.fr/simulateur/calcul/zones-tendues
+                </a>
+              </div>
+            }
+            className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+          >
+            <button type="button" className="inline-flex items-center">
+              <InfoIcon className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </InfoTooltip>
         </div>
-        <div className="space-y-2">
-          <Label>Charges mensuelles *</Label>
-      <NumberInputGroup
-        field={form.register("bailMonthlyCharges")}
-        min={0}
-        step={1}
-        unit="€"
-      />
-          {form.formState.errors.bailMonthlyCharges && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.bailMonthlyCharges.message}
-            </p>
-          )}
-        </div>
+        <NumberInputGroup
+          field={form.register("bailRentAmount")}
+          min={0}
+          step={1}
+          unit="€"
+        />
+        {form.formState.errors.bailRentAmount && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.bailRentAmount.message}
+          </p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label>Charges mensuelles *</Label>
+        <NumberInputGroup
+          field={form.register("bailMonthlyCharges")}
+          min={0}
+          step={1}
+          unit="€"
+        />
+        {form.formState.errors.bailMonthlyCharges && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.bailMonthlyCharges.message}
+          </p>
+        )}
       </div>
 
       {/* Avertissement zone tendue - affiché dès l'entrée dans l'étape si le bien est en zone tendue */}
