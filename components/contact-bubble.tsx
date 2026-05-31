@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mail, MessageCircle, Phone, X } from "lucide-react";
 import {
   Dialog,
@@ -14,86 +14,217 @@ import { cn } from "@/lib/utils";
 const CONTACT_PHONE = "0749387756";
 const CONTACT_PHONE_DISPLAY = "07 49 38 77 56";
 const CONTACT_EMAIL = "contact@bailnotarie.fr";
-const STORAGE_KEY = "bn-contact-bubble-minimized";
+const MIN_KEY = "bn-contact-bubble-minimized";
+const POS_KEY = "bn-contact-bubble-pos";
+// Seuil en pixels au-delà duquel un mouvement est considéré comme un drag (et pas un clic)
+const DRAG_THRESHOLD = 6;
+// Marge depuis les bords de l'écran
+const EDGE_MARGIN = 8;
+
+type Pos = { x: number; y: number };
 
 export function ContactBubble() {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [pos, setPos] = useState<Pos | null>(null);
+  const [dragging, setDragging] = useState(false);
 
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const dragState = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    offsetX: number;
+    offsetY: number;
+    moved: boolean;
+  } | null>(null);
+
+  // Charge l'état initial depuis localStorage
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      setMinimized(window.localStorage.getItem(STORAGE_KEY) === "1");
+      setMinimized(window.localStorage.getItem(MIN_KEY) === "1");
+      const raw = window.localStorage.getItem(POS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Pos;
+        if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+          setPos(clampToViewport(parsed));
+        }
+      }
     } catch {
-      // localStorage non dispo (mode privé Safari par ex)
+      // ignore
     }
   }, []);
+
+  // Recadre la bulle dans le viewport en cas de resize
+  useEffect(() => {
+    if (typeof window === "undefined" || !pos) return;
+    const onResize = () => setPos((p) => (p ? clampToViewport(p) : p));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [pos]);
+
+  function clampToViewport(p: Pos): Pos {
+    if (typeof window === "undefined") return p;
+    const el = wrapperRef.current;
+    const w = el?.offsetWidth ?? 60;
+    const h = el?.offsetHeight ?? 60;
+    const maxX = window.innerWidth - w - EDGE_MARGIN;
+    const maxY = window.innerHeight - h - EDGE_MARGIN;
+    return {
+      x: Math.max(EDGE_MARGIN, Math.min(maxX, p.x)),
+      y: Math.max(EDGE_MARGIN, Math.min(maxY, p.y)),
+    };
+  }
 
   const persistMinimized = (value: boolean) => {
     setMinimized(value);
     try {
-      if (value) window.localStorage.setItem(STORAGE_KEY, "1");
-      else window.localStorage.removeItem(STORAGE_KEY);
+      if (value) window.localStorage.setItem(MIN_KEY, "1");
+      else window.localStorage.removeItem(MIN_KEY);
     } catch {
       // ignore
     }
   };
 
+  const persistPos = (p: Pos) => {
+    try {
+      window.localStorage.setItem(POS_KEY, JSON.stringify(p));
+    } catch {
+      // ignore
+    }
+  };
+
+  // Démarrage du drag (pointer = unifie souris + tactile)
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!wrapperRef.current) return;
+    // Ne pas démarrer un drag si on clique sur les contrôles internes
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-bubble-control]")) return;
+
+    const rect = wrapperRef.current.getBoundingClientRect();
+    dragState.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      moved: false,
+    };
+    wrapperRef.current.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const state = dragState.current;
+    if (!state || e.pointerId !== state.pointerId) return;
+
+    const dx = e.clientX - state.startX;
+    const dy = e.clientY - state.startY;
+    if (!state.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+    if (!state.moved) {
+      state.moved = true;
+      setDragging(true);
+    }
+    const newPos = clampToViewport({
+      x: e.clientX - state.offsetX,
+      y: e.clientY - state.offsetY,
+    });
+    setPos(newPos);
+  }, []);
+
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const state = dragState.current;
+    if (!state || e.pointerId !== state.pointerId) return;
+    dragState.current = null;
+    try {
+      wrapperRef.current?.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    if (state.moved) {
+      setDragging(false);
+      if (pos) persistPos(pos);
+    }
+  }, [pos]);
+
+  // Position de fallback : bottom-right si rien en mémoire
+  const positionStyle: React.CSSProperties = pos
+    ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
+    : { right: 16, bottom: 16 };
+
+  const onMainClick = () => {
+    // Si on vient de dragger, ne pas ouvrir le dialog
+    if (dragging) return;
+    if (minimized) persistMinimized(false);
+    else setOpen(true);
+  };
+
   return (
     <>
-      {minimized ? (
-        <button
-          type="button"
-          onClick={() => persistMinimized(false)}
-          aria-label="Réafficher le support"
-          className={cn(
-            "fixed bottom-3 right-3 z-[60] flex h-6 w-6 items-center justify-center rounded-full",
-            "bg-[#4373f5]/40 text-white opacity-60 backdrop-blur-sm transition-all",
-            "hover:opacity-100 hover:bg-[#4373f5]",
-            "sm:bottom-4 sm:right-4 sm:h-7 sm:w-7"
-          )}
-        >
-          <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-        </button>
-      ) : (
-        <div
-          className={cn(
-            "fixed bottom-4 right-4 z-[60] flex items-center gap-2",
-            "sm:bottom-6 sm:right-6"
-          )}
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        >
+      <div
+        ref={wrapperRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        className={cn(
+          "fixed z-[60] flex items-center gap-2 touch-none select-none",
+          dragging && "cursor-grabbing",
+          !dragging && "cursor-grab"
+        )}
+        style={positionStyle}
+      >
+        {minimized ? (
           <button
             type="button"
-            onClick={() => persistMinimized(true)}
-            aria-label="Masquer le support"
+            data-bubble-control
+            onClick={onMainClick}
+            aria-label="Réafficher le support"
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-full",
-              "bg-slate-900/70 text-white shadow-md backdrop-blur-sm transition-all",
-              "hover:bg-slate-900 hover:scale-105"
+              "bg-[#4373f5]/40 text-white opacity-60 backdrop-blur-sm transition-all",
+              "hover:opacity-100 hover:bg-[#4373f5]"
             )}
           >
-            <X className="h-3.5 w-3.5" />
+            <MessageCircle className="h-3.5 w-3.5" />
           </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              data-bubble-control
+              onClick={() => persistMinimized(true)}
+              aria-label="Masquer le support"
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full",
+                "bg-slate-900/70 text-white shadow-md backdrop-blur-sm transition-all",
+                "hover:bg-slate-900 hover:scale-105"
+              )}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Contacter le support"
-            className={cn(
-              "flex h-12 items-center gap-2 rounded-full pl-3 pr-4",
-              "bg-[#4373f5] text-white shadow-lg shadow-blue-500/30 transition-all duration-200",
-              "hover:scale-105 hover:shadow-xl active:scale-95",
-              "sm:h-14"
-            )}
-          >
-            <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
-            <span className="text-sm font-semibold whitespace-nowrap sm:text-base">
-              Support
-            </span>
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              data-bubble-control
+              onClick={onMainClick}
+              aria-label="Contacter le support"
+              className={cn(
+                "flex h-12 items-center gap-2 rounded-full pl-3 pr-4",
+                "bg-[#4373f5] text-white shadow-lg shadow-blue-500/30 transition-all duration-200",
+                "hover:scale-105 hover:shadow-xl active:scale-95",
+                "sm:h-14"
+              )}
+            >
+              <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+              <span className="text-sm font-semibold whitespace-nowrap sm:text-base">
+                Support
+              </span>
+            </button>
+          </>
+        )}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
@@ -142,8 +273,8 @@ export function ContactBubble() {
           </div>
 
           <p className="text-[11px] text-muted-foreground text-center pt-1">
-            Astuce : tu peux masquer la bulle avec le bouton × et la réafficher
-            en cliquant sur le petit point qui reste en bas à droite.
+            Astuce : glisse la bulle où tu veux, ou clique sur le × pour la
+            réduire à un petit point discret.
           </p>
         </DialogContent>
       </Dialog>
