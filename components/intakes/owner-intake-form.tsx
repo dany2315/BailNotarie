@@ -2117,7 +2117,7 @@ useEffect(() => {
     }
   
     try {
-      await saveCurrentStep(false, shouldSkipIfUnchanged);
+      await saveCurrentStep(false, false);
 
       // Passer à l'étape suivante APRÈS la sauvegarde
       setCurrentStep(nextStep);
@@ -3887,47 +3887,52 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
             name="propertyType"
             control={form.control}
             render={({ field }) => {
-              const fieldValue = typeof field.value === 'string' ? field.value : undefined;
+              const value = typeof field.value === 'string' ? field.value : undefined;
               return (
-              <RadioGroup
-                value={fieldValue}
-                onValueChange={(value) => field.onChange(value as BienType)}
-                className="flex flex-row space-x-3 w-full items-center justify-between "
-              >
-                <Label
-                  htmlFor="appartement"
-                  className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                    field.value === BienType.APPARTEMENT ? "bg-accent" : ""
-                  }`}
-                >
-                  <RadioGroupItem
-                    value={BienType.APPARTEMENT}
-                    className="hidden"
-                    id="appartement"
-                  />
-                  <Building2 className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium text-center">
-                    Immeuble {isMobile ? <br /> : ""} collectif
-                  </div>
-                </Label>
-
-                <Label
-                  htmlFor="maison"
-                  className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                    field.value === BienType.MAISON ? "bg-accent" : ""
-                  }`}
-                >
-                  <RadioGroupItem
-                    value={BienType.MAISON}
-                    className="hidden"
-                    id="maison"
-                  />
-                  <Building className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium text-center">
-                    Immeuble {isMobile ? <br /> : ""} individuel
-                  </div>
-                </Label>
-              </RadioGroup>
+                <div className="space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={() => field.onChange(BienType.APPARTEMENT)}
+                    className={cn(
+                      "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+                      value === BienType.APPARTEMENT
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/30 hover:bg-muted/40"
+                    )}
+                  >
+                    <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", value === BienType.APPARTEMENT ? "bg-primary/10" : "bg-muted")}>
+                      <Building2 className={cn("h-4 w-4", value === BienType.APPARTEMENT ? "text-primary" : "text-muted-foreground")} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">Immeuble collectif</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Appartement dans un immeuble</p>
+                    </div>
+                    {value === BienType.APPARTEMENT && (
+                      <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => field.onChange(BienType.MAISON)}
+                    className={cn(
+                      "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+                      value === BienType.MAISON
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/30 hover:bg-muted/40"
+                    )}
+                  >
+                    <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", value === BienType.MAISON ? "bg-primary/10" : "bg-muted")}>
+                      <Building className={cn("h-4 w-4", value === BienType.MAISON ? "text-primary" : "text-muted-foreground")} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">Immeuble individuel</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Maison ou pavillon</p>
+                    </div>
+                    {value === BienType.MAISON && (
+                      <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    )}
+                  </button>
+                </div>
               );
             }}
           />
@@ -3938,7 +3943,7 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
           )}
         </div>
       </div>
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 ">
+      <div className="space-y-4">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Label htmlFor="propertySurfaceM2">Surface *</Label>
