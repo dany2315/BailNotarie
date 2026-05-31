@@ -148,10 +148,11 @@ export function ContactBubble() {
     }
   }, [pos]);
 
-  // Position de fallback : bottom-right si rien en mémoire
+  // Position de fallback : bottom-right si rien en mémoire,
+  // mais bien remontée pour éviter la safe-area iOS / barre nav et donner de l'air
   const positionStyle: React.CSSProperties = pos
     ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
-    : { right: 16, bottom: 16 };
+    : { right: 16, bottom: `calc(env(safe-area-inset-bottom, 0px) + 88px)` };
 
   const onMainClick = () => {
     // Si on vient de dragger, ne pas ouvrir le dialog
