@@ -2018,6 +2018,19 @@ useEffect(() => {
           return;
         }
         // Dernière personne validée → on continue vers summary (logique standard plus bas)
+      } else if (stepId === "bailType") {
+        // Cas spécial bailType : on ne déclenche PAS trigger() qui ferait exécuter
+        // le superRefine du schéma Zod (lequel ajoute une erreur sur bailType si
+        // bail meublé sans mobilier coché, alors que le step Mobilier vient après).
+        // On valide juste manuellement que la valeur est définie.
+        const value = form.getValues("bailType");
+        if (!value) {
+          form.setError("bailType", { type: "manual", message: "Le type de bail est requis" });
+          return;
+        }
+        // Nettoyer toute erreur résiduelle (notamment celle du superRefine sur
+        // les équipements obligatoires) qui ne doit pas bloquer ici.
+        form.clearErrors("bailType");
       } else {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
@@ -4227,12 +4240,6 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
           <p className="text-sm text-destructive flex items-center gap-1">
             <AlertCircle className="h-4 w-4" />
             {form.formState.errors.bailType.message}
-          </p>
-        )}
-        {isMeubleBail && !allFurniturePresent && !form.formState.errors.bailType && (
-          <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1">
-            <AlertCircle className="h-4 w-4" />
-            Pour valider et passer à l'étape suivante, tous les équipements doivent être cochés pour un bail meublé.
           </p>
         )}
       </div>
