@@ -955,7 +955,13 @@ useEffect(() => {
   const handleRemovePerson = async (index: number) => {
     // Supprimer la personne du formulaire
     removePerson(index);
-    
+
+    // Recaler la personne active sur celle juste avant la supprimée
+    // (la personne principale, index 0, ne peut pas être supprimée donc index >= 1)
+    const newActiveIdx = Math.max(0, index - 1);
+    setClientInfoPersonIdx(newActiveIdx);
+    setOpenAccordionValue(`person-${newActiveIdx}`);
+
     // Attendre un peu pour que le formulaire soit mis à jour
     await new Promise(resolve => setTimeout(resolve, 100));
     
