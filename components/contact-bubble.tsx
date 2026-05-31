@@ -58,15 +58,15 @@ export function ContactBubble() {
     }
   }, []);
 
-  // Recadre dans le viewport après mount et sur resize uniquement (jamais en plein drag)
+  // Re-snap au bord après mount et sur resize uniquement (jamais en plein drag)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onResize = () => {
-      setPos((p) => (p ? clampToViewport(p) : p));
+      setPos((p) => (p ? snapToEdge(p) : p));
     };
-    // Recadrage initial une fois mounté (les dimensions du wrapper sont alors connues)
+    // Snap initial une fois mounté (les dimensions du wrapper sont alors connues)
     requestAnimationFrame(() => {
-      setPos((p) => (p ? clampToViewport(p) : p));
+      setPos((p) => (p ? snapToEdge(p) : p));
     });
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -83,6 +83,22 @@ export function ContactBubble() {
       x: Math.max(EDGE_MARGIN, Math.min(maxX, p.x)),
       y: Math.max(EDGE_MARGIN, Math.min(maxY, p.y)),
     };
+  }
+
+  // Rabat horizontalement la position sur le bord le plus proche (gauche ou droite),
+  // en gardant la position verticale (clampée au viewport).
+  function snapToEdge(p: Pos): Pos {
+    if (typeof window === "undefined") return p;
+    const el = wrapperRef.current;
+    const w = el?.offsetWidth ?? 60;
+    const h = el?.offsetHeight ?? 60;
+    const centerX = p.x + w / 2;
+    const snapLeft = EDGE_MARGIN;
+    const snapRight = window.innerWidth - w - EDGE_MARGIN;
+    const x = centerX < window.innerWidth / 2 ? snapLeft : snapRight;
+    const maxY = window.innerHeight - h - EDGE_MARGIN;
+    const y = Math.max(EDGE_MARGIN, Math.min(maxY, p.y));
+    return { x, y };
   }
 
   const persistMinimized = (value: boolean) => {
@@ -168,9 +184,15 @@ export function ContactBubble() {
       if (state.moved) {
         setDragging(false);
         justDraggedRef.current = true;
-        // Recadre puis commit dans le state React + persistance
-        const final = clampToViewport({ x: state.currentX, y: state.currentY });
+        // Snap au bord (gauche/droite) le plus proche + Y clampé au viewport
+        const final = snapToEdge({ x: state.currentX, y: state.currentY });
+        // Petite transition de snap visible (animée par CSS)
+        wrapper.style.transition = "transform 180ms ease-out";
         wrapper.style.transform = `translate3d(${final.x}px, ${final.y}px, 0)`;
+        // Retire la transition après pour ne pas ralentir un éventuel prochain drag
+        window.setTimeout(() => {
+          if (wrapper) wrapper.style.transition = "";
+        }, 200);
         setPos(final);
         persistPos(final);
       }
@@ -330,8 +352,8 @@ export function ContactBubble() {
           </div>
 
           <p className="text-[11px] text-muted-foreground text-center pt-1">
-            Astuce : glisse la bulle où tu veux, ou clique sur le × pour la
-            réduire à un petit point discret.
+            Astuce : glisse la bulle de haut en bas et elle se rabat sur le
+            bord le plus proche. Le × la réduit à un petit point discret.
           </p>
         </DialogContent>
       </Dialog>
