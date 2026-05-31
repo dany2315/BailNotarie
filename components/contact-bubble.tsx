@@ -81,6 +81,15 @@ export function ContactBubble() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // Quand on passe de tiny dot à pill complète (ou inverse), la largeur du wrapper change
+  // → il faut re-snapper pour que la pill complète ne déborde pas du bord droit.
+  // requestAnimationFrame attend que React ait rendu la nouvelle taille avant de mesurer.
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      setPos((p) => (p ? snapToEdge(p) : p));
+    });
+  }, [minimized]);
+
   function clampToViewport(p: Pos): Pos {
     if (typeof window === "undefined") return p;
     const el = wrapperRef.current;
@@ -177,10 +186,6 @@ export function ContactBubble() {
       state.currentX = targetX;
       state.currentY = targetY;
 
-      // Annule l'éventuel ancrage par la droite (laissé par le mode collé à droite)
-      // pour que translate3d positionne correctement la bulle pendant le drag
-      wrapper.style.right = "";
-      wrapper.style.top = "";
       // Application directe via transform → pas de re-render React pendant le drag
       wrapper.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
     };
@@ -225,22 +230,12 @@ export function ContactBubble() {
     };
   }, []);
 
-  // Style de positionnement
-  // Quand la bulle est snappée à droite (et qu'on n'est pas en train de drag), on l'ancre
-  // par sa DROITE (right: EDGE_MARGIN) au lieu d'utiliser translate3d ancré à gauche.
-  // Comme ça, la pill "Support" et le × restent toujours collés au bord droit, sans déborder.
-  // En cours de drag, on retombe sur translate3d pour que la bulle suive le doigt.
+  // Style de positionnement : transform si on a une position, sinon fallback bottom-right
   const useFallback = pos === null;
-  const rightAnchored = !useFallback && !onLeftSide && !dragging;
   const wrapperStyle: React.CSSProperties = useFallback
     ? {
         right: 16,
         bottom: `calc(env(safe-area-inset-bottom, 0px) + 88px)`,
-      }
-    : rightAnchored
-    ? {
-        right: EDGE_MARGIN,
-        top: pos!.y,
       }
     : {
         left: 0,
