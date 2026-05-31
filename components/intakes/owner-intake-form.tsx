@@ -575,6 +575,36 @@ const getRequiredFields = (
   }
 };
 
+const findFirstIncompletePerson = (persons: PersonForm[] | undefined | null): number => {
+  if (!Array.isArray(persons) || persons.length === 0) return 0;
+  const isEmpty = (val: any) =>
+    val === undefined ||
+    val === null ||
+    val === "" ||
+    (typeof val === "string" && val.trim() === "");
+  for (let i = 0; i < persons.length; i++) {
+    const p = persons[i] as any;
+    if (
+      !p ||
+      isEmpty(p.firstName) ||
+      isEmpty(p.lastName) ||
+      isEmpty(p.profession) ||
+      isEmpty(p.phone) ||
+      isEmpty(p.email) ||
+      isEmpty(p.fullAddress) ||
+      isEmpty(p.nationality) ||
+      isEmpty(p.familyStatus) ||
+      isEmpty(p.birthPlace) ||
+      isEmpty(p.birthDate) ||
+      (p.familyStatus === FamilyStatus.MARIE && isEmpty(p.matrimonialRegime))
+    ) {
+      return i;
+    }
+  }
+  // Toutes les personnes sont complètes : on reste sur la dernière
+  return Math.max(0, persons.length - 1);
+};
+
 const findFirstIncompleteStep = (
   values: FormWithPersons,
   intakeLink: IntakeLink,
@@ -685,6 +715,7 @@ const findFirstIncompleteStep = (
   const idxPropertyDetails = STEPS.findIndex((s) => s.id === "propertyDetails");
   const idxBailType = STEPS.findIndex((s) => s.id === "bailType");
   const idxBailRent = STEPS.findIndex((s) => s.id === "bailRent");
+  const idxBailFurniture = STEPS.findIndex((s) => s.id === "bailFurniture");
   const idxBailDates = STEPS.findIndex((s) => s.id === "bailDates");
   const idxTenant = STEPS.findIndex((s) => s.id === "tenant");
   const idxDocuments = STEPS.findIndex((s) => s.id === "documents");
@@ -709,6 +740,33 @@ const findFirstIncompleteStep = (
     isEmpty(values.bailSecurityDeposit)
   ) {
     return idxBailRent;
+  }
+  // Si bail meublé, vérifier que tous les équipements sont cochés
+  const isMeubleBailCheck =
+    values.bailType === BailType.BAIL_MEUBLE_1_ANS ||
+    values.bailType === BailType.BAIL_MEUBLE_9_MOIS;
+  if (isMeubleBailCheck) {
+    const furnitureKeys = [
+      "hasLiterie",
+      "hasRideaux",
+      "hasPlaquesCuisson",
+      "hasFour",
+      "hasRefrigerateur",
+      "hasCongelateur",
+      "hasVaisselle",
+      "hasUstensilesCuisine",
+      "hasTable",
+      "hasSieges",
+      "hasEtageresRangement",
+      "hasLuminaires",
+      "hasMaterielEntretien",
+    ] as const;
+    const allFurniturePresent = furnitureKeys.every(
+      (k) => (values as any)[k] === true
+    );
+    if (!allFurniturePresent) {
+      return idxBailFurniture;
+    }
   }
   if (isEmpty(values.bailEffectiveDate) || isEmpty(values.bailPaymentDay)) {
     return idxBailDates;
@@ -1095,16 +1153,28 @@ useEffect(() => {
     // Initialisation du step UNIQUEMENT au chargement du formulaire
     useEffect(() => {
       lastSavedValues.current = defaultValues as FormWithPersons;
-    
-      setCurrentStep(
-        findFirstIncompleteStep(
-          defaultValues,
-          intakeLink,
-          (defaultValues.type as ClientType | "") ||
-            (initialIntakeLink.client?.type as ClientType | "") ||
-            ""
-        )
+
+      const initialStep = findFirstIncompleteStep(
+        defaultValues,
+        intakeLink,
+        (defaultValues.type as ClientType | "") ||
+          (initialIntakeLink.client?.type as ClientType | "") ||
+          ""
       );
+      setCurrentStep(initialStep);
+
+      // Si on atterrit sur clientInfo en mode particulier, positionner sur la 1re personne incomplète
+      if (STEPS[initialStep]?.id === "clientInfo") {
+        const initialClientType =
+          (defaultValues.type as ClientType | "") ||
+          (initialIntakeLink.client?.type as ClientType | "") ||
+          "";
+        if (initialClientType === ClientType.PERSONNE_PHYSIQUE) {
+          const idx = findFirstIncompletePerson(defaultValues.persons as any);
+          setClientInfoPersonIdx(idx);
+          setOpenAccordionValue(`person-${idx}`);
+        }
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
   
@@ -1814,10 +1884,22 @@ useEffect(() => {
         await refreshIntakeLinkData();
       }
 
+      // Le backend ne connaît que les anciens stepIds "property" et "bail" :
+      // on remap nos nouveaux sous-steps vers eux pour ne pas changer le serveur.
+      const backendStepId =
+        stepId === "propertyAddress" || stepId === "propertyDetails"
+          ? "property"
+          : stepId === "bailType" ||
+            stepId === "bailRent" ||
+            stepId === "bailFurniture" ||
+            stepId === "bailDates"
+          ? "bail"
+          : stepId;
+
       await savePartialIntake({
         token: intakeLink.token,
         payload,
-        stepId: stepId, // Envoyer l'ID de l'étape pour que le backend sache quelle étape traiter
+        stepId: backendStepId,
       });
 
       // ✓ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
