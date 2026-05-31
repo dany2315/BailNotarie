@@ -953,14 +953,16 @@ useEffect(() => {
 
   // Fonction pour supprimer une personne et mettre à jour immédiatement le raw.payload
   const handleRemovePerson = async (index: number) => {
-    // Supprimer la personne du formulaire
-    removePerson(index);
-
-    // Recaler la personne active sur celle juste avant la supprimée
-    // (la personne principale, index 0, ne peut pas être supprimée donc index >= 1)
+    // IMPORTANT: recaler activePersonIdx AVANT removePerson, sinon useFieldArray
+    // déclenche un re-render intermédiaire où personFields a perdu un élément
+    // mais activePersonIdx pointe encore sur l'index supprimé -> écran vide.
+    // (La personne principale, index 0, ne peut pas être supprimée donc index >= 1)
     const newActiveIdx = Math.max(0, index - 1);
     setClientInfoPersonIdx(newActiveIdx);
     setOpenAccordionValue(`person-${newActiveIdx}`);
+
+    // Supprimer la personne du formulaire
+    removePerson(index);
 
     // Attendre un peu pour que le formulaire soit mis à jour
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -3461,7 +3463,7 @@ const ClientInfoStep = ({
                             value={field.value ?? undefined}
                             onValueChange={field.onChange}
                           >
-                            <SelectTrigger className="w-full">
+                            <SelectTrigger className="w-full h-11">
                               <SelectValue placeholder="Sélectionner" />
                             </SelectTrigger>
                             <SelectContent>
@@ -3962,6 +3964,7 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
             unit="m²"
             step={0.01}
             isDecimal
+            className="h-11"
           />
           {form.formState.errors.propertySurfaceM2 && (
             <p className="text-sm text-destructive">
@@ -4265,6 +4268,7 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
           min={0}
           step={1}
           unit="€"
+          className="h-11"
         />
         {form.formState.errors.bailRentAmount && (
           <p className="text-sm text-destructive">
@@ -4279,6 +4283,7 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
           min={0}
           step={1}
           unit="€"
+          className="h-11"
         />
         {form.formState.errors.bailMonthlyCharges && (
           <p className="text-sm text-destructive">
@@ -4308,6 +4313,7 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
           min={0}
           step={1}
           unit="€"
+          className="h-11"
         />
         <SecurityDepositValidation control={form.control} />
       </div>
@@ -4320,6 +4326,7 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
           min={1}
           max={28}
           step={1}
+          className="h-11"
         />
         {form.formState.errors.bailPaymentDay && (
           <p className="text-sm text-destructive">
