@@ -27,6 +27,8 @@ export function ContactBubble() {
   const [minimized, setMinimized] = useState(false);
   const [pos, setPos] = useState<Pos | null>(null);
   const [dragging, setDragging] = useState(false);
+  // true = bulle collée au bord gauche, false = bord droit (ou fallback right par défaut)
+  const [onLeftSide, setOnLeftSide] = useState(false);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<{
@@ -57,6 +59,13 @@ export function ContactBubble() {
       // ignore
     }
   }, []);
+
+  // Calcule de quel côté la bulle est snappée (pour l'origine du scale du bouton)
+  useEffect(() => {
+    if (typeof window === "undefined" || !pos) return;
+    const w = wrapperRef.current?.offsetWidth ?? 60;
+    setOnLeftSide(pos.x + w / 2 < window.innerWidth / 2);
+  }, [pos]);
 
   // Re-snap au bord après mount et sur resize uniquement (jamais en plein drag)
   useEffect(() => {
@@ -277,9 +286,12 @@ export function ContactBubble() {
               aria-label="Contacter le support"
               className={cn(
                 "flex h-12 items-center gap-2 rounded-full pl-3 pr-4",
-                "bg-[#4373f5] text-white shadow-lg shadow-blue-500/30 transition-shadow",
+                "bg-[#4373f5] text-white shadow-lg shadow-blue-500/30 transition-all duration-150",
                 "hover:shadow-xl active:scale-95",
                 "sm:h-14",
+                // origine du scale opposée au bord pour que l'agrandissement
+                // (hover/active/drag) parte du côté libre et ne déborde pas
+                onLeftSide ? "origin-left" : "origin-right",
                 dragging && "scale-105 shadow-2xl"
               )}
             >
