@@ -679,18 +679,13 @@ export function CreateBailPageClient({
               {errors.effectiveDate && (
                 <p className="text-sm text-destructive">{errors.effectiveDate.message}</p>
               )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Date de fin du bail</Label>
-              <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 h-11">
-                <span className="text-sm text-slate-900">
-                  {computedEndDate ? formatDateFr(computedEndDate) : "—"}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  calculée automatiquement
-                </span>
-              </div>
+              {computedEndDate && (
+                <p className="text-sm text-muted-foreground">
+                  Le bail se terminera le{" "}
+                  <span className="font-medium text-slate-900">{formatDateFr(computedEndDate)}</span>
+                  .
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

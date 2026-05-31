@@ -4335,36 +4335,30 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
         )}
       </div>
 
-      <div className="grid gap-3 sm:gap-4 grid-cols-2">
-        <div className="space-y-2">
-          <Label>Date de prise d'effet *</Label>
-          <Controller
-            name="bailEffectiveDate"
-            control={form.control}
-            render={({ field }) => (
-              <DatePicker
-                value={field.value ? toDateValue(field.value as any) : undefined}
-                onChange={(val) => field.onChange(toDateValue(val as any) || "")}
-              />
-            )}
-          />
-          {form.formState.errors.bailEffectiveDate && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.bailEffectiveDate.message as string}
-            </p>
+      <div className="space-y-2">
+        <Label>Date de prise d'effet *</Label>
+        <Controller
+          name="bailEffectiveDate"
+          control={form.control}
+          render={({ field }) => (
+            <DatePicker
+              value={field.value ? toDateValue(field.value as any) : undefined}
+              onChange={(val) => field.onChange(toDateValue(val as any) || "")}
+            />
           )}
-        </div>
-        <div className="space-y-2">
-          <Label>Date de fin du bail</Label>
-          <div className="flex h-11 items-center justify-between rounded-lg border bg-muted/40 px-3">
-            <span className="text-sm text-slate-900">
-              {computedBailEndDate ? formatDateFr(computedBailEndDate) : "—"}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              calculée automatiquement
-            </span>
-          </div>
-        </div>
+        />
+        {form.formState.errors.bailEffectiveDate && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.bailEffectiveDate.message as string}
+          </p>
+        )}
+        {computedBailEndDate && (
+          <p className="text-sm text-muted-foreground">
+            Le bail se terminera le{" "}
+            <span className="font-medium text-slate-900">{formatDateFr(computedBailEndDate)}</span>
+            .
+          </p>
+        )}
       </div>
       </>)}
 
