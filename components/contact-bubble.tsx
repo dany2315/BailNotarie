@@ -273,19 +273,6 @@ export function ContactBubble() {
           <>
             <button
               type="button"
-              onClick={onMinimizeClick}
-              aria-label="Masquer le support"
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full",
-                "bg-slate-900/70 text-white shadow-md backdrop-blur-sm transition-colors",
-                "hover:bg-slate-900"
-              )}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-
-            <button
-              type="button"
               onClick={onMainClick}
               aria-label="Contacter le support"
               className={cn(
@@ -300,6 +287,19 @@ export function ContactBubble() {
               <span className="text-sm font-semibold whitespace-nowrap sm:text-base">
                 Support
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onMinimizeClick}
+              aria-label="Masquer le support"
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full",
+                "bg-slate-900/70 text-white shadow-md backdrop-blur-sm transition-colors",
+                "hover:bg-slate-900"
+              )}
+            >
+              <X className="h-3.5 w-3.5" />
             </button>
           </>
         )}
