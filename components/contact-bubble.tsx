@@ -18,7 +18,6 @@ const MIN_KEY = "bn-contact-bubble-minimized";
 const POS_KEY = "bn-contact-bubble-pos";
 // Seuil en pixels au-delà duquel un mouvement est considéré comme un drag (et pas un clic)
 const DRAG_THRESHOLD = 6;
-// Marge depuis les bords de l'écran
 const EDGE_MARGIN = 8;
 
 type Pos = { x: number; y: number };
@@ -37,8 +36,9 @@ export function ContactBubble() {
     offsetX: number;
     offsetY: number;
     moved: boolean;
+    currentX: number;
+    currentY: number;
   } | null>(null);
-  // Mémorise qu'on vient juste de dragger pour ne pas déclencher le click qui suit
   const justDraggedRef = useRef(false);
 
   // Charge l'état initial depuis localStorage
@@ -50,7 +50,7 @@ export function ContactBubble() {
       if (raw) {
         const parsed = JSON.parse(raw) as Pos;
         if (typeof parsed.x === "number" && typeof parsed.y === "number") {
-          setPos(clampToViewport(parsed));
+          setPos(parsed);
         }
       }
     } catch {
@@ -58,13 +58,19 @@ export function ContactBubble() {
     }
   }, []);
 
-  // Recadre la bulle dans le viewport en cas de resize
+  // Recadre dans le viewport après mount et sur resize uniquement (jamais en plein drag)
   useEffect(() => {
-    if (typeof window === "undefined" || !pos) return;
-    const onResize = () => setPos((p) => (p ? clampToViewport(p) : p));
+    if (typeof window === "undefined") return;
+    const onResize = () => {
+      setPos((p) => (p ? clampToViewport(p) : p));
+    };
+    // Recadrage initial une fois mounté (les dimensions du wrapper sont alors connues)
+    requestAnimationFrame(() => {
+      setPos((p) => (p ? clampToViewport(p) : p));
+    });
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [pos]);
+  }, []);
 
   function clampToViewport(p: Pos): Pos {
     if (typeof window === "undefined") return p;
@@ -97,73 +103,107 @@ export function ContactBubble() {
     }
   };
 
-  // Démarrage du drag (pointer = unifie souris + tactile)
-  // On démarre un dragState pour TOUS les pointerdown, y compris sur les boutons.
-  // Le seuil DRAG_THRESHOLD distinguera un tap (clic) d'un vrai drag.
-  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!wrapperRef.current) return;
-    justDraggedRef.current = false;
-    const rect = wrapperRef.current.getBoundingClientRect();
-    dragState.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      offsetX: e.clientX - rect.left,
-      offsetY: e.clientY - rect.top,
-      moved: false,
+  // === Listeners natifs non-passifs pour pouvoir preventDefault() sur iOS ===
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    const onDown = (e: PointerEvent) => {
+      // Souris : on n'écoute que le clic gauche
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+
+      justDraggedRef.current = false;
+      const rect = wrapper.getBoundingClientRect();
+      dragState.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        offsetX: e.clientX - rect.left,
+        offsetY: e.clientY - rect.top,
+        moved: false,
+        currentX: rect.left,
+        currentY: rect.top,
+      };
+      try {
+        wrapper.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
     };
-    try {
-      wrapperRef.current.setPointerCapture(e.pointerId);
-    } catch {
-      // ignore (Safari ancien)
-    }
+
+    const onMove = (e: PointerEvent) => {
+      const state = dragState.current;
+      if (!state || e.pointerId !== state.pointerId) return;
+
+      const dx = e.clientX - state.startX;
+      const dy = e.clientY - state.startY;
+
+      if (!state.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+      if (!state.moved) {
+        state.moved = true;
+        setDragging(true);
+      }
+      // Bloque le scroll de la page (passive: false ci-dessous)
+      e.preventDefault();
+
+      const targetX = e.clientX - state.offsetX;
+      const targetY = e.clientY - state.offsetY;
+      state.currentX = targetX;
+      state.currentY = targetY;
+
+      // Application directe via transform → pas de re-render React pendant le drag
+      wrapper.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
+    };
+
+    const onUp = (e: PointerEvent) => {
+      const state = dragState.current;
+      if (!state || e.pointerId !== state.pointerId) return;
+      dragState.current = null;
+      try {
+        wrapper.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+      if (state.moved) {
+        setDragging(false);
+        justDraggedRef.current = true;
+        // Recadre puis commit dans le state React + persistance
+        const final = clampToViewport({ x: state.currentX, y: state.currentY });
+        wrapper.style.transform = `translate3d(${final.x}px, ${final.y}px, 0)`;
+        setPos(final);
+        persistPos(final);
+      }
+    };
+
+    // passive: false pour pouvoir preventDefault() sur iOS Safari
+    wrapper.addEventListener("pointerdown", onDown, { passive: false });
+    wrapper.addEventListener("pointermove", onMove, { passive: false });
+    wrapper.addEventListener("pointerup", onUp, { passive: false });
+    wrapper.addEventListener("pointercancel", onUp, { passive: false });
+
+    return () => {
+      wrapper.removeEventListener("pointerdown", onDown);
+      wrapper.removeEventListener("pointermove", onMove);
+      wrapper.removeEventListener("pointerup", onUp);
+      wrapper.removeEventListener("pointercancel", onUp);
+    };
   }, []);
 
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const state = dragState.current;
-    if (!state || e.pointerId !== state.pointerId) return;
-
-    const dx = e.clientX - state.startX;
-    const dy = e.clientY - state.startY;
-    if (!state.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-
-    if (!state.moved) {
-      state.moved = true;
-      setDragging(true);
-    }
-    e.preventDefault();
-    const newPos = clampToViewport({
-      x: e.clientX - state.offsetX,
-      y: e.clientY - state.offsetY,
-    });
-    setPos(newPos);
-  }, []);
-
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const state = dragState.current;
-    if (!state || e.pointerId !== state.pointerId) return;
-    dragState.current = null;
-    try {
-      wrapperRef.current?.releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
-    if (state.moved) {
-      setDragging(false);
-      // Le click qui suit immédiatement le pointerup doit être ignoré
-      justDraggedRef.current = true;
-      if (pos) persistPos(pos);
-    }
-  }, [pos]);
-
-  // Position de fallback : bottom-right si rien en mémoire,
-  // mais bien remontée pour éviter la safe-area iOS / barre nav et donner de l'air
-  const positionStyle: React.CSSProperties = pos
-    ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
-    : { right: 16, bottom: `calc(env(safe-area-inset-bottom, 0px) + 88px)` };
+  // Style de positionnement : transform si on a une position, sinon fallback bottom-right
+  const useFallback = pos === null;
+  const wrapperStyle: React.CSSProperties = useFallback
+    ? {
+        right: 16,
+        bottom: `calc(env(safe-area-inset-bottom, 0px) + 88px)`,
+      }
+    : {
+        left: 0,
+        top: 0,
+        transform: `translate3d(${pos!.x}px, ${pos!.y}px, 0)`,
+      };
 
   const onMainClick = () => {
-    // Si on vient de finir un drag, ignorer le click qui suit
     if (justDraggedRef.current) {
       justDraggedRef.current = false;
       return;
@@ -184,16 +224,15 @@ export function ContactBubble() {
     <>
       <div
         ref={wrapperRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
         className={cn(
-          "fixed z-[60] flex items-center gap-2 touch-none select-none",
-          dragging && "cursor-grabbing",
-          !dragging && "cursor-grab"
+          "fixed z-[60] flex items-center gap-2 select-none",
+          dragging ? "cursor-grabbing" : "cursor-grab"
         )}
-        style={positionStyle}
+        style={{
+          ...wrapperStyle,
+          touchAction: "none",
+          willChange: "transform",
+        }}
       >
         {minimized ? (
           <button
@@ -201,8 +240,8 @@ export function ContactBubble() {
             onClick={onMainClick}
             aria-label="Réafficher le support"
             className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full pointer-events-auto",
-              "bg-[#4373f5]/40 text-white opacity-60 backdrop-blur-sm transition-all",
+              "flex h-7 w-7 items-center justify-center rounded-full",
+              "bg-[#4373f5]/40 text-white opacity-60 backdrop-blur-sm transition-colors",
               "hover:opacity-100 hover:bg-[#4373f5]"
             )}
           >
@@ -215,9 +254,9 @@ export function ContactBubble() {
               onClick={onMinimizeClick}
               aria-label="Masquer le support"
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full pointer-events-auto",
-                "bg-slate-900/70 text-white shadow-md backdrop-blur-sm transition-all",
-                "hover:bg-slate-900 hover:scale-105"
+                "flex h-7 w-7 items-center justify-center rounded-full",
+                "bg-slate-900/70 text-white shadow-md backdrop-blur-sm transition-colors",
+                "hover:bg-slate-900"
               )}
             >
               <X className="h-3.5 w-3.5" />
@@ -228,10 +267,11 @@ export function ContactBubble() {
               onClick={onMainClick}
               aria-label="Contacter le support"
               className={cn(
-                "flex h-12 items-center gap-2 rounded-full pl-3 pr-4 pointer-events-auto",
-                "bg-[#4373f5] text-white shadow-lg shadow-blue-500/30 transition-all duration-200",
-                "hover:scale-105 hover:shadow-xl active:scale-95",
-                "sm:h-14"
+                "flex h-12 items-center gap-2 rounded-full pl-3 pr-4",
+                "bg-[#4373f5] text-white shadow-lg shadow-blue-500/30 transition-shadow",
+                "hover:shadow-xl active:scale-95",
+                "sm:h-14",
+                dragging && "scale-105 shadow-2xl"
               )}
             >
               <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
