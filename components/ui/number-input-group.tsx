@@ -67,11 +67,11 @@ export function NumberInputGroup({
         step={step}
         disabled={disabled}
         placeholder={placeholder}
-        className="text-right"
+        className="text-left"
       />
       {unit && (
-        <InputGroupAddon align="inline-start" className="border-r-1 pr-3 bg-accent">
-          <InputGroupText>{unit}</InputGroupText>
+        <InputGroupAddon align="inline-end" className="pr-3 text-muted-foreground">
+          <InputGroupText className="text-sm">{unit}</InputGroupText>
         </InputGroupAddon>
       )}
     </InputGroup>
