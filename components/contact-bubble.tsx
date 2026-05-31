@@ -38,6 +38,8 @@ export function ContactBubble() {
     offsetY: number;
     moved: boolean;
   } | null>(null);
+  // Mémorise qu'on vient juste de dragger pour ne pas déclencher le click qui suit
+  const justDraggedRef = useRef(false);
 
   // Charge l'état initial depuis localStorage
   useEffect(() => {
@@ -96,12 +98,11 @@ export function ContactBubble() {
   };
 
   // Démarrage du drag (pointer = unifie souris + tactile)
+  // On démarre un dragState pour TOUS les pointerdown, y compris sur les boutons.
+  // Le seuil DRAG_THRESHOLD distinguera un tap (clic) d'un vrai drag.
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!wrapperRef.current) return;
-    // Ne pas démarrer un drag si on clique sur les contrôles internes
-    const target = e.target as HTMLElement;
-    if (target.closest("[data-bubble-control]")) return;
-
+    justDraggedRef.current = false;
     const rect = wrapperRef.current.getBoundingClientRect();
     dragState.current = {
       pointerId: e.pointerId,
@@ -111,7 +112,11 @@ export function ContactBubble() {
       offsetY: e.clientY - rect.top,
       moved: false,
     };
-    wrapperRef.current.setPointerCapture(e.pointerId);
+    try {
+      wrapperRef.current.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore (Safari ancien)
+    }
   }, []);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -126,6 +131,7 @@ export function ContactBubble() {
       state.moved = true;
       setDragging(true);
     }
+    e.preventDefault();
     const newPos = clampToViewport({
       x: e.clientX - state.offsetX,
       y: e.clientY - state.offsetY,
@@ -144,6 +150,8 @@ export function ContactBubble() {
     }
     if (state.moved) {
       setDragging(false);
+      // Le click qui suit immédiatement le pointerup doit être ignoré
+      justDraggedRef.current = true;
       if (pos) persistPos(pos);
     }
   }, [pos]);
@@ -155,10 +163,21 @@ export function ContactBubble() {
     : { right: 16, bottom: `calc(env(safe-area-inset-bottom, 0px) + 88px)` };
 
   const onMainClick = () => {
-    // Si on vient de dragger, ne pas ouvrir le dialog
-    if (dragging) return;
+    // Si on vient de finir un drag, ignorer le click qui suit
+    if (justDraggedRef.current) {
+      justDraggedRef.current = false;
+      return;
+    }
     if (minimized) persistMinimized(false);
     else setOpen(true);
+  };
+
+  const onMinimizeClick = () => {
+    if (justDraggedRef.current) {
+      justDraggedRef.current = false;
+      return;
+    }
+    persistMinimized(true);
   };
 
   return (
@@ -179,11 +198,10 @@ export function ContactBubble() {
         {minimized ? (
           <button
             type="button"
-            data-bubble-control
             onClick={onMainClick}
             aria-label="Réafficher le support"
             className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full",
+              "flex h-7 w-7 items-center justify-center rounded-full pointer-events-auto",
               "bg-[#4373f5]/40 text-white opacity-60 backdrop-blur-sm transition-all",
               "hover:opacity-100 hover:bg-[#4373f5]"
             )}
@@ -194,11 +212,10 @@ export function ContactBubble() {
           <>
             <button
               type="button"
-              data-bubble-control
-              onClick={() => persistMinimized(true)}
+              onClick={onMinimizeClick}
               aria-label="Masquer le support"
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full",
+                "flex h-7 w-7 items-center justify-center rounded-full pointer-events-auto",
                 "bg-slate-900/70 text-white shadow-md backdrop-blur-sm transition-all",
                 "hover:bg-slate-900 hover:scale-105"
               )}
@@ -208,11 +225,10 @@ export function ContactBubble() {
 
             <button
               type="button"
-              data-bubble-control
               onClick={onMainClick}
               aria-label="Contacter le support"
               className={cn(
-                "flex h-12 items-center gap-2 rounded-full pl-3 pr-4",
+                "flex h-12 items-center gap-2 rounded-full pl-3 pr-4 pointer-events-auto",
                 "bg-[#4373f5] text-white shadow-lg shadow-blue-500/30 transition-all duration-200",
                 "hover:scale-105 hover:shadow-xl active:scale-95",
                 "sm:h-14"
