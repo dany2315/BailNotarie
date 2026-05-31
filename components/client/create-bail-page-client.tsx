@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,6 +30,7 @@ import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { createLease, createTenantFromEmail, saveBailDraft } from "@/lib/actions/leases";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
+import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
 import { BailType, BailStatus } from "@prisma/client";
 import { toast } from "sonner";
 import {
@@ -179,6 +180,21 @@ export function CreateBailPageClient({
   const bailType = watch("bailType");
   const rentAmount = watch("rentAmount");
   const securityDeposit = watch("securityDeposit");
+  const effectiveDate = watch("effectiveDate");
+
+  // Calcul auto de la date de fin en fonction du type de bail et de la date de début
+  const computedEndDate = useMemo(
+    () => computeBailEndDate(effectiveDate || null, bailType || null),
+    [effectiveDate, bailType]
+  );
+  useEffect(() => {
+    if (computedEndDate) {
+      setValue("endDate", dateToIsoDay(computedEndDate), { shouldDirty: true });
+    } else if (watch("endDate")) {
+      setValue("endDate", "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedEndDate]);
 
   const canMeuble = Boolean(selectedProperty?.isMeuble);
   const isMeubleBailType =
@@ -666,12 +682,15 @@ export function CreateBailPageClient({
             </div>
 
             <div className="space-y-2">
-              <Label>Date de fin (optionnel)</Label>
-              <Input
-                type="date"
-                className="w-full h-11"
-                {...register("endDate")}
-              />
+              <Label>Date de fin du bail</Label>
+              <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 h-11">
+                <span className="text-sm text-slate-900">
+                  {computedEndDate ? formatDateFr(computedEndDate) : "—"}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  calculée automatiquement
+                </span>
+              </div>
             </div>
 
             <div className="space-y-2">

@@ -63,6 +63,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
+import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -4085,7 +4086,22 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
   // Vérifier si le bail actuel est un bail meublé
   const currentBailType = useWatch({ control: form.control, name: "bailType" });
   const isMeubleBail = currentBailType === BailType.BAIL_MEUBLE_1_ANS || currentBailType === BailType.BAIL_MEUBLE_9_MOIS;
-  
+
+  // Calcul automatique de la date de fin du bail à partir du type + date de début
+  const watchedEffectiveDate = useWatch({ control: form.control, name: "bailEffectiveDate" });
+  const computedBailEndDate = useMemo(
+    () => computeBailEndDate(watchedEffectiveDate as any, currentBailType as any),
+    [watchedEffectiveDate, currentBailType]
+  );
+  useEffect(() => {
+    if (computedBailEndDate) {
+      form.setValue("bailEndDate", dateToIsoDay(computedBailEndDate) as any, { shouldDirty: true });
+    } else if (form.getValues("bailEndDate")) {
+      form.setValue("bailEndDate", "" as any);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedBailEndDate]);
+
   // Surveillance du loyer et de la surface pour validation zone tendue
   const rentAmount = useWatch({ control: form.control, name: "bailRentAmount" });
   const surfaceM2 = useWatch({ control: form.control, name: "propertySurfaceM2" });
@@ -4323,17 +4339,15 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
           )}
         </div>
         <div className="space-y-2">
-          <Label>Date de fin (optionnel)</Label>
-          <Controller
-            name="bailEndDate"
-            control={form.control}
-            render={({ field }) => (
-              <DatePicker
-                value={field.value ? toDateValue(field.value as any) : undefined}
-                onChange={(val) => field.onChange(toDateValue(val as any) || "")}
-              />
-            )}
-          />
+          <Label>Date de fin du bail</Label>
+          <div className="flex h-11 items-center justify-between rounded-lg border bg-muted/40 px-3">
+            <span className="text-sm text-slate-900">
+              {computedBailEndDate ? formatDateFr(computedBailEndDate) : "—"}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              calculée automatiquement
+            </span>
+          </div>
         </div>
       </div>
       </>)}
