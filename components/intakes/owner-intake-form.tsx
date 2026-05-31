@@ -87,6 +87,7 @@ import {
   Table,
   Armchair,
   Layers,
+  Plus,
   Lightbulb,
   Sparkles,
   Home,
@@ -791,6 +792,8 @@ const [isSaving, setIsSaving] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 const [isFileUploading, setIsFileUploading] = useState(false);
 const [documentsReadyForSubmission, setDocumentsReadyForSubmission] = useState(false);
+// Sous-étape interne dans le step clientInfo : index de la personne en cours d'édition
+const [clientInfoPersonIdx, setClientInfoPersonIdx] = useState(0);
 const hasMountedCurrentStepRef = useRef(false);
 const [submissionProgress, setSubmissionProgress] = useState({
   step: 0,
@@ -1897,29 +1900,33 @@ useEffect(() => {
     } else {
       const fields = getRequiredFields(stepId, clientType);
   
-      // Cas particulier : clientInfo avec plusieurs personnes
+      // Cas particulier : clientInfo avec plusieurs personnes — sub-stepping interne
       if (stepId === "clientInfo" && clientType === ClientType.PERSONNE_PHYSIQUE) {
         const persons = form.watch("persons") || [];
-        const personsFields = persons.map((_, index) => `persons.${index}` as const);
-        const allFields = [...fields, ...personsFields];
+        const currentPersonField = `persons.${clientInfoPersonIdx}` as const;
 
-        const valid = await trigger(allFields as any);
+        // Valider uniquement la personne en cours d'édition
+        const valid = await trigger([...fields, currentPersonField] as any);
         if (!valid) {
-          const errors = form.formState.errors;
-
-          const personsErrors = errors.persons;
-          if (Array.isArray(personsErrors)) {
-            const indexWithError = personsErrors.findIndex(
-              (personError) => personError && Object.keys(personError).length > 0
-            );
-
-            if (indexWithError !== -1) {
-              setOpenAccordionValue(`person-${indexWithError}`);
-            }
-          }
-
+          setOpenAccordionValue(`person-${clientInfoPersonIdx}`);
           return;
         }
+
+        // S'il reste des personnes à éditer, avancer la sous-étape sans changer de step principal
+        if (clientInfoPersonIdx < persons.length - 1) {
+          // Sauvegarder en arrière-plan puis avancer
+          try {
+            await saveCurrentStep(false, false);
+          } catch (error: any) {
+            const message = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
+            toast.error(message);
+            return;
+          }
+          setClientInfoPersonIdx((idx) => idx + 1);
+          setOpenAccordionValue(`person-${clientInfoPersonIdx + 1}`);
+          return;
+        }
+        // Dernière personne validée → on continue vers summary (logique standard plus bas)
       } else {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
@@ -2022,9 +2029,14 @@ useEffect(() => {
   
     try {
       await saveCurrentStep(false, shouldSkipIfUnchanged);
-      
+
       // Passer à l'étape suivante APRÈS la sauvegarde
       setCurrentStep(nextStep);
+      // Si on entre dans clientInfo en marche avant (depuis clientType), repartir sur la 1re personne
+      if (STEPS[nextStep]?.id === "clientInfo") {
+        setClientInfoPersonIdx(0);
+        setOpenAccordionValue("person-0");
+      }
     } catch (error: any) {
       console.error("Erreur lors de la sauvegarde:", error);
       const message =
@@ -2051,6 +2063,19 @@ useEffect(() => {
   
 
   const handlePrevious = () => {
+    const currentStepId = STEPS[currentStep]?.id;
+
+    // Reculer personne par personne dans clientInfo
+    if (
+      currentStepId === "clientInfo" &&
+      clientType === ClientType.PERSONNE_PHYSIQUE &&
+      clientInfoPersonIdx > 0
+    ) {
+      setClientInfoPersonIdx((idx) => Math.max(0, idx - 1));
+      setOpenAccordionValue(`person-${clientInfoPersonIdx - 1}`);
+      return;
+    }
+
     setCurrentStep((prev) => {
       const target = Math.max(prev - 1, 0);
       // Skip bailFurniture en arrière si le bail n'est pas meublé
@@ -2062,6 +2087,13 @@ useEffect(() => {
         if (!isMeubleBail) {
           return Math.max(target - 1, 0);
         }
+      }
+      // Quand on entre dans clientInfo en reculant depuis summary, montrer la dernière personne
+      if (STEPS[target]?.id === "clientInfo" && clientType === ClientType.PERSONNE_PHYSIQUE) {
+        const persons = form.getValues("persons") || [];
+        const lastIdx = Math.max(0, persons.length - 1);
+        setClientInfoPersonIdx(lastIdx);
+        setOpenAccordionValue(`person-${lastIdx}`);
       }
       return target;
     });
@@ -2530,6 +2562,8 @@ useEffect(() => {
               openAccordionValue={openAccordionValue}
               setOpenAccordionValue={setOpenAccordionValue}
               refreshIntakeLinkData={refreshIntakeLinkData}
+              activePersonIdx={clientInfoPersonIdx}
+              setActivePersonIdx={setClientInfoPersonIdx}
             />
           )}
           {STEPS[currentStep].id === "summary" && (
@@ -2890,6 +2924,8 @@ type ClientInfoStepProps = {
   openAccordionValue: string;
   setOpenAccordionValue: (value: string) => void;
   refreshIntakeLinkData: () => Promise<IntakeLink | null>;
+  activePersonIdx: number;
+  setActivePersonIdx: React.Dispatch<React.SetStateAction<number>>;
 };
 
 const ClientInfoStep = ({
@@ -2903,6 +2939,8 @@ const ClientInfoStep = ({
   openAccordionValue,
   setOpenAccordionValue,
   refreshIntakeLinkData,
+  activePersonIdx,
+  setActivePersonIdx,
 }: ClientInfoStepProps) => {
   // Observer le statut familial pour chaque personne
   const watchedFamilyStatuses = personFields.map((_, index) => 
@@ -2970,9 +3008,10 @@ const ClientInfoStep = ({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="entreprise.legalName">Raison sociale *</Label>
-            <Input 
-              id="entreprise.legalName" 
-              {...form.register("entreprise.legalName" as any)} 
+            <Input
+              id="entreprise.legalName"
+              className="h-11"
+              {...form.register("entreprise.legalName" as any)}
             />
             {form.formState.errors.entreprise?.legalName && (
               <p className="text-sm text-destructive">
@@ -2982,9 +3021,10 @@ const ClientInfoStep = ({
           </div>
           <div className="space-y-2">
             <Label htmlFor="entreprise.registration">SIREN/SIRET *</Label>
-            <Input 
-              id="entreprise.registration" 
-              {...form.register("entreprise.registration" as any)} 
+            <Input
+              id="entreprise.registration"
+              className="h-11"
+              {...form.register("entreprise.registration" as any)}
             />
             {form.formState.errors.entreprise?.registration && (
               <p className="text-sm text-destructive">
@@ -2994,9 +3034,10 @@ const ClientInfoStep = ({
           </div>
           <div className="space-y-2">
             <Label htmlFor="entreprise.name">Nom commercial *</Label>
-            <Input 
-              id="entreprise.name" 
-              {...form.register("entreprise.name" as any)} 
+            <Input
+              id="entreprise.name"
+              className="h-11"
+              {...form.register("entreprise.name" as any)}
             />
             {form.formState.errors.entreprise?.name && (
               <p className="text-sm text-destructive">
@@ -3006,12 +3047,12 @@ const ClientInfoStep = ({
           </div>
           <div className="space-y-2">
             <Label htmlFor="entreprise.email">Email *</Label>
-            <Input 
-              id="entreprise.email" 
-              type="email" 
+            <Input
+              id="entreprise.email"
+              type="email"
               disabled={isEmailLocked}
-              className={isEmailLocked ? "bg-muted cursor-not-allowed" : ""}
-              {...form.register("entreprise.email" as any)} 
+              className={`h-11 ${isEmailLocked ? "bg-muted cursor-not-allowed" : ""}`}
+              {...form.register("entreprise.email" as any)}
             />
             {isEmailLocked && (
               <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
@@ -3058,23 +3099,55 @@ const ClientInfoStep = ({
     );
   }
 
+  const totalPersons = personFields.length || 1;
+  const isLastPerson = activePersonIdx >= totalPersons - 1;
+
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xl font-semibold">Informations du ou des propriétaires</p>
+        <p className="text-xl font-semibold">
+          Propriétaire {totalPersons > 1 ? activePersonIdx + 1 : ""}{" "}
+          {totalPersons > 1 && (
+            <span className="text-sm font-normal text-muted-foreground">
+              sur {totalPersons}
+            </span>
+          )}
+        </p>
         <p className="text-sm text-muted-foreground mt-1">
-          Renseignez les informations concernant le ou les propriétaires du bien.
+          {activePersonIdx === 0
+            ? "Informations du propriétaire principal."
+            : "Informations de ce copropriétaire."}
         </p>
       </div>
+      {totalPersons > 1 && (
+        <div className="flex gap-1.5">
+          {Array.from({ length: totalPersons }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                setActivePersonIdx(i);
+                setOpenAccordionValue(`person-${i}`);
+              }}
+              className={`flex-1 h-1.5 rounded-full transition-colors ${
+                i === activePersonIdx ? "bg-primary" : i < activePersonIdx ? "bg-primary/40" : "bg-muted"
+              }`}
+              aria-label={`Aller à la personne ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
       <div className="space-y-6">
         <Accordion
-          type="single" 
-          className="w-full" 
+          type="single"
+          className="w-full"
           collapsible
-          value={openAccordionValue}
-          onValueChange={(value) => setOpenAccordionValue(value || `person-0`)}
+          value={`person-${activePersonIdx}`}
+          onValueChange={(value) => setOpenAccordionValue(value || `person-${activePersonIdx}`)}
         >
-          {personFields.map((field, index) => (
+          {personFields.map((field, index) => {
+            if (index !== activePersonIdx) return null;
+            return (
             <AccordionItem
               key={field.id}
               value={`person-${index}`}
@@ -3126,12 +3199,13 @@ const ClientInfoStep = ({
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pt-2 pb-4">
-                <div className="grid gap-4 grid-cols-2 ">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor={`persons.${index}.firstName`}>
                       Prénom *
                     </Label>
                     <Input
+                      className="h-11"
                       {...form.register(`persons.${index}.firstName` as any)}
                     />
                     {form.formState.errors.persons?.[index]?.firstName && (
@@ -3145,6 +3219,7 @@ const ClientInfoStep = ({
                       Nom *
                     </Label>
                     <Input
+                      className="h-11"
                       {...form.register(`persons.${index}.lastName` as any)}
                     />
                     {form.formState.errors.persons?.[index]?.lastName && (
@@ -3154,7 +3229,7 @@ const ClientInfoStep = ({
                     )}
                   </div>
                 </div>
-                <div className="grid gap-4 grid-cols-2 ">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor={`persons.${index}.email`}>
                       Email *
@@ -3163,7 +3238,7 @@ const ClientInfoStep = ({
                       type="email"
                       {...form.register(`persons.${index}.email` as any)}
                       disabled={isPrimaryPersonEmailLocked && index === 0}
-                      className={isPrimaryPersonEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}
+                      className={`h-11 ${isPrimaryPersonEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}`}
                     />
 
                     {form.formState.errors.persons?.[index]?.email && (
@@ -3210,12 +3285,13 @@ const ClientInfoStep = ({
                     </p>
                   )}
                 </div>
-                <div className="grid gap-4 grid-cols-2 ">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor={`persons.${index}.profession`}>
                       Profession *
                     </Label>
                     <Input
+                      className="h-11"
                       {...form.register(`persons.${index}.profession` as any)}
                     />
                     {form.formState.errors.persons?.[index]?.profession && (
@@ -3264,7 +3340,7 @@ const ClientInfoStep = ({
                             }
                           }}
                         >
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full h-11">
                             <SelectValue placeholder="Sélectionner" />
                           </SelectTrigger>
                           <SelectContent>
@@ -3317,12 +3393,13 @@ const ClientInfoStep = ({
                     </div>
                   )}
                 </div>
-                <div className="grid gap-4 grid-cols-2 ">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor={`persons.${index}.birthPlace`}>
                       Lieu de naissance *
                     </Label>
                     <Input
+                      className="h-11"
                       {...form.register(`persons.${index}.birthPlace` as any)}
                     />
                     {form.formState.errors.persons?.[index]?.birthPlace && (
@@ -3356,21 +3433,25 @@ const ClientInfoStep = ({
                 </div>
               </AccordionContent>
             </AccordionItem>
-          ))}
+            );
+          })}
         </Accordion>
-        {personFields.length < 2 && <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            appendPerson({ ...emptyPerson } as any);
-            // Ouvrir l'accordéon de la nouvelle personne ajoutée
-            const newIndex = personFields.length;
-            setOpenAccordionValue(`person-${newIndex}`);
-          }}
-          className="w-full"
-        >
-          Ajouter une personne
-        </Button>}
+        {isLastPerson && personFields.length < 2 && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              const newIndex = personFields.length;
+              appendPerson({ ...emptyPerson } as any);
+              setActivePersonIdx(newIndex);
+              setOpenAccordionValue(`person-${newIndex}`);
+            }}
+            className="w-full h-11 gap-2 border-dashed"
+          >
+            <Plus className="h-4 w-4" />
+            Une autre personne est propriétaire
+          </Button>
+        )}
       </div>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
