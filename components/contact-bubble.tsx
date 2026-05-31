@@ -154,6 +154,10 @@ export function ContactBubble() {
       const targetY = e.clientY - state.offsetY;
       state.currentX = targetX;
       state.currentY = targetY;
+      // Annule l'éventuel ancrage par la droite (laissé par le mode expanded)
+      // pour que translate3d positionne correctement la bulle pendant le drag
+      wrapper.style.right = "";
+      wrapper.style.top = "";
       wrapper.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
     };
 
@@ -194,10 +198,21 @@ export function ContactBubble() {
   }, [expanded]);
 
   const useFallback = pos === null;
+  // Quand on est étendu sur le côté droit, on ancre le wrapper par sa DROITE
+  // (avec `right: EDGE_MARGIN`) au lieu d'utiliser translate3d ancré à gauche.
+  // Du coup le wrapper grandit naturellement vers la gauche quand la pill Support
+  // apparaît, et celle-ci reste visible au lieu de déborder derrière le bord.
+  // En cours de drag, on retombe sur translate3d pour que la bulle suive le doigt.
+  const rightAnchored = !useFallback && expanded && !onLeftSide && !dragging;
   const wrapperStyle: React.CSSProperties = useFallback
     ? {
         right: 16,
         bottom: `calc(env(safe-area-inset-bottom, 0px) + 88px)`,
+      }
+    : rightAnchored
+    ? {
+        right: EDGE_MARGIN,
+        top: pos!.y,
       }
     : {
         left: 0,
