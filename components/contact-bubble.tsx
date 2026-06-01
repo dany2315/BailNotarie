@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Mail, MessageCircle, Phone, X } from "lucide-react";
 import {
   Dialog,
@@ -23,6 +24,7 @@ const EDGE_MARGIN = 8;
 type Pos = { x: number; y: number };
 
 export function ContactBubble() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [pos, setPos] = useState<Pos | null>(null);
@@ -259,6 +261,11 @@ export function ContactBubble() {
     }
     persistMinimized(true);
   };
+
+  // La bulle de support n'est pas montrée dans le back-office (/interface/*)
+  if (pathname?.startsWith("/interface")) {
+    return null;
+  }
 
   return (
     <>
