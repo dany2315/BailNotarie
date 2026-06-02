@@ -16,6 +16,7 @@ export const fetchCache = "force-no-store";
 
 const statusLabels: Record<BailStatus, string> = {
   DRAFT: "Brouillon",
+  AWAITING_TENANT: "En attente du locataire",
   PENDING_VALIDATION: "En attente de validation",
   READY_FOR_NOTARY: "Prêt pour notaire",
   CLIENT_CONTACTED: "Client contacté",
@@ -27,6 +28,7 @@ const statusLabels: Record<BailStatus, string> = {
 
 const statusColors: Record<BailStatus, string> = {
   DRAFT: "bg-gray-100 text-gray-800",
+  AWAITING_TENANT: "bg-orange-100 text-orange-800",
   PENDING_VALIDATION: "bg-orange-100 text-orange-800",
   READY_FOR_NOTARY: "bg-blue-100 text-blue-800",
   CLIENT_CONTACTED: "bg-purple-100 text-purple-800",

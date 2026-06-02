@@ -9,6 +9,8 @@ import { ArticleSchema } from '@/components/seo/article-schema'
 import { FaqSchema } from '@/components/seo/faq-schema'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = "force-dynamic";
+
 // Fonction pour générer les paramètres statiques
 export function generateStaticParams() {
   return blogData.map((article) => ({
