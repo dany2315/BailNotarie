@@ -22,6 +22,7 @@ export const auth = betterAuth({
     "http://192.168.1.113:3000",
     "https://staging.bailnotarie.fr",
     "https://www.bailnotarie.fr",
+    "https://bail-notarie-*.vercel.app",
   ],
   plugins: [
     emailOTP({

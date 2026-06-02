@@ -5,6 +5,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@layer utilities {
+  .h-screen-safe {
+    height: 100vh;
+    height: 100dvh;
+  }
+}
+
 @layer components {
   .prose {
     @apply text-gray-700 leading-relaxed;

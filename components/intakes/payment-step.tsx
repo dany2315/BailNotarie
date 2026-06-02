@@ -18,6 +18,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BailCostEstimate } from "@/components/leases/bail-cost-estimate";
 import { cn } from "@/lib/utils";
 
 const stripePromise = loadStripe(
@@ -191,12 +192,16 @@ interface PaymentStepProps {
   token: string;
   onPaymentSuccess: (paymentIntentId: string) => void;
   isSubmitting: boolean;
+  rentAmount?: number;
+  peopleCount?: number;
 }
 
 export function PaymentStep({
   token,
   onPaymentSuccess,
   isSubmitting,
+  rentAmount = 0,
+  peopleCount = 2,
 }: PaymentStepProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -262,6 +267,10 @@ export function PaymentStep({
         <TriangleAlert className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
         <span>Hors émoluments du notaire, facturés séparément avant la signature.</span>
       </div>
+
+      {rentAmount > 0 && (
+        <BailCostEstimate rentAmount={rentAmount} peopleCount={peopleCount} />
+      )}
 
       {/* Formulaire Stripe */}
       {loadError ? (

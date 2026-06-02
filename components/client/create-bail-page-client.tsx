@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,6 +30,7 @@ import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { createLease, createTenantFromEmail, saveBailDraft } from "@/lib/actions/leases";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
+import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
 import { BailType, BailStatus } from "@prisma/client";
 import { toast } from "sonner";
 import {
@@ -100,6 +101,7 @@ interface CreateBailPageClientProps {
     entreprise: { legalName: string; name: string } | null;
   }>;
   ownerId: string;
+  ownerPeopleCount: number;
   initialPropertyId?: string;
   draftBail?: DraftBailData | null;
 }
@@ -110,6 +112,7 @@ export function CreateBailPageClient({
   biens,
   locataires,
   ownerId,
+  ownerPeopleCount,
   initialPropertyId,
   draftBail,
 }: CreateBailPageClientProps) {
@@ -141,6 +144,7 @@ export function CreateBailPageClient({
   const [selectedProperty, setSelectedProperty] = useState<{
     id: string;
     surfaceM2: number | null;
+    isMeuble: boolean;
   } | null>(null);
   const [rentValidationResult, setRentValidationResult] =
     useState<RentValidationResult | null>(null);
@@ -175,8 +179,32 @@ export function CreateBailPageClient({
   const tenantId = watch("tenantId");
   const bailType = watch("bailType");
   const rentAmount = watch("rentAmount");
+  const securityDeposit = watch("securityDeposit");
+  const effectiveDate = watch("effectiveDate");
 
-  // Surface du bien pour la validation loyer
+  // Calcul auto de la date de fin en fonction du type de bail et de la date de début
+  const computedEndDate = useMemo(
+    () => computeBailEndDate(effectiveDate || null, bailType || null),
+    [effectiveDate, bailType]
+  );
+  useEffect(() => {
+    if (computedEndDate) {
+      setValue("endDate", dateToIsoDay(computedEndDate), { shouldDirty: true });
+    } else if (watch("endDate")) {
+      setValue("endDate", "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedEndDate]);
+
+  const canMeuble = Boolean(selectedProperty?.isMeuble);
+  const isMeubleBailType =
+    bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
+  const rentAmountNum = parseFloat(rentAmount || "0") || 0;
+  const securityDepositNum = parseFloat(securityDeposit || "0") || 0;
+  const maxSecurityDeposit = isMeubleBailType ? rentAmountNum * 2 : rentAmountNum;
+  const isSecurityDepositExceeded = securityDepositNum > maxSecurityDeposit && rentAmountNum > 0;
+
+  // Surface du bien pour la validation loyer + détection meublé
   useEffect(() => {
     if (!propertyId) {
       setSelectedProperty(null);
@@ -186,13 +214,37 @@ export function CreateBailPageClient({
       .then((r) => r.json())
       .then((data) => {
         if (!data.error) {
+          const isMeuble = Boolean(
+            data.hasLiterie &&
+              data.hasRideaux &&
+              data.hasPlaquesCuisson &&
+              data.hasFour &&
+              data.hasRefrigerateur &&
+              data.hasCongelateur &&
+              data.hasVaisselle &&
+              data.hasUstensilesCuisine &&
+              data.hasTable &&
+              data.hasSieges &&
+              data.hasEtageresRangement &&
+              data.hasLuminaires &&
+              data.hasMaterielEntretien
+          );
           setSelectedProperty({
             id: propertyId,
             surfaceM2: data.surfaceM2 ? Number(data.surfaceM2) : null,
+            isMeuble,
           });
+          // Si le bien n'est pas meublé et que le type sélectionné est meublé, repasser sur nu 3 ans
+          const currentBailType = watch("bailType");
+          const isMeubleBailType =
+            currentBailType === BailType.BAIL_MEUBLE_1_ANS ||
+            currentBailType === BailType.BAIL_MEUBLE_9_MOIS;
+          if (!isMeuble && isMeubleBailType) {
+            setValue("bailType", BailType.BAIL_NU_3_ANS);
+          }
         }
       })
-      .catch(() => setSelectedProperty({ id: propertyId, surfaceM2: null }));
+      .catch(() => setSelectedProperty({ id: propertyId, surfaceM2: null, isMeuble: false }));
   }, [propertyId]);
 
   // Validation du loyer (zone tendue)
@@ -227,6 +279,12 @@ export function CreateBailPageClient({
       const valid = await trigger(fields);
       if (!valid) return;
     }
+    if (step === 2 && isSecurityDepositExceeded) {
+      toast.error(
+        `Le dépôt de garantie ne peut pas dépasser ${isMeubleBailType ? "2" : "1"} mois de loyer.`
+      );
+      return;
+    }
     if (step === 3) {
       handleSubmit((data) => {
         setPendingFormData(data);
@@ -235,7 +293,7 @@ export function CreateBailPageClient({
       return;
     }
     setStep((s) => s + 1);
-  }, [step, trigger, handleSubmit]);
+  }, [step, trigger, handleSubmit, isSecurityDepositExceeded, isMeubleBailType]);
 
   const handleSaveDraft = useCallback(async () => {
     const currentPropertyId = watch("propertyId");
@@ -526,10 +584,19 @@ export function CreateBailPageClient({
                 <SelectContent>
                   <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
                   <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nu 6 ans</SelectItem>
-                  <SelectItem value={BailType.BAIL_MEUBLE_1_ANS}>Bail meublé 1 an</SelectItem>
-                  <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS}>Bail meublé 9 mois</SelectItem>
+                  <SelectItem value={BailType.BAIL_MEUBLE_1_ANS} disabled={!canMeuble}>
+                    Bail meublé 1 an
+                  </SelectItem>
+                  <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS} disabled={!canMeuble}>
+                    Bail meublé 9 mois
+                  </SelectItem>
                 </SelectContent>
               </Select>
+              {!canMeuble && propertyId && (
+                <p className="text-xs text-muted-foreground">
+                  Location meublée indisponible — le bien ne possède pas tous les équipements obligatoires.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -569,6 +636,25 @@ export function CreateBailPageClient({
                 className="w-full h-11"
                 {...register("securityDeposit")}
               />
+              {rentAmountNum > 0 && (
+                <>
+                  <p
+                    className={`text-xs ${
+                      isSecurityDepositExceeded
+                        ? "text-destructive font-medium"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    Maximum : {maxSecurityDeposit.toLocaleString("fr-FR")} €
+                    {" "}({isMeubleBailType ? "2" : "1"} mois de loyer hors charges)
+                  </p>
+                  {isSecurityDepositExceeded && (
+                    <p className="text-sm text-destructive">
+                      Le dépôt ne peut pas dépasser {isMeubleBailType ? "2" : "1"} mois de loyer.
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           </div>
         );
@@ -593,15 +679,13 @@ export function CreateBailPageClient({
               {errors.effectiveDate && (
                 <p className="text-sm text-destructive">{errors.effectiveDate.message}</p>
               )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Date de fin (optionnel)</Label>
-              <Input
-                type="date"
-                className="w-full h-11"
-                {...register("endDate")}
-              />
+              {computedEndDate && (
+                <p className="text-sm text-muted-foreground">
+                  Le bail se terminera le{" "}
+                  <span className="font-medium text-slate-900">{formatDateFr(computedEndDate)}</span>
+                  .
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -622,13 +706,23 @@ export function CreateBailPageClient({
           </div>
         );
 
-      case 4:
+      case 4: {
+        const selectedTenant = locataires.find((l) => l.id === tenantId);
+        const tenantPeopleCount = selectedTenant
+          ? selectedTenant.entreprise
+            ? 1
+            : Math.max(1, selectedTenant.persons.length)
+          : 1;
+        const totalPeopleCount = Math.max(2, ownerPeopleCount + tenantPeopleCount);
         return (
           <BailPaymentStep
             onPaymentSuccess={handlePaymentSuccess}
             isSubmitting={isSubmitting}
+            rentAmount={parseFloat(rentAmount || "0") || 0}
+            peopleCount={totalPeopleCount}
           />
         );
+      }
     }
   };
 

@@ -10,7 +10,7 @@ export default function ClientProtectedLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen-safe overflow-hidden">
       <HideOnRoute paths={["/client/proprietaire/baux/new"]}>
         <Header />
       </HideOnRoute>

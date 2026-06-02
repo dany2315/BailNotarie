@@ -63,6 +63,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
+import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -87,6 +88,7 @@ import {
   Table,
   Armchair,
   Layers,
+  Plus,
   Lightbulb,
   Sparkles,
   Home,
@@ -146,8 +148,12 @@ const STEPS = [
   { id: "clientType", title: "Type de client" },
   { id: "clientInfo", title: "Informations client" },
   { id: "summary", title: "Récapitulatif" },
-  { id: "property", title: "Données du bien" },
-  { id: "bail", title: "Données du bail" },
+  { id: "propertyAddress", title: "Adresse du bien" },
+  { id: "propertyDetails", title: "Caractéristiques du bien" },
+  { id: "bailType", title: "Type de contrat" },
+  { id: "bailRent", title: "Loyer & charges" },
+  { id: "bailFurniture", title: "Mobilier" },
+  { id: "bailDates", title: "Dates du bail" },
   { id: "tenant", title: "Locataire" },
   { id: "documents", title: "Documents" },
   { id: "payment", title: "Paiement" },
@@ -535,21 +541,30 @@ const getRequiredFields = (
       return [
         "entreprise",
       ];
-    case "property":
+    case "propertyAddress":
       return [
         "propertyFullAddress",
         "propertyInseeCode",
+      ];
+    case "propertyDetails":
+      return [
         "propertySurfaceM2",
         "propertyType",
         "propertyLegalStatus",
       ];
-    case "bail":
+    case "bailType":
+      return ["bailType"];
+    case "bailRent":
       return [
-        "bailType",
         "bailRentAmount",
-        "bailEffectiveDate",
         "bailMonthlyCharges",
         "bailSecurityDeposit",
+      ];
+    case "bailFurniture":
+      return [];
+    case "bailDates":
+      return [
+        "bailEffectiveDate",
         "bailPaymentDay",
       ];
     case "tenant":
@@ -559,6 +574,36 @@ const getRequiredFields = (
     default:
       return [];
   }
+};
+
+const findFirstIncompletePerson = (persons: PersonForm[] | undefined | null): number => {
+  if (!Array.isArray(persons) || persons.length === 0) return 0;
+  const isEmpty = (val: any) =>
+    val === undefined ||
+    val === null ||
+    val === "" ||
+    (typeof val === "string" && val.trim() === "");
+  for (let i = 0; i < persons.length; i++) {
+    const p = persons[i] as any;
+    if (
+      !p ||
+      isEmpty(p.firstName) ||
+      isEmpty(p.lastName) ||
+      isEmpty(p.profession) ||
+      isEmpty(p.phone) ||
+      isEmpty(p.email) ||
+      isEmpty(p.fullAddress) ||
+      isEmpty(p.nationality) ||
+      isEmpty(p.familyStatus) ||
+      isEmpty(p.birthPlace) ||
+      isEmpty(p.birthDate) ||
+      (p.familyStatus === FamilyStatus.MARIE && isEmpty(p.matrimonialRegime))
+    ) {
+      return i;
+    }
+  }
+  // Toutes les personnes sont complètes : on reste sur la dernière
+  return Math.max(0, persons.length - 1);
 };
 
 const findFirstIncompleteStep = (
@@ -666,24 +711,66 @@ const findFirstIncompleteStep = (
     }
   }
 
+  // Indices résolus dynamiquement (la STEPS array a évolué)
+  const idxPropertyAddress = STEPS.findIndex((s) => s.id === "propertyAddress");
+  const idxPropertyDetails = STEPS.findIndex((s) => s.id === "propertyDetails");
+  const idxBailType = STEPS.findIndex((s) => s.id === "bailType");
+  const idxBailRent = STEPS.findIndex((s) => s.id === "bailRent");
+  const idxBailFurniture = STEPS.findIndex((s) => s.id === "bailFurniture");
+  const idxBailDates = STEPS.findIndex((s) => s.id === "bailDates");
+  const idxTenant = STEPS.findIndex((s) => s.id === "tenant");
+  const idxDocuments = STEPS.findIndex((s) => s.id === "documents");
+
+  if (isEmpty(values.propertyFullAddress)) {
+    return idxPropertyAddress;
+  }
   if (
-    isEmpty(values.propertyFullAddress) ||
     isEmpty(values.propertySurfaceM2) ||
     isEmpty(values.propertyType) ||
     isEmpty(values.propertyLegalStatus)
   ) {
-    return 4;
+    return idxPropertyDetails;
   }
 
+  if (isEmpty(values.bailType)) {
+    return idxBailType;
+  }
   if (
-    isEmpty(values.bailType) ||
     isEmpty(values.bailRentAmount) ||
-    isEmpty(values.bailEffectiveDate) ||
     isEmpty(values.bailMonthlyCharges) ||
-    isEmpty(values.bailSecurityDeposit) ||
-    isEmpty(values.bailPaymentDay)
+    isEmpty(values.bailSecurityDeposit)
   ) {
-    return 5;
+    return idxBailRent;
+  }
+  // Si bail meublé, vérifier que tous les équipements sont cochés
+  const isMeubleBailCheck =
+    values.bailType === BailType.BAIL_MEUBLE_1_ANS ||
+    values.bailType === BailType.BAIL_MEUBLE_9_MOIS;
+  if (isMeubleBailCheck) {
+    const furnitureKeys = [
+      "hasLiterie",
+      "hasRideaux",
+      "hasPlaquesCuisson",
+      "hasFour",
+      "hasRefrigerateur",
+      "hasCongelateur",
+      "hasVaisselle",
+      "hasUstensilesCuisine",
+      "hasTable",
+      "hasSieges",
+      "hasEtageresRangement",
+      "hasLuminaires",
+      "hasMaterielEntretien",
+    ] as const;
+    const allFurniturePresent = furnitureKeys.every(
+      (k) => (values as any)[k] === true
+    );
+    if (!allFurniturePresent) {
+      return idxBailFurniture;
+    }
+  }
+  if (isEmpty(values.bailEffectiveDate) || isEmpty(values.bailPaymentDay)) {
+    return idxBailDates;
   }
 
   const hasTenant =
@@ -691,7 +778,7 @@ const findFirstIncompleteStep = (
       (party: any) => party.profilType === ProfilType.LOCATAIRE
     ) ?? false;
   if (isEmpty(values.tenantEmail) && !hasTenant) {
-    return 6;
+    return idxTenant;
   }
 
   const clientDocs = intakeLink.client?.documents || [];
@@ -701,24 +788,24 @@ const findFirstIncompleteStep = (
   if (clientType === ClientType.PERSONNE_MORALE) {
     const hasKbis = clientDocs.some((d: any) => d.kind === "KBIS");
     const hasStatutes = clientDocs.some((d: any) => d.kind === "STATUTES");
-    if (!hasKbis || !hasStatutes) return 7;
+    if (!hasKbis || !hasStatutes) return idxDocuments;
   } else if (clientType === ClientType.PERSONNE_PHYSIQUE) {
     const hasId = clientDocs.some((d: any) => d.kind === "ID_IDENTITY");
-    if (!hasId) return 7;
+    if (!hasId) return idxDocuments;
     const hasLivret = clientDocs.some((d: any) => d.kind === "LIVRET_DE_FAMILLE");
     const hasPacs = clientDocs.some((d: any) => d.kind === "CONTRAT_DE_PACS");
-    if (!hasLivret || !hasPacs) return 7;
+    if (!hasLivret || !hasPacs) return idxDocuments;
   }
 
   const hasDiagnostics = propertyDocs.some((d: any) => d.kind === "DIAGNOSTICS");
   const hasTitleDeed = propertyDocs.some((d: any) => d.kind === "TITLE_DEED");
-  if (!hasDiagnostics || !hasTitleDeed) return 7;
+  if (!hasDiagnostics || !hasTitleDeed) return idxDocuments;
 
   if (
     values.propertyLegalStatus === BienLegalStatus.CO_PROPRIETE &&
     !propertyDocs.some((d: any) => d.kind === "REGLEMENT_COPROPRIETE")
   ) {
-    return 7;
+    return idxDocuments;
   }
   if (values.propertyLegalStatus === BienLegalStatus.LOTISSEMENT) {
     const hasCahier = propertyDocs.some(
@@ -727,7 +814,7 @@ const findFirstIncompleteStep = (
     const hasStatut = propertyDocs.some(
       (d: any) => d.kind === "STATUT_DE_LASSOCIATION_SYNDICALE"
     );
-    if (!hasCahier || !hasStatut) return 7;
+    if (!hasCahier || !hasStatut) return idxDocuments;
   }
 
   const hasInsurance = bailDocs.some((d: any) => d.kind === "INSURANCE");
@@ -764,6 +851,8 @@ const [isSaving, setIsSaving] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 const [isFileUploading, setIsFileUploading] = useState(false);
 const [documentsReadyForSubmission, setDocumentsReadyForSubmission] = useState(false);
+// Sous-étape interne dans le step clientInfo : index de la personne en cours d'édition
+const [clientInfoPersonIdx, setClientInfoPersonIdx] = useState(0);
 const hasMountedCurrentStepRef = useRef(false);
 const [submissionProgress, setSubmissionProgress] = useState({
   step: 0,
@@ -864,9 +953,17 @@ useEffect(() => {
 
   // Fonction pour supprimer une personne et mettre à jour immédiatement le raw.payload
   const handleRemovePerson = async (index: number) => {
+    // IMPORTANT: recaler activePersonIdx AVANT removePerson, sinon useFieldArray
+    // déclenche un re-render intermédiaire où personFields a perdu un élément
+    // mais activePersonIdx pointe encore sur l'index supprimé -> écran vide.
+    // (La personne principale, index 0, ne peut pas être supprimée donc index >= 1)
+    const newActiveIdx = Math.max(0, index - 1);
+    setClientInfoPersonIdx(newActiveIdx);
+    setOpenAccordionValue(`person-${newActiveIdx}`);
+
     // Supprimer la personne du formulaire
     removePerson(index);
-    
+
     // Attendre un peu pour que le formulaire soit mis à jour
     await new Promise(resolve => setTimeout(resolve, 100));
     
@@ -1065,16 +1162,28 @@ useEffect(() => {
     // Initialisation du step UNIQUEMENT au chargement du formulaire
     useEffect(() => {
       lastSavedValues.current = defaultValues as FormWithPersons;
-    
-      setCurrentStep(
-        findFirstIncompleteStep(
-          defaultValues,
-          intakeLink,
-          (defaultValues.type as ClientType | "") ||
-            (initialIntakeLink.client?.type as ClientType | "") ||
-            ""
-        )
+
+      const initialStep = findFirstIncompleteStep(
+        defaultValues,
+        intakeLink,
+        (defaultValues.type as ClientType | "") ||
+          (initialIntakeLink.client?.type as ClientType | "") ||
+          ""
       );
+      setCurrentStep(initialStep);
+
+      // Si on atterrit sur clientInfo en mode particulier, positionner sur la 1re personne incomplète
+      if (STEPS[initialStep]?.id === "clientInfo") {
+        const initialClientType =
+          (defaultValues.type as ClientType | "") ||
+          (initialIntakeLink.client?.type as ClientType | "") ||
+          "";
+        if (initialClientType === ClientType.PERSONNE_PHYSIQUE) {
+          const idx = findFirstIncompletePerson(defaultValues.persons as any);
+          setClientInfoPersonIdx(idx);
+          setOpenAccordionValue(`person-${idx}`);
+        }
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
   
@@ -1374,7 +1483,7 @@ useEffect(() => {
           return ["persons"];
         }
         return ["entreprise"];
-      case "property":
+      case "propertyAddress":
         return [
           "propertyLabel",
           "propertyFullAddress",
@@ -1388,22 +1497,24 @@ useEffect(() => {
           "propertyRegion",
           "propertyLatitude",
           "propertyLongitude",
+        ];
+      case "propertyDetails":
+        return [
           "propertySurfaceM2",
           "propertyType",
           "propertyLegalStatus",
           "propertyStatus",
         ];
-      case "bail":
+      case "bailType":
+        return ["bailType", "bailFamily"];
+      case "bailRent":
         return [
-          "bailType",
-          "bailFamily",
           "bailRentAmount",
           "bailMonthlyCharges",
           "bailSecurityDeposit",
-          "bailPaymentDay",
-          "bailEffectiveDate",
-          "bailEndDate",
-          // Mobilier - sauvegardé avec le step bail
+        ];
+      case "bailFurniture":
+        return [
           "hasLiterie",
           "hasRideaux",
           "hasPlaquesCuisson",
@@ -1417,6 +1528,12 @@ useEffect(() => {
           "hasEtageresRangement",
           "hasLuminaires",
           "hasMaterielEntretien",
+        ];
+      case "bailDates":
+        return [
+          "bailPaymentDay",
+          "bailEffectiveDate",
+          "bailEndDate",
         ];
       case "tenant":
         return ["tenantEmail"];
@@ -1776,10 +1893,22 @@ useEffect(() => {
         await refreshIntakeLinkData();
       }
 
+      // Le backend ne connaît que les anciens stepIds "property" et "bail" :
+      // on remap nos nouveaux sous-steps vers eux pour ne pas changer le serveur.
+      const backendStepId =
+        stepId === "propertyAddress" || stepId === "propertyDetails"
+          ? "property"
+          : stepId === "bailType" ||
+            stepId === "bailRent" ||
+            stepId === "bailFurniture" ||
+            stepId === "bailDates"
+          ? "bail"
+          : stepId;
+
       await savePartialIntake({
         token: intakeLink.token,
         payload,
-        stepId: stepId, // Envoyer l'ID de l'étape pour que le backend sache quelle étape traiter
+        stepId: backendStepId,
       });
 
       // ✓ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
@@ -1862,41 +1991,57 @@ useEffect(() => {
     } else {
       const fields = getRequiredFields(stepId, clientType);
   
-      // Cas particulier : clientInfo avec plusieurs personnes
+      // Cas particulier : clientInfo avec plusieurs personnes — sub-stepping interne
       if (stepId === "clientInfo" && clientType === ClientType.PERSONNE_PHYSIQUE) {
         const persons = form.watch("persons") || [];
-        const personsFields = persons.map((_, index) => `persons.${index}` as const);
-        const allFields = [...fields, ...personsFields];
+        const currentPersonField = `persons.${clientInfoPersonIdx}` as const;
 
-        const valid = await trigger(allFields as any);
+        // Valider uniquement la personne en cours d'édition
+        const valid = await trigger([...fields, currentPersonField] as any);
         if (!valid) {
-          const errors = form.formState.errors;
-
-          const personsErrors = errors.persons;
-          if (Array.isArray(personsErrors)) {
-            const indexWithError = personsErrors.findIndex(
-              (personError) => personError && Object.keys(personError).length > 0
-            );
-
-            if (indexWithError !== -1) {
-              setOpenAccordionValue(`person-${indexWithError}`);
-            }
-          }
-
+          setOpenAccordionValue(`person-${clientInfoPersonIdx}`);
           return;
         }
+
+        // S'il reste des personnes à éditer, avancer la sous-étape sans changer de step principal
+        if (clientInfoPersonIdx < persons.length - 1) {
+          // Sauvegarder en arrière-plan puis avancer
+          try {
+            await saveCurrentStep(false, false);
+          } catch (error: any) {
+            const message = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
+            toast.error(message);
+            return;
+          }
+          setClientInfoPersonIdx((idx) => idx + 1);
+          setOpenAccordionValue(`person-${clientInfoPersonIdx + 1}`);
+          return;
+        }
+        // Dernière personne validée → on continue vers summary (logique standard plus bas)
+      } else if (stepId === "bailType") {
+        // Cas spécial bailType : on ne déclenche PAS trigger() qui ferait exécuter
+        // le superRefine du schéma Zod (lequel ajoute une erreur sur bailType si
+        // bail meublé sans mobilier coché, alors que le step Mobilier vient après).
+        // On valide juste manuellement que la valeur est définie.
+        const value = form.getValues("bailType");
+        if (!value) {
+          form.setError("bailType", { type: "manual", message: "Le type de bail est requis" });
+          return;
+        }
+        // Nettoyer toute erreur résiduelle (notamment celle du superRefine sur
+        // les équipements obligatoires) qui ne doit pas bloquer ici.
+        form.clearErrors("bailType");
       } else {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
         if (!valid) return;
-        
-        // Validation spéciale pour le step bail : vérifier le mobilier si bail meublé
-        if (stepId === "bail") {
+
+        // Validation spéciale pour le step bailFurniture : vérifier le mobilier si bail meublé
+        if (stepId === "bailFurniture") {
           const bailType = form.getValues("bailType");
           const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
-          
+
           if (isMeubleBail) {
-            // Vérifier que tous les équipements sont présents
             const furnitureFields = [
               'hasLiterie',
               'hasRideaux',
@@ -1912,47 +2057,56 @@ useEffect(() => {
               'hasLuminaires',
               'hasMaterielEntretien',
             ] as const;
-            
+
             const values = form.getValues();
             const missingFurniture = furnitureFields.filter(
               (field) => !values[field] || values[field] !== true
             );
-            
+
             if (missingFurniture.length > 0) {
-              // Ajouter des erreurs sur les champs manquants
               missingFurniture.forEach((field) => {
                 form.setError(field as keyof FormWithPersons, {
                   type: 'manual',
                   message: 'Cet équipement est requis pour un bail meublé',
                 });
               });
-              
-              // Ajouter une erreur sur bailType
+
               form.setError('bailType', {
                 type: 'manual',
                 message: 'Tous les équipements doivent être présents pour un bail meublé',
               });
-              
+
               toast.error("Mobilier incomplet", {
                 description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
                 duration: 6000,
               });
-              
+
               return;
             }
           }
         }
-        
+
         // Le locataire peut être ajouté plus tard : cette étape est skippable.
       }
     }
   
     // 2. Calcul du step suivant
     const summaryIndex = STEPS.findIndex((s) => s.id === "summary");
-    const nextStep =
-      stepId === "clientInfo" && summaryIndex !== -1
-        ? summaryIndex
-        : Math.min(currentStep + 1, STEPS.length - 1);
+    const bailDatesIndex = STEPS.findIndex((s) => s.id === "bailDates");
+    const computedBailType = form.getValues("bailType");
+    const isMeubleBail =
+      computedBailType === BailType.BAIL_MEUBLE_1_ANS ||
+      computedBailType === BailType.BAIL_MEUBLE_9_MOIS;
+
+    let nextStep: number;
+    if (stepId === "clientInfo" && summaryIndex !== -1) {
+      nextStep = summaryIndex;
+    } else if (stepId === "bailRent" && !isMeubleBail && bailDatesIndex !== -1) {
+      // Skip "bailFurniture" lorsque le bail n'est pas meublé
+      nextStep = bailDatesIndex;
+    } else {
+      nextStep = Math.min(currentStep + 1, STEPS.length - 1);
+    }
   
     // 3. Sauvegarde
     // Pour l'étape clientInfo, toujours sauvegarder si des données de personnes sont présentes
@@ -1978,10 +2132,15 @@ useEffect(() => {
     }
   
     try {
-      await saveCurrentStep(false, shouldSkipIfUnchanged);
-      
+      await saveCurrentStep(false, false);
+
       // Passer à l'étape suivante APRÈS la sauvegarde
       setCurrentStep(nextStep);
+      // Si on entre dans clientInfo en marche avant (depuis clientType), repartir sur la 1re personne
+      if (STEPS[nextStep]?.id === "clientInfo") {
+        setClientInfoPersonIdx(0);
+        setOpenAccordionValue("person-0");
+      }
     } catch (error: any) {
       console.error("Erreur lors de la sauvegarde:", error);
       const message =
@@ -2008,17 +2167,50 @@ useEffect(() => {
   
 
   const handlePrevious = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 0));
+    const currentStepId = STEPS[currentStep]?.id;
+
+    // Reculer personne par personne dans clientInfo
+    if (
+      currentStepId === "clientInfo" &&
+      clientType === ClientType.PERSONNE_PHYSIQUE &&
+      clientInfoPersonIdx > 0
+    ) {
+      setClientInfoPersonIdx((idx) => Math.max(0, idx - 1));
+      setOpenAccordionValue(`person-${clientInfoPersonIdx - 1}`);
+      return;
+    }
+
+    setCurrentStep((prev) => {
+      const target = Math.max(prev - 1, 0);
+      // Skip bailFurniture en arrière si le bail n'est pas meublé
+      if (STEPS[target]?.id === "bailFurniture") {
+        const bailType = form.getValues("bailType");
+        const isMeubleBail =
+          bailType === BailType.BAIL_MEUBLE_1_ANS ||
+          bailType === BailType.BAIL_MEUBLE_9_MOIS;
+        if (!isMeubleBail) {
+          return Math.max(target - 1, 0);
+        }
+      }
+      // Quand on entre dans clientInfo en reculant depuis summary, montrer la dernière personne
+      if (STEPS[target]?.id === "clientInfo" && clientType === ClientType.PERSONNE_PHYSIQUE) {
+        const persons = form.getValues("persons") || [];
+        const lastIdx = Math.max(0, persons.length - 1);
+        setClientInfoPersonIdx(lastIdx);
+        setOpenAccordionValue(`person-${lastIdx}`);
+      }
+      return target;
+    });
   };
 
   const handleManualSave = async () => {
     const stepId = STEPS[currentStep].id;
     
-    // Validation spéciale pour le step bail : vérifier le mobilier si bail meublé
-    if (stepId === "bail") {
+    // Validation spéciale pour le step bailFurniture : vérifier le mobilier si bail meublé
+    if (stepId === "bailFurniture") {
       const bailType = form.getValues("bailType");
       const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
-      
+
       if (isMeubleBail) {
         // Vérifier que tous les équipements sont présents
         const furnitureFields = [
@@ -2036,12 +2228,12 @@ useEffect(() => {
           'hasLuminaires',
           'hasMaterielEntretien',
         ] as const;
-        
+
         const values = form.getValues();
         const missingFurniture = furnitureFields.filter(
           (field) => !values[field] || values[field] !== true
         );
-        
+
         if (missingFurniture.length > 0) {
           // Ajouter des erreurs sur les champs manquants
           missingFurniture.forEach((field) => {
@@ -2050,13 +2242,13 @@ useEffect(() => {
               message: 'Cet équipement est requis pour un bail meublé',
             });
           });
-          
+
           // Ajouter une erreur sur bailType
           form.setError('bailType', {
             type: 'manual',
             message: 'Tous les équipements doivent être présents pour un bail meublé',
           });
-          
+
           toast.error("Mobilier incomplet", {
             description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
             duration: 6000,
@@ -2474,15 +2666,31 @@ useEffect(() => {
               openAccordionValue={openAccordionValue}
               setOpenAccordionValue={setOpenAccordionValue}
               refreshIntakeLinkData={refreshIntakeLinkData}
+              activePersonIdx={clientInfoPersonIdx}
+              setActivePersonIdx={setClientInfoPersonIdx}
             />
           )}
           {STEPS[currentStep].id === "summary" && (
             <SummaryStep values={summaryValues as FormWithPersons} clientType={clientType} />
           )}
-          {STEPS[currentStep].id === "property" && (
-            <PropertyStep form={form as any} isMobile={isMobile} />
+          {STEPS[currentStep].id === "propertyAddress" && (
+            <PropertyStep form={form as any} isMobile={isMobile} slice="address" />
           )}
-          {STEPS[currentStep].id === "bail" && <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} />}
+          {STEPS[currentStep].id === "propertyDetails" && (
+            <PropertyStep form={form as any} isMobile={isMobile} slice="details" />
+          )}
+          {STEPS[currentStep].id === "bailType" && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="type" />
+          )}
+          {STEPS[currentStep].id === "bailRent" && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="rent" />
+          )}
+          {STEPS[currentStep].id === "bailFurniture" && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="furniture" />
+          )}
+          {STEPS[currentStep].id === "bailDates" && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="dates" />
+          )}
           {STEPS[currentStep].id === "tenant" && (
             <TenantStep
               form={form as any}
@@ -2490,13 +2698,22 @@ useEffect(() => {
               documentsReadyForSubmission={documentsReadyForSubmission}
             />
           )}
-          {STEPS[currentStep].id === "payment" && (
-            <PaymentStep
-              token={intakeLink.token}
-              onPaymentSuccess={submitAfterPayment}
-              isSubmitting={isSubmitting}
-            />
-          )}
+          {STEPS[currentStep].id === "payment" && (() => {
+            const ownerPeopleCount =
+              clientType === ClientType.PERSONNE_MORALE
+                ? 1
+                : Math.max(1, personsWatch?.length ?? 1);
+            const totalPeopleCount = Math.max(2, ownerPeopleCount + 1);
+            return (
+              <PaymentStep
+                token={intakeLink.token}
+                onPaymentSuccess={submitAfterPayment}
+                isSubmitting={isSubmitting}
+                rentAmount={parseFloat(String(form.watch("bailRentAmount") ?? "0")) || 0}
+                peopleCount={totalPeopleCount}
+              />
+            );
+          })()}
           {STEPS[currentStep].id === "documents" && (
             <DocumentsStep
               form={form as any}
@@ -2811,6 +3028,8 @@ type ClientInfoStepProps = {
   openAccordionValue: string;
   setOpenAccordionValue: (value: string) => void;
   refreshIntakeLinkData: () => Promise<IntakeLink | null>;
+  activePersonIdx: number;
+  setActivePersonIdx: React.Dispatch<React.SetStateAction<number>>;
 };
 
 const ClientInfoStep = ({
@@ -2824,6 +3043,8 @@ const ClientInfoStep = ({
   openAccordionValue,
   setOpenAccordionValue,
   refreshIntakeLinkData,
+  activePersonIdx,
+  setActivePersonIdx,
 }: ClientInfoStepProps) => {
   // Observer le statut familial pour chaque personne
   const watchedFamilyStatuses = personFields.map((_, index) => 
@@ -2881,19 +3102,20 @@ const ClientInfoStep = ({
 
   if (clientType === ClientType.PERSONNE_MORALE) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Informations de l'entreprise</CardTitle>
-          <CardDescription>
-          Renseignez les informations concernant votre société.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="space-y-5">
+        <div>
+          <p className="text-xl font-semibold">Informations de l&apos;entreprise</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Renseignez les informations concernant votre société.
+          </p>
+        </div>
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="entreprise.legalName">Raison sociale *</Label>
-            <Input 
-              id="entreprise.legalName" 
-              {...form.register("entreprise.legalName" as any)} 
+            <Input
+              id="entreprise.legalName"
+              className="h-11"
+              {...form.register("entreprise.legalName" as any)}
             />
             {form.formState.errors.entreprise?.legalName && (
               <p className="text-sm text-destructive">
@@ -2903,9 +3125,10 @@ const ClientInfoStep = ({
           </div>
           <div className="space-y-2">
             <Label htmlFor="entreprise.registration">SIREN/SIRET *</Label>
-            <Input 
-              id="entreprise.registration" 
-              {...form.register("entreprise.registration" as any)} 
+            <Input
+              id="entreprise.registration"
+              className="h-11"
+              {...form.register("entreprise.registration" as any)}
             />
             {form.formState.errors.entreprise?.registration && (
               <p className="text-sm text-destructive">
@@ -2915,9 +3138,10 @@ const ClientInfoStep = ({
           </div>
           <div className="space-y-2">
             <Label htmlFor="entreprise.name">Nom commercial *</Label>
-            <Input 
-              id="entreprise.name" 
-              {...form.register("entreprise.name" as any)} 
+            <Input
+              id="entreprise.name"
+              className="h-11"
+              {...form.register("entreprise.name" as any)}
             />
             {form.formState.errors.entreprise?.name && (
               <p className="text-sm text-destructive">
@@ -2927,12 +3151,12 @@ const ClientInfoStep = ({
           </div>
           <div className="space-y-2">
             <Label htmlFor="entreprise.email">Email *</Label>
-            <Input 
-              id="entreprise.email" 
-              type="email" 
+            <Input
+              id="entreprise.email"
+              type="email"
               disabled={isEmailLocked}
-              className={isEmailLocked ? "bg-muted cursor-not-allowed" : ""}
-              {...form.register("entreprise.email" as any)} 
+              className={`h-11 ${isEmailLocked ? "bg-muted cursor-not-allowed" : ""}`}
+              {...form.register("entreprise.email" as any)}
             />
             {isEmailLocked && (
               <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
@@ -2974,69 +3198,118 @@ const ClientInfoStep = ({
               </p>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
+  const totalPersons = personFields.length || 1;
+  const isLastPerson = activePersonIdx >= totalPersons - 1;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informations du ou des propriétaires</CardTitle>
-        <CardDescription>
-        Renseignez les informations concernant le ou les propriétaires du bien.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <Accordion 
-          type="single" 
-          className="w-full" 
+    <div className="space-y-5">
+      <div>
+        <p className="text-xl font-semibold">
+          Propriétaire {totalPersons > 1 ? activePersonIdx + 1 : ""}{" "}
+          {totalPersons > 1 && (
+            <span className="text-sm font-normal text-muted-foreground">
+              sur {totalPersons}
+            </span>
+          )}
+        </p>
+        <p className="text-sm text-muted-foreground mt-1">
+          {activePersonIdx === 0
+            ? "Informations du propriétaire principal."
+            : "Informations de ce copropriétaire."}
+        </p>
+      </div>
+      {totalPersons > 1 && (
+        <div className="flex gap-1.5">
+          {Array.from({ length: totalPersons }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                setActivePersonIdx(i);
+                setOpenAccordionValue(`person-${i}`);
+              }}
+              className={`flex-1 h-1.5 rounded-full transition-colors ${
+                i === activePersonIdx ? "bg-primary" : i < activePersonIdx ? "bg-primary/40" : "bg-muted"
+              }`}
+              aria-label={`Aller à la personne ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
+      <div className="space-y-6">
+        <Accordion
+          type="single"
+          className="w-full"
           collapsible
-          value={openAccordionValue}
-          onValueChange={(value) => setOpenAccordionValue(value || `person-0`)}
+          value={`person-${activePersonIdx}`}
+          onValueChange={(value) => setOpenAccordionValue(value || `person-${activePersonIdx}`)}
         >
-          {personFields.map((field, index) => (
-            <AccordionItem key={field.id} value={`person-${index}`}>
-              <AccordionTrigger className="flex flex-row items-start gap-2 py-4">
-                <div className="flex flex-row items-center justify-between w-full pr-4">
-                  <div className="flex flex-row items-center gap-4">
-                    <div className="flex flex-col items-start ">
-                      <div className="flex flex-row items-center gap-2">
-                        {form.watch(`persons.${index}.firstName`) && form.watch(`persons.${index}.lastName`) ? form.watch(`persons.${index}.firstName`) + " " + form.watch(`persons.${index}.lastName`) : "Personne " + (index + 1)}
-                        {index === 0 && " (Principale)"}
+          {personFields.map((field, index) => {
+            if (index !== activePersonIdx) return null;
+            return (
+            <AccordionItem
+              key={field.id}
+              value={`person-${index}`}
+              className="border rounded-xl px-4 mb-3 last:mb-0 data-[state=open]:bg-muted/30"
+            >
+              <AccordionTrigger className="hover:no-underline py-3">
+                <div className="flex w-full items-center justify-between gap-3 pr-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+                      {index + 1}
+                    </div>
+                    <div className="flex flex-col items-start min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium truncate">
+                          {form.watch(`persons.${index}.firstName`) && form.watch(`persons.${index}.lastName`)
+                            ? `${form.watch(`persons.${index}.firstName`)} ${form.watch(`persons.${index}.lastName`)}`
+                            : `Personne ${index + 1}`}
+                        </span>
+                        {index === 0 && (
+                          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                            Principale
+                          </span>
+                        )}
                         {hasPersonErrors(index) && (
                           <AlertCircle className="size-4 text-destructive shrink-0" />
                         )}
-                        {
-                        index > 0 && (
-                            <div
-                              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-10 w-10 shrink-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPersonToDeleteIndex(index);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="size-4 text-red-400" />
-                            </div>)
-                        }
                       </div>
                       {hasPersonErrors(index) && getPersonMainError(index) && (
-                        <p className="text-sm text-destructive w-full text-left pr-4">
-                          {getPersonMainError(index)&&"Erreurs détectées."}
+                        <p className="text-xs text-destructive text-left">
+                          Erreurs détectées.
                         </p>
                       )}
                     </div>
                   </div>
+                  {index > 0 && (
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="inline-flex items-center justify-center rounded-md h-9 w-9 shrink-0 hover:bg-destructive/10 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPersonToDeleteIndex(index);
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </div>
+                  )}
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="space-y-4  pt-4">
-                <div className="grid gap-4 grid-cols-2 ">
+              <AccordionContent className="space-y-4 pt-2 pb-4">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor={`persons.${index}.firstName`}>
                       Prénom *
                     </Label>
                     <Input
+                      className="h-11"
                       {...form.register(`persons.${index}.firstName` as any)}
                     />
                     {form.formState.errors.persons?.[index]?.firstName && (
@@ -3050,6 +3323,7 @@ const ClientInfoStep = ({
                       Nom *
                     </Label>
                     <Input
+                      className="h-11"
                       {...form.register(`persons.${index}.lastName` as any)}
                     />
                     {form.formState.errors.persons?.[index]?.lastName && (
@@ -3059,7 +3333,7 @@ const ClientInfoStep = ({
                     )}
                   </div>
                 </div>
-                <div className="grid gap-4 grid-cols-2 ">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor={`persons.${index}.email`}>
                       Email *
@@ -3068,7 +3342,7 @@ const ClientInfoStep = ({
                       type="email"
                       {...form.register(`persons.${index}.email` as any)}
                       disabled={isPrimaryPersonEmailLocked && index === 0}
-                      className={isPrimaryPersonEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}
+                      className={`h-11 ${isPrimaryPersonEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}`}
                     />
 
                     {form.formState.errors.persons?.[index]?.email && (
@@ -3115,12 +3389,13 @@ const ClientInfoStep = ({
                     </p>
                   )}
                 </div>
-                <div className="grid gap-4 grid-cols-2 ">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor={`persons.${index}.profession`}>
                       Profession *
                     </Label>
                     <Input
+                      className="h-11"
                       {...form.register(`persons.${index}.profession` as any)}
                     />
                     {form.formState.errors.persons?.[index]?.profession && (
@@ -3169,7 +3444,7 @@ const ClientInfoStep = ({
                             }
                           }}
                         >
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full h-11">
                             <SelectValue placeholder="Sélectionner" />
                           </SelectTrigger>
                           <SelectContent>
@@ -3201,7 +3476,7 @@ const ClientInfoStep = ({
                             value={field.value ?? undefined}
                             onValueChange={field.onChange}
                           >
-                            <SelectTrigger className="w-full">
+                            <SelectTrigger className="w-full h-11">
                               <SelectValue placeholder="Sélectionner" />
                             </SelectTrigger>
                             <SelectContent>
@@ -3222,12 +3497,13 @@ const ClientInfoStep = ({
                     </div>
                   )}
                 </div>
-                <div className="grid gap-4 grid-cols-2 ">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor={`persons.${index}.birthPlace`}>
                       Lieu de naissance *
                     </Label>
                     <Input
+                      className="h-11"
                       {...form.register(`persons.${index}.birthPlace` as any)}
                     />
                     {form.formState.errors.persons?.[index]?.birthPlace && (
@@ -3261,22 +3537,26 @@ const ClientInfoStep = ({
                 </div>
               </AccordionContent>
             </AccordionItem>
-          ))}
+            );
+          })}
         </Accordion>
-        {personFields.length < 2 && <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            appendPerson({ ...emptyPerson } as any);
-            // Ouvrir l'accordéon de la nouvelle personne ajoutée
-            const newIndex = personFields.length;
-            setOpenAccordionValue(`person-${newIndex}`);
-          }}
-          className="w-full"
-        >
-          Ajouter une personne
-        </Button>}
-      </CardContent>
+        {isLastPerson && personFields.length < 2 && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              const newIndex = personFields.length;
+              appendPerson({ ...emptyPerson } as any);
+              setActivePersonIdx(newIndex);
+              setOpenAccordionValue(`person-${newIndex}`);
+            }}
+            className="w-full h-11 gap-2 border-dashed"
+          >
+            <Plus className="h-4 w-4" />
+            Une autre personne est propriétaire
+          </Button>
+        )}
+      </div>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
@@ -3351,7 +3631,7 @@ const ClientInfoStep = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 };
 
@@ -3517,23 +3797,31 @@ const SummaryStep = ({ values, clientType }: SummaryStepProps) => {
 type PropertyStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
   isMobile: boolean;
+  slice?: "address" | "details";
 };
 
-const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
+const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
   const propertyInseeCode = useWatch({ control: form.control, name: "propertyInseeCode" });
+  const showAddress = !slice || slice === "address";
+  const showDetails = !slice || slice === "details";
   
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informations du bien</CardTitle>
-        <CardDescription>
-          Remplissez les informations en rapport avec le bien.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-5">
+      <div>
+        <p className="text-xl font-semibold">
+          {slice === "details" ? "Caractéristiques du bien" : "Adresse du bien"}
+        </p>
+        <p className="text-sm text-muted-foreground mt-1">
+          {slice === "details"
+            ? "Type d'habitat, surface et régime juridique."
+            : "Adresse complète du bien à louer."}
+        </p>
+      </div>
+      <div className="space-y-4">
+        {showAddress && (<>
         <div className="space-y-2">
           <Label htmlFor="propertyLabel">Libellé</Label>
-          <Input id="propertyLabel" {...form.register("propertyLabel")} />
+          <Input id="propertyLabel" className="h-11" {...form.register("propertyLabel")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="propertyFullAddress">Adresse complète du bien *</Label>
@@ -3568,6 +3856,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           <Label htmlFor="propertyPostalCode">Code postal *</Label>
           <Input
             id="propertyPostalCode"
+            className="h-11"
             {...form.register("propertyPostalCode")}
             placeholder="75001"
             value={form.watch("propertyPostalCode") || ""}
@@ -3582,6 +3871,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           <Label htmlFor="propertyCity">Ville *</Label>
           <Input
             id="propertyCity"
+            className="h-11"
             {...form.register("propertyCity")}
             placeholder="Paris"
             value={form.watch("propertyCity") || ""}
@@ -3593,6 +3883,8 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           )}
         </div>
       </div>
+        </>)}
+        {showDetails && (<>
       <div className="grid gap-3 sm:gap-4 grid-cols-1">
         <div className="space-y-2">
           <div className="flex items-center gap-2 pb-2">
@@ -3610,47 +3902,52 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
             name="propertyType"
             control={form.control}
             render={({ field }) => {
-              const fieldValue = typeof field.value === 'string' ? field.value : undefined;
+              const value = typeof field.value === 'string' ? field.value : undefined;
               return (
-              <RadioGroup
-                value={fieldValue}
-                onValueChange={(value) => field.onChange(value as BienType)}
-                className="flex flex-row space-x-3 w-full items-center justify-between "
-              >
-                <Label
-                  htmlFor="appartement"
-                  className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                    field.value === BienType.APPARTEMENT ? "bg-accent" : ""
-                  }`}
-                >
-                  <RadioGroupItem
-                    value={BienType.APPARTEMENT}
-                    className="hidden"
-                    id="appartement"
-                  />
-                  <Building2 className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium text-center">
-                    Immeuble {isMobile ? <br /> : ""} collectif
-                  </div>
-                </Label>
-
-                <Label
-                  htmlFor="maison"
-                  className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                    field.value === BienType.MAISON ? "bg-accent" : ""
-                  }`}
-                >
-                  <RadioGroupItem
-                    value={BienType.MAISON}
-                    className="hidden"
-                    id="maison"
-                  />
-                  <Building className="size-5 text-muted-foreground" />
-                  <div className="text-sm font-medium text-center">
-                    Immeuble {isMobile ? <br /> : ""} individuel
-                  </div>
-                </Label>
-              </RadioGroup>
+                <div className="space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={() => field.onChange(BienType.APPARTEMENT)}
+                    className={cn(
+                      "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+                      value === BienType.APPARTEMENT
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/30 hover:bg-muted/40"
+                    )}
+                  >
+                    <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", value === BienType.APPARTEMENT ? "bg-primary/10" : "bg-muted")}>
+                      <Building2 className={cn("h-4 w-4", value === BienType.APPARTEMENT ? "text-primary" : "text-muted-foreground")} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">Immeuble collectif</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Appartement dans un immeuble</p>
+                    </div>
+                    {value === BienType.APPARTEMENT && (
+                      <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => field.onChange(BienType.MAISON)}
+                    className={cn(
+                      "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+                      value === BienType.MAISON
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/30 hover:bg-muted/40"
+                    )}
+                  >
+                    <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", value === BienType.MAISON ? "bg-primary/10" : "bg-muted")}>
+                      <Building className={cn("h-4 w-4", value === BienType.MAISON ? "text-primary" : "text-muted-foreground")} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">Immeuble individuel</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Maison ou pavillon</p>
+                    </div>
+                    {value === BienType.MAISON && (
+                      <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    )}
+                  </button>
+                </div>
               );
             }}
           />
@@ -3661,7 +3958,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           )}
         </div>
       </div>
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 ">
+      <div className="space-y-4">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Label htmlFor="propertySurfaceM2">Surface *</Label>
@@ -3680,6 +3977,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
             unit="m²"
             step={0.01}
             isDecimal
+            className="h-11"
           />
           {form.formState.errors.propertySurfaceM2 && (
             <p className="text-sm text-destructive">
@@ -3696,7 +3994,7 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
               const fieldValue = typeof field.value === 'string' ? field.value : undefined;
               return (
               <Select value={fieldValue} onValueChange={field.onChange}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full h-11">
                   <SelectValue placeholder="Sélectionner le régime juridique" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3721,14 +4019,16 @@ const PropertyStep = ({ form, isMobile }: PropertyStepProps) => {
           )}
         </div>
       </div>
-    </CardContent>
-  </Card>
+        </>)}
+    </div>
+  </div>
   );
 };
 
 type BailStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
   propertyId?: string | null;
+  slice?: "type" | "rent" | "furniture" | "dates";
 };
 
 // Composant séparé pour afficher la validation du dépôt de garantie
@@ -3792,7 +4092,11 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
   );
 };
 
-const BailStep = ({ form, propertyId }: BailStepProps) => {
+const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
+  const showType = !slice || slice === "type";
+  const showRent = !slice || slice === "rent";
+  const showFurniture = !slice || slice === "furniture";
+  const showDates = !slice || slice === "dates";
   
   const isMobile = useIsMobile();
   
@@ -3809,7 +4113,22 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
   // Vérifier si le bail actuel est un bail meublé
   const currentBailType = useWatch({ control: form.control, name: "bailType" });
   const isMeubleBail = currentBailType === BailType.BAIL_MEUBLE_1_ANS || currentBailType === BailType.BAIL_MEUBLE_9_MOIS;
-  
+
+  // Calcul automatique de la date de fin du bail à partir du type + date de début
+  const watchedEffectiveDate = useWatch({ control: form.control, name: "bailEffectiveDate" });
+  const computedBailEndDate = useMemo(
+    () => computeBailEndDate(watchedEffectiveDate as any, currentBailType as any),
+    [watchedEffectiveDate, currentBailType]
+  );
+  useEffect(() => {
+    if (computedBailEndDate) {
+      form.setValue("bailEndDate", dateToIsoDay(computedBailEndDate) as any, { shouldDirty: true });
+    } else if (form.getValues("bailEndDate")) {
+      form.setValue("bailEndDate", "" as any);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedBailEndDate]);
+
   // Surveillance du loyer et de la surface pour validation zone tendue
   const rentAmount = useWatch({ control: form.control, name: "bailRentAmount" });
   const surfaceM2 = useWatch({ control: form.control, name: "propertySurfaceM2" });
@@ -3862,21 +4181,30 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
     }
   }, [isMeubleBail, form]);
   
+  const titles: Record<NonNullable<typeof slice>, { title: string; subtitle: string }> = {
+    type: { title: "Type de contrat", subtitle: "Choisissez le type de bail à mettre en place." },
+    rent: { title: "Loyer & charges", subtitle: "Montant du loyer, charges et dépôt de garantie." },
+    furniture: { title: "Mobilier du logement", subtitle: "Cochez tous les équipements obligatoires pour un bail meublé." },
+    dates: { title: "Dates du bail", subtitle: "Date de prise d'effet, fin éventuelle et jour de paiement." },
+  };
+  const header = slice ? titles[slice] : { title: "Informations du bail", subtitle: "Renseignez les paramètres du bail." };
+
   return (
-  <Card>
-    <CardHeader>
-      <CardTitle>Informations du bail</CardTitle>
-      <CardDescription>Renseignez les paramètres du bail.</CardDescription>
-    </CardHeader>
-    <CardContent className="space-y-4">
+  <div className="space-y-5">
+    <div>
+      <p className="text-xl font-semibold">{header.title}</p>
+      <p className="text-sm text-muted-foreground mt-1">{header.subtitle}</p>
+    </div>
+    <div className="space-y-4">
+      {showType && (<>
       <div className="space-y-2">
         <Label htmlFor="bailType">Type de bail *</Label>
         <Controller
           name="bailType"
           control={form.control}
           render={({ field }) => (
-            <Select 
-              value={field.value ?? undefined} 
+            <Select
+              value={field.value ?? undefined}
               onValueChange={(value) => {
                 field.onChange(value);
                 // Réinitialiser les erreurs de validation après changement
@@ -3890,7 +4218,7 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
                 }
               }}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full h-11">
                 <SelectValue placeholder="Sélectionner" />
               </SelectTrigger>
               <SelectContent>
@@ -3914,65 +4242,61 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
             {form.formState.errors.bailType.message}
           </p>
         )}
-        {isMeubleBail && !allFurniturePresent && !form.formState.errors.bailType && (
-          <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1">
-            <AlertCircle className="h-4 w-4" />
-            Pour valider et passer à l'étape suivante, tous les équipements doivent être cochés pour un bail meublé.
+      </div>
+      </>)}
+      {showRent && (<>
+      <div className="space-y-2">
+        <div className="flex flex-row items-center gap-2">
+          <Label>Loyer mensuel *</Label>
+          <InfoTooltip
+            content={
+              <div className="max-w-xs">
+                <p className="mb-2">LIMITATIONS DES LOYERS</p>
+                <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
+                <a
+                  href="https://www.service-public.fr/simulateur/calcul/zones-tendues"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline hover:text-primary/80"
+                >
+                  https://www.service-public.fr/simulateur/calcul/zones-tendues
+                </a>
+              </div>
+            }
+            className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+          >
+            <button type="button" className="inline-flex items-center">
+              <InfoIcon className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </InfoTooltip>
+        </div>
+        <NumberInputGroup
+          field={form.register("bailRentAmount")}
+          min={0}
+          step={1}
+          unit="€"
+          className="h-11"
+        />
+        {form.formState.errors.bailRentAmount && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.bailRentAmount.message}
           </p>
         )}
       </div>
-      <div className="grid gap-3 sm:gap-4 grid-cols-2">
-        <div className="space-y-2">
-          <div className="flex flex-row items-center gap-2">
-          <Label>Loyer mensuel *</Label>
-          <InfoTooltip 
-                content={
-                  <div className="max-w-xs">
-                    <p className="mb-2">LIMITATIONS DES LOYERS</p>
-                    <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
-                    <a 
-                      href="https://www.service-public.fr/simulateur/calcul/zones-tendues" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary underline hover:text-primary/80"
-                    >
-                      https://www.service-public.fr/simulateur/calcul/zones-tendues
-                    </a>
-                  </div>
-                }
-                className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
-              >
-                <button type="button" className="inline-flex items-center">
-                  <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </InfoTooltip>
-            </div>
-          <NumberInputGroup
-            field={form.register("bailRentAmount")}
-            min={0}
-            step={1}
-            unit="€"
-          />
-          {form.formState.errors.bailRentAmount && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.bailRentAmount.message}
-            </p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label>Charges mensuelles *</Label>
-      <NumberInputGroup
-        field={form.register("bailMonthlyCharges")}
-        min={0}
-        step={1}
-        unit="€"
-      />
-          {form.formState.errors.bailMonthlyCharges && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.bailMonthlyCharges.message}
-            </p>
-          )}
-        </div>
+      <div className="space-y-2">
+        <Label>Charges mensuelles *</Label>
+        <NumberInputGroup
+          field={form.register("bailMonthlyCharges")}
+          min={0}
+          step={1}
+          unit="€"
+          className="h-11"
+        />
+        {form.formState.errors.bailMonthlyCharges && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.bailMonthlyCharges.message}
+          </p>
+        )}
       </div>
 
       {/* Avertissement zone tendue - affiché dès l'entrée dans l'étape si le bien est en zone tendue */}
@@ -3986,73 +4310,68 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
         />
       )}
 
-      <div className="grid gap-3 sm:gap-4 grid-cols-2">
-        <div className="space-y-2">
-          <div className="flex flex-row items-center gap-2">
+      <div className="space-y-2">
+        <div className="flex flex-row items-center gap-2">
           <Label>Dépôt de garantie *</Label>
           <SecurityDepositTooltipContent control={form.control} isMobile={isMobile} />
-          </div>
-          <NumberInputGroup
-            field={form.register("bailSecurityDeposit")}
-            min={0}
-            step={1}
-            unit="€"
-          />
-          <SecurityDepositValidation control={form.control} />
         </div>
-        <div className="space-y-2">
-          <Label>Jour de paiement *</Label>
-          <NumberInputGroup
-            field={form.register("bailPaymentDay")}
-            min={1}
-            max={28}
-            step={1}
-          />
-          {form.formState.errors.bailPaymentDay && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.bailPaymentDay.message}
-            </p>
-          )}
-        </div>
+        <NumberInputGroup
+          field={form.register("bailSecurityDeposit")}
+          min={0}
+          step={1}
+          unit="€"
+          className="h-11"
+        />
+        <SecurityDepositValidation control={form.control} />
+      </div>
+      </>)}
+      {showDates && (<>
+      <div className="space-y-2">
+        <Label>Jour de paiement *</Label>
+        <NumberInputGroup
+          field={form.register("bailPaymentDay")}
+          min={1}
+          max={28}
+          step={1}
+          className="h-11"
+        />
+        {form.formState.errors.bailPaymentDay && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.bailPaymentDay.message}
+          </p>
+        )}
       </div>
 
-      <div className="grid gap-3 sm:gap-4 grid-cols-2">
-        <div className="space-y-2">
-          <Label>Date de prise d'effet *</Label>
-          <Controller
-            name="bailEffectiveDate"
-            control={form.control}
-            render={({ field }) => (
-              <DatePicker
-                value={field.value ? toDateValue(field.value as any) : undefined}
-                onChange={(val) => field.onChange(toDateValue(val as any) || "")}
-              />
-            )}
-          />
-          {form.formState.errors.bailEffectiveDate && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.bailEffectiveDate.message as string}
-            </p>
+      <div className="space-y-2">
+        <Label>Date de prise d'effet *</Label>
+        <Controller
+          name="bailEffectiveDate"
+          control={form.control}
+          render={({ field }) => (
+            <DatePicker
+              value={field.value ? toDateValue(field.value as any) : undefined}
+              onChange={(val) => field.onChange(toDateValue(val as any) || "")}
+            />
           )}
-        </div>
-        <div className="space-y-2">
-          <Label>Date de fin (optionnel)</Label>
-          <Controller
-            name="bailEndDate"
-            control={form.control}
-            render={({ field }) => (
-              <DatePicker
-                value={field.value ? toDateValue(field.value as any) : undefined}
-                onChange={(val) => field.onChange(toDateValue(val as any) || "")}
-              />
-            )}
-          />
-        </div>
+        />
+        {form.formState.errors.bailEffectiveDate && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.bailEffectiveDate.message as string}
+          </p>
+        )}
+        {computedBailEndDate && (
+          <p className="text-sm text-muted-foreground">
+            Le bail se terminera le{" "}
+            <span className="font-medium text-slate-900">{formatDateFr(computedBailEndDate)}</span>
+            .
+          </p>
+        )}
       </div>
+      </>)}
 
-      {/* Section Mobilier pour location meublée - affichée uniquement si bail meublé sélectionné */}
-      {isMeubleBail && (
-        <div className="space-y-4 pt-4 border-t">
+      {/* Section Mobilier pour location meublée - rendue uniquement sur le slice furniture */}
+      {showFurniture && isMeubleBail && (
+        <div className="space-y-4">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold">Mobilier du logement</h3>
             <InfoTooltip
@@ -4125,8 +4444,8 @@ const BailStep = ({ form, propertyId }: BailStepProps) => {
           </div>
         </div>
       )}
-    </CardContent>
-  </Card>
+    </div>
+  </div>
 )}
 
 type TenantStepProps = {

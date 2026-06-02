@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Toaster } from "@/components/shared/toaster";
+import { ContactBubble } from "@/components/contact-bubble";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -172,6 +173,8 @@ export default function RootLayout({
       <StructuredData />
       {/* Toaster pour les notifications */}
       <Toaster />
+      {/* Bulle support flottante (présente sur toutes les pages) */}
+      <ContactBubble />
       </body>
     </html>
   );
