@@ -1,21 +1,19 @@
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
 import { getClientFullInfo } from "@/lib/actions/client-space";
-import { ClientPersonsTabs } from "@/components/clients/client-persons-tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CompletionStatus } from "@prisma/client";
+import { ClientInfoDisplay } from "@/components/client/client-info-display";
+import { Card, CardContent } from "@/components/ui/card";
+import { UserRound, Building2, Home } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
 export default async function ProprietaireInformationsPage() {
   const { client } = await requireProprietaireAuth();
-  
   const clientData = await getClientFullInfo(client.id);
 
   if (!clientData) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6 md:max-w-2xl md:mx-auto">
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-muted-foreground">Client introuvable</p>
@@ -25,34 +23,42 @@ export default async function ProprietaireInformationsPage() {
     );
   }
 
-  const statusLabels: Record<CompletionStatus, string> = {
-    NOT_STARTED: "Non commencé",
-    PARTIAL: "Partiel",
-    PENDING_CHECK: "En attente de vérification",
-    COMPLETED: "Complété",
-  };
+  const isEntreprise = clientData.type === "PERSONNE_MORALE";
+  const primaryPerson = clientData.persons?.[0];
+  const displayName = isEntreprise
+    ? clientData.entreprise?.legalName || clientData.entreprise?.name || "Entreprise"
+    : primaryPerson
+    ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || primaryPerson.email || "Propriétaire"
+    : "Propriétaire";
 
-  const statusColors: Record<CompletionStatus, string> = {
-    NOT_STARTED: "bg-gray-100 text-gray-800",
-    PARTIAL: "bg-orange-100 text-orange-800",
-    PENDING_CHECK: "bg-blue-100 text-blue-800",
-    COMPLETED: "bg-green-100 text-green-800",
-  };
+  const initials = displayName
+    .split(" ")
+    .slice(0, 2)
+    .map((w: string) => w[0])
+    .join("")
+    .toUpperCase();
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Mes informations personnelles</h1>
-          <p className="text-muted-foreground">Consultez et gérez vos informations</p>
-          <Badge className={statusColors[clientData.completionStatus]}>
-            {statusLabels[clientData.completionStatus]}
-          </Badge>
+    <div className="p-4 sm:p-6 space-y-8 md:max-w-2xl md:mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <div className="h-14 w-14 rounded-2xl flex items-center justify-center text-lg font-bold shrink-0 bg-primary/10 text-primary">
+          {isEntreprise ? <Building2 className="h-7 w-7" /> : (initials || <UserRound className="h-7 w-7" />)}
         </div>
-        
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">{displayName}</h1>
+            <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 shrink-0">
+              <Home className="h-3 w-3" />
+              Propriétaire
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-0.5">Informations personnelles</p>
+        </div>
       </div>
 
-      <ClientPersonsTabs
+      {/* Contenu */}
+      <ClientInfoDisplay
         clientType={clientData.type}
         persons={clientData.persons || []}
         entreprise={clientData.entreprise}
@@ -61,5 +67,3 @@ export default async function ProprietaireInformationsPage() {
     </div>
   );
 }
-
-

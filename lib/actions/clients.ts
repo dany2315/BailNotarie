@@ -1026,6 +1026,7 @@ export async function submitOwnerForm(data: unknown) {
     const updateData: any = {
       bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
       bailFamily: validated.bailFamily || BailFamille.HABITATION,
+      status: tenant ? BailStatus.DRAFT : BailStatus.AWAITING_TENANT,
       rentAmount: validated.bailRentAmount,
       monthlyCharges: validated.bailMonthlyCharges || 0,
       securityDeposit: validated.bailSecurityDeposit || 0,
@@ -1053,7 +1054,7 @@ export async function submitOwnerForm(data: unknown) {
       data: {
         bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
         bailFamily: validated.bailFamily || BailFamille.HABITATION,
-        status: BailStatus.DRAFT,
+        status: tenant ? BailStatus.DRAFT : BailStatus.AWAITING_TENANT,
         rentAmount: validated.bailRentAmount,
         monthlyCharges: validated.bailMonthlyCharges || 0,
         securityDeposit: validated.bailSecurityDeposit || 0,

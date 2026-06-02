@@ -1974,21 +1974,7 @@ useEffect(() => {
       return;
     }
 
-    // Cas tenant avec documents prêts → aller directement au paiement (locataire optionnel)
-    if (stepId === "tenant" && documentsReadyForSubmission) {
-      try {
-        await saveCurrentStep(false, false);
-        const paymentIdx = STEPS.findIndex((s) => s.id === "payment");
-        setCurrentStep(paymentIdx);
-      } catch (error: any) {
-        const message =
-          error?.message ||
-          error?.toString() ||
-          "Erreur lors de l'enregistrement";
-        toast.error(message);
-      }
-      return;
-    } else {
+    {
       const fields = getRequiredFields(stepId, clientType);
   
       // Cas particulier : clientInfo avec plusieurs personnes — sub-stepping interne
@@ -2856,9 +2842,7 @@ useEffect(() => {
               {isDocumentsStepCurrent
                 ? "Continuer vers le paiement"
                 : isTenantStepCurrent
-                ? (documentsReadyForSubmission
-                    ? "Continuer vers le paiement"
-                    : canSubmitOwnerIntake
+                ? (canSubmitOwnerIntake
                     ? "Continuer"
                     : "Continuer sans locataire")
                 : "Continuer"}

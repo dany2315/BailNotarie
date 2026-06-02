@@ -70,6 +70,11 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
 
   let bail: any;
 
+  // Statut déterminé server-side selon la présence du locataire
+  const finalStatus: BailStatus = validated.tenantId
+    ? BailStatus.DRAFT
+    : BailStatus.AWAITING_TENANT;
+
   if (draftBailId) {
     const existing = await prisma.bail.findUnique({
       where: { id: draftBailId },
@@ -83,7 +88,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
       data: {
         bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
         bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
-        status: validated.status as BailStatus,
+        status: finalStatus,
         rentAmount: validated.rentAmount,
         monthlyCharges: validated.monthlyCharges,
         securityDeposit: validated.securityDeposit,
@@ -102,7 +107,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
       data: {
         bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
         bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
-        status: validated.status as BailStatus,
+        status: finalStatus,
         rentAmount: validated.rentAmount,
         monthlyCharges: validated.monthlyCharges,
         securityDeposit: validated.securityDeposit,
@@ -711,17 +716,19 @@ export async function createTenantForLease(data: unknown) {
     throw new Error("Un locataire est déjà connecté à ce bail");
   }
 
-  // Chercher un locataire existant avec cet email dans ses persons
-  let tenant = await prisma.client.findFirst({
-    where: {
-      profilType: ProfilType.LOCATAIRE,
-      persons: {
-        some: {
-          email: validated.email,
-        },
-      },
-    },
+  // Chercher une personne existante avec cet email (toutes profils confondus)
+  const existingPerson = await prisma.person.findUnique({
+    where: { email: validated.email },
+    include: { client: true },
   });
+
+  let tenant = existingPerson?.client ?? null;
+
+  if (tenant && tenant.profilType !== ProfilType.LOCATAIRE) {
+    throw new Error(
+      "Cet email est déjà associé à un compte existant. Veuillez utiliser un email différent ou contacter le support."
+    );
+  }
 
   if (!tenant) {
     // Créer un nouveau locataire avec une personne associée
@@ -740,23 +747,26 @@ export async function createTenantForLease(data: unknown) {
       },
     });
 
-    // Notification pour création de client
+    // Notification pour ajout de locataire à un bail
     await createNotificationForAllUsers(
       NotificationType.CLIENT_CREATED,
-      "CLIENT",
-      tenant.id,
+      "BAIL",
+      bail.id,
       user.id,
-      { createdByForm: false }
+      {
+        createdByForm: false,
+        profileType: ProfilType.LOCATAIRE,
+        bailPropertyLabel: bail.property?.label || bail.property?.fullAddress?.split(",")[0] || null,
+      }
     );
   }
 
-  // Connecter le locataire au bail
+  // Connecter le locataire au bail + passer à PENDING_VALIDATION si en attente de locataire
   await prisma.bail.update({
     where: { id: validated.bailId },
     data: {
-      parties: {
-        connect: { id: tenant.id },
-      },
+      parties: { connect: { id: tenant.id } },
+      ...(bail.status === BailStatus.AWAITING_TENANT && { status: BailStatus.PENDING_VALIDATION }),
     },
   });
 
@@ -801,6 +811,7 @@ export async function createTenantForLease(data: unknown) {
   revalidatePath("/interface/baux");
   revalidatePath(`/interface/baux/${validated.bailId}`);
   revalidatePath("/interface/clients");
+  revalidatePath("/client/proprietaire");
 
   return { tenant, tenantIntakeLink };
 }
@@ -847,13 +858,13 @@ export async function createTenantFromEmail(data: unknown) {
       },
     });
 
-    // Notification pour création de client
+    // Notification pour création de locataire
     await createNotificationForAllUsers(
       NotificationType.CLIENT_CREATED,
       "CLIENT",
       tenant.id,
       user.id,
-      { createdByForm: false }
+      { createdByForm: false, profileType: ProfilType.LOCATAIRE }
     );
   }
 

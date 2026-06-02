@@ -305,6 +305,19 @@ export async function getClientProperties(clientId: string) {
               },
             },
           },
+          dossierAssignments: {
+            select: {
+              id: true,
+              notaire: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+            take: 1,
+          },
         },
         orderBy: {
           createdAt: "desc",
@@ -442,6 +455,7 @@ export async function getActiveIntakeLinksForClient(clientId: string): Promise<A
   description: string;
   propertyLabel: string | null;
   bailType: string | null;
+  bailId: string | null;
 }>> {
   const links = await prisma.intakeLink.findMany({
     where: { clientId, status: "PENDING" },
@@ -556,7 +570,7 @@ export async function getActiveIntakeLinksForClient(clientId: string): Promise<A
 
     const propertyLabel = link.property?.label || link.property?.fullAddress?.split(",")[0] || null;
     const bailType = link.bail?.bailType || null;
-    return { token: link.token, target: link.target, intakeUrl: url, stage, description, propertyLabel, bailType };
+    return { token: link.token, target: link.target, intakeUrl: url, stage, description, propertyLabel, bailType, bailId: link.bailId || null };
   });
 }
 

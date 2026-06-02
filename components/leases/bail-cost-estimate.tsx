@@ -25,17 +25,13 @@ export function BailCostEstimate({ rentAmount, peopleCount }: BailCostEstimatePr
   }, [rentAmount, peopleCount]);
 
   return (
-    <div className="space-y-1 px-1">
+    <div className="space-y-1.5 px-1">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm text-slate-700">
-          Estimation notaire pour{" "}
-          <span className="font-semibold text-slate-900">{peopleCount}</span>{" "}
-          personne{peopleCount > 1 ? "s" : ""}
-        </span>
+        <span className="text-sm text-slate-700">Honoraires du notaire estimés</span>
         <span className="text-base font-bold text-slate-900 tabular-nums">{formatCurrency(ttc)}</span>
       </div>
-      <p className="text-[11px] text-slate-500">
-        50% du loyer HT + 10 €/personne · TVA 20% · estimation indicative
+      <p className="text-[11px] text-slate-500 leading-relaxed">
+        Paiement unique · 50% du loyer HT + 10 €/personne · TVA 20% · estimation indicative
       </p>
     </div>
   );

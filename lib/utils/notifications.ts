@@ -20,12 +20,14 @@ function getNotificationMessageText(
       return `Nouveau commentaire sur le ${entityType}: ${entityName}`;
     }
     case "CLIENT_CREATED":
-      return meta.createdByForm 
-        ? meta.profileType === ProfilType.LOCATAIRE 
-          ? "Nouveau locataire créé via formulaire" 
-          : "Nouveau propriétaire créé via formulaire" 
-        : meta.profileType === ProfilType.LOCATAIRE 
-          ? "Nouveau locataire créé"
+      return meta.createdByForm
+        ? meta.profileType === ProfilType.LOCATAIRE
+          ? "Nouveau locataire créé via formulaire"
+          : "Nouveau propriétaire créé via formulaire"
+        : meta.profileType === ProfilType.LOCATAIRE
+          ? meta.bailPropertyLabel
+            ? `Locataire ajouté au bail — ${meta.bailPropertyLabel}`
+            : "Nouveau locataire ajouté à un bail"
           : "Nouveau propriétaire créé";
     case "CLIENT_CREATED_FROM_LANDING_PAGE":
       return meta.profileType === ProfilType.LOCATAIRE 

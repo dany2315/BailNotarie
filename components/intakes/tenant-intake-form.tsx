@@ -25,8 +25,7 @@ import { tenantFormSchema } from "@/lib/zod/client";
 import { formatDate, formatCurrency, formatSurface } from "@/lib/utils/formatters";
 import { FamilyStatus, MatrimonialRegime, ClientType, DocumentKind, BailType } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
-import { Stepper } from "@/components/ui/stepper";
-import { ArrowLeftIcon, ArrowRightIcon, Loader2, Building2, User2, MapPin, Calendar, Euro, Home, Info, Check, CheckCircle2, Plus } from "lucide-react";
+import { ArrowLeftIcon, Loader2, Building2, User2, MapPin, Calendar, Euro, Home, Info, Check, CheckCircle2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
@@ -2879,7 +2878,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   };
 
   return (
-    <div className="relative">
+    <div className="relative h-full flex flex-col overflow-hidden bg-background">
       {/* Loader overlay */}
       {(isSaving || isSubmitting) && (
         <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-100 flex items-center justify-center animate-in fade-in duration-300">
@@ -2976,101 +2975,78 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         </div>
       )}
       
-      <form 
-        onSubmit={form.handleSubmit(onSubmit, onError)} 
-        onKeyDown={handleFormKeyDown}
-        className="space-y-4"
-      >
-      {/* Stepper fixe */}
-      <div className="fixed top-18 left-0 right-0 bg-background border-b border-border/40 z-40 ">
-        <div className="w-full">
-          <Stepper 
-            steps={STEPS} 
-            currentStep={currentStep}
-            onStepClick={(step) => {
-              const stepId = STEPS[step]?.id;
-              // Permettre de revenir en arrière OU de cliquer sur overview ou clientType pour permettre de les modifier
-              if (step < currentStep || stepId === "overview" || stepId === "clientType") {
-                setCurrentStep(step);
-              }
-            }}
-          />
+      {/* Header — même structure que le formulaire propriétaire */}
+      <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b bg-background">
+        <button
+          type="button"
+          onClick={handlePrevious}
+          disabled={isSubmitting || isSaving}
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          <ArrowLeftIcon className="h-5 w-5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm leading-tight">Formulaire locataire</p>
+          <p className="text-xs text-muted-foreground">
+            {STEPS[currentStep].title} · Étape {currentStep + 1}/{STEPS.length}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={handleManualSave}
+          disabled={isSubmitting || isSaving || isFileUploading}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-muted"
+        >
+          {isSaving ? "Enregistrement..." : "Enregistrer"}
+        </button>
       </div>
-      
-      {/* Espace pour le stepper fixe */}
-      
-      <div >     
-        {renderStepContent()}
-      </div> 
-      {/* Inputs file cachés pour les refs */}
-      <input type="file" ref={kbisRef} name="kbis" className="hidden" />
-      <input type="file" ref={statutesRef} name="statutes" className="hidden" />
-      <input type="file" ref={livretDeFamilleRef} name="livretDeFamille" className="hidden" />
-      <input type="file" ref={contratDePacsRef} name="contratDePacs" className="hidden" />
-      <input type="file" ref={insuranceTenantRef} name="insuranceTenant" className="hidden" />
-      <input type="file" ref={ribTenantRef} name="ribTenant" className="hidden" />
-      {/* Inputs file cachés pour les documents par personne */}
-      {personsWatch?.map((_, index) => {
-        const personRefs = personDocumentRefs.current[index];
-        return (
-          <React.Fragment key={index}>
-            <input type="file" ref={personRefs?.idIdentity} name={`person_${index}_idIdentity`} className="hidden" />
-          </React.Fragment>
-        );
-      })}
+      {/* Barre de progression fine */}
+      <div className="shrink-0 h-0.5 bg-muted">
+        <div
+          className="h-full bg-primary transition-all duration-300 ease-out"
+          style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
+        />
+      </div>
 
-      <div className="p-3 sm:p-4 z-50">
-        <div className="max-w-2xl mx-auto flex flex-row justify-between gap-3 sm:gap-4">
-          <div>
-            {currentStep > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePrevious}
-                disabled={isSubmitting || isSaving || isFileUploading}
-                size="icon"
-                className="h-10 w-10"
-              >
-                <ArrowLeftIcon className="w-5 h-5" />
-              </Button>
-            )}
-          </div>
-          <div className="flex flex-row gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleManualSave}
-              disabled={isSubmitting || isSaving || isFileUploading}
-              className="sm:w-auto h-10"
-            >
-              {isSaving ? "Enregistrement..." : "Enregistrer"}
-            </Button>
-            {currentStep < STEPS.length - 1 ? (
-              <Button
-                type="button"
-                onClick={handleNext}
-                disabled={isSubmitting || isSaving || isFileUploading}
-                size="icon"
-                className="h-10 w-10"
-              >
-                <ArrowRightIcon className="w-5 h-5" />
-              </Button>
-            ) : (
-              <Button 
-                type="button" 
-                onClick={() => form.handleSubmit(onSubmit, onError)()}
-                disabled={isSubmitting || isSaving || isFileUploading}
-                className="sm:w-auto"
-              >
-                {isSubmitting ? "Envoi en cours..." : "Soumettre"}
-              </Button>
-            )}
-          </div>
+      <form
+        onSubmit={form.handleSubmit(onSubmit, onError)}
+        onKeyDown={handleFormKeyDown}
+        className="flex-1 min-h-0 flex flex-col overflow-hidden"
+      >
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-6">
+          {renderStepContent()}
         </div>
-      </div>
-      {/* Espace pour éviter que le contenu soit caché sous les boutons fixes */}
-      <div className="h-10" />
+        {/* Inputs file cachés pour les refs */}
+        <input type="file" ref={kbisRef} name="kbis" className="hidden" />
+        <input type="file" ref={statutesRef} name="statutes" className="hidden" />
+        <input type="file" ref={livretDeFamilleRef} name="livretDeFamille" className="hidden" />
+        <input type="file" ref={contratDePacsRef} name="contratDePacs" className="hidden" />
+        <input type="file" ref={insuranceTenantRef} name="insuranceTenant" className="hidden" />
+        <input type="file" ref={ribTenantRef} name="ribTenant" className="hidden" />
+        {/* Inputs file cachés pour les documents par personne */}
+        {personsWatch?.map((_, index) => {
+          const personRefs = personDocumentRefs.current[index];
+          return (
+            <React.Fragment key={index}>
+              <input type="file" ref={personRefs?.idIdentity} name={`person_${index}_idIdentity`} className="hidden" />
+            </React.Fragment>
+          );
+        })}
+
+        {/* Footer — toujours visible, au-dessus du clavier */}
+        <div
+          className="shrink-0 border-t bg-background px-4 py-3"
+          style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
+        >
+          <Button
+            type="button"
+            onClick={currentStep < STEPS.length - 1 ? handleNext : () => form.handleSubmit(onSubmit, onError)()}
+            disabled={isSubmitting || isSaving || isFileUploading}
+            className="w-full h-12 text-base"
+          >
+            {isSubmitting ? "Envoi en cours..." : currentStep < STEPS.length - 1 ? "Continuer" : "Soumettre"}
+          </Button>
+        </div>
       </form>
     </div>
   );
