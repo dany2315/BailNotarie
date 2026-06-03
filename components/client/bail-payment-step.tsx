@@ -14,11 +14,14 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
-  TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BailCostEstimate } from "@/components/leases/bail-cost-estimate";
+import {
+  BAIL_COST_FORMULA_HINT,
+  computeBailNotaryCost,
+  formatBailCurrency,
+} from "@/components/leases/bail-cost-estimate";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -233,36 +236,63 @@ export function BailPaymentStep({
     "Suivi jusqu'à la signature de l'acte authentique",
   ];
 
+  const notaryCost = rentAmount > 0 ? computeBailNotaryCost(rentAmount, peopleCount) : 0;
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-      {/* Récapitulatif compact */}
-      <div className="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
-        <div className="min-w-0">
-          <p className="font-semibold text-sm text-gray-900">Frais de dossier BailNotarie</p>
-          <div className="flex flex-col gap-0.5 mt-1">
-            {inclus.map((item) => (
-              <div key={item} className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
-                <span className="text-xs text-gray-600">{item}</span>
+      {/* Récapitulatif unifié : maintenant (haut, mis en avant) + plus tard (bas, discret) */}
+      <div className="rounded-xl border border-blue-100 overflow-hidden bg-white">
+        {/* Section 1 — À payer maintenant : 39,90 € */}
+        <div className="bg-blue-50/60 px-4 py-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#4373f5]">
+                À payer maintenant
+              </p>
+              <p className="font-semibold text-sm text-gray-900 mt-1">
+                Frais de dossier BailNotarie
+              </p>
+              <div className="flex flex-col gap-0.5 mt-2">
+                {inclus.map((item) => (
+                  <div key={item} className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
+                    <span className="text-xs text-gray-600">{item}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-2xl font-bold text-[#4373f5]">39,90€</p>
+              <p className="text-xs text-gray-400">TTC</p>
+            </div>
           </div>
         </div>
-        <div className="text-right shrink-0 ml-4">
-          <p className="text-2xl font-bold text-[#4373f5]">39,90€</p>
-          <p className="text-xs text-gray-400">TTC</p>
-        </div>
-      </div>
 
-      {/* Avertissement notaire condensé */}
-      <div className="flex items-start gap-1.5 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-gray-500">
-        <TriangleAlert className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
-        <span>Hors honoraires du notaire, facturés séparément avant la signature.</span>
+        {/* Section 2 — Plus tard, chez le notaire : estimation des honoraires */}
+        {rentAmount > 0 && (
+          <div className="border-t border-blue-100 bg-gray-50/60 px-4 py-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                  Plus tard, chez le notaire
+                </p>
+                <p className="font-medium text-sm text-gray-700 mt-1">
+                  Honoraires du notaire
+                </p>
+                <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                  {BAIL_COST_FORMULA_HINT} · estimation indicative
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-lg font-semibold text-gray-700 tabular-nums">
+                  {formatBailCurrency(notaryCost)}
+                </p>
+                <p className="text-xs text-gray-400">estimé</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-
-      {rentAmount > 0 && (
-        <BailCostEstimate rentAmount={rentAmount} peopleCount={peopleCount} />
-      )}
 
       {/* Formulaire Stripe */}
       {loadError ? (
