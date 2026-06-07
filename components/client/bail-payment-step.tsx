@@ -274,7 +274,7 @@ export function BailPaymentStep({
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  Plus tard, chez le notaire
+                  Avant la signature, chez le notaire
                 </p>
                 <p className="font-medium text-sm text-gray-700 mt-1">
                   Honoraires du notaire
