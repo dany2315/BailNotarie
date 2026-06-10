@@ -276,24 +276,25 @@ export function PaymentStep({
           </div>
         </div>
 
-        {/* Section 2 — Plus tard, chez le notaire : estimation des honoraires */}
+        {/* Section 2 — À régler à la signature : estimation des honoraires */}
         {rentAmount > 0 && (
           <div className="border-t border-blue-100 bg-gray-50/60 px-4 py-3">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  Le jour de la signature, au notaire
+                  À régler à la signature
                 </p>
                 <p className="font-medium text-sm text-gray-700 mt-1">
                   Honoraires du notaire
                 </p>
                 <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                  {BAIL_COST_FORMULA_HINT} · estimation indicative
+                  <span className="font-semibold">*</span> {BAIL_COST_FORMULA_HINT} · estimation indicative
                 </p>
               </div>
               <div className="text-right shrink-0">
                 <p className="text-lg font-semibold text-gray-700 tabular-nums">
                   {formatBailCurrency(notaryCost)}
+                  <span className="text-gray-500 ml-0.5">*</span>
                 </p>
                 <p className="text-xs text-gray-400">estimé</p>
               </div>
