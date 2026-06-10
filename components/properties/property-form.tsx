@@ -18,7 +18,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, InfoIcon } from "lucide-react";
+import { Loader2, InfoIcon, Check, AlertTriangle } from "lucide-react";
 import { createPropertySchema } from "@/lib/zod/property";
 import { z } from "zod";
 import { BienType, BienLegalStatus, PropertyStatus, ClientType } from "@prisma/client";
@@ -452,11 +452,12 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
             </div>
             {/* Indicateur de complétion pour bail meublé */}
             <div className={`p-4 rounded-lg ${allFurniturePresent ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800" : "bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800"}`}>
-              <p className={`text-sm font-medium ${allFurniturePresent ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
-                {allFurniturePresent 
-                  ? "✓ Tous les équipements sont présents. Ce bien est éligible pour une location meublée." 
-                  : "⚠ Équipements incomplets. Pour louer en meublé, tous les équipements doivent être présents."
-                }
+              <p className={`flex items-center gap-2 text-sm font-medium ${allFurniturePresent ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
+                {allFurniturePresent ? (
+                  <><Check className="h-4 w-4 shrink-0" />Tous les équipements sont présents. Ce bien est éligible pour une location meublée.</>
+                ) : (
+                  <><AlertTriangle className="h-4 w-4 shrink-0" />Équipements incomplets. Pour louer en meublé, tous les équipements doivent être présents.</>
+                )}
               </p>
             </div>
           </div>

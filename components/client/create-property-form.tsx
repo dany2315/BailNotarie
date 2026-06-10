@@ -529,7 +529,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                     onValueChange={(value) => setValue("type" as any, value as BienType)}
               disabled={isLoading}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Sélectionner un type" />
               </SelectTrigger>
               <SelectContent>
@@ -552,7 +552,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                     onValueChange={(value) => setValue("legalStatus" as any, value as BienLegalStatus)}
               disabled={isLoading}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Sélectionner un statut" />
               </SelectTrigger>
               <SelectContent>

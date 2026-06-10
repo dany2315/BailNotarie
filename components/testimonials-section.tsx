@@ -89,7 +89,7 @@ export function TestimonialsSection() {
     { number: "4.9/5", label: "Note moyenne", icon: Star },
     { number: "200+", label: "Avis clients", icon: ThumbsUp },
     { number: "98%", label: "Recommandent", icon: Award },
-    { number: "48h", label: "Delai moyen", icon: Clock }
+    { number: "1 sem.", label: "Délai moyen", icon: Clock }
   ];
 
   return (

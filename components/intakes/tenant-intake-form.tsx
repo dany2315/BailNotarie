@@ -25,8 +25,8 @@ import { tenantFormSchema } from "@/lib/zod/client";
 import { formatDate, formatCurrency, formatSurface } from "@/lib/utils/formatters";
 import { FamilyStatus, MatrimonialRegime, ClientType, DocumentKind, BailType } from "@prisma/client";
 import { FileUpload } from "@/components/ui/file-upload";
-import { Stepper } from "@/components/ui/stepper";
-import { ArrowLeftIcon, ArrowRightIcon, Loader2, Building2, User2, MapPin, Calendar, Euro, Home, Info } from "lucide-react";
+import { ArrowLeftIcon, Loader2, Building2, User2, MapPin, Calendar, Euro, Home, Info, Check, CheckCircle2, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -286,6 +286,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const [openAccordionValue, setOpenAccordionValue] = useState<string>(`person-0`);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [personToDeleteIndex, setPersonToDeleteIndex] = useState<number | null>(null);
+  // Sous-étape interne dans le step clientInfo : index de la personne en cours d'édition
+  const [clientInfoPersonIdx, setClientInfoPersonIdx] = useState(0);
 
   // Refs pour les fichiers
   const kbisRef = useRef<HTMLInputElement>(null);
@@ -353,6 +355,14 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
   // Fonction pour supprimer une personne
   const handleRemovePerson = async (index: number) => {
+    // IMPORTANT: recaler activePersonIdx AVANT removePerson, sinon useFieldArray
+    // déclenche un re-render intermédiaire où personFields a perdu un élément
+    // mais activePersonIdx pointe encore sur l'index supprimé -> écran vide.
+    // (La personne principale, index 0, ne peut pas être supprimée donc index >= 1)
+    const newActiveIdx = Math.max(0, index - 1);
+    setClientInfoPersonIdx(newActiveIdx);
+    setOpenAccordionValue(`person-${newActiveIdx}`);
+
     removePerson(index);
     // Nettoyer les refs et fichiers pour la personne supprimée
     if (personDocumentRefs.current[index]) {
@@ -1298,29 +1308,32 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     } else {
       const fields = getRequiredFields(stepId, clientType);
   
-      // Cas particulier : clientInfo avec plusieurs personnes
+      // Cas particulier : clientInfo avec plusieurs personnes — sub-stepping interne
       if (stepId === "clientInfo" && clientType === ClientType.PERSONNE_PHYSIQUE) {
         const persons = form.watch("persons") || [];
-        const personsFields = persons.map((_, index) => `persons.${index}` as const);
-        const allFields = [...fields, ...personsFields];
+        const currentPersonField = `persons.${clientInfoPersonIdx}` as const;
 
-        const valid = await trigger(allFields as any);
+        // Valider uniquement la personne en cours d'édition
+        const valid = await trigger([...fields, currentPersonField] as any);
         if (!valid) {
-          const errors = form.formState.errors;
-
-          const personsErrors = errors.persons;
-          if (Array.isArray(personsErrors)) {
-            const indexWithError = personsErrors.findIndex(
-              (personError) => personError && Object.keys(personError).length > 0
-            );
-
-            if (indexWithError !== -1) {
-              setOpenAccordionValue(`person-${indexWithError}`);
-            }
-          }
-
+          setOpenAccordionValue(`person-${clientInfoPersonIdx}`);
           return;
         }
+
+        // S'il reste des personnes à éditer, avancer la sous-étape sans changer de step principal
+        if (clientInfoPersonIdx < persons.length - 1) {
+          try {
+            await saveCurrentStep(false, false);
+          } catch (error: any) {
+            const message = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
+            toast.error(message);
+            return;
+          }
+          setClientInfoPersonIdx((idx) => idx + 1);
+          setOpenAccordionValue(`person-${clientInfoPersonIdx + 1}`);
+          return;
+        }
+        // Dernière personne validée → on continue vers le step suivant (logique standard plus bas)
       } else {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
@@ -1346,6 +1359,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   
       // On ne passe à l'étape suivante qu'après un save OK (ou si rien n'a changé)
       setCurrentStep(nextStep);
+      // Si on entre dans clientInfo en marche avant, repartir sur la 1re personne
+      if (STEPS[nextStep]?.id === "clientInfo") {
+        setClientInfoPersonIdx(0);
+        setOpenAccordionValue("person-0");
+      }
     } catch (error: any) {
       console.error("Erreur lors de la sauvegarde:", error);
       const message =
@@ -1371,7 +1389,30 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   };
 
   const handlePrevious = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 0));
+    const currentStepId = STEPS[currentStep]?.id;
+
+    // Reculer personne par personne dans clientInfo
+    if (
+      currentStepId === "clientInfo" &&
+      clientType === ClientType.PERSONNE_PHYSIQUE &&
+      clientInfoPersonIdx > 0
+    ) {
+      setClientInfoPersonIdx((idx) => Math.max(0, idx - 1));
+      setOpenAccordionValue(`person-${clientInfoPersonIdx - 1}`);
+      return;
+    }
+
+    setCurrentStep((prev) => {
+      const target = Math.max(prev - 1, 0);
+      // Quand on entre dans clientInfo en reculant, montrer la dernière personne
+      if (STEPS[target]?.id === "clientInfo" && clientType === ClientType.PERSONNE_PHYSIQUE) {
+        const persons = form.getValues("persons") || [];
+        const lastIdx = Math.max(0, persons.length - 1);
+        setClientInfoPersonIdx(lastIdx);
+        setOpenAccordionValue(`person-${lastIdx}`);
+      }
+      return target;
+    });
   };
 
   const handleManualSave = async () => {
@@ -1965,67 +2006,72 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
   const renderClientTypeStep = () => {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Qui êtes-vous ?</CardTitle>
-          <CardDescription>Choisissez votre profil.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-8">
-          <div className="space-y-2">
-            <Controller
-              name="type"
-              control={form.control}
-              render={({ field }) => (
-                <RadioGroup
-                  value={field.value || undefined}
-                  onValueChange={(value) => {
-                    const selectedType = value as ClientType;
-                    field.onChange(selectedType);
-                    setClientType(selectedType);
-                  }}
-                  className="flex flex-row space-x-3 w-full items-center justify-between"
-                >
-                  <Label
-                    htmlFor="personnePhysique"
-                    className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                      clientType === ClientType.PERSONNE_PHYSIQUE ? "bg-accent" : ""
-                    }`}
-                  >
-                    <RadioGroupItem
-                      value={ClientType.PERSONNE_PHYSIQUE}
-                      className="hidden"
-                      id="personnePhysique"
-                    />
-                    <User2 className="size-5 text-muted-foreground" />
-                    <div className="text-sm font-medium text-center">
-                      Particulier
-                    </div>
-                  </Label>
-                  <Label
-                    htmlFor="personneMorale"
-                    className={`flex flex-col space-y-2 items-center justify-between border rounded-lg p-5 cursor-pointer hover:bg-accent w-[48%] sm:w-full ${
-                      clientType === ClientType.PERSONNE_MORALE ? "bg-accent" : ""
-                    }`}
-                  >
-                    <RadioGroupItem
-                      value={ClientType.PERSONNE_MORALE}
-                      className="hidden"
-                      id="personneMorale"
-                    />
-                    <Building2 className="size-5 text-muted-foreground" />
-                    <div className="text-sm font-medium text-center">
-                    Entreprise
-                    </div>
-                  </Label>
-                </RadioGroup>
-              )}
-            />
-            {form.formState.errors.type && (
-              <p className="text-sm text-destructive">{form.formState.errors.type.message}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-5">
+        <div>
+          <p className="text-xl font-semibold">Qui êtes-vous ?</p>
+          <p className="text-sm text-muted-foreground mt-1">Choisissez votre profil de locataire.</p>
+        </div>
+        <Controller
+          name="type"
+          control={form.control}
+          render={({ field }) => (
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  field.onChange(ClientType.PERSONNE_PHYSIQUE);
+                  setClientType(ClientType.PERSONNE_PHYSIQUE);
+                }}
+                className={cn(
+                  "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+                  clientType === ClientType.PERSONNE_PHYSIQUE
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/30 hover:bg-muted/40"
+                )}
+              >
+                <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", clientType === ClientType.PERSONNE_PHYSIQUE ? "bg-primary/10" : "bg-muted")}>
+                  <User2 className={cn("h-4 w-4", clientType === ClientType.PERSONNE_PHYSIQUE ? "text-primary" : "text-muted-foreground")} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">Particulier</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Personne physique locataire du bien</p>
+                </div>
+                {clientType === ClientType.PERSONNE_PHYSIQUE && (
+                  <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  field.onChange(ClientType.PERSONNE_MORALE);
+                  setClientType(ClientType.PERSONNE_MORALE);
+                }}
+                className={cn(
+                  "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+                  clientType === ClientType.PERSONNE_MORALE
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/30 hover:bg-muted/40"
+                )}
+              >
+                <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", clientType === ClientType.PERSONNE_MORALE ? "bg-primary/10" : "bg-muted")}>
+                  <Building2 className={cn("h-4 w-4", clientType === ClientType.PERSONNE_MORALE ? "text-primary" : "text-muted-foreground")} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">Entreprise</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">SCI, SARL ou autre personne morale</p>
+                </div>
+                {clientType === ClientType.PERSONNE_MORALE && (
+                  <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                )}
+              </button>
+            </div>
+          )}
+        />
+        {form.formState.errors.type && (
+          <p className="text-sm text-destructive">{form.formState.errors.type.message}</p>
+        )}
+      </div>
     );
   };
 
@@ -2065,19 +2111,20 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
     if (clientType === ClientType.PERSONNE_MORALE) {
       return (
-        <Card>
-          <CardHeader>
-            <CardTitle>Informations de l'entreprise</CardTitle>
-            <CardDescription>
+        <div className="space-y-5">
+          <div>
+            <p className="text-xl font-semibold">Informations de l&apos;entreprise</p>
+            <p className="text-sm text-muted-foreground mt-1">
               Renseignez les informations concernant votre société.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </p>
+          </div>
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="entreprise.legalName">Raison sociale *</Label>
-              <Input 
-                id="entreprise.legalName" 
-                {...form.register("entreprise.legalName")} 
+              <Input
+                id="entreprise.legalName"
+                className="h-11"
+                {...form.register("entreprise.legalName")}
               />
               {form.formState.errors.entreprise?.legalName && (
                 <p className="text-sm text-destructive">
@@ -2087,9 +2134,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             </div>
             <div className="space-y-2">
               <Label htmlFor="entreprise.registration">SIREN/SIRET *</Label>
-              <Input 
-                id="entreprise.registration" 
-                {...form.register("entreprise.registration")} 
+              <Input
+                id="entreprise.registration"
+                className="h-11"
+                {...form.register("entreprise.registration")}
               />
               {form.formState.errors.entreprise?.registration && (
                 <p className="text-sm text-destructive">
@@ -2109,7 +2157,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 </p>
               )}
             </div>
-            <div className="grid gap-3 sm:gap-4 grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="entreprise.phone">Téléphone *</Label>
                 <Controller
@@ -2135,12 +2183,13 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               </div>
               <div className="space-y-2">
                 <Label htmlFor="entreprise.email">Email *</Label>
-                <Input 
-                  id="entreprise.email" 
-                  type="email" 
+                <Input
+                  id="entreprise.email"
+                  type="email"
+                  className="h-11"
                   {...form.register("entreprise.email", {
                     required: "L'email est requis",
-                  })} 
+                  })}
                   disabled={isEmailLocked}
                 />
                 {form.formState.errors.entreprise?.email && (
@@ -2177,71 +2226,118 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 </p>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       );
     }
 
+    const totalPersons = personFields.length || 1;
+    const isLastPerson = clientInfoPersonIdx >= totalPersons - 1;
+
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Informations du ou des locataires</CardTitle>
-          <CardDescription>
-            Renseignez les informations concernant le ou les locataires.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <Accordion 
-            type="single" 
-            className="w-full" 
+      <div className="space-y-5">
+        <div>
+          <p className="text-xl font-semibold">
+            Locataire {totalPersons > 1 ? clientInfoPersonIdx + 1 : ""}{" "}
+            {totalPersons > 1 && (
+              <span className="text-sm font-normal text-muted-foreground">
+                sur {totalPersons}
+              </span>
+            )}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {clientInfoPersonIdx === 0
+              ? "Informations du locataire principal."
+              : "Informations de ce co-locataire."}
+          </p>
+        </div>
+        {totalPersons > 1 && (
+          <div className="flex gap-1.5">
+            {Array.from({ length: totalPersons }).map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  setClientInfoPersonIdx(i);
+                  setOpenAccordionValue(`person-${i}`);
+                }}
+                className={`flex-1 h-1.5 rounded-full transition-colors ${
+                  i === clientInfoPersonIdx ? "bg-primary" : i < clientInfoPersonIdx ? "bg-primary/40" : "bg-muted"
+                }`}
+                aria-label={`Aller à la personne ${i + 1}`}
+              />
+            ))}
+          </div>
+        )}
+        <div className="space-y-6">
+          <Accordion
+            type="single"
+            className="w-full"
             collapsible
-            value={openAccordionValue}
-            onValueChange={(value) => setOpenAccordionValue(value || `person-0`)}
+            value={`person-${clientInfoPersonIdx}`}
+            onValueChange={(value) => setOpenAccordionValue(value || `person-${clientInfoPersonIdx}`)}
           >
             {personFields.map((field, index) => {
+              if (index !== clientInfoPersonIdx) return null;
               const person = personsWatch?.[index];
               return (
-                <AccordionItem key={field.id} value={`person-${index}`}>
-                  <AccordionTrigger className="flex flex-row items-start gap-2 py-4">
-                    <div className="flex flex-row items-center justify-between w-full pr-4">
-                      <div className="flex flex-row items-center gap-4">
-                        <div className="flex flex-col items-start">
-                          <div className="flex flex-row items-center gap-2">
-                            {form.watch(`persons.${index}.firstName`) && form.watch(`persons.${index}.lastName`) 
-                              ? form.watch(`persons.${index}.firstName`) + " " + form.watch(`persons.${index}.lastName`) 
-                              : "Personne " + (index + 1)}
-                            {index === 0 && " (Principale)"}
+                <AccordionItem
+                  key={field.id}
+                  value={`person-${index}`}
+                  className="border rounded-xl px-4 mb-3 last:mb-0 data-[state=open]:bg-muted/30"
+                >
+                  <AccordionTrigger className="hover:no-underline py-3">
+                    <div className="flex w-full items-center justify-between gap-3 pr-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+                          {index + 1}
+                        </div>
+                        <div className="flex flex-col items-start min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium truncate">
+                              {form.watch(`persons.${index}.firstName`) && form.watch(`persons.${index}.lastName`)
+                                ? `${form.watch(`persons.${index}.firstName`)} ${form.watch(`persons.${index}.lastName`)}`
+                                : `Personne ${index + 1}`}
+                            </span>
+                            {index === 0 && (
+                              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                Principal
+                              </span>
+                            )}
                             {hasPersonErrors(index) && (
                               <AlertCircle className="size-4 text-destructive shrink-0" />
                             )}
-                            {index > 0 && (
-                              <div
-                                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-10 w-10 shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPersonToDeleteIndex(index);
-                                  setDeleteDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="size-4 text-red-400" />
-                              </div>
-                            )}
                           </div>
                           {hasPersonErrors(index) && getPersonMainError(index) && (
-                            <p className="text-sm text-destructive w-full text-left pr-4">
+                            <p className="text-xs text-destructive text-left">
                               Erreurs détectées.
                             </p>
                           )}
                         </div>
                       </div>
+                      {index > 0 && (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="inline-flex items-center justify-center rounded-md h-9 w-9 shrink-0 hover:bg-destructive/10 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPersonToDeleteIndex(index);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </div>
+                      )}
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="space-y-4 pt-4">
+                  <AccordionContent className="space-y-4 pt-2 pb-4">
                     {/* Informations de base */}
-                    <div className="grid gap-4 grid-cols-2">
+                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor={`persons.${index}.firstName`}>Prénom *</Label>
                         <Input
+                          className="h-11"
                           {...form.register(`persons.${index}.firstName` as any)}
                         />
                         {form.formState.errors.persons?.[index]?.firstName && (
@@ -2253,6 +2349,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       <div className="space-y-2">
                         <Label htmlFor={`persons.${index}.lastName`}>Nom *</Label>
                         <Input
+                          className="h-11"
                           {...form.register(`persons.${index}.lastName` as any)}
                         />
                         {form.formState.errors.persons?.[index]?.lastName && (
@@ -2262,7 +2359,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                         )}
                       </div>
                     </div>
-                    <div className="grid gap-4 grid-cols-2">
+                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor={`persons.${index}.email`}>Email *</Label>
                         <Input
@@ -2271,7 +2368,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                             required: "L'email est requis",
                           })}
                           disabled={isEmailLocked && index === 0}
-                          className={isEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}
+                          className={`h-11 ${isEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}`}
                         />
                         {isEmailLocked && index === 0 && (
                           <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
@@ -2328,10 +2425,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       )}
                     </div>
                     {/* Informations complémentaires */}
-                    <div className="grid gap-4 grid-cols-2">
+                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor={`persons.${index}.profession`}>Profession *</Label>
                       <Input
+                        className="h-11"
                         {...form.register(`persons.${index}.profession` as any)}
                       />
                       {form.formState.errors.persons?.[index]?.profession && (
@@ -2375,7 +2473,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                                 }
                               }}
                             >
-                              <SelectTrigger className="w-full">
+                              <SelectTrigger className="w-full h-11">
                                 <SelectValue placeholder="Sélectionner" />
                               </SelectTrigger>
                               <SelectContent>
@@ -2405,7 +2503,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                                 value={field.value ?? undefined}
                                 onValueChange={field.onChange}
                               >
-                                <SelectTrigger className="w-full">
+                                <SelectTrigger className="w-full h-11">
                                   <SelectValue placeholder="Sélectionner" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -2426,10 +2524,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                         </div>
                       )}
                     </div>
-                    <div className="grid gap-4 grid-cols-2">
+                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor={`persons.${index}.birthPlace`}>Lieu de naissance *</Label>
                         <Input
+                          className="h-11"
                           {...form.register(`persons.${index}.birthPlace` as any)}
                         />
                         {form.formState.errors.persons?.[index]?.birthPlace && (
@@ -2464,18 +2563,20 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               );
             })}
           </Accordion>
-          {personFields.length < 2 && (
+          {isLastPerson && personFields.length < 2 && (
             <Button
               type="button"
               variant="outline"
               onClick={() => {
-                appendPerson({ ...emptyPerson } as any);
                 const newIndex = personFields.length;
+                appendPerson({ ...emptyPerson } as any);
+                setClientInfoPersonIdx(newIndex);
                 setOpenAccordionValue(`person-${newIndex}`);
               }}
-              className="w-full"
+              className="w-full h-11 gap-2 border-dashed"
             >
-              Ajouter une personne
+              <Plus className="h-4 w-4" />
+              Une autre personne est locataire
             </Button>
           )}
 
@@ -2520,8 +2621,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   };
 
@@ -2777,7 +2878,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   };
 
   return (
-    <div className="relative">
+    <div className="relative h-full flex flex-col overflow-hidden bg-background">
       {/* Loader overlay */}
       {(isSaving || isSubmitting) && (
         <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-100 flex items-center justify-center animate-in fade-in duration-300">
@@ -2815,9 +2916,9 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   {/* Étapes détaillées */}
                   <div className="space-y-2 mt-4">
                     {[
-                      { id: 1, name: "Vérification des données", icon: "âœ“" },
-                      { id: 2, name: "Soumission du formulaire", icon: "ðŸ“" },
-                      { id: 3, name: "Redirection...", icon: "â†’" },
+                      { id: 1, name: "Vérification des données" },
+                      { id: 2, name: "Soumission du formulaire" },
+                      { id: 3, name: "Redirection..." },
                     ].map((step) => {
                       const isCompleted = step.id < submissionProgress.step;
                       const isCurrent = step.id === submissionProgress.step;
@@ -2843,7 +2944,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                             }`}
                           >
                             {isCompleted ? (
-                              <span className="text-xs">âœ“</span>
+                              <Check className="h-3 w-3" />
                             ) : isCurrent ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
@@ -2874,101 +2975,78 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         </div>
       )}
       
-      <form 
-        onSubmit={form.handleSubmit(onSubmit, onError)} 
-        onKeyDown={handleFormKeyDown}
-        className="space-y-4"
-      >
-      {/* Stepper fixe */}
-      <div className="fixed top-18 left-0 right-0 bg-background border-b border-border/40 z-40 ">
-        <div className="w-full">
-          <Stepper 
-            steps={STEPS} 
-            currentStep={currentStep}
-            onStepClick={(step) => {
-              const stepId = STEPS[step]?.id;
-              // Permettre de revenir en arrière OU de cliquer sur overview ou clientType pour permettre de les modifier
-              if (step < currentStep || stepId === "overview" || stepId === "clientType") {
-                setCurrentStep(step);
-              }
-            }}
-          />
+      {/* Header — même structure que le formulaire propriétaire */}
+      <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b bg-background">
+        <button
+          type="button"
+          onClick={handlePrevious}
+          disabled={isSubmitting || isSaving}
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          <ArrowLeftIcon className="h-5 w-5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm leading-tight">Formulaire locataire</p>
+          <p className="text-xs text-muted-foreground">
+            {STEPS[currentStep].title} · Étape {currentStep + 1}/{STEPS.length}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={handleManualSave}
+          disabled={isSubmitting || isSaving || isFileUploading}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-muted"
+        >
+          {isSaving ? "Enregistrement..." : "Enregistrer"}
+        </button>
       </div>
-      
-      {/* Espace pour le stepper fixe */}
-      
-      <div >     
-        {renderStepContent()}
-      </div> 
-      {/* Inputs file cachés pour les refs */}
-      <input type="file" ref={kbisRef} name="kbis" className="hidden" />
-      <input type="file" ref={statutesRef} name="statutes" className="hidden" />
-      <input type="file" ref={livretDeFamilleRef} name="livretDeFamille" className="hidden" />
-      <input type="file" ref={contratDePacsRef} name="contratDePacs" className="hidden" />
-      <input type="file" ref={insuranceTenantRef} name="insuranceTenant" className="hidden" />
-      <input type="file" ref={ribTenantRef} name="ribTenant" className="hidden" />
-      {/* Inputs file cachés pour les documents par personne */}
-      {personsWatch?.map((_, index) => {
-        const personRefs = personDocumentRefs.current[index];
-        return (
-          <React.Fragment key={index}>
-            <input type="file" ref={personRefs?.idIdentity} name={`person_${index}_idIdentity`} className="hidden" />
-          </React.Fragment>
-        );
-      })}
+      {/* Barre de progression fine */}
+      <div className="shrink-0 h-0.5 bg-muted">
+        <div
+          className="h-full bg-primary transition-all duration-300 ease-out"
+          style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
+        />
+      </div>
 
-      <div className="p-3 sm:p-4 z-50">
-        <div className="max-w-2xl mx-auto flex flex-row justify-between gap-3 sm:gap-4">
-          <div>
-            {currentStep > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePrevious}
-                disabled={isSubmitting || isSaving || isFileUploading}
-                size="icon"
-                className="h-10 w-10"
-              >
-                <ArrowLeftIcon className="w-5 h-5" />
-              </Button>
-            )}
-          </div>
-          <div className="flex flex-row gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleManualSave}
-              disabled={isSubmitting || isSaving || isFileUploading}
-              className="sm:w-auto h-10"
-            >
-              {isSaving ? "Enregistrement..." : "Enregistrer"}
-            </Button>
-            {currentStep < STEPS.length - 1 ? (
-              <Button
-                type="button"
-                onClick={handleNext}
-                disabled={isSubmitting || isSaving || isFileUploading}
-                size="icon"
-                className="h-10 w-10"
-              >
-                <ArrowRightIcon className="w-5 h-5" />
-              </Button>
-            ) : (
-              <Button 
-                type="button" 
-                onClick={() => form.handleSubmit(onSubmit, onError)()}
-                disabled={isSubmitting || isSaving || isFileUploading}
-                className="sm:w-auto"
-              >
-                {isSubmitting ? "Envoi en cours..." : "Soumettre"}
-              </Button>
-            )}
-          </div>
+      <form
+        onSubmit={form.handleSubmit(onSubmit, onError)}
+        onKeyDown={handleFormKeyDown}
+        className="flex-1 min-h-0 flex flex-col overflow-hidden"
+      >
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-6">
+          {renderStepContent()}
         </div>
-      </div>
-      {/* Espace pour éviter que le contenu soit caché sous les boutons fixes */}
-      <div className="h-10" />
+        {/* Inputs file cachés pour les refs */}
+        <input type="file" ref={kbisRef} name="kbis" className="hidden" />
+        <input type="file" ref={statutesRef} name="statutes" className="hidden" />
+        <input type="file" ref={livretDeFamilleRef} name="livretDeFamille" className="hidden" />
+        <input type="file" ref={contratDePacsRef} name="contratDePacs" className="hidden" />
+        <input type="file" ref={insuranceTenantRef} name="insuranceTenant" className="hidden" />
+        <input type="file" ref={ribTenantRef} name="ribTenant" className="hidden" />
+        {/* Inputs file cachés pour les documents par personne */}
+        {personsWatch?.map((_, index) => {
+          const personRefs = personDocumentRefs.current[index];
+          return (
+            <React.Fragment key={index}>
+              <input type="file" ref={personRefs?.idIdentity} name={`person_${index}_idIdentity`} className="hidden" />
+            </React.Fragment>
+          );
+        })}
+
+        {/* Footer — toujours visible, au-dessus du clavier */}
+        <div
+          className="shrink-0 border-t bg-background px-4 py-3"
+          style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
+        >
+          <Button
+            type="button"
+            onClick={currentStep < STEPS.length - 1 ? handleNext : () => form.handleSubmit(onSubmit, onError)()}
+            disabled={isSubmitting || isSaving || isFileUploading}
+            className="w-full h-12 text-base"
+          >
+            {isSubmitting ? "Envoi en cours..." : currentStep < STEPS.length - 1 ? "Continuer" : "Soumettre"}
+          </Button>
+        </div>
       </form>
     </div>
   );

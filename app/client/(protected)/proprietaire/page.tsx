@@ -1,178 +1,33 @@
-import { getCurrentUser } from "@/lib/auth-helpers";
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
-import { getProprietaireStats, getPendingNotaireRequests, getClientBails, getClientProperties, getActiveIntakeLinkForClient } from "@/lib/actions/client-space";
-import { ProfilType, BailStatus } from "@prisma/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Home, CheckCircle, AlertCircle, ClipboardList } from "lucide-react";
-import Link from "next/link";
-import { formatDateTime } from "@/lib/utils/formatters";
-import { UnifiedStatusList } from "@/components/client/unified-status-list";
-import { CompletionStatusBanner } from "@/components/client/completion-status-banner";
+import {
+  getPendingNotaireRequests,
+  getClientBails,
+  getActiveIntakeLinksForClient,
+} from "@/lib/actions/client-space";
+import { getClientBailDrafts } from "@/lib/actions/leases";
+import { ProfilType } from "@prisma/client";
+import { DashboardProprietaireClient } from "@/components/client/dashboard-proprietaire-client";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
 export default async function ProprietaireDashboardPage() {
   const { user, client } = await requireProprietaireAuth();
-  
-  const [stats, pendingRequests, baux, properties, activeIntake] = await Promise.all([
-    getProprietaireStats(client.id),
+
+  const [pendingRequests, baux, activeIntakes, bailDrafts] = await Promise.all([
     getPendingNotaireRequests(client.id, ProfilType.PROPRIETAIRE),
     getClientBails(client.id, ProfilType.PROPRIETAIRE),
-    getClientProperties(client.id),
-    getActiveIntakeLinkForClient(client.id),
+    getActiveIntakeLinksForClient(client.id),
+    getClientBailDrafts(client.id),
   ]);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Bienvenue dans votre espace propriétaire</p>
-        </div>
-      </div>
-
-      {/* Bannière de statut de vérification */}
-      <CompletionStatusBanner 
-        completionStatus={client.completionStatus} 
-        informationsPath="/client/proprietaire/informations"
-      />
-
-      {/* Statistiques */}
-      <div className="grid gap-4 grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Biens</CardTitle>
-            <Home className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalProperties}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.propertiesLouees} loués, {stats.propertiesNonLouees} disponibles
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Baux actifs</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.bauxActifs}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalBaux} baux au total
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Demandes du notaire non traitées */}
-      {pendingRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-orange-600" />
-                  Demandes du notaire en attente
-                </CardTitle>
-                <CardDescription>
-                  Le notaire a besoin de votre réponse
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {pendingRequests.map((request) => (
-                <div key={request.id} className="border rounded-lg p-4 bg-orange-50">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium mb-1">{request.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        {request.content}
-                      </p>
-                      {request.bail && (
-                        <Link href={`/client/proprietaire/baux/${request.bail.id}`}>
-                          <p className="text-xs text-muted-foreground hover:underline">
-                            Bail : {request.bail.property?.label || request.bail.property?.fullAddress}
-                          </p>
-                        </Link>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Demandé le {formatDateTime(request.createdAt)}
-                      </p>
-                    </div>
-                    {request.bail ? (
-                      <Link href={`/client/proprietaire/demandes?open=bail-${request.bail.id}&chat=1`}>
-                        <Button variant="outline" size="sm">
-                          Répondre
-                        </Button>
-                      </Link>
-                    ) : (
-                      <Button variant="outline" size="sm" disabled>
-                        Répondre
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Si aucun formulaire en cours : on garde la card des demandes du notaire (ou "Aucune demande") */}
-      {pendingRequests.length === 0 && !activeIntake && (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              Aucune demande en attente du notaire
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Si formulaire en cours : on affiche uniquement le lien. Sinon : on garde la card demandes du notaire + statut des éléments */}
-      {activeIntake ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-start gap-4">
-              <ClipboardList className="h-8 w-8 text-primary" />
-              <div>
-                <CardTitle>Demande incomplète</CardTitle>
-                <CardDescription>
-                  Votre dossier ne peut pas avancer sans les informations manquantes.
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="flex justify-end">
-            <Button asChild>
-              <Link href={activeIntake.intakeUrl}>
-                Finaliser ma demande
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        /* Aucun formulaire en cours : on affiche le statut de mes éléments */
-        <UnifiedStatusList 
-          properties={properties}
-          bails={baux} 
-          profilType={ProfilType.PROPRIETAIRE}
-          basePath="/client/proprietaire"
-        />
-      )}
-    </div>
+    <DashboardProprietaireClient
+      baux={baux as any}
+      pendingRequests={pendingRequests as any}
+      activeIntakes={activeIntakes}
+      bailDrafts={bailDrafts as any}
+      userName={user.name ?? null}
+    />
   );
 }
-
-
-
-
-
-
-
-

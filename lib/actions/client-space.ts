@@ -161,6 +161,10 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
           id: clientId,
         },
       },
+      OR: [
+        { status: { not: "DRAFT" } },
+        { paidAt: { not: null } },
+      ],
     },
     select: {
       id: true,
@@ -301,6 +305,19 @@ export async function getClientProperties(clientId: string) {
               },
             },
           },
+          dossierAssignments: {
+            select: {
+              id: true,
+              notaire: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+            take: 1,
+          },
         },
         orderBy: {
           createdAt: "desc",
@@ -430,25 +447,131 @@ export async function getPendingNotaireRequests(clientId: string, profilType: Pr
  * Récupère l'intake en cours (non soumis, non révoqué) pour un client.
  * Utilisé sur le dashboard client pour afficher "Intake en cours" avec lien.
  */
-export async function getActiveIntakeLinkForClient(clientId: string): Promise<{
+export async function getActiveIntakeLinksForClient(clientId: string): Promise<Array<{
   token: string;
   target: IntakeTarget;
   intakeUrl: string;
-} | null> {
-  const link = await prisma.intakeLink.findFirst({
-    where: {
-      clientId,
-      status: "PENDING",
-    },
+  stage: "identity" | "property" | "bail" | "finalize";
+  description: string;
+  propertyLabel: string | null;
+  bailType: string | null;
+  bailId: string | null;
+}>> {
+  const links = await prisma.intakeLink.findMany({
+    where: { clientId, status: "PENDING" },
     orderBy: { updatedAt: "desc" },
-    select: { token: true, target: true },
+    select: {
+      token: true,
+      target: true,
+      propertyId: true,
+      bailId: true,
+      client: {
+        select: {
+          type: true,
+          persons: {
+            where: { isPrimary: true },
+            select: {
+              firstName: true,
+              lastName: true,
+              nationality: true,
+              birthDate: true,
+              birthPlace: true,
+              phone: true,
+              fullAddress: true,
+              familyStatus: true,
+              matrimonialRegime: true,
+            },
+            take: 1,
+          },
+          entreprise: {
+            select: {
+              legalName: true,
+              registration: true,
+              phone: true,
+              fullAddress: true,
+            },
+          },
+        },
+      },
+      property: {
+        select: { label: true, fullAddress: true },
+      },
+      bail: {
+        select: {
+          bailType: true,
+          rentAmount: true,
+          effectiveDate: true,
+          paymentDay: true,
+          parties: {
+            select: { id: true, profilType: true },
+          },
+        },
+      },
+    },
   });
-  if (!link) return null;
-  const intakeUrl =
-    link.target === "OWNER"
-      ? `/commencer/proprietaire/${link.token}`
-      : `/intakes/${link.token}`;
-  return { token: link.token, target: link.target, intakeUrl };
+  if (!links.length) return [];
+
+  return links.map((link) => {
+    const url =
+      link.target === "OWNER"
+        ? `/commencer/proprietaire/${link.token}`
+        : `/intakes/${link.token}`;
+
+    let stage: "identity" | "property" | "bail" | "finalize";
+    let description: string;
+
+    if (link.target === "OWNER") {
+      let identityDone = false;
+      const c = link.client;
+
+      if (c?.type === "PERSONNE_MORALE" && c.entreprise) {
+        const e = c.entreprise;
+        identityDone = !!(e.legalName && e.registration && e.phone && e.fullAddress);
+      } else if (c?.type === "PERSONNE_PHYSIQUE" && c.persons?.[0]) {
+        const p = c.persons[0];
+        const baseFields = !!(p.firstName && p.lastName && p.nationality && p.birthDate && p.birthPlace && p.phone && p.fullAddress);
+        const matrimonialOk = p.familyStatus !== "MARIE" || !!p.matrimonialRegime;
+        identityDone = baseFields && matrimonialOk;
+      }
+
+      if (!identityDone) {
+        stage = "identity";
+        description = "Renseignez vos informations personnelles pour démarrer votre demande de bail.";
+      } else if (!link.propertyId || !link.property?.fullAddress) {
+        stage = "property";
+        description = "Ajoutez et renseignez votre bien immobilier pour continuer votre demande.";
+      } else {
+        const bail = link.bail;
+        const hasTenant = bail?.parties?.some((p: any) => p.profilType === "LOCATAIRE");
+        const bailDone = !!(bail && bail.rentAmount != null && bail.effectiveDate && bail.paymentDay != null && hasTenant);
+        if (!link.bailId || !bailDone) {
+          stage = "bail";
+          description = "Complétez les informations du bail (loyer, dates, locataire…).";
+        } else {
+          stage = "finalize";
+          description = "Ajoutez les documents requis pour finaliser votre demande de bail.";
+        }
+      }
+    } else {
+      const c = link.client;
+      let identityDone = false;
+      if (c?.type === "PERSONNE_MORALE" && c.entreprise) {
+        const e = c.entreprise;
+        identityDone = !!(e.legalName && e.registration && e.phone && e.fullAddress);
+      } else if (c?.type === "PERSONNE_PHYSIQUE" && c.persons?.[0]) {
+        const p = c.persons[0];
+        identityDone = !!(p.firstName && p.lastName && p.nationality && p.birthDate && p.birthPlace && p.phone && p.fullAddress);
+      }
+      stage = identityDone ? "finalize" : "identity";
+      description = identityDone
+        ? "Ajoutez les documents requis pour finaliser votre dossier locataire."
+        : "Renseignez vos informations personnelles pour finaliser la demande de bail.";
+    }
+
+    const propertyLabel = link.property?.label || link.property?.fullAddress?.split(",")[0] || null;
+    const bailType = link.bail?.bailType || null;
+    return { token: link.token, target: link.target, intakeUrl: url, stage, description, propertyLabel, bailType, bailId: link.bailId || null };
+  });
 }
 
 /**

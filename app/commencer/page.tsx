@@ -81,7 +81,7 @@ export default function StartPage() {
           <div className="absolute bottom-0 right-1/4 w-48 h-48 sm:w-64 sm:h-64 md:w-96 md:h-96 bg-indigo-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
           <div className="absolute top-1/2 left-0 w-32 h-32 sm:w-48 sm:h-48 md:w-64 md:h-64 bg-purple-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
         </div>
-        
+
         <div className="w-full max-w-4xl relative z-10">
           {currentStep === "email-input" && (
             <OwnerEmailInputForm onOtpSent={handleOtpSent} />

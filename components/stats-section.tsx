@@ -13,7 +13,7 @@ export function StatsSection() {
       color: "text-blue-600"
     },
     {
-      number: "48h",
+      number: "1 sem.",
       label: "Délai moyen",
       icon: Clock,
       color: "text-purple-600"

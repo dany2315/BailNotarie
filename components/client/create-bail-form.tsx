@@ -20,6 +20,14 @@ import {
   DrawerTrigger,
   DrawerFooter,
 } from "@/components/ui/drawer";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { createLease, createTenantFromEmail } from "@/lib/actions/leases";
 import { createProperty } from "@/lib/actions/properties";
 import { Loader2, ArrowLeft, Plus, Home, User, Building2, Users, Mail, MapPin, CheckCircle2, X } from "lucide-react";
@@ -55,6 +63,7 @@ type CreateBailFormData = z.infer<typeof createBailSchema>;
 export interface CreateBailFormRef {
   submit: () => void;
   isLoading: boolean;
+  getValidatedData: () => Promise<CreateBailFormData | null>;
 }
 
 interface CreateBailFormProps {
@@ -97,11 +106,8 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
   const [isPropertyFormLoading, setIsPropertyFormLoading] = useState(false);
   const [isPropertyFormUploading, setIsPropertyFormUploading] = useState(false);
 
-  // Détecter si on est sur mobile
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
@@ -306,10 +312,20 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
 
   const handleFormSubmit = handleSubmit(onSubmit);
 
+  const getValidatedData = useCallback((): Promise<CreateBailFormData | null> => {
+    return new Promise((resolve) => {
+      handleSubmit(
+        (data) => resolve(data),
+        () => resolve(null)
+      )();
+    });
+  }, [handleSubmit]);
+
   useImperativeHandle(ref, () => ({
     submit: handleFormSubmit,
     isLoading,
-  }), [handleFormSubmit, isLoading]);
+    getValidatedData,
+  }), [handleFormSubmit, isLoading, getValidatedData]);
 
   // Notifier le parent quand isLoading change
   useEffect(() => {
@@ -395,34 +411,37 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                     </Button>
                   )}
                 </div>
-                <Drawer 
-                  open={isPropertyDrawerOpen} 
-                  onOpenChange={setIsPropertyDrawerOpen}
-                  direction={isMobile ? "bottom" : "right"}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={isLoading}
+                  className="h-10 w-10 shrink-0"
+                  onClick={() => setIsPropertyDrawerOpen(true)}
                 >
-                  <DrawerTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      disabled={isLoading}
-                      className="h-10 w-10 shrink-0"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </DrawerTrigger>
-                  <DrawerContent  className={cn("max-h-[95vh]", !isMobile && "sm:max-w-lg h-full")}>
-                    <DrawerHeader>
-                      <DrawerTitle className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <Dialog open={isPropertyDrawerOpen} onOpenChange={(open) => { if (!isPropertyFormLoading && !isPropertyFormUploading) setIsPropertyDrawerOpen(open); }}>
+                  <DialogContent className="max-h-[90vh] flex flex-col gap-0 p-0 sm:max-w-lg overflow-hidden" showCloseButton={!isPropertyFormLoading && !isPropertyFormUploading}>
+                    {(isPropertyFormLoading || isPropertyFormUploading) && (
+                      <div className="absolute inset-0 z-10 bg-background/90 flex flex-col items-center justify-center gap-3 rounded-lg">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <p className="text-sm font-medium text-muted-foreground">
+                          {isPropertyFormUploading ? "Upload des fichiers en cours..." : "Création du bien en cours..."}
+                        </p>
+                      </div>
+                    )}
+                    <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
+                      <DialogTitle className="flex items-center gap-2">
                         <Building2 className="h-5 w-5" />
                         Créer un nouveau bien
-                      </DrawerTitle>
-                      <DrawerDescription>
+                      </DialogTitle>
+                      <DialogDescription>
                         Remplissez les informations pour créer un nouveau bien immobilier
-                      </DrawerDescription>
-                    </DrawerHeader>
-                    <div className="no-scrollbar overflow-y-auto overflow-x-visible px-4 min-w-0">
-                      <CreatePropertyForm 
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
+                      <CreatePropertyForm
                         ref={propertyFormRef}
                         ownerId={ownerId}
                         onPropertyCreated={handlePropertyCreated}
@@ -431,43 +450,33 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                         onUploadingChange={setIsPropertyFormUploading}
                       />
                     </div>
-                    <DrawerFooter>
-                      <div className="flex flex-col gap-2 justify-end w-full">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setIsPropertyDrawerOpen(false)}
-                          disabled={isPropertyFormLoading || isPropertyFormUploading}
-                        >
-                          <ArrowLeft className="mr-2 h-4 w-4" />
-                          Annuler
-                        </Button>
-                        <Button
-                          type="button"
-                          onClick={() => propertyFormRef.current?.submit()}
-                          disabled={isPropertyFormLoading || isPropertyFormUploading}
-                        >
-                          {isPropertyFormUploading ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Upload en cours...
-                            </>
-                          ) : isPropertyFormLoading ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Création...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 className="mr-2 h-4 w-4" />
-                              Créer le bien
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </DrawerFooter>
-                  </DrawerContent>
-                </Drawer>
+                    <DialogFooter className="px-6 py-4 border-t shrink-0 flex-col sm:flex-col gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => propertyFormRef.current?.submit()}
+                        disabled={isPropertyFormLoading || isPropertyFormUploading}
+                        className="w-full"
+                      >
+                        {isPropertyFormUploading ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Upload en cours...</>
+                        ) : isPropertyFormLoading ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</>
+                        ) : (
+                          <><CheckCircle2 className="mr-2 h-4 w-4" />Créer le bien</>
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsPropertyDrawerOpen(false)}
+                        disabled={isPropertyFormLoading || isPropertyFormUploading}
+                        className="w-full"
+                      >
+                        Annuler
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
               {errors.propertyId && (
                 <p className="text-sm text-destructive">{errors.propertyId.message}</p>

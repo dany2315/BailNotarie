@@ -47,8 +47,8 @@ export function BenefitsNewSection() {
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
             La solution la plus simple et rapide pour obtenir votre bail notarié. 
-            100% en ligne, sans engagement, et prêt en 48h
-            <span className="font-bold">par nos notaires partenaires certifiés et spécialisés en droit immobilier.</span>
+            100% en ligne, et prêt en 1 semaine
+            <span className="font-bold"> par nos notaires partenaires certifiés et spécialisés en droit immobilier.</span>
           </p>
         </motion.div>
 
@@ -61,12 +61,12 @@ export function BenefitsNewSection() {
                 icon: <Globe className="h-auto w-4 shrink-0" />,
                 label: "100% en ligne",
                 content: {
-                  badge: "Sans engagement",
+                  badge: "100% en ligne",
                   title: "100% en ligne",
-                  description: "Constituez votre dossier directement en ligne sans engagement. Aucun déplacement nécessaire. Tout se fait depuis chez vous, en quelques minutes seulement.",
+                  description: "Constituez votre dossier directement en ligne. Aucun déplacement nécessaire. Tout se fait depuis chez vous, en quelques minutes seulement.",
                   buttonText: "Commencer maintenant",
                   imageSrc: "https://images.unsplash.com/photo-1488509082528-cefbba5ad692?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-                  imageAlt: "100% en ligne sans engagement - Formulaire digital",
+                  imageAlt: "100% en ligne - Formulaire digital",
                 },
                 handleStart: () => router.push('/commencer')
                 
@@ -74,14 +74,14 @@ export function BenefitsNewSection() {
               {
                 value: "rapide",
                 icon: <Clock className="h-auto w-4 shrink-0" />,
-                label: "En 48h",
+                label: "En 1 semaine",
                 content: {
                   badge: "Délai garanti",
-                  title: "Bail notarié en 48h",
-                  description: "Transmission automatique au notaire, signature en ligne par visioconférence avec le notaire partenaire. Votre bail authentique est prêt en 48h chrono grâce à notre processus optimisé et notre réseau de notaires partenaires.",
+                  title: "Bail notarié en 1 semaine",
+                  description: "Transmission automatique au notaire, signature en ligne par visioconférence avec le notaire partenaire. Votre bail authentique est prêt en 1 semaine grâce à notre processus optimisé et notre réseau de notaires partenaires.",
                   buttonText: "Voir le processus",
                   imageSrc: "https://images.unsplash.com/37/tEREUy1vSfuSu8LzTop3_IMG_2538.jpg?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-                  imageAlt: "Bail notarié en 48h - Rapidité et efficacité",
+                  imageAlt: "Bail notarié en 1 semaine - Rapidité et efficacité",
                 },
                 handleStart: () => router.push('/#process')
               },
@@ -136,8 +136,8 @@ export function BenefitsNewSection() {
                 transition={{ duration: 0.5, delay: 0.1 }}
                 className=" mb-8 text-lg leading-relaxed"
               >
-                Constituer votre dossier en ligne sans engagement. 
-                Transmission automatique au notaire, signature en ligne par visioconférence avec le notaire partenaire, bail en 48h.
+                Constituez votre dossier en ligne pour seulement 39,90€ TTC.
+                Transmission automatique au notaire, signature en ligne par visioconférence avec le notaire partenaire, bail en 1 semaine.
               </motion.p>
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -167,7 +167,7 @@ export function BenefitsNewSection() {
                 transition={{ duration: 0.5, delay: 0.3 }}
                 className="flex flex-wrap items-center justify-center gap-6 text-sm text-[#4373f5]"
               >
-                {["Sans engagement", "100% sécurisé", "Réponse rapide"].map((item, index) => (
+                {["39,90€ TTC tout compris", "100% sécurisé", "Réponse rapide"].map((item, index) => (
                   <motion.div
                     key={index}
                     initial={{ opacity: 0, x: -10 }}

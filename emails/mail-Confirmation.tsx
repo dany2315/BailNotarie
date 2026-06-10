@@ -309,7 +309,7 @@ export default function MailConfirmation({
                 lineHeight: "1.6",
                 margin: "0 0 8px 0"
               }}>
-                • <strong>Bail notarié</strong> en 48h
+                • <strong>Bail notarié</strong> en 1 semaine
               </Text>
               <Text style={{ 
                 color: "#374151",

@@ -11,7 +11,7 @@ import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { validateRentForProperty } from "@/lib/utils/rent-validation";
 
-export async function createLease(data: unknown) {
+export async function createLease(data: unknown, paymentIntentId?: string, draftBailId?: string) {
   const user = await requireAuth();
   const validated = createLeaseSchema.parse(data);
 
@@ -38,12 +38,12 @@ export async function createLease(data: unknown) {
     }
   }
 
-  // Vérifier que le locataire existe
-  const tenant = await prisma.client.findUnique({
-    where: { id: validated.tenantId },
-  });
+  // Vérifier que le locataire existe (optionnel)
+  const tenant = validated.tenantId
+    ? await prisma.client.findUnique({ where: { id: validated.tenantId } })
+    : null;
 
-  if (!tenant) {
+  if (validated.tenantId && !tenant) {
     throw new Error("Locataire introuvable");
   }
 
@@ -63,31 +63,66 @@ export async function createLease(data: unknown) {
     COMMERCIAL: BailFamille.COMMERCIAL,
   };
 
-  const bail = await prisma.bail.create({
-    data: {
-      bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
-      bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
-      status: validated.status as BailStatus,
-      rentAmount: validated.rentAmount,
-      monthlyCharges: validated.monthlyCharges,
-      securityDeposit: validated.securityDeposit,
-      effectiveDate: validated.effectiveDate,
-      endDate: validated.endDate || null,
-      paymentDay: validated.paymentDay || null,
-      propertyId: validated.propertyId,
-      parties: {
-        connect: [
-          { id: property.ownerId }, // Propriétaire
-          { id: validated.tenantId }, // Locataire
-        ],
+  const bailInclude = {
+    property: { include: { owner: true } },
+    parties: true,
+  };
+
+  let bail: any;
+
+  // Statut déterminé server-side selon la présence du locataire
+  const finalStatus: BailStatus = validated.tenantId
+    ? BailStatus.DRAFT
+    : BailStatus.AWAITING_TENANT;
+
+  if (draftBailId) {
+    const existing = await prisma.bail.findUnique({
+      where: { id: draftBailId },
+      include: { property: { select: { ownerId: true } } },
+    });
+    if (!existing || existing.property.ownerId !== property.ownerId || existing.paidAt !== null) {
+      throw new Error('Brouillon introuvable ou déjà finalisé');
+    }
+    bail = await prisma.bail.update({
+      where: { id: draftBailId },
+      data: {
+        bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
+        bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
+        status: finalStatus,
+        rentAmount: validated.rentAmount,
+        monthlyCharges: validated.monthlyCharges,
+        securityDeposit: validated.securityDeposit,
+        effectiveDate: validated.effectiveDate,
+        endDate: validated.endDate || null,
+        paymentDay: validated.paymentDay || null,
+        stripePaymentIntentId: paymentIntentId || null,
+        paidAt: paymentIntentId ? new Date() : null,
+        parties: { set: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
+        updatedById: user.id,
       },
-      createdById: user.id,
-    },
-    include: {
-      property: { include: { owner: true } },
-      parties: true,
-    },
-  });
+      include: bailInclude,
+    });
+  } else {
+    bail = await prisma.bail.create({
+      data: {
+        bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
+        bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
+        status: finalStatus,
+        rentAmount: validated.rentAmount,
+        monthlyCharges: validated.monthlyCharges,
+        securityDeposit: validated.securityDeposit,
+        effectiveDate: validated.effectiveDate,
+        endDate: validated.endDate || null,
+        paymentDay: validated.paymentDay || null,
+        propertyId: validated.propertyId,
+        stripePaymentIntentId: paymentIntentId || null,
+        paidAt: paymentIntentId ? new Date() : null,
+        parties: { connect: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
+        createdById: user.id,
+      },
+      include: bailInclude,
+    });
+  }
 
   // Créer une notification pour tous les utilisateurs (sauf celui qui a créé le bail)
   await createNotificationForAllUsers(
@@ -98,7 +133,7 @@ export async function createLease(data: unknown) {
   );
 
   // Créer un IntakeLink pour le locataire et envoyer l'email
-  const tenantParty = bail.parties.find((party) => party.profilType === ProfilType.LOCATAIRE);
+  const tenantParty = bail.parties.find((party: any) => party.profilType === ProfilType.LOCATAIRE);
   if (tenantParty) {
     // Vérifier si un IntakeLink existe déjà pour ce locataire et ce bail
     let tenantIntakeLink = await prisma.intakeLink.findFirst({
@@ -681,17 +716,19 @@ export async function createTenantForLease(data: unknown) {
     throw new Error("Un locataire est déjà connecté à ce bail");
   }
 
-  // Chercher un locataire existant avec cet email dans ses persons
-  let tenant = await prisma.client.findFirst({
-    where: {
-      profilType: ProfilType.LOCATAIRE,
-      persons: {
-        some: {
-          email: validated.email,
-        },
-      },
-    },
+  // Chercher une personne existante avec cet email (toutes profils confondus)
+  const existingPerson = await prisma.person.findUnique({
+    where: { email: validated.email },
+    include: { client: true },
   });
+
+  let tenant = existingPerson?.client ?? null;
+
+  if (tenant && tenant.profilType !== ProfilType.LOCATAIRE) {
+    throw new Error(
+      "Cet email est déjà associé à un compte existant. Veuillez utiliser un email différent ou contacter le support."
+    );
+  }
 
   if (!tenant) {
     // Créer un nouveau locataire avec une personne associée
@@ -710,23 +747,26 @@ export async function createTenantForLease(data: unknown) {
       },
     });
 
-    // Notification pour création de client
+    // Notification pour ajout de locataire à un bail
     await createNotificationForAllUsers(
       NotificationType.CLIENT_CREATED,
-      "CLIENT",
-      tenant.id,
+      "BAIL",
+      bail.id,
       user.id,
-      { createdByForm: false }
+      {
+        createdByForm: false,
+        profileType: ProfilType.LOCATAIRE,
+        bailPropertyLabel: bail.property?.label || bail.property?.fullAddress?.split(",")[0] || null,
+      }
     );
   }
 
-  // Connecter le locataire au bail
+  // Connecter le locataire au bail + passer à PENDING_VALIDATION si en attente de locataire
   await prisma.bail.update({
     where: { id: validated.bailId },
     data: {
-      parties: {
-        connect: { id: tenant.id },
-      },
+      parties: { connect: { id: tenant.id } },
+      ...(bail.status === BailStatus.AWAITING_TENANT && { status: BailStatus.PENDING_VALIDATION }),
     },
   });
 
@@ -771,6 +811,7 @@ export async function createTenantForLease(data: unknown) {
   revalidatePath("/interface/baux");
   revalidatePath(`/interface/baux/${validated.bailId}`);
   revalidatePath("/interface/clients");
+  revalidatePath("/client/proprietaire");
 
   return { tenant, tenantIntakeLink };
 }
@@ -817,13 +858,13 @@ export async function createTenantFromEmail(data: unknown) {
       },
     });
 
-    // Notification pour création de client
+    // Notification pour création de locataire
     await createNotificationForAllUsers(
       NotificationType.CLIENT_CREATED,
       "CLIENT",
       tenant.id,
       user.id,
-      { createdByForm: false }
+      { createdByForm: false, profileType: ProfilType.LOCATAIRE }
     );
   }
 
@@ -1125,3 +1166,190 @@ export async function getBailMissingData(bailId: string): Promise<BailCompleteMi
 }
 
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Brouillons de bail depuis l'interface client
+// Identifiés par : status=DRAFT + paidAt IS NULL + property.ownerId = clientId
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function saveBailDraft(data: {
+  propertyId: string;
+  draftBailId?: string;
+  tenantId?: string;
+  bailType?: string;
+  rentAmount?: string;
+  monthlyCharges?: string;
+  securityDeposit?: string;
+  effectiveDate?: string;
+  endDate?: string;
+  paymentDay?: string;
+}) {
+  const { client } = await requireProprietaireAuth();
+
+  const property = await prisma.property.findUnique({
+    where: { id: data.propertyId },
+    select: { ownerId: true },
+  });
+  if (!property || property.ownerId !== client.id) {
+    throw new Error("Bien introuvable ou accès refusé");
+  }
+
+  const rentAmount = data.rentAmount ? (parseInt(data.rentAmount, 10) || 0) : 0;
+  const monthlyCharges = data.monthlyCharges ? (parseInt(data.monthlyCharges, 10) || 0) : 0;
+  const securityDeposit = data.securityDeposit ? (parseInt(data.securityDeposit, 10) || 0) : 0;
+  const effectiveDate = data.effectiveDate ? new Date(data.effectiveDate) : new Date();
+  const endDate = data.endDate ? new Date(data.endDate) : null;
+  const paymentDay = data.paymentDay ? (parseInt(data.paymentDay, 10) || null) : null;
+  const bailType = (data.bailType as BailType) || BailType.BAIL_NU_3_ANS;
+
+  if (data.draftBailId) {
+    // Vérifier que le brouillon appartient bien au client et n'est pas payé
+    const existing = await prisma.bail.findUnique({
+      where: { id: data.draftBailId },
+      include: { property: { select: { ownerId: true } }, parties: { select: { id: true } } },
+    });
+    if (!existing || existing.property.ownerId !== client.id || existing.paidAt !== null) {
+      throw new Error("Brouillon introuvable ou déjà finalisé");
+    }
+
+    const tenantConnects = data.tenantId
+      ? [{ id: client.id }, { id: data.tenantId }]
+      : existing.parties.map((p: any) => ({ id: p.id }));
+
+    await prisma.bail.update({
+      where: { id: data.draftBailId },
+      data: {
+        bailType,
+        rentAmount,
+        monthlyCharges,
+        securityDeposit,
+        effectiveDate,
+        endDate,
+        paymentDay,
+        parties: { set: tenantConnects },
+      },
+    });
+
+    revalidatePath("/client/proprietaire");
+    return { bailId: data.draftBailId };
+  }
+
+  // Créer un nouveau brouillon
+  const bail = await prisma.bail.create({
+    data: {
+      bailType,
+      bailFamily: BailFamille.HABITATION,
+      status: BailStatus.DRAFT,
+      rentAmount,
+      monthlyCharges,
+      securityDeposit,
+      effectiveDate,
+      endDate,
+      paymentDay,
+      propertyId: data.propertyId,
+      parties: {
+        connect: data.tenantId
+          ? [{ id: client.id }, { id: data.tenantId }]
+          : [{ id: client.id }],
+      },
+    },
+  });
+
+  revalidatePath("/client/proprietaire");
+  return { bailId: bail.id };
+}
+
+export async function deleteBailDraft(bailId: string) {
+  const { client } = await requireProprietaireAuth();
+
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    include: { property: { select: { ownerId: true } } },
+  });
+  if (!bail || bail.property.ownerId !== client.id || bail.paidAt !== null) {
+    throw new Error("Brouillon introuvable ou déjà finalisé");
+  }
+
+  await prisma.bail.delete({ where: { id: bailId } });
+  revalidatePath("/client/proprietaire");
+  return { success: true };
+}
+
+export async function getClientBailDrafts(clientId: string) {
+  const drafts = await prisma.bail.findMany({
+    where: {
+      status: BailStatus.DRAFT,
+      paidAt: null,
+      property: { ownerId: clientId },
+      // Exclure les baux liés à un IntakeLink PENDING du propriétaire (créés via /commencer)
+      intakes: { none: { status: "PENDING", clientId: clientId } },
+    },
+    select: {
+      id: true,
+      bailType: true,
+      rentAmount: true,
+      monthlyCharges: true,
+      effectiveDate: true,
+      paymentDay: true,
+      createdAt: true,
+      updatedAt: true,
+      property: { select: { id: true, label: true, fullAddress: true } },
+      parties: {
+        select: {
+          id: true,
+          profilType: true,
+          persons: {
+            where: { isPrimary: true },
+            take: 1,
+            select: { firstName: true, lastName: true, email: true },
+          },
+          entreprise: { select: { legalName: true, name: true } },
+        },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  return drafts.map((d) => ({
+    ...d,
+    createdAt: d.createdAt.toISOString(),
+    updatedAt: d.updatedAt.toISOString(),
+    effectiveDate: d.effectiveDate.toISOString(),
+  }));
+}
+
+export async function getDraftBailForClient(bailId: string, clientId: string) {
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    include: {
+      property: { select: { id: true, ownerId: true, label: true, fullAddress: true } },
+      parties: {
+        select: {
+          id: true,
+          profilType: true,
+          persons: { where: { isPrimary: true }, take: 1, select: { firstName: true, lastName: true, email: true } },
+          entreprise: { select: { legalName: true, name: true } },
+        },
+      },
+    },
+  });
+
+  if (!bail || bail.property.ownerId !== clientId || bail.paidAt !== null || bail.status !== "DRAFT") {
+    return null;
+  }
+
+  const tenant = bail.parties.find((p) => p.profilType === "LOCATAIRE");
+
+  return {
+    id: bail.id,
+    bailType: bail.bailType,
+    rentAmount: bail.rentAmount,
+    monthlyCharges: bail.monthlyCharges,
+    securityDeposit: bail.securityDeposit,
+    effectiveDate: bail.effectiveDate.toISOString().split("T")[0],
+    endDate: null,
+    paymentDay: bail.paymentDay,
+    propertyId: bail.property.id,
+    tenantId: tenant?.id ?? null,
+  };
+}

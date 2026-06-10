@@ -51,7 +51,7 @@ export function CTASection() {
               onClick={scrollToContact}
               className="bg-[#4373f5] hover:bg-blue-500 text-white sm:text-lg text-md px-8 py-3 h-auto rounded-xl shadow-md transition-all duration-200"
             >
-              Constituer mon dossier gratuitement
+              Constituer mon dossier — 39,90€ TTC
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <PhoneButton 
@@ -62,7 +62,7 @@ export function CTASection() {
           </div>
 
           <p className="text-sm opacity-75 mt-6">
-            Constitution gratuite • Sans engagement • Réponse sous 24h
+            Frais de dossier 39,90€ TTC • Remboursé si le dossier n'aboutit pas* • 100% sécurisé
           </p>
         </div>
       </div>

@@ -82,6 +82,7 @@ enum BailFamille {
 
 enum BailStatus {
   DRAFT // brouillon, pas toute les données sont remplies
+  AWAITING_TENANT // bail soumis et payé mais sans locataire renseigné
   PENDING_VALIDATION // en attente de validation par bailnotarie si toute les donne sont remplies
   READY_FOR_NOTARY // prêt pour notaire
   CLIENT_CONTACTED // client contacté
@@ -459,6 +460,9 @@ model Bail {
   createdBy   User?    @relation("BailCreatedBy", fields: [createdById], references: [id])
   updatedBy   User?    @relation("BailUpdatedBy", fields: [updatedById], references: [id])
 
+  stripePaymentIntentId String?   @db.Text
+  paidAt                DateTime?
+
   documents Document[]
   intakes   IntakeLink[] @relation("BailIntakes")
 
@@ -525,6 +529,8 @@ model IntakeLink {
 
   status               IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
   submittedAt          DateTime?
+
+  stripePaymentIntentId String?   @db.Text // Temporaire : cache pour réutiliser le PaymentIntent
 
   bailFamilyPreference BailFamille?
 

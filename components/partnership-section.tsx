@@ -83,7 +83,7 @@ export function PartnershipSection() {
     },
     {
       title: "Délais rapides",
-      description: "Votre bail authentifié en 48h maximum grâce à notre processus optimisé et notre réseau de notaires.",
+      description: "Votre bail authentifié en 1 semaine maximum grâce à notre processus optimisé et notre réseau de notaires.",
       icon: <Clock className="w-8 h-8" />,
     },
     {

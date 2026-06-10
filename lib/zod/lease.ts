@@ -30,7 +30,7 @@ const createLeaseBaseSchema = z.object({
     .enum(["BAIL_NU_3_ANS", "BAIL_NU_6_ANS", "BAIL_MEUBLE_1_ANS", "BAIL_MEUBLE_9_MOIS"])
     .default("BAIL_NU_3_ANS"),
   status: z
-    .enum(["DRAFT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED"])
+    .enum(["DRAFT", "AWAITING_TENANT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED"])
     .default("DRAFT"),
   rentAmount: z.string().transform((val) => {
     const num = parseInt(val, 10);
@@ -77,7 +77,7 @@ const createLeaseBaseSchema = z.object({
       return num;
     }),
   propertyId: z.string().cuid("ID bien invalide").min(1, "Le bien est requis"),
-  tenantId: z.string().cuid("ID locataire invalide").min(1, "Le locataire est requis"),
+  tenantId: z.string().cuid("ID locataire invalide").optional().or(z.literal("")),
 });
 
 // Schéma de création avec validation du dépôt de garantie
@@ -93,7 +93,7 @@ const updateLeaseBaseSchema = z.object({
     .enum(["BAIL_NU_3_ANS", "BAIL_NU_6_ANS", "BAIL_MEUBLE_1_ANS", "BAIL_MEUBLE_9_MOIS"])
     .optional(),
   status: z
-    .enum(["DRAFT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED"])
+    .enum(["DRAFT", "AWAITING_TENANT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED"])
     .optional(),
   rentAmount: z
     .string()

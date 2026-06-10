@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma  } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
 import { requireAuth } from "@/lib/auth-helpers";
 import { createIntakeLinkSchema, submitIntakeSchema } from "@/lib/zod/intake";
 import { ownerFormSchema, tenantFormSchema } from "@/lib/zod/client";
@@ -190,7 +191,21 @@ export async function getIntakeLinkByToken(token: string) {
 
 export async function submitIntake(data: unknown) {
   const validated = submitIntakeSchema.parse(data);
-  const { token, payload } = validated;
+  const { token, payload, paymentIntentId } = validated;
+
+  // Vérifier le paiement Stripe si un PaymentIntentId est fourni
+  if (paymentIntentId) {
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (paymentIntent.status !== "succeeded") {
+      throw new Error("Le paiement n'a pas été confirmé. Veuillez réessayer.");
+    }
+    if (paymentIntent.amount !== 3990) {
+      throw new Error("Montant de paiement incorrect.");
+    }
+    if (paymentIntent.metadata?.token !== token) {
+      throw new Error("Ce paiement ne correspond pas à ce dossier.");
+    }
+  }
 
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
@@ -230,6 +245,24 @@ export async function submitIntake(data: unknown) {
       // Les fichiers sont maintenant uploadés directement via FileUpload avec upload direct client → S3
       // Plus besoin de passer formData
       await submitOwnerForm(ownerData);
+
+      // Enregistrer le paiement sur le Bail (source de vérité unique)
+      if (paymentIntentId) {
+        const updatedIntakeLink = await prisma.intakeLink.findUnique({
+          where: { token },
+          select: { bailId: true },
+        });
+        if (updatedIntakeLink?.bailId) {
+          await prisma.bail.update({
+            where: { id: updatedIntakeLink.bailId },
+            data: {
+              stripePaymentIntentId: paymentIntentId,
+              paidAt: new Date(),
+            },
+          });
+        }
+      }
+
       return { success: true };
     } catch (error: any) {
       // Si c'est une erreur Zod, formater les messages d'erreur

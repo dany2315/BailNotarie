@@ -34,7 +34,7 @@ export default function Home() {
       {/* Partenariat avec notaires */}
       <PartnershipSection />
       
-      {/* Avantages - 100% digital, 48h, gratuit */}
+      {/* Avantages - 100% digital, 1 semaine, 39,90€ */}
       <BenefitsNewSection />
       
       {/* Témoignages */}
@@ -60,6 +60,12 @@ export default function Home() {
           <ContactForm />
         </div>
       </section>
+
+      <div className="bg-gray-50 border-t border-gray-200 py-3 text-center">
+        <p className="text-xs text-gray-400">
+          *Sous conditions, voir <a href="/cgv" className="underline hover:text-gray-600">CGV</a>
+        </p>
+      </div>
 
       <Footer />
     </main>

@@ -1,6 +1,6 @@
 import { getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -27,6 +27,8 @@ export default async function IntakeReminderPage({
     notFound();
   }
 
+  const isOwner = intakeLink.target === "OWNER";
+
   // Si le formulaire est déjà soumis, rediriger vers la page de succès
   if (intakeLink.status === "SUBMITTED") {
     return (
@@ -46,11 +48,19 @@ export default async function IntakeReminderPage({
               <p className="text-muted-foreground">
                 Ce formulaire a déjà été soumis avec succès.
               </p>
-              <Button asChild>
-                <Link href={`/intakes/${intakeLink.token}/success`}>
-                  Voir la confirmation
-                </Link>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                <Button asChild variant="outline">
+                  <Link href={`/intakes/${intakeLink.token}/success`}>
+                    Voir la confirmation
+                  </Link>
+                </Button>
+                <Button asChild className="bg-green-600 hover:bg-green-700">
+                  <Link href={isOwner ? "/client/proprietaire" : "/client/locataire"} className="flex items-center gap-2">
+                    Accéder à mon espace client
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -60,8 +70,6 @@ export default async function IntakeReminderPage({
     );
   }
 
-  const isOwner = intakeLink.target === "OWNER";
-  
   // Obtenir le nom du client depuis Person ou Entreprise
   let clientName = "Client";
   if (intakeLink.client) {
@@ -121,11 +129,19 @@ export default async function IntakeReminderPage({
               <p className="text-sm text-muted-foreground">
                 Une fois le formulaire complété et soumis, nous pourrons commencer le traitement de votre demande de bail notarié.
               </p>
-              <Button asChild size="lg" className="w-full sm:w-auto">
-                <Link href={isOwner ? `/commencer/proprietaire/${intakeLink.token}` : `/intakes/${intakeLink.token}`}>
-                  Retourner au formulaire
-                </Link>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button asChild size="lg">
+                  <Link href={isOwner ? `/commencer/proprietaire/${intakeLink.token}` : `/intakes/${intakeLink.token}`}>
+                    Retourner au formulaire
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href={isOwner ? "/client/proprietaire" : "/client/locataire"} className="flex items-center gap-2">
+                    Accéder à mon espace client
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>

@@ -16,8 +16,8 @@ export function useS3PublicUrl(fileKey: string | null | undefined): string | nul
     }
     
     // Sinon, générer l'URL publique depuis la clé S3
-    const bucket = process.env.NEXT_PUBLIC_AWS_S3_BUCKET_NAME || "";
-    const region = process.env.NEXT_PUBLIC_AWS_REGION || "eu-west-3";
+    const bucket = process.env.AWS_S3_BUCKET_NAME || process.env.NEXT_PUBLIC_AWS_S3_BUCKET_NAME || "";
+    const region = process.env.AWS_REGION || process.env.NEXT_PUBLIC_AWS_REGION || "eu-west-3";
     
     if (!bucket) {
       console.warn("[useS3PublicUrl] NEXT_PUBLIC_AWS_S3_BUCKET_NAME non défini");

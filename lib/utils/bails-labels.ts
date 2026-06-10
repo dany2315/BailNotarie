@@ -11,6 +11,7 @@ export function getBailTypeLabel(bailType: string): string {
 
 const bailStatusLabels: Record<string, string> = {
   DRAFT: "Brouillon",
+  AWAITING_TENANT: "En attente du locataire",
   PENDING_VALIDATION: "En attente de validation",
   READY_FOR_NOTARY: "À contacter",
   CLIENT_CONTACTED: "En traitement",

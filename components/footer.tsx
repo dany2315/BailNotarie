@@ -16,7 +16,7 @@ export function Footer() {
               <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} className="  w-30" />
             </Link>
             <div className="text-gray-400 text-sm">
-              Bailnotarie est une plateforme de constitution de dossier de bail notarié en ligne, en 48h avec force exécutoire immédiate, pour les propriétaires bailleurs.
+              Bailnotarie est une plateforme de constitution de dossier de bail notarié en ligne, en 1 semaine avec force exécutoire immédiate, pour les propriétaires bailleurs.
 
               <br />
               <br />
@@ -44,6 +44,7 @@ export function Footer() {
               <li><Link href="/mentions-legales" className="hover:text-white transition-colors">Mentions légales</Link></li>
               <li><Link href="/politique-confidentialite" className="hover:text-white transition-colors">Politique de confidentialité</Link></li>
               <li><Link href="/cgu" className="hover:text-white transition-colors">CGU</Link></li>
+              <li><Link href="/cgv" className="hover:text-white transition-colors">CGV</Link></li>
               <li><Link href="/#faq" className="hover:text-white transition-colors">FAQ</Link></li>
             </ul>
           </div>

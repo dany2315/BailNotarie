@@ -16,7 +16,7 @@ export function HowItWorksSection() {
       number: 1,
       icon: FileText,
       title: "Constitution du dossier 100% en ligne",
-      description: "Remplissez votre dossier directement sur notre plateforme , sans engagement.",
+      description: "Remplissez votre dossier directement sur notre plateforme.",
       details: [
         "Formulaire simple et intuitif",
         "Upload de vos documents en ligne",
@@ -49,7 +49,7 @@ export function HowItWorksSection() {
       number: 3,
       icon: PenTool,
       title: "Signature en ligne avec le notaire",
-      description: "Signature en visioconférence sécurisée avec le notaire. Votre bail notarié est prêt en 48h.",
+      description: "Signature en visioconférence sécurisée avec le notaire. Votre bail notarié est prêt en 1 semaine.",
       details: [
         "Signature en visioconférence sécurisée",
         "Acte authentique validé",
@@ -107,7 +107,7 @@ export function HowItWorksSection() {
             Prêt à constituer votre dossier ?
           </h3>
           <p className="text-gray-700 mb-5 max-w-2xl text-center">
-            Commencez dès maintenant&nbsp;: <span className="font-semibold text-gray-900"> sans engagement</span>, et votre dossier sera transmis automatiquement au notaire.
+            Commencez dès maintenant et votre dossier sera transmis automatiquement au notaire.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button

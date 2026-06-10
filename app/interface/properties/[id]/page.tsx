@@ -3,7 +3,7 @@ import { getDocuments } from "@/lib/actions/documents";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit, FileText, Mail, Phone, MapPin, Home, Building2, Euro, Calendar, ArrowRight, User } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Mail, Phone, MapPin, Home, Building2, Euro, Calendar, ArrowRight, User, Check, X, AlertTriangle } from "lucide-react";
 import { 
   PropertyLegalStatusBadge, 
   PropertyTypeBadge, 
@@ -242,12 +242,12 @@ export default async function PropertyDetailPage({
                property.hasVaisselle && property.hasUstensilesCuisine && property.hasTable && 
                property.hasSieges && property.hasEtageresRangement && property.hasLuminaires && 
                property.hasMaterielEntretien ? (
-                <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950 px-2 py-1 rounded">
-                  ✓ Éligible bail meublé
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950 px-2 py-1 rounded">
+                  <Check className="h-3 w-3" /> Éligible bail meublé
                 </span>
               ) : (
-                <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-2 py-1 rounded">
-                  ⚠ Mobilier incomplet
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-2 py-1 rounded">
+                  <AlertTriangle className="h-3 w-3" /> Mobilier incomplet
                 </span>
               )}
             </div>
@@ -276,7 +276,7 @@ export default async function PropertyDetailPage({
                   }`}
                 >
                   <span className={`text-sm ${value ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
-                    {value ? "✓" : "✗"}
+                    {value ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
                   </span>
                   <span className={`text-sm ${value ? "text-foreground" : "text-muted-foreground"}`}>
                     {label}

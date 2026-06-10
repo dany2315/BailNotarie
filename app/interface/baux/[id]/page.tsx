@@ -3,7 +3,7 @@ import { getDocuments } from "@/lib/actions/documents";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit, FileText, Mail, Phone, MapPin, Calendar, Euro, Home, User, Building2, Download, ExternalLink, ArrowRight, UserPlus } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Mail, Phone, MapPin, Calendar, Euro, Home, User, Building2, Download, ExternalLink, ArrowRight, UserPlus, CheckCircle2, CreditCard } from "lucide-react";
 import { 
   StatusBadge, 
   PropertyTypeBadge, 
@@ -273,7 +273,20 @@ export default async function LeaseDetailPage({
 
           {/* Section Financière - Mise en évidence */}
           <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-4">Informations financières</p>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations financières</p>
+              {lease.paidAt ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  Frais de dossier payés le {formatDate(lease.paidAt)}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                  <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                  Frais de dossier non payés
+                </span>
+              )}
+            </div>
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
                 <div className="flex items-center gap-2 text-muted-foreground">
