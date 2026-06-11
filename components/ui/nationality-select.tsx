@@ -19,6 +19,14 @@ import {
 } from "@/components/ui/popover";
 import { useNationalities, type NationalityOption } from "@/hooks/useNationalities";
 
+// Normalise une chaîne pour la recherche : minuscules + suppression des accents
+// pour que "francaise" matche "Française", "espagnole" matche "Espagnole", etc.
+const normalizeForSearch = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+
 interface NationalitySelectProps {
   value?: string;
   onValueChange?: (value: string) => void;
@@ -75,13 +83,20 @@ export function NationalitySelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-        <Command shouldFilter={true}>
+        <Command
+          shouldFilter
+          filter={(value, search) => {
+            const v = normalizeForSearch(value);
+            const s = normalizeForSearch(search);
+            return v.includes(s) ? 1 : 0;
+          }}
+        >
           <CommandInput placeholder="Rechercher une nationalité..." />
           <CommandList>
             <CommandEmpty>
               {loading ? "Chargement..." : "Aucune nationalité trouvée."}
             </CommandEmpty>
-            
+            <CommandGroup>
               {nationalities.map((nationality) => (
                 <CommandItem
                   key={nationality.value}
@@ -113,6 +128,7 @@ export function NationalitySelect({
                   />
                 </CommandItem>
               ))}
+            </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
