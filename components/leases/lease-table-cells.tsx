@@ -1,8 +1,9 @@
 "use client";
 
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { formatDate, formatCurrency } from "@/lib/utils/formatters";
-import { ArrowRight, Building2, User, GraduationCap, CheckCircle2, CreditCard } from "lucide-react";
+import { ArrowRight, Building2, User, GraduationCap, CheckCircle2, CreditCard, Hourglass } from "lucide-react";
 import Link from "next/link";
 
 interface LeaseCellProps {
@@ -186,6 +187,19 @@ export function LeaseOwnerCell({ row }: LeaseCellProps) {
 export function LeaseStatusCell({ row }: LeaseCellProps) {
   if (!row?.status) {
     return <span className="text-muted-foreground">-</span>;
+  }
+  // Propriétaire a payé + soumis, mais le bail reste DRAFT tant que le locataire
+  // n'a pas rempli son intake. Affiché comme "Soumis — en attente locataire"
+  // pour ne pas laisser un libellé "Brouillon" trompeur côté admin.
+  const hasTenant = Array.isArray(row.parties)
+    && row.parties.some((p: any) => p?.profilType === "LOCATAIRE");
+  if (row.status === "DRAFT" && row.paidAt && hasTenant) {
+    return (
+      <Badge variant="secondary" className="space-x-2 px-2 py-1">
+        <Hourglass className="size-4" />
+        <span>Soumis — en attente locataire</span>
+      </Badge>
+    );
   }
   return <StatusBadge status={row.status} />;
 }
