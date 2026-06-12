@@ -197,7 +197,7 @@ export function LeaseStatusCell({ row }: LeaseCellProps) {
     return (
       <Badge variant="secondary" className="space-x-2 px-2 py-1">
         <Hourglass className="size-4" />
-        <span>Soumis — en attente locataire</span>
+        <span>En attente du formulaire locataire</span>
       </Badge>
     );
   }
