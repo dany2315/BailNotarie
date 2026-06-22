@@ -12,6 +12,7 @@ import {
   updateClientSchema,
 } from "@/lib/zod/client";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { Decimal } from "@prisma/client/runtime/library";
 import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus, CompletionStatus } from "@prisma/client";
 import { 
@@ -1202,10 +1203,8 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     console.error("Erreur lors du déclenchement des calculs de statut:", error);
   });
 
-  // Déclencher l'envoi d'email et les notifications en arrière-plan (après le return, ne bloque pas le rendu)
-  Promise.resolve().then(async () => {
+  after(async () => {
     try {
-      // Récupérer les informations du client pour l'email de confirmation
       const clientData = await prisma.client.findUnique({
         where: { id: validated.clientId },
         include: {
@@ -1217,7 +1216,6 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
         },
       });
 
-      // Envoyer l'email de confirmation au propriétaire
       if (clientData) {
         let firstName = "";
         let lastName = "";
@@ -1252,7 +1250,6 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
         }
       }
 
-      // Notification pour soumission d'intake
       if (ownerIntakeLinkId) {
         await createNotificationForAllUsers(
           NotificationType.INTAKE_SUBMITTED,
@@ -1263,11 +1260,8 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
         );
       }
     } catch (error: any) {
-      // Ne pas bloquer la soumission même si les notifications/emails échouent
       console.error("❌ Erreur lors des notifications/emails (en arrière-plan):", error);
     }
-  }).catch((error) => {
-    console.error("❌ Erreur lors de l'exécution asynchrone des notifications/emails:", error);
   });
 
   return result;
@@ -1649,10 +1643,8 @@ export async function submitTenantForm(data: unknown) {
   // Retourner le résultat AVANT les autres notifications pour que l'utilisateur voie le statut immédiatement
   const result = { success: true };
 
-  // Déclencher les notifications et l'email de confirmation en arrière-plan (après le return, ne bloque pas le rendu)
-  Promise.resolve().then(async () => {
-    try {    
-      // Récupérer les informations du client pour l'email de confirmation
+  after(async () => {
+    try {
       const clientData = await prisma.client.findUnique({
         where: { id: validated.clientId },
         include: {
@@ -1664,7 +1656,6 @@ export async function submitTenantForm(data: unknown) {
         },
       });
 
-      // Envoyer l'email de confirmation au locataire
       if (clientData) {
         let firstName = "";
         let lastName = "";
@@ -1697,25 +1688,20 @@ export async function submitTenantForm(data: unknown) {
             console.error("Erreur lors de l'envoi de l'email de confirmation au locataire:", error);
           }
         }
-
       }
 
-      // Notification pour soumission d'intake via formulaire
       if (updatedIntakeLinkId) {
         await createNotificationForAllUsers(
           NotificationType.INTAKE_SUBMITTED,
           "INTAKE",
           updatedIntakeLinkId,
-          null, // Soumis par formulaire, pas par un utilisateur
+          null,
           { intakeTarget: "TENANT"}
         );
       }
     } catch (error: any) {
-      // Ne pas bloquer la soumission même si les notifications échouent
       console.error("❌ Erreur lors des notifications (en arrière-plan):", error);
     }
-  }).catch((error) => {
-    console.error("❌ Erreur lors de l'exécution asynchrone des notifications:", error);
   });
 
   return result;
