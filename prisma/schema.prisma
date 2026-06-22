@@ -83,6 +83,7 @@ enum BailFamille {
 enum BailStatus {
   DRAFT // brouillon, pas toute les données sont remplies
   AWAITING_TENANT // bail soumis et payé mais sans locataire renseigné
+  AWAITING_TENANT_FORM // bail soumis et payé, locataire existe mais n'a pas encore rempli son formulaire
   PENDING_VALIDATION // en attente de validation par bailnotarie si toute les donne sont remplies
   READY_FOR_NOTARY // prêt pour notaire
   CLIENT_CONTACTED // client contacté

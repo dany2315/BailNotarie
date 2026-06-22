@@ -86,8 +86,9 @@ type UnifiedItem = {
 
 const statusColors: Record<BailStatus, string> = {
   DRAFT: "bg-gray-100 text-gray-800",
-  AWAITING_TENANT: "bg-orange-100 text-orange-800",
-  PENDING_VALIDATION: "bg-orange-100 text-orange-800",
+  AWAITING_TENANT: "bg-violet-100 text-violet-800",
+  AWAITING_TENANT_FORM: "bg-indigo-100 text-indigo-800",
+  PENDING_VALIDATION: "bg-amber-100 text-amber-800",
   READY_FOR_NOTARY: "bg-blue-100 text-blue-800",
   CLIENT_CONTACTED: "bg-purple-100 text-purple-800",
   SIGNED: "bg-green-100 text-green-800",

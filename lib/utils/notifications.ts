@@ -151,25 +151,23 @@ export async function createNotificationForAllUsers(
     })),
   });
 
-  // Déclencher l'envoi d'email à chaque utilisateur via Inngest.
-  // On attend explicitement l'enqueue pour éviter les pertes sur les runtimes serverless.
-  const emailPromises = users
-    .filter((user) => user.email) // Seulement les utilisateurs avec un email
-    .map(async (user) => {
-      try {
-        await triggerNotificationEmail({
-          to: user.email!,
-          userName: user.name,
-          notificationMessage,
-          interfaceUrl,
-        });
-      } catch (error) {
-        console.error(`Erreur lors du déclenchement de l'email à ${user.email}:`, error);
-        // On continue même si l'email échoue
-      }
-    });
+  // Envoyer un seul email à tous les admins (1 appel Resend au lieu de N)
+  const adminEmails = users
+    .filter((user) => user.email)
+    .map((user) => user.email!);
 
-  await Promise.all(emailPromises);
+  if (adminEmails.length > 0) {
+    try {
+      await triggerNotificationEmail({
+        to: adminEmails,
+        userName: null,
+        notificationMessage,
+        interfaceUrl,
+      });
+    } catch (error) {
+      console.error("Erreur lors du déclenchement de l'email admin:", error);
+    }
+  }
 }
 
 /**
@@ -268,24 +266,22 @@ export async function createNotificationForUsers(
   const notificationMessage = getNotificationMessageText(type, metadata);
   const interfaceUrl = getNotificationInterfaceLink(targetType, targetId);
 
-  // Déclencher l'envoi d'email à chaque utilisateur via Inngest.
-  // On attend explicitement l'enqueue pour éviter les pertes sur les runtimes serverless.
-  const emailPromises = users
-    .filter((user) => user.email) // Seulement les utilisateurs avec un email
-    .map(async (user) => {
-      try {
-        await triggerNotificationEmail({
-          to: user.email!,
-          userName: user.name,
-          notificationMessage,
-          interfaceUrl,
-        });
-      } catch (error) {
-        console.error(`Erreur lors du déclenchement de l'email à ${user.email}:`, error);
-        // On continue même si l'email échoue
-      }
-    });
+  // Envoyer un seul email à tous les destinataires (1 appel Resend au lieu de N)
+  const recipientEmails = users
+    .filter((user) => user.email)
+    .map((user) => user.email!);
 
-  await Promise.all(emailPromises);
+  if (recipientEmails.length > 0) {
+    try {
+      await triggerNotificationEmail({
+        to: recipientEmails,
+        userName: null,
+        notificationMessage,
+        interfaceUrl,
+      });
+    } catch (error) {
+      console.error("Erreur lors du déclenchement de l'email:", error);
+    }
+  }
 }
 

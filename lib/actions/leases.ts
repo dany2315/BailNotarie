@@ -72,7 +72,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
 
   // Statut déterminé server-side selon la présence du locataire
   const finalStatus: BailStatus = validated.tenantId
-    ? BailStatus.DRAFT
+    ? BailStatus.AWAITING_TENANT_FORM
     : BailStatus.AWAITING_TENANT;
 
   if (draftBailId) {
@@ -766,7 +766,7 @@ export async function createTenantForLease(data: unknown) {
     where: { id: validated.bailId },
     data: {
       parties: { connect: { id: tenant.id } },
-      ...(bail.status === BailStatus.AWAITING_TENANT && { status: BailStatus.PENDING_VALIDATION }),
+      ...(bail.status === BailStatus.AWAITING_TENANT && { status: BailStatus.AWAITING_TENANT_FORM }),
     },
   });
 

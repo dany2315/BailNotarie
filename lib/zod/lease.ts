@@ -160,7 +160,7 @@ export const updateLeaseSchema = updateLeaseBaseSchema.superRefine((data, ctx) =
 
 export const transitionLeaseSchema = z.object({
   id: z.string().cuid("ID invalide"),
-  nextStatus: z.enum(["PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED"]),
+  nextStatus: z.enum(["AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"]),
 });
 
 export type CreateLeaseInput = z.infer<typeof createLeaseSchema>;

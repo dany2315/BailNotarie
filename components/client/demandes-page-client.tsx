@@ -132,6 +132,7 @@ const BAIL_STEPS = [
 const BAIL_STEP_INDEX: Record<string, number> = {
   DRAFT: 0,
   AWAITING_TENANT: 0,
+  AWAITING_TENANT_FORM: 0,
   PENDING_VALIDATION: 0,
   READY_FOR_NOTARY: 1,
   CLIENT_CONTACTED: 1,
@@ -142,6 +143,7 @@ const BAIL_STEP_INDEX: Record<string, number> = {
 const BAIL_STATUS_CONFIG: Record<string, { badgeBg: string; label: string; icon: React.ElementType }> = {
   DRAFT: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
   AWAITING_TENANT: { badgeBg: "bg-orange-50 text-orange-700 border-orange-200", label: "Locataire manquant", icon: User },
+  AWAITING_TENANT_FORM: { badgeBg: "bg-indigo-50 text-indigo-700 border-indigo-200", label: "Formulaire locataire en attente", icon: Clock },
   PENDING_VALIDATION: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
   READY_FOR_NOTARY: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
   CLIENT_CONTACTED: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },

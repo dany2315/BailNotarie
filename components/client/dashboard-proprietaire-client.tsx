@@ -139,6 +139,7 @@ const STEPS = [
 const STEP_INDEX: Record<string, number> = {
   DRAFT: 0,
   AWAITING_TENANT: 0,
+  AWAITING_TENANT_FORM: 0,
   PENDING_VALIDATION: 0,
   READY_FOR_NOTARY: 1,
   CLIENT_CONTACTED: 1,
@@ -149,6 +150,7 @@ const STEP_INDEX: Record<string, number> = {
 const STATUS_INFO: Record<string, { message: string; needsAction?: boolean }> = {
   DRAFT: { message: "Votre dossier est entre nos mains. On revient vers vous sous 48h." },
   AWAITING_TENANT: { message: "En attente du locataire — ajoutez son email pour débloquer le dossier.", needsAction: true },
+  AWAITING_TENANT_FORM: { message: "En attente du formulaire de votre locataire. Il recevra un lien par email." },
   PENDING_VALIDATION: { message: "Votre dossier est entre nos mains. On revient vers vous sous 48h." },
   READY_FOR_NOTARY: { message: "Un notaire a pris en charge votre dossier. Il va vous contacter prochainement." },
   CLIENT_CONTACTED: { message: "Votre notaire vous a contacté — répondez-lui pour fixer la date de signature.", needsAction: true },
@@ -170,7 +172,7 @@ const STAGE_LABELS: Record<string, string> = {
   finalize: "Documents",
 };
 
-const ACTIVE_STATUSES = ["DRAFT", "AWAITING_TENANT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED"];
+const ACTIVE_STATUSES = ["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED"];
 
 const STATUS_CONFIG: Record<string, {
   borderColor: string;
@@ -189,6 +191,12 @@ const STATUS_CONFIG: Record<string, {
     badgeBg: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800",
     label: "Locataire manquant",
     icon: UserPlus,
+  },
+  AWAITING_TENANT_FORM: {
+    borderColor: "border-l-indigo-400",
+    badgeBg: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800",
+    label: "Formulaire locataire en attente",
+    icon: Clock,
   },
   PENDING_VALIDATION: {
     borderColor: "border-l-blue-400",
@@ -682,7 +690,7 @@ export function DashboardProprietaireClient({
   const recentBails = [...baux]
     .sort((a, b) => {
       const p = (s: string) =>
-        s === "CLIENT_CONTACTED" ? 0 : s === "PENDING_VALIDATION" ? 1 : s === "READY_FOR_NOTARY" ? 2 : s === "AWAITING_TENANT" ? 3 : s === "DRAFT" ? 4 : s === "SIGNED" ? 5 : 6;
+        s === "CLIENT_CONTACTED" ? 0 : s === "AWAITING_TENANT_FORM" ? 1 : s === "PENDING_VALIDATION" ? 2 : s === "READY_FOR_NOTARY" ? 3 : s === "AWAITING_TENANT" ? 4 : s === "DRAFT" ? 5 : s === "SIGNED" ? 6 : 7;
       return p(a.status) - p(b.status);
     })
     .slice(0, 4);
