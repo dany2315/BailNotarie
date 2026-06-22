@@ -150,7 +150,7 @@ const STEP_INDEX: Record<string, number> = {
 const STATUS_INFO: Record<string, { message: string; needsAction?: boolean }> = {
   DRAFT: { message: "Votre dossier est entre nos mains. On revient vers vous sous 48h." },
   AWAITING_TENANT: { message: "En attente du locataire — ajoutez son email pour débloquer le dossier.", needsAction: true },
-  AWAITING_TENANT_FORM: { message: "En attente du formulaire de votre locataire. Il recevra un lien par email." },
+  AWAITING_TENANT_FORM: { message: "En attente des informations du locataire. Le lien lui a bien été envoyé par email." },
   PENDING_VALIDATION: { message: "Votre dossier est entre nos mains. On revient vers vous sous 48h." },
   READY_FOR_NOTARY: { message: "Un notaire a pris en charge votre dossier. Il va vous contacter prochainement." },
   CLIENT_CONTACTED: { message: "Votre notaire vous a contacté — répondez-lui pour fixer la date de signature.", needsAction: true },

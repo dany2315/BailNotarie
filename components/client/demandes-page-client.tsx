@@ -620,9 +620,9 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                                   <Lock className="h-6 w-6 text-muted-foreground" />
                                 </div>
                                 <div>
-                                  <h3 className="font-semibold text-base mb-1 text-muted-foreground">Bail en cours pour ce bien</h3>
+                                  <h3 className="font-semibold text-base mb-1 text-muted-foreground">Un bail est déjà actif sur ce bien</h3>
                                   <p className="text-sm text-muted-foreground">
-                                    Vous pourrez créer un nouveau bail 1 mois avant la fin du bail actuel.
+                                    Nouveau bail possible 1 mois avant la fin du bail en cours.
                                   </p>
                                 </div>
                               </div>
@@ -722,7 +722,6 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                                   <div className="flex flex-wrap gap-1.5 items-center">
                                     {bail.rentAmount != null && bail.rentAmount > 0 && (
                                       <span className="inline-flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary rounded-full px-2.5 py-1">
-                                        <Euro className="h-3 w-3" />
                                         {bail.rentAmount.toLocaleString()} €/mois
                                       </span>
                                     )}
