@@ -795,7 +795,7 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                           );
                         })}
                       </div>
-                    ) : (
+                    ) : !(selectedProperty.bails || []).some((b) => b.status === "DRAFT" && !b.paidAt) ? (
                       <Card>
                         <CardContent className="py-12 text-center">
                           <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -805,7 +805,7 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                           </p>
                         </CardContent>
                       </Card>
-                    )}
+                    ) : null}
                 </div>
               </div>
             </>
