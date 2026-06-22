@@ -9,7 +9,7 @@ import {
   createTenantBasicClientSchema,
   ownerFormSchema,
   tenantFormSchema,
-  updateClientSchema
+  updateClientSchema,
 } from "@/lib/zod/client";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -574,7 +574,7 @@ export async function createFullClient(data: unknown) {
 }
 
 // Soumettre le formulaire propriétaire (crée bien, bail, locataire et envoie email)
-export async function submitOwnerForm(data: unknown) {
+export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
   let validated;
   try {
     validated = ownerFormSchema.parse(data);
@@ -1026,35 +1026,39 @@ export async function submitOwnerForm(data: unknown) {
     const updateData: any = {
       bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
       bailFamily: validated.bailFamily || BailFamille.HABITATION,
-      status: tenant ? BailStatus.DRAFT : BailStatus.AWAITING_TENANT,
+      status: tenant ? BailStatus.AWAITING_TENANT_FORM : BailStatus.AWAITING_TENANT,
       rentAmount: validated.bailRentAmount,
       monthlyCharges: validated.bailMonthlyCharges || 0,
       securityDeposit: validated.bailSecurityDeposit || 0,
       effectiveDate: validated.bailEffectiveDate,
       endDate: validated.bailEndDate,
       paymentDay: validated.bailPaymentDay,
+      ...(paymentIntentId && {
+        stripePaymentIntentId: paymentIntentId,
+        paidAt: new Date(),
+      }),
     };
-    
+
     // Connecter le locataire seulement s'il existe et n'est pas déjà connecté
     if (tenant && !isTenantConnected) {
       updateData.parties = {
         connect: bailParties,
       };
     }
-    
+
     // Mettre à jour le bail existant
     bail = await prisma.bail.update({
       where: { id: ownerIntakeLink.bailId },
       data: updateData,
     });
-    
+
   } else {
     // Créer un nouveau bail
     bail = await prisma.bail.create({
       data: {
         bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
         bailFamily: validated.bailFamily || BailFamille.HABITATION,
-        status: tenant ? BailStatus.DRAFT : BailStatus.AWAITING_TENANT,
+        status: tenant ? BailStatus.AWAITING_TENANT_FORM : BailStatus.AWAITING_TENANT,
         rentAmount: validated.bailRentAmount,
         monthlyCharges: validated.bailMonthlyCharges || 0,
         securityDeposit: validated.bailSecurityDeposit || 0,
@@ -1062,6 +1066,10 @@ export async function submitOwnerForm(data: unknown) {
         endDate: validated.bailEndDate,
         paymentDay: validated.bailPaymentDay,
         propertyId: property.id,
+        ...(paymentIntentId && {
+          stripePaymentIntentId: paymentIntentId,
+          paidAt: new Date(),
+        }),
         parties: {
           connect: bailParties,
         },
@@ -3170,7 +3178,7 @@ export async function updateClientCompletionStatus(data: { id: string; completio
   const bails = await prisma.bail.findMany({
     where: {
       parties: { some: { id } },
-      status: { in: ["DRAFT", "PENDING_VALIDATION"] }
+      status: { in: ["DRAFT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION"] }
     },
     include: {
       property: true,
@@ -3199,12 +3207,12 @@ export async function updateClientCompletionStatus(data: { id: string; completio
       tenantStatus === "PENDING_CHECK" && 
       property.completionStatus === "PENDING_CHECK";
 
-    if (allCompleted && (bail.status === "DRAFT" || bail.status === "PENDING_VALIDATION")) {
+    if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION")) {
       await prisma.bail.update({
         where: { id: bail.id },
         data: { status: "READY_FOR_NOTARY" }
       });
-    } else if (allPendingCheck && bail.status === "DRAFT") {
+    } else if (allPendingCheck && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM")) {
       await prisma.bail.update({
         where: { id: bail.id },
         data: { status: "PENDING_VALIDATION" }

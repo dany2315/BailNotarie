@@ -543,7 +543,7 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
   const bails = await prisma.bail.findMany({
     where: {
       propertyId: id,
-      status: { in: ["DRAFT", "PENDING_VALIDATION"] }
+      status: { in: ["DRAFT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION"] }
     },
     include: {
       property: true,
@@ -568,12 +568,12 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
       tenant.completionStatus === "PENDING_CHECK" && 
       completionStatus === "PENDING_CHECK";
 
-    if (allCompleted && (bail.status === "DRAFT" || bail.status === "PENDING_VALIDATION")) {
+    if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION")) {
       await prisma.bail.update({
         where: { id: bail.id },
         data: { status: "READY_FOR_NOTARY" }
       });
-    } else if (allPendingCheck && bail.status === "DRAFT") {
+    } else if (allPendingCheck && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM")) {
       await prisma.bail.update({
         where: { id: bail.id },
         data: { status: "PENDING_VALIDATION" }

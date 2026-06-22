@@ -65,6 +65,12 @@ function getNotificationMessage(notification: Notification): string {
         if (metadata.oldStatus === BailStatus.DRAFT && metadata.newStatus === BailStatus.PENDING_VALIDATION) {
           return "Bail en attente de validation par bailnotarie";
         }
+        if (metadata.oldStatus === BailStatus.AWAITING_TENANT_FORM && metadata.newStatus === BailStatus.PENDING_VALIDATION) {
+          return "Formulaire locataire soumis — bail en attente de validation";
+        }
+        if (metadata.oldStatus === BailStatus.AWAITING_TENANT && metadata.newStatus === BailStatus.AWAITING_TENANT_FORM) {
+          return "Locataire ajouté — en attente de son formulaire";
+        }
         if (metadata.oldStatus === BailStatus.PENDING_VALIDATION && metadata.newStatus === BailStatus.READY_FOR_NOTARY) {
           return "Bail prêt a être assigné au notaire";
         }

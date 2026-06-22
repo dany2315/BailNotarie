@@ -244,24 +244,8 @@ export async function submitIntake(data: unknown) {
       });
       // Les fichiers sont maintenant uploadés directement via FileUpload avec upload direct client → S3
       // Plus besoin de passer formData
-      await submitOwnerForm(ownerData);
-
-      // Enregistrer le paiement sur le Bail (source de vérité unique)
-      if (paymentIntentId) {
-        const updatedIntakeLink = await prisma.intakeLink.findUnique({
-          where: { token },
-          select: { bailId: true },
-        });
-        if (updatedIntakeLink?.bailId) {
-          await prisma.bail.update({
-            where: { id: updatedIntakeLink.bailId },
-            data: {
-              stripePaymentIntentId: paymentIntentId,
-              paidAt: new Date(),
-            },
-          });
-        }
-      }
+      // On passe paymentIntentId pour que paidAt soit écrit atomiquement avec le bail
+      await submitOwnerForm(ownerData, paymentIntentId || undefined);
 
       return { success: true };
     } catch (error: any) {
