@@ -5,7 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Home, FileText, Building2, User, Calendar, Euro, Eye, Loader2, CheckCircle2, MessageSquare, MoreHorizontal, ExternalLink, ArrowRight, Clock, Scale, Store } from "lucide-react";
+import { Plus, Home, FileText, Building2, User, Calendar, Euro, Eye, Loader2, CheckCircle2, MessageSquare, MoreHorizontal, ExternalLink, ArrowRight, Clock, Scale, Store, AlertCircle, ClipboardList, Lock } from "lucide-react";
+import Link from "next/link";
 import { formatDate } from "@/lib/utils/formatters";
 import { DemandesTabs } from "./demandes-tabs";
 import { CompletionStatus, BailType, BailFamille, ProfilType } from "@prisma/client";
@@ -48,6 +49,7 @@ type PropertyWithBails = {
     rentAmount?: number | null;
     bailType?: string | null;
     bailFamily?: string | null;
+    paidAt?: string | null;
     parties?: Array<{
       id: string;
       profilType: string;
@@ -68,6 +70,11 @@ type PropertyWithBails = {
         name: string | null;
         email: string | null;
       } | null;
+    }>;
+    intakes?: Array<{
+      id: string;
+      token: string;
+      status: string;
     }>;
   }>;
 };
@@ -122,6 +129,25 @@ const bailFamilyLabels: Record<BailFamille, string> = {
   HABITATION: "Bail d'habitation",
   COMMERCIAL: "Bail commercial",
 };
+
+const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
+
+function canCreateNewBail(bails: PropertyWithBails["bails"]): boolean {
+  const activeBails = bails.filter((b) => !TERMINAL_STATUSES.includes(b.status));
+  if (activeBails.length === 0) return true;
+
+  return activeBails.every((b) => {
+    const endDate = b.endDate
+      ? new Date(b.endDate)
+      : b.effectiveDate && b.bailType
+      ? calculateBailEndDate(new Date(b.effectiveDate), b.bailType as BailType)
+      : null;
+    if (!endDate) return false;
+    const oneMonthBefore = new Date(endDate);
+    oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
+    return new Date() >= oneMonthBefore;
+  });
+}
 
 const BAIL_STEPS = [
   { key: "verification", shortLabel: "Vérification" },
@@ -531,29 +557,106 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
               {/* Contenu */}
               <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6">
                 <div className="space-y-4">
-                    <Card
-                      onClick={() => router.push(`/client/proprietaire/baux/new${selectedPropertyId ? `?propertyId=${selectedPropertyId}` : ""}`)}
-                      className="border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group"
-                    >
-                      <CardContent className="flex flex-col items-center justify-center px-0">
-                        <div className="flex flex-row items-center gap-10 text-center">
-                          <div className="rounded-full bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
-                            <Plus className="h-6 w-6 text-primary" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-base mb-1">Démarrer un dossier pour</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {selectedProperty?.label || selectedProperty?.fullAddress || "Bien sélectionné"}
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    {(() => {
+                      const allowed = canCreateNewBail(selectedProperty.bails || []);
+                      const draftBail = (selectedProperty.bails || []).find(
+                        (b) => b.status === "DRAFT" && !b.paidAt
+                      );
+                      const intakeLink = draftBail?.intakes?.[0];
 
-                    {/* Liste des baux */}
-                    {(selectedProperty.bails?.length || 0) > 0 ? (
+                      if (draftBail) {
+                        const locataire = draftBail.parties?.find((p) => p.profilType === ProfilType.LOCATAIRE);
+                        const locataireName = locataire?.entreprise
+                          ? locataire.entreprise.legalName || locataire.entreprise.name
+                          : locataire?.persons?.[0]
+                          ? `${locataire.persons[0].firstName || ""} ${locataire.persons[0].lastName || ""}`.trim() || locataire.persons[0].email
+                          : null;
+                        const href = intakeLink
+                          ? `/intakes/${intakeLink.token}`
+                          : `/client/proprietaire/baux/new?draftId=${draftBail.id}`;
+
+                        return (
+                          <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 transition-all hover:shadow-md">
+                            <CardContent className="p-4 sm:p-5">
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <div className="rounded-full bg-amber-100 dark:bg-amber-900 p-1.5 sm:p-2 shrink-0 mt-0.5">
+                                  <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600 dark:text-amber-400" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-semibold text-sm sm:text-base leading-tight text-amber-900 dark:text-amber-200">
+                                    Demande de bail en cours
+                                  </p>
+                                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 truncate">
+                                    {selectedProperty?.label || selectedProperty?.fullAddress || "Bien sélectionné"}
+                                  </p>
+                                  {locataireName && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <User className="h-3 w-3 text-amber-600/70 dark:text-amber-500 shrink-0" />
+                                      <p className="text-[11px] text-amber-600/80 dark:text-amber-500 truncate">{locataireName}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-3 flex items-start gap-2 rounded-lg px-3 py-2 bg-amber-100/60 dark:bg-amber-900/30 text-xs sm:text-sm text-amber-800 dark:text-amber-300">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                <span className="leading-snug">Ce dossier n'est pas encore finalisé. Reprenez là où vous en étiez.</span>
+                              </div>
+                              <div className="mt-3">
+                                <Button asChild size="sm" variant="outline" className="border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300">
+                                  <Link href={href}>Continuer ma demande</Link>
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      }
+
+                      if (!allowed) {
+                        return (
+                          <Card className="border-2 border-dashed border-muted-foreground/20 opacity-60">
+                            <CardContent className="flex flex-col items-center justify-center px-0">
+                              <div className="flex flex-row items-center gap-10 text-center">
+                                <div className="rounded-full bg-muted p-3">
+                                  <Lock className="h-6 w-6 text-muted-foreground" />
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-base mb-1 text-muted-foreground">Bail en cours pour ce bien</h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    Vous pourrez créer un nouveau bail 1 mois avant la fin du bail actuel.
+                                  </p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      }
+
+                      return (
+                        <Card
+                          onClick={() => router.push(`/client/proprietaire/baux/new${selectedPropertyId ? `?propertyId=${selectedPropertyId}` : ""}`)}
+                          className="border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group"
+                        >
+                          <CardContent className="flex flex-col items-center justify-center px-0">
+                            <div className="flex flex-row items-center gap-10 text-center">
+                              <div className="rounded-full bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+                                <Plus className="h-6 w-6 text-primary" />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-base mb-1">Démarrer un dossier pour</h3>
+                                <p className="text-sm text-muted-foreground">
+                                  {selectedProperty?.label || selectedProperty?.fullAddress || "Bien sélectionné"}
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })()}
+
+                    {/* Liste des baux (exclure les DRAFT non payés, déjà affichés au-dessus) */}
+                    {(selectedProperty.bails?.filter((b) => !(b.status === "DRAFT" && !b.paidAt))?.length || 0) > 0 ? (
                       <div className="space-y-3">
-                        {(selectedProperty.bails || []).map((bail) => {
+                        {(selectedProperty.bails || []).filter((b) => !(b.status === "DRAFT" && !b.paidAt)).map((bail) => {
                           const locataire = bail.parties?.find(
                             (p) => p.profilType === ProfilType.LOCATAIRE
                           );
@@ -617,7 +720,7 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
     
                                   {/* Chips : loyer / type / dates */}
                                   <div className="flex flex-wrap gap-1.5 items-center">
-                                    {bail.rentAmount && (
+                                    {bail.rentAmount != null && bail.rentAmount > 0 && (
                                       <span className="inline-flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary rounded-full px-2.5 py-1">
                                         <Euro className="h-3 w-3" />
                                         {bail.rentAmount.toLocaleString()} €/mois

@@ -284,6 +284,7 @@ export async function getClientProperties(clientId: string) {
           rentAmount: true,
           bailType: true,
           bailFamily: true,
+          paidAt: true,
           parties: {
             select: {
               id: true,
@@ -315,6 +316,15 @@ export async function getClientProperties(clientId: string) {
                   email: true,
                 },
               },
+            },
+            take: 1,
+          },
+          intakes: {
+            where: { target: "OWNER" },
+            select: {
+              id: true,
+              token: true,
+              status: true,
             },
             take: 1,
           },
