@@ -5,11 +5,10 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Home, FileText, Building2, User, Calendar, Euro, Eye, Loader2, CheckCircle2, MessageSquare, MoreHorizontal, ExternalLink, ArrowRight, Clock, Scale, Store, AlertCircle, ClipboardList, Lock } from "lucide-react";
+import { Plus, Home, FileText, Building2, Eye, Loader2, CheckCircle2, Lock } from "lucide-react";
 import Link from "next/link";
-import { formatDate } from "@/lib/utils/formatters";
 import { DemandesTabs } from "./demandes-tabs";
-import { CompletionStatus, BailType, BailFamille, ProfilType } from "@prisma/client";
+import { CompletionStatus, BailType, ProfilType } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { BailDetailDrawer } from "./bail-detail-drawer";
 import { PropertyDetailDrawer } from "./property-detail-drawer";
@@ -23,13 +22,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { BailChatSheet } from "./bail-chat-sheet";
+import { OwnerBailCard } from "./owner-bail-card";
+import { OwnerProgressCard } from "./owner-progress-card";
 
 type PropertyWithBails = {
   id: string;
@@ -125,11 +119,6 @@ const bailTypeLabels: Record<BailType, string> = {
   BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
 };
 
-const bailFamilyLabels: Record<BailFamille, string> = {
-  HABITATION: "Bail d'habitation",
-  COMMERCIAL: "Bail commercial",
-};
-
 const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
 
 function canCreateNewBail(bails: PropertyWithBails["bails"]): boolean {
@@ -147,85 +136,6 @@ function canCreateNewBail(bails: PropertyWithBails["bails"]): boolean {
     oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
     return new Date() >= oneMonthBefore;
   });
-}
-
-const BAIL_STEPS = [
-  { key: "verification", shortLabel: "Vérification" },
-  { key: "notaire", shortLabel: "Notaire" },
-  { key: "signe", shortLabel: "Signé" },
-];
-
-const BAIL_STEP_INDEX: Record<string, number> = {
-  DRAFT: 0,
-  AWAITING_TENANT: 0,
-  AWAITING_TENANT_FORM: 0,
-  PENDING_VALIDATION: 0,
-  READY_FOR_NOTARY: 1,
-  CLIENT_CONTACTED: 1,
-  SIGNED: 2,
-  TERMINATED: 2,
-};
-
-const BAIL_STATUS_CONFIG: Record<string, { badgeBg: string; label: string; icon: React.ElementType }> = {
-  DRAFT: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
-  AWAITING_TENANT: { badgeBg: "bg-orange-50 text-orange-700 border-orange-200", label: "Locataire manquant", icon: User },
-  AWAITING_TENANT_FORM: { badgeBg: "bg-indigo-50 text-indigo-700 border-indigo-200", label: "Formulaire locataire en attente", icon: Clock },
-  PENDING_VALIDATION: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
-  READY_FOR_NOTARY: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
-  CLIENT_CONTACTED: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
-  SIGNED: { badgeBg: "bg-green-50 text-green-700 border-green-200", label: "Signé", icon: CheckCircle2 },
-  TERMINATED: { badgeBg: "bg-gray-100 text-gray-500 border-gray-200", label: "Terminé", icon: FileText },
-};
-
-function BailStatusTimeline({ status }: { status: string }) {
-  const stepIdx = BAIL_STEP_INDEX[status] ?? 0;
-  const isTerminated = ["TERMINATED"].includes(status);
-
-  return (
-    <div className="space-y-1.5">
-      <div className="relative">
-        <div className="absolute inset-x-0 top-[5px] h-px bg-border" />
-        <div className="flex justify-between">
-          {BAIL_STEPS.map((step, i) => {
-            const done = isTerminated || stepIdx > i;
-            const active = !isTerminated && stepIdx === i;
-            return (
-              <div
-                key={step.key}
-                className={cn(
-                  "relative z-10 w-2.5 h-2.5 rounded-full transition-all",
-                  done ? "bg-primary" : active ? "bg-primary ring-[3px] ring-primary/20" : "bg-border"
-                )}
-              />
-            );
-          })}
-        </div>
-      </div>
-      <div className="relative flex justify-between">
-        {BAIL_STEPS.map((step, i) => {
-          const done = isTerminated || stepIdx > i;
-          const active = !isTerminated && stepIdx === i;
-          const colorCn = active
-            ? "font-semibold text-primary"
-            : done
-            ? "text-primary/50"
-            : "text-muted-foreground/50";
-          if (i === 1) {
-            return (
-              <p key={step.key} className={cn("absolute left-1/2 -translate-x-1/2 text-[9px] text-center", colorCn)}>
-                {step.shortLabel}
-              </p>
-            );
-          }
-          return (
-            <p key={step.key} className={cn("text-[9px]", i === 0 ? "text-left" : "text-right", colorCn)}>
-              {step.shortLabel}
-            </p>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageClientProps) {
@@ -576,38 +486,22 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                           : `/client/proprietaire/baux/new?draftId=${draftBail.id}`;
 
                         return (
-                          <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 transition-all hover:shadow-md">
-                            <CardContent className="p-4 sm:p-5">
-                              <div className="flex items-start gap-2.5 min-w-0">
-                                <div className="rounded-full bg-amber-100 dark:bg-amber-900 p-1.5 sm:p-2 shrink-0 mt-0.5">
-                                  <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600 dark:text-amber-400" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="font-semibold text-sm sm:text-base leading-tight text-amber-900 dark:text-amber-200">
-                                    Demande de bail en cours
-                                  </p>
-                                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 truncate">
-                                    {selectedProperty?.label || selectedProperty?.fullAddress || "Bien sélectionné"}
-                                  </p>
-                                  {locataireName && (
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                      <User className="h-3 w-3 text-amber-600/70 dark:text-amber-500 shrink-0" />
-                                      <p className="text-[11px] text-amber-600/80 dark:text-amber-500 truncate">{locataireName}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="mt-3 flex items-start gap-2 rounded-lg px-3 py-2 bg-amber-100/60 dark:bg-amber-900/30 text-xs sm:text-sm text-amber-800 dark:text-amber-300">
-                                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                                <span className="leading-snug">Ce dossier n'est pas encore finalisé. Reprenez là où vous en étiez.</span>
-                              </div>
-                              <div className="mt-3">
-                                <Button asChild size="sm" variant="outline" className="border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300">
-                                  <Link href={href}>Continuer ma demande</Link>
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
+                          <OwnerProgressCard
+                            propertyLabel={
+                              selectedProperty.label ||
+                              selectedProperty.fullAddress ||
+                              "Bien sélectionné"
+                            }
+                            tenantName={locataireName}
+                            bailTypeLabel={
+                              draftBail.bailType
+                                ? bailTypeLabels[draftBail.bailType as BailType] ||
+                                  draftBail.bailType
+                                : null
+                            }
+                            message="Ce dossier n'est pas encore finalisé. Reprenez là où vous en étiez."
+                            continueHref={href}
+                          />
                         );
                       }
 
@@ -656,143 +550,16 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                     {/* Liste des baux (exclure les DRAFT non payés, déjà affichés au-dessus) */}
                     {(selectedProperty.bails?.filter((b) => !(b.status === "DRAFT" && !b.paidAt))?.length || 0) > 0 ? (
                       <div className="space-y-3">
-                        {(selectedProperty.bails || []).filter((b) => !(b.status === "DRAFT" && !b.paidAt)).map((bail) => {
-                          const locataire = bail.parties?.find(
-                            (p) => p.profilType === ProfilType.LOCATAIRE
-                          );
-                          const locataireName = locataire?.entreprise
-                            ? locataire.entreprise.legalName || locataire.entreprise.name || "Entreprise"
-                            : locataire?.persons?.[0]
-                            ? `${locataire.persons[0].firstName || ""} ${locataire.persons[0].lastName || ""}`.trim() || locataire.persons[0].email || "Non défini"
-                            : null;
-                          const locataireInitial = locataireName ? locataireName[0].toUpperCase() : null;
-
-                          const notaire = bail.dossierAssignments?.[0]?.notaire;
-                          const notaireName = notaire
-                            ? notaire.name || notaire.email || "Notaire"
-                            : null;
-
-                          const endDate = bail.endDate
-                            ? bail.endDate
-                            : bail.effectiveDate && bail.bailType
-                            ? calculateBailEndDate(new Date(bail.effectiveDate), bail.bailType as BailType).toISOString()
-                            : null;
-
-                          const chatTriggerRef = { current: null as HTMLButtonElement | null };
-
-                          const cfg = BAIL_STATUS_CONFIG[bail.status] ?? BAIL_STATUS_CONFIG.DRAFT;
-                          const StatusIcon = cfg.icon;
-                          const isCommercial = bail.bailFamily === BailFamille.COMMERCIAL;
-
-                          return (
-                            <Card key={bail.id} className="border shadow-sm hover:shadow-md transition-shadow overflow-hidden pb-2 pt-0">
-                              <CardContent className="p-0">
-                                <div className="p-4 space-y-3.5">
-                                  {/* Titre : famille du bail */}
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                      <div className={cn(
-                                        "rounded-md p-1.5",
-                                        isCommercial ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
-                                      )}>
-                                        {isCommercial ? <Store className="h-3.5 w-3.5" /> : <Home className="h-3.5 w-3.5" />}
-                                      </div>
-                                      <span className="text-sm font-semibold">
-                                        {bail.bailFamily ? bailFamilyLabels[bail.bailFamily as BailFamille] : "Bail"}
-                                      </span>
-                                    </div>
-
-                                    <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button size="sm" variant="ghost" className="px-2">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => handleOpenBailDetail(bail.id)}>
-                                        <FileText className="h-4 w-4 mr-2" />
-                                        Voir le dossier complet
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-
-                                  </div>
-    
-                                  {/* Chips : loyer / type / dates */}
-                                  <div className="flex flex-wrap gap-1.5 items-center">
-                                    {bail.rentAmount != null && bail.rentAmount > 0 && (
-                                      <span className="inline-flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary rounded-full px-2.5 py-1">
-                                        {bail.rentAmount.toLocaleString()} €/mois
-                                      </span>
-                                    )}
-                                    {bail.bailType && (
-                                      <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground rounded-full px-2.5 py-1">
-                                        <FileText className="h-3 w-3" />
-                                        {bailTypeLabels[bail.bailType as BailType] || bail.bailType}
-                                      </span>
-                                    )}
-                                    {bail.effectiveDate && (
-                                      <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground rounded-full px-2.5 py-1">
-                                        <Calendar className="h-3 w-3" />
-                                        {formatDate(bail.effectiveDate)}
-                                        {endDate && (
-                                          <>
-                                            <ArrowRight className="h-2.5 w-2.5 shrink-0" />
-                                            {formatDate(endDate)}
-                                          </>
-                                        )}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {/* Locataire */}
-                                  <div className="flex items-center gap-2">
-                                    <div className={cn(
-                                      "h-6 w-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0",
-                                      locataireName ? "bg-primary/20 text-primary" : "bg-muted"
-                                    )}>
-                                      {locataireName ? locataireInitial : <User className="h-3 w-3 text-muted-foreground" />}
-                                    </div>
-                                    <div className="flex flex-col min-w-0">
-                                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide leading-none mb-0.5">Locataire</span>
-                                      <span className={cn("text-sm truncate", locataireName ? "text-foreground" : "text-muted-foreground italic text-xs")}>
-                                        {locataireName ?? "Non renseigné"}
-                                      </span>
-                                    </div>
-                                  </div>
-
- 
-                                  {/* timeline */}
-                                  <div className="space-y-2">
-                                    <BailStatusTimeline status={bail.status} />
-                                  </div>
-                                </div>
-
-                                {/* Footer d'actions */}
-                                <div className="border-t px-4 py-3 flex items-center gap-2 bg-muted/30">
-                                  {notaire ? (
-                                    <BailChatSheet
-                                      bailId={bail.id}
-                                      trigger={
-                                        <Button size="sm" className="flex-1 gap-1.5">
-                                          <MessageSquare className="h-3.5 w-3.5" />
-                                          Contacter le notaire
-                                        </Button>
-                                      }
-                                    />
-                                  ) : (
-                                    <div className="flex-1 flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-                                      <Clock className="h-3.5 w-3.5 shrink-0" />
-                                      Assignation au notaire en cours…
-                                    </div>
-                                  )}
-
-                                  
-                                </div>
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
+                        {(selectedProperty.bails || [])
+                          .filter((b) => !(b.status === "DRAFT" && !b.paidAt))
+                          .map((bail) => (
+                            <OwnerBailCard
+                              key={bail.id}
+                              bail={{ ...bail, property: selectedProperty }}
+                              context="dossiers"
+                              onViewDetail={() => handleOpenBailDetail(bail.id)}
+                            />
+                          ))}
                       </div>
                     ) : !(selectedProperty.bails || []).some((b) => b.status === "DRAFT" && !b.paidAt) ? (
                       <Card>
