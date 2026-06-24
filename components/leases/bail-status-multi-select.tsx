@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown, X, FileText, CircleDot, CheckCircle2 } from "lucide-react";
+import { Check, ChevronsUpDown, X, FileText, CircleDot, CheckCircle2, Home, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +33,16 @@ const statusOptions: BailStatusOption[] = [
     icon: <FileText className="h-4 w-4" />,
   },
   {
+    value: "AWAITING_TENANT",
+    label: "Attente locataire",
+    icon: <Home className="h-4 w-4" />,
+  },
+  {
+    value: "AWAITING_TENANT_FORM",
+    label: "Attente formulaire locataire",
+    icon: <FileText className="h-4 w-4" />,
+  },
+  {
     value: "PENDING_VALIDATION",
     label: "En validation",
     icon: <CircleDot className="h-4 w-4" />,
@@ -50,6 +60,16 @@ const statusOptions: BailStatusOption[] = [
   {
     value: "TERMINATED",
     label: "Terminé",
+    icon: <FileText className="h-4 w-4" />,
+  },
+  {
+    value: "DESISTE",
+    label: "Désisté",
+    icon: <XCircle className="h-4 w-4" />,
+  },
+  {
+    value: "CLASSE_SANS_SUITE",
+    label: "Classé sans suite",
     icon: <FileText className="h-4 w-4" />,
   },
 ];

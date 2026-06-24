@@ -652,7 +652,7 @@ async function checkAndUpdateBailStatus(bail: any): Promise<void> {
 
   // Si tous sont COMPLETED → passer à READY_FOR_NOTARY
   if (ownerCompleted && tenantCompleted && propertyCompleted) {
-    if (bail.status === BailStatus.DRAFT || bail.status === BailStatus.PENDING_VALIDATION) {
+    if (bail.status === BailStatus.DRAFT || bail.status === BailStatus.AWAITING_TENANT_FORM || bail.status === BailStatus.PENDING_VALIDATION) {
       const oldStatus = bail.status;
       await prisma.bail.update({
         where: { id: bail.id },
@@ -675,7 +675,7 @@ async function checkAndUpdateBailStatus(bail: any): Promise<void> {
   }
 
   // Si tous sont PENDING_CHECK et le bail est en DRAFT → passer à PENDING_VALIDATION
-  if (ownerPendingCheck && tenantPendingCheck && propertyPendingCheck && bail.status === BailStatus.DRAFT) {
+  if (ownerPendingCheck && tenantPendingCheck && propertyPendingCheck && (bail.status === BailStatus.AWAITING_TENANT_FORM || bail.status === BailStatus.DRAFT)) {
     await prisma.bail.update({
       where: { id: bail.id },
       data: { status: BailStatus.PENDING_VALIDATION }

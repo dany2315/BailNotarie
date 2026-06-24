@@ -1882,7 +1882,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             <AccordionContent className="px-4 pt-4 space-y-6">
               {/* Informations financières mises en avant */}
               <div className="grid gap-4 grid-cols-2">
-                {bail.rentAmount && (
+                {bail.rentAmount != null && bail.rentAmount > 0 && (
                   <div className="bg-primary/5 rounded-lg p-4 border-2 border-primary/20">
                     <div className="flex items-center gap-2 mb-2">
                       <Euro className="h-4 w-4 text-primary" />

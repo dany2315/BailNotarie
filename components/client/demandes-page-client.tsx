@@ -5,10 +5,10 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Home, FileText, Building2, User, Calendar, Euro, Eye, Loader2, CheckCircle2, MessageSquare, MoreHorizontal, ExternalLink, ArrowRight, Clock, Scale, Store } from "lucide-react";
-import { formatDate } from "@/lib/utils/formatters";
+import { Plus, Home, FileText, Building2, Eye, Loader2, CheckCircle2, Lock } from "lucide-react";
+import Link from "next/link";
 import { DemandesTabs } from "./demandes-tabs";
-import { CompletionStatus, BailType, BailFamille, ProfilType } from "@prisma/client";
+import { CompletionStatus, BailType, ProfilType } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { BailDetailDrawer } from "./bail-detail-drawer";
 import { PropertyDetailDrawer } from "./property-detail-drawer";
@@ -22,13 +22,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { BailChatSheet } from "./bail-chat-sheet";
+import { OwnerBailCard } from "./owner-bail-card";
+import { OwnerProgressCard } from "./owner-progress-card";
 
 type PropertyWithBails = {
   id: string;
@@ -48,6 +43,7 @@ type PropertyWithBails = {
     rentAmount?: number | null;
     bailType?: string | null;
     bailFamily?: string | null;
+    paidAt?: string | null;
     parties?: Array<{
       id: string;
       profilType: string;
@@ -68,6 +64,11 @@ type PropertyWithBails = {
         name: string | null;
         email: string | null;
       } | null;
+    }>;
+    intakes?: Array<{
+      id: string;
+      token: string;
+      status: string;
     }>;
   }>;
 };
@@ -118,86 +119,23 @@ const bailTypeLabels: Record<BailType, string> = {
   BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
 };
 
-const bailFamilyLabels: Record<BailFamille, string> = {
-  HABITATION: "Bail d'habitation",
-  COMMERCIAL: "Bail commercial",
-};
+const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
 
-const BAIL_STEPS = [
-  { key: "verification", shortLabel: "Vérification" },
-  { key: "notaire", shortLabel: "Notaire" },
-  { key: "signe", shortLabel: "Signé" },
-];
+function canCreateNewBail(bails: PropertyWithBails["bails"]): boolean {
+  const activeBails = bails.filter((b) => !TERMINAL_STATUSES.includes(b.status));
+  if (activeBails.length === 0) return true;
 
-const BAIL_STEP_INDEX: Record<string, number> = {
-  DRAFT: 0,
-  AWAITING_TENANT: 0,
-  PENDING_VALIDATION: 0,
-  READY_FOR_NOTARY: 1,
-  CLIENT_CONTACTED: 1,
-  SIGNED: 2,
-  TERMINATED: 2,
-};
-
-const BAIL_STATUS_CONFIG: Record<string, { badgeBg: string; label: string; icon: React.ElementType }> = {
-  DRAFT: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
-  AWAITING_TENANT: { badgeBg: "bg-orange-50 text-orange-700 border-orange-200", label: "Locataire manquant", icon: User },
-  PENDING_VALIDATION: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
-  READY_FOR_NOTARY: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
-  CLIENT_CONTACTED: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
-  SIGNED: { badgeBg: "bg-green-50 text-green-700 border-green-200", label: "Signé", icon: CheckCircle2 },
-  TERMINATED: { badgeBg: "bg-gray-100 text-gray-500 border-gray-200", label: "Terminé", icon: FileText },
-};
-
-function BailStatusTimeline({ status }: { status: string }) {
-  const stepIdx = BAIL_STEP_INDEX[status] ?? 0;
-  const isTerminated = ["TERMINATED"].includes(status);
-
-  return (
-    <div className="space-y-1.5">
-      <div className="relative">
-        <div className="absolute inset-x-0 top-[5px] h-px bg-border" />
-        <div className="flex justify-between">
-          {BAIL_STEPS.map((step, i) => {
-            const done = isTerminated || stepIdx > i;
-            const active = !isTerminated && stepIdx === i;
-            return (
-              <div
-                key={step.key}
-                className={cn(
-                  "relative z-10 w-2.5 h-2.5 rounded-full transition-all",
-                  done ? "bg-primary" : active ? "bg-primary ring-[3px] ring-primary/20" : "bg-border"
-                )}
-              />
-            );
-          })}
-        </div>
-      </div>
-      <div className="relative flex justify-between">
-        {BAIL_STEPS.map((step, i) => {
-          const done = isTerminated || stepIdx > i;
-          const active = !isTerminated && stepIdx === i;
-          const colorCn = active
-            ? "font-semibold text-primary"
-            : done
-            ? "text-primary/50"
-            : "text-muted-foreground/50";
-          if (i === 1) {
-            return (
-              <p key={step.key} className={cn("absolute left-1/2 -translate-x-1/2 text-[9px] text-center", colorCn)}>
-                {step.shortLabel}
-              </p>
-            );
-          }
-          return (
-            <p key={step.key} className={cn("text-[9px]", i === 0 ? "text-left" : "text-right", colorCn)}>
-              {step.shortLabel}
-            </p>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return activeBails.every((b) => {
+    const endDate = b.endDate
+      ? new Date(b.endDate)
+      : b.effectiveDate && b.bailType
+      ? calculateBailEndDate(new Date(b.effectiveDate), b.bailType as BailType)
+      : null;
+    if (!endDate) return false;
+    const oneMonthBefore = new Date(endDate);
+    oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
+    return new Date() >= oneMonthBefore;
+  });
 }
 
 export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageClientProps) {
@@ -529,168 +467,101 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
               {/* Contenu */}
               <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6">
                 <div className="space-y-4">
-                    <Card
-                      onClick={() => router.push(`/client/proprietaire/baux/new${selectedPropertyId ? `?propertyId=${selectedPropertyId}` : ""}`)}
-                      className="border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group"
-                    >
-                      <CardContent className="flex flex-col items-center justify-center px-0">
-                        <div className="flex flex-row items-center gap-10 text-center">
-                          <div className="rounded-full bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
-                            <Plus className="h-6 w-6 text-primary" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-base mb-1">Démarrer un dossier pour</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {selectedProperty?.label || selectedProperty?.fullAddress || "Bien sélectionné"}
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    {(() => {
+                      const allowed = canCreateNewBail(selectedProperty.bails || []);
+                      const draftBail = (selectedProperty.bails || []).find(
+                        (b) => b.status === "DRAFT" && !b.paidAt
+                      );
+                      const intakeLink = draftBail?.intakes?.[0];
 
-                    {/* Liste des baux */}
-                    {(selectedProperty.bails?.length || 0) > 0 ? (
+                      if (draftBail) {
+                        const locataire = draftBail.parties?.find((p) => p.profilType === ProfilType.LOCATAIRE);
+                        const locataireName = locataire?.entreprise
+                          ? locataire.entreprise.legalName || locataire.entreprise.name
+                          : locataire?.persons?.[0]
+                          ? `${locataire.persons[0].firstName || ""} ${locataire.persons[0].lastName || ""}`.trim() || locataire.persons[0].email
+                          : null;
+                        const href = intakeLink
+                          ? `/intakes/${intakeLink.token}`
+                          : `/client/proprietaire/baux/new?draftId=${draftBail.id}`;
+
+                        return (
+                          <OwnerProgressCard
+                            propertyLabel={
+                              selectedProperty.label ||
+                              selectedProperty.fullAddress ||
+                              "Bien sélectionné"
+                            }
+                            tenantName={locataireName}
+                            bailTypeLabel={
+                              draftBail.bailType
+                                ? bailTypeLabels[draftBail.bailType as BailType] ||
+                                  draftBail.bailType
+                                : null
+                            }
+                            message="Ce dossier n'est pas encore finalisé. Reprenez là où vous en étiez."
+                            continueHref={href}
+                          />
+                        );
+                      }
+
+                      if (!allowed) {
+                        return (
+                          <Card className="border-2 border-dashed border-muted-foreground/20 opacity-60">
+                            <CardContent className="flex flex-col items-center justify-center px-0">
+                              <div className="flex flex-row items-center gap-10 text-center">
+                                <div className="rounded-full bg-muted p-3">
+                                  <Lock className="h-6 w-6 text-muted-foreground" />
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-base mb-1 text-muted-foreground">Un bail est déjà actif sur ce bien</h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    Nouveau bail possible 1 mois avant la fin du bail en cours.
+                                  </p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      }
+
+                      return (
+                        <Card
+                          onClick={() => router.push(`/client/proprietaire/baux/new${selectedPropertyId ? `?propertyId=${selectedPropertyId}` : ""}`)}
+                          className="border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group"
+                        >
+                          <CardContent className="flex flex-col items-center justify-center px-0">
+                            <div className="flex flex-row items-center gap-10 text-center">
+                              <div className="rounded-full bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+                                <Plus className="h-6 w-6 text-primary" />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-base mb-1">Démarrer un dossier pour</h3>
+                                <p className="text-sm text-muted-foreground">
+                                  {selectedProperty?.label || selectedProperty?.fullAddress || "Bien sélectionné"}
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })()}
+
+                    {/* Liste des baux (exclure les DRAFT non payés, déjà affichés au-dessus) */}
+                    {(selectedProperty.bails?.filter((b) => !(b.status === "DRAFT" && !b.paidAt))?.length || 0) > 0 ? (
                       <div className="space-y-3">
-                        {(selectedProperty.bails || []).map((bail) => {
-                          const locataire = bail.parties?.find(
-                            (p) => p.profilType === ProfilType.LOCATAIRE
-                          );
-                          const locataireName = locataire?.entreprise
-                            ? locataire.entreprise.legalName || locataire.entreprise.name || "Entreprise"
-                            : locataire?.persons?.[0]
-                            ? `${locataire.persons[0].firstName || ""} ${locataire.persons[0].lastName || ""}`.trim() || locataire.persons[0].email || "Non défini"
-                            : null;
-                          const locataireInitial = locataireName ? locataireName[0].toUpperCase() : null;
-
-                          const notaire = bail.dossierAssignments?.[0]?.notaire;
-                          const notaireName = notaire
-                            ? notaire.name || notaire.email || "Notaire"
-                            : null;
-
-                          const endDate = bail.endDate
-                            ? bail.endDate
-                            : bail.effectiveDate && bail.bailType
-                            ? calculateBailEndDate(new Date(bail.effectiveDate), bail.bailType as BailType).toISOString()
-                            : null;
-
-                          const chatTriggerRef = { current: null as HTMLButtonElement | null };
-
-                          const cfg = BAIL_STATUS_CONFIG[bail.status] ?? BAIL_STATUS_CONFIG.DRAFT;
-                          const StatusIcon = cfg.icon;
-                          const isCommercial = bail.bailFamily === BailFamille.COMMERCIAL;
-
-                          return (
-                            <Card key={bail.id} className="border shadow-sm hover:shadow-md transition-shadow overflow-hidden pb-2 pt-0">
-                              <CardContent className="p-0">
-                                <div className="p-4 space-y-3.5">
-                                  {/* Titre : famille du bail */}
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                      <div className={cn(
-                                        "rounded-md p-1.5",
-                                        isCommercial ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
-                                      )}>
-                                        {isCommercial ? <Store className="h-3.5 w-3.5" /> : <Home className="h-3.5 w-3.5" />}
-                                      </div>
-                                      <span className="text-sm font-semibold">
-                                        {bail.bailFamily ? bailFamilyLabels[bail.bailFamily as BailFamille] : "Bail"}
-                                      </span>
-                                    </div>
-
-                                    <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button size="sm" variant="ghost" className="px-2">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => handleOpenBailDetail(bail.id)}>
-                                        <FileText className="h-4 w-4 mr-2" />
-                                        Voir le dossier complet
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-
-                                  </div>
-    
-                                  {/* Chips : loyer / type / dates */}
-                                  <div className="flex flex-wrap gap-1.5 items-center">
-                                    {bail.rentAmount && (
-                                      <span className="inline-flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary rounded-full px-2.5 py-1">
-                                        <Euro className="h-3 w-3" />
-                                        {bail.rentAmount.toLocaleString()} €/mois
-                                      </span>
-                                    )}
-                                    {bail.bailType && (
-                                      <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground rounded-full px-2.5 py-1">
-                                        <FileText className="h-3 w-3" />
-                                        {bailTypeLabels[bail.bailType as BailType] || bail.bailType}
-                                      </span>
-                                    )}
-                                    {bail.effectiveDate && (
-                                      <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground rounded-full px-2.5 py-1">
-                                        <Calendar className="h-3 w-3" />
-                                        {formatDate(bail.effectiveDate)}
-                                        {endDate && (
-                                          <>
-                                            <ArrowRight className="h-2.5 w-2.5 shrink-0" />
-                                            {formatDate(endDate)}
-                                          </>
-                                        )}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {/* Locataire */}
-                                  <div className="flex items-center gap-2">
-                                    <div className={cn(
-                                      "h-6 w-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0",
-                                      locataireName ? "bg-primary/20 text-primary" : "bg-muted"
-                                    )}>
-                                      {locataireName ? locataireInitial : <User className="h-3 w-3 text-muted-foreground" />}
-                                    </div>
-                                    <div className="flex flex-col min-w-0">
-                                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide leading-none mb-0.5">Locataire</span>
-                                      <span className={cn("text-sm truncate", locataireName ? "text-foreground" : "text-muted-foreground italic text-xs")}>
-                                        {locataireName ?? "Non renseigné"}
-                                      </span>
-                                    </div>
-                                  </div>
-
- 
-                                  {/* timeline */}
-                                  <div className="space-y-2">
-                                    <BailStatusTimeline status={bail.status} />
-                                  </div>
-                                </div>
-
-                                {/* Footer d'actions */}
-                                <div className="border-t px-4 py-3 flex items-center gap-2 bg-muted/30">
-                                  {notaire ? (
-                                    <BailChatSheet
-                                      bailId={bail.id}
-                                      trigger={
-                                        <Button size="sm" className="flex-1 gap-1.5">
-                                          <MessageSquare className="h-3.5 w-3.5" />
-                                          Contacter le notaire
-                                        </Button>
-                                      }
-                                    />
-                                  ) : (
-                                    <div className="flex-1 flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-                                      <Clock className="h-3.5 w-3.5 shrink-0" />
-                                      Assignation au notaire en cours…
-                                    </div>
-                                  )}
-
-                                  
-                                </div>
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
+                        {(selectedProperty.bails || [])
+                          .filter((b) => !(b.status === "DRAFT" && !b.paidAt))
+                          .map((bail) => (
+                            <OwnerBailCard
+                              key={bail.id}
+                              bail={{ ...bail, property: selectedProperty }}
+                              context="dossiers"
+                              onViewDetail={() => handleOpenBailDetail(bail.id)}
+                            />
+                          ))}
                       </div>
-                    ) : (
+                    ) : !(selectedProperty.bails || []).some((b) => b.status === "DRAFT" && !b.paidAt) ? (
                       <Card>
                         <CardContent className="py-12 text-center">
                           <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -700,7 +571,7 @@ export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageC
                           </p>
                         </CardContent>
                       </Card>
-                    )}
+                    ) : null}
                 </div>
               </div>
             </>

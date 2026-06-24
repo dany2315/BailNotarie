@@ -102,6 +102,7 @@ const BAIL_STEPS = [
 const BAIL_STEP_INDEX: Record<string, number> = {
   DRAFT: 0,
   AWAITING_TENANT: 0,
+  AWAITING_TENANT_FORM: 0,
   PENDING_VALIDATION: 0,
   READY_FOR_NOTARY: 1,
   CLIENT_CONTACTED: 1,
@@ -112,6 +113,7 @@ const BAIL_STEP_INDEX: Record<string, number> = {
 const BAIL_STATUS_CONFIG: Record<string, { badgeBg: string; label: string; icon: React.ElementType }> = {
   DRAFT: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
   AWAITING_TENANT: { badgeBg: "bg-orange-50 text-orange-700 border-orange-200", label: "En attente", icon: Clock },
+  AWAITING_TENANT_FORM: { badgeBg: "bg-indigo-50 text-indigo-700 border-indigo-200", label: "Formulaire à compléter", icon: FileText },
   PENDING_VALIDATION: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
   READY_FOR_NOTARY: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
   CLIENT_CONTACTED: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
@@ -138,7 +140,7 @@ const STAGE_LABELS: Record<string, string> = {
   finalize: "Documents",
 };
 
-const ACTIVE_STATUSES = ["DRAFT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED"];
+const ACTIVE_STATUSES = ["DRAFT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED"];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -244,9 +246,8 @@ function BailCard({ bail }: { bail: Bail }) {
 
           {/* Chips */}
           <div className="flex flex-wrap gap-1.5">
-            {bail.rentAmount && (
+            {bail.rentAmount != null && bail.rentAmount > 0 && (
               <span className="inline-flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary rounded-full px-2.5 py-1">
-                <Euro className="h-3 w-3" />
                 {bail.rentAmount.toLocaleString()} €/mois
               </span>
             )}
@@ -397,10 +398,10 @@ export function DashboardLocataireClient({
   const intakeBailIds = new Set([activeIntake?.bailId].filter(Boolean));
 
   const awaitingBails = baux.filter(
-    (b) => b.status === "AWAITING_TENANT" || intakeBailIds.has(b.id)
+    (b) => b.status === "AWAITING_TENANT" || b.status === "AWAITING_TENANT_FORM" || intakeBailIds.has(b.id)
   );
   const activeBails = baux.filter(
-    (b) => b.status !== "AWAITING_TENANT" && !intakeBailIds.has(b.id)
+    (b) => b.status !== "AWAITING_TENANT" && b.status !== "AWAITING_TENANT_FORM" && !intakeBailIds.has(b.id)
   );
 
   const enCours = activeBails.filter((b) => ACTIVE_STATUSES.includes(b.status)).length;
@@ -411,7 +412,7 @@ export function DashboardLocataireClient({
   const recentBails = [...activeBails]
     .sort((a, b) => {
       const p = (s: string) =>
-        s === "CLIENT_CONTACTED" ? 0 : s === "PENDING_VALIDATION" ? 1 : s === "READY_FOR_NOTARY" ? 2 : s === "DRAFT" ? 3 : s === "SIGNED" ? 4 : 5;
+        s === "CLIENT_CONTACTED" ? 0 : s === "AWAITING_TENANT_FORM" ? 1 : s === "PENDING_VALIDATION" ? 2 : s === "READY_FOR_NOTARY" ? 3 : s === "DRAFT" ? 4 : s === "SIGNED" ? 5 : 6;
       return p(a.status) - p(b.status);
     })
     .slice(0, 4);

@@ -9,9 +9,10 @@ import {
   createTenantBasicClientSchema,
   ownerFormSchema,
   tenantFormSchema,
-  updateClientSchema
+  updateClientSchema,
 } from "@/lib/zod/client";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { Decimal } from "@prisma/client/runtime/library";
 import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus, CompletionStatus } from "@prisma/client";
 import { 
@@ -574,7 +575,7 @@ export async function createFullClient(data: unknown) {
 }
 
 // Soumettre le formulaire propriétaire (crée bien, bail, locataire et envoie email)
-export async function submitOwnerForm(data: unknown) {
+export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
   let validated;
   try {
     validated = ownerFormSchema.parse(data);
@@ -1026,35 +1027,39 @@ export async function submitOwnerForm(data: unknown) {
     const updateData: any = {
       bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
       bailFamily: validated.bailFamily || BailFamille.HABITATION,
-      status: tenant ? BailStatus.DRAFT : BailStatus.AWAITING_TENANT,
+      status: tenant ? BailStatus.AWAITING_TENANT_FORM : BailStatus.AWAITING_TENANT,
       rentAmount: validated.bailRentAmount,
       monthlyCharges: validated.bailMonthlyCharges || 0,
       securityDeposit: validated.bailSecurityDeposit || 0,
       effectiveDate: validated.bailEffectiveDate,
       endDate: validated.bailEndDate,
       paymentDay: validated.bailPaymentDay,
+      ...(paymentIntentId && {
+        stripePaymentIntentId: paymentIntentId,
+        paidAt: new Date(),
+      }),
     };
-    
+
     // Connecter le locataire seulement s'il existe et n'est pas déjà connecté
     if (tenant && !isTenantConnected) {
       updateData.parties = {
         connect: bailParties,
       };
     }
-    
+
     // Mettre à jour le bail existant
     bail = await prisma.bail.update({
       where: { id: ownerIntakeLink.bailId },
       data: updateData,
     });
-    
+
   } else {
     // Créer un nouveau bail
     bail = await prisma.bail.create({
       data: {
         bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
         bailFamily: validated.bailFamily || BailFamille.HABITATION,
-        status: tenant ? BailStatus.DRAFT : BailStatus.AWAITING_TENANT,
+        status: tenant ? BailStatus.AWAITING_TENANT_FORM : BailStatus.AWAITING_TENANT,
         rentAmount: validated.bailRentAmount,
         monthlyCharges: validated.bailMonthlyCharges || 0,
         securityDeposit: validated.bailSecurityDeposit || 0,
@@ -1062,6 +1067,10 @@ export async function submitOwnerForm(data: unknown) {
         endDate: validated.bailEndDate,
         paymentDay: validated.bailPaymentDay,
         propertyId: property.id,
+        ...(paymentIntentId && {
+          stripePaymentIntentId: paymentIntentId,
+          paidAt: new Date(),
+        }),
         parties: {
           connect: bailParties,
         },
@@ -1194,10 +1203,8 @@ export async function submitOwnerForm(data: unknown) {
     console.error("Erreur lors du déclenchement des calculs de statut:", error);
   });
 
-  // Déclencher l'envoi d'email et les notifications en arrière-plan (après le return, ne bloque pas le rendu)
-  Promise.resolve().then(async () => {
+  after(async () => {
     try {
-      // Récupérer les informations du client pour l'email de confirmation
       const clientData = await prisma.client.findUnique({
         where: { id: validated.clientId },
         include: {
@@ -1209,7 +1216,6 @@ export async function submitOwnerForm(data: unknown) {
         },
       });
 
-      // Envoyer l'email de confirmation au propriétaire
       if (clientData) {
         let firstName = "";
         let lastName = "";
@@ -1244,7 +1250,6 @@ export async function submitOwnerForm(data: unknown) {
         }
       }
 
-      // Notification pour soumission d'intake
       if (ownerIntakeLinkId) {
         await createNotificationForAllUsers(
           NotificationType.INTAKE_SUBMITTED,
@@ -1255,11 +1260,8 @@ export async function submitOwnerForm(data: unknown) {
         );
       }
     } catch (error: any) {
-      // Ne pas bloquer la soumission même si les notifications/emails échouent
       console.error("❌ Erreur lors des notifications/emails (en arrière-plan):", error);
     }
-  }).catch((error) => {
-    console.error("❌ Erreur lors de l'exécution asynchrone des notifications/emails:", error);
   });
 
   return result;
@@ -1641,10 +1643,8 @@ export async function submitTenantForm(data: unknown) {
   // Retourner le résultat AVANT les autres notifications pour que l'utilisateur voie le statut immédiatement
   const result = { success: true };
 
-  // Déclencher les notifications et l'email de confirmation en arrière-plan (après le return, ne bloque pas le rendu)
-  Promise.resolve().then(async () => {
-    try {    
-      // Récupérer les informations du client pour l'email de confirmation
+  after(async () => {
+    try {
       const clientData = await prisma.client.findUnique({
         where: { id: validated.clientId },
         include: {
@@ -1656,7 +1656,6 @@ export async function submitTenantForm(data: unknown) {
         },
       });
 
-      // Envoyer l'email de confirmation au locataire
       if (clientData) {
         let firstName = "";
         let lastName = "";
@@ -1689,25 +1688,20 @@ export async function submitTenantForm(data: unknown) {
             console.error("Erreur lors de l'envoi de l'email de confirmation au locataire:", error);
           }
         }
-
       }
 
-      // Notification pour soumission d'intake via formulaire
       if (updatedIntakeLinkId) {
         await createNotificationForAllUsers(
           NotificationType.INTAKE_SUBMITTED,
           "INTAKE",
           updatedIntakeLinkId,
-          null, // Soumis par formulaire, pas par un utilisateur
+          null,
           { intakeTarget: "TENANT"}
         );
       }
     } catch (error: any) {
-      // Ne pas bloquer la soumission même si les notifications échouent
       console.error("❌ Erreur lors des notifications (en arrière-plan):", error);
     }
-  }).catch((error) => {
-    console.error("❌ Erreur lors de l'exécution asynchrone des notifications:", error);
   });
 
   return result;
@@ -3170,7 +3164,7 @@ export async function updateClientCompletionStatus(data: { id: string; completio
   const bails = await prisma.bail.findMany({
     where: {
       parties: { some: { id } },
-      status: { in: ["DRAFT", "PENDING_VALIDATION"] }
+      status: { in: ["DRAFT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION"] }
     },
     include: {
       property: true,
@@ -3199,12 +3193,12 @@ export async function updateClientCompletionStatus(data: { id: string; completio
       tenantStatus === "PENDING_CHECK" && 
       property.completionStatus === "PENDING_CHECK";
 
-    if (allCompleted && (bail.status === "DRAFT" || bail.status === "PENDING_VALIDATION")) {
+    if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION")) {
       await prisma.bail.update({
         where: { id: bail.id },
         data: { status: "READY_FOR_NOTARY" }
       });
-    } else if (allPendingCheck && bail.status === "DRAFT") {
+    } else if (allPendingCheck && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM")) {
       await prisma.bail.update({
         where: { id: bail.id },
         data: { status: "PENDING_VALIDATION" }

@@ -153,10 +153,14 @@ export function BailsListDashboard({ bails: initialBails }: BailsListDashboardPr
   const bailStatusOptions: Array<{ value: BailStatus | "all"; label: string; icon: React.ReactNode; colorClasses?: string }> = [
     { value: "all", label: "Tous les statuts", icon: null },
     { value: "DRAFT", label: "Brouillon", icon: <FileText className="h-4 w-4" /> },
+    { value: "AWAITING_TENANT", label: "Attente locataire", icon: <FileText className="h-4 w-4" /> },
+    { value: "AWAITING_TENANT_FORM", label: "Attente formulaire locataire", icon: <FileText className="h-4 w-4" /> },
     { value: "PENDING_VALIDATION", label: "En validation", icon: <CircleDot className="h-4 w-4" /> },
     { value: "READY_FOR_NOTARY", label: "Prêt pour notaire", icon: <CheckCircle2Icon className="h-4 w-4" /> },
     { value: "SIGNED", label: "Signé", icon: <CheckCircle2Icon className="h-4 w-4" /> },
     { value: "TERMINATED", label: "Terminé", icon: <FileText className="h-4 w-4" /> },
+    { value: "DESISTE", label: "Désisté", icon: <FileText className="h-4 w-4" /> },
+    { value: "CLASSE_SANS_SUITE", label: "Classé sans suite", icon: <FileText className="h-4 w-4" /> },
   ];
 
   return (

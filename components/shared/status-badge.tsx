@@ -71,13 +71,23 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
       icon: <XCircle className="size-4" />
     },
     // BailStatus
-    DRAFT: { 
-      variant: "outline", 
+    DRAFT: {
+      variant: "outline",
       label: "Brouillon",
       icon: <FileText className="size-4" />
     },
-    PENDING_VALIDATION: { 
-      variant: "secondary", 
+    AWAITING_TENANT: {
+      variant: "secondary",
+      label: "En attente du locataire",
+      icon: <Home className="size-4" />
+    },
+    AWAITING_TENANT_FORM: {
+      variant: "secondary",
+      label: "Formulaire locataire en attente",
+      icon: <FileText className="size-4" />
+    },
+    PENDING_VALIDATION: {
+      variant: "secondary",
       label: "En cours de validation",
       icon: <CircleDot className="size-4" />
     },

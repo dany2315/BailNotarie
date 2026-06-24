@@ -12,6 +12,7 @@ export function getBailTypeLabel(bailType: string): string {
 const bailStatusLabels: Record<string, string> = {
   DRAFT: "Brouillon",
   AWAITING_TENANT: "En attente du locataire",
+  AWAITING_TENANT_FORM: "En attente du formulaire locataire",
   PENDING_VALIDATION: "En attente de validation",
   READY_FOR_NOTARY: "À contacter",
   CLIENT_CONTACTED: "En traitement",
@@ -56,6 +57,21 @@ export const BAIL_STATUS_COLORS: Record<string, {
   text: string;
   label: string;
 }> = {
+  AWAITING_TENANT: {
+    badge: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400 border-violet-200 dark:border-violet-800",
+    text: "text-violet-600",
+    label: "En attente du locataire",
+  },
+  AWAITING_TENANT_FORM: {
+    badge: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
+    text: "text-indigo-600",
+    label: "En attente du formulaire locataire",
+  },
+  PENDING_VALIDATION: {
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+    text: "text-amber-600",
+    label: "En attente de validation",
+  },
   READY_FOR_NOTARY: {
     badge: "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border-orange-200 dark:border-orange-800",
     text: "text-orange-600",

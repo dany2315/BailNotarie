@@ -73,6 +73,7 @@ const BAIL_STEPS = [
 const BAIL_STEP_INDEX: Record<string, number> = {
   DRAFT: 0,
   AWAITING_TENANT: 0,
+  AWAITING_TENANT_FORM: 0,
   PENDING_VALIDATION: 0,
   READY_FOR_NOTARY: 1,
   CLIENT_CONTACTED: 1,
@@ -83,6 +84,7 @@ const BAIL_STEP_INDEX: Record<string, number> = {
 const BAIL_STATUS_CONFIG: Record<string, { badgeBg: string; label: string; icon: React.ElementType }> = {
   DRAFT: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
   AWAITING_TENANT: { badgeBg: "bg-orange-50 text-orange-700 border-orange-200", label: "En attente", icon: Clock },
+  AWAITING_TENANT_FORM: { badgeBg: "bg-indigo-50 text-indigo-700 border-indigo-200", label: "Formulaire à compléter", icon: FileText },
   PENDING_VALIDATION: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
   READY_FOR_NOTARY: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
   CLIENT_CONTACTED: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
@@ -202,9 +204,8 @@ function BailCard({ bail }: { bail: Bail }) {
 
           {/* Chips */}
           <div className="flex flex-wrap gap-1.5 items-center">
-            {bail.rentAmount && (
+            {bail.rentAmount != null && bail.rentAmount > 0 && (
               <span className="inline-flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary rounded-full px-2.5 py-1">
-                <Euro className="h-3 w-3" />
                 {bail.rentAmount.toLocaleString()} €/mois
               </span>
             )}

@@ -37,7 +37,7 @@ export async function triggerContactNotificationEmail(data: {
  * Déclenche l'envoi d'un email de notification
  */
 export async function triggerNotificationEmail(data: {
-  to: string;
+  to: string | string[];
   userName: string | null;
   notificationMessage: string;
   interfaceUrl: string;

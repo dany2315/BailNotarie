@@ -48,11 +48,17 @@ export async function POST(req: NextRequest) {
         const existing = await stripe.paymentIntents.retrieve(
           intakeLink.stripePaymentIntentId
         );
-        if (
-          existing.status !== "succeeded" &&
-          existing.status !== "canceled"
-        ) {
-          // Mettre à jour le receipt_email s'il manque
+        if (existing.status === "succeeded") {
+          // Le paiement a déjà réussi — ne PAS créer un nouveau PI
+          // Retourner l'ID existant pour que le client puisse poursuivre la soumission
+          return NextResponse.json({
+            clientSecret: existing.client_secret,
+            alreadyPaid: true,
+            paymentIntentId: existing.id,
+          });
+        }
+        if (existing.status !== "canceled") {
+          // PI en cours (requires_payment_method, requires_confirmation, etc.) — réutiliser
           if (clientEmail && !existing.receipt_email) {
             await stripe.paymentIntents.update(intakeLink.stripePaymentIntentId, {
               receipt_email: clientEmail,

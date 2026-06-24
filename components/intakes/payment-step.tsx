@@ -220,7 +220,11 @@ export function PaymentStep({
     })
       .then((r) => r.json())
       .then((data) => {
-        if (data.clientSecret) {
+        if (data.alreadyPaid && data.paymentIntentId) {
+          // Le paiement a déjà réussi (ex: retry après échec de soumission)
+          // Poursuivre directement la soumission sans repayer
+          onPaymentSuccess(data.paymentIntentId);
+        } else if (data.clientSecret) {
           setClientSecret(data.clientSecret);
         } else {
           setLoadError(

@@ -284,6 +284,7 @@ export async function getClientProperties(clientId: string) {
           rentAmount: true,
           bailType: true,
           bailFamily: true,
+          paidAt: true,
           parties: {
             select: {
               id: true,
@@ -318,6 +319,15 @@ export async function getClientProperties(clientId: string) {
             },
             take: 1,
           },
+          intakes: {
+            where: { target: "OWNER" },
+            select: {
+              id: true,
+              token: true,
+              status: true,
+            },
+            take: 1,
+          },
         },
         orderBy: {
           createdAt: "desc",
@@ -348,9 +358,11 @@ export async function getProprietaireStats(clientId: string) {
     totalBaux: bails.length,
     bauxActifs: bails.filter((b: SerializedBail) => b.status === BailStatus.SIGNED).length,
     bauxTermines: bails.filter((b: SerializedBail) => b.status === BailStatus.TERMINATED).length,
-    bauxEnCours: bails.filter((b: SerializedBail) => 
-      b.status === BailStatus.DRAFT || 
-      b.status === BailStatus.PENDING_VALIDATION || 
+    bauxEnCours: bails.filter((b: SerializedBail) =>
+      b.status === BailStatus.DRAFT ||
+      b.status === BailStatus.AWAITING_TENANT ||
+      b.status === BailStatus.AWAITING_TENANT_FORM ||
+      b.status === BailStatus.PENDING_VALIDATION ||
       b.status === BailStatus.READY_FOR_NOTARY
     ).length,
   };
@@ -368,9 +380,9 @@ export async function getLocataireStats(clientId: string) {
     totalBaux: bails.length,
     bauxActifs: bails.filter((b: SerializedBail) => b.status === BailStatus.SIGNED).length,
     bauxTermines: bails.filter((b: SerializedBail) => b.status === BailStatus.TERMINATED).length,
-    bauxEnCours: bails.filter((b: SerializedBail) => 
-      b.status === BailStatus.DRAFT || 
-      b.status === BailStatus.PENDING_VALIDATION || 
+    bauxEnCours: bails.filter((b: SerializedBail) =>
+      b.status === BailStatus.AWAITING_TENANT_FORM ||
+      b.status === BailStatus.PENDING_VALIDATION ||
       b.status === BailStatus.READY_FOR_NOTARY
     ).length,
   };
