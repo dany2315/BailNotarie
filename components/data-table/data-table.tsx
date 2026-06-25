@@ -49,6 +49,7 @@ interface DataTableProps<T> {
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
   filters?: React.ReactNode;
+  belowSearchContent?: React.ReactNode;
   actions?: React.ComponentType<{ row: T }> | ((row: T) => React.ReactNode);
   rowRefs?: React.MutableRefObject<Map<string, HTMLTableRowElement>>;
 }
@@ -65,6 +66,7 @@ export function DataTable<T extends { id: string }>({
   onPageChange,
   onPageSizeChange,
   filters,
+  belowSearchContent,
   actions,
   rowRefs,
 }: DataTableProps<T>) {
@@ -202,6 +204,12 @@ export function DataTable<T extends { id: string }>({
             </div>
           )}
         </div>
+
+        {belowSearchContent && (
+          <div className="pt-1">
+            {belowSearchContent}
+          </div>
+        )}
 
         {/* Mobile: Sheet pour les filtres */}
         {filters && (

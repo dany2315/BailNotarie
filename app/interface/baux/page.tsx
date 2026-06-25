@@ -65,14 +65,14 @@ export default async function LeasesPage({
       cell: LeaseCreatedDateCell,
     },
     {
-      id: "tenant",
-      header: "Locataire",
-      cell: LeaseTenantCell,
-    },
-    {
       id: "owner",
       header: "Propriétaire",
       cell: LeaseOwnerCell,
+    },
+    {
+      id: "tenant",
+      header: "Locataire",
+      cell: LeaseTenantCell,
     },
     {
       id: "status",
