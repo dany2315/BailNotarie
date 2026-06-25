@@ -1256,10 +1256,27 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
         });
       }
     }
+
+    if (tenantIntakeLink && !tenantIntakeLink.formEmailSentAt) {
+      const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+      const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
+
+      await triggerTenantFormEmail({
+        to: validated.tenantEmail.trim().toLowerCase(),
+        firstName: "",
+        lastName: "",
+        formUrl: tenantFormUrl,
+      });
+
+      tenantIntakeLink = await prisma.intakeLink.update({
+        where: { id: tenantIntakeLink.id },
+        data: { formEmailSentAt: new Date() },
+      });
+    }
   }
 
-  // L'email au locataire est maintenant envoyé lors de la sauvegarde de l'étape 4 dans savePartialIntake
-  // Plus besoin d'envoyer l'email lors de la soumission finale
+  // L'email au locataire est envoyé lors de la sauvegarde de l'étape locataire.
+  // La soumission finale garde un filet de sécurité si aucun envoi n'a été tracé.
 
   // Stocker les IDs nécessaires pour les notifications en arrière-plan
   const ownerIntakeLinkId = ownerIntakeLink?.id || null;

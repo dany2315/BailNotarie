@@ -568,6 +568,7 @@ model IntakeLink {
 
   status               IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
   submittedAt          DateTime?
+  formEmailSentAt      DateTime?
 
   stripePaymentIntentId String?   @db.Text // Temporaire : cache pour réutiliser le PaymentIntent
 
