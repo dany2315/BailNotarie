@@ -1,4 +1,4 @@
-import { getLeases } from "@/lib/actions/leases";
+import { getLeasePaymentCounts, getLeases } from "@/lib/actions/leases";
 import { DataTable, Column } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -18,6 +18,7 @@ import {
   LeasePaymentCell,
 } from "@/components/leases/lease-table-cells";
 import { BailStatusFilterWrapper } from "@/components/leases/bail-status-filter-wrapper";
+import { LeasePaymentTabs } from "@/components/leases/lease-payment-tabs";
 
 export default async function LeasesPage({
   searchParams,
@@ -43,15 +44,25 @@ export default async function LeasesPage({
   // Gérer le filtre de statut (peut être multiple via URL)
   const statusParam = urlParams.get("status");
   const statusFilter = statusParam || undefined;
+  const paymentParam = urlParams.get("payment");
+  const paymentFilter = paymentParam === "paid" || paymentParam === "unpaid" ? paymentParam : undefined;
   
-  const result = await getLeases({
-    page: params.page || 1,
-    pageSize: params.pageSize || 10,
+  const baseFilters = {
     search: params.search,
     status: statusFilter,
     propertyId: urlParams.get("propertyId") || undefined,
     tenantId: urlParams.get("tenantId") || undefined,
-  });
+  };
+
+  const [result, paymentCounts] = await Promise.all([
+    getLeases({
+      page: params.page || 1,
+      pageSize: params.pageSize || 10,
+      ...baseFilters,
+      payment: paymentFilter,
+    }),
+    getLeasePaymentCounts(baseFilters),
+  ]);
 
   const columns: Column<(typeof result.data)[0]>[] = [
     {
@@ -124,6 +135,7 @@ export default async function LeasesPage({
         pageSize={result.pageSize}
         totalPages={result.totalPages}
         searchPlaceholder="Rechercher par bien, locataire..."
+        belowSearchContent={<LeasePaymentTabs counts={paymentCounts} />}
         filters={<BailStatusFilterWrapper />}
         actions={LeaseActions}
       />

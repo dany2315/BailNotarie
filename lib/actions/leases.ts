@@ -639,6 +639,7 @@ export async function getLeases(params: {
   status?: string | string[];
   propertyId?: string;
   tenantId?: string;
+  payment?: "paid" | "unpaid";
 }) {
   await requireAuth();
 
@@ -665,6 +666,12 @@ export async function getLeases(params: {
     where.parties = {
       some: { id: params.tenantId },
     };
+  }
+
+  if (params.payment === "paid") {
+    where.paidAt = { not: null };
+  } else if (params.payment === "unpaid") {
+    where.paidAt = null;
   }
 
   if (params.search) {
@@ -737,6 +744,59 @@ export async function getLeases(params: {
     pageSize,
     totalPages: Math.ceil(total / pageSize),
   };
+}
+
+export async function getLeasePaymentCounts(params: {
+  search?: string;
+  status?: string | string[];
+  propertyId?: string;
+  tenantId?: string;
+}) {
+  await requireAuth();
+
+  const baseWhere: any = {};
+
+  if (params.status) {
+    const statuses = Array.isArray(params.status)
+      ? params.status
+      : params.status.split(",").filter(Boolean);
+
+    if (statuses.length > 0) {
+      baseWhere.status = statuses.length === 1
+        ? (statuses[0] as BailStatus)
+        : { in: statuses as BailStatus[] };
+    }
+  }
+
+  if (params.propertyId) {
+    baseWhere.propertyId = params.propertyId;
+  }
+
+  if (params.tenantId) {
+    baseWhere.parties = {
+      some: { id: params.tenantId },
+    };
+  }
+
+  if (params.search) {
+    baseWhere.OR = [
+      { property: { fullAddress: { contains: params.search, mode: "insensitive" } } },
+      { parties: { some: { persons: { some: { firstName: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { persons: { some: { lastName: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { persons: { some: { email: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { entreprise: { legalName: { contains: params.search, mode: "insensitive" } } } } },
+      { parties: { some: { entreprise: { name: { contains: params.search, mode: "insensitive" } } } } },
+      { parties: { some: { entreprise: { email: { contains: params.search, mode: "insensitive" } } } } },
+    ];
+  }
+
+  const [total, unpaid, paid] = await Promise.all([
+    prisma.bail.count({ where: baseWhere }),
+    prisma.bail.count({ where: { ...baseWhere, paidAt: null } }),
+    prisma.bail.count({ where: { ...baseWhere, paidAt: { not: null } } }),
+  ]);
+
+  return { total, unpaid, paid };
 }
 
 // Obtenir tous les baux (pour filtrage côté client)
