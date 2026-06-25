@@ -584,7 +584,9 @@ async function checkAndUpdateBailStatusForClient(clientId: string): Promise<void
       parties: {
         some: { id: clientId }
       },
-      status: BailStatus.DRAFT
+      status: {
+        in: [BailStatus.DRAFT, BailStatus.AWAITING_TENANT_FORM, BailStatus.PENDING_VALIDATION]
+      }
     },
     include: {
       property: {
@@ -609,7 +611,9 @@ async function checkAndUpdateBailStatusForProperty(propertyId: string): Promise<
   const bails = await prisma.bail.findMany({
     where: {
       propertyId,
-      status: BailStatus.DRAFT
+      status: {
+        in: [BailStatus.DRAFT, BailStatus.AWAITING_TENANT_FORM, BailStatus.PENDING_VALIDATION]
+      }
     },
     include: {
       property: {
@@ -676,6 +680,7 @@ async function checkAndUpdateBailStatus(bail: any): Promise<void> {
 
   // Si tous sont PENDING_CHECK et le bail est en DRAFT → passer à PENDING_VALIDATION
   if (ownerPendingCheck && tenantPendingCheck && propertyPendingCheck && (bail.status === BailStatus.AWAITING_TENANT_FORM || bail.status === BailStatus.DRAFT)) {
+    const oldStatus = bail.status;
     await prisma.bail.update({
       where: { id: bail.id },
       data: { status: BailStatus.PENDING_VALIDATION }
@@ -688,7 +693,7 @@ async function checkAndUpdateBailStatus(bail: any): Promise<void> {
       bail.id,
       null,
       {
-        oldStatus: BailStatus.DRAFT,
+        oldStatus,
         newStatus: BailStatus.PENDING_VALIDATION,
       }
     );
