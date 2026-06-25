@@ -4,12 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole, requireProprietaireAuth } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
 import { revalidatePath } from "next/cache";
-import { BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus } from "@prisma/client";
+import { BailAuditEventType, BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { validateRentForProperty } from "@/lib/utils/rent-validation";
+import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 
 export async function createLease(data: unknown, paymentIntentId?: string, draftBailId?: string) {
   const user = await requireAuth();
@@ -40,7 +41,13 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
 
   // Vérifier que le locataire existe (optionnel)
   const tenant = validated.tenantId
-    ? await prisma.client.findUnique({ where: { id: validated.tenantId } })
+    ? await prisma.client.findUnique({
+        where: { id: validated.tenantId },
+        include: {
+          persons: { where: { isPrimary: true }, take: 1 },
+          entreprise: true,
+        },
+      })
     : null;
 
   if (validated.tenantId && !tenant) {
@@ -74,6 +81,8 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
   const finalStatus: BailStatus = validated.tenantId
     ? BailStatus.AWAITING_TENANT_FORM
     : BailStatus.AWAITING_TENANT;
+  const actorName = getActorName(user);
+  const tenantName = getClientDisplayName(tenant);
 
   if (draftBailId) {
     const existing = await prisma.bail.findUnique({
@@ -83,44 +92,110 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
     if (!existing || existing.property.ownerId !== property.ownerId || existing.paidAt !== null) {
       throw new Error('Brouillon introuvable ou déjà finalisé');
     }
-    bail = await prisma.bail.update({
-      where: { id: draftBailId },
-      data: {
-        bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
-        bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
-        status: finalStatus,
-        rentAmount: validated.rentAmount,
-        monthlyCharges: validated.monthlyCharges,
-        securityDeposit: validated.securityDeposit,
-        effectiveDate: validated.effectiveDate,
-        endDate: validated.endDate || null,
-        paymentDay: validated.paymentDay || null,
-        stripePaymentIntentId: paymentIntentId || null,
-        paidAt: paymentIntentId ? new Date() : null,
-        parties: { set: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
-        updatedById: user.id,
-      },
-      include: bailInclude,
+    bail = await prisma.$transaction(async (tx) => {
+      const updatedBail = await tx.bail.update({
+        where: { id: draftBailId },
+        data: {
+          bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
+          bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
+          status: finalStatus,
+          rentAmount: validated.rentAmount,
+          monthlyCharges: validated.monthlyCharges,
+          securityDeposit: validated.securityDeposit,
+          effectiveDate: validated.effectiveDate,
+          endDate: validated.endDate || null,
+          paymentDay: validated.paymentDay || null,
+          stripePaymentIntentId: paymentIntentId || null,
+          paidAt: paymentIntentId ? new Date() : null,
+          parties: { set: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
+          updatedById: user.id,
+        },
+        include: bailInclude,
+      });
+
+      await createBailAuditLog({
+        bailId: updatedBail.id,
+        eventType: BailAuditEventType.BAIL_CREATED,
+        actorId: user.id,
+        actorName,
+        createdAt: updatedBail.createdAt,
+      }, tx);
+
+      if (paymentIntentId) {
+        await createBailAuditLog({
+          bailId: updatedBail.id,
+          eventType: BailAuditEventType.PAYMENT_RECEIVED,
+          actorId: user.id,
+          actorName,
+          createdAt: updatedBail.paidAt || undefined,
+        }, tx);
+      }
+
+      if (validated.tenantId) {
+        await createBailAuditLog({
+          bailId: updatedBail.id,
+          eventType: BailAuditEventType.TENANT_ADDED,
+          actorId: user.id,
+          actorName,
+          tenantId: validated.tenantId,
+          tenantName,
+        }, tx);
+      }
+
+      return updatedBail;
     });
   } else {
-    bail = await prisma.bail.create({
-      data: {
-        bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
-        bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
-        status: finalStatus,
-        rentAmount: validated.rentAmount,
-        monthlyCharges: validated.monthlyCharges,
-        securityDeposit: validated.securityDeposit,
-        effectiveDate: validated.effectiveDate,
-        endDate: validated.endDate || null,
-        paymentDay: validated.paymentDay || null,
-        propertyId: validated.propertyId,
-        stripePaymentIntentId: paymentIntentId || null,
-        paidAt: paymentIntentId ? new Date() : null,
-        parties: { connect: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
-        createdById: user.id,
-      },
-      include: bailInclude,
+    bail = await prisma.$transaction(async (tx) => {
+      const createdBail = await tx.bail.create({
+        data: {
+          bailType: (validated.bailType as BailType) || BailType.BAIL_NU_3_ANS,
+          bailFamily: bailFamilyMap[validated.leaseType] || BailFamille.HABITATION,
+          status: finalStatus,
+          rentAmount: validated.rentAmount,
+          monthlyCharges: validated.monthlyCharges,
+          securityDeposit: validated.securityDeposit,
+          effectiveDate: validated.effectiveDate,
+          endDate: validated.endDate || null,
+          paymentDay: validated.paymentDay || null,
+          propertyId: validated.propertyId,
+          stripePaymentIntentId: paymentIntentId || null,
+          paidAt: paymentIntentId ? new Date() : null,
+          parties: { connect: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
+          createdById: user.id,
+        },
+        include: bailInclude,
+      });
+
+      await createBailAuditLog({
+        bailId: createdBail.id,
+        eventType: BailAuditEventType.BAIL_CREATED,
+        actorId: user.id,
+        actorName,
+        createdAt: createdBail.createdAt,
+      }, tx);
+
+      if (paymentIntentId) {
+        await createBailAuditLog({
+          bailId: createdBail.id,
+          eventType: BailAuditEventType.PAYMENT_RECEIVED,
+          actorId: user.id,
+          actorName,
+          createdAt: createdBail.paidAt || undefined,
+        }, tx);
+      }
+
+      if (validated.tenantId) {
+        await createBailAuditLog({
+          bailId: createdBail.id,
+          eventType: BailAuditEventType.TENANT_ADDED,
+          actorId: user.id,
+          actorName,
+          tenantId: validated.tenantId,
+          tenantName,
+        }, tx);
+      }
+
+      return createdBail;
     });
   }
 
@@ -280,13 +355,28 @@ export async function updateLease(data: unknown) {
   const oldStatus = oldBail?.status;
   const newStatus = updatePayload.status || oldBail?.status;
 
-  const updatedBail = await prisma.bail.update({
-    where: { id },
-    data: updatePayload,
-    include: {
-      property: { include: { owner: true } },
-      parties: true,
-    },
+  const updatedBail = await prisma.$transaction(async (tx) => {
+    const bail = await tx.bail.update({
+      where: { id },
+      data: updatePayload,
+      include: {
+        property: { include: { owner: true } },
+        parties: true,
+      },
+    });
+
+    if (oldStatus && newStatus && oldStatus !== newStatus) {
+      await createBailAuditLog({
+        bailId: id,
+        eventType: BailAuditEventType.STATUS_CHANGED,
+        actorId: user.id,
+        actorName: getActorName(user),
+        fromStatus: oldStatus,
+        toStatus: newStatus as BailStatus,
+      }, tx);
+    }
+
+    return bail;
   });
 
   // Pas de notification pour les modifications via l'interface
@@ -317,16 +407,31 @@ export async function transitionLease(data: unknown) {
   const oldBail = await prisma.bail.findUnique({ where: { id } });
   const oldStatus = oldBail?.status;
 
-  const bail = await prisma.bail.update({
-    where: { id },
-    data: {
-      status: nextStatus as BailStatus,
-      updatedById: user.id,
-    },
-    include: {
-      property: { include: { owner: true } },
-      parties: true,
-    },
+  const bail = await prisma.$transaction(async (tx) => {
+    const updatedBail = await tx.bail.update({
+      where: { id },
+      data: {
+        status: nextStatus as BailStatus,
+        updatedById: user.id,
+      },
+      include: {
+        property: { include: { owner: true } },
+        parties: true,
+      },
+    });
+
+    if (oldStatus && oldStatus !== nextStatus) {
+      await createBailAuditLog({
+        bailId: id,
+        eventType: BailAuditEventType.STATUS_CHANGED,
+        actorId: user.id,
+        actorName: getActorName(user),
+        fromStatus: oldStatus,
+        toStatus: nextStatus as BailStatus,
+      }, tx);
+    }
+
+    return updatedBail;
   });
 
   // Pas de notification pour les modifications via l'interface
@@ -793,6 +898,26 @@ export async function createTenantForLease(data: unknown) {
   }
 
   // Déclencher l'envoi d'email au locataire avec le formulaire via Inngest (asynchrone, ne bloque pas le rendu)
+  await createBailAuditLog({
+    bailId: validated.bailId,
+    eventType: BailAuditEventType.TENANT_ADDED,
+    actorId: user.id,
+    actorName: getActorName(user),
+    tenantId: tenant.id,
+    tenantName: getClientDisplayName(tenant as any) || validated.email,
+  });
+
+  if (bail.status === BailStatus.AWAITING_TENANT) {
+    await createBailAuditLog({
+      bailId: validated.bailId,
+      eventType: BailAuditEventType.STATUS_CHANGED,
+      actorId: user.id,
+      actorName: getActorName(user),
+      fromStatus: BailStatus.AWAITING_TENANT,
+      toStatus: BailStatus.AWAITING_TENANT_FORM,
+    });
+  }
+
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
   const tenantFormUrl = `${baseUrl}/intakes/${tenantIntakeLink.token}`;
 

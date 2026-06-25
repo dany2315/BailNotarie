@@ -12,7 +12,7 @@ import {
   MatrimonialRegimeBadge
 } from "@/components/shared/status-badge";
 import { CompletionStatusSelect } from "@/components/shared/completion-status-select";
-import { formatDate, formatCurrency, formatSurface, formatDateTime } from "@/lib/utils/formatters";
+import { formatDate, formatCurrency, formatSurface } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,7 @@ import { DeleteLeaseButton } from "@/components/leases/delete-lease-button";
 import { AssignBailButton } from "@/components/leases/assign-bail-button";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { LeaseMissingDataCard } from "@/components/leases/lease-missing-data-card";
+import { BailAuditTimeline } from "@/components/leases/bail-audit-timeline";
 
 export default async function LeaseDetailPage({
   params,
@@ -870,36 +871,7 @@ export default async function LeaseDetailPage({
         </Card>
       )}
 
-      {/* Métadonnées */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Métadonnées</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 text-sm">
-            <div>
-              <p className="text-muted-foreground">Créé le</p>
-              <p className="font-medium">{formatDateTime(lease.createdAt)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Modifié le</p>
-              <p className="font-medium">{formatDateTime(lease.updatedAt)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Créé par</p>
-              <p className="font-medium">
-                {lease.createdBy ? (lease.createdBy.name || lease.createdBy.email) : "via formulaire"}
-              </p>
-            </div>
-            {lease.updatedBy && (
-              <div>
-                <p className="text-muted-foreground">Modifié par</p>
-                <p className="font-medium">{lease.updatedBy.name || lease.updatedBy.email}</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <BailAuditTimeline bailId={lease.id} />
     </div>
   );
 }

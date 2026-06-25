@@ -14,7 +14,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { Decimal } from "@prisma/client/runtime/library";
-import { ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus, CompletionStatus } from "@prisma/client";
+import { BailAuditEventType, ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus, CompletionStatus } from "@prisma/client";
 import { 
   triggerOwnerFormEmail, 
   triggerTenantFormEmail, 
@@ -33,6 +33,7 @@ import {
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
 } from "@/lib/utils/completion-status";
 import { createUserForClient } from "@/lib/utils/user-creation";
+import { createBailAuditLog, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -576,6 +577,7 @@ export async function createFullClient(data: unknown) {
 
 // Soumettre le formulaire propriétaire (crée bien, bail, locataire et envoie email)
 export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
+  const submittedAt = new Date();
   let validated;
   try {
     validated = ownerFormSchema.parse(data);
@@ -1012,12 +1014,15 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
 
   // Utiliser le bail existant ou en créer un nouveau
   let bail;
+  let shouldLogTenantAdded = false;
+  let previousBailStatus: BailStatus | null = null;
   const bailParties = [{ id: validated.clientId }]; // Propriétaire
   if (tenant) {
     bailParties.push({ id: tenant.id }); // Locataire
   }
 
   if (ownerIntakeLink?.bailId && ownerIntakeLink.bail) {
+    previousBailStatus = ownerIntakeLink.bail.status as BailStatus;
     // Vérifier si le locataire est déjà connecté au bail
     const isTenantConnected = tenant ? ownerIntakeLink.bail.parties.some(
       (party: any) => party.id === tenant!.id
@@ -1042,6 +1047,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
 
     // Connecter le locataire seulement s'il existe et n'est pas déjà connecté
     if (tenant && !isTenantConnected) {
+      shouldLogTenantAdded = true;
       updateData.parties = {
         connect: bailParties,
       };
@@ -1079,6 +1085,73 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
   }
 
   // Chercher ou créer l'IntakeLink pour le formulaire locataire (seulement si locataire existe)
+  const ownerForAudit = await prisma.client.findUnique({
+    where: { id: validated.clientId },
+    include: {
+      persons: { where: { isPrimary: true }, take: 1 },
+      entreprise: true,
+    },
+  });
+  const tenantForAudit = tenant
+    ? await prisma.client.findUnique({
+        where: { id: tenant.id },
+        include: {
+          persons: { where: { isPrimary: true }, take: 1 },
+          entreprise: true,
+        },
+      })
+    : null;
+  const auditActorName = getClientDisplayName(ownerForAudit) || "Le proprietaire";
+  const existingCreationLog = await prisma.bailAuditLog.findFirst({
+    where: {
+      bailId: bail.id,
+      eventType: BailAuditEventType.BAIL_CREATED,
+    },
+    select: { id: true },
+  });
+
+  if (!existingCreationLog) {
+    await createBailAuditLog({
+      bailId: bail.id,
+      eventType: BailAuditEventType.BAIL_CREATED,
+      actorId: null,
+      actorName: auditActorName,
+      createdAt: bail.createdAt,
+    });
+  }
+
+  if (paymentIntentId) {
+    await createBailAuditLog({
+      bailId: bail.id,
+      eventType: BailAuditEventType.PAYMENT_RECEIVED,
+      actorId: null,
+      actorName: auditActorName,
+      createdAt: bail.paidAt || submittedAt,
+    });
+  }
+
+  if ((shouldLogTenantAdded || (!previousBailStatus && tenant)) && tenant) {
+    await createBailAuditLog({
+      bailId: bail.id,
+      eventType: BailAuditEventType.TENANT_ADDED,
+      actorId: null,
+      actorName: auditActorName,
+      tenantId: tenant.id,
+      tenantName: getClientDisplayName(tenantForAudit) || validated.tenantEmail || null,
+    });
+  }
+
+  if (previousBailStatus && previousBailStatus !== bail.status) {
+    await createBailAuditLog({
+      bailId: bail.id,
+      eventType: BailAuditEventType.STATUS_CHANGED,
+      actorId: null,
+      actorName: auditActorName,
+      fromStatus: previousBailStatus,
+      toStatus: bail.status,
+    });
+  }
+
   let tenantIntakeLink = null;
   
   if (tenant) {
@@ -1130,7 +1203,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
       where: { id: ownerIntakeLink.id },
       data: {
         status: "SUBMITTED",
-        submittedAt: new Date(),
+        submittedAt,
         propertyId: property.id,
         bailId: bail.id,
       },
@@ -1550,15 +1623,36 @@ export async function submitTenantForm(data: unknown) {
   let updatedIntakeLinkId: string | null = null;
   
   if (tenantIntakeLink) {
+    const submittedAt = new Date();
     const updatedIntakeLink = await prisma.intakeLink.update({
       where: { id: tenantIntakeLink.id },
       data: {
         status: "SUBMITTED",
-        submittedAt: new Date(),
+        submittedAt,
       },
     });
     
     updatedIntakeLinkId = updatedIntakeLink.id;
+
+    if (tenantIntakeLink.bailId) {
+      const submittedTenant = await prisma.client.findUnique({
+        where: { id: validated.clientId },
+        include: {
+          persons: { where: { isPrimary: true }, take: 1 },
+          entreprise: true,
+        },
+      });
+
+      await createBailAuditLog({
+        bailId: tenantIntakeLink.bailId,
+        eventType: BailAuditEventType.TENANT_FORM_SUBMITTED,
+        actorId: null,
+        actorName: getClientDisplayName(submittedTenant) || "Le locataire",
+        tenantId: validated.clientId,
+        tenantName: getClientDisplayName(submittedTenant),
+        createdAt: submittedAt,
+      });
+    }
     
     // Mettre à jour le statut de complétion du client à PENDING_CHECK après soumission
     // On met toujours à PENDING_CHECK sauf si c'est déjà COMPLETED (on ne veut pas revenir en arrière)
@@ -3198,11 +3292,29 @@ export async function updateClientCompletionStatus(data: { id: string; completio
         where: { id: bail.id },
         data: { status: "READY_FOR_NOTARY" }
       });
+      await createBailAuditLog({
+        bailId: bail.id,
+        eventType: BailAuditEventType.STATUS_CHANGED,
+        actorId: user.id,
+        actorName: user.name || user.email || "BailNotarie",
+        fromStatus: bail.status,
+        toStatus: BailStatus.READY_FOR_NOTARY,
+      });
+      revalidatePath(`/interface/baux/${bail.id}`);
     } else if (allPendingCheck && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM")) {
       await prisma.bail.update({
         where: { id: bail.id },
         data: { status: "PENDING_VALIDATION" }
       });
+      await createBailAuditLog({
+        bailId: bail.id,
+        eventType: BailAuditEventType.STATUS_CHANGED,
+        actorId: user.id,
+        actorName: user.name || user.email || "BailNotarie",
+        fromStatus: bail.status,
+        toStatus: BailStatus.PENDING_VALIDATION,
+      });
+      revalidatePath(`/interface/baux/${bail.id}`);
     }
   }
 

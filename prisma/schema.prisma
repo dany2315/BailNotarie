@@ -93,6 +93,15 @@ enum BailStatus {
   CLASSE_SANS_SUITE // dossier classé sans suite
 }
 
+enum BailAuditEventType {
+  BAIL_CREATED
+  PAYMENT_RECEIVED
+  TENANT_ADDED
+  TENANT_FORM_SUBMITTED
+  STATUS_CHANGED
+  NOTAIRE_ASSIGNED
+}
+
 enum IntakeTarget {
   OWNER
   TENANT
@@ -208,6 +217,7 @@ model User {
   propertiesUpdated     Property[]         @relation("PropertyUpdatedBy")
   bailsCreated          Bail[]             @relation("BailCreatedBy")
   bailsUpdated          Bail[]             @relation("BailUpdatedBy")
+  bailAuditLogsCreated  BailAuditLog[]     @relation("BailAuditActor")
   intakeLinksCreated    IntakeLink[]       @relation("IntakeLinkCreatedBy")
   notificationsCreated  Notification[]     @relation("NotificationCreatedBy")
   notificationsReceived Notification[]     @relation("NotificationReceivedBy")
@@ -472,9 +482,36 @@ model Bail {
   // Messages de chat
   messages BailMessage[]
 
+  auditLogs BailAuditLog[] @relation("BailAuditLogs")
+
   @@index([status])
   @@index([propertyId])
   @@index([effectiveDate])
+}
+
+model BailAuditLog {
+  id        String             @id @default(cuid())
+  bailId    String
+  bail      Bail               @relation("BailAuditLogs", fields: [bailId], references: [id], onDelete: Cascade)
+  eventType BailAuditEventType
+
+  fromStatus BailStatus?
+  toStatus   BailStatus?
+
+  tenantId    String?
+  tenantName  String?
+  notaireId   String?
+  notaireName String?
+
+  actorId   String?
+  actor     User?  @relation("BailAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorName String
+
+  createdAt DateTime @default(now())
+
+  @@index([bailId, createdAt])
+  @@index([eventType])
+  @@index([actorId])
 }
 
 /**
