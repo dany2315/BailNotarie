@@ -12,19 +12,19 @@ type BailAuditTimelineProps = {
 function getEventSentence(log: BailAuditLog) {
   switch (log.eventType) {
     case BailAuditEventType.BAIL_CREATED:
-      return `${log.actorName} a cr\u00e9\u00e9 le bail`;
+      return `${log.actorName} a créé le bail`;
     case BailAuditEventType.PAYMENT_RECEIVED:
-      return `${log.actorName} a effectu\u00e9 le paiement des frais de dossier`;
+      return `${log.actorName} a effectué le paiement des frais de dossier`;
     case BailAuditEventType.TENANT_ADDED:
-      return `${log.actorName} a ajout\u00e9 le locataire${log.tenantName ? ` ${log.tenantName}` : ""}`;
+      return `${log.actorName} a ajouté le locataire${log.tenantName ? ` ${log.tenantName}` : ""}`;
     case BailAuditEventType.TENANT_FORM_SUBMITTED:
       return `${log.tenantName || log.actorName} a soumis son formulaire locataire`;
     case BailAuditEventType.STATUS_CHANGED:
-      return `${log.actorName} a fait passer le bail de statut "${getBailStatusLabel(log.fromStatus || "")}" \u00e0 "${getBailStatusLabel(log.toStatus || "")}"`;
+      return `${log.actorName} a fait passer le bail de statut "${getBailStatusLabel(log.fromStatus || "")}" à "${getBailStatusLabel(log.toStatus || "")}"`;
     case BailAuditEventType.NOTAIRE_ASSIGNED:
-      return `${log.actorName} a assign\u00e9 le dossier au notaire ${log.notaireName || "s\u00e9lectionn\u00e9"}`;
+      return `${log.actorName} a assigné le dossier au notaire ${log.notaireName || "sélectionné"}`;
     default:
-      return `${log.actorName} a effectu\u00e9 une action sur le bail`;
+      return `${log.actorName} a effectué une action sur le bail`;
   }
 }
 
@@ -58,7 +58,7 @@ export async function BailAuditTimeline({ bailId }: BailAuditTimelineProps) {
       </CardHeader>
       <CardContent>
         {logs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun \u00e9v\u00e9nement enregistr\u00e9 pour ce bail.</p>
+          <p className="text-sm text-muted-foreground">Aucun événement enregistré pour ce bail.</p>
         ) : (
           <ol className="space-y-3">
             {logs.map((log) => {
