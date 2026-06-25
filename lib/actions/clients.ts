@@ -1623,11 +1623,6 @@ export async function submitTenantForm(data: unknown) {
     }
   }
 
-  // Déclencher le calcul du statut de complétion en arrière-plan (non bloquant)
-  triggerCompletionStatusesCalculation({ clientId: validated.clientId }).catch((error) => {
-    console.error("Erreur lors du déclenchement du calcul de statut client:", error);
-  });
-
   // Mettre à jour l'IntakeLink du locataire comme soumis
   const tenantIntakeLink = await prisma.intakeLink.findFirst({
     where: {
@@ -1687,6 +1682,12 @@ export async function submitTenantForm(data: unknown) {
       });
     }
   }
+
+  // Déclencher le calcul après le passage du locataire en PENDING_CHECK.
+  // Sinon le bail peut rester bloqué en AWAITING_TENANT_FORM.
+  triggerCompletionStatusesCalculation({ clientId: validated.clientId }).catch((error) => {
+    console.error("Erreur lors du déclenchement du calcul de statut client:", error);
+  });
   
   // S'assurer que l'événement Inngest du mail propriétaire est bien enregistré
   // avant de retourner la réponse. On n'attend pas l'envoi réel du mail.
