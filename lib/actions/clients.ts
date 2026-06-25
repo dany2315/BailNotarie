@@ -14,7 +14,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { Decimal } from "@prisma/client/runtime/library";
-import { BailAuditEventType, ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus, CompletionStatus } from "@prisma/client";
+import { BailAuditEventType, ClientType, ProfilType, FamilyStatus, MatrimonialRegime, BailType, BailFamille, BailStatus, PropertyStatus, CompletionStatus, DocumentKind } from "@prisma/client";
 import { 
   triggerOwnerFormEmail, 
   triggerTenantFormEmail, 
@@ -1621,6 +1621,18 @@ export async function submitTenantForm(data: unknown) {
         },
       });
     }
+  }
+
+  const hasTenantRib = await prisma.document.findFirst({
+    where: {
+      clientId: validated.clientId,
+      kind: DocumentKind.RIB,
+    },
+    select: { id: true },
+  });
+
+  if (!hasTenantRib) {
+    throw new Error("Le RIB signé locataire est requis avant de soumettre le formulaire.");
   }
 
   // Mettre à jour l'IntakeLink du locataire comme soumis
