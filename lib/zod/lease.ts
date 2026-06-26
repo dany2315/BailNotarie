@@ -30,7 +30,7 @@ const createLeaseBaseSchema = z.object({
     .enum(["BAIL_NU_3_ANS", "BAIL_NU_6_ANS", "BAIL_MEUBLE_1_ANS", "BAIL_MEUBLE_9_MOIS"])
     .default("BAIL_NU_3_ANS"),
   status: z
-    .enum(["DRAFT", "AWAITING_TENANT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED"])
+    .enum(["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"])
     .default("DRAFT"),
   rentAmount: z.string().transform((val) => {
     const num = parseInt(val, 10);
@@ -93,7 +93,7 @@ const updateLeaseBaseSchema = z.object({
     .enum(["BAIL_NU_3_ANS", "BAIL_NU_6_ANS", "BAIL_MEUBLE_1_ANS", "BAIL_MEUBLE_9_MOIS"])
     .optional(),
   status: z
-    .enum(["DRAFT", "AWAITING_TENANT", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED"])
+    .enum(["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"])
     .optional(),
   rentAmount: z
     .string()

@@ -476,6 +476,7 @@ export async function handleOwnerTenantStep(
     // Déterminer si on doit envoyer l'email
     const shouldSendEmail = 
       !tenantIntakeLink || // Nouveau locataire, pas encore d'IntakeLink
+      !tenantIntakeLink.formEmailSentAt ||
       (oldTenantEmail && oldTenantEmail !== tenantEmail); // Email a changé
 
     if (shouldSendEmail) {
@@ -520,6 +521,10 @@ export async function handleOwnerTenantStep(
           firstName: firstName,
           lastName: lastName,
           formUrl: tenantFormUrl,
+        });
+        await prisma.intakeLink.update({
+          where: { id: tenantIntakeLink.id },
+          data: { formEmailSentAt: new Date() },
         });
         console.log(`[handleOwnerTenantStep] Email envoyé au locataire: ${tenantEmail}`);
       } catch (error) {

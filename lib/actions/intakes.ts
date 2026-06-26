@@ -731,7 +731,7 @@ export async function getIntakeDocuments(token: string) {
       },
       orderBy: { createdAt: "desc" },
     });
-    documents.push(...clientDocs);
+    documents.push(...clientDocs.map(d => ({ ...d, source: 'client' })));
   }
 
   // Récupérer les documents des personnes (ID_IDENTITY)
@@ -741,11 +741,12 @@ export async function getIntakeDocuments(token: string) {
         where: { personId: person.id },
         orderBy: { createdAt: "desc" },
       });
-      // Ajouter personIndex pour faciliter le filtrage
-      personDocs.forEach((doc, index) => {
+      const personIdx = intakeLink.client.persons.indexOf(person);
+      personDocs.forEach((doc) => {
         documents.push({
           ...doc,
-          personIndex: intakeLink.client?.persons?.indexOf(person) || 0,
+          source: 'person',
+          personIndex: personIdx,
         });
       });
     }
@@ -757,7 +758,7 @@ export async function getIntakeDocuments(token: string) {
       where: { entrepriseId: intakeLink.client.entreprise.id },
       orderBy: { createdAt: "desc" },
     });
-    documents.push(...entrepriseDocs);
+    documents.push(...entrepriseDocs.map(d => ({ ...d, source: 'entreprise' })));
   }
 
   // Récupérer les documents de la propriété
@@ -766,7 +767,7 @@ export async function getIntakeDocuments(token: string) {
       where: { propertyId: intakeLink.propertyId },
       orderBy: { createdAt: "desc" },
     });
-    documents.push(...propertyDocs);
+    documents.push(...propertyDocs.map(d => ({ ...d, source: 'property' })));
   }
 
   // Récupérer les documents du bail
@@ -775,7 +776,7 @@ export async function getIntakeDocuments(token: string) {
       where: { bailId: intakeLink.bailId },
       orderBy: { createdAt: "desc" },
     });
-    documents.push(...bailDocs);
+    documents.push(...bailDocs.map(d => ({ ...d, source: 'bail' })));
   }
 
   console.log("[getIntakeDocuments] Total documents récupérés:", documents.length, documents.map(d => ({ kind: d.kind, fileKey: d.fileKey?.substring(0, 50) })));

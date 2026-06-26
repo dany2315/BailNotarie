@@ -3,12 +3,13 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
-import { Role } from "@prisma/client";
+import { BailAuditEventType, Role } from "@prisma/client";
 import { z } from "zod";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailNotaireAssignment from "@/emails/mail-notaire-assignment";
 import { triggerNotaireWelcomeEmail, triggerDocumentRequestEmail } from "@/lib/inngest/helpers";
 import { pusherServer } from "@/lib/pusher";
+import { createBailAuditLog, getActorName } from "@/lib/actions/bail-audit-log";
 
 // Schémas de validation
 const createNotaireSchema = z.object({
@@ -207,6 +208,15 @@ export async function assignDossierToNotaire(data: unknown) {
     },
   });
 
+  await createBailAuditLog({
+    bailId: validated.bailId,
+    eventType: BailAuditEventType.NOTAIRE_ASSIGNED,
+    actorId: user.id,
+    actorName: getActorName(user),
+    notaireId: notaire.id,
+    notaireName: notaire.name || notaire.email,
+  });
+
   // Envoyer un email de notification au notaire (optionnel)
   try {
     const client = bail.property.owner;
@@ -237,6 +247,7 @@ export async function assignDossierToNotaire(data: unknown) {
 
   revalidatePath("/interface/notaires");
   revalidatePath("/interface/baux");
+  revalidatePath(`/interface/baux/${validated.bailId}`);
   return serializedAssignment;
 }
 
