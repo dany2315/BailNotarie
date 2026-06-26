@@ -1623,14 +1623,64 @@ export async function submitTenantForm(data: unknown) {
     }
   }
 
-  const hasTenantRib = await prisma.document.findFirst({
-    where: {
-      clientId: validated.clientId,
-      kind: DocumentKind.RIB,
+  // Récupérer le client avec ses personnes et entreprise pour valider les documents
+  const clientForDocValidation = await prisma.client.findUnique({
+    where: { id: validated.clientId },
+    include: {
+      persons: {
+        include: { documents: { select: { kind: true } } },
+      },
+      entreprise: {
+        include: { documents: { select: { kind: true } } },
+      },
+      documents: { select: { kind: true } },
     },
-    select: { id: true },
   });
 
+  if (!clientForDocValidation) {
+    throw new Error("Client introuvable.");
+  }
+
+  if (clientForDocValidation.type === ClientType.PERSONNE_PHYSIQUE) {
+    // Vérifier la pièce d'identité pour chaque personne
+    for (const person of clientForDocValidation.persons) {
+      const hasId = person.documents.some(d => d.kind === DocumentKind.ID_IDENTITY);
+      if (!hasId) {
+        throw new Error(`La pièce d'identité de ${person.firstName ?? ""} ${person.lastName ?? ""} est requise avant de soumettre le formulaire.`.trim());
+      }
+    }
+    // Vérifier livret de famille / contrat de PACS selon le statut de la personne principale
+    const primaryPerson = clientForDocValidation.persons.find(p => p.isPrimary) ?? clientForDocValidation.persons[0];
+    if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
+      const hasLivret = clientForDocValidation.documents.some(d => d.kind === DocumentKind.LIVRET_DE_FAMILLE);
+      if (!hasLivret) {
+        throw new Error("Le livret de famille est requis avant de soumettre le formulaire.");
+      }
+    }
+    if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
+      const hasPacs = clientForDocValidation.documents.some(d => d.kind === DocumentKind.CONTRAT_DE_PACS);
+      if (!hasPacs) {
+        throw new Error("Le contrat de PACS est requis avant de soumettre le formulaire.");
+      }
+    }
+  } else if (clientForDocValidation.type === ClientType.PERSONNE_MORALE) {
+    const entrepriseDocs = clientForDocValidation.entreprise?.documents ?? [];
+    if (!entrepriseDocs.some(d => d.kind === DocumentKind.KBIS)) {
+      throw new Error("Le KBIS est requis avant de soumettre le formulaire.");
+    }
+    if (!entrepriseDocs.some(d => d.kind === DocumentKind.STATUTES)) {
+      throw new Error("Les statuts de la société sont requis avant de soumettre le formulaire.");
+    }
+  }
+
+  // Assurance locataire (toujours obligatoire)
+  const hasTenantInsurance = clientForDocValidation.documents.some(d => d.kind === DocumentKind.INSURANCE);
+  if (!hasTenantInsurance) {
+    throw new Error("L'assurance locataire est requise avant de soumettre le formulaire.");
+  }
+
+  // RIB locataire (toujours obligatoire)
+  const hasTenantRib = clientForDocValidation.documents.some(d => d.kind === DocumentKind.RIB);
   if (!hasTenantRib) {
     throw new Error("Le RIB signé locataire est requis avant de soumettre le formulaire.");
   }

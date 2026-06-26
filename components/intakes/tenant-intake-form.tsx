@@ -1547,8 +1547,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const primaryPerson = persons[0];
       const familyStatus = primaryPerson?.familyStatus;
       const clientDocs = intakeLink.client?.documents || [];
-      const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === undefined);
-      
+      const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.source === 'client');
+
       if (familyStatus === FamilyStatus.MARIE) {
         const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
           uploadedClientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
@@ -1567,14 +1567,14 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
       const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
-      const uploadedEntrepriseDocs = uploadedDocuments.filter((doc: any) => doc.kind === "KBIS" || doc.kind === "STATUTES");
+      const uploadedEntrepriseDocs = uploadedDocuments.filter((doc: any) => doc.source === 'entreprise');
       const hasKbis = entrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
         uploadedEntrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
         kbisRef.current?.files?.[0] || kbisFile;
       const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
         uploadedEntrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
         statutesRef.current?.files?.[0] || statutesFile;
-      
+
       if (!hasKbis) {
         errors.push("Le KBIS est requis");
       }
@@ -1585,7 +1585,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
     // Validation des documents du client (assurance et RIB - toujours requis)
     const clientDocs = intakeLink.client?.documents || [];
-    const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === undefined);
+    const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.source === 'client');
     const hasInsurance = clientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
       uploadedClientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
       insuranceTenantRef.current?.files?.[0] || insuranceTenantFile;
