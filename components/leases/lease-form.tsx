@@ -53,11 +53,15 @@ const leaseFormSchema = z
     status: z
       .enum([
         "DRAFT",
+        "AWAITING_TENANT",
+        "AWAITING_TENANT_FORM",
         "PENDING_VALIDATION",
         "READY_FOR_NOTARY",
         "CLIENT_CONTACTED",
         "SIGNED",
         "TERMINATED",
+        "DESISTE",
+        "CLASSE_SANS_SUITE",
       ])
       .default("DRAFT"),
     propertyId: z.string().min(1, "Le bien est requis"),
@@ -427,11 +431,15 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="DRAFT">Brouillon</SelectItem>
+                    <SelectItem value="AWAITING_TENANT">En attente du locataire</SelectItem>
+                    <SelectItem value="AWAITING_TENANT_FORM">Formulaire locataire en attente</SelectItem>
                     <SelectItem value="PENDING_VALIDATION">En attente de validation</SelectItem>
                     <SelectItem value="READY_FOR_NOTARY">Prêt pour notaire</SelectItem>
                     <SelectItem value="CLIENT_CONTACTED">Client contacté</SelectItem>
                     <SelectItem value="SIGNED">Signé</SelectItem>
                     <SelectItem value="TERMINATED">Terminé</SelectItem>
+                    <SelectItem value="DESISTE">Désisté</SelectItem>
+                    <SelectItem value="CLASSE_SANS_SUITE">Classé sans suite</SelectItem>
                   </SelectContent>
                 </Select>
               )}

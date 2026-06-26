@@ -2,13 +2,12 @@
 
 import * as React from "react";
 import { DataTable, Column } from "@/components/data-table/data-table";
-import { ClientProfilTypeCell, ClientNameCell, ClientDateCell, ClientCreatedByCell } from "@/components/clients/client-table-cells";
 import { ClientActions } from "@/components/clients/client-actions";
-import { ClientProfilTypeMultiSelect } from "@/components/clients/client-profil-type-multi-select";
 import { CompletionStatusMultiSelect } from "@/components/shared/completion-status-multi-select";
 import { ProfilType, CompletionStatus } from "@prisma/client";
 import { ClientType } from "@prisma/client";
 import { ArrowUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Client {
   id: string;
@@ -20,6 +19,18 @@ interface Client {
   legalName?: string | null;
   email?: string | null;
   phone?: string | null;
+  persons?: Array<{
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }>;
+  entreprise?: {
+    legalName?: string | null;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
   createdAt: Date | string;
   createdBy?: any;
 }
@@ -47,19 +58,35 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 export function ClientsTableClient({ initialData, columns }: ClientsTableClientProps) {
   const [search, setSearch] = React.useState("");
   const debouncedSearch = useDebouncedValue(search, 300); // Debounce 300ms
-  const [profilTypeFilter, setProfilTypeFilter] = React.useState<ProfilType[]>([]);
+  const [profilTypeFilter, setProfilTypeFilter] = React.useState<ProfilType | "ALL">("ALL");
   const [completionStatusFilter, setCompletionStatusFilter] = React.useState<CompletionStatus[]>([]);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
   const [isPending, startTransition] = React.useTransition();
 
+  const profileTabs = React.useMemo(() => {
+    const tabs: Array<{ value: ProfilType | "ALL"; label: string }> = [
+      { value: "ALL", label: "Tous" },
+      { value: ProfilType.PROPRIETAIRE, label: "Propriétaires" },
+      { value: ProfilType.LOCATAIRE, label: "Locataires" },
+      { value: ProfilType.LEAD, label: "Leads" },
+    ];
+
+    return tabs.map((tab) => ({
+      ...tab,
+      count: tab.value === "ALL"
+        ? initialData.length
+        : initialData.filter((client) => client.profilType === tab.value).length,
+    }));
+  }, [initialData]);
+
   // Filtrer les données côté client - utilise debouncedSearch pour éviter les re-renders à chaque frappe
   const filteredData = React.useMemo(() => {
     let filtered = initialData;
 
-    // Filtrer par profil (multi-select)
-    if (profilTypeFilter.length > 0) {
-      filtered = filtered.filter((client) => profilTypeFilter.includes(client.profilType));
+    // Filtrer par profil (onglets)
+    if (profilTypeFilter !== "ALL") {
+      filtered = filtered.filter((client) => client.profilType === profilTypeFilter);
     }
 
     // Filtrer par statut de completion (multi-select)
@@ -73,18 +100,30 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
     if (debouncedSearch.trim()) {
       const searchLower = debouncedSearch.toLowerCase().trim();
       filtered = filtered.filter((client) => {
-        const firstName = (client.firstName || "").toLowerCase();
-        const lastName = (client.lastName || "").toLowerCase();
-        const legalName = (client.legalName || "").toLowerCase();
-        const email = (client.email || "").toLowerCase();
-        const fullName = `${firstName} ${lastName}`.trim();
+        const personFields = (client.persons || []).flatMap((person) => [
+          person.firstName,
+          person.lastName,
+          `${person.firstName || ""} ${person.lastName || ""}`.trim(),
+          person.email,
+          person.phone,
+        ]);
 
-        return (
-          firstName.includes(searchLower) ||
-          lastName.includes(searchLower) ||
-          fullName.includes(searchLower) ||
-          legalName.includes(searchLower) ||
-          email.includes(searchLower)
+        const searchableValues = [
+          client.firstName,
+          client.lastName,
+          `${client.firstName || ""} ${client.lastName || ""}`.trim(),
+          client.legalName,
+          client.email,
+          client.phone,
+          client.entreprise?.legalName,
+          client.entreprise?.name,
+          client.entreprise?.email,
+          client.entreprise?.phone,
+          ...personFields,
+        ];
+
+        return searchableValues.some((value) =>
+          (value || "").toLowerCase().includes(searchLower)
         );
       });
     }
@@ -261,33 +300,64 @@ export function ClientsTableClient({ initialData, columns }: ClientsTableClientP
         pageSize={pageSize}
         totalPages={totalPages}
         searchPlaceholder="Rechercher par nom, prénom, raison sociale, email..."
-        onSearch={setSearch}
+        onSearch={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
         onPageChange={setPage}
         onPageSizeChange={(size) => {
           setPageSize(size);
           setPage(1);
         }}
+        belowSearchContent={
+          <div className="flex flex-wrap gap-2">
+            {profileTabs.map((tab) => {
+              const active = profilTypeFilter === tab.value;
+
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => {
+                    startTransition(() => {
+                      setProfilTypeFilter(tab.value);
+                      setPage(1);
+                    });
+                  }}
+                  className={cn(
+                    "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors",
+                    active
+                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                      : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                  )}
+                  aria-pressed={active}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-xs",
+                      active
+                        ? "bg-primary-foreground/20 text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        }
         filters={
-          <>
-            <ClientProfilTypeMultiSelect
-              value={profilTypeFilter}
-              onValueChange={(value) => {
-                startTransition(() => {
-                  setProfilTypeFilter(value);
-                  setPage(1);
-                });
-              }}
-            />
-            <CompletionStatusMultiSelect
-              value={completionStatusFilter}
-              onValueChange={(value) => {
-                startTransition(() => {
-                  setCompletionStatusFilter(value);
-                  setPage(1);
-                });
-              }}
-            />
-          </>
+          <CompletionStatusMultiSelect
+            value={completionStatusFilter}
+            onValueChange={(value) => {
+              startTransition(() => {
+                setCompletionStatusFilter(value);
+                setPage(1);
+              });
+            }}
+          />
         }
         actions={ClientActions}
         rowRefs={rowRefs}
