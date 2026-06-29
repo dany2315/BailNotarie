@@ -25,6 +25,7 @@ import { AssignBailButton } from "@/components/leases/assign-bail-button";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { LeaseMissingDataCard } from "@/components/leases/lease-missing-data-card";
 import { BailAuditTimeline } from "@/components/leases/bail-audit-timeline";
+import { LeaseStatusSelect } from "@/components/leases/lease-status-select";
 
 export default async function LeaseDetailPage({
   params,
@@ -188,6 +189,10 @@ export default async function LeaseDetailPage({
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <ButtonGroup className="w-full sm:w-auto justify-end">
+              <LeaseStatusSelect
+                leaseId={lease.id}
+                currentStatus={lease.status}
+              />
               <Button asChild className=" sm:w-auto" variant="outline">
                 <Link href={`/interface/baux/${lease.id}/edit`} className=" sm:flex-initial">
                     <Edit className="size-4 sm:mr-2" />
