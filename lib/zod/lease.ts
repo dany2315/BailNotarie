@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Helper pour valider le dépôt de garantie selon le type de bail
 function validateSecurityDeposit(
-  leaseType: string | undefined,
+  bailType: string | undefined,
   rentAmount: number | undefined,
   securityDeposit: number | undefined,
   ctx: z.RefinementCtx
@@ -11,14 +11,17 @@ function validateSecurityDeposit(
     return;
   }
 
-  // Bail nu → max 1 mois de loyer
-  const maxDeposit = rentAmount;
+  // Bail meublé → max 2 mois de loyer hors charges
+  // Bail nu → max 1 mois de loyer hors charges
+  const isMeubleBail =
+    bailType === "BAIL_MEUBLE_1_ANS" || bailType === "BAIL_MEUBLE_9_MOIS";
+  const maxDeposit = isMeubleBail ? rentAmount * 2 : rentAmount;
 
   if (securityDeposit > maxDeposit) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["securityDeposit"],
-      message: `Le dépôt de garantie ne peut pas dépasser 1 mois de loyer hors charges (max ${maxDeposit.toLocaleString("fr-FR")} €)`,
+      message: `Le dépôt de garantie ne peut pas dépasser ${isMeubleBail ? "2" : "1"} mois de loyer hors charges (max ${maxDeposit.toLocaleString("fr-FR")} €)`,
     });
   }
 }
@@ -82,7 +85,7 @@ const createLeaseBaseSchema = z.object({
 
 // Schéma de création avec validation du dépôt de garantie
 export const createLeaseSchema = createLeaseBaseSchema.superRefine((data, ctx) => {
-  validateSecurityDeposit(data.leaseType, data.rentAmount, data.securityDeposit, ctx);
+  validateSecurityDeposit(data.bailType, data.rentAmount, data.securityDeposit, ctx);
 });
 
 // Schéma de base pour la mise à jour - tous les champs sont optionnels
@@ -155,7 +158,7 @@ const updateLeaseBaseSchema = z.object({
 
 // Schéma de mise à jour avec validation du dépôt de garantie
 export const updateLeaseSchema = updateLeaseBaseSchema.superRefine((data, ctx) => {
-  validateSecurityDeposit(data.leaseType, data.rentAmount, data.securityDeposit, ctx);
+  validateSecurityDeposit(data.bailType, data.rentAmount, data.securityDeposit, ctx);
 });
 
 export const transitionLeaseSchema = z.object({
