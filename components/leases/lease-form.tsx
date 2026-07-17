@@ -76,11 +76,15 @@ const leaseFormSchema = z
   .superRefine((data, ctx) => {
     const rentAmount = parseInt(data.rentAmount || "0", 10);
     const securityDeposit = parseInt(data.securityDeposit || "0", 10);
-    if (rentAmount > 0 && securityDeposit > rentAmount) {
+    // Bail meublé → max 2 mois de loyer hors charges ; bail nu → max 1 mois
+    const isMeubleBail =
+      data.bailType === "BAIL_MEUBLE_1_ANS" || data.bailType === "BAIL_MEUBLE_9_MOIS";
+    const maxDeposit = isMeubleBail ? rentAmount * 2 : rentAmount;
+    if (rentAmount > 0 && securityDeposit > maxDeposit) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["securityDeposit"],
-        message: `Le dépôt de garantie ne peut pas dépasser 1 mois de loyer hors charges (max ${rentAmount.toLocaleString("fr-FR")} €)`,
+        message: `Le dépôt de garantie ne peut pas dépasser ${isMeubleBail ? "2" : "1"} mois de loyer hors charges (max ${maxDeposit.toLocaleString("fr-FR")} €)`,
       });
     }
   });
@@ -94,17 +98,22 @@ export interface LeaseFormRef {
 const SecurityDepositValidation = ({ control }: { control: any }) => {
   const rentAmount = useWatch({ control, name: "rentAmount" });
   const securityDeposit = useWatch({ control, name: "securityDeposit" });
+  const bailType = useWatch({ control, name: "bailType" });
 
   const rentAmountNum = parseInt(rentAmount || "0", 10);
   const securityDepositNum = parseInt(securityDeposit || "0", 10);
-  const isExceeded = rentAmountNum > 0 && securityDepositNum > rentAmountNum;
+  // Bail meublé → max 2 mois de loyer hors charges ; bail nu → max 1 mois
+  const isMeubleBail =
+    bailType === "BAIL_MEUBLE_1_ANS" || bailType === "BAIL_MEUBLE_9_MOIS";
+  const maxDeposit = isMeubleBail ? rentAmountNum * 2 : rentAmountNum;
+  const isExceeded = rentAmountNum > 0 && securityDepositNum > maxDeposit;
 
   if (rentAmountNum <= 0) return null;
 
   return (
     <>
       <p className={`text-xs ${isExceeded ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-        Maximum : {rentAmountNum.toLocaleString("fr-FR")} € (1 mois de loyer)
+        Maximum : {maxDeposit.toLocaleString("fr-FR")} € ({isMeubleBail ? "2 mois" : "1 mois"} de loyer)
       </p>
       {isExceeded && (
         <p className="text-sm text-destructive flex items-center gap-1">
