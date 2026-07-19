@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
 import { Home, Sofa, Scale, Calendar, TrendingUp, Shield, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 
 export function Blog16Content() {
@@ -31,6 +32,53 @@ export function Blog16Content() {
           Fiscalité, durée du bail, préavis, rentabilité, stabilité des locataires… les différences sont nombreuses.
           Voici l'essentiel à connaître avant de faire votre choix.
         </p>
+      </section>
+
+      <section aria-labelledby="tableau-comparatif" className="my-12">
+        <h2 id="tableau-comparatif" className="text-2xl font-bold text-gray-900 mb-6">
+          Location nue ou meublée : le comparatif en un coup d'œil
+        </h2>
+        <div className="overflow-x-auto rounded-lg border border-gray-200 my-6">
+          <table className="w-full text-sm text-left border-collapse">
+            <caption className="sr-only">
+              Tableau comparatif entre la location nue et la location meublée : mobilier, durée du bail, préavis, fiscalité et profil de locataire.
+            </caption>
+            <thead>
+              <tr className="bg-gray-50">
+                <th scope="col" className="px-4 py-3 font-semibold text-gray-900 border-b border-gray-200">Critère</th>
+                <th scope="col" className="px-4 py-3 font-semibold text-gray-900 border-b border-gray-200">Location nue</th>
+                <th scope="col" className="px-4 py-3 font-semibold text-gray-900 border-b border-gray-200">Location meublée</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-700">
+              <tr>
+                <th scope="row" className="px-4 py-3 font-medium text-gray-900 border-b border-gray-100 whitespace-nowrap">Mobilier</th>
+                <td className="px-4 py-3 border-b border-gray-100">Aucun mobilier imposé</td>
+                <td className="px-4 py-3 border-b border-gray-100">Mobilier obligatoire (décret n° 2015-981)</td>
+              </tr>
+              <tr className="bg-gray-50/50">
+                <th scope="row" className="px-4 py-3 font-medium text-gray-900 border-b border-gray-100 whitespace-nowrap">Durée du bail</th>
+                <td className="px-4 py-3 border-b border-gray-100">3 ans (personne physique / SCI familiale), 6 ans (personne morale)</td>
+                <td className="px-4 py-3 border-b border-gray-100">1 an (9 mois pour le bail étudiant, 1 à 10 mois pour le bail mobilité)</td>
+              </tr>
+              <tr>
+                <th scope="row" className="px-4 py-3 font-medium text-gray-900 border-b border-gray-100 whitespace-nowrap">Fiscalité</th>
+                <td className="px-4 py-3 border-b border-gray-100">Revenus fonciers (micro-foncier ou réel)</td>
+                <td className="px-4 py-3 border-b border-gray-100">BIC (micro-BIC ou réel avec amortissement)</td>
+              </tr>
+              <tr className="bg-gray-50/50">
+                <th scope="row" className="px-4 py-3 font-medium text-gray-900 border-b border-gray-100 whitespace-nowrap">Profil de locataire</th>
+                <td className="px-4 py-3 border-b border-gray-100">Familles, couples, installation durable</td>
+                <td className="px-4 py-3 border-b border-gray-100">Étudiants, jeunes actifs, mobilité professionnelle</td>
+              </tr>
+              <tr>
+                <th scope="row" className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">Stabilité</th>
+                <td className="px-4 py-3">Rotation locative plus faible</td>
+                <td className="px-4 py-3">Plus de souplesse, rotation plus élevée</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section aria-labelledby="location-nue" className="my-12">
@@ -224,12 +272,29 @@ export function Blog16Content() {
           Que votre logement soit loué vide ou meublé, le choix du contrat de location est tout aussi important.
         </p>
         <p className="text-gray-700 mb-4">
-          Un <strong>bail notarié</strong> peut être conclu aussi bien pour une location nue que pour une location meublée.
+          Un{" "}
+          <Link href="/blog/bail-notarie-quest-ce-que-cest-et-pourquoi-le-choisir" className="text-blue-700 hover:underline font-medium">
+            bail notarié
+          </Link>{" "}
+          peut être conclu aussi bien pour une location nue que pour une location meublée.
         </p>
         <p className="text-gray-700 mb-4">
-          Établi sous la forme d'un <strong>acte authentique</strong> par un notaire, il bénéficie de la
-          <strong> force exécutoire</strong>, ce qui facilite notamment le recouvrement des loyers impayés selon les
-          procédures prévues par la loi.
+          Établi sous la forme d'un <strong>acte authentique</strong> par un notaire, il bénéficie de la{" "}
+          <Link href="/blog/force-executoire-lavantage-majeur-du-bail-notarie" className="text-blue-700 hover:underline font-medium">
+            force exécutoire
+          </Link>
+          , ce qui facilite notamment le recouvrement des loyers impayés selon les procédures prévues par la loi.
+        </p>
+        <p className="text-gray-700 mb-4">
+          Pour aller plus loin, découvrez{" "}
+          <Link href="/blog/les-obligations-legales-dans-un-bail-notarie" className="text-blue-700 hover:underline font-medium">
+            les obligations légales d'un bail notarié
+          </Link>{" "}
+          et le{" "}
+          <Link href="/blog/cout-dun-bail-de-location-notarie-tarifs-partage-des-frais-et-exemples-concrets" className="text-blue-700 hover:underline font-medium">
+            coût d'un bail notarié
+          </Link>
+          .
         </p>
       </section>
 
@@ -248,6 +313,16 @@ export function Blog16Content() {
             ))}
           </ul>
         </div>
+        <p className="text-gray-700 mb-6">
+          Quel que soit votre choix, vide ou meublé, sécurisez votre location avec un bail notarié :
+          préparez votre dossier en ligne et transmettez-le à un notaire partenaire.
+        </p>
+        <Link
+          href="/#contact"
+          className="inline-flex items-center rounded-md bg-blue-600 px-5 py-2.5 text-white font-medium hover:bg-blue-700 transition-colors"
+        >
+          Constituer mon dossier de bail notarié
+        </Link>
       </section>
     </article>
   );

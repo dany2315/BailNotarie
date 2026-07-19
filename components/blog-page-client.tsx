@@ -277,6 +277,7 @@ const articleExperiences: Record<string, ArticleExperience> = {
       "Le bail notarié sécurise aussi bien une location nue qu'une location meublée",
     ],
     toc: [
+      { id: 'tableau-comparatif', label: 'Comparatif en un coup d\'œil' },
       { id: 'location-nue', label: 'La location nue : plus de stabilité' },
       { id: 'location-meublee', label: 'La location meublée : plus de souplesse' },
       { id: 'fiscalite', label: 'Quelle fiscalité ?' },
