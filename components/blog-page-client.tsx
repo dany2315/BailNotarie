@@ -10,7 +10,7 @@ import { ShareButtonSimple } from '@/components/share-button-simple';
 import { CommentButton } from '@/components/comment-button';
 import { CommentsSection, CommentsSectionRef } from '@/components/comments-section';
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
-import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content } from '@/components/blog-content';
+import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content } from '@/components/blog-content';
 
 type TocItem = {
   id: string;
@@ -41,6 +41,7 @@ const contentComponents: Record<string, React.ComponentType> = {
   'blog-13': Blog13Content,
   'blog-14': Blog14Content,
   'blog-15': Blog15Content,
+  'blog-16': Blog16Content,
 };
 
 const articleExperiences: Record<string, ArticleExperience> = {
@@ -267,6 +268,25 @@ const articleExperiences: Record<string, ArticleExperience> = {
     ],
     ctaLabel: 'Constituer mon dossier de bail commercial',
     ctaDescription: "Préparez votre dossier en ligne et transmettez-le à un notaire partenaire pour sécuriser votre bail commercial.",
+  },
+  'blog-16': {
+    quickAnswer: "La location nue offre plus de stabilité (bail de 3 ans, rotation faible, revenus fonciers), tandis que la location meublée offre plus de souplesse et des avantages fiscaux (bail d'1 an, régime BIC, amortissement). Le choix dépend de votre objectif de rentabilité, de votre fiscalité et du profil de locataire visé.",
+    keyPoints: [
+      "Durée du bail, préavis et profil de locataire selon le type de location",
+      "Fiscalité : revenus fonciers (nue) vs BIC et amortissement (meublée)",
+      "Le bail notarié sécurise aussi bien une location nue qu'une location meublée",
+    ],
+    toc: [
+      { id: 'tableau-comparatif', label: 'Comparatif en un coup d\'œil' },
+      { id: 'location-nue', label: 'La location nue : plus de stabilité' },
+      { id: 'location-meublee', label: 'La location meublée : plus de souplesse' },
+      { id: 'fiscalite', label: 'Quelle fiscalité ?' },
+      { id: 'que-choisir', label: 'Nue ou meublée : que choisir ?' },
+      { id: 'bail-notarie', label: 'Et le bail dans tout ça ?' },
+      { id: 'resume', label: 'En résumé' },
+    ],
+    ctaLabel: 'Constituer mon dossier de bail notarié',
+    ctaDescription: "Que vous louiez vide ou meublé, préparez votre dossier de bail notarié en ligne et sécurisez votre location.",
   },
 };
 

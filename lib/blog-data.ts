@@ -307,4 +307,23 @@ export const blogData = [
         createdAt: new Date("2026-03-24"),
         categoryId: "1",
       },
+      {
+        id: "blog-16",
+        title: "Location meublée ou location nue : quelles différences ?",
+        slug: generateSlug("Location meublée ou location nue : quelles différences ?"),
+        description:
+          "Location meublée ou location nue : comparez la durée du bail, le préavis, la fiscalité, la rentabilité et le profil de locataire pour faire le bon choix.",
+        content: "",
+        readTime: 6,
+        metaTitle: "Location meublée ou location nue : quelles différences ? (2026)",
+        metaDescription:
+          "Louer vide ou meublé ? Découvrez les différences de bail, préavis, fiscalité (revenus fonciers vs BIC), rentabilité et stabilité pour choisir la meilleure option.",
+        metaKeywords:
+          "location meublée ou nue, différence location meublée location vide, louer vide ou meublé, fiscalité location meublée, fiscalité location nue, LMNP, revenus fonciers, micro-BIC, micro-foncier, bail meublé durée, bail location nue, décret mobilier location meublée, bail étudiant, bail mobilité, rentabilité location meublée",
+        imageUrl:
+          "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&h=630&fit=crop&q=80",
+        ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
+        createdAt: new Date("2026-07-19"),
+        categoryId: "1",
+      },
 ]
