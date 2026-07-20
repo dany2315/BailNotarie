@@ -302,6 +302,36 @@ function getFaqForSlug(slug: string) {
     ];
   }
 
+  if (slug === "location-meublee-ou-location-nue-quelles-differences") {
+    return [
+      {
+        question: "Quelle est la différence entre une location nue et une location meublée ?",
+        answer:
+          "La location nue est proposée sans mobilier et vise une occupation durable, avec un bail de 3 ans minimum (6 ans pour une personne morale). La location meublée comprend un mobilier suffisant pour vivre immédiatement, fixé par le décret n° 2015-981, avec un bail généralement d'1 an. La fiscalité diffère également : revenus fonciers pour la location nue, BIC pour la location meublée.",
+      },
+      {
+        question: "Quelle est la durée du bail en location meublée et en location nue ?",
+        answer:
+          "En location nue, le bail est de 3 ans minimum lorsque le bailleur est une personne physique ou une SCI familiale, et de 6 ans minimum pour une personne morale. En location meublée, le bail est généralement d'1 an renouvelable tacitement. Il existe aussi le bail étudiant (9 mois, non renouvelable) et le bail mobilité (1 à 10 mois, non renouvelable).",
+      },
+      {
+        question: "Quelle fiscalité pour la location meublée et la location nue ?",
+        answer:
+          "Les loyers d'une location nue sont imposés dans la catégorie des revenus fonciers (micro-foncier avec abattement de 30 % jusqu'à 15 000 €, ou régime réel). Les loyers d'une location meublée relèvent des Bénéfices Industriels et Commerciaux (BIC), au micro-BIC ou au régime réel, ce dernier permettant sous conditions d'amortir le bien (hors terrain) et le mobilier.",
+      },
+      {
+        question: "Quel mobilier est obligatoire dans une location meublée ?",
+        answer:
+          "Le décret n° 2015-981 du 31 juillet 2015 impose notamment une literie, des plaques de cuisson, un réfrigérateur et un congélateur (ou compartiment de conservation), des ustensiles et de la vaisselle, des luminaires, ainsi qu'une table, des sièges et des espaces de rangement.",
+      },
+      {
+        question: "Peut-on faire un bail notarié pour une location meublée ou nue ?",
+        answer:
+          "Oui. Un bail notarié peut être conclu aussi bien pour une location nue que pour une location meublée. Établi sous forme d'acte authentique par un notaire, il bénéficie de la force exécutoire, ce qui facilite notamment le recouvrement des loyers impayés selon les procédures prévues par la loi.",
+      },
+    ];
+  }
+
   return [];
 }
 
