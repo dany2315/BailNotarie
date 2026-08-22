@@ -3,6 +3,9 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 
 export const metadata: Metadata = {
+  alternates: {
+    canonical: "/mentions-legales",
+  },
   title: "Mentions légales",
   description: "Mentions légales du site BailNotarie",
   robots: {

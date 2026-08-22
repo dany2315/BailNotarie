@@ -193,7 +193,8 @@ export const pageMetadata = {
 
 
   blog: {
-    title: "Blog Bail Notarié - Actualités et Conseils - BailNotarie",
+    // Le template du layout racine ajoute " | BailNotarie" : ne pas le repeter ici.
+    title: "Blog : actualités et conseils sur le bail notarié",
     description:
       "Découvrez nos articles sur le bail notarié : actualités juridiques, conseils pratiques, nouvelles réglementations. Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     keywords: [
@@ -212,7 +213,7 @@ export const pageMetadata = {
   },
 
   notFound: {
-    title: "Page Introuvable - BailNotarie",
+    title: "Page introuvable",
     description:
       "La page que vous recherchez n'existe pas. Retrouvez nos services de bail notarié avec force exécutoire renforcée.",
     keywords: ["page introuvable", "erreur 404", "bail notarié", "services notaire"],
@@ -222,7 +223,7 @@ export const pageMetadata = {
     noIndex: true,
   },
   creerBailNotarié: {
-    title: "Effectuer votre procédure de bail notarié en ligne, avec force exécutoire immédiate - BailNotarie",
+    title: "Créer votre bail notarié en ligne",
     description:
       "Procédure de bail notarié en ligne, avec force exécutoire immédiate. +200 clients satisfaits.Service dédié aux propriétaires bailleurs pour sécuriser leur bail d'habitation en France.",
     keywords: [

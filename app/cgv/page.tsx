@@ -3,6 +3,9 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 
 export const metadata: Metadata = {
+  alternates: {
+    canonical: "/cgv",
+  },
   title: "Conditions Générales de Vente (CGV)",
   description: "Conditions Générales de Vente de la plateforme BailNotarie — Tarification, remboursement, responsabilités et données personnelles.",
   robots: {

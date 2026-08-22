@@ -188,13 +188,6 @@ export function LocalBusinessSchema({
       "Acte authentique",
       "Procédures simplifiées"
     ],
-    "hasCredential": [
-      {
-        "@type": "EducationalOccupationalCredential",
-        "name": "Notaires certifiés",
-        "description": "Certification professionnelle notariale"
-      }
-    ],
     "contactPoint": {
       "@type": "ContactPoint",
       "telephone": telephone,

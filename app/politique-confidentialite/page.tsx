@@ -3,6 +3,9 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 
 export const metadata: Metadata = {
+  alternates: {
+    canonical: "/politique-confidentialite",
+  },
   title: "Politique de confidentialité",
   description:
     "Politique de confidentialité de BailNotarie - Protection des données personnelles et conformité RGPD",
