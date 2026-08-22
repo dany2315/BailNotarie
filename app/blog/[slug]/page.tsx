@@ -7,9 +7,13 @@ import { generateArticleMetadata } from '@/lib/blog-utils'
 import { BlogPageClient } from '@/components/blog-page-client'
 import { ArticleSchema } from '@/components/seo/article-schema'
 import { FaqSchema } from '@/components/seo/faq-schema'
-import { prisma } from '@/lib/prisma'
+import { BreadcrumbSchema } from '@/components/seo/breadcrumb-schema'
 
-export const dynamic = "force-dynamic";
+// ISR : les articles sont statiques (contenu dans lib/blog-data.ts + composants
+// React figes). Ils sont pre-rendus au build via generateStaticParams et
+// revalides toutes les heures. Les commentaires, seule donnee mouvante, sont
+// charges cote client par CommentsSection via GET /api/comments.
+export const revalidate = 3600;
 
 // Fonction pour générer les paramètres statiques
 export function generateStaticParams() {
@@ -47,45 +51,29 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const articleForMetadata = {
     ...article,
     category,
-    updatedAt: article.createdAt
   } as any;
 
   return generateArticleMetadata(articleForMetadata);
 }
 
 // Fonction pour récupérer l'article
-async function getArticle(slug: string) {
+function getArticle(slug: string) {
   const article = blogData.find(a => a.slug === slug);
-  
+
   if (!article) {
     notFound()
   }
-  
+
   const category = blogCategories.find(cat => cat.id === article.categoryId) || blogCategories[0];
-  
-  // Charger les commentaires côté serveur pour un affichage immédiat
-  const comments = await prisma.comment.findMany({
-    where: {
-      articleId: article.id,
-      isApproved: true, // Seulement les commentaires approuvés
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-  
+
+  // Les commentaires ne sont plus charges ici : CommentsSection les recupere
+  // au montage via GET /api/comments. Les rendre cote serveur forcait la page
+  // en dynamique (aller-retour base a chaque visite) pour un resultat aussitot
+  // remplace cote client.
   return {
     ...article,
     category,
-    comments: comments.map(comment => ({
-      id: comment.id,
-      name: comment.name,
-      email: comment.email,
-      content: comment.content,
-      createdAt: comment.createdAt,
-      isApproved: comment.isApproved,
-    })),
-    updatedAt: article.createdAt
+    comments: [],
   }
 }
 
@@ -337,7 +325,7 @@ function getFaqForSlug(slug: string) {
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const article = await getArticle(slug)
+  const article = getArticle(slug)
   const relatedArticles = getRelatedArticles(article.categoryId, article.slug)
   const faqItems = getFaqForSlug(slug)
   const seoTitle = article.metaTitle || article.title
@@ -363,6 +351,13 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   return (
     <>
       <ArticleSchema article={articleForSchema} />
+      <BreadcrumbSchema
+        items={[
+          { name: "Accueil", path: "/" },
+          { name: "Blog", path: "/blog" },
+          { name: article.title },
+        ]}
+      />
       <FaqSchema items={faqItems} pageUrl={canonicalUrl} />
       <Header />
       <BlogPageClient article={article} relatedArticles={relatedArticles} faqItems={faqItems} />

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Calendar, Clock, ArrowRight } from "lucide-react";
 import { CallButton, ContactButton } from "@/components/ui/action-buttons";
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
+import { BreadcrumbSchema } from "@/components/seo/breadcrumb-schema";
 import { blogData, blogCategories } from "@/lib/blog-data";
 import Image from "next/image";
 
@@ -54,6 +55,12 @@ export default function BlogPage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
+      <BreadcrumbSchema
+        items={[
+          { name: "Accueil", path: "/" },
+          { name: "Blog" },
+        ]}
+      />
       <Header />
       
       {/* Hero Section */}

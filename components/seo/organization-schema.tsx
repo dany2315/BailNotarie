@@ -36,11 +36,11 @@ export function OrganizationSchema({
   address = {
     addressCountry: "FR"
   },
-  sameAs = [
-    "https://www.bailnotarie.fr",
-    "mailto:contact@bailnotarie.fr",
-    "tel:+33749387756"
-  ],
+  // sameAs doit lister les profils officiels de l'entite sur des sites tiers
+  // (LinkedIn, Facebook, fiche Google Business, presse...). Le site lui-meme,
+  // une adresse mail et un numero de telephone n'y ont pas leur place : ils sont
+  // deja portes par url et contactPoint. Renseigner ici les vrais profils.
+  sameAs = [] as string[],
   foundingDate = "2019",
   numberOfEmployees = "10-50",
   areaServed = ["France", "Europe"],
@@ -108,7 +108,7 @@ export function OrganizationSchema({
       "@type": "PostalAddress",
       "addressCountry": address.addressCountry
     },
-    "sameAs": sameAs,
+    ...(sameAs.length ? { sameAs } : {}),
     "foundingDate": foundingDate,
     "numberOfEmployees": {
       "@type": "QuantitativeValue",

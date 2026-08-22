@@ -1,6 +1,5 @@
 import React from "react";
 import { OrganizationSchema } from "./organization-schema";
-import { LocalBusinessSchema } from "./local-business-schema";
 import { ArticleSchema } from "./article-schema";
 
 interface StructuredDataProps {
@@ -29,12 +28,16 @@ interface StructuredDataProps {
  * que sur une page qui affiche reellement les questions correspondantes.
  * Les articles qui ont une FAQ visible declarent leur propre FaqSchema
  * depuis app/blog/[slug]/page.tsx.
+ *
+ * Pas de LocalBusiness non plus : BailNotarie est un service en ligne sans
+ * etablissement recevant du public. Le balisage declarait une adresse reduite
+ * au pays et des coordonnees GPS pointant le centre de Paris, ce qui est un
+ * faux signal local. Organization suffit.
  */
 export function StructuredData({ page = "home", customData, article }: StructuredDataProps) {
   return (
     <>
       <OrganizationSchema />
-      <LocalBusinessSchema />
       {page === "article" && article && <ArticleSchema article={article} />}
       {customData && (
         <script

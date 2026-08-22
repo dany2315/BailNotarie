@@ -15,7 +15,8 @@ import '@/styles/recaptcha-modal.css';
 interface Comment {
   id: string;
   name: string;
-  email: string;
+  /** Jamais renvoye par GET /api/comments : champ prive, non affiche. */
+  email?: string;
   content: string;
   createdAt: Date;
   isApproved: boolean;

@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUp, ArrowUpDown, ArrowUpRight, Calendar, CheckCircle2, ChevronRight, Clock, FileText, PhoneCall, User } from 'lucide-react';
+import { ArrowLeft, ArrowUp, ArrowUpDown, ArrowUpRight, Calendar, CheckCircle2, ChevronRight, Clock, FileText, PhoneCall, RefreshCw, User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { ShareButtonSimple } from '@/components/share-button-simple';
@@ -304,6 +304,10 @@ function getArticleExperience(article: any): ArticleExperience {
   };
 }
 
+function toIsoDate(value: Date | string): string {
+  return new Date(value).toISOString().split('T')[0];
+}
+
 interface BlogPageClientProps {
   article: any;
   relatedArticles: any[];
@@ -316,6 +320,12 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
   const displayTitle = article.metaTitle || article.title;
   const hasDifferentEditorialTitle = Boolean(article.metaTitle && article.metaTitle !== article.title);
   const articleExperience = getArticleExperience(article);
+  // "Mis a jour le" n'est affiche que si le contenu a reellement ete revise
+  // apres publication : afficher une date de mise a jour identique a la date de
+  // publication n'apporte rien et brouille le signal de fraicheur.
+  const hasBeenUpdated =
+    Boolean(article.updatedAt) &&
+    new Date(article.updatedAt).getTime() > new Date(article.createdAt).getTime();
   const shareUrl = `${process.env.NEXT_PUBLIC_URL || 'https://www.bailnotarie.fr'}/blog/${article.slug}`;
 
   const handleCommentClick = () => {
@@ -366,8 +376,19 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  <span>{formatDate(article.createdAt)}</span>
+                  <span>
+                    Publié le <time dateTime={toIsoDate(article.createdAt)}>{formatDate(article.createdAt)}</time>
+                  </span>
                 </div>
+                {hasBeenUpdated && (
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    <span>
+                      Mis à jour le{' '}
+                      <time dateTime={toIsoDate(article.updatedAt)}>{formatDate(article.updatedAt)}</time>
+                    </span>
+                  </div>
+                )}
               </div>
 
             </div>

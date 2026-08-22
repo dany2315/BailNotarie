@@ -11,6 +11,13 @@ export type BlogData = {
     metaKeywords: string;
     ogImage: string;
     createdAt: Date;
+    /**
+     * Date de derniere revision reelle du contenu.
+     * Sert de dateModified dans le balisage Article et de mention
+     * "Mis a jour le" sur la page. A actualiser a chaque revision de fond
+     * uniquement : une date factice est un mauvais signal de fraicheur.
+     */
+    updatedAt: Date;
     categoryId: string;    
 }
 
@@ -50,12 +57,13 @@ export const blogData = [
         description: "Découvrez les avantages du bail notarié et pourquoi il peut être un choix judicieux pour sécuriser votre location immobilière.",
         content: "", // Le contenu est maintenant géré par le composant React
         readTime: 5, // Temps de lecture estimé en minutes
-        metaTitle: "Bail Notarié : Qu'est-ce que c'est et pourquoi le choisir ?",
-        metaDescription: "Découvrez ce qu’est un bail notarié, sa valeur juridique et pourquoi il sécurise votre location grâce à l’acte authentique et à la force exécutoire.",
+        metaTitle: "Bail notarié : définition, valeur juridique et intérêt réel",
+        metaDescription: "Qu'est-ce qu'un bail notarié, que change l'intervention du notaire et quand un bail chez le notaire vaut vraiment le coût ? Explication claire pour bailleurs.",
         metaKeywords: "bail notarié définition, qu’est-ce qu’un bail notarié, contrat de location notarié, bail signé chez notaire, valeur juridique bail notarié, force exécutoire bail, sécurité juridique location, acte authentique location, bail notarié France",
         imageUrl: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-01"),
+        updatedAt: new Date("2025-11-27"),
         categoryId: "1",
       },
       {
@@ -70,6 +78,7 @@ export const blogData = [
         metaKeywords: "étapes bail notarié, comment faire un bail notarié, procédure bail notarié, dossier bail notarié, documents bail notarié, signature bail chez notaire, créer un bail notarié en ligne, bail notarié processus, bail authentique démarches",        imageUrl: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-10"),
+        updatedAt: new Date("2026-03-08"),
         categoryId: "1",
       },
       {
@@ -79,12 +88,13 @@ export const blogData = [
         description: "Comprendre la force exécutoire du bail notarié et ses implications concrètes en cas de litige locatif.",
         content: "", // Le contenu est maintenant géré par le composant React
         readTime: 4, // Temps de lecture estimé en minutes
-        metaTitle: "Force exécutoire : l'avantage majeur du bail notarié",
-        metaDescription: "Découvrez comment le bail notarié permet d’agir sans jugement en cas d’impayés grâce à la force exécutoire et au titre exécutoire du notaire.",
+        metaTitle: "Bail déposé chez le notaire : est-ce un titre exécutoire ?",
+        metaDescription: "Déposer ou enregistrer un bail sous seing privé chez le notaire ne suffit pas : seul l'acte authentique donne la force exécutoire. Ce que ça change.",
         metaKeywords: "force exécutoire bail notarié, bail ayant valeur de jugement, saisie loyers impayés, recouvrement par acte notarié, procédure sans juge loyer, titre exécutoire notaire, efficacité bail notarié, impayés locatifs solution",
         imageUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-15"),
+        updatedAt: new Date("2026-03-08"),
         categoryId: "1",
       },
       {
@@ -100,6 +110,7 @@ export const blogData = [
         imageUrl: "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-20"),
+        updatedAt: new Date("2026-03-08"),
         categoryId: "1",
       },
       {
@@ -115,6 +126,7 @@ export const blogData = [
         imageUrl: "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-05-25"),
+        updatedAt: new Date("2025-11-27"),
         categoryId: "1",
       },
       {
@@ -125,15 +137,15 @@ export const blogData = [
           "Tarifs réglementés, estimation du coût d'un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
         content: "",
         readTime: 6,
-        metaTitle: "Combien coûte un bail de location notarié en France ?",
-        metaDescription:
-          "Prix d'un bail de location notarié en France : barème 2026, qui paie quoi, frais annexes et estimation claire selon le loyer.",
+        metaTitle: "Frais de bail notarié 2026 : prix, qui paie quoi, exemples",
+        metaDescription: "Frais de rédaction d'un bail notarié : barème 2026, répartition entre bailleur et locataire, frais annexes et exemples chiffrés selon le loyer.",
         metaKeywords:
           "bail notarié prix, coût bail de location notarié, coût bail notarié, frais bail de location notarié, frais bail notarié, tarif notaire bail habitation, emolument bail notarié, moitié loyer hors charges, procuration authentique à distance, copies formalités notaire, débours bail notarié",
         imageUrl:
           "https://images.pexels.com/photos/3943745/pexels-photo-3943745.jpeg",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-09-01"),
+        updatedAt: new Date("2026-03-08"),
         categoryId: "1",
       },
       {
@@ -153,6 +165,7 @@ export const blogData = [
           "https://images.pexels.com/photos/4458421/pexels-photo-4458421.jpeg",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-06-15"),
+        updatedAt: new Date("2026-03-08"),
         categoryId: "1",
       },
       {
@@ -172,6 +185,7 @@ export const blogData = [
           "https://images.pexels.com/photos/3760067/pexels-photo-3760067.jpeg",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2025-07-01"),
+        updatedAt: new Date("2026-01-20"),
         categoryId: "1",
       },
       {
@@ -191,6 +205,7 @@ export const blogData = [
           "https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2026-01-15"),
+        updatedAt: new Date("2026-01-20"),
         categoryId: "1",
       },
       {
@@ -201,15 +216,15 @@ export const blogData = [
           "Analyse de la portée juridique du bail notarié : s'il ne dispense pas d'une décision de justice pour l'expulsion, il constitue le levier le plus puissant en matière de recouvrement de créances.",
         content: "",
         readTime: 6,
-        metaTitle: "Bail Notarié et Expulsion : Efficacité Juridique et Stratégie de Recouvrement",
-        metaDescription:
-          "Le bail notarié ne remplace pas le juge pour l'expulsion, mais il permet un recouvrement immédiat grâce au titre exécutoire. Découvrez comment sécuriser vos revenus locatifs avec l'acte authentique.",
+        metaTitle: "Bail notarié et expulsion : plus rapide ou pas ? La réponse",
+        metaDescription: "Non, le bail notarié n'accélère pas l'expulsion : le juge reste obligatoire. En revanche il permet de saisir les loyers impayés sans jugement. On détaille.",
         metaKeywords:
           "expulsion locataire, expulsion locative, bail notarié expulsion, titre exécutoire bail notarié, recouvrement loyers impayés, saisie conservatoire bail notarié, saisie rémunérations bail notarié, force exécutoire acte notarié, procédure expulsion locative, recouvrement créances locatives, bail notarié avantages, acte authentique location, sécurité juridique bailleur, impayés locatifs solution",
         imageUrl:
           "https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=1200",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2026-01-20"),
+        updatedAt: new Date("2026-03-08"),
         categoryId: "1",
       },
       {
@@ -229,6 +244,7 @@ export const blogData = [
           "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=1200&h=630&fit=crop&q=80",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2026-03-08"),
+        updatedAt: new Date("2026-03-16"),
         categoryId: "1",
       },
       {
@@ -248,6 +264,7 @@ export const blogData = [
           "https://images.pexels.com/photos/3183197/pexels-photo-3183197.jpeg?auto=compress&cs=tinysrgb&w=1200",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2026-03-08"),
+        updatedAt: new Date("2026-03-08"),
         categoryId: "1",
       },
       {
@@ -258,15 +275,15 @@ export const blogData = [
           "Bail commercial notarié : découvrez pourquoi passer par un notaire pour votre bail 3/6/9, le rôle du titre exécutoire, les obligations, l'enregistrement et le coût.",
         content: "",
         readTime: 8,
-        metaTitle: "Bail commercial notarié : notaire, coût, obligations, bail 3/6/9 (2026)",
-        metaDescription:
-          "Pourquoi faire un bail commercial notarié ? Avantages du notaire, titre exécutoire, enregistrement, cas où il est obligatoire et coût d'un bail 3/6/9 en 2026.",
+        metaTitle: "Bail commercial chez le notaire : obligatoire ? coût ? (2026)",
+        metaDescription: "Le notaire est-il obligatoire pour un bail commercial ? Coût, cas où l'acte authentique s'impose, titre exécutoire et enregistrement du bail 3/6/9.",
         metaKeywords:
           "bail commercial notarié, bail commercial notaire, bail 3/6/9 notarié, coût bail commercial notarié, notaire bail commercial, acte authentique bail commercial, enregistrement bail commercial, titre exécutoire bail commercial",
         imageUrl:
           "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=1200&h=630&fit=crop&q=80",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2026-03-08"),
+        updatedAt: new Date("2026-03-08"),
         categoryId: "1",
       },
       {
@@ -286,6 +303,7 @@ export const blogData = [
           "https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?w=1200&h=630&fit=crop&q=80",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2026-03-08"),
+        updatedAt: new Date("2026-03-08"),
         categoryId: "1",
       },
       {
@@ -305,6 +323,7 @@ export const blogData = [
           "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=630&fit=crop&q=80",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2026-03-24"),
+        updatedAt: new Date("2026-04-13"),
         categoryId: "1",
       },
       {
@@ -324,6 +343,7 @@ export const blogData = [
           "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&h=630&fit=crop&q=80",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
         createdAt: new Date("2026-07-19"),
+        updatedAt: new Date("2026-07-19"),
         categoryId: "1",
       },
 ]
