@@ -208,6 +208,8 @@ export function ProcessSection() {
                 src="https://images.pexels.com/photos/4792282/pexels-photo-4792282.jpeg"
                 alt="Documents administratifs"
                 fill
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                quality={75}
                 className="object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600/30 to-transparent"></div>

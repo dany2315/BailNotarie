@@ -16,8 +16,10 @@ export function CTASection() {
       <div className="absolute inset-0 z-0">
         <Image
           src="https://images.pexels.com/photos/4427430/pexels-photo-4427430.jpeg?auto=compress&cs=tinysrgb&w=1920"
-          alt="Signature de contrat"
+          alt=""
           fill
+          sizes="100vw"
+          quality={75}
           className="object-cover "
         />
         <div className="absolute inset-0 bg-gradient-to-br from-[#4373f5]/80 to-[#658bf0]/80"></div>
