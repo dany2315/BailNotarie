@@ -86,7 +86,7 @@ function AppSidebar() {
             <SidebarMenuButton size="lg" asChild>
               <Link href="/interface" >
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden bg-sidebar-primary text-sidebar-primary-foreground ">
-                  <Image src="/logoAvec.png" alt="BailNotarie" width={512} height={512} className="w-full h-auto" />
+                  <Image src="/logoAvec.png" alt="BailNotarie" width={100} height={100} className=" w-full" />
                 </div>
                 {state === "expanded" && <div className="grid flex-1 text-left text-sm leading-tight  ">
                   <span className="truncate font-semibold">BailNotarie</span>
