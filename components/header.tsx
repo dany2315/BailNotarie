@@ -92,7 +92,7 @@ export function Header() {
         <div className="flex justify-between items-center  ">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2  rounded-lg overflow-hidden text-blue-50 ">
-            <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} className="  w-full" />
+            <Image src="/logoLarge.png" alt="BailNotarie" width={320} height={180} priority className="w-full h-auto" />
           </Link>
 
           {!isMobile && 
@@ -207,7 +207,7 @@ export function Header() {
               <SheetHeader>
                 <SheetTitle className="flex items-center justify-between">
                 <Link href="/" className="flex items-center space-x-2  rounded-lg text-blue-50 ">
-                    <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} className="  w-30" />  
+                    <Image src="/logoLarge.png" alt="BailNotarie" width={320} height={180} className="w-30 h-auto" />  
                 </Link>
                 </SheetTitle>
                 <SheetDescription>
