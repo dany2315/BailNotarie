@@ -3,6 +3,9 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 
 export const metadata: Metadata = {
+  alternates: {
+    canonical: "/cgu",
+  },
   title: "Conditions Générales d’Utilisation",
   description:
     "Conditions Générales d’Utilisation de BailNotarie - Plateforme d’assistance administrative et de mise en relation avec des notaires",

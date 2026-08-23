@@ -92,7 +92,7 @@ export function Header() {
         <div className="flex justify-between items-center  ">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2  rounded-lg overflow-hidden text-blue-50 ">
-            <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} className="  w-full" />
+            <Image src="/logoLarge.png" alt="BailNotarie" width={100} height={100} priority className="  w-full" />
           </Link>
 
           {!isMobile && 

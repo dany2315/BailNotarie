@@ -144,10 +144,20 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Récupérer tous les commentaires pour un article
+    // Seuls les commentaires approuves sont exposes, et uniquement leurs champs
+    // publics : cette route est publique, l'adresse e-mail de l'auteur ne doit
+    // pas en sortir.
     const comments = await prisma.comment.findMany({
       where: {
         articleId,
+        isApproved: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        content: true,
+        createdAt: true,
+        isApproved: true,
       },
       orderBy: {
         createdAt: 'desc',

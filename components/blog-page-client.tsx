@@ -3,13 +3,17 @@
 import { useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUp, ArrowUpDown, ArrowUpRight, Calendar, CheckCircle2, ChevronRight, Clock, FileText, PhoneCall, User } from 'lucide-react';
+import { ArrowLeft, ArrowUp, ArrowUpDown, ArrowUpRight, Calendar, CheckCircle2, ChevronRight, Clock, FileText, PhoneCall, RefreshCw, User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { ShareButtonSimple } from '@/components/share-button-simple';
 import { CommentButton } from '@/components/comment-button';
 import { CommentsSection, CommentsSectionRef } from '@/components/comments-section';
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
+import { getRelatedLinksWithMedia } from '@/lib/blog-links';
+import { blogData } from '@/lib/blog-data';
+import { ArticleImage } from '@/components/blog/article-image';
+import { RelatedThumbnail } from '@/components/blog/related-thumbnail';
 import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content } from '@/components/blog-content';
 
 type TocItem = {
@@ -304,18 +308,28 @@ function getArticleExperience(article: any): ArticleExperience {
   };
 }
 
+function toIsoDate(value: Date | string): string {
+  return new Date(value).toISOString().split('T')[0];
+}
+
 interface BlogPageClientProps {
   article: any;
-  relatedArticles: any[];
   faqItems?: Array<{ question: string; answer: string }>;
 }
 
-export function BlogPageClient({ article, relatedArticles, faqItems = [] }: BlogPageClientProps) {
+export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) {
   const commentsSectionRef = useRef<CommentsSectionRef>(null);
   const readTime = (article as any).readTime || calculateReadTime(article.content || article.description || '');
   const displayTitle = article.metaTitle || article.title;
   const hasDifferentEditorialTitle = Boolean(article.metaTitle && article.metaTitle !== article.title);
   const articleExperience = getArticleExperience(article);
+  // "Mis a jour le" n'est affiche que si le contenu a reellement ete revise
+  // apres publication : afficher une date de mise a jour identique a la date de
+  // publication n'apporte rien et brouille le signal de fraicheur.
+  const relatedLinks = getRelatedLinksWithMedia(article.slug, blogData);
+  const hasBeenUpdated =
+    Boolean(article.updatedAt) &&
+    new Date(article.updatedAt).getTime() > new Date(article.createdAt).getTime();
   const shareUrl = `${process.env.NEXT_PUBLIC_URL || 'https://www.bailnotarie.fr'}/blog/${article.slug}`;
 
   const handleCommentClick = () => {
@@ -334,14 +348,37 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
   return (
     <main className="min-h-screen bg-gray-50 pb-28 lg:pb-0">
       <section className="relative min-h-[39vh] md:min-h-[40vh] overflow-hidden">
-        <Image
-          src={article.imageUrl || "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200"}
+        <ArticleImage
+          src={article.imageUrl || "/og-cover-v2.png"}
           alt={article.title}
           fill
+          sizes="100vw"
           className="object-cover"
           priority
         />
         <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/50 to-black/25" />
+        {article.imageCredit?.name && (
+          <p className="absolute bottom-2 right-3 z-10 text-[10px] text-white/55">
+            Photo{' '}
+            <a
+              href={article.imageCredit.profileUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="underline hover:text-white/80"
+            >
+              {article.imageCredit.name}
+            </a>{' '}
+            sur{' '}
+            <a
+              href="https://unsplash.com"
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="underline hover:text-white/80"
+            >
+              Unsplash
+            </a>
+          </p>
+        )}
         <div className="absolute inset-0 flex items-end pt-21">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 md:pb-25 w-full">
           
@@ -366,8 +403,19 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  <span>{formatDate(article.createdAt)}</span>
+                  <span>
+                    Publié le <time dateTime={toIsoDate(article.createdAt)}>{formatDate(article.createdAt)}</time>
+                  </span>
                 </div>
+                {hasBeenUpdated && (
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    <span>
+                      Mis à jour le{' '}
+                      <time dateTime={toIsoDate(article.updatedAt)}>{formatDate(article.updatedAt)}</time>
+                    </span>
+                  </div>
+                )}
               </div>
 
             </div>
@@ -500,6 +548,43 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                       </div>
                     </section>
                   )}
+
+                  {relatedLinks.length > 0 && (
+                    <section aria-labelledby="pour-aller-plus-loin" className="mt-12 not-prose">
+                      <Card className="p-6 rounded-2xl">
+                        <h2
+                          id="pour-aller-plus-loin"
+                          className="font-semibold text-gray-900 mb-4 mt-0"
+                        >
+                          Pour aller plus loin
+                        </h2>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {relatedLinks.map((link) => (
+                            <Link
+                              key={link.href}
+                              href={link.href}
+                              className="block group rounded-xl p-2 no-underline hover:bg-gray-50 transition-colors"
+                            >
+                              <div className="flex gap-3">
+                                <RelatedThumbnail
+                                  src={link.image}
+                                  className="rounded object-cover object-right h-[60px] w-[60px] shrink-0 bg-gray-100"
+                                />
+                                <div className="min-w-0">
+                                  <h3 className="font-medium text-sm group-hover:text-blue-600 transition-colors line-clamp-2 text-gray-900 mt-0 mb-0">
+                                    {link.label}
+                                  </h3>
+                                  <p className="text-xs text-gray-500 mt-1 mb-0 line-clamp-2">
+                                    {link.hint}
+                                  </p>
+                                </div>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      </Card>
+                    </section>
+                  )}
                 </div>
               </article>
 
@@ -546,38 +631,6 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                 />
               </div>
 
-              {relatedArticles.length > 0 && (
-                <Card className="p-6 mt-12 rounded-2xl">
-                  <h3 className="font-semibold mb-4 text-gray-900">Articles liés</h3>
-                  <div className="space-y-4">
-                    {relatedArticles.map((relatedArticle: { id: string; slug: string; title: string; createdAt: Date; imageUrl: string }) => (
-                      <Link
-                        key={relatedArticle.id}
-                        href={`/blog/${relatedArticle.slug}`}
-                        className="block group rounded-xl p-2 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex gap-3">
-                          <Image
-                            src={relatedArticle.imageUrl || "https://images.pexels.com/photos/4427430/pexels-photo-4427430.jpeg?auto=compress&cs=tinysrgb&w=100"}
-                            alt={relatedArticle.title}
-                            width={60}
-                            height={60}
-                            className="rounded object-cover"
-                          />
-                          <div>
-                            <h4 className="font-medium text-sm group-hover:text-blue-600 transition-colors line-clamp-2 text-gray-900">
-                              {relatedArticle.title}
-                            </h4>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {formatDate(relatedArticle.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </Card>
-              )}
             </div>
 
             <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">

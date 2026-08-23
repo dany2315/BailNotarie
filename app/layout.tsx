@@ -78,9 +78,9 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-  alternates: {
-    canonical: "/",
-  },
+  // Pas de canonical global : une valeur definie ici serait heritee par toute
+  // page qui ne declare pas la sienne, et ferait pointer ces pages vers l'accueil.
+  // Chaque page declare son propre alternates.canonical.
   verification: {
     google: "google-site-verification=x_2ORStLKvXGVFbuibksag2S99sccQgdX387oacodLs",
   },

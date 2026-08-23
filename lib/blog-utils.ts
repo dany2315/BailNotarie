@@ -113,6 +113,7 @@ export function generateArticleMetadata(article: Article) {
       url: canonicalAbsolute,
       type: "article",
       publishedTime: article.createdAt.toISOString(),
+      modifiedTime: (article.updatedAt ?? article.createdAt).toISOString(),
       authors: ["Équipe BailNotarie"],
       locale: "fr_FR",
       images: [

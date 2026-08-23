@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { PriceSimulatorPage } from "@/components/price-simulator-page";
+import { BreadcrumbSchema } from "@/components/seo/breadcrumb-schema";
 
-const pageTitle = "Simulateur prix bail notarie : cout et tarif estimes";
+const pageTitle = "Simulateur prix bail notarié : coût et tarif estimés";
 const pageDescription =
-  "Estimez le prix d'un bail notarie d'habitation selon le loyer hors charges, les procurations et la TVA. Simulation claire du cout TTC avant de constituer votre dossier.";
+  "Estimez le prix d'un bail notarié d'habitation selon le loyer hors charges, les procurations et la TVA. Simulation claire du coût TTC avant de constituer votre dossier.";
 const pageUrl = "https://www.bailnotarie.fr/simulateur-prix-bail-notarie";
 
 export const metadata: Metadata = {
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
         url: "/og-cover-v2.png",
         width: 1200,
         height: 630,
-        alt: "Simulateur de prix du bail notarie BailNotarie",
+        alt: "Simulateur de prix du bail notarié BailNotarie",
       },
     ],
   },
@@ -37,25 +38,6 @@ export const metadata: Metadata = {
 };
 
 export default function SimulateurPrixBailNotarie() {
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Accueil",
-        item: "https://www.bailnotarie.fr/",
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Simulateur prix bail notarie",
-        item: pageUrl,
-      },
-    ],
-  };
-
   const webPageSchema = {
     "@context": "https://schema.org",
     "@type": "WebPage",
@@ -70,18 +52,20 @@ export default function SimulateurPrixBailNotarie() {
       url: "https://www.bailnotarie.fr/",
     },
     about: [
-      "prix bail notarie",
-      "cout bail notarie",
-      "tarif bail notarie",
-      "bail notarie d'habitation",
+      "prix bail notarié",
+      "coût bail notarié",
+      "tarif bail notarié",
+      "bail notarié d'habitation",
     ],
   };
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      <BreadcrumbSchema
+        items={[
+          { name: "Accueil", path: "/" },
+          { name: "Simulateur prix bail notarié" },
+        ]}
       />
       <script
         type="application/ld+json"

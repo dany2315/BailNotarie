@@ -129,6 +129,12 @@ export function Blog15Content() {
             des 3/6/9), avec des facultés de résiliation tous les 3 ans. Il confère au locataire un
             droit au renouvellement et, à défaut, une indemnité d'éviction versée par le bailleur.
           </p>
+          <p className="text-sm text-gray-600 mt-3">
+            On écrit indifféremment <strong>bail 3/6/9</strong>, <strong>bail 3-6-9</strong> ou{" "}
+            <strong>bail 3 6 9</strong> : ces trois notations désignent exactement le même contrat.
+            Elles renvoient aux trois échéances triennales du bail de neuf ans, aux termes desquelles
+            le locataire peut donner congé.
+          </p>
         </div>
       </section>
 
