@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "unsplash": {
-      "type": "http",
-      "url": "https://mcp.unsplash.com/mcp"
-    }
-  }
-}
