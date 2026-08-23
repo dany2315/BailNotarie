@@ -93,20 +93,20 @@ const OBLIGATIONS: BlogLink = {
 
 const COMMERCIAL: BlogLink = {
   href: "/blog/bail-commercial",
-  label: "Bail commercial 3/6/9",
-  hint: "Durée, loyer, renouvellement et résiliation.",
+  label: "Bail commercial 3/6/9 : durée et résiliation",
+  hint: "Congé triennal, révision du loyer, renouvellement et indemnité d'éviction.",
 };
 
 const COMMERCIAL_NOTAIRE: BlogLink = {
   href: "/blog/bail-commercial-notarie-contrat-3-6-9",
   label: "Bail commercial notarié",
-  hint: "Quand le notaire est obligatoire et ce qu'il coûte.",
+  hint: "Quand le notaire est obligatoire et ce que le titre exécutoire change.",
 };
 
 const DEROGATOIRE: BlogLink = {
   href: "/blog/bail-derogatoire-article-l145-5-code-commerce",
-  label: "Bail dérogatoire (article L.145-5)",
-  hint: "Durée maximale et risque de requalification.",
+  label: "Bail dérogatoire : durée maximale de 36 mois",
+  hint: "Article L.145-5 et risque de requalification en bail 3/6/9.",
 };
 
 const MEUBLE: BlogLink = {
@@ -159,7 +159,7 @@ export const BLOG_RELATED_LINKS: Record<string, BlogLink[]> = {
   "bail-authentique-notaire": [COUT, SIMULATEUR, COMPARATIF, ETAPES],
   "bailnotarie-plateforme-digitale-bail-notarie": [ETAPES, COUT, SIMULATEUR, DISTANCE],
   "bail-commercial-notarie-contrat-3-6-9": [COMMERCIAL, DEROGATOIRE, FORCE_EXEC, COUT],
-  "bail-derogatoire-article-l145-5-code-commerce": [COMMERCIAL, COMMERCIAL_NOTAIRE, FORCE_EXEC],
+  "bail-derogatoire-article-l145-5-code-commerce": [COMMERCIAL, COMMERCIAL_NOTAIRE, FORCE_EXEC, SIMULATEUR],
   "bail-commercial": [COMMERCIAL_NOTAIRE, DEROGATOIRE, FORCE_EXEC, COUT],
   "location-meublee-ou-location-nue-quelles-differences": [DIAGNOSTICS, OBLIGATIONS, COUT, SIMULATEUR],
 };

@@ -211,6 +211,180 @@ export function Blog13Content() {
         </div>
       </section>
 
+      <section aria-labelledby="bail-plus-de-12-ans" className="my-12">
+        <h2 id="bail-plus-de-12-ans" className="text-2xl font-bold text-gray-900 mb-6">
+          Le seul cas où le notaire est vraiment obligatoire : le bail de plus de 12 ans
+        </h2>
+        <p className="text-gray-700 mb-4">
+          Pour un bail commercial 3/6/9 classique, le notaire n'est pas imposé par la loi. Il existe
+          en revanche un cas où l'acte authentique n'est pas négociable : dès que la durée convenue
+          <strong> dépasse 12 ans</strong>.
+        </p>
+        <p className="text-gray-700 mb-4">
+          La raison est technique mais sans échappatoire. Un bail de plus de 12 ans doit être publié
+          au <strong>service de la publicité foncière</strong>, et cette publication n'accepte que
+          les actes authentiques. Un bail rédigé sous seing privé, même parfaitement écrit, ne peut
+          tout simplement pas être publié — et un bail non publié est inopposable à l'acquéreur de
+          l'immeuble.
+        </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-5 mb-6">
+          <p className="text-gray-800">
+            <strong>Ce que ça implique concrètement :</strong> si le bailleur vend son immeuble en
+            cours de bail, un bail long non publié peut être écarté par le nouveau propriétaire. Le
+            locataire perd alors le bénéfice de la durée qu'il avait négociée, souvent après avoir
+            financé des travaux d'aménagement lourds.
+          </p>
+        </div>
+        <p className="text-gray-700">
+          Les baux longs concernent en pratique les activités qui exigent un investissement
+          important dans le local : restauration, hôtellerie, salles de sport, laboratoires,
+          commerces avec agencement sur mesure.
+        </p>
+      </section>
+
+      <section aria-labelledby="titre-executoire-commercial" className="my-12">
+        <h2 id="titre-executoire-commercial" className="text-2xl font-bold text-gray-900 mb-6">
+          Loyers commerciaux impayés : ce que le titre exécutoire change
+        </h2>
+        <p className="text-gray-700 mb-4">
+          C'est l'avantage le plus concret du bail commercial notarié, et le plus mal compris.
+          L'acte authentique vaut <strong>titre exécutoire</strong> : le bailleur qui détient une
+          créance de loyer certaine, liquide et exigible peut faire procéder à des mesures
+          d'exécution <strong>sans passer d'abord par un juge</strong> pour obtenir un titre.
+        </p>
+        <div className="grid md:grid-cols-2 gap-4 my-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Avec un bail sous seing privé</h3>
+            <p className="text-gray-700">
+              Le bailleur doit saisir le tribunal pour obtenir un titre exécutoire avant toute
+              saisie. Entre l'assignation, l'audience et la décision, plusieurs mois s'écoulent
+              pendant lesquels la dette continue de croître.
+            </p>
+          </div>
+          <div className="bg-blue-50 rounded-lg border border-blue-200 p-5">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Avec un bail notarié</h3>
+            <p className="text-gray-700">
+              Le titre existe dès la signature. Le commissaire de justice peut engager directement
+              les mesures d'exécution sur les sommes dues, ce qui raccourcit très sensiblement le
+              délai de recouvrement.
+            </p>
+          </div>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-5 mb-4">
+          <p className="text-gray-800">
+            <strong>La limite qu'il faut connaître :</strong> le titre exécutoire porte sur le
+            <em> recouvrement des sommes</em>. Il ne dispense pas de la procédure judiciaire pour
+            obtenir l'<strong>expulsion</strong> du locataire ni pour faire constater la résiliation
+            du bail. Un commercial qui vous promet une expulsion sans juge grâce au notaire vous
+            raconte une histoire.
+          </p>
+        </div>
+        <p className="text-gray-700">
+          Le détail du mécanisme est expliqué dans notre article sur la{" "}
+          <Link
+            href="/blog/force-executoire-lavantage-majeur-du-bail-notarie"
+            className="text-blue-700 hover:underline"
+          >
+            force exécutoire du bail notarié
+          </Link>.
+        </p>
+      </section>
+
+      <section aria-labelledby="clauses-verifiees-notaire" className="my-12">
+        <h2 id="clauses-verifiees-notaire" className="text-2xl font-bold text-gray-900 mb-6">
+          Ce que le notaire vérifie dans un bail commercial
+        </h2>
+        <p className="text-gray-700 mb-4">
+          Au-delà de la forme, l'intervention du notaire porte sur des clauses dont l'irrégularité
+          se paie cher, souvent des années plus tard.
+        </p>
+        <ul className="space-y-3 text-gray-700 mb-6">
+          <li className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>L'inventaire des charges.</strong> Depuis la loi Pinel, le bail doit comporter
+              un inventaire précis et limitatif des catégories de charges, impôts et taxes refacturés
+              au locataire. Les grosses réparations de l'article 606 du Code civil ne peuvent pas
+              lui être imputées.
+            </span>
+          </li>
+          <li className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>La clause d'indexation.</strong> Le choix de l'indice — ILC pour le commerce,
+              ILAT pour les activités tertiaires — et la rédaction de la clause déterminent si la
+              révision sera applicable ou contestable.
+            </span>
+          </li>
+          <li className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>La destination des lieux.</strong> Une destination rédigée trop étroitement
+              bloque le locataire s'il veut faire évoluer son activité ; trop largement, elle prive
+              le bailleur de tout contrôle sur ce qui s'exploite dans son local.
+            </span>
+          </li>
+          <li className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>L'état des lieux et les diagnostics.</strong> L'état des lieux est obligatoire
+              à l'entrée et à la sortie. Son absence prive le bailleur de la présomption de bon état
+              en fin de bail.
+            </span>
+          </li>
+          <li className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>Les conditions de sortie.</strong> Congé triennal, forme du congé, sort des
+              aménagements réalisés par le locataire : ce sont les clauses les plus souvent
+              improvisées, et les plus disputées.
+            </span>
+          </li>
+        </ul>
+        <p className="text-gray-700">
+          Pour une location de courte durée hors statut, voyez plutôt le{" "}
+          <Link
+            href="/blog/bail-derogatoire-article-l145-5-code-commerce"
+            className="text-blue-700 hover:underline"
+          >
+            bail dérogatoire de l'article L.145-5
+          </Link>.
+        </p>
+      </section>
+
+      <section aria-labelledby="quand-se-passer-du-notaire" className="my-12">
+        <h2 id="quand-se-passer-du-notaire" className="text-2xl font-bold text-gray-900 mb-6">
+          Quand le notaire n'apporte pas grand-chose
+        </h2>
+        <p className="text-gray-700 mb-4">
+          Autant le dire clairement : l'acte authentique n'est pas toujours justifié. Il l'est
+          rarement dans les situations suivantes.
+        </p>
+        <ul className="space-y-3 text-gray-700">
+          <li className="flex items-start">
+            <AlertTriangle className="h-5 w-5 text-amber-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              Un local de faible valeur locative, avec un loyer modeste : le coût de l'acte pèse
+              lourd au regard du risque couvert.
+            </span>
+          </li>
+          <li className="flex items-start">
+            <AlertTriangle className="h-5 w-5 text-amber-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              Un locataire dont la solidité financière est établie et adossé à une garantie solide
+              (caution bancaire, garantie de groupe).
+            </span>
+          </li>
+          <li className="flex items-start">
+            <AlertTriangle className="h-5 w-5 text-amber-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              Une durée courte hors statut, où c'est le bail dérogatoire, pas la forme authentique,
+              qui répond au besoin.
+            </span>
+          </li>
+        </ul>
+      </section>
+
       <section aria-labelledby="resume-bail-commercial" className="my-12">
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <h2 id="resume-bail-commercial" className="text-2xl font-bold text-gray-900 mb-4">

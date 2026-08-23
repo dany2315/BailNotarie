@@ -272,8 +272,8 @@ export const blogData = [
           "Bail commercial notarié : découvrez pourquoi passer par un notaire pour votre bail 3/6/9, le rôle du titre exécutoire, les obligations, l'enregistrement et le coût.",
         content: "",
         readTime: 8,
-        metaTitle: "Bail commercial notarié 3/6/9 : notaire obligatoire ? coût ?",
-        metaDescription: "Le notaire est-il obligatoire pour un bail commercial 3/6/9 ? Coût, cas où l'acte authentique s'impose, titre exécutoire et enregistrement du bail.",
+        metaTitle: "Bail commercial notarié : quand le notaire est obligatoire",
+        metaDescription: "Le notaire est-il obligatoire pour un bail commercial ? Le cas des baux de plus de 12 ans, le titre exécutoire et le coût réel de l'acte.",
         metaKeywords:
           "bail commercial notarié, bail commercial notaire, bail 3/6/9 notarié, coût bail commercial notarié, notaire bail commercial, acte authentique bail commercial, enregistrement bail commercial, titre exécutoire bail commercial",
         imageUrl:
