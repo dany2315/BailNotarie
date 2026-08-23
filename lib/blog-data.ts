@@ -137,8 +137,9 @@ export const blogData = [
           "Tarifs réglementés, estimation du coût d'un bail de location notarié, partage bailleur/locataire et frais additionnels possibles (procurations à distance, copies, formalités, débours).",
         content: "",
         readTime: 6,
-        metaTitle: "Frais de bail notarié 2026 : prix, qui paie quoi, exemples",
-        metaDescription: "Frais de rédaction d'un bail notarié : barème 2026, répartition entre bailleur et locataire, frais annexes et exemples chiffrés selon le loyer.",
+        metaTitle: "Combien coûte un bail de location notarié en France ?",
+        metaDescription:
+          "Prix d'un bail de location notarié en France : barème 2026, qui paie quoi, frais annexes et estimation claire selon le loyer.",
         metaKeywords:
           "bail notarié prix, coût bail de location notarié, coût bail notarié, frais bail de location notarié, frais bail notarié, tarif notaire bail habitation, emolument bail notarié, moitié loyer hors charges, procuration authentique à distance, copies formalités notaire, débours bail notarié",
         imageUrl:
@@ -275,8 +276,8 @@ export const blogData = [
           "Bail commercial notarié : découvrez pourquoi passer par un notaire pour votre bail 3/6/9, le rôle du titre exécutoire, les obligations, l'enregistrement et le coût.",
         content: "",
         readTime: 8,
-        metaTitle: "Bail commercial chez le notaire : obligatoire ? coût ? (2026)",
-        metaDescription: "Le notaire est-il obligatoire pour un bail commercial ? Coût, cas où l'acte authentique s'impose, titre exécutoire et enregistrement du bail 3/6/9.",
+        metaTitle: "Bail commercial notarié 3/6/9 : notaire obligatoire ? coût ?",
+        metaDescription: "Le notaire est-il obligatoire pour un bail commercial 3/6/9 ? Coût, cas où l'acte authentique s'impose, titre exécutoire et enregistrement du bail.",
         metaKeywords:
           "bail commercial notarié, bail commercial notaire, bail 3/6/9 notarié, coût bail commercial notarié, notaire bail commercial, acte authentique bail commercial, enregistrement bail commercial, titre exécutoire bail commercial",
         imageUrl:
