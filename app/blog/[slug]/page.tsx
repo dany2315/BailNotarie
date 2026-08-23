@@ -4,7 +4,6 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { blogData, blogCategories } from '@/lib/blog-data'
 import { generateArticleMetadata } from '@/lib/blog-utils'
-import { getRelatedLinks } from '@/lib/blog-links'
 import { BlogPageClient } from '@/components/blog-page-client'
 import { ArticleSchema } from '@/components/seo/article-schema'
 import { FaqSchema } from '@/components/seo/faq-schema'
@@ -76,40 +75,6 @@ function getArticle(slug: string) {
     category,
     comments: [],
   }
-}
-
-// Fonction pour récupérer les articles liés
-//
-// Auparavant : les 3 premiers articles de la meme categorie. Comme le blog n'a
-// qu'une seule categorie, les memes trois articles etaient proposes sur les 16
-// pages, quel que soit le sujet. Resultat : un maillage interne qui ne
-// transmettait aucune information de proximite thematique a Google.
-//
-// Desormais : les articles voisins sont ceux du maillage editorial defini dans
-// lib/blog-links.ts, en excluant ceux deja presents dans le bloc "Pour aller
-// plus loin" afin de diversifier les liens de la page. Les articles les plus
-// recents completent la liste si besoin.
-function getRelatedArticles(currentSlug: string) {
-  const contextualSlugs = new Set(
-    getRelatedLinks(currentSlug)
-      .filter(link => link.href.startsWith('/blog/'))
-      .map(link => link.href.replace('/blog/', ''))
-  );
-
-  const withCategory = (article: (typeof blogData)[number]) => ({
-    ...article,
-    category: blogCategories.find(cat => cat.id === article.categoryId) || blogCategories[0],
-  });
-
-  const candidates = blogData.filter(article => article.slug !== currentSlug);
-  const topical = candidates.filter(article => contextualSlugs.has(article.slug));
-  const rest = candidates
-    .filter(article => !contextualSlugs.has(article.slug))
-    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-
-  // Priorite aux articles thematiquement voisins non deja lies dans la page,
-  // puis aux plus recemment revises.
-  return [...rest, ...topical].slice(0, 3).map(withCategory);
 }
 
 function getFaqForSlug(slug: string) {
@@ -349,7 +314,6 @@ function getFaqForSlug(slug: string) {
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const article = getArticle(slug)
-  const relatedArticles = getRelatedArticles(article.slug)
   const faqItems = getFaqForSlug(slug)
   const seoTitle = article.metaTitle || article.title
   const seoDescription = article.metaDescription || article.description
@@ -383,7 +347,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       />
       <FaqSchema items={faqItems} pageUrl={canonicalUrl} />
       <Header />
-      <BlogPageClient article={article} relatedArticles={relatedArticles} faqItems={faqItems} />
+      <BlogPageClient article={article} faqItems={faqItems} />
       <Footer />
     </>
   )

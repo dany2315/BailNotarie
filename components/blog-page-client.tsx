@@ -10,7 +10,8 @@ import { ShareButtonSimple } from '@/components/share-button-simple';
 import { CommentButton } from '@/components/comment-button';
 import { CommentsSection, CommentsSectionRef } from '@/components/comments-section';
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
-import { getRelatedLinks } from '@/lib/blog-links';
+import { getRelatedLinksWithMedia } from '@/lib/blog-links';
+import { blogData } from '@/lib/blog-data';
 import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content } from '@/components/blog-content';
 
 type TocItem = {
@@ -311,11 +312,10 @@ function toIsoDate(value: Date | string): string {
 
 interface BlogPageClientProps {
   article: any;
-  relatedArticles: any[];
   faqItems?: Array<{ question: string; answer: string }>;
 }
 
-export function BlogPageClient({ article, relatedArticles, faqItems = [] }: BlogPageClientProps) {
+export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) {
   const commentsSectionRef = useRef<CommentsSectionRef>(null);
   const readTime = (article as any).readTime || calculateReadTime(article.content || article.description || '');
   const displayTitle = article.metaTitle || article.title;
@@ -324,7 +324,7 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
   // "Mis a jour le" n'est affiche que si le contenu a reellement ete revise
   // apres publication : afficher une date de mise a jour identique a la date de
   // publication n'apporte rien et brouille le signal de fraicheur.
-  const relatedLinks = getRelatedLinks(article.slug);
+  const relatedLinks = getRelatedLinksWithMedia(article.slug, blogData);
   const hasBeenUpdated =
     Boolean(article.updatedAt) &&
     new Date(article.updatedAt).getTime() > new Date(article.createdAt).getTime();
@@ -525,29 +525,42 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                   )}
 
                   {relatedLinks.length > 0 && (
-                    <section aria-labelledby="pour-aller-plus-loin" className="mt-12">
-                      <h2
-                        id="pour-aller-plus-loin"
-                        className="text-2xl font-bold text-gray-900 mb-6"
-                      >
-                        Pour aller plus loin
-                      </h2>
-                      <ul className="grid gap-3 sm:grid-cols-2 list-none pl-0">
-                        {relatedLinks.map((link) => (
-                          <li key={link.href} className="m-0">
+                    <section aria-labelledby="pour-aller-plus-loin" className="mt-12 not-prose">
+                      <Card className="p-6 rounded-2xl">
+                        <h2
+                          id="pour-aller-plus-loin"
+                          className="font-semibold text-gray-900 mb-4 mt-0"
+                        >
+                          Pour aller plus loin
+                        </h2>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {relatedLinks.map((link) => (
                             <Link
+                              key={link.href}
                               href={link.href}
-                              className="group flex h-full flex-col rounded-lg border border-gray-200 p-4 no-underline transition-colors hover:border-blue-300 hover:bg-blue-50"
+                              className="block group rounded-xl p-2 no-underline hover:bg-gray-50 transition-colors"
                             >
-                              <span className="flex items-center gap-2 font-semibold text-blue-700 group-hover:underline">
-                                {link.label}
-                                <ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" />
-                              </span>
-                              <span className="mt-1 text-sm text-gray-600">{link.hint}</span>
+                              <div className="flex gap-3">
+                                <Image
+                                  src={link.image}
+                                  alt=""
+                                  width={60}
+                                  height={60}
+                                  className="rounded object-cover h-[60px] w-[60px] shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <h3 className="font-medium text-sm group-hover:text-blue-600 transition-colors line-clamp-2 text-gray-900 mt-0 mb-0">
+                                    {link.label}
+                                  </h3>
+                                  <p className="text-xs text-gray-500 mt-1 mb-0 line-clamp-2">
+                                    {link.hint}
+                                  </p>
+                                </div>
+                              </div>
                             </Link>
-                          </li>
-                        ))}
-                      </ul>
+                          ))}
+                        </div>
+                      </Card>
                     </section>
                   )}
                 </div>
@@ -596,38 +609,6 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                 />
               </div>
 
-              {relatedArticles.length > 0 && (
-                <Card className="p-6 mt-12 rounded-2xl">
-                  <h3 className="font-semibold mb-4 text-gray-900">Articles liés</h3>
-                  <div className="space-y-4">
-                    {relatedArticles.map((relatedArticle: { id: string; slug: string; title: string; createdAt: Date; imageUrl: string }) => (
-                      <Link
-                        key={relatedArticle.id}
-                        href={`/blog/${relatedArticle.slug}`}
-                        className="block group rounded-xl p-2 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex gap-3">
-                          <Image
-                            src={relatedArticle.imageUrl || "https://images.pexels.com/photos/4427430/pexels-photo-4427430.jpeg?auto=compress&cs=tinysrgb&w=100"}
-                            alt={relatedArticle.title}
-                            width={60}
-                            height={60}
-                            className="rounded object-cover"
-                          />
-                          <div>
-                            <h4 className="font-medium text-sm group-hover:text-blue-600 transition-colors line-clamp-2 text-gray-900">
-                              {relatedArticle.title}
-                            </h4>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {formatDate(relatedArticle.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </Card>
-              )}
             </div>
 
             <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">

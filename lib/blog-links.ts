@@ -168,3 +168,30 @@ export const BLOG_RELATED_LINKS: Record<string, BlogLink[]> = {
 export function getRelatedLinks(slug: string): BlogLink[] {
   return (BLOG_RELATED_LINKS[slug] ?? []).filter((l) => !l.href.endsWith(`/${slug}`));
 }
+
+/** Visuel de repli pour les destinations qui ne sont pas des articles. */
+const FALLBACK_IMAGE = "/og-cover-v2.png";
+
+export interface BlogLinkWithMedia extends BlogLink {
+  /** Vignette : image de l'article cible, ou visuel de repli. */
+  image: string;
+}
+
+/**
+ * Liens contextuels enrichis de la vignette de la page cible, pour un rendu
+ * identique a celui des cartes d'articles.
+ */
+export function getRelatedLinksWithMedia(
+  slug: string,
+  articles: ReadonlyArray<{ slug: string; imageUrl?: string }>
+): BlogLinkWithMedia[] {
+  return getRelatedLinks(slug).map((link) => {
+    const targetSlug = link.href.startsWith("/blog/")
+      ? link.href.slice("/blog/".length)
+      : null;
+    const article = targetSlug
+      ? articles.find((a) => a.slug === targetSlug)
+      : undefined;
+    return { ...link, image: article?.imageUrl || FALLBACK_IMAGE };
+  });
+}
