@@ -348,7 +348,7 @@ export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) 
     <main className="min-h-screen bg-gray-50 pb-28 lg:pb-0">
       <section className="relative min-h-[39vh] md:min-h-[40vh] overflow-hidden">
         <Image
-          src={article.imageUrl || "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200"}
+          src={article.imageUrl || "/og-cover-v2.png"}
           alt={article.title}
           fill
           className="object-cover"
@@ -544,7 +544,7 @@ export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) 
                               <div className="flex gap-3">
                                 <RelatedThumbnail
                                   src={link.image}
-                                  className="rounded object-cover h-[60px] w-[60px] shrink-0 bg-gray-100"
+                                  className="rounded object-cover object-right h-[60px] w-[60px] shrink-0 bg-gray-100"
                                 />
                                 <div className="min-w-0">
                                   <h3 className="font-medium text-sm group-hover:text-blue-600 transition-colors line-clamp-2 text-gray-900 mt-0 mb-0">

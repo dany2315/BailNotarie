@@ -111,7 +111,7 @@ export default function BlogPage() {
                   <Image
                     width={800}
                     height={400}
-                    src={article.imageUrl || "https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800"}
+                    src={article.imageUrl || "/og-cover-v2.png"}
                     alt={article.title}
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                   />
