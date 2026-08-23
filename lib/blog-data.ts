@@ -234,8 +234,8 @@ export const blogData = [
           "Le bail authentique est un bail notarié : définition, avantages, prix, répartition des frais et procédure complète pour une location d'habitation en France.",
         content: "",
         readTime: 8,
-        metaTitle: "Bail authentique chez le notaire : définition et prix 2026",
-        metaDescription: "Bail authentique : ce que le notaire change par rapport à un bail classique, combien il coûte, qui paie les frais et comment se déroule la signature.",
+        metaTitle: "Bail authentique chez le notaire : ce que ça change",
+        metaDescription: "Ce que l'acte authentique change face à un bail sous seing privé : force probante, date certaine, titre exécutoire et déroulé de la signature chez le notaire.",
         metaKeywords:
           "bail authentique notaire, bail authentique, acte authentique bail de location, prix bail authentique, coût bail authentique, différence bail authentique bail classique, bail de location en France",
         imageUrl:
