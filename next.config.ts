@@ -70,6 +70,12 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
+    // Optimiseur Vercel desactive : son quota est facture a la transformation et
+    // celui du plan Hobby est epuise, ce qui renvoyait 402 sur chaque nouvelle
+    // taille demandee. Le redimensionnement est delegue aux CDN sources via
+    // lib/image-loader.ts. remotePatterns reste utile pour la validation.
+    loader: "custom",
+    loaderFile: "./lib/image-loader.ts",
     remotePatterns: [
       {
         protocol: 'https',
