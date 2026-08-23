@@ -12,6 +12,7 @@ import { CommentsSection, CommentsSectionRef } from '@/components/comments-secti
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
 import { getRelatedLinksWithMedia } from '@/lib/blog-links';
 import { blogData } from '@/lib/blog-data';
+import { ArticleImage } from '@/components/blog/article-image';
 import { RelatedThumbnail } from '@/components/blog/related-thumbnail';
 import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content } from '@/components/blog-content';
 
@@ -347,10 +348,11 @@ export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) 
   return (
     <main className="min-h-screen bg-gray-50 pb-28 lg:pb-0">
       <section className="relative min-h-[39vh] md:min-h-[40vh] overflow-hidden">
-        <Image
+        <ArticleImage
           src={article.imageUrl || "/og-cover-v2.png"}
           alt={article.title}
           fill
+          sizes="100vw"
           className="object-cover"
           priority
         />

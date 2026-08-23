@@ -9,7 +9,7 @@ import { CallButton, ContactButton } from "@/components/ui/action-buttons";
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
 import { BreadcrumbSchema } from "@/components/seo/breadcrumb-schema";
 import { blogData, blogCategories } from "@/lib/blog-data";
-import Image from "next/image";
+import { ArticleImage } from "@/components/blog/article-image";
 
 export const metadata: Metadata = generateDynamicMetadata({ page: 'blog' });
 
@@ -108,11 +108,12 @@ export default function BlogPage() {
             {articles.map((article) => (
               <Card key={article.id} className="py-0 overflow-hidden hover:shadow-lg transition-shadow duration-300">
                 <div className="aspect-video bg-gray-200 overflow-hidden">
-                  <Image
+                  <ArticleImage
                     width={800}
                     height={400}
                     src={article.imageUrl || "/og-cover-v2.png"}
                     alt={article.title}
+                    sizes="(max-width: 768px) 100vw, 33vw"
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                   />
                 </div>
