@@ -104,8 +104,8 @@ export const blogData = [
         description: "Comparaison détaillée entre le bail notarié et le bail sous seing privé pour vous aider à faire le bon choix.",
         content: "", // Le contenu est maintenant géré par le composant React
         readTime: 7, // Temps de lecture estimé en minutes
-        metaTitle: "Bail notarié vs bail classique : coût, force exécutoire, risques",
-        metaDescription: "Bail notarié ou bail classique : comparez coût, force exécutoire, sécurité juridique et gestion des impayés pour choisir la meilleure option.",
+        metaTitle: "Bail notarié ou bail classique : lequel choisir ?",
+        metaDescription: "Bail notarié ou sous seing privé : comparatif du coût, de la valeur juridique, du recouvrement des impayés et des cas où l'acte authentique vaut le prix.",
         metaKeywords: "bail notarié, bail classique, analyse comparative, propriétaire, locataire, notaire",
         imageUrl: "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800&h=400&fit=crop",
         ogImage: "https://www.bailnotarie.fr/og-cover-v2.png",
@@ -157,9 +157,8 @@ export const blogData = [
           "Vous devez signer un bail notarié mais vous ne pouvez pas vous déplacer ? Découvrez comment la procuration notariée permet de signer à distance avec la même sécurité qu'un rendez-vous physique.",
         content: "",
         readTime: 5,
-        metaTitle: "Bail Notarié à Distance : Signer en Sécurité avec la Procuration",
-        metaDescription:
-          "Signez votre bail notarié à distance grâce à la procuration notariée. Visioconférence, signature électronique sécurisée, conservation numérique. Solution fiable et accessible pour expatriés et personnes éloignées.",
+        metaTitle: "Bail notarié à distance : signer avec une procuration",
+        metaDescription: "Signer un bail notarié sans se déplacer : procuration authentique, visioconférence chez le notaire, coût de la formalité et délais à prévoir.",
         metaKeywords:
           "bail notarié, bail notarié d'habitation, bail notarié en ligne, bail notarie en ligne, bail notarié à distance, procuration notariée, signature bail à distance, bail notarié visioconférence, signer bail notarié sans se déplacer, procuration authentique, signature électronique bail, bail notarié expatrié, bail notarié en ligne, signature notariée à distance",
         imageUrl:
@@ -197,9 +196,8 @@ export const blogData = [
           "Guide complet des diagnostics techniques immobiliers (DDT) : validité illimitée, temporaire ou volatile. Découvrez les durées de validité, les coûts et les risques juridiques à éviter en 2026.",
         content: "",
         readTime: 8,
-        metaTitle: "Diagnostics Immobiliers 2026 : Durées de validité, coûts et pièges juridiques",
-        metaDescription:
-          "DPE, amiante, plomb, électricité, gaz : guide complet des diagnostics immobiliers. Validité, coûts, pièges juridiques. Un diagnostic périmé peut annuler votre bail ou bloquer votre vente.",
+        metaTitle: "Diagnostics immobiliers 2026 : validité, coûts et pièges",
+        metaDescription: "DPE, amiante, plomb, électricité, gaz : durée de validité, coût de chaque diagnostic et conséquences d'un document périmé sur votre bail.",
         metaKeywords:
           "diagnostics immobiliers, DDT dossier diagnostic technique, validité diagnostics immobiliers, DPE durée validité, diagnostic amiante validité, CREP plomb validité, diagnostic électricité gaz, ERP état risques pollutions, diagnostics périmés, loi ALUR diagnostics, diagnostics location vente, coût diagnostics immobiliers, sanctions diagnostics manquants",
         imageUrl:
@@ -236,9 +234,8 @@ export const blogData = [
           "Le bail authentique est un bail notarié : définition, avantages, prix, répartition des frais et procédure complète pour une location d'habitation en France.",
         content: "",
         readTime: 8,
-        metaTitle: "Bail authentique chez le notaire : définition, prix, avantages (2026)",
-        metaDescription:
-        "Bail authentique chez le notaire : définition, prix 2026, avantages, qui paie les frais et procédure complète pour une location d’habitation en France.",
+        metaTitle: "Bail authentique chez le notaire : définition et prix 2026",
+        metaDescription: "Bail authentique : ce que le notaire change par rapport à un bail classique, combien il coûte, qui paie les frais et comment se déroule la signature.",
         metaKeywords:
           "bail authentique notaire, bail authentique, acte authentique bail de location, prix bail authentique, coût bail authentique, différence bail authentique bail classique, bail de location en France",
         imageUrl:
@@ -256,9 +253,8 @@ export const blogData = [
           "Découvrez BailNotarie, la plateforme digitale qui structure, qualifie et transmet les dossiers de bail notarié aux notaires partenaires partout en France.",
         content: "",
         readTime: 7,
-        metaTitle: "BailNotarie : plateforme digitale pour préparer un bail notarié (2026)",
-        metaDescription:
-          "BailNotarie simplifie la préparation du bail notarié : collecte des pièces, structuration du dossier, transmission au notaire et suivi en temps réel partout en France.",
+        metaTitle: "BailNotarie : préparer son bail notarié en ligne",
+        metaDescription: "Comment BailNotarie prépare votre dossier de bail notarié : collecte des pièces, vérification, transmission au notaire partenaire et suivi jusqu'à la signature.",
         metaKeywords:
           "BailNotarie, plateforme bail notarié, préparation bail notarié, dossier bail notarié, plateforme digitale notaire, infrastructure digitale bail, notaires partenaires, bail notarié en France",
         imageUrl:
@@ -295,9 +291,8 @@ export const blogData = [
           "Bail dérogatoire : définition juridique, conditions de validité, durée maximale de 36 mois, risque de requalification et points clés de l'article L.145-5 du Code de commerce.",
         content: "",
         readTime: 8,
-        metaTitle: "Bail dérogatoire : article L.145-5, durée, requalification (2026)",
-        metaDescription:
-          "Tout comprendre au bail dérogatoire : article L.145-5 du Code de commerce, durée maximale, différence avec la convention d'occupation précaire, requalification et rédaction.",
+        metaTitle: "Bail dérogatoire : durée maximale, risques et L.145-5",
+        metaDescription: "Bail dérogatoire : durée maximale de 3 ans, différence avec la convention d'occupation précaire et risque de requalification en bail commercial 3/6/9.",
         metaKeywords:
           "bail dérogatoire, article L145-5, article L.145-5 Code de commerce, bail précaire, durée bail dérogatoire, requalification bail commercial, bail de courte durée commercial, convention d'occupation précaire",
         imageUrl:
@@ -315,9 +310,8 @@ export const blogData = [
           "Tout comprendre au bail commercial : définition, durée 3/6/9, conditions d'éligibilité, loyer, renouvellement, résiliation, indemnité d'éviction, rôle du notaire et honoraires.",
         content: "",
         readTime: 18,
-        metaTitle: "Bail Commercial : Guide Complet 2026 — Durée 3/6/9, Loyer, Résiliation",
-        metaDescription:
-          "Bail commercial : définition, durée 3/6/9, loyer, renouvellement, résiliation, indemnité d'éviction et rôle du notaire. Guide expert 2026. Sécurisez votre bail commercial notarié.",
+        metaTitle: "Bail commercial 3/6/9 : durée, loyer, résiliation (2026)",
+        metaDescription: "Comment fonctionne un bail commercial 3/6/9 : durée, révision du loyer, congé triennal, renouvellement, indemnité d'éviction et rôle du notaire.",
         metaKeywords:
           "bail commercial, bail commercial définition, durée bail commercial, bail commercial 3 6 9, loyer bail commercial, renouvellement bail commercial, résiliation bail commercial, indemnité d'éviction bail commercial, bail commercial notarié, contenu bail commercial, charges bail commercial, bail commercial notaire, clause bail commercial, fonds de commerce, local commercial, droit au bail, commerçant locataire, bail commercial prix, bail commercial obligations, statut baux commerciaux",
         imageUrl:
@@ -335,9 +329,8 @@ export const blogData = [
           "Location meublée ou location nue : comparez la durée du bail, le préavis, la fiscalité, la rentabilité et le profil de locataire pour faire le bon choix.",
         content: "",
         readTime: 6,
-        metaTitle: "Location meublée ou location nue : quelles différences ? (2026)",
-        metaDescription:
-          "Louer vide ou meublé ? Découvrez les différences de bail, préavis, fiscalité (revenus fonciers vs BIC), rentabilité et stabilité pour choisir la meilleure option.",
+        metaTitle: "Location meublée ou nue : quelles différences ?",
+        metaDescription: "Bail, préavis, fiscalité, rentabilité : le comparatif complet entre location nue et location meublée pour choisir le régime adapté à votre bien.",
         metaKeywords:
           "location meublée ou nue, différence location meublée location vide, louer vide ou meublé, fiscalité location meublée, fiscalité location nue, LMNP, revenus fonciers, micro-BIC, micro-foncier, bail meublé durée, bail location nue, décret mobilier location meublée, bail étudiant, bail mobilité, rentabilité location meublée",
         imageUrl:

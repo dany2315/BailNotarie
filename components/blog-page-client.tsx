@@ -10,6 +10,7 @@ import { ShareButtonSimple } from '@/components/share-button-simple';
 import { CommentButton } from '@/components/comment-button';
 import { CommentsSection, CommentsSectionRef } from '@/components/comments-section';
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
+import { getRelatedLinks } from '@/lib/blog-links';
 import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content } from '@/components/blog-content';
 
 type TocItem = {
@@ -323,6 +324,7 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
   // "Mis a jour le" n'est affiche que si le contenu a reellement ete revise
   // apres publication : afficher une date de mise a jour identique a la date de
   // publication n'apporte rien et brouille le signal de fraicheur.
+  const relatedLinks = getRelatedLinks(article.slug);
   const hasBeenUpdated =
     Boolean(article.updatedAt) &&
     new Date(article.updatedAt).getTime() > new Date(article.createdAt).getTime();
@@ -519,6 +521,33 @@ export function BlogPageClient({ article, relatedArticles, faqItems = [] }: Blog
                           </div>
                         ))}
                       </div>
+                    </section>
+                  )}
+
+                  {relatedLinks.length > 0 && (
+                    <section aria-labelledby="pour-aller-plus-loin" className="mt-12">
+                      <h2
+                        id="pour-aller-plus-loin"
+                        className="text-2xl font-bold text-gray-900 mb-6"
+                      >
+                        Pour aller plus loin
+                      </h2>
+                      <ul className="grid gap-3 sm:grid-cols-2 list-none pl-0">
+                        {relatedLinks.map((link) => (
+                          <li key={link.href} className="m-0">
+                            <Link
+                              href={link.href}
+                              className="group flex h-full flex-col rounded-lg border border-gray-200 p-4 no-underline transition-colors hover:border-blue-300 hover:bg-blue-50"
+                            >
+                              <span className="flex items-center gap-2 font-semibold text-blue-700 group-hover:underline">
+                                {link.label}
+                                <ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+                              </span>
+                              <span className="mt-1 text-sm text-gray-600">{link.hint}</span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
                     </section>
                   )}
                 </div>

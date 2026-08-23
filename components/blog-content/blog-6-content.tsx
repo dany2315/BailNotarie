@@ -214,9 +214,125 @@ export function Blog6Content() {
         </div>
       </section>
 
+      <section aria-labelledby="frais-redaction" className="my-12">
+        <h2 id="frais-redaction" className="text-2xl font-bold text-gray-900 mb-6">
+          5. Frais de rédaction d'un bail : ce que paie un particulier
+        </h2>
+        <p className="text-gray-700 mb-6">
+          Beaucoup de bailleurs cherchent les <strong>frais de rédaction de bail</strong> sans savoir
+          qu'il existe trois façons de faire rédiger un contrat de location, à trois niveaux de prix
+          et de sécurité très différents. Voici de quoi situer le coût d'un bail notarié par rapport
+          aux autres options.
+        </p>
+
+        <div className="overflow-x-auto my-6">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900">
+                  Qui rédige le bail
+                </th>
+                <th className="border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900">
+                  Frais de rédaction
+                </th>
+                <th className="border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900">
+                  Valeur juridique
+                </th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-700">
+              <tr>
+                <td className="border border-gray-200 px-4 py-3">Le bailleur lui-même (modèle type)</td>
+                <td className="border border-gray-200 px-4 py-3">0 €</td>
+                <td className="border border-gray-200 px-4 py-3">
+                  Acte sous seing privé. Aucune force exécutoire : en cas d'impayé, il faut un jugement.
+                </td>
+              </tr>
+              <tr className="bg-gray-50">
+                <td className="border border-gray-200 px-4 py-3">Une agence immobilière</td>
+                <td className="border border-gray-200 px-4 py-3">
+                  Honoraires plafonnés au m² de surface habitable pour la part du locataire
+                </td>
+                <td className="border border-gray-200 px-4 py-3">
+                  Acte sous seing privé également. La rédaction est professionnelle, mais l'acte reste
+                  privé.
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-gray-200 px-4 py-3">Un notaire</td>
+                <td className="border border-gray-200 px-4 py-3">
+                  Souvent proche d'un demi-loyer hors charges, TVA et formalités en sus
+                </td>
+                <td className="border border-gray-200 px-4 py-3">
+                  Acte authentique doté de la <strong>force exécutoire</strong> : le recouvrement des
+                  sommes dues ne passe pas par un jugement.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 className="text-lg font-semibold text-gray-900 mb-3 mt-8">
+          Frais de bail : ce qui est réellement facturé
+        </h3>
+        <p className="text-gray-700 mb-4">
+          Ce qu'on appelle couramment « frais de bail » recouvre en réalité plusieurs lignes distinctes
+          dans un dossier notarié :
+        </p>
+        <ul className="space-y-3 text-gray-700 mb-6">
+          <li className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>Les émoluments de rédaction</strong> : la rémunération du notaire pour l'acte
+              lui-même, encadrée par le tarif réglementé.
+            </span>
+          </li>
+          <li className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>Les frais de formalités et débours</strong> : copies authentiques, enregistrement
+              éventuel, pièces demandées à des tiers.
+            </span>
+          </li>
+          <li className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>La procuration</strong>, si l'une des parties ne peut pas être présente à la
+              signature : quelques dizaines d'euros supplémentaires.
+            </span>
+          </li>
+          <li className="flex items-start">
+            <CheckCircle className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>La TVA</strong>, qui s'applique sur les émoluments.
+            </span>
+          </li>
+        </ul>
+        <p className="text-gray-700 mb-6">
+          À noter pour les particuliers : les <strong>frais de notaire</strong> dont on parle en
+          location n'ont rien à voir avec ceux d'un achat immobilier. Il n'y a ici ni droits de
+          mutation ni taxe de publicité foncière — seuls la rédaction et les formalités sont facturées,
+          ce qui explique un ordre de grandeur de quelques centaines d'euros et non de plusieurs
+          milliers.
+        </p>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <p className="text-gray-700 mb-4">
+            Pour connaître le montant exact applicable à votre situation, entrez simplement votre loyer
+            hors charges : l'estimation tient compte du tarif réglementé, de la TVA et des procurations
+            éventuelles.
+          </p>
+          <Link
+            href="/simulateur-prix-bail-notarie"
+            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          >
+            Estimer les frais de mon bail
+          </Link>
+        </div>
+      </section>
+
       <section aria-labelledby="cout-perspective" className="my-12">
         <h2 id="cout-perspective" className="text-2xl font-bold text-gray-900 mb-6">
-          5. Le coût à mettre en perspective avec le risque
+          6. Le coût à mettre en perspective avec le risque
         </h2>
         <p className="text-gray-700 mb-6">
           Bien que le <strong>bail notarié</strong> représente un <strong>coût initial supérieur</strong> à un contrat sous seing privé, 
