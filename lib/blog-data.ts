@@ -10,6 +10,14 @@ export type BlogData = {
     metaDescription: string;
     metaKeywords: string;
     ogImage: string;
+    /**
+     * Credit du visuel. La licence de l'API Unsplash impose de citer
+     * l'auteur et de renvoyer vers son profil.
+     */
+    imageCredit?: {
+        name: string;
+        profileUrl: string;
+    };
     createdAt: Date;
     /**
      * Date de derniere revision reelle du contenu.
@@ -60,8 +68,12 @@ export const blogData = [
         metaTitle: "Bail notarié : définition, valeur juridique et intérêt réel",
         metaDescription: "Qu'est-ce qu'un bail notarié, que change l'intervention du notaire et quand un bail chez le notaire vaut vraiment le coût ? Explication claire pour bailleurs.",
         metaKeywords: "bail notarié définition, qu’est-ce qu’un bail notarié, contrat de location notarié, bail signé chez notaire, valeur juridique bail notarié, force exécutoire bail, sécurité juridique location, acte authentique location, bail notarié France",
-        imageUrl: "/blog/bail-notarie-quest-ce-que-cest-et-pourquoi-le-choisir.jpg",
-        ogImage: "/blog/bail-notarie-quest-ce-que-cest-et-pourquoi-le-choisir.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1664463760781-f159dfe3af30?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1664463760781-f159dfe3af30?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Annika Wischnewsky",
+            profileUrl: "https://unsplash.com/@wischn",
+        },
         createdAt: new Date("2025-05-01"),
         updatedAt: new Date("2025-11-27"),
         categoryId: "1",
@@ -75,8 +87,12 @@ export const blogData = [
         readTime: 6, // Temps de lecture estimé en minutes
         metaTitle: "Faire un bail notarié : étapes, documents, coût et délais (2026)",
         metaDescription: "Comment établir un bail notarié en pratique : étapes, pièces à fournir, coût, délais et signature chez le notaire. Guide clair pour bailleurs en 2026.",
-        metaKeywords: "étapes bail notarié, comment faire un bail notarié, procédure bail notarié, dossier bail notarié, documents bail notarié, signature bail chez notaire, créer un bail notarié en ligne, bail notarié processus, bail authentique démarches",        imageUrl: "/blog/les-etapes-pour-etablir-un-bail-notarie-guide-complet.jpg",
-        ogImage: "/blog/les-etapes-pour-etablir-un-bail-notarie-guide-complet.jpg",
+        metaKeywords: "étapes bail notarié, comment faire un bail notarié, procédure bail notarié, dossier bail notarié, documents bail notarié, signature bail chez notaire, créer un bail notarié en ligne, bail notarié processus, bail authentique démarches",        imageUrl: "https://images.unsplash.com/photo-1554224155-1696413565d3?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1554224155-1696413565d3?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Kelly Sikkema",
+            profileUrl: "https://unsplash.com/@kellysikkema",
+        },
         createdAt: new Date("2025-05-10"),
         updatedAt: new Date("2026-03-08"),
         categoryId: "1",
@@ -91,8 +107,12 @@ export const blogData = [
         metaTitle: "Bail déposé chez le notaire : est-ce un titre exécutoire ?",
         metaDescription: "Déposer ou enregistrer un bail sous seing privé chez le notaire ne suffit pas : seul l'acte authentique donne la force exécutoire. Ce que ça change.",
         metaKeywords: "force exécutoire bail notarié, bail ayant valeur de jugement, saisie loyers impayés, recouvrement par acte notarié, procédure sans juge loyer, titre exécutoire notaire, efficacité bail notarié, impayés locatifs solution",
-        imageUrl: "/blog/force-executoire-lavantage-majeur-du-bail-notarie.jpg",
-        ogImage: "/blog/force-executoire-lavantage-majeur-du-bail-notarie.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1619418602850-35ad20aa1700?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1619418602850-35ad20aa1700?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Markus Spiske",
+            profileUrl: "https://unsplash.com/@markusspiske",
+        },
         createdAt: new Date("2025-05-15"),
         updatedAt: new Date("2026-03-08"),
         categoryId: "1",
@@ -107,8 +127,12 @@ export const blogData = [
         metaTitle: "Bail notarié ou bail classique : lequel choisir ?",
         metaDescription: "Bail notarié ou sous seing privé : comparatif du coût, de la valeur juridique, du recouvrement des impayés et des cas où l'acte authentique vaut le prix.",
         metaKeywords: "bail notarié, bail classique, analyse comparative, propriétaire, locataire, notaire",
-        imageUrl: "/blog/bail-notarie-vs-bail-classique-analyse-comparative.jpg",
-        ogImage: "/blog/bail-notarie-vs-bail-classique-analyse-comparative.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1589994965851-a8f479c573a9?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1589994965851-a8f479c573a9?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Tingey Injury Law Firm",
+            profileUrl: "https://unsplash.com/@tingeyinjurylawfirm",
+        },
         createdAt: new Date("2025-05-20"),
         updatedAt: new Date("2026-03-08"),
         categoryId: "1",
@@ -123,8 +147,12 @@ export const blogData = [
         metaTitle: "Les obligations légales dans un bail notarié",
         metaDescription: "Clauses obligatoires, règles légales, devoirs du bailleur et droits du locataire : tout savoir pour un bail notarié juridiquement conforme.",
         metaKeywords: "obligations bail notarié, clauses obligatoires bail, mentions légales bail, règles du bail notarié, conformité bail notaire, devoirs bailleur, droits locataire bail notarié, erreurs fréquemment bail, validité contrat de location",
-        imageUrl: "/blog/les-obligations-legales-dans-un-bail-notarie.jpg",
-        ogImage: "/blog/les-obligations-legales-dans-un-bail-notarie.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1576414160011-98dfab3aa889?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1576414160011-98dfab3aa889?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Thomas Bormans",
+            profileUrl: "https://unsplash.com/@thomasbormans",
+        },
         createdAt: new Date("2025-05-25"),
         updatedAt: new Date("2025-11-27"),
         categoryId: "1",
@@ -142,8 +170,12 @@ export const blogData = [
           "Prix d'un bail de location notarié en France : barème 2026, qui paie quoi, frais annexes et estimation claire selon le loyer.",
         metaKeywords:
           "bail notarié prix, coût bail de location notarié, coût bail notarié, frais bail de location notarié, frais bail notarié, tarif notaire bail habitation, emolument bail notarié, moitié loyer hors charges, procuration authentique à distance, copies formalités notaire, débours bail notarié",
-        imageUrl: "/blog/cout-dun-bail-de-location-notarie-tarifs-partage-des-frais-et-exemples-concrets.jpg",
-        ogImage: "/blog/cout-dun-bail-de-location-notarie-tarifs-partage-des-frais-et-exemples-concrets.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Kelly Sikkema",
+            profileUrl: "https://unsplash.com/@kellysikkema",
+        },
         createdAt: new Date("2025-09-01"),
         updatedAt: new Date("2026-03-08"),
         categoryId: "1",
@@ -160,8 +192,12 @@ export const blogData = [
         metaDescription: "Signer un bail notarié sans se déplacer : procuration authentique, visioconférence chez le notaire, coût de la formalité et délais à prévoir.",
         metaKeywords:
           "bail notarié, bail notarié d'habitation, bail notarié en ligne, bail notarie en ligne, bail notarié à distance, procuration notariée, signature bail à distance, bail notarié visioconférence, signer bail notarié sans se déplacer, procuration authentique, signature électronique bail, bail notarié expatrié, bail notarié en ligne, signature notariée à distance",
-        imageUrl: "/blog/bail-notarie-a-distance-signer-en-securite-avec-la-procuration.jpg",
-        ogImage: "/blog/bail-notarie-a-distance-signer-en-securite-avec-la-procuration.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1628645339131-0c39c7527856?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1628645339131-0c39c7527856?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Helena Lopes",
+            profileUrl: "https://unsplash.com/@helenalopesph",
+        },
         createdAt: new Date("2025-06-15"),
         updatedAt: new Date("2026-03-08"),
         categoryId: "1",
@@ -179,8 +215,12 @@ export const blogData = [
           "Loyers impayés : comment activer la saisie sur salaire avec un bail notarié (titre exécutoire), les étapes et délais depuis la réforme 2025.",
         metaKeywords:
           "saisie sur salaire, saisie sur salaire bail notarié, recouvrement loyers impayés 2025, décret 2025-125 saisie rémunérations, titre exécutoire notarié, commandement de payer loyer, commissaire de justice saisie salaire, quotité saisissable loyer, procédure recouvrement locatif, bail notarié force exécutoire, saisie rémunérations sans juge, recouvrement accéléré loyers, impayés locatifs solution 2025",
-        imageUrl: "/blog/saisie-sur-salaire-et-bail-notarie-la-procedure-de-recouvrement-acceleree-reforme-2025.jpg",
-        ogImage: "/blog/saisie-sur-salaire-et-bail-notarie-la-procedure-de-recouvrement-acceleree-reforme-2025.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1579170053380-58064b2dee67?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1579170053380-58064b2dee67?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Markus Spiske",
+            profileUrl: "https://unsplash.com/@markusspiske",
+        },
         createdAt: new Date("2025-07-01"),
         updatedAt: new Date("2026-01-20"),
         categoryId: "1",
@@ -197,8 +237,12 @@ export const blogData = [
         metaDescription: "DPE, amiante, plomb, électricité, gaz : durée de validité, coût de chaque diagnostic et conséquences d'un document périmé sur votre bail.",
         metaKeywords:
           "diagnostics immobiliers, DDT dossier diagnostic technique, validité diagnostics immobiliers, DPE durée validité, diagnostic amiante validité, CREP plomb validité, diagnostic électricité gaz, ERP état risques pollutions, diagnostics périmés, loi ALUR diagnostics, diagnostics location vente, coût diagnostics immobiliers, sanctions diagnostics manquants",
-        imageUrl: "/blog/diagnostics-immobiliers-2026-durees-de-validite-couts-et-pieges-juridiques.jpg",
-        ogImage: "/blog/diagnostics-immobiliers-2026-durees-de-validite-couts-et-pieges-juridiques.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1769776400238-cd24612240ea?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1769776400238-cd24612240ea?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Sasun Bughdaryan",
+            profileUrl: "https://unsplash.com/@sasun1990",
+        },
         createdAt: new Date("2026-01-15"),
         updatedAt: new Date("2026-01-20"),
         categoryId: "1",
@@ -215,8 +259,12 @@ export const blogData = [
         metaDescription: "Non, le bail notarié n'accélère pas l'expulsion : le juge reste obligatoire. En revanche il permet de saisir les loyers impayés sans jugement. On détaille.",
         metaKeywords:
           "expulsion locataire, expulsion locative, bail notarié expulsion, titre exécutoire bail notarié, recouvrement loyers impayés, saisie conservatoire bail notarié, saisie rémunérations bail notarié, force exécutoire acte notarié, procédure expulsion locative, recouvrement créances locatives, bail notarié avantages, acte authentique location, sécurité juridique bailleur, impayés locatifs solution",
-        imageUrl: "/blog/bail-notarie-et-expulsion-efficacite-juridique-et-strategie-de-recouvrement.jpg",
-        ogImage: "/blog/bail-notarie-et-expulsion-efficacite-juridique-et-strategie-de-recouvrement.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1741156386380-0236c72eb6f9?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1741156386380-0236c72eb6f9?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Jakub Żerdzicki",
+            profileUrl: "https://unsplash.com/@jakubzerdzicki",
+        },
         createdAt: new Date("2026-01-20"),
         updatedAt: new Date("2026-03-08"),
         categoryId: "1",
@@ -233,8 +281,12 @@ export const blogData = [
         metaDescription: "Ce que l'acte authentique change face à un bail sous seing privé : force probante, date certaine, titre exécutoire et déroulé de la signature chez le notaire.",
         metaKeywords:
           "bail authentique notaire, bail authentique, acte authentique bail de location, prix bail authentique, coût bail authentique, différence bail authentique bail classique, bail de location en France",
-        imageUrl: "/blog/bail-authentique-notaire.jpg",
-        ogImage: "/blog/bail-authentique-notaire.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1471107340929-a87cd0f5b5f3?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1471107340929-a87cd0f5b5f3?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Aaron Burden",
+            profileUrl: "https://unsplash.com/@aaronburden",
+        },
         createdAt: new Date("2026-03-08"),
         updatedAt: new Date("2026-03-16"),
         categoryId: "1",
@@ -251,8 +303,12 @@ export const blogData = [
         metaDescription: "Comment BailNotarie prépare votre dossier de bail notarié : collecte des pièces, vérification, transmission au notaire partenaire et suivi jusqu'à la signature.",
         metaKeywords:
           "BailNotarie, plateforme bail notarié, préparation bail notarié, dossier bail notarié, plateforme digitale notaire, infrastructure digitale bail, notaires partenaires, bail notarié en France",
-        imageUrl: "/blog/bailnotarie-plateforme-digitale-bail-notarie.jpg",
-        ogImage: "/blog/bailnotarie-plateforme-digitale-bail-notarie.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1499750310107-5fef28a66643?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1499750310107-5fef28a66643?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Andrew Neel",
+            profileUrl: "https://unsplash.com/@andrewtneel",
+        },
         createdAt: new Date("2026-03-08"),
         updatedAt: new Date("2026-03-08"),
         categoryId: "1",
@@ -269,8 +325,12 @@ export const blogData = [
         metaDescription: "Le notaire est-il obligatoire pour un bail commercial ? Le cas des baux de plus de 12 ans, le titre exécutoire et le coût réel de l'acte.",
         metaKeywords:
           "bail commercial notarié, bail commercial notaire, bail 3/6/9 notarié, coût bail commercial notarié, notaire bail commercial, acte authentique bail commercial, enregistrement bail commercial, titre exécutoire bail commercial",
-        imageUrl: "/blog/bail-commercial-notarie-contrat-3-6-9.jpg",
-        ogImage: "/blog/bail-commercial-notarie-contrat-3-6-9.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1556741533-6e6a62bd8b49?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1556741533-6e6a62bd8b49?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Christiann Koepke",
+            profileUrl: "https://unsplash.com/@christiannkoepke",
+        },
         createdAt: new Date("2026-03-08"),
         updatedAt: new Date("2026-03-08"),
         categoryId: "1",
@@ -287,8 +347,12 @@ export const blogData = [
         metaDescription: "Bail dérogatoire : durée maximale de 3 ans, différence avec la convention d'occupation précaire et risque de requalification en bail commercial 3/6/9.",
         metaKeywords:
           "bail dérogatoire, article L145-5, article L.145-5 Code de commerce, bail précaire, durée bail dérogatoire, requalification bail commercial, bail de courte durée commercial, convention d'occupation précaire",
-        imageUrl: "/blog/bail-derogatoire-article-l145-5-code-commerce.jpg",
-        ogImage: "/blog/bail-derogatoire-article-l145-5-code-commerce.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1435527173128-983b87201f4d?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1435527173128-983b87201f4d?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Eric Rothermel",
+            profileUrl: "https://unsplash.com/@erothermel",
+        },
         createdAt: new Date("2026-03-08"),
         updatedAt: new Date("2026-03-08"),
         categoryId: "1",
@@ -305,8 +369,12 @@ export const blogData = [
         metaDescription: "Comment fonctionne un bail commercial 3/6/9 : durée, révision du loyer, congé triennal, renouvellement, indemnité d'éviction et rôle du notaire.",
         metaKeywords:
           "bail commercial, bail commercial définition, durée bail commercial, bail commercial 3 6 9, loyer bail commercial, renouvellement bail commercial, résiliation bail commercial, indemnité d'éviction bail commercial, bail commercial notarié, contenu bail commercial, charges bail commercial, bail commercial notaire, clause bail commercial, fonds de commerce, local commercial, droit au bail, commerçant locataire, bail commercial prix, bail commercial obligations, statut baux commerciaux",
-        imageUrl: "/blog/bail-commercial.jpg",
-        ogImage: "/blog/bail-commercial.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1770049792885-b0dcec5fbfb7?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1770049792885-b0dcec5fbfb7?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Zhang Ziyu",
+            profileUrl: "https://unsplash.com/@rs1497",
+        },
         createdAt: new Date("2026-03-24"),
         updatedAt: new Date("2026-04-13"),
         categoryId: "1",
@@ -323,8 +391,12 @@ export const blogData = [
         metaDescription: "Bail, préavis, fiscalité, rentabilité : le comparatif complet entre location nue et location meublée pour choisir le régime adapté à votre bien.",
         metaKeywords:
           "location meublée ou nue, différence location meublée location vide, louer vide ou meublé, fiscalité location meublée, fiscalité location nue, LMNP, revenus fonciers, micro-BIC, micro-foncier, bail meublé durée, bail location nue, décret mobilier location meublée, bail étudiant, bail mobilité, rentabilité location meublée",
-        imageUrl: "/blog/location-meublee-ou-location-nue-quelles-differences.jpg",
-        ogImage: "/blog/location-meublee-ou-location-nue-quelles-differences.jpg",
+        imageUrl: "https://images.unsplash.com/photo-1629042306558-7d1e15cc02fa?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1629042306558-7d1e15cc02fa?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Zac Gudakov",
+            profileUrl: "https://unsplash.com/@zacgudakov",
+        },
         createdAt: new Date("2026-07-19"),
         updatedAt: new Date("2026-07-19"),
         categoryId: "1",

@@ -357,6 +357,28 @@ export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) 
           priority
         />
         <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/50 to-black/25" />
+        {article.imageCredit?.name && (
+          <p className="absolute bottom-2 right-3 z-10 text-[10px] text-white/55">
+            Photo{' '}
+            <a
+              href={article.imageCredit.profileUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="underline hover:text-white/80"
+            >
+              {article.imageCredit.name}
+            </a>{' '}
+            sur{' '}
+            <a
+              href="https://unsplash.com"
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="underline hover:text-white/80"
+            >
+              Unsplash
+            </a>
+          </p>
+        )}
         <div className="absolute inset-0 flex items-end pt-21">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 md:pb-25 w-full">
           
