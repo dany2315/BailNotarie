@@ -12,6 +12,7 @@ import { CommentsSection, CommentsSectionRef } from '@/components/comments-secti
 import { formatDate, calculateReadTime } from '@/lib/blog-utils';
 import { getRelatedLinksWithMedia } from '@/lib/blog-links';
 import { blogData } from '@/lib/blog-data';
+import { RelatedThumbnail } from '@/components/blog/related-thumbnail';
 import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content } from '@/components/blog-content';
 
 type TocItem = {
@@ -541,12 +542,9 @@ export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) 
                               className="block group rounded-xl p-2 no-underline hover:bg-gray-50 transition-colors"
                             >
                               <div className="flex gap-3">
-                                <Image
+                                <RelatedThumbnail
                                   src={link.image}
-                                  alt=""
-                                  width={60}
-                                  height={60}
-                                  className="rounded object-cover h-[60px] w-[60px] shrink-0"
+                                  className="rounded object-cover h-[60px] w-[60px] shrink-0 bg-gray-100"
                                 />
                                 <div className="min-w-0">
                                   <h3 className="font-medium text-sm group-hover:text-blue-600 transition-colors line-clamp-2 text-gray-900 mt-0 mb-0">
