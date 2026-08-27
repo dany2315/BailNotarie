@@ -107,6 +107,8 @@ aujourd'hui.**
 **E2 — Aucune numérotation séquentielle, continue et sans rupture.**
 Prérequis absolu (art. 242 nonies A ann. II CGI) et prérequis technique de toute PA. Aujourd'hui
 inexistant. Le `paymentIntentId` Stripe (`pi_xxx`) n'est pas un numéro de facture.
+**Correctif : déléguer la séquence à la PA** (numérotation automatique Qonto) plutôt que de
+construire un compteur maison — cf. § 7.1.
 
 **E3 — Aucun webhook Stripe.**
 `app/api/stripe/` ne contient que les deux routes de création de PaymentIntent ; aucun
@@ -169,10 +171,11 @@ Bloquant pour la facturation récurrente des notaires (flux futur n°3).
 Aucune notion de catalogue tarifaire ni de prix historisé. Une facture doit refléter le prix
 **au jour de la vente** ; un changement de tarif rendrait tout l'historique incohérent.
 
-**E11 — Aucune politique d'archivage.** La réforme impose la conservation des factures
-électroniques dans leur format d'origine (10 ans, art. L.123-22 C. com. / art. 102 B LPF).
-Rien n'est prévu, alors que vous disposez déjà d'une infra S3 (`MIGRATION_S3.md`) parfaitement
-adaptée.
+**E11 — Aucune politique d'archivage.** Conservation des factures dans leur format d'origine :
+6 ans au titre fiscal (art. L102 B LPF), 10 ans au titre comptable (art. L123-22 C. com.).
+**Cette obligation ne se délègue pas** : une plateforme agréée n'est pas tenue d'archiver — ce
+n'est pas dans son périmètre réglementaire, seulement une option commerciale. Rien n'est prévu,
+alors que l'infra S3 déjà en place (`MIGRATION_S3.md`) s'y prête.
 
 ---
 
@@ -392,53 +395,52 @@ vérification de dossiers, hébergement, support) — et non un pourcentage d'é
    `constructEvent`, idempotence, événements `payment_intent.succeeded`, `charge.refunded`,
    `charge.dispute.created`. **Corrige E3 et fiabilise l'ensemble du parcours de paiement,
    indépendamment de la facturation.**
-2. **Modèle de données facturation** :
+2. **Modèle de données facturation** — un **journal d'émission**, pas une réimplémentation
+   de la facturation (voir §&nbsp;7.1 pour la justification) :
 
 ```prisma
 model Invoice {
-  id            String        @id @default(cuid())
-  number        String        @unique          // séquentiel, sans rupture
-  sequenceYear  Int
-  sequenceIndex Int
-  type          InvoiceType                     // INVOICE | CREDIT_NOTE | DEPOSIT
-  status        InvoiceStatus                   // DRAFT|ISSUED|SENT|PAID|REJECTED|CREDITED
-  channel       InvoiceChannel                  // B2B_PA | B2C_EREPORTING
+  id String @id @default(cuid())
 
-  amountHT      Int                             // centimes
-  vatRate       Int                             // points de base (2000 = 20%)
-  amountVAT     Int
-  amountTTC     Int
-  currency      String        @default("EUR")
+  // — rattachement métier : ce que la PA ne connaîtra jamais —
+  clientId     String?
+  bailId       String?
+  intakeLinkId String?
 
-  operationCategory OperationCategory           // SERVICES (mention obligatoire 2026)
-  buyerSiren    String?                         // clé de routage annuaire — B2B
-  buyerName     String
-  buyerAddress  String
-  deliveryAddress String?                       // mention obligatoire si ≠ facturation
-  vatOnDebits   Boolean       @default(false)   // mention obligatoire si option exercée
+  // — rattachement paiement : la clé de réconciliation —
+  stripePaymentIntentId String  @unique
+  stripeRefundId        String?            // avoir
 
-  stripePaymentIntentId String?
-  paidAt        DateTime?                       // date d'encaissement → flux 10.2
+  // — orchestration : la vraie raison d'être de cette table —
+  status         IssuanceStatus @default(PENDING)  // PENDING|SUBMITTED|ISSUED|FAILED
+  idempotencyKey String         @unique
+  attempts       Int            @default(0)
+  lastError      String?
 
-  paProvider    String?                         // "qonto"
-  paInvoiceId   String?                         // id côté PA
-  paStatus      String?                         // statut cycle de vie
-  paSubmittedAt DateTime?
+  // — miroir de la PA : jamais calculé ici, toujours reçu —
+  provider       String    @default("qonto")
+  externalId     String?   @unique
+  externalNumber String?                    // numéro attribué PAR la PA
+  externalStatus String?                    // statut de cycle de vie
+  issuedAt       DateTime?
 
-  archiveKey    String?                         // S3, conservation 10 ans
-  creditedById  String?                         // avoir rattaché
+  // — ce qui doit survivre à un changement de PA —
+  payload    Json                           // exactement ce qui a été envoyé
+  amountTTC  Int                            // réconciliation avec Stripe
+  archiveKey String?                        // copie S3 du Factur-X
 
-  clientId      String?
-  client        Client?       @relation(fields: [clientId], references: [id])
-  createdAt     DateTime      @default(now())
+  createdAt DateTime @default(now())
 
-  @@index([clientId])
-  @@index([sequenceYear, sequenceIndex])
+  @@index([status])
 }
 ```
 
-3. **Numérotation séquentielle** — compteur en base, transaction atomique (`SELECT … FOR UPDATE`
-   ou séquence Postgres), format `BN-2026-000123`. Jamais de trou, jamais de réutilisation.
+3. **Numérotation : déléguée à la PA.** Activer la numérotation automatique côté Qonto et se
+   contenter de recopier le numéro rendu dans `externalNumber`. Ne **pas** construire de compteur
+   maison : une séquence légale à cheval entre votre base et la PA est une source de ruptures
+   (environnements multiples, races, factures créées à la main depuis l'interface Qonto).
+   Règle absolue en contrepartie : **une seule source émettrice**.
+
 4. **Catalogue tarifaire** — sortir le `3990` du code (E10), historiser le prix sur la facture.
 5. **Normaliser `Entreprise.registration` en SIREN** — validation 9 chiffres + clé de Luhn,
    migration des données existantes (E6).
@@ -478,6 +480,60 @@ model Invoice {
 
 ---
 
+### 7.1 Pourquoi une table locale si la plateforme agréée fait tout ?
+
+Objection légitime : la PA génère le Factur-X, attribue le numéro, transmet à l'annuaire, fait
+l'e-reporting et remonte les statuts. Pourquoi ne pas se contenter d'un champ
+`qontoInvoiceId String?` sur `IntakeLink` ?
+
+**Ce qu'il faut effectivement lui déléguer** — et que la version initiale de cet audit avait à
+tort prévu de coder : la **numérotation séquentielle**, la génération du format structuré, la
+transmission, l'e-reporting, les statuts de cycle de vie. Tout cela sort du périmètre applicatif.
+
+**Ce qu'elle ne fait pas, et qui justifie la table :**
+
+**a) L'idempotence — l'argument décisif.** Scénario réel : le webhook `payment_intent.succeeded`
+déclenche l'appel API, qui expire au bout de 30 s. La PA a créé la facture et **consommé un
+numéro** ; vous n'avez pas reçu la réponse. Stripe rejoue le webhook (jusqu'à 3 jours). Sans
+enregistrement local écrit **avant** l'appel, vous rappelez l'API → **deuxième facture, deuxième
+numéro**. Or une facture en trop dans une séquence légale **ne se supprime pas** : il faut émettre
+un avoir pour l'annuler — et en B2B elle a déjà été transmise à l'acheteur via l'annuaire.
+La table locale n'existe donc pas pour refaire ce que fait la PA : elle existe **parce que** la PA
+fait quelque chose d'irréversible.
+
+**b) La réconciliation.** « Quels paiements encaissés n'ont pas de facture ? » est une requête que
+vous devez pouvoir passer à tout moment. Avec un simple `qontoInvoiceId` nullable, un `null` est
+ambigu : jamais tenté, en cours, ou échoué ? Un statut explicite lève l'ambiguïté.
+
+**c) L'archivage — obligation qui reste la vôtre.** Une PA **n'est pas tenue d'archiver** : ce
+n'est pas dans son périmètre réglementaire, c'est une activité annexe que certaines proposent en
+option. L'obligation de conservation pèse sur DS SYNC — **6 ans** au titre fiscal (art. L102 B LPF)
+et **10 ans** au titre comptable (art. L123-22 C. com.), avec garantie d'authenticité, d'intégrité
+et de lisibilité. D'où `archiveKey` et la copie S3.
+
+**d) La portabilité.** C'est le corollaire du connecteur abstrait recommandé au §&nbsp;7 : si tout
+l'historique de facturation vit chez un prestataire, en partir revient à n'emporter que des PDF.
+147 PA se disputent un marché qui va se consolider.
+
+**e) L'affichage côté client.** La page de confirmation et l'espace client doivent proposer le
+téléchargement de la facture. Appeler l'API de la PA à chaque rendu, c'est de la latence, du quota
+et un couplage fort.
+
+**f) Le contenu métier.** La PA ne sait pas quel dossier, quel bail, quel tarif au jour de la
+vente. Vous construisez ce payload de toute façon — autant conserver ce que vous avez envoyé.
+
+**Le test décisif.** Trois questions auxquelles vous devez pouvoir répondre sans appeler personne :
+*ce paiement a-t-il une facture ?* — *y a-t-il des paiements sans facture depuis hier ?* —
+*pouvez-vous ressortir cette facture dans huit ans, même après avoir quitté Qonto ?*
+Si les trois réponses dépendent de l'API d'un tiers, vous avez externalisé non pas l'émission,
+mais votre piste d'audit.
+
+**En pratique** : le modèle passe de ~30 à ~15 champs et change de nature. Ce n'est plus un modèle
+de facture, c'est un **journal d'émission** : à qui, pour quel paiement, envoyé quand, avec quel
+résultat, archivé où.
+
+---
+
 ## 8. Risques
 
 | Risque | Impact | Probabilité | Mitigation |
@@ -499,8 +555,9 @@ model Invoice {
    Vous seriez non conforme même sans la réforme (arrêté de 1983, note obligatoire dès 25 € TTC).
 2. **Vous n'avez besoin d'aucune nouvelle plateforme.** Qonto (PA n°23) et Tiime (PA) couvrent
    déjà l'obligation. Stripe reste le PSP. Votre stack à 3 outils est la bonne.
-3. **Le travail est du développement**, pas de l'achat : webhook, modèle `Invoice`, numérotation,
-   connecteur PA, archivage. Estimation : **5 à 7 semaines** de développement pour les phases 1–2.
+3. **Le travail est du développement**, pas de l'achat : webhook, journal d'émission `Invoice`,
+   connecteur PA, archivage. Estimation : **5 à 7 semaines** pour les phases 1–2.
+   La numérotation, le format et la transmission sont délégués à la PA — ne les codez pas.
 4. **Une seule chose est urgente à date** : activer la facturation électronique Qonto et se
    référencer à l'annuaire avant le **1ᵉʳ septembre 2026**. Une heure de travail administratif.
 5. **Les flux notaires doivent être validés juridiquement avant d'être développés.** Le risque
@@ -568,6 +625,12 @@ model Invoice {
 **TVA & obligation de facturation**
 - [Bpifrance Création — PLF 2026 : franchise en base de TVA](https://bpifrance-creation.fr/entrepreneur/actualites/plf-2026-franchise-base-tva-annoncee-a-37-500-eu)
 - [Le Coin des Entrepreneurs — Franchise en base de TVA, règles 2026](https://www.lecoindesentrepreneurs.fr/franchise-en-base-de-tva-nouvelles-regles-2026/)
+
+**Archivage & conservation**
+- [Kohen Avocats — Qui doit conserver les factures 10 ans si la plateforme ne les archive pas ?](https://kohenavocats.fr/2026/08/24/facture-electronique-conservation-10-ans-plateforme-agreee-2026/)
+- [Pennylane — Archivage facture électronique : durée, règles et sanctions](https://www.pennylane.com/fr/fiches-pratiques/facture-electronique/archivage-des-factures-electroniques)
+- [Tiime — Archivage des factures électroniques : ce que dit la loi en 2026](https://blog.tiime.fr/archivage-des-factures-electroniques-tout-sera-automatique)
+- [Mon Expert en Gestion — Archivage : obligations légales et durée](https://www.mon-expert-en-gestion.com/ressources/archivage-facture-electronique-obligations-duree/)
 - [Légifrance — Arrêté n° 83-50/A du 3 octobre 1983](https://www.legifrance.gouv.fr/loda/id/JORFTEXT000000494187/)
 - [Sénat — Remise d'une note pour prestation de service supérieure à 25 €](https://www.senat.fr/questions/base/2026/qSEQ260207523.html)
 
