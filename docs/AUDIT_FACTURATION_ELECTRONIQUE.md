@@ -211,14 +211,99 @@ ce qui confirme la doctrine : *Stripe encaisse, une PA facture*.
 - Rapprochement bancaire natif : la facture et l'encaissement vivent au même endroit.
 - **Vous l'avez déjà.** Zéro nouvel abonnement, zéro nouvel outil à administrer.
 
-**Limite à vérifier avant de vous engager** : l'endpoint de création de facture client est
-documenté, mais la documentation publique détaille surtout le déclenchement automatique de
-l'e-invoicing pour les organisations **italiennes** (SdI). **Action à mener cette semaine** :
-obtenir de Qonto la confirmation écrite que l'émission via PA française (et l'e-reporting B2C)
-est déclenchable **par API** et pas seulement depuis l'interface web. C'est le seul point qui
-peut faire basculer la recommandation vers Tiime.
+**Limites et vérifications** : détaillées au § 4.4 ci-dessous.
 
-### 4.4 Le plan B : Tiime
+### 4.4 Vérification technique de l'intégration Qonto
+
+Vérifications menées le 28 août 2026 sur la spécification OpenAPI publique de la Qonto Business API
+(miroir GitHub `api-evangelist/qonto`), la documentation d'aide Qonto et des sources tierces.
+`qonto.com` et `docs.qonto.com` étant inaccessibles depuis l'environnement d'audit, les détails
+d'endpoints sont **indicatifs** et doivent être reconfirmés sur la documentation officielle.
+
+#### Ce qui est confirmé — l'intégration est simple
+
+| Point | Constat |
+|---|---|
+| Base URL | `https://thirdparty.qonto.com` |
+| **Sandbox** | `https://thirdparty-sandbox.staging.qonto.co` — **recette possible sans polluer la numérotation réelle** |
+| Authentification | En-tête `Authorization: {login}:{secret-key}` — pas de Base64, pas d'OAuth pour sa propre organisation |
+| Émission | `POST /v2/client_invoices`, scope `client_invoice.write` |
+| Lecture | `GET /v2/client_invoices`, scope `client_invoices.read` |
+| Numérotation | Automatique si activée au niveau de l'organisation — le numéro devient alors **facultatif** dans la requête |
+| Formats | Factur-X, UBL, CII en natif ; génération du PDF Factur-X côté Qonto |
+| Interopérabilité | PEPPOL, protocoles AS/2 et AS/4 |
+| Avoirs | Couverts par la même API (« invoices, quotes, and credit notes ») |
+| Réception fournisseurs | `GET/POST /v2/supplier_invoices`, scope `supplier_invoice.read` |
+| Webhooks | Ressource `INVOICE`, événements `CREATED` et `UPDATED` → synchronisation des statuts |
+| Plan requis | API REST dès le plan Basic ; e-invoicing inclus sans limite dans toutes les offres |
+| Certifications | ISO 27001, SecNumCloud |
+
+**Charge de développement du connecteur Qonto seul : 3 à 5 jours.** L'essentiel des 5 à 7 semaines
+estimées reste votre propre plomberie — webhook Stripe, journal d'émission, archivage, avoirs,
+routage B2B/B2C, back-office de réconciliation.
+
+#### Les trois réserves
+
+**R1 — L'e-reporting est en bêta, et c'est votre flux principal.** ⚠️
+En juillet 2026, la fonction e-reporting de Qonto est encore présentée comme **en version bêta**,
+accessible à un **nombre limité d'organisations françaises éligibles**. L'activation se fait par
+une bannière dans la section Facturation, réservée au Titulaire ou à un Admin ; si la bannière
+n'apparaît pas, l'organisation n'y a pas encore accès. Les critères d'éligibilité évoqués
+mentionnent l'émission ou la réception de **factures B2B transfrontalières** — ce que DS SYNC ne
+fait pas.
+
+C'est **la** réserve qui compte&nbsp;: votre chiffre d'affaires est majoritairement B2C, donc
+relève de l'e-reporting, pas de l'e-invoicing. Qonto couvre aujourd'hui de façon certaine votre
+flux B2B (SCI, sociétés, futurs frais notaires) — **pas encore de façon certaine votre flux
+principal**. L'échéance étant à septembre 2027, il reste douze mois&nbsp;: c'est confortable, mais
+c'est une **dépendance à suivre, pas à supposer acquise**.
+
+**R2 — Le déclenchement de l'émission via PA n'est pas explicite dans l'API.**
+La spécification expose un scope `einvoicing.read` («&nbsp;Read e-invoicing settings&nbsp;») mais
+**aucun `einvoicing.write`**. Cela suggère que la transmission via PA est pilotée par un **réglage
+au niveau de l'organisation**, et non par un paramètre d'appel — le même schéma que pour les
+organisations italiennes, où une facture créée avec l'e-invoicing activé part automatiquement vers
+le SdI. C'est plutôt une bonne nouvelle (rien à coder), mais à faire confirmer&nbsp;: *une facture
+créée par API pour une organisation française avec e-invoicing activé part-elle automatiquement
+via la PA&nbsp;?*
+
+**R3 — L'archivage n'est pas garanti.** Aucune source ne confirme une conservation 10 ans chez
+Qonto. Et comme vu au § 7.1, l'obligation reste la vôtre de toute façon. La copie S3 n'est donc
+pas une redondance&nbsp;: c'est le dispositif principal.
+
+#### Les quatre questions à poser à Qonto
+
+1. DS SYNC est-elle **éligible à l'e-reporting**, et quand sort-il de bêta&nbsp;? *(question n°1,
+   elle conditionne tout)*
+2. Une facture créée **par API** pour une organisation française avec e-invoicing activé est-elle
+   **automatiquement transmise via la PA**, ou faut-il une action complémentaire&nbsp;?
+3. Quelle **durée de conservation** des factures émises et reçues, et sous quelle forme sont-elles
+   restituables&nbsp;?
+4. Les **statuts de cycle de vie** de la PA (déposée, rejetée, encaissée) sont-ils exposés par
+   l'API et poussés par webhook&nbsp;?
+
+#### Verdict
+
+**Oui, Qonto suffit — sous réserve R1.** Pour l'e-invoicing B2B, c'est acquis et l'intégration est
+franchement simple. Pour l'e-reporting B2C, c'est probable mais non garanti à ce jour. Ne signez
+pas la conception sans la réponse à la question 1&nbsp;; en attendant, tout le travail des phases 1
+et 2 reste valable, puisqu'il est indépendant de la PA retenue — c'est précisément le rôle du
+connecteur abstrait.
+
+---
+
+### 4.5 Le plan B : Tiime — plus faible que prévu
+
+Tiime est bien **Plateforme Agréée**, mais son **API publique figure encore sur sa roadmap
+produit** : elle n'est pas généralement disponible. Tiime reste donc un excellent canal comptable
+et un recours pour une émission manuelle ou semi-manuelle, **mais pas pour une intégration
+programmatique** à court terme.
+
+Si l'e-reporting Qonto ne s'ouvre pas d'ici mi-2027, le vrai plan B n'est pas Tiime par API&nbsp;:
+c'est **Billit** (PA n°19), partenaire e-invoicing référencé par Stripe sur son App Marketplace,
+au prix d'une quatrième plateforme.
+
+### 4.6 Qonto ou Tiime : l'arbitrage
 
 Tiime est **également Plateforme Agréée** (immatriculée le 18/12/2025), gère Factur-X / UBL / CII,
 et est **gratuit** pour les petites structures. Avantage décisif : **c'est déjà le canal de votre
@@ -230,15 +315,16 @@ comptable**, donc la facture arrive nativement dans le dossier comptable, sans p
 |---|---|---|
 | Statut PA | n°23, définitif | Immatriculée 18/12/2025 |
 | Coût | Inclus dans votre abonnement | Gratuit |
-| API publique documentée | Oui, tous les plans | À valider |
+| API publique documentée | Oui, tous les plans (+ sandbox) | **Non — encore sur la roadmap produit** |
 | Rapprochement bancaire | Natif (c'est votre banque) | Via connexion bancaire |
+| E-reporting B2C | **Bêta, accès restreint** | À valider |
 | Chaîne comptable | Export vers Tiime | **Direct** |
 
-→ **Recommandation : Qonto en premier choix** (API mieux documentée, banque + facturation + PA au
-même endroit), **Tiime en second** si l'API Qonto ne couvre pas l'émission PA française.
-**Ne prenez pas les deux** : une seule PA émettrice, sinon vous fracturez votre numérotation.
+→ **Recommandation : Qonto**, sans hésitation pour l'intégration programmatique — c'est la seule
+des deux à exposer une API publique avec sandbox. **Ne prenez pas les deux** : une seule PA
+émettrice, sinon vous fracturez votre numérotation.
 
-### 4.5 Ce qu'il ne faut pas faire
+### 4.7 Ce qu'il ne faut pas faire
 
 - ❌ **Compter sur Stripe seul** : jamais conforme, quelle que soit l'évolution du produit.
 - ❌ **Générer des PDF maison** avec une lib Node : après septembre 2027, un PDF n'est pas une
@@ -383,7 +469,7 @@ vérification de dossiers, hébergement, support) — et non un pourcentage d'é
 |---|---|---|
 | 0.1 | **Activer la facturation électronique dans Qonto** et se référencer à l'annuaire (obligation de **réception**) | Dirigeant, ~1 h |
 | 0.2 | **Trancher le statut TVA** de DS SYNC (franchise en base vs assujetti) avec le comptable | Comptable |
-| 0.3 | Confirmer par écrit auprès de Qonto la **couverture API** de l'émission PA FR + e-reporting | Dirigeant |
+| 0.3 | Poser à Qonto les **4 questions du § 4.4** — en priorité l'éligibilité à l'e-reporting | Dirigeant |
 | 0.4 | Prendre un rendez-vous avocat sur les flux A/B/C (EPCT, partage d'émoluments) | Dirigeant |
 
 > 0.1 est la seule action réellement **datée au 1ᵉʳ septembre 2026**. Elle est purement
@@ -625,6 +711,16 @@ résultat, archivé où.
 **TVA & obligation de facturation**
 - [Bpifrance Création — PLF 2026 : franchise en base de TVA](https://bpifrance-creation.fr/entrepreneur/actualites/plf-2026-franchise-base-tva-annoncee-a-37-500-eu)
 - [Le Coin des Entrepreneurs — Franchise en base de TVA, règles 2026](https://www.lecoindesentrepreneurs.fr/franchise-en-base-de-tva-nouvelles-regles-2026/)
+
+**Intégration technique Qonto**
+- [Spécification OpenAPI Qonto Business API (miroir GitHub)](https://github.com/api-evangelist/qonto)
+- [Qonto Docs — Create a client invoice](https://docs.qonto.com/api-reference/business-api/expense-management/client-quotes-notes/client-invoices/create-a-client-invoice)
+- [Qonto Docs — Authentification par clé API](https://docs.qonto.com/get-started/business-api/authentication/api-key)
+- [Qonto Docs — Webhooks : setup and supported events](https://docs.qonto.com/api-reference/onboarding-api/webhooks/webhooks)
+- [Qonto Support — Comment activer et utiliser l'e-reporting avec Qonto](https://support-fr.qonto.com/hc/fr/articles/48509023125521-Comment-activer-et-utiliser-l-e-reporting-avec-Qonto)
+- [Selectra — Qonto et la facturation électronique 2026](https://selectra.info/finance/banques/qonto/facturation-electronique)
+- [Comparateur — Fiche produit Qonto, plateforme agréée](https://www.comparateur-facturation-electronique.fr/produit/qonto/)
+- [Tiime — Roadmap produit : API publique](https://roadmap.tiime.fr/c/458-api-publique)
 
 **Archivage & conservation**
 - [Kohen Avocats — Qui doit conserver les factures 10 ans si la plateforme ne les archive pas ?](https://kohenavocats.fr/2026/08/24/facture-electronique-conservation-10-ans-plateforme-agreee-2026/)
