@@ -257,6 +257,8 @@ relève de l'e-reporting, pas de l'e-invoicing. Qonto couvre aujourd'hui de faç
 flux B2B (SCI, sociétés, futurs frais notaires) — **pas encore de façon certaine votre flux
 principal**. L'échéance étant à septembre 2027, il reste douze mois&nbsp;: c'est confortable, mais
 c'est une **dépendance à suivre, pas à supposer acquise**.
+À noter : **Tiime, lui, propose l'e-reporting en disponibilité générale et gratuitement** (§ 4.5) —
+c'est le point sur lequel Qonto est aujourd'hui en retard.
 
 **R2 — Le déclenchement de l'émission via PA n'est pas explicite dans l'API.**
 La spécification expose un scope `einvoicing.read` («&nbsp;Read e-invoicing settings&nbsp;») mais
@@ -281,6 +283,8 @@ pas une redondance&nbsp;: c'est le dispositif principal.
    restituables&nbsp;?
 4. Les **statuts de cycle de vie** de la PA (déposée, rejetée, encaissée) sont-ils exposés par
    l'API et poussés par webhook&nbsp;?
+5. Une **synchronisation récurrente des factures clients vers Tiime** est-elle prévue, sur le
+   modèle de celle qui existe pour Pennylane&nbsp;?
 
 #### Verdict
 
@@ -292,16 +296,62 @@ connecteur abstrait.
 
 ---
 
-### 4.5 Le plan B : Tiime — plus faible que prévu
+### 4.5 Tiime : la chaîne comptable et le cas d'un basculement
 
-Tiime est bien **Plateforme Agréée**, mais son **API publique figure encore sur sa roadmap
-produit** : elle n'est pas généralement disponible. Tiime reste donc un excellent canal comptable
-et un recours pour une émission manuelle ou semi-manuelle, **mais pas pour une intégration
-programmatique** à court terme.
+#### L'intégration Qonto → Tiime existe, mais elle est partielle
 
-Si l'e-reporting Qonto ne s'ouvre pas d'ici mi-2027, le vrai plan B n'est pas Tiime par API&nbsp;:
-c'est **Billit** (PA n°19), partenaire e-invoicing référencé par Stripe sur son App Marketplace,
-au prix d'une quatrième plateforme.
+| Flux | Mode |
+|---|---|
+| Transactions bancaires + pièces jointes | **Automatique** (synchronisation Qonto → Tiime ; côté Tiime, agrégation via Powens, agréé ACPR) |
+| Factures d'achat (fournisseurs) | **Automatique** — Qonto étant PA, elles arrivent dans l'espace sans téléchargement |
+| **Factures de vente** | **Export de fichier** d'écritures comptables (achats, ventes, notes de frais, banque) avec justificatifs. Qonto génère nativement un format **Tiime** (parmi Agiris, Cegid Expert, EBP, FULLL, Pennylane, Sage 50/100, CSV/XLS) |
+| Accès direct du comptable | Espace expert-comptable côté Qonto |
+
+**L'asymétrie à connaître** : Qonto propose une intégration dédiée
+« **Export des factures clients (récurrent)** » — synchronisation toutes les 3 heures des factures
+émises et payées, avoirs compris — **pour Pennylane, pas pour Tiime**. Raison probable : Qonto et
+Tiime sont concurrents sur le marché des experts-comptables (Qonto publie un comparateur
+« Regate by Qonto ou Tiime »). **Ne comptez pas sur un approfondissement rapide de cette
+intégration.**
+
+**En pratique pour le comptable** : les encaissements et les justificatifs remontent seuls ; le
+journal des ventes est un export périodique. Avec une seule ligne de produit et un flux Stripe,
+c'est un geste mensuel, pas une charge. Et comme le journal d'émission local existe de toute façon
+(§ 7.1), cet export peut aussi être produit depuis votre propre base.
+
+#### Tiime plutôt que Qonto pour émettre ?
+
+Deux avantages réels à Tiime, qu'il faut reconnaître :
+
+1. **L'e-reporting est disponible et inclus dans l'offre gratuite** — émission Factur-X, réception
+   des factures fournisseurs, e-reporting B2C et international, sans abonnement ni carte bancaire.
+   **C'est exactement la réserve R1 du § 4.4, et Tiime la résout.**
+2. C'est nativement le dossier du comptable : aucune passerelle, aucun export.
+
+Un inconvénient rédhibitoire dans votre cas :
+
+**Pas d'API publique** — elle figure encore sur la roadmap produit de Tiime. Or vous devez émettre
+une facture **à chaque paiement Stripe**, automatiquement. Sans API, c'est de la saisie manuelle :
+non viable dès quelques dizaines de dossiers par mois, et cela annule l'intérêt du projet.
+
+Contournement possible : **Chift**, une API unifiée de comptabilité qui expose un connecteur Tiime.
+Mais cela ajoute un quatrième prestataire payant — exactement ce que vous voulez éviter — et un
+maillon de plus dans la chaîne.
+
+**Conclusion : gardez Qonto pour l'émission.** L'API est le critère décisif et elle n'existe que
+là. La bonne question n'est pas « Tiime ou Qonto » mais **« que fait-on si l'e-reporting Qonto ne
+s'ouvre pas ? »** — et Tiime devient alors le plan B sérieux, via Chift ou via une émission
+semi-manuelle transitoire.
+
+#### ⚠️ Une piste séduisante mais à ne pas décider seul
+
+On pourrait imaginer **Qonto qui émet et porte l'e-invoicing B2B**, et **Tiime qui porte
+l'e-reporting B2C** depuis les écritures de vente importées. C'est tentant, et cela contournerait
+R1. C'est aussi **risqué** : deux plateformes agréées sur des périmètres voisins, c'est un risque
+de **double transmission ou de trou de transmission**.
+
+Règle à poser noir sur blanc avec votre expert-comptable, et à faire confirmer par les deux
+éditeurs : **une seule PA transmet, et le partage de périmètre est explicite.**
 
 ### 4.6 Qonto ou Tiime : l'arbitrage
 
@@ -317,12 +367,13 @@ comptable**, donc la facture arrive nativement dans le dossier comptable, sans p
 | Coût | Inclus dans votre abonnement | Gratuit |
 | API publique documentée | Oui, tous les plans (+ sandbox) | **Non — encore sur la roadmap produit** |
 | Rapprochement bancaire | Natif (c'est votre banque) | Via connexion bancaire |
-| E-reporting B2C | **Bêta, accès restreint** | À valider |
+| **E-reporting B2C** | **Bêta, accès restreint** | **Inclus dans l'offre gratuite** |
 | Chaîne comptable | Export vers Tiime | **Direct** |
 
-→ **Recommandation : Qonto**, sans hésitation pour l'intégration programmatique — c'est la seule
-des deux à exposer une API publique avec sandbox. **Ne prenez pas les deux** : une seule PA
-émettrice, sinon vous fracturez votre numérotation.
+→ **Recommandation : Qonto pour l'émission** — c'est la seule des deux à exposer une API publique
+avec sandbox, et sans API il n'y a pas d'automatisation possible. **Tiime reste la chaîne
+comptable**, et devient le plan B si l'e-reporting Qonto ne s'ouvre pas. **Une seule PA émettrice**,
+sinon vous fracturez votre numérotation.
 
 ### 4.7 Ce qu'il ne faut pas faire
 
@@ -711,6 +762,15 @@ résultat, archivé où.
 **TVA & obligation de facturation**
 - [Bpifrance Création — PLF 2026 : franchise en base de TVA](https://bpifrance-creation.fr/entrepreneur/actualites/plf-2026-franchise-base-tva-annoncee-a-37-500-eu)
 - [Le Coin des Entrepreneurs — Franchise en base de TVA, règles 2026](https://www.lecoindesentrepreneurs.fr/franchise-en-base-de-tva-nouvelles-regles-2026/)
+
+**Chaîne comptable Qonto ↔ Tiime**
+- [Qonto Support — Comment puis-je intégrer Tiime avec Qonto ?](https://support-fr.qonto.com/hc/fr/articles/48579753282833-Comment-puis-je-int%C3%A9grer-Tiime-avec-Qonto)
+- [Qonto — Intégration Tiime](https://qonto.com/en/integrations/tiime)
+- [Qonto — Intégration Pennylane, export des factures clients (récurrent)](https://qonto.com/fr/integrations/pennylane-client-invoices-sync)
+- [Tiime — Synchronisation bancaire](https://www.tiime.fr/synchronisation-bancaire)
+- [Tiime Aide — Comment ajouter mon compte Qonto](https://support.tiime.fr/fr/articles/26264-comment-ajouter-mon-compte-qonto)
+- [Tiime — Plateforme agréée : facturation électronique gratuite](https://www.tiime.fr/facturation-electronique)
+- [Chift — API unifiée de comptabilité](https://www.chift.eu/fr/tools/tiime)
 
 **Intégration technique Qonto**
 - [Spécification OpenAPI Qonto Business API (miroir GitHub)](https://github.com/api-evangelist/qonto)
