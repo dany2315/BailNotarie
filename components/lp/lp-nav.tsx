@@ -71,12 +71,14 @@ export function LpNav() {
             <Phone className="h-3.5 w-3.5" />
             07 49 38 77 56
           </a>
+          {/* Sur mobile, la barre se limite au logo et au menu : le CTA est
+              repris dans le panneau déroulant. */}
           <Link
             href="/commencer"
-            className="group inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-3.5 py-2.5 sm:px-4 text-[13.5px] font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.3)_inset,0_8px_24px_-10px_rgba(53,99,233,0.9)] transition-transform duration-300 hover:-translate-y-0.5"
+            className="group hidden shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-3.5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.3)_inset,0_8px_24px_-10px_rgba(53,99,233,0.9)] transition-transform duration-300 hover:-translate-y-0.5 sm:inline-flex sm:px-4"
           >
-            <span className="hidden sm:inline">Constituer mon dossier</span>
-            <span className="sm:hidden">Commencer</span>
+            <span className="hidden md:inline">Constituer mon dossier</span>
+            <span className="md:hidden">Commencer</span>
             <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
           </Link>
           <button
@@ -113,6 +115,14 @@ export function LpNav() {
           >
             <Phone className="h-4 w-4 text-[#4373f5]" /> 07 49 38 77 56
           </a>
+          <Link
+            href="/commencer"
+            onClick={() => setOpen(false)}
+            className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-4 py-3 text-[15px] font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.3)_inset,0_8px_24px_-10px_rgba(53,99,233,0.9)] sm:hidden"
+          >
+            Constituer mon dossier
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </motion.div>
       )}
     </div>
