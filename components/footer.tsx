@@ -53,12 +53,15 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">Contact</h3>
             <div className="space-y-3 text-sm text-gray-400">
-              <Button variant="link" className="flex items-center space-x-2 text-white cursor-pointer" onClick={() => window.open('tel:0123456789', '_blank')}>
-                <Phone className="h-4 w-4" />
+              <Button variant="link" className="flex h-auto max-w-full items-center justify-start space-x-2 px-0 text-white cursor-pointer" onClick={() => window.open('tel:0123456789', '_blank')}>
+                <Phone className="h-4 w-4 shrink-0" />
                 <span>07 49 38 77 56</span>
               </Button>
-              <Button variant="link" className="flex items-center space-x-2 text-white cursor-pointer" onClick={() => window.open('mailto:contact@bailnotarie.fr', '_blank')}>
-                <Mail className="h-4 w-4" />
+              {/* h-auto + px-0 + break-all : sans cela, l'adresse e-mail ne peut
+                  pas rétrécir dans sa colonne et déborde la page entre 640 et
+                  1024px (scroll horizontal). */}
+              <Button variant="link" className="flex h-auto max-w-full items-center justify-start space-x-2 whitespace-normal break-all px-0 text-left text-white cursor-pointer" onClick={() => window.open('mailto:contact@bailnotarie.fr', '_blank')}>
+                <Mail className="h-4 w-4 shrink-0" />
                 <span>contact@bailnotarie.fr</span>
               </Button>
             </div>

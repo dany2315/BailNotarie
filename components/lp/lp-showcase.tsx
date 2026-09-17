@@ -116,7 +116,7 @@ export function LpShowcase() {
           className="mt-14 grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-14"
         >
           {/* ---------- Sélecteur ---------- */}
-          <div className="order-2 lg:order-1">
+          <div className="order-2 min-w-0 lg:order-1">
             <div
               role="tablist"
               aria-label="Écrans de l'interface BailNotarie"
@@ -202,7 +202,7 @@ export function LpShowcase() {
           </div>
 
           {/* ---------- Écran 3D ---------- */}
-          <div className="order-1 lg:order-2">
+          <div className="order-1 min-w-0 lg:order-2">
             {/* Pas de `preserve-3d` ici : le halo est un frère de l'écran incliné,
                 un contexte 3D les ferait trier par profondeur et le halo passerait
                 devant l'écran. La perspective seule suffit à l'inclinaison. */}
