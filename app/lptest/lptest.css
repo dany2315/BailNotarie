@@ -290,6 +290,37 @@
 .lp-scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
 .lp-scrollbar-none::-webkit-scrollbar { display: none; }
 
+/* ---------- Piste de défilement « écran par écran » ---------------------- */
+
+/* On mesure en `svh` (petit viewport) et non en `dvh` : sur iOS et Android,
+   la barre d'URL qui se rétracte change `dvh` en cours de route, ce qui
+   redimensionne la piste et fait sauter l'écran affiché. `svh` ne bouge pas.
+   La course est plus courte sur mobile : un écran de téléphone défile plus
+   vite qu'un écran large, et le parcours resterait long sinon. */
+.lp-screen-track {
+  height: calc(var(--lp-screens) * 70svh);
+}
+
+.lp-screen-panel {
+  height: 100svh;
+}
+
+/* Bande d'onglets : on estompe le contenu par un masque plutôt qu'en peignant
+   un dégradé de couleur par-dessus — le fond de la section est un dégradé, un
+   aplat opaque s'y verrait comme une tache. */
+@media (max-width: 1023px) {
+  .lp-fade-right {
+    -webkit-mask-image: linear-gradient(to right, #000 76%, transparent 99%);
+    mask-image: linear-gradient(to right, #000 76%, transparent 99%);
+  }
+}
+
+@media (min-width: 640px) {
+  .lp-screen-track {
+    height: calc(var(--lp-screens) * 85svh);
+  }
+}
+
 /* ---------- Accessibilité : on coupe tout le mouvement ------------------ */
 
 @media (prefers-reduced-motion: reduce) {

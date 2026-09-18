@@ -68,9 +68,6 @@ const TABS = [
   },
 ];
 
-/** Hauteur de défilement allouée à chaque écran, en unités de viewport. */
-const SCREEN_SCROLL_VH = 85;
-
 /** Vrai à partir de lg : sert à ne pas incliner l'écran sur un petit écran. */
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = React.useState(false);
@@ -88,8 +85,9 @@ function useIsDesktop() {
  * Le produit, écran par écran.
  *
  * La section se fige le temps de parcourir les cinq écrans : une piste haute
- * de 5 × 85vh, un panneau en `position: sticky` par-dessus, et l'avancement du
- * scroll dans la piste choisit l'écran affiché. Le scroll natif n'est jamais
+ * de 5 écrans (70svh chacun sur mobile, 85svh au-delà), un panneau en
+ * `position: sticky` par-dessus, et l'avancement du scroll dans la piste
+ * choisit l'écran affiché. Le scroll natif n'est jamais
  * détourné — rien n'est intercepté ni annulé — donc la molette, le trackpad,
  * le doigt, la barre de défilement et le clavier gardent leur comportement
  * habituel, et la page repart d'elle-même une fois le dernier écran passé.
@@ -176,31 +174,28 @@ export function LpShowcase() {
       {/* ---------- Piste de défilement ---------- */}
       <div
         ref={trackRef}
-        className="relative mt-10 sm:mt-14"
-        style={{ height: `calc(${TABS.length} * ${SCREEN_SCROLL_VH}dvh)` }}
+        className="lp-screen-track relative mt-10 sm:mt-14"
+        style={{ ["--lp-screens" as string]: TABS.length }}
       >
-        <div className="sticky top-0 flex h-dvh items-center overflow-hidden">
+        <div className="lp-screen-panel sticky top-0 flex items-center overflow-hidden">
           {/* Décor dimensionné sur le panneau figé, pas sur toute la piste. */}
           <div aria-hidden className="lp-mesh-dark absolute inset-0" />
           <div aria-hidden className="lp-grid-dark absolute inset-0" />
           <AuroraBackdrop tone="dark" />
           <NoiseOverlay opacity={0.05} />
 
-          <div className="relative mx-auto w-full max-w-6xl px-5 sm:px-8">
-            <div className="grid gap-6 sm:gap-8 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-14">
+          {/* pt- sur mobile : la barre de navigation est flottante, le contenu
+              ne doit jamais passer dessous sur un écran court. */}
+          <div className="relative mx-auto flex h-full w-full max-w-6xl flex-col px-5 pb-4 pt-20 sm:px-8 lg:h-auto lg:pb-0 lg:pt-0">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5 lg:grid lg:flex-none lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-14">
               {/* ---------- Sélecteur + texte ---------- */}
-              <div className="min-w-0">
+              <div className="min-w-0 shrink-0">
                 <div className="relative">
-                  {/* Dégradé de bord : signale que la bande défile. */}
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-[#0a1122] to-transparent lg:hidden"
-                  />
                   <div
                     ref={tabsRef}
                     role="tablist"
                     aria-label="Écrans de l'interface BailNotarie"
-                    className="lp-scrollbar-none -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 lg:mx-0 lg:flex-col lg:gap-2 lg:overflow-visible lg:px-0 lg:pb-0"
+                    className="lp-scrollbar-none lp-fade-right -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 lg:mx-0 lg:flex-col lg:gap-2 lg:overflow-visible lg:px-0 lg:pb-0"
                   >
                     {TABS.map((tab, index) => {
                       const selected = index === active;
@@ -259,7 +254,7 @@ export function LpShowcase() {
                   </div>
                 </div>
 
-                <div className="mt-5 lg:mt-6 lg:min-h-[128px]">
+                <div className="mt-4 lg:mt-6 lg:min-h-[128px]">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={current.id}
@@ -268,8 +263,10 @@ export function LpShowcase() {
                       exit={reduce ? undefined : { opacity: 0, y: -10 }}
                       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                     >
-                      <h3 className="text-lg font-semibold text-white sm:text-xl">{current.title}</h3>
-                      <p className="mt-2 text-[14px] leading-relaxed text-blue-100/70 sm:text-[15px] sm:leading-relaxed">
+                      <h3 className="text-[17px] font-semibold leading-snug text-white sm:text-xl">
+                        {current.title}
+                      </h3>
+                      <p className="mt-2 line-clamp-3 text-[13.5px] leading-relaxed text-blue-100/70 sm:line-clamp-none sm:text-[15px]">
                         {current.text}
                       </p>
                     </motion.div>
@@ -286,8 +283,8 @@ export function LpShowcase() {
               </div>
 
               {/* ---------- Écran ---------- */}
-              <div className="min-w-0">
-                <div className="relative" style={{ perspective: 1600 }}>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:block lg:flex-none">
+                <div className="relative min-h-0 flex-1 lg:flex-none" style={{ perspective: 1600 }}>
                   <div
                     aria-hidden
                     className="absolute -inset-6 rounded-[40px] bg-gradient-to-br from-[#4373f5]/30 via-[#6366f1]/15 to-transparent blur-3xl sm:-inset-8"
@@ -303,18 +300,18 @@ export function LpShowcase() {
                     }}
                     viewport={{ once: true, margin: "-10%" }}
                     transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-                    className="relative"
+                    className="relative h-full lg:h-auto"
                   >
                     <div
                       role="tabpanel"
                       id={`lp-panel-${current.id}`}
                       aria-labelledby={`lp-tab-${current.id}`}
-                      className="relative"
+                      className="relative h-full lg:h-auto"
                     >
                       <AppFrame
                         url={current.url}
-                        className="relative z-10 ring-1 ring-white/10"
-                        bodyClassName="max-h-[42dvh] overflow-hidden sm:max-h-none"
+                        className="relative z-10 flex h-full flex-col ring-1 ring-white/10 lg:h-auto lg:block"
+                        bodyClassName="min-h-0 flex-1 overflow-hidden lg:flex-none lg:overflow-visible"
                       >
                         <AnimatePresence mode="wait">
                           <motion.div
@@ -323,7 +320,7 @@ export function LpShowcase() {
                             animate={{ opacity: 1, scale: 1 }}
                             exit={reduce ? undefined : { opacity: 0, scale: 1.01 }}
                             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                            className="min-h-[260px] bg-white sm:min-h-[360px]"
+                            className="h-full bg-white lg:h-auto lg:min-h-[360px]"
                           >
                             {current.render()}
                           </motion.div>
@@ -347,7 +344,7 @@ export function LpShowcase() {
                 </div>
 
                 {/* Repère de position : indique où l'on en est dans la série. */}
-                <div className="mt-4 flex items-center justify-center gap-1 lg:hidden">
+                <div className="mt-3 flex shrink-0 items-center justify-center gap-1 lg:hidden">
                   {TABS.map((tab, index) => (
                     <button
                       key={tab.id}
