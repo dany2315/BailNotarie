@@ -33,6 +33,36 @@ export function LpNav() {
   const [open, setOpen] = React.useState(false);
   const { scrollY } = useScroll();
   const session = useClientSession();
+  const navRef = React.useRef<HTMLElement>(null);
+
+  /**
+   * Publie la hauteur occupée par la barre (décalage haut compris) dans
+   * `--lp-nav-h`. Les contenus figés sous une barre flottante — la section
+   * « écran par écran » notamment — s'en servent pour se réserver la place
+   * exacte, au lieu d'une valeur en dur qui déborde dès que la barre change
+   * de taille d'un appareil à l'autre.
+   */
+  React.useLayoutEffect(() => {
+    const nav = navRef.current;
+    const wrapper = nav?.parentElement;
+    if (!nav || !wrapper) return;
+
+    const publish = () => {
+      // offsetHeight plutôt que le rectangle : insensible à l'animation
+      // d'entrée de la barre.
+      const offset = parseFloat(window.getComputedStyle(wrapper).paddingTop) || 0;
+      document.documentElement.style.setProperty("--lp-nav-h", `${Math.round(nav.offsetHeight + offset)}px`);
+    };
+
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(nav);
+    window.addEventListener("resize", publish);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", publish);
+    };
+  }, []);
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     setScrolled(latest > 24);
@@ -63,6 +93,7 @@ export function LpNav() {
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex flex-col items-center px-4 pt-3 sm:pt-4">
       <motion.nav
+        ref={navRef}
         initial={{ y: -24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}

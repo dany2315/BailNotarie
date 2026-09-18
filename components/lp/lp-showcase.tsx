@@ -184,9 +184,10 @@ export function LpShowcase() {
           <AuroraBackdrop tone="dark" />
           <NoiseOverlay opacity={0.05} />
 
-          {/* pt- sur mobile : la barre de navigation est flottante, le contenu
-              ne doit jamais passer dessous sur un écran court. */}
-          <div className="relative mx-auto flex h-full w-full max-w-6xl flex-col px-5 pb-4 pt-20 sm:px-8 lg:h-auto lg:pb-0 lg:pt-0">
+          {/* La barre de navigation est flottante : on se réserve sa hauteur
+              réelle, publiée par LpNav dans --lp-nav-h, plus une respiration.
+              Une valeur en dur passait sous la barre selon les appareils. */}
+          <div className="relative mx-auto flex h-full w-full max-w-6xl flex-col px-5 pb-4 pt-[calc(var(--lp-nav-h,78px)+1.25rem)] sm:px-8 lg:h-auto lg:pb-0 lg:pt-0">
             <div className="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5 lg:grid lg:flex-none lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-14">
               {/* ---------- Sélecteur + texte ---------- */}
               <div className="min-w-0 shrink-0">
