@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, FileCheck2, LayoutDashboard, MonitorSmartphone, PenTool, Radar, Upload } from "lucide-react";
-import { AnimatePresence, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll } from "motion/react";
+import { motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll } from "motion/react";
 import {
   AppFrame,
   DashboardMockup,
@@ -68,19 +68,6 @@ const TABS = [
   },
 ];
 
-/** Vrai à partir de lg : sert à ne pas incliner l'écran sur un petit écran. */
-function useIsDesktop() {
-  const [isDesktop, setIsDesktop] = React.useState(false);
-  React.useEffect(() => {
-    const query = window.matchMedia("(min-width: 1024px)");
-    const update = () => setIsDesktop(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-  return isDesktop;
-}
-
 /**
  * Le produit, écran par écran.
  *
@@ -95,7 +82,6 @@ function useIsDesktop() {
 export function LpShowcase() {
   const [active, setActive] = React.useState(0);
   const reduce = useReducedMotion();
-  const isDesktop = useIsDesktop();
 
   const trackRef = React.useRef<HTMLDivElement>(null);
   const tabsRef = React.useRef<HTMLDivElement>(null);
@@ -147,6 +133,7 @@ export function LpShowcase() {
     <section
       id="interface"
       aria-labelledby="lp-showcase-title"
+      data-lp-chrome="#070c1a"
       className="relative scroll-mt-24 bg-[#070c1a] text-white"
     >
       {/* Décor commun à toute la section : une couche de la hauteur du viewport
@@ -263,22 +250,14 @@ export function LpShowcase() {
                 </div>
 
                 <div className="mt-4 lg:mt-6 lg:min-h-[128px]">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={current.id}
-                      initial={reduce ? false : { opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={reduce ? undefined : { opacity: 0, y: -10 }}
-                      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                    >
+                  <div key={current.id} className="lp-swap">
                       <h3 className="text-[17px] font-semibold leading-snug text-white sm:text-xl">
                         {current.title}
                       </h3>
                       <p className="mt-2 line-clamp-3 text-[13.5px] leading-relaxed text-blue-100/70 sm:line-clamp-none sm:text-[15px]">
                         {current.text}
                       </p>
-                    </motion.div>
-                  </AnimatePresence>
+                  </div>
 
                   <Link
                     href="/commencer"
@@ -298,18 +277,9 @@ export function LpShowcase() {
                     className="absolute -inset-6 rounded-[40px] bg-gradient-to-br from-[#4373f5]/30 via-[#6366f1]/15 to-transparent blur-3xl sm:-inset-8"
                   />
 
-                  <motion.div
-                    initial={reduce ? false : { opacity: 0, y: 28 }}
-                    whileInView={{
-                      opacity: 1,
-                      y: 0,
-                      rotateX: isDesktop ? 6 : 0,
-                      rotateY: isDesktop ? -8 : 0,
-                    }}
-                    viewport={{ once: true, margin: "-10%" }}
-                    transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-                    className="relative h-full lg:h-auto"
-                  >
+                  {/* Inclinaison posée en CSS : présente dès le premier rendu,
+                      au lieu d'être appliquée par le JS après hydratation. */}
+                  <div className="lp-screen-tilt relative h-full lg:h-auto">
                     <div
                       role="tabpanel"
                       id={`lp-panel-${current.id}`}
@@ -321,18 +291,9 @@ export function LpShowcase() {
                         className="relative z-10 flex h-full flex-col ring-1 ring-white/10 lg:h-auto lg:block"
                         bodyClassName="min-h-0 flex-1 overflow-hidden lg:flex-none lg:overflow-visible"
                       >
-                        <AnimatePresence mode="wait">
-                          <motion.div
-                            key={current.id}
-                            initial={reduce ? false : { opacity: 0, scale: 0.985 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={reduce ? undefined : { opacity: 0, scale: 1.01 }}
-                            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                            className="h-full bg-white lg:h-auto lg:min-h-[360px]"
-                          >
-                            {current.render()}
-                          </motion.div>
-                        </AnimatePresence>
+                        <div key={current.id} className="lp-swap-screen h-full bg-white lg:h-auto lg:min-h-[360px]">
+                          {current.render()}
+                        </div>
                       </AppFrame>
 
                       {/* Coupe basse sur petit écran : la maquette continue
@@ -348,7 +309,7 @@ export function LpShowcase() {
                         className="lp-reflection absolute inset-x-6 top-full hidden h-28 rounded-[20px] bg-gradient-to-b from-white/25 to-transparent lg:block"
                       />
                     </div>
-                  </motion.div>
+                  </div>
                 </div>
 
                 {/* Repère de position : indique où l'on en est dans la série. */}

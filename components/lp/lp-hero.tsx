@@ -57,6 +57,7 @@ export function LpHero() {
   return (
     <section
       aria-labelledby="lp-hero-title"
+      data-lp-chrome="#ffffff"
       className="lp-scene relative overflow-hidden bg-gradient-to-b from-white via-[#f7f9ff] to-[#eef3ff] pb-20 pt-24 sm:pt-28"
     >
       <div aria-hidden className="lp-mesh absolute inset-0" />
@@ -67,12 +68,7 @@ export function LpHero() {
       <div className="relative z-10 mx-auto max-w-6xl px-5 sm:px-8">
         {/* ---------- Bloc éditorial ---------- */}
         <div className="mx-auto max-w-4xl text-center">
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="flex justify-center"
-          >
+          <div className="lp-enter-up flex justify-center">
             <div className="inline-flex items-center gap-2.5 rounded-full border border-white/80 bg-white/70 py-1.5 pl-2 pr-3.5 sm:gap-3 sm:pr-4 shadow-[0_10px_30px_-16px_rgba(30,58,138,0.5)] backdrop-blur-xl">
               <span className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 shadow-sm">
                 <FcGoogle className="h-4 w-4" />
@@ -95,14 +91,12 @@ export function LpHero() {
                 <span className="hidden sm:inline"> nous font déjà confiance</span>
               </span>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.h1
+          <h1
             id="lp-hero-title"
-            initial={reduce ? false : { opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.75, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-            className="lp-title lp-balance mt-5 text-[2.6rem] font-bold text-slate-900 sm:text-6xl lg:text-[4.25rem]"
+            style={{ ["--lp-delay" as string]: "0.06s" }}
+            className="lp-enter-up lp-title lp-balance mt-5 text-[2.6rem] font-bold text-slate-900 sm:text-6xl lg:text-[4.25rem]"
           >
             Procédure de bail notarié{" "}
             <span className="relative inline-block">
@@ -122,13 +116,11 @@ export function LpHero() {
                 />
               </svg>
             </span>
-          </motion.h1>
+          </h1>
 
-          <motion.p
-            initial={reduce ? false : { opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
-            className="lp-balance mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-600 sm:text-xl"
+          <p
+            style={{ ["--lp-delay" as string]: "0.14s" }}
+            className="lp-enter-up lp-balance mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-600 sm:text-xl"
           >
             Service dédié aux <strong className="font-semibold text-slate-900">propriétaires</strong> pour constituer
             leur dossier de <strong className="font-semibold text-slate-900">bail notarié en France</strong>.
@@ -136,14 +128,12 @@ export function LpHero() {
             transmission au <strong className="font-semibold text-slate-900">notaire</strong> et{" "}
             <strong className="font-semibold text-slate-900">signature à distance</strong>. Simple, rapide et{" "}
             <strong className="font-semibold text-slate-900">force exécutoire</strong>.
-          </motion.p>
+          </p>
 
           {/* ---------- Actions ---------- */}
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-8 flex flex-col items-center gap-3"
+          <div
+            style={{ ["--lp-delay" as string]: "0.22s" }}
+            className="lp-enter-up mt-8 flex flex-col items-center gap-3"
           >
             <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
               <Link
@@ -168,7 +158,7 @@ export function LpHero() {
               Frais de dossier <strong className="font-semibold text-slate-700">39,90 € TTC</strong> — remboursés si le
               dossier n&apos;aboutit pas*
             </p>
-          </motion.div>
+          </div>
 
         </div>
 

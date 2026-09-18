@@ -4,6 +4,7 @@ import Link from "next/link";
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
 import { Footer } from "@/components/footer";
 import { LpNav } from "@/components/lp/lp-nav";
+import { LpChrome } from "@/components/lp/lp-chrome";
 import { LpHero } from "@/components/lp/lp-hero";
 import { LpDefinition } from "@/components/lp/lp-definition";
 import "./lptest.css";
@@ -38,6 +39,8 @@ export const metadata: Metadata = generateDynamicMetadata({
 export default function LpTestPage() {
   return (
     <div className="lp-root min-h-screen bg-white antialiased">
+      {/* Accorde les barres du navigateur mobile à la section affichée. */}
+      <LpChrome />
       <LpNav />
 
       <main>
@@ -56,6 +59,7 @@ export default function LpTestPage() {
         <section
           id="contact"
           aria-labelledby="lp-contact-title"
+          data-lp-chrome="#ffffff"
           className="relative scroll-mt-24 overflow-hidden bg-gradient-to-b from-[#f7f9ff] to-white py-24 sm:py-28"
         >
           <div aria-hidden className="lp-grid absolute inset-0 opacity-50" />
@@ -75,7 +79,7 @@ export default function LpTestPage() {
           </div>
         </section>
 
-        <div className="border-t border-slate-200 bg-white py-4 text-center">
+        <div data-lp-chrome="#ffffff" className="border-t border-slate-200 bg-white py-4 text-center">
           <p className="text-xs text-slate-400">
             *Sous conditions, voir{" "}
             <Link href="/cgv" className="underline underline-offset-2 hover:text-slate-600">
@@ -85,7 +89,9 @@ export default function LpTestPage() {
         </div>
       </main>
 
-      <Footer />
+      <div data-lp-chrome="#111827">
+        <Footer />
+      </div>
     </div>
   );
 }

@@ -61,6 +61,7 @@ export function LpProcess() {
     <section
       id="processus"
       aria-labelledby="lp-process-title"
+      data-lp-chrome="#f7f9ff"
       className="relative scroll-mt-24 overflow-hidden bg-gradient-to-b from-[#f7f9ff] via-white to-[#f7f9ff] py-24 sm:py-32"
     >
       <div aria-hidden className="lp-grid absolute inset-0 opacity-60" />

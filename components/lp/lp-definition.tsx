@@ -26,6 +26,7 @@ export function LpDefinition() {
   return (
     <section
       aria-labelledby="lp-definition-title"
+      data-lp-chrome="#ffffff"
       className="relative overflow-hidden border-y border-slate-200/60 bg-white py-20 sm:py-24"
     >
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#4373f5]/40 to-transparent" />

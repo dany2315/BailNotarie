@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Menu, Phone, X } from "lucide-react";
-import { motion, useMotionValueEvent, useScroll } from "motion/react";
+import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
 import { ClientAvatar, LpUserMenu, LpUserPanel, useClientSession } from "./lp-user-menu";
 
@@ -92,13 +92,11 @@ export function LpNav() {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex flex-col items-center px-4 pt-3 sm:pt-4">
-      <motion.nav
+      {/* Entrée en CSS : la barre est dans le HTML, visible, sans attendre le JS. */}
+      <nav
         ref={navRef}
-        initial={{ y: -24, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          "pointer-events-auto flex w-full max-w-7xl items-center justify-between gap-3 rounded-[20px] px-3 py-2.5 transition-all duration-500 sm:gap-4 sm:px-4 sm:py-2",
+          "lp-enter-down pointer-events-auto flex w-full max-w-7xl items-center justify-between gap-3 rounded-[20px] px-3 py-2.5 transition-all duration-500 sm:gap-4 sm:px-4 sm:py-2",
           scrolled
             ? "border border-white/70 bg-white/85 shadow-[0_10px_40px_-18px_rgba(30,58,138,0.45)] backdrop-blur-xl"
             : "border border-transparent bg-white/50 backdrop-blur-md",
@@ -162,14 +160,11 @@ export function LpNav() {
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
-      </motion.nav>
+      </nav>
 
       {open && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-          className="pointer-events-auto mt-2 max-h-[calc(100dvh-7rem)] w-full max-w-7xl overflow-y-auto rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_30px_70px_-30px_rgba(30,58,138,0.6)] backdrop-blur-xl lg:hidden"
+        <div
+          className="lp-swap pointer-events-auto mt-2 max-h-[calc(100dvh-7rem)] w-full max-w-7xl overflow-y-auto rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_30px_70px_-30px_rgba(30,58,138,0.6)] backdrop-blur-xl lg:hidden"
         >
           <LpUserPanel session={session} onNavigate={closeMenu} />
 
@@ -199,7 +194,7 @@ export function LpNav() {
             Constituer mon dossier
             <ArrowRight className="h-4 w-4" />
           </Link>
-        </motion.div>
+        </div>
       )}
     </div>
   );

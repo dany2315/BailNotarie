@@ -17,6 +17,7 @@ export function LpFinalCta() {
   return (
     <section
       aria-labelledby="lp-final-title"
+      data-lp-chrome="#4373f5"
       className="lp-scene relative overflow-hidden bg-gradient-to-br from-[#3563e9] via-[#4373f5] to-[#6d8ff9] py-24 text-white sm:py-32"
     >
       <div aria-hidden className="lp-grid-dark absolute inset-0 opacity-70" />

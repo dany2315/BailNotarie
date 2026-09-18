@@ -146,32 +146,89 @@ export function SpotlightCard({
   );
 }
 
-/* ---------- Apparition au scroll ----------------------------------------- */
+/* ---------- Apparition au scroll ------------------------------------------ */
 
+/**
+ * Marque un élément pour la révélation au scroll.
+ *
+ * Le contenu reste visible par défaut : il est donc lisible au premier rendu,
+ * avant hydratation et sans JavaScript. Seuls les éléments encore hors champ
+ * au moment de l'hydratation partent en retrait, puis reviennent quand ils
+ * entrent dans le cadre. Un élément déjà à l'écran n'est jamais masqué — c'est
+ * ce qui évite le clignotement au rechargement en milieu de page.
+ */
+export function useReveal<T extends HTMLElement>(
+  ref: React.RefObject<T | null>,
+  {
+    threshold = 0.9,
+    targets,
+  }: {
+    threshold?: number;
+    /**
+     * Éléments à masquer, si ce ne sont pas ceux qu'on observe. Indispensable
+     * quand l'animation réduit la boîte à néant — une barre en `scaleX(0)` n'a
+     * plus aucune aire, donc elle n'entre jamais « dans le cadre » et resterait
+     * invisible à jamais. On observe alors son rail, qui, lui, garde sa taille.
+     */
+    targets?: () => (HTMLElement | null)[];
+  } = {},
+) {
+  React.useLayoutEffect(() => {
+    const observed = ref.current;
+    if (!observed) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const marked = (targets ? targets() : [observed]).filter(Boolean) as HTMLElement[];
+    if (marked.length === 0) return;
+
+    // Déjà visible : on laisse tel quel, sans animation ni masquage.
+    if (observed.getBoundingClientRect().top <= window.innerHeight * threshold) return;
+
+    for (const element of marked) element.setAttribute("data-reveal", "hidden");
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        for (const element of marked) element.removeAttribute("data-reveal");
+        observer.disconnect();
+      },
+      { rootMargin: "0px 0px -8% 0px" },
+    );
+    observer.observe(observed);
+    return () => observer.disconnect();
+  }, [ref, threshold, targets]);
+}
+
+/** Élément révélé au scroll, visible par défaut. */
 export function Reveal({
   children,
   delay = 0,
   y = 26,
   className,
-  once = true,
+  as: Tag = "div",
 }: {
   children: React.ReactNode;
   delay?: number;
   y?: number;
   className?: string;
-  once?: boolean;
+  as?: "div" | "section" | "li";
 }) {
-  const reduce = useReducedMotion();
+  const ref = React.useRef<HTMLDivElement>(null);
+  useReveal(ref);
+
   return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, y, filter: "blur(6px)" }}
-      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      viewport={{ once, margin: "-12% 0px -10% 0px" }}
-      transition={{ duration: 0.75, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={className}
+    <Tag
+      ref={ref as React.Ref<never>}
+      className={cn("lp-reveal", className)}
+      style={
+        {
+          "--lp-delay": `${delay}s`,
+          "--lp-y": `${y}px`,
+        } as React.CSSProperties
+      }
     >
       {children}
-    </motion.div>
+    </Tag>
   );
 }
 

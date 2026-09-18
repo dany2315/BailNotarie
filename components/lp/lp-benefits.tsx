@@ -11,9 +11,61 @@ import {
   Sparkles,
   Wallet,
 } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
-import { Reveal, SectionLabel, SpotlightCard, Tilt3D } from "./ui/lp-primitives";
+import * as React from "react";
+import { Reveal, SectionLabel, SpotlightCard, Tilt3D, useReveal } from "./ui/lp-primitives";
 import { cn } from "@/lib/utils";
+
+/** Barre du comparatif : pleine par défaut, elle ne se remplit que si elle
+ *  était encore hors champ à l'hydratation. On observe le rail, pas la barre :
+ *  à `scaleX(0)` celle-ci n'a plus d'aire et ne serait jamais détectée. */
+function RecoveryBar({ width, tone, delay }: { width: string; tone: "slate" | "blue"; delay: number }) {
+  const track = React.useRef<HTMLDivElement>(null);
+  const bar = React.useRef<HTMLDivElement>(null);
+  const targets = React.useCallback(() => [bar.current], []);
+  useReveal(track, { targets });
+
+  return (
+    <div ref={track} className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+      <div
+        ref={bar}
+        style={{ width, ["--lp-delay" as string]: `${delay}s` }}
+        className={cn(
+          "lp-grow-x h-full rounded-full",
+          tone === "blue"
+            ? "bg-gradient-to-r from-[#4373f5] to-[#6d8ff9] shadow-[0_0_20px_rgba(67,115,245,0.55)]"
+            : "bg-slate-300",
+        )}
+      />
+    </div>
+  );
+}
+
+const DELAY_COLUMNS = [28, 40, 52, 66, 80, 94, 100];
+
+/** Petit graphe de délai : les colonnes poussent ensemble, en décalé. */
+function DelayChart() {
+  const row = React.useRef<HTMLDivElement>(null);
+  const targets = React.useCallback(
+    () => (row.current ? Array.from(row.current.children) : []) as HTMLElement[],
+    [],
+  );
+  useReveal(row, { targets });
+
+  return (
+    <div ref={row} className="mt-6 flex items-end gap-1.5">
+      {DELAY_COLUMNS.map((height, index) => (
+        <span
+          key={index}
+          style={{ height: `${height * 0.42}px`, ["--lp-delay" as string]: `${index * 0.07}s` }}
+          className={cn(
+            "lp-grow-y w-full rounded-t-md",
+            index === 6 ? "bg-gradient-to-t from-[#4373f5] to-[#7ea1fa]" : "bg-slate-200",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
 
 /* Comparatif de délai de recouvrement : la démonstration la plus parlante
    de la force exécutoire. Deux barres, même échelle. */
@@ -23,12 +75,11 @@ const RECOVERY = [
 ];
 
 export function LpBenefits() {
-  const reduce = useReducedMotion();
-
   return (
     <section
       id="avantages"
       aria-labelledby="lp-benefits-title"
+      data-lp-chrome="#ffffff"
       className="relative scroll-mt-24 overflow-hidden bg-white py-24 sm:py-32"
     >
       <div aria-hidden className="lp-grid absolute inset-0 opacity-50" />
@@ -90,21 +141,7 @@ export function LpBenefits() {
                             {row.months}
                           </span>
                         </div>
-                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                          <motion.div
-                            initial={reduce ? false : { scaleX: 0 }}
-                            whileInView={{ scaleX: 1 }}
-                            viewport={{ once: true, margin: "-20%" }}
-                            transition={{ duration: 1.1, delay: 0.15 * index, ease: [0.22, 1, 0.36, 1] }}
-                            style={{ width: row.width }}
-                            className={cn(
-                              "h-full origin-left rounded-full",
-                              row.tone === "blue"
-                                ? "bg-gradient-to-r from-[#4373f5] to-[#6d8ff9] shadow-[0_0_20px_rgba(67,115,245,0.55)]"
-                                : "bg-slate-300",
-                            )}
-                          />
-                        </div>
+                        <RecoveryBar width={row.width} tone={row.tone} delay={0.15 * index} />
                       </div>
                     ))}
                     <p className="pt-1 text-[12.5px] text-slate-400">
@@ -151,21 +188,7 @@ export function LpBenefits() {
                   Transmission automatique au notaire dès la validation de votre dossier, puis signature en
                   visioconférence.
                 </p>
-                <div className="mt-6 flex items-end gap-1.5">
-                  {[28, 40, 52, 66, 80, 94, 100].map((height, index) => (
-                    <motion.span
-                      key={index}
-                      initial={reduce ? false : { height: 6, opacity: 0.4 }}
-                      whileInView={{ height: `${height * 0.42}px`, opacity: 1 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.6, delay: index * 0.07, ease: [0.22, 1, 0.36, 1] }}
-                      className={cn(
-                        "w-full rounded-t-md",
-                        index === 6 ? "bg-gradient-to-t from-[#4373f5] to-[#7ea1fa]" : "bg-slate-200",
-                      )}
-                    />
-                  ))}
-                </div>
+                <DelayChart />
                 <div className="mt-2 flex justify-between text-[11px] text-slate-400">
                   <span>J+0</span>
                   <span>J+7 · signature</span>

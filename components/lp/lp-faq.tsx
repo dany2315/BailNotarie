@@ -164,6 +164,7 @@ export function LpFaq() {
     <section
       id="faq"
       aria-labelledby="lp-faq-title"
+      data-lp-chrome="#f7f9ff"
       className="relative scroll-mt-24 overflow-hidden bg-gradient-to-b from-white to-[#f7f9ff] py-24 sm:py-32"
     >
       <div className="relative mx-auto max-w-5xl px-5 sm:px-8">
@@ -205,20 +206,11 @@ export function LpFaq() {
         </Reveal>
 
         <div className="mt-8 space-y-3">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={category}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="space-y-3"
-            >
-              {FAQ[category].map((item) => (
-                <FaqItem key={item.question} {...item} />
-              ))}
-            </motion.div>
-          </AnimatePresence>
+          <div key={category} className="lp-swap space-y-3">
+            {FAQ[category].map((item) => (
+              <FaqItem key={item.question} {...item} />
+            ))}
+          </div>
         </div>
 
         {/* Bloc contact */}

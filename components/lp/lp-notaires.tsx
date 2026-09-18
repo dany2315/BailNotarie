@@ -1,8 +1,27 @@
 "use client";
 
 import { Building2, Handshake, Info, MapPin, ShieldCheck, Users } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
-import { Reveal, SectionLabel, Tilt3D } from "./ui/lp-primitives";
+import * as React from "react";
+import { Reveal, SectionLabel, Tilt3D, useReveal } from "./ui/lp-primitives";
+
+/** Anneau du radar : présent par défaut, il ne grossit que s'il entre. */
+function RadarRing({ scale, delay }: { scale: number; delay: number }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  useReveal(ref);
+  return (
+    <div
+      aria-hidden
+      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      style={{ width: `${scale * 100}%`, height: `${scale * 100}%` }}
+    >
+      <div
+        ref={ref}
+        className="lp-pop h-full w-full rounded-full border border-[#4373f5]/15"
+        style={{ ["--lp-delay" as string]: `${delay}s` }}
+      />
+    </div>
+  );
+}
 
 /* Positions en pourcentage dans le cadre du radar. Réparties sur les anneaux
    pour évoquer une couverture nationale sans prétendre à une carte exacte. */
@@ -16,6 +35,25 @@ const CITIES = [
   { name: "Nantes", top: "50%", left: "12%", delay: 2.4 },
   { name: "Strasbourg", top: "26%", left: "86%", delay: 2.8 },
 ];
+
+/** Pastille de ville sur le radar. */
+function CityPin({
+  city,
+  children,
+}: {
+  city: { name: string; top: string; left: string; delay: number };
+  children: React.ReactNode;
+}) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  useReveal(ref);
+  return (
+    <div className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ top: city.top, left: city.left }}>
+      <div ref={ref} className="lp-pop" style={{ ["--lp-delay" as string]: `${0.3 + city.delay * 0.15}s` }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 const POINTS = [
   {
@@ -36,12 +74,11 @@ const POINTS = [
 ];
 
 export function LpNotaires() {
-  const reduce = useReducedMotion();
-
   return (
     <section
       id="notaires"
       aria-labelledby="lp-notaires-title"
+      data-lp-chrome="#ffffff"
       className="relative scroll-mt-24 overflow-hidden bg-gradient-to-b from-[#f7f9ff] to-white py-24 sm:py-32"
     >
       <div className="relative mx-auto max-w-6xl px-5 sm:px-8">
@@ -52,15 +89,7 @@ export function LpNotaires() {
               <div className="relative mx-auto aspect-square w-full max-w-[460px]">
                 {/* Anneaux */}
                 {[1, 0.74, 0.48, 0.24].map((scale, index) => (
-                  <motion.div
-                    key={index}
-                    initial={reduce ? false : { opacity: 0, scale: 0.8 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.8, delay: index * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#4373f5]/15"
-                    style={{ width: `${scale * 100}%`, height: `${scale * 100}%` }}
-                  />
+                  <RadarRing key={index} scale={scale} delay={index * 0.1} />
                 ))}
 
                 {/* Halo central */}
@@ -79,15 +108,7 @@ export function LpNotaires() {
 
                 {/* Villes */}
                 {CITIES.map((city) => (
-                  <motion.div
-                    key={city.name}
-                    initial={reduce ? false : { opacity: 0, scale: 0.6 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: 0.3 + city.delay * 0.15, ease: [0.22, 1, 0.36, 1] }}
-                    className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
-                    style={{ top: city.top, left: city.left }}
-                  >
+                  <CityPin key={city.name} city={city}>
                     <div className="flex items-center gap-1.5 rounded-full border border-white/90 bg-white/90 py-1 pl-1.5 pr-2.5 shadow-[0_10px_28px_-16px_rgba(30,58,138,0.7)] backdrop-blur">
                       <span
                         className="lp-ping relative flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4373f5] text-[#4373f5]"
@@ -97,7 +118,7 @@ export function LpNotaires() {
                       </span>
                       <span className="text-[11px] font-semibold text-slate-700">{city.name}</span>
                     </div>
-                  </motion.div>
+                  </CityPin>
                 ))}
 
                 {/* Badge de couverture */}

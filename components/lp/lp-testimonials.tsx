@@ -120,6 +120,7 @@ export function LpTestimonials() {
     <section
       id="temoignages"
       aria-labelledby="lp-testimonials-title"
+      data-lp-chrome="#ffffff"
       className="relative scroll-mt-24 overflow-hidden bg-gradient-to-b from-white via-[#f7f9ff] to-white py-24 sm:py-32"
     >
       <div aria-hidden className="lp-mesh absolute inset-0 opacity-70" />

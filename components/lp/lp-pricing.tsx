@@ -18,6 +18,7 @@ export function LpPricing() {
     <section
       id="tarif"
       aria-labelledby="lp-pricing-title"
+      data-lp-chrome="#070c1a"
       className="lp-scene relative scroll-mt-24 overflow-hidden bg-[#070c1a] py-24 text-white sm:py-32"
     >
       <div aria-hidden className="lp-mesh-dark absolute inset-0" />
