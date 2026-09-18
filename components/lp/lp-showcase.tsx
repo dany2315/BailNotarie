@@ -149,14 +149,27 @@ export function LpShowcase() {
       aria-labelledby="lp-showcase-title"
       className="relative scroll-mt-24 bg-[#070c1a] text-white"
     >
+      {/* Décor commun à toute la section : une couche de la hauteur du viewport
+          qui suit le scroll, pour que le titre, le panneau figé et les chiffres
+          partagent exactement le même fond, sans limite visible. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="lp-screen-panel sticky top-0 w-full overflow-hidden">
+          <div className="lp-mesh-dark absolute inset-0" />
+          <div className="lp-grid-dark absolute inset-0" />
+          <AuroraBackdrop tone="dark" />
+          <NoiseOverlay opacity={0.05} />
+        </div>
+      </div>
+
+      {/* Entrée depuis la section claire qui précède : un dégradé court évite
+          la coupure franche au changement de fond. */}
       <div
         aria-hidden
-        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#4373f5]/70 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#f7f9ff] to-transparent"
       />
 
       {/* ---------- Titre (défile normalement) ---------- */}
       <div className="relative mx-auto max-w-6xl px-5 pt-24 sm:px-8 sm:pt-32">
-        <div aria-hidden className="lp-mesh-dark absolute inset-x-0 -top-10 h-[130%] opacity-80" />
         <Reveal className="relative mx-auto max-w-3xl text-center">
           <SectionLabel tone="dark" icon={MonitorSmartphone}>
             L&apos;interface BailNotarie
@@ -178,12 +191,6 @@ export function LpShowcase() {
         style={{ ["--lp-screens" as string]: TABS.length }}
       >
         <div className="lp-screen-panel sticky top-0 flex items-center overflow-hidden">
-          {/* Décor dimensionné sur le panneau figé, pas sur toute la piste. */}
-          <div aria-hidden className="lp-mesh-dark absolute inset-0" />
-          <div aria-hidden className="lp-grid-dark absolute inset-0" />
-          <AuroraBackdrop tone="dark" />
-          <NoiseOverlay opacity={0.05} />
-
           {/* La barre de navigation est flottante : on se réserve sa hauteur
               réelle, publiée par LpNav dans --lp-nav-h, plus une respiration.
               Une valeur en dur passait sous la barre selon les appareils. */}
