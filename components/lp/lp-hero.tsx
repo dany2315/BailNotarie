@@ -14,7 +14,7 @@ import {
   FloatingNotification,
   FloatingPriceCard,
 } from "./ui/lp-product-mockups";
-import { AuroraBackdrop, GhostButton, NoiseOverlay, SectionLabel, usePointerParallax } from "./ui/lp-primitives";
+import { AuroraBackdrop, GhostButton, NoiseOverlay, usePointerParallax } from "./ui/lp-primitives";
 
 const AVATARS = [
   "https://images.pexels.com/photos/3785079/pexels-photo-3785079.jpeg?auto=compress&cs=tinysrgb&w=80&h=80&fit=crop&crop=face",
@@ -73,9 +73,28 @@ export function LpHero() {
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="flex justify-center"
           >
-            <SectionLabel icon={Sparkles}>
-              <span className="hidden sm:inline">Nouveau · </span>Signature à distance avec notaire partenaire
-            </SectionLabel>
+            <div className="inline-flex items-center gap-2.5 rounded-full border border-white/80 bg-white/70 py-1.5 pl-2 pr-3.5 sm:gap-3 sm:pr-4 shadow-[0_10px_30px_-16px_rgba(30,58,138,0.5)] backdrop-blur-xl">
+              <span className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 shadow-sm">
+                <FcGoogle className="h-4 w-4" />
+                <Star className="h-3.5 w-3.5 fill-amber-400 stroke-amber-400" />
+                <span className="text-[13px] font-semibold text-slate-800">4,9/5</span>
+              </span>
+              <span className="flex -space-x-2">
+                {AVATARS.map((src, index) => (
+                  <span key={src} className="relative h-7 w-7 overflow-hidden rounded-full ring-2 ring-white">
+                    <Image src={src} alt="" width={28} height={28} className="h-full w-full object-cover" unoptimized />
+                    <span className="sr-only">Client {index + 1}</span>
+                  </span>
+                ))}
+              </span>
+              <span className="whitespace-nowrap text-[12.5px] text-slate-600 sm:text-[13px]">
+                <strong className="font-semibold text-slate-900">
+                  <span className="sm:hidden">+200 propriétaires</span>
+                  <span className="hidden sm:inline">+ de 200 propriétaires</span>
+                </strong>
+                <span className="hidden sm:inline"> nous font déjà confiance</span>
+              </span>
+            </div>
           </motion.div>
 
           <motion.h1
@@ -151,33 +170,6 @@ export function LpHero() {
             </p>
           </motion.div>
 
-          {/* ---------- Preuve sociale ---------- */}
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-7 flex justify-center"
-          >
-            <div className="inline-flex items-center gap-3 rounded-full border border-white/80 bg-white/70 py-1.5 pl-2 pr-4 shadow-[0_10px_30px_-16px_rgba(30,58,138,0.5)] backdrop-blur-xl">
-              <span className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 shadow-sm">
-                <FcGoogle className="h-4 w-4" />
-                <Star className="h-3.5 w-3.5 fill-amber-400 stroke-amber-400" />
-                <span className="text-[13px] font-semibold text-slate-800">4,9/5</span>
-              </span>
-              <span className="flex -space-x-2">
-                {AVATARS.map((src, index) => (
-                  <span key={src} className="relative h-7 w-7 overflow-hidden rounded-full ring-2 ring-white">
-                    <Image src={src} alt="" width={28} height={28} className="h-full w-full object-cover" unoptimized />
-                    <span className="sr-only">Client {index + 1}</span>
-                  </span>
-                ))}
-              </span>
-              <span className="text-[13px] text-slate-600">
-                <strong className="font-semibold text-slate-900">+ de 200 propriétaires</strong>
-                <span className="hidden sm:inline"> nous font déjà confiance</span>
-              </span>
-            </div>
-          </motion.div>
         </div>
 
         {/* ---------- Scène 3D ---------- */}

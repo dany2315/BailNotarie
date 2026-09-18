@@ -216,9 +216,8 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
 
   if (session.status === "loading") {
     return (
-      <div className={cn("hidden h-10 items-center gap-2 rounded-xl px-2 sm:flex", className)} aria-hidden>
-        <span className="h-9 w-9 animate-pulse rounded-full bg-slate-200" />
-        <span className="hidden h-3.5 w-20 animate-pulse rounded bg-slate-200 lg:block" />
+      <div className={cn("hidden h-10 w-[58px] items-center rounded-xl border border-slate-200 bg-white p-1 sm:flex", className)} aria-hidden>
+        <span className="h-8 w-8 animate-pulse rounded-full bg-slate-200" />
       </div>
     );
   }
@@ -228,12 +227,12 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
       <Link
         href="/client/login"
         className={cn(
-          "hidden shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13.5px] font-semibold text-slate-700 transition-colors hover:border-[#4373f5]/30 hover:text-[#3563e9] sm:inline-flex",
+          "hidden h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[13.5px] font-semibold text-slate-700 transition-colors hover:border-[#4373f5]/30 hover:text-[#3563e9] sm:inline-flex xl:px-3.5",
           className,
         )}
       >
         <LogIn className="h-3.5 w-3.5" />
-        <span className="hidden lg:inline">Se connecter</span>
+        <span className="hidden xl:inline">Se connecter</span>
       </Link>
     );
   }
@@ -243,21 +242,13 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label="Mon espace client"
+          aria-label={`Mon espace client — ${session.displayName}`}
           className={cn(
-            "hidden shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white py-1.5 pl-1.5 pr-2.5 text-left transition-colors hover:border-[#4373f5]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5] focus-visible:ring-offset-2 sm:inline-flex",
+            "hidden h-10 shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 pr-1.5 transition-colors hover:border-[#4373f5]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5] focus-visible:ring-offset-2 sm:inline-flex",
             className,
           )}
         >
-          <ClientAvatar initials={session.initials} />
-          <span className="hidden min-w-0 lg:block">
-            <span className="block max-w-[150px] truncate text-[13px] font-semibold leading-tight text-slate-900">
-              {session.displayName}
-            </span>
-            <span className="block max-w-[150px] truncate text-[11px] leading-tight text-slate-500">
-              {session.email || "Espace client"}
-            </span>
-          </span>
+          <ClientAvatar initials={session.initials} size="sm" />
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
         </button>
       </DropdownMenuTrigger>
