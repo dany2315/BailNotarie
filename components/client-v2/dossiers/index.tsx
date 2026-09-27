@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { BailDetailDrawer } from "@/components/client/bail-detail-drawer";
+import { DrawerBoundary } from "../drawer-boundary";
 import { PropertyDetailDrawer } from "@/components/client/property-detail-drawer";
 import { CreatePropertyForm, CreatePropertyFormRef } from "@/components/client/create-property-form";
 import {
@@ -218,23 +219,36 @@ export function OwnerDossiers({ biens, ownerId, variant = "fiches" }: OwnerDossi
       ) : (
         <>
           {bailDrawer.bailId && (
-            <BailDetailDrawer
-              open={bailDrawer.open}
-              onOpenChange={(open) => {
-                if (!open) bailDrawer.clearChat();
-                bailDrawer.setOpen(open);
+            <DrawerBoundary
+              key={bailDrawer.bailId}
+              onClose={() => {
+                bailDrawer.clearChat();
+                bailDrawer.setOpen(false);
               }}
-              bailId={bailDrawer.bailId}
-              defaultOpenChat={bailDrawer.chatFor === bailDrawer.bailId}
-              onPropertyClick={bailDrawer.onPropertyClick}
-            />
+            >
+              <BailDetailDrawer
+                open={bailDrawer.open}
+                onOpenChange={(open) => {
+                  if (!open) bailDrawer.clearChat();
+                  bailDrawer.setOpen(open);
+                }}
+                bailId={bailDrawer.bailId}
+                defaultOpenChat={bailDrawer.chatFor === bailDrawer.bailId}
+                onPropertyClick={bailDrawer.onPropertyClick}
+              />
+            </DrawerBoundary>
           )}
           {propertyDrawer.propertyId && (
-            <PropertyDetailDrawer
-              open={propertyDrawer.open}
-              onOpenChange={propertyDrawer.setOpen}
-              propertyId={propertyDrawer.propertyId}
-            />
+            <DrawerBoundary
+              key={propertyDrawer.propertyId}
+              onClose={() => propertyDrawer.setOpen(false)}
+            >
+              <PropertyDetailDrawer
+                open={propertyDrawer.open}
+                onOpenChange={propertyDrawer.setOpen}
+                propertyId={propertyDrawer.propertyId}
+              />
+            </DrawerBoundary>
           )}
         </>
       )}

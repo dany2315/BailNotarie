@@ -1,40 +1,15 @@
-"use client";
-
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  ArrowRight,
-  ChevronRight,
-  Clock,
-  FileCheck2,
-  FileText,
-  Loader2,
-  MessageSquare,
-  ScanSearch,
-  UserPlus,
-  UserRound,
-} from "lucide-react";
+import { ChevronRight, Clock, FileCheck2, FileText, MessageSquare, ScanSearch, UserPlus } from "lucide-react";
 import { BailFamille, BailType, ProfilType } from "@prisma/client";
 import { toast } from "sonner";
 
-import { createTenantForLease } from "@/lib/actions/leases";
 import { cn } from "@/lib/utils";
 import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
-import { formatDate } from "@/lib/utils/formatters";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { BailChatSheet } from "@/components/client/bail-chat-sheet";
+import { AddTenantDialog } from "./add-tenant-dialog";
 import { useOwnerRuntime } from "./owner-runtime";
-import { IconTile, MicroLabel, Pill, PrimaryAction, QuietAction, Surface, Tone } from "./owner-ui";
+import { IconTile, Pill, Tone } from "./owner-ui";
 
 /* =========================================================================
    La carte d'un dossier — remplaçante directe de `OwnerBailCard`.
@@ -236,222 +211,6 @@ export function StepBar({
   );
 }
 
-/** Étiquette + valeur, dans l'écriture de « Mes informations ». */
-function Fact({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div className="min-w-0">
-      <MicroLabel className="mb-0.5">{label}</MicroLabel>
-      <p className="truncate text-[13px] font-medium text-slate-800">{value}</p>
-    </div>
-  );
-}
-
-/* ---------- La carte ------------------------------------------------------- */
-
-export function OwnerBailCardV2({
-  bail,
-  context,
-  detailHref,
-  onViewDetail,
-}: {
-  bail: OwnerBailCardData;
-  context: "dashboard" | "dossiers";
-  detailHref?: string;
-  onViewDetail?: () => void;
-}) {
-  const router = useRouter();
-  const { demo } = useOwnerRuntime();
-  const [tenantDialogOpen, setTenantDialogOpen] = React.useState(false);
-  const [tenantEmail, setTenantEmail] = React.useState("");
-  const [isAddingTenant, setIsAddingTenant] = React.useState(false);
-
-  const facts = useBailFacts(bail);
-  const missingTenant = bail.status === "AWAITING_TENANT" && !facts.tenantName;
-  const showChat = Boolean(facts.notaire);
-  const period =
-    bail.effectiveDate &&
-    `${formatDate(bail.effectiveDate)}${facts.endDate ? ` → ${formatDate(facts.endDate)}` : ""}`;
-
-  const handleAddTenant = async () => {
-    if (!tenantEmail.includes("@")) {
-      toast.error("Email invalide");
-      return;
-    }
-    try {
-      setIsAddingTenant(true);
-      if (demo) await new Promise((resolve) => setTimeout(resolve, 450));
-      else await createTenantForLease({ bailId: bail.id, email: tenantEmail });
-      toast.success("Locataire ajouté — un email lui a été envoyé");
-      setTenantDialogOpen(false);
-      setTenantEmail("");
-      if (!demo) router.refresh();
-    } catch (error: any) {
-      toast.error("Erreur", { description: error?.message });
-    } finally {
-      setIsAddingTenant(false);
-    }
-  };
-
-  return (
-    <>
-      <Surface tone="raised" className="overflow-hidden transition-shadow duration-300 hover:shadow-[0_2px_4px_rgba(15,23,42,0.04),0_34px_70px_-34px_rgba(30,58,138,0.4)]">
-        <div className="flex flex-col gap-4 p-4 sm:p-5">
-          {/* 1. Où en est le dossier — la seule chose écrite en grand. */}
-          <div className="flex items-start gap-3">
-            <IconTile icon={facts.view.icon} tone={facts.view.tone} />
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold leading-tight tracking-tight text-slate-900">
-                {facts.view.title}
-              </p>
-              {context === "dashboard" && (
-                <p className="mt-0.5 truncate text-[12px] text-slate-500" title={facts.propertyDescription}>
-                  {facts.propertyDescription}
-                </p>
-              )}
-              {facts.view.note && (
-                <p className="mt-1 text-[12.5px] leading-snug text-slate-500">{facts.view.note}</p>
-              )}
-            </div>
-            {missingTenant && (
-              <PrimaryAction className="hidden shrink-0 sm:inline-flex" onClick={() => setTenantDialogOpen(true)}>
-                <UserPlus className="h-3.5 w-3.5" />
-                Ajouter
-              </PrimaryAction>
-            )}
-          </div>
-
-          {/* 2. Le chemin parcouru. */}
-          {!facts.terminal && (
-            <StepBar stepIndex={facts.stepIndex} signed={bail.status === "SIGNED"} />
-          )}
-
-          {/* 3. Ce qui identifie ce bail. */}
-          <div className="flex flex-wrap gap-x-7 gap-y-3 border-t border-slate-100 pt-3.5">
-            <Fact label="Loyer" value={facts.rent ? `${facts.rent} / mois` : null} />
-            <Fact label="Bail" value={facts.typeLabel} />
-            <Fact label="Période" value={period || null} />
-            {!missingTenant && <Fact label="Locataire" value={facts.tenantName ?? "Non renseigné"} />}
-          </div>
-
-          {/* Sur téléphone, le geste passe sous le texte plutôt que de se
-              comprimer à côté du titre. */}
-          {missingTenant && (
-            <PrimaryAction className="w-full py-3 sm:hidden" onClick={() => setTenantDialogOpen(true)}>
-              <UserPlus className="h-4 w-4" />
-              Ajouter le locataire
-            </PrimaryAction>
-          )}
-        </div>
-
-        {/* 4. Les actions, à part. */}
-        <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3 sm:flex-row sm:items-center">
-          {showChat &&
-            (demo ? (
-              <PrimaryAction
-                className="w-full py-2.5 sm:flex-1"
-                onClick={() => toast.info("Aperçu — la messagerie du notaire s'ouvre ici")}
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                Contacter le notaire
-              </PrimaryAction>
-            ) : (
-              <BailChatSheet
-                bailId={bail.id}
-                trigger={
-                  <PrimaryAction className="w-full py-2.5 sm:flex-1">
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    Contacter le notaire
-                  </PrimaryAction>
-                }
-              />
-            ))}
-          {detailHref && !demo ? (
-            <Link
-              href={detailHref}
-              className={cn(
-                "inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[12.5px] font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/40",
-                showChat && "sm:w-auto",
-              )}
-            >
-              Voir le dossier
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          ) : (
-            <QuietAction
-              className={cn("w-full py-2.5", showChat && "sm:w-auto")}
-              onClick={onViewDetail ?? (() => toast.info("Aperçu — le détail du dossier s'ouvre ici"))}
-            >
-              Voir le dossier
-              <ArrowRight className="h-3.5 w-3.5" />
-            </QuietAction>
-          )}
-        </div>
-      </Surface>
-
-      {/* Ajout d'un locataire — dialogue inchangé, habillage aligné */}
-      <Dialog open={tenantDialogOpen} onOpenChange={setTenantDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[17px] tracking-tight">
-              <UserPlus className="h-4 w-4 text-[#3563e9]" />
-              Ajouter un locataire
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-snug">
-              Entrez l&apos;adresse email de votre locataire. Il recevra un lien pour compléter son dossier.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-1">
-            <Label className="text-[12.5px]">Email *</Label>
-            <Input
-              type="email"
-              placeholder="locataire@example.com"
-              value={tenantEmail}
-              onChange={(event) => setTenantEmail(event.target.value)}
-              disabled={isAddingTenant}
-              inputMode="email"
-              autoComplete="email"
-              className="h-11 rounded-xl"
-              onKeyDown={(event) => {
-                if (event.key === "Enter") handleAddTenant();
-              }}
-            />
-          </div>
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <PrimaryAction
-              onClick={handleAddTenant}
-              disabled={isAddingTenant || !tenantEmail}
-              className="w-full py-3"
-            >
-              {isAddingTenant ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Ajout en cours...
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-4 w-4" />
-                  Ajouter le locataire
-                </>
-              )}
-            </PrimaryAction>
-            <QuietAction
-              className="w-full py-3"
-              disabled={isAddingTenant}
-              onClick={() => {
-                setTenantDialogOpen(false);
-                setTenantEmail("");
-              }}
-            >
-              Annuler
-            </QuietAction>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
 /* ---------- Variante compacte, pour le tableau de bord -------------------- */
 
 /**
@@ -472,6 +231,8 @@ export function OwnerBailRow({
 }) {
   const { demo } = useOwnerRuntime();
   const facts = useBailFacts(bail);
+  const [tenantDialog, setTenantDialog] = React.useState(false);
+  const missingTenant = bail.status === "AWAITING_TENANT" && !facts.tenantName;
 
   const summary = [facts.rent ? `${facts.rent}/mois` : null, facts.typeLabel, facts.tenantName]
     .filter(Boolean)
@@ -520,6 +281,18 @@ export function OwnerBailRow({
         </button>
       )}
 
+      {missingTenant && (
+        <button
+          type="button"
+          title="Ajouter le locataire"
+          onClick={() => setTenantDialog(true)}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 transition-colors hover:bg-amber-200/80"
+        >
+          <UserPlus className="h-4 w-4" />
+          <span className="sr-only">Ajouter le locataire</span>
+        </button>
+      )}
+
       {facts.notaire &&
         (demo ? (
           <button
@@ -548,6 +321,8 @@ export function OwnerBailRow({
         ))}
 
       <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
+
+      <AddTenantDialog bailId={bail.id} open={tenantDialog} onOpenChange={setTenantDialog} />
     </div>
   );
 }

@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, ClipboardList, Loader2, Trash2 } from "lucide-react";
+import { ArrowRight, Loader2, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { IconTile, MicroLabel, QuietAction, Surface, Tone } from "./owner-ui";
+import { IconTile, MicroLabel, Tone } from "./owner-ui";
 
 /* =========================================================================
    Les choses à faire.
@@ -46,7 +46,9 @@ export function TodoRow({
   deleting?: boolean;
   className?: string;
 }) {
-  const action = href ? (
+  /* Une demande du notaire rattachée à aucun bail n'a nulle part où mener :
+     l'ancienne carte n'affichait alors pas de bouton, la ligne non plus. */
+  const action = !href && !onAction ? null : href ? (
     <Link
       href={href}
       className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-slate-800"
@@ -103,55 +105,5 @@ function DeleteButton({ onDelete, deleting }: { onDelete: () => void; deleting: 
       {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
       <span className="sr-only">Supprimer</span>
     </button>
-  );
-}
-
-/* ---------- Remplaçante directe de `OwnerProgressCard` -------------------- */
-
-export function OwnerTodoCard({
-  heading,
-  propertyLabel,
-  tenantName,
-  bailTypeLabel,
-  message,
-  continueHref,
-  continueLabel = "Reprendre",
-  onDelete,
-  deleting = false,
-}: {
-  /** Titre de la carte. Par défaut le bien — mais quand la carte vit déjà
-      sous l'intertitre de ce bien, le répéter n'apprend rien. */
-  heading?: string;
-  propertyLabel: string | null;
-  tenantName?: string | null;
-  bailTypeLabel?: string | null;
-  message: string;
-  continueHref: string;
-  continueLabel?: string;
-  onDelete?: () => void;
-  deleting?: boolean;
-}) {
-  const title = heading ?? propertyLabel ?? "Bien non renseigné";
-  const details =
-    [heading ? propertyLabel : null, tenantName, bailTypeLabel].filter(Boolean).join(" · ") || null;
-
-  return (
-    <Surface tone="raised" className="overflow-hidden">
-      {/* Un filet ambre en haut suffit à dire « inachevé » : pas besoin de
-          teinter toute la carte comme avant. */}
-      <div aria-hidden className="h-1 bg-gradient-to-r from-amber-400 to-amber-300" />
-      <TodoRow
-        icon={ClipboardList}
-        tone="amber"
-        kicker={heading ? undefined : "Demande en cours"}
-        title={title}
-        subtitle={details}
-        message={message}
-        actionLabel={continueLabel}
-        href={continueHref}
-        onDelete={onDelete}
-        deleting={deleting}
-      />
-    </Surface>
   );
 }

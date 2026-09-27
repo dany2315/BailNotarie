@@ -402,7 +402,7 @@ export function OwnerDashboard({
           </div>
 
           {/* ── Colonne de repères ─────────────────────────────────────────── */}
-          <aside className="space-y-4 lg:sticky lg:top-28 lg:self-start">
+          <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
             <Surface tone="raised" className="p-4">
               <MicroLabel className="mb-3">Le parcours</MicroLabel>
               <ol className="relative space-y-3.5">

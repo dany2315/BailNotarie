@@ -168,13 +168,13 @@ export function IconTile({
 
 /** Le bouton principal de l'espace client : exactement le dégradé des CTA de
     la page d'accueil, pour qu'un propriétaire retrouve le même geste. */
-export function PrimaryAction({
-  className,
-  children,
-  ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export const PrimaryAction = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>(function PrimaryAction({ className, children, ...rest }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-4 py-2.5 text-[13px] font-semibold text-white",
@@ -189,15 +189,15 @@ export function PrimaryAction({
       {children}
     </button>
   );
-}
+});
 
-export function QuietAction({
-  className,
-  children,
-  ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export const QuietAction = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>(function QuietAction({ className, children, ...rest }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
       className={cn(
         "inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-semibold text-slate-700",
@@ -211,7 +211,7 @@ export function QuietAction({
       {children}
     </button>
   );
-}
+});
 
 /* ---------- Bandeau de chiffres ------------------------------------------- */
 
@@ -265,70 +265,6 @@ export function StatRail({ items, className }: { items: StatItem[]; className?: 
         );
       })}
     </Surface>
-  );
-}
-
-/* ---------- Frise d'avancement -------------------------------------------- */
-
-/** La frise du dossier, reprise trait pour trait de la maquette « Suivi » :
-    points reliés, point actif bagué, libellés sous les points. */
-export function Stepper({
-  steps,
-  index,
-  className,
-}: {
-  steps: readonly string[];
-  index: number;
-  className?: string;
-}) {
-  return (
-    <div className={cn("space-y-2", className)}>
-      <div className="relative">
-        <div className="absolute inset-x-[5px] top-[5px] h-px bg-slate-200" />
-        <div
-          className="absolute left-[5px] top-[5px] h-px bg-gradient-to-r from-emerald-400 to-[#4373f5] transition-[width] duration-500"
-          style={{ width: `calc((100% - 10px) * ${Math.min(index, steps.length - 1) / (steps.length - 1)})` }}
-        />
-        <div className="relative flex justify-between">
-          {steps.map((step, i) => {
-            const done = index > i;
-            const active = index === i;
-            return (
-              <span
-                key={step}
-                className={cn(
-                  "relative z-10 h-2.5 w-2.5 rounded-full",
-                  done
-                    ? "bg-emerald-500"
-                    : active
-                      ? "bg-[#4373f5] ring-[3px] ring-[#4373f5]/20"
-                      : "bg-slate-200",
-                )}
-              />
-            );
-          })}
-        </div>
-      </div>
-      <div className="relative flex justify-between">
-        {steps.map((step, i) => (
-          <p
-            key={step}
-            className={cn(
-              "text-[10px] font-medium",
-              index === i
-                ? "text-[#3563e9]"
-                : index > i
-                  ? "text-emerald-600/70"
-                  : "text-slate-400",
-              i === 1 && steps.length === 3 && "absolute left-1/2 -translate-x-1/2",
-              i === steps.length - 1 && "text-right",
-            )}
-          >
-            {step}
-          </p>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -386,24 +322,3 @@ export function EmptyState({
 }
 
 /* ---------- Divers -------------------------------------------------------- */
-
-export function Avatar({ label, className }: { label: string | null; className?: string }) {
-  const initials =
-    label
-      ?.split(" ")
-      .filter(Boolean)
-      .map((part) => part[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || null;
-  return (
-    <span
-      className={cn(
-        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#4373f5]/12 text-[11px] font-bold text-[#3563e9]",
-        className,
-      )}
-    >
-      {initials ?? "—"}
-    </span>
-  );
-}
