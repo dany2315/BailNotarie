@@ -223,8 +223,7 @@ export function LpShowcase() {
             Le produit, <span className="lp-gradient-text-light">écran par écran</span>
           </h2>
           <p className="lp-balance mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-blue-100/70">
-            Une plateforme conçue pour une démarche notariale sans papier. Faites défiler : les écrans se suivent au
-            rythme de votre scroll.
+            Une plateforme conçue pour une démarche notariale sans papier.
           </p>
         </Reveal>
       </div>
