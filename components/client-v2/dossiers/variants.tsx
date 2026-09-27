@@ -133,11 +133,13 @@ function PropertyLines({
   controller,
   allowed,
   divide = true,
+  lineClassName,
 }: {
   bien: PropertyWithBails;
   controller: DossiersController;
   allowed: boolean;
   divide?: boolean;
+  lineClassName?: string;
 }) {
   const draft = findDraft(bien.bails);
   const bails = visibleBails(bien.bails);
@@ -163,13 +165,14 @@ function PropertyLines({
   }
 
   return (
-    <div className={cn(divide && "divide-y divide-slate-100")}>
+    <div className={cn(divide && "divide-y divide-slate-200/60")}>
       {draft && (
         <DraftLine
           propertyLabel={propertyTitle(bien)}
           tenantName={draftTenantName(draft)}
           bailTypeLabel={draft.bailType ? BAIL_TYPE_LABELS[draft.bailType] || draft.bailType : null}
           href={draftHref(draft)}
+          className={lineClassName}
         />
       )}
       {bails.map((bail) => (
@@ -177,6 +180,7 @@ function PropertyLines({
           key={bail.id}
           bail={{ ...bail, property: bien } as any}
           onOpenDetail={() => controller.openBailDetail(bail.id)}
+          className={lineClassName}
         />
       ))}
     </div>
@@ -240,7 +244,7 @@ export function VariantFiches({ controller }: { controller: DossiersController }
       {controller.visibleBiens.map((bien) => {
         const { allowed, from } = newBailAvailability(bien.bails);
         const draft = findDraft(bien.bails);
-        const count = visibleBails(bien.bails).length;
+        const count = visibleBails(bien.bails).length + (draft ? 1 : 0);
         return (
           <Surface key={bien.id} tone="raised" className="overflow-hidden">
             <section
@@ -249,31 +253,47 @@ export function VariantFiches({ controller }: { controller: DossiersController }
               }}
               className="scroll-mt-28"
             >
-              {/* L'en-tête vit dans la carte : le bien devient un contenant,
-                  et ses baux des lignes de ce contenant. */}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-3 border-b border-slate-100 bg-slate-50/60 px-4 py-3.5">
+              {/* L'en-tête est le bien : fond blanc, nom en gras, la seule
+                  tuile colorée de la carte. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3.5">
                 <IconTile icon={propertyIcon(bien)} tone="blue" />
                 <PropertyIdentity bien={bien} showLock={!draft && !allowed} lockFrom={from} />
-                <div className="flex items-center gap-2">
-                  <span className="hidden text-[11.5px] font-semibold tabular-nums text-slate-400 sm:block">
-                    {count} {count > 1 ? "baux" : "bail"}
-                  </span>
-                  <FicheButton onClick={() => controller.openPropertyDetail(bien.id)} compact />
-                </div>
+                <FicheButton onClick={() => controller.openPropertyDetail(bien.id)} compact />
               </div>
 
-              <PropertyLines bien={bien} controller={controller} allowed={allowed} />
+              {/* Les baux sont en dessous et en retrait : fond creusé, filets
+                  plus fins, aucune tuile — juste un point d'état. On voit du
+                  premier coup d'œil qu'ils appartiennent au bien. */}
+              <div className="border-t border-slate-200/70 bg-[#f6f7fc]">
+                {count > 0 && (
+                  <div className="flex items-baseline gap-1.5 px-4 pb-1 pt-3">
+                    <MicroLabel>{count > 1 ? "Baux" : "Bail"}</MicroLabel>
+                    {count > 1 && (
+                      <span className="text-[11px] font-semibold tabular-nums text-slate-400">
+                        · {count}
+                      </span>
+                    )}
+                  </div>
+                )}
 
-              {!draft && allowed && (
-                <button
-                  type="button"
-                  onClick={() => controller.startNewBail(bien.id)}
-                  className="flex w-full items-center justify-center gap-2 border-t border-slate-100 px-4 py-3 text-[12.5px] font-semibold text-[#3563e9] transition-colors hover:bg-[#4373f5]/[0.05]"
-                >
-                  <Plus className="h-4 w-4" />
-                  Nouveau bail sur ce bien
-                </button>
-              )}
+                <PropertyLines
+                  bien={bien}
+                  controller={controller}
+                  allowed={allowed}
+                  lineClassName="pl-1.5"
+                />
+
+                {!draft && allowed && (
+                  <button
+                    type="button"
+                    onClick={() => controller.startNewBail(bien.id)}
+                    className="flex w-full items-center justify-center gap-2 border-t border-slate-200/60 px-4 py-3 text-[12.5px] font-semibold text-slate-600 transition-colors hover:bg-white hover:text-[#3563e9]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Nouveau bail sur ce bien
+                  </button>
+                )}
+              </div>
             </section>
           </Surface>
         );

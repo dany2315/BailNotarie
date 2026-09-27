@@ -57,7 +57,7 @@ const ENTREPRISE = {
 export function TestEspaceClient() {
   const [tab, setTab] = React.useState<OwnerTabKey>("dashboard");
   const [asEntreprise, setAsEntreprise] = React.useState(false);
-  const [dossiersVariant, setDossiersVariant] = React.useState<DossiersVariant>("registre");
+  const [dossiersVariant, setDossiersVariant] = React.useState<DossiersVariant>("fiches");
 
   return (
     <OwnerRuntime demo>

@@ -49,7 +49,7 @@ const LAYOUTS = {
   liste: VariantListe,
 } as const;
 
-export function OwnerDossiers({ biens, ownerId, variant = "registre" }: OwnerDossiersProps) {
+export function OwnerDossiers({ biens, ownerId, variant = "fiches" }: OwnerDossiersProps) {
   const controller = useDossiersController(biens);
   const propertyFormRef = React.useRef<CreatePropertyFormRef>(null);
   const Layout = LAYOUTS[variant];
