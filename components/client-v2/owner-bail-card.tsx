@@ -90,7 +90,7 @@ const STEP_INDEX: Record<string, number> = {
   CLASSE_SANS_SUITE: 2,
 };
 
-const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
+export const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
 
 /**
  * L'état d'un dossier, dit une seule fois : un titre de trois mots, une
@@ -98,7 +98,7 @@ const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
  * carte disaient la même chose en trois lignes — ils restent disponibles
  * dans le tiroir de détail, qui a la place de les porter.
  */
-const STATUS_VIEW: Record<
+export const STATUS_VIEW: Record<
   string,
   { title: string; note?: string; tone: Tone; icon: React.ElementType }
 > = {
@@ -146,7 +146,7 @@ const STATUS_VIEW: Record<
 
 const FALLBACK_VIEW = { title: "En cours", tone: "slate" as Tone, icon: Clock };
 
-const BAIL_TYPE_LABELS: Record<string, string> = {
+export const BAIL_TYPE_LABELS: Record<string, string> = {
   BAIL_NU_3_ANS: "Bail nu 3 ans",
   BAIL_NU_6_ANS: "Bail nu 6 ans",
   BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
@@ -171,7 +171,7 @@ export function getTenantName(parties: OwnerBailCardData["parties"]) {
 }
 
 /** Ce qui identifie le bail, calculé une fois pour la carte et pour la ligne. */
-function useBailFacts(bail: OwnerBailCardData) {
+export function useBailFacts(bail: OwnerBailCardData) {
   const view = STATUS_VIEW[bail.status] ?? FALLBACK_VIEW;
   const tenantName = getTenantName(bail.parties);
   const isCommercial = bail.bailFamily === BailFamille.COMMERCIAL;
@@ -207,7 +207,7 @@ function useBailFacts(bail: OwnerBailCardData) {
 /* ---------- Atomes partagés ------------------------------------------------ */
 
 /** Trois segments : ils situent le dossier, ils ne l'expliquent plus. */
-function StepBar({
+export function StepBar({
   stepIndex,
   signed,
   className,

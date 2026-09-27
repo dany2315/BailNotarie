@@ -5,7 +5,7 @@ import { LpNav } from "@/components/lp/lp-nav";
 import { OwnerRuntime } from "@/components/client-v2/owner-runtime";
 import { OwnerTabsBar, OwnerTabsDock, OwnerTabKey } from "@/components/client-v2/owner-tabs";
 import { OwnerDashboard } from "@/components/client-v2/owner-dashboard";
-import { OwnerDossiers } from "@/components/client-v2/owner-dossiers";
+import { OwnerDossiers, VARIANTS, type DossiersVariant } from "@/components/client-v2/owner-dossiers";
 import { OwnerInformations } from "@/components/client-v2/owner-informations";
 import { cn } from "@/lib/utils";
 import {
@@ -57,6 +57,7 @@ const ENTREPRISE = {
 export function TestEspaceClient() {
   const [tab, setTab] = React.useState<OwnerTabKey>("dashboard");
   const [asEntreprise, setAsEntreprise] = React.useState(false);
+  const [dossiersVariant, setDossiersVariant] = React.useState<DossiersVariant>("registre");
 
   return (
     <OwnerRuntime demo>
@@ -103,7 +104,43 @@ export function TestEspaceClient() {
         )}
 
         {tab === "dossiers" && (
-          <OwnerDossiers biens={DEMO_BIENS} locataires={DEMO_LOCATAIRES} ownerId={DEMO_OWNER_ID} />
+          <>
+            {/* Sélecteur réservé à la maquette : quatre compositions de la
+                même page, avec les mêmes données et la même logique. */}
+            <div className="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">
+              <div className="flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/80 p-1.5 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {VARIANTS.map((option) => {
+                  const isActive = option.key === dossiersVariant;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setDossiersVariant(option.key)}
+                      title={option.hint}
+                      className={cn(
+                        "shrink-0 rounded-xl px-3.5 py-2 text-[12.5px] font-semibold transition-colors",
+                        isActive
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800",
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 px-1 text-[11.5px] text-slate-400">
+                Option {VARIANTS.findIndex((option) => option.key === dossiersVariant) + 1} sur{" "}
+                {VARIANTS.length} — {VARIANTS.find((option) => option.key === dossiersVariant)?.hint}
+              </p>
+            </div>
+            <OwnerDossiers
+              biens={DEMO_BIENS}
+              locataires={DEMO_LOCATAIRES}
+              ownerId={DEMO_OWNER_ID}
+              variant={dossiersVariant}
+            />
+          </>
         )}
 
         {tab === "informations" &&
