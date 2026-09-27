@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
 import { Footer } from "@/components/footer";
+import { ScrollReset } from "@/components/scroll-reset";
 import { LpNav } from "@/components/lp/lp-nav";
 import { LpChrome } from "@/components/lp/lp-chrome";
 import { LpHero } from "@/components/lp/lp-hero";
@@ -41,6 +42,8 @@ export const metadata: Metadata = generateDynamicMetadata({
 export default function LpTestPage() {
   return (
     <div className="lp-root min-h-screen bg-white antialiased">
+      {/* Un rechargement repart du hero, pas du milieu de la page. */}
+      <ScrollReset />
       {/* Accorde les barres du navigateur mobile à la section affichée. */}
       <LpChrome />
       <LpNav />

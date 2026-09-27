@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Header } from "@/components/header";
 import { HeroSectionNew } from "@/components/hero-section-new";
 import { Footer } from "@/components/footer";
+import { ScrollReset } from "@/components/scroll-reset";
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
 import { DefinitionSection } from "@/components/DefinitionSection";
 
@@ -21,6 +22,9 @@ export const metadata: Metadata = generateDynamicMetadata({ page: 'home' });
 export default function Home() {
   return (
     <main className="min-h-screen">
+      {/* Un rechargement repart du haut de la page, pas de la section où on
+          se trouvait : les sections en import dynamique n'y sont pas encore. */}
+      <ScrollReset />
       <Header />
       
       {/* Hero Section - Solution 100% en ligne */}
