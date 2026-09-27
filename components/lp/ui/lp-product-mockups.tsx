@@ -21,6 +21,7 @@ import {
   UserRound,
   Video,
 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /* =========================================================================
@@ -356,6 +357,42 @@ export function SuiviMockup({ compact = false }: { compact?: boolean }) {
 
 /* ---------- 4. Signature en visioconférence -------------------------------- */
 
+/* Participants de la visio.
+
+   Les photos viennent d'Unsplash et sont appelées par leur URL de diffusion,
+   recadrées côté service : `crop=faces` centre la découpe sur le visage, donc
+   le cadrage reste juste quelle que soit la taille demandée. `unoptimized`
+   évite de repasser par l'optimiseur d'images — la vignette est déjà servie à
+   la bonne taille, et le quota de transformations reste pour les visuels du
+   site.
+
+   Crédits : Osama Madlom (notaire) et Janko Ferlič (propriétaire), Unsplash. */
+const CALL = {
+  notaire: {
+    label: "Me Laurent — Étude notariale",
+    src: "https://images.unsplash.com/photo-1734159350022-0acc5f934da5?auto=format&fit=crop&crop=faces&w=900&h=506&q=70",
+  },
+  client: {
+    label: "Vous",
+    src: "https://images.unsplash.com/photo-1592158169526-9deda479afce?auto=format&fit=crop&crop=faces&w=360&h=270&q=70",
+  },
+};
+
+/** Niveau sonore du participant qui parle : trois barres, décalées. */
+function AudioLevel() {
+  return (
+    <span aria-hidden className="flex h-2.5 items-end gap-[2px]">
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          className="lp-anim-level w-[2px] rounded-full bg-emerald-400"
+          style={{ animationDelay: `${index * 0.18}s` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function SignatureMockup({ compact = false }: { compact?: boolean }) {
   return (
     <div className={cn("relative", compact ? "p-4" : "p-5 sm:p-6")}>
@@ -366,42 +403,64 @@ export function SignatureMockup({ compact = false }: { compact?: boolean }) {
         </span>
       </div>
 
-      {/* Fenêtre visio */}
-      <div className="relative mb-3 aspect-[16/9] overflow-hidden rounded-xl bg-gradient-to-br from-[#16213f] via-[#1b2a4d] to-[#0f1830]">
-        <div className="lp-grid-dark absolute inset-0 opacity-60" />
-        <div className="absolute left-3 top-3 rounded-md bg-black/40 px-2 py-0.5 text-[9.5px] font-medium text-white/90 backdrop-blur">
-          Me Laurent — Étude notariale
+      {/* Fenêtre visio : le notaire en grand, le propriétaire en incrustation,
+          comme dans un vrai appel. Le fond sombre reste sous les photos : si
+          elles tardent ou manquent, la fenêtre garde l'allure d'une visio. */}
+      <div className="relative mb-3 aspect-[16/9] overflow-hidden rounded-xl bg-[#0f1830]">
+        <Image
+          src={CALL.notaire.src}
+          alt=""
+          fill
+          unoptimized
+          sizes="(max-width: 1024px) 90vw, 460px"
+          className="object-cover"
+        />
+        {/* Voile haut et bas : garde les incrustations lisibles quelle que
+            soit la luminosité de l'image. */}
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/70"
+        />
+
+        {/* Étiquette du participant qui parle */}
+        <div className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-lg bg-black/55 px-2 py-1 backdrop-blur-sm">
+          <AudioLevel />
+          <span className="text-[9.5px] font-medium text-white/95">{CALL.notaire.label}</span>
         </div>
 
-        {/* Silhouette du notaire, stylisée */}
-        <div className="absolute inset-x-0 bottom-0 flex justify-center">
-          <div className="relative h-[62%] w-[34%]">
-            <div className="absolute left-1/2 top-0 h-[44%] w-[58%] -translate-x-1/2 rounded-full bg-gradient-to-b from-[#7e9bf3]/70 to-[#4373f5]/40" />
-            <div className="absolute inset-x-0 bottom-0 h-[52%] rounded-t-[42%] bg-gradient-to-b from-[#4373f5]/45 to-[#4373f5]/10" />
+        <span className="absolute right-2.5 top-2.5 rounded-md bg-black/45 px-1.5 py-0.5 text-[8.5px] font-semibold tracking-wide text-white/80 backdrop-blur-sm">
+          HD
+        </span>
+
+        {/* Incrustation du propriétaire */}
+        <div className="absolute bottom-2.5 right-2.5 aspect-[4/3] w-[27%] overflow-hidden rounded-lg bg-[#223055] shadow-[0_8px_20px_-8px_rgba(0,0,0,0.9)] ring-1 ring-white/25">
+          <Image
+            src={CALL.client.src}
+            alt=""
+            fill
+            unoptimized
+            sizes="140px"
+            className="object-cover"
+          />
+          <div
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-[3px] pt-3 text-[8px] font-medium text-white"
+          >
+            {CALL.client.label}
           </div>
         </div>
 
-        {/* Vignette participant */}
-        <div className="absolute bottom-3 right-3 h-[34%] w-[24%] overflow-hidden rounded-lg border border-white/20 bg-[#223055]">
-          <div className="absolute inset-x-0 bottom-0 flex justify-center">
-            <div className="relative h-[70%] w-[52%]">
-              <div className="absolute left-1/2 top-0 h-[42%] w-[62%] -translate-x-1/2 rounded-full bg-white/45" />
-              <div className="absolute inset-x-0 bottom-0 h-[50%] rounded-t-[42%] bg-white/25" />
-            </div>
-          </div>
-          <div className="absolute left-1.5 top-1.5 text-[8px] font-medium text-white/80">Vous</div>
-        </div>
-
-        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+        {/* Commandes d'appel */}
+        <div className="absolute bottom-2.5 left-3 flex items-center gap-1.5">
           {[Mic, Video].map((Icon, index) => (
             <span
               key={index}
-              className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
+              className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-white ring-1 ring-white/15 backdrop-blur-sm"
             >
               <Icon className="h-3 w-3" />
             </span>
           ))}
-          <span className="flex h-6 items-center rounded-full bg-[#4373f5] px-2.5 text-[9px] font-semibold text-white">
+          <span className="flex h-6 items-center rounded-full bg-[#4373f5] px-2.5 text-[9px] font-semibold text-white shadow-[0_6px_16px_-6px_rgba(67,115,245,1)]">
             Signer
           </span>
         </div>

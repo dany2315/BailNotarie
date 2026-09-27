@@ -620,6 +620,19 @@ html {
 .lp-anim-caret { animation: lp-caret 1.1s steps(1) infinite; }
 .lp-anim-progress { animation: lp-progress 5s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate; }
 
+/* Niveau sonore de la visio : trois barres qui montent et descendent. La
+   hauteur de repos est celle de l'animation figée, pour que le mouvement
+   réduit n'affiche pas des barres écrasées. */
+@keyframes lp-level {
+  0%, 100% { height: 30%; }
+  50% { height: 100%; }
+}
+
+.lp-anim-level {
+  height: 55%;
+  animation: lp-level 1.1s ease-in-out infinite;
+}
+
 .lp-marquee-track {
   animation: lp-marquee-x var(--lp-duration, 40s) linear infinite;
 }
