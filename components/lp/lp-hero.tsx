@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { ArrowRight, Clock, Globe, Play, ShieldCheck, Sparkles, Star } from "lucide-react";
+import { Clock, Globe, Play, ShieldCheck, Sparkles, Star } from "lucide-react";
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { FcGoogle } from "react-icons/fc";
 import Image from "next/image";
@@ -15,6 +14,7 @@ import {
   FloatingPriceCard,
 } from "./ui/lp-product-mockups";
 import { AuroraBackdrop, GhostButton, NoiseOverlay, usePointerParallax } from "./ui/lp-primitives";
+import { LpStartField } from "./lp-start-field";
 
 const AVATARS = [
   "https://images.pexels.com/photos/3785079/pexels-photo-3785079.jpeg?auto=compress&cs=tinysrgb&w=80&h=80&fit=crop&crop=face",
@@ -130,34 +130,19 @@ export function LpHero() {
             <strong className="font-semibold text-slate-900">force exécutoire</strong>.
           </p>
 
-          {/* ---------- Actions ---------- */}
+          {/* ---------- Action : le dossier s'ouvre ici ---------- */}
+          {/* La saisie de l'adresse était la première étape de « Commencer ».
+              Elle remonte dans le hero : le code part d'ici, et la page
+              suivante ouvre directement l'écran de vérification. */}
           <div
             style={{ ["--lp-delay" as string]: "0.22s" }}
-            className="lp-enter-up mt-8 flex flex-col items-center gap-3"
+            className="lp-enter-up mx-auto mt-8 flex max-w-xl flex-col items-center gap-4"
           >
-            <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
-              <Link
-                href="/commencer"
-                className="group/btn relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-8 py-4 sm:w-auto text-base font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_16px_40px_-14px_rgba(53,99,233,1)] transition-all duration-300 hover:-translate-y-0.5"
-              >
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(105deg,transparent_38%,rgba(255,255,255,0.45)_50%,transparent_62%)] transition-transform duration-700 group-hover/btn:translate-x-full"
-                />
-                <span className="relative flex items-center gap-2">
-                  Constituer mon dossier
-                  <ArrowRight className="h-4.5 w-4.5 transition-transform duration-300 group-hover/btn:translate-x-1" />
-                </span>
-              </Link>
-              <GhostButton href="#processus" className="w-full px-7 py-4 sm:w-auto">
-                <Play className="h-4 w-4 text-[#4373f5]" />
-                Voir le déroulé
-              </GhostButton>
-            </div>
-            <p className="text-[13px] text-slate-500">
-              Frais de dossier <strong className="font-semibold text-slate-700">39,90 € TTC</strong> — remboursés si le
-              dossier n&apos;aboutit pas*
-            </p>
+            <LpStartField />
+            <GhostButton href="#processus" className="px-6 py-3 text-[14.5px]">
+              <Play className="h-4 w-4 text-[#4373f5]" />
+              Voir le déroulé
+            </GhostButton>
           </div>
 
         </div>

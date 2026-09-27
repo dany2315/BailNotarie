@@ -1,7 +1,9 @@
 "use client";
 
+import * as React from "react";
 import { useState, startTransition } from "react";
 import { OwnerEmailInputForm } from "@/components/start/owner-email-input-form";
+import { AlreadyClientState } from "@/components/start/already-client-state";
 import { OtpVerificationForm } from "@/components/start/otp-verification-form";
 import { useRouter } from "next/navigation";
 import { LpNav } from "@/components/lp/lp-nav";
@@ -9,6 +11,7 @@ import { Footer } from "@/components/footer";
 import { AuroraBackdrop, NoiseOverlay } from "@/components/lp/ui/lp-primitives";
 import { StartHeading } from "@/components/start/start-aside";
 import { notifyAdminsForNewOwnerFromLanding } from "@/lib/actions/start";
+import { takeStartHandoff, type StartHandoff } from "@/lib/start-handoff";
 
 type Step = "email-input" | "otp-verification";
 
@@ -18,6 +21,28 @@ export function StartPageClient() {
   const [email, setEmail] = useState("");
   const [token, setToken] = useState<string | undefined>(undefined);
   const [isExistingClient, setIsExistingClient] = useState(false);
+  const [initialError, setInitialError] = useState<Extract<StartHandoff, { step: "error" }> | null>(null);
+
+  /* Relais de l'accueil : quand l'adresse y a déjà été saisie, le code est
+     parti et il ne reste que la vérification. La lecture se fait avant la
+     première peinture, sinon l'écran de l'e-mail apparaîtrait un instant
+     avant d'être remplacé. */
+  const useBeforePaint = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
+  useBeforePaint(() => {
+    const handoff = takeStartHandoff();
+    if (!handoff) return;
+
+    if (handoff.step === "otp") {
+      setEmail(handoff.email);
+      setToken(handoff.token);
+      setIsExistingClient(handoff.isExistingClient);
+      setCurrentStep("otp-verification");
+      return;
+    }
+
+    setEmail(handoff.email);
+    setInitialError(handoff);
+  }, []);
 
   // Callback quand l'OTP a été envoyé avec succès
   const handleOtpSent = (
@@ -71,6 +96,7 @@ export function StartPageClient() {
     setEmail("");
     setToken(undefined);
     setIsExistingClient(false);
+    setInitialError(null);
   };
 
   const step = currentStep === "email-input" ? "email" : "otp";
@@ -96,8 +122,16 @@ export function StartPageClient() {
           <StartHeading step={step} />
 
           <div className="mt-7 sm:mt-8">
-            {currentStep === "email-input" && (
-              <OwnerEmailInputForm onOtpSent={handleOtpSent} />
+            {currentStep === "email-input" && initialError && (
+              <AlreadyClientState
+                message={initialError.message}
+                redirectTo={initialError.redirectTo}
+                redirectLabel={initialError.redirectLabel || "Contactez-nous"}
+                onBack={handleBack}
+              />
+            )}
+            {currentStep === "email-input" && !initialError && (
+              <OwnerEmailInputForm onOtpSent={handleOtpSent} initialEmail={email} />
             )}
             {currentStep === "otp-verification" && (
               <OtpVerificationForm

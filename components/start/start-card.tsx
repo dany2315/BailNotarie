@@ -35,13 +35,13 @@ function Stepper({ current }: { current: StepKey }) {
             <span
               aria-current={active ? "step" : undefined}
               className={cn(
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold transition-colors duration-300",
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11.5px] font-semibold transition-colors duration-300",
                 done && "bg-emerald-500 text-white",
                 active && "bg-gradient-to-b from-[#5b85f7] to-[#3563e9] text-white shadow-[0_6px_16px_-8px_rgba(53,99,233,1)]",
                 !done && !active && "bg-slate-100 text-slate-400",
               )}
             >
-              {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+              {done ? <Check className="h-3 w-3" /> : i + 1}
             </span>
             <span
               className={cn(

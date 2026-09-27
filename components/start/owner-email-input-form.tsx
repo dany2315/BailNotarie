@@ -21,9 +21,11 @@ type OwnerEmailInputFormData = z.infer<typeof ownerEmailSchema>;
 
 interface OwnerEmailInputFormProps {
   onOtpSent: (email: string, token: string | undefined, isExistingClient: boolean) => void;
+  /** Adresse déjà saisie sur l'accueil, à ne pas redemander. */
+  initialEmail?: string;
 }
 
-export function OwnerEmailInputForm({ onOtpSent }: OwnerEmailInputFormProps) {
+export function OwnerEmailInputForm({ onOtpSent, initialEmail = "" }: OwnerEmailInputFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorState, setErrorState] = useState<{
     message: string;
@@ -34,7 +36,7 @@ export function OwnerEmailInputForm({ onOtpSent }: OwnerEmailInputFormProps) {
   const form = useForm<OwnerEmailInputFormData>({
     resolver: zodResolver(ownerEmailSchema),
     defaultValues: {
-      email: "",
+      email: initialEmail,
     },
   });
 
@@ -129,9 +131,9 @@ export function OwnerEmailInputForm({ onOtpSent }: OwnerEmailInputFormProps) {
               {form.formState.errors.email.message}
             </p>
           )}
-          <p className="flex items-start gap-1.5 text-[13px] leading-relaxed text-slate-500">
-            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-            Un code à six chiffres vous sera envoyé pour sécuriser la connexion. Aucun mot de passe à créer.
+          <p className="flex items-center gap-1.5 text-[13px] text-slate-500">
+            <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            Un code vous sera envoyé. Aucun mot de passe à créer.
           </p>
         </div>
 
@@ -142,7 +144,7 @@ export function OwnerEmailInputForm({ onOtpSent }: OwnerEmailInputFormProps) {
 
         <div className="flex items-center justify-center gap-2 pt-1 text-[12.5px] text-slate-500">
           <Shield className="h-4 w-4 text-emerald-500" />
-          Connexion chiffrée · vos données ne servent qu&apos;à votre dossier
+          Connexion sécurisée
         </div>
       </form>
     </StartCard>
