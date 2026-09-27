@@ -164,13 +164,16 @@ export function refreshClientSession() {
 /** Délai en deçà duquel un retour sur l'onglet ne relance pas de lecture. */
 const REVALIDATE_AFTER_MS = 30_000;
 
-export function useClientSession(): ClientSession {
-  const [session, setSession] = React.useState<ClientSession>(sessionState);
+/** Abonnement commun : lecture initiale, publication, revalidation. */
+function useSessionSubscription(onChange: (session: ClientSession) => void) {
+  const ref = React.useRef(onChange);
+  ref.current = onChange;
 
   React.useEffect(() => {
-    subscribers.add(setSession);
+    const listener = (session: ClientSession) => ref.current(session);
+    subscribers.add(listener);
     // L'état a pu changer entre le premier rendu et l'abonnement.
-    setSession(sessionState);
+    listener(sessionState);
     ensureLoaded();
 
     // Déconnexion depuis un autre onglet, session expirée pendant une absence :
@@ -183,11 +186,15 @@ export function useClientSession(): ClientSession {
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      subscribers.delete(setSession);
+      subscribers.delete(listener);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
+}
 
+export function useClientSession(): ClientSession {
+  const [session, setSession] = React.useState<ClientSession>(sessionState);
+  useSessionSubscription(setSession);
   return session;
 }
 
@@ -360,12 +367,35 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
  * l'immense majorité des visiteurs.
  */
 export function useDossierCta(): { href: string; label: string; connected: boolean } {
-  const session = useClientSession();
-  const connected = session.status === "client";
+  /* Un booléen, pas la session entière : la lecture publie deux fois — une
+     fois pour l'identité sommaire, une fois pour le nom affichable obtenu du
+     serveur — et sans ce filtre, le second passage ferait re-rendre tous les
+     boutons pour rien. React abandonne le rendu quand la valeur ne change pas. */
+  const [connected, setConnected] = React.useState(sessionState.status === "client");
+  useSessionSubscription(React.useCallback((session: ClientSession) => {
+    setConnected(session.status === "client");
+  }, []));
 
   return {
     href: connected ? "/client" : "/commencer",
     label: connected ? "Mon espace client" : "Constituer mon dossier",
     connected,
   };
+}
+
+/**
+ * Isole l'abonnement dans une feuille de l'arbre.
+ *
+ * Appeler le crochet directement dans une section la fait re-rendre tout
+ * entière à l'arrivée de la session — et certaines sont lourdes : la visite
+ * guidée monte cinq maquettes, le tarif un curseur. Ici, seul ce composant se
+ * re-rend, et la section reste intacte.
+ */
+export function WithDossierCta({
+  children,
+}: {
+  children: (cta: { href: string; label: string; connected: boolean }) => React.ReactNode;
+}) {
+  const cta = useDossierCta();
+  return <>{children(cta)}</>;
 }

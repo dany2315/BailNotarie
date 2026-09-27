@@ -14,7 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { Reveal, SectionLabel, Tilt3D } from "./ui/lp-primitives";
-import { useDossierCta } from "./lp-user-menu";
+import { WithDossierCta } from "./lp-user-menu";
 
 /* =========================================================================
    Tarif.
@@ -61,8 +61,6 @@ const euro = (value: number, decimals = 0) =>
   value.toLocaleString("fr-FR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
 export function LpPricing() {
-  const cta = useDossierCta();
-
   const [rent, setRent] = React.useState(900);
 
   // Règle annoncée par les études : environ la moitié d'un loyer mensuel hors
@@ -195,13 +193,17 @@ export function LpPricing() {
                   </div>
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <Link
-                      href={cta.href}
-                      className="group inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-[15px] font-semibold text-[#1e3a8a] transition-transform duration-300 hover:-translate-y-0.5"
-                    >
-                      {cta.label}
-                      <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                    </Link>
+                      <WithDossierCta>
+                        {(cta) => (
+                      <Link
+                        href={cta.href}
+                        className="group inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-[15px] font-semibold text-[#1e3a8a] transition-transform duration-300 hover:-translate-y-0.5"
+                      >
+                        {cta.label}
+                        <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                      </Link>
+                        )}
+                      </WithDossierCta>
                     <Link
                       href="/simulateur-prix-bail-notarie"
                       className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/[0.06] px-6 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-white/[0.12]"
