@@ -180,6 +180,7 @@ export function PrimaryAction({
         "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-4 py-2.5 text-[13px] font-semibold text-white",
         "shadow-[0_1px_0_rgba(255,255,255,0.28)_inset,0_10px_24px_-10px_rgba(53,99,233,0.7)]",
         "transition-[transform,box-shadow] duration-200 hover:shadow-[0_1px_0_rgba(255,255,255,0.28)_inset,0_14px_30px_-10px_rgba(53,99,233,0.8)] active:translate-y-px",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/50 focus-visible:ring-offset-2",
         "disabled:pointer-events-none disabled:opacity-60",
         className,
       )}
@@ -200,7 +201,9 @@ export function QuietAction({
       type="button"
       className={cn(
         "inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12.5px] font-semibold text-slate-700",
-        "transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-60",
+        "transition-colors hover:border-slate-300 hover:bg-slate-50 active:translate-y-px",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/40 focus-visible:ring-offset-2",
+        "disabled:pointer-events-none disabled:opacity-60",
         className,
       )}
       {...rest}

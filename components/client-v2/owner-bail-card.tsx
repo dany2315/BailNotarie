@@ -5,16 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  CalendarDays,
-  Check,
   ChevronRight,
   Clock,
   FileCheck2,
   FileText,
-  Home,
   Loader2,
   MessageSquare,
-  Store,
+  ScanSearch,
   UserPlus,
   UserRound,
 } from "lucide-react";
@@ -37,16 +34,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BailChatSheet } from "@/components/client/bail-chat-sheet";
 import { useOwnerRuntime } from "./owner-runtime";
-import { Avatar, IconTile, Pill, PrimaryAction, QuietAction, Stepper, Surface, Tone } from "./owner-ui";
+import { IconTile, MicroLabel, Pill, PrimaryAction, QuietAction, Surface, Tone } from "./owner-ui";
 
 /* =========================================================================
-   La carte d'un bail — remplaçante directe de `OwnerBailCard`.
+   La carte d'un dossier — remplaçante directe de `OwnerBailCard`.
 
-   Mêmes props, même logique (locataire manquant, date de fin calculée,
-   messages de statut, chat notaire, ouverture du détail). Ce qui change :
-   l'état du dossier se lit dans l'en-tête sous forme de pastille, la frise
-   passe sous les métadonnées, et les deux actions vivent dans un pied de
-   carte clairement séparé.
+   Le premier jet gardait l'ordre de l'ancienne carte : la nature du bail en
+   titre, puis des pastilles, le locataire, la frise, un encadré de message.
+   Six strates, et l'état du dossier répété trois fois (pastille, libellés de
+   la frise, phrase). Or la question d'un propriétaire tient en une ligne :
+   « où en est-il, et dois-je faire quelque chose ? »
+
+   Donc l'état devient le titre, en une phrase courte ; la frise se réduit à
+   trois segments (elle situe, elle n'explique plus — le titre s'en charge) ;
+   et ce qui identifie le bail (loyer, type, période, locataire) descend en
+   bloc d'étiquettes, dans la même écriture que « Mes informations ». Une
+   carte, une question, une réponse.
+
+   Toute la logique est conservée : locataire manquant et son ajout, date de
+   fin calculée quand elle n'est pas stockée, messagerie du notaire, détail.
    ========================================================================= */
 
 export type OwnerBailCardData = {
@@ -86,32 +92,59 @@ const STEP_INDEX: Record<string, number> = {
 
 const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
 
-const STATUS_MESSAGES: Record<string, string> = {
-  AWAITING_TENANT_FORM:
-    "En attente des informations du locataire. Le lien lui a bien été envoyé par email.",
-  PENDING_VALIDATION: "Votre dossier est entre nos mains. On revient vers vous sous 48h.",
-  READY_FOR_NOTARY: "Un notaire a pris en charge votre dossier. Il va vous contacter prochainement.",
-  CLIENT_CONTACTED:
-    "Votre dossier avance avec votre notaire. Vous êtes désormais en contact pour préparer ensemble les prochaines étapes jusqu'à la signature.",
-  SIGNED: "Félicitations ! Votre bail a été signé avec succès.",
-  TERMINATED: "Ce bail est terminé.",
-  DESISTE: "Ce dossier a fait l'objet d'un désistement.",
-  CLASSE_SANS_SUITE: "Ce dossier a été classé sans suite.",
+/**
+ * L'état d'un dossier, dit une seule fois : un titre de trois mots, une
+ * phrase courte, une couleur, une icône. Les textes longs de l'ancienne
+ * carte disaient la même chose en trois lignes — ils restent disponibles
+ * dans le tiroir de détail, qui a la place de les porter.
+ */
+const STATUS_VIEW: Record<
+  string,
+  { title: string; note?: string; tone: Tone; icon: React.ElementType }
+> = {
+  DRAFT: { title: "Brouillon", tone: "slate", icon: FileText },
+  AWAITING_TENANT: {
+    title: "Locataire à ajouter",
+    note: "Ajoutez-le dès que vous l'avez trouvé — le dossier avance sans lui.",
+    tone: "amber",
+    icon: UserPlus,
+  },
+  AWAITING_TENANT_FORM: {
+    title: "En attente du locataire",
+    note: "Le lien lui a bien été envoyé par email.",
+    tone: "blue",
+    icon: Clock,
+  },
+  PENDING_VALIDATION: {
+    title: "En vérification",
+    note: "Votre dossier est entre nos mains. On revient vers vous sous 48 h.",
+    tone: "blue",
+    icon: ScanSearch,
+  },
+  READY_FOR_NOTARY: {
+    title: "Chez le notaire",
+    note: "Un notaire a pris votre dossier en charge. Il vous contacte bientôt.",
+    tone: "violet",
+    icon: FileText,
+  },
+  CLIENT_CONTACTED: {
+    title: "Avec votre notaire",
+    note: "Vous préparez ensemble la signature.",
+    tone: "violet",
+    icon: MessageSquare,
+  },
+  SIGNED: {
+    title: "Signé",
+    note: "Votre bail a été signé. Félicitations !",
+    tone: "emerald",
+    icon: FileCheck2,
+  },
+  TERMINATED: { title: "Terminé", tone: "slate", icon: FileText },
+  DESISTE: { title: "Désistement", tone: "slate", icon: FileText },
+  CLASSE_SANS_SUITE: { title: "Classé sans suite", tone: "slate", icon: FileText },
 };
 
-/** L'état du dossier en deux mots, pour le lire sans dérouler la carte. */
-const STATUS_PILLS: Record<string, { label: string; tone: Tone }> = {
-  DRAFT: { label: "Brouillon", tone: "slate" },
-  AWAITING_TENANT: { label: "Locataire à ajouter", tone: "amber" },
-  AWAITING_TENANT_FORM: { label: "Locataire en cours", tone: "blue" },
-  PENDING_VALIDATION: { label: "En vérification", tone: "blue" },
-  READY_FOR_NOTARY: { label: "Chez le notaire", tone: "violet" },
-  CLIENT_CONTACTED: { label: "Avec votre notaire", tone: "violet" },
-  SIGNED: { label: "Signé", tone: "emerald" },
-  TERMINATED: { label: "Terminé", tone: "slate" },
-  DESISTE: { label: "Désisté", tone: "slate" },
-  CLASSE_SANS_SUITE: { label: "Classé", tone: "slate" },
-};
+const FALLBACK_VIEW = { title: "En cours", tone: "slate" as Tone, icon: Clock };
 
 const BAIL_TYPE_LABELS: Record<string, string> = {
   BAIL_NU_3_ANS: "Bail nu 3 ans",
@@ -137,14 +170,84 @@ export function getTenantName(parties: OwnerBailCardData["parties"]) {
   return `${person.firstName || ""} ${person.lastName || ""}`.trim() || person.email || null;
 }
 
-function Meta({ icon: Icon, children }: { icon: React.ElementType; children: React.ReactNode }) {
+/** Ce qui identifie le bail, calculé une fois pour la carte et pour la ligne. */
+function useBailFacts(bail: OwnerBailCardData) {
+  const view = STATUS_VIEW[bail.status] ?? FALLBACK_VIEW;
+  const tenantName = getTenantName(bail.parties);
+  const isCommercial = bail.bailFamily === BailFamille.COMMERCIAL;
+  const endDate =
+    bail.endDate ||
+    (bail.effectiveDate && bail.bailType
+      ? calculateBailEndDate(new Date(bail.effectiveDate), bail.bailType as BailType)
+      : null);
+
+  return {
+    view,
+    tenantName,
+    isCommercial,
+    endDate,
+    terminal: TERMINAL_STATUSES.includes(bail.status),
+    stepIndex: STEP_INDEX[bail.status] ?? 0,
+    notaire: bail.dossierAssignments?.[0]?.notaire ?? null,
+    rent: bail.rentAmount != null && bail.rentAmount > 0 ? formatRent(bail.rentAmount) : null,
+    typeLabel: bail.bailType
+      ? BAIL_TYPE_LABELS[bail.bailType] || bail.bailType
+      : isCommercial
+        ? "Bail commercial"
+        : null,
+    propertyLabel:
+      bail.property.label || bail.property.fullAddress?.split(",")[0] || "Bien immobilier",
+    propertyDescription:
+      bail.property.label && bail.property.fullAddress
+        ? `${bail.property.label} — ${bail.property.fullAddress}`
+        : bail.property.fullAddress || bail.property.label || "Bien immobilier",
+  };
+}
+
+/* ---------- Atomes partagés ------------------------------------------------ */
+
+/** Trois segments : ils situent le dossier, ils ne l'expliquent plus. */
+function StepBar({
+  stepIndex,
+  signed,
+  className,
+}: {
+  stepIndex: number;
+  signed: boolean;
+  className?: string;
+}) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-slate-500">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-      <span className="truncate">{children}</span>
+    <span className={cn("flex items-center gap-1", className)}>
+      {STEPS.map((step, index) => (
+        <span
+          key={step}
+          title={step}
+          className={cn(
+            "h-1 flex-1 rounded-full transition-colors duration-500",
+            signed || stepIndex > index
+              ? "bg-emerald-400"
+              : stepIndex === index
+                ? "bg-[#4373f5]"
+                : "bg-slate-200",
+          )}
+        />
+      ))}
     </span>
   );
 }
+
+/** Étiquette + valeur, dans l'écriture de « Mes informations ». */
+function Fact({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="min-w-0">
+      <MicroLabel className="mb-0.5">{label}</MicroLabel>
+      <p className="truncate text-[13px] font-medium text-slate-800">{value}</p>
+    </div>
+  );
+}
+
+/* ---------- La carte ------------------------------------------------------- */
 
 export function OwnerBailCardV2({
   bail,
@@ -163,29 +266,12 @@ export function OwnerBailCardV2({
   const [tenantEmail, setTenantEmail] = React.useState("");
   const [isAddingTenant, setIsAddingTenant] = React.useState(false);
 
-  const tenantName = getTenantName(bail.parties);
-  const missingTenant = bail.status === "AWAITING_TENANT" && !tenantName;
-  const notaire = bail.dossierAssignments?.[0]?.notaire ?? null;
-  const isCommercial = bail.bailFamily === BailFamille.COMMERCIAL;
-  const isSigned = bail.status === "SIGNED";
-  const terminal = TERMINAL_STATUSES.includes(bail.status);
-  const familyLabel = isCommercial ? "Bail commercial" : "Bail d'habitation";
-  const propertyLabel =
-    bail.property.label || bail.property.fullAddress?.split(",")[0] || "Bien immobilier";
-  const propertyDescription =
-    bail.property.label && bail.property.fullAddress
-      ? `${bail.property.label} — ${bail.property.fullAddress}`
-      : bail.property.fullAddress || propertyLabel;
-
-  const calculatedEndDate =
-    bail.endDate ||
-    (bail.effectiveDate && bail.bailType
-      ? calculateBailEndDate(new Date(bail.effectiveDate), bail.bailType as BailType)
-      : null);
-
-  const message = STATUS_MESSAGES[bail.status];
-  const statusPill = STATUS_PILLS[bail.status];
-  const showChat = Boolean(notaire);
+  const facts = useBailFacts(bail);
+  const missingTenant = bail.status === "AWAITING_TENANT" && !facts.tenantName;
+  const showChat = Boolean(facts.notaire);
+  const period =
+    bail.effectiveDate &&
+    `${formatDate(bail.effectiveDate)}${facts.endDate ? ` → ${formatDate(facts.endDate)}` : ""}`;
 
   const handleAddTenant = async () => {
     if (!tenantEmail.includes("@")) {
@@ -194,11 +280,8 @@ export function OwnerBailCardV2({
     }
     try {
       setIsAddingTenant(true);
-      if (demo) {
-        await new Promise((resolve) => setTimeout(resolve, 450));
-      } else {
-        await createTenantForLease({ bailId: bail.id, email: tenantEmail });
-      }
+      if (demo) await new Promise((resolve) => setTimeout(resolve, 450));
+      else await createTenantForLease({ bailId: bail.id, email: tenantEmail });
       toast.success("Locataire ajouté — un email lui a été envoyé");
       setTenantDialogOpen(false);
       setTenantEmail("");
@@ -212,123 +295,61 @@ export function OwnerBailCardV2({
 
   return (
     <>
-      <Surface tone="raised" className="overflow-hidden">
-        <div className="space-y-3.5 p-4 sm:p-5">
-          {/* En-tête : nature du bail, bien, état */}
+      <Surface tone="raised" className="overflow-hidden transition-shadow duration-300 hover:shadow-[0_2px_4px_rgba(15,23,42,0.04),0_34px_70px_-34px_rgba(30,58,138,0.4)]">
+        <div className="flex flex-col gap-4 p-4 sm:p-5">
+          {/* 1. Où en est le dossier — la seule chose écrite en grand. */}
           <div className="flex items-start gap-3">
-            <IconTile
-              icon={isSigned ? FileCheck2 : isCommercial ? Store : Home}
-              tone={isSigned ? "emerald" : isCommercial ? "amber" : "blue"}
-            />
+            <IconTile icon={facts.view.icon} tone={facts.view.tone} />
             <div className="min-w-0 flex-1">
-              <p className="text-[14px] font-semibold leading-tight tracking-tight text-slate-900">
-                {familyLabel}
+              <p className="text-[15px] font-semibold leading-tight tracking-tight text-slate-900">
+                {facts.view.title}
               </p>
               {context === "dashboard" && (
-                <p className="mt-0.5 truncate text-[12px] text-slate-500" title={propertyDescription}>
-                  {propertyDescription}
+                <p className="mt-0.5 truncate text-[12px] text-slate-500" title={facts.propertyDescription}>
+                  {facts.propertyDescription}
                 </p>
               )}
-            </div>
-            {statusPill && (
-              <Pill tone={statusPill.tone} className="mt-0.5 shrink-0">
-                {statusPill.label}
-              </Pill>
-            )}
-          </div>
-
-          {/* Métadonnées : loyer, type, période */}
-          {(bail.rentAmount || bail.bailType || bail.effectiveDate) && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-y border-slate-100 py-2.5">
-              {bail.rentAmount != null && bail.rentAmount > 0 && (
-                <span className="text-[14px] font-bold tabular-nums tracking-tight text-slate-900">
-                  {formatRent(bail.rentAmount)}
-                  <span className="ml-0.5 text-[11px] font-medium text-slate-400">/mois</span>
-                </span>
-              )}
-              {bail.bailType && <Meta icon={FileText}>{BAIL_TYPE_LABELS[bail.bailType] || bail.bailType}</Meta>}
-              {bail.effectiveDate && (
-                <Meta icon={CalendarDays}>
-                  <span className="inline-flex items-center gap-1">
-                    {formatDate(bail.effectiveDate)}
-                    {calculatedEndDate && (
-                      <>
-                        <ArrowRight className="h-2.5 w-2.5 shrink-0 text-slate-300" />
-                        {formatDate(calculatedEndDate)}
-                      </>
-                    )}
-                  </span>
-                </Meta>
+              {facts.view.note && (
+                <p className="mt-1 text-[12.5px] leading-snug text-slate-500">{facts.view.note}</p>
               )}
             </div>
-          )}
-
-          {/* Locataire */}
-          {missingTenant ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#4373f5]/20 bg-[#4373f5]/[0.045] px-3 py-2.5">
-              <div className="min-w-0">
-                <p className="text-[12.5px] font-semibold text-slate-800">Locataire à renseigner</p>
-                <p className="text-[11.5px] leading-snug text-slate-500">
-                  Ajoutez-le dès que vous l&apos;avez trouvé — le dossier continue sans lui.
-                </p>
-              </div>
-              <PrimaryAction className="px-3 py-2 text-[12.5px]" onClick={() => setTenantDialogOpen(true)}>
+            {missingTenant && (
+              <PrimaryAction className="hidden shrink-0 sm:inline-flex" onClick={() => setTenantDialogOpen(true)}>
                 <UserPlus className="h-3.5 w-3.5" />
                 Ajouter
               </PrimaryAction>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2.5">
-              {tenantName ? (
-                <Avatar label={tenantName} />
-              ) : (
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                  <UserRound className="h-3.5 w-3.5" />
-                </span>
-              )}
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase leading-none tracking-[0.08em] text-slate-400">
-                  Locataire
-                </p>
-                <p
-                  className={cn(
-                    "mt-0.5 truncate text-[13.5px] font-medium text-slate-800",
-                    !tenantName && "text-[12.5px] font-normal italic text-slate-400",
-                  )}
-                >
-                  {tenantName ?? "Non renseigné"}
-                </p>
-              </div>
-            </div>
+            )}
+          </div>
+
+          {/* 2. Le chemin parcouru. */}
+          {!facts.terminal && (
+            <StepBar stepIndex={facts.stepIndex} signed={bail.status === "SIGNED"} />
           )}
 
-          {/* Avancement */}
-          {!terminal && <Stepper steps={STEPS} index={STEP_INDEX[bail.status] ?? 0} className="pt-0.5" />}
+          {/* 3. Ce qui identifie ce bail. */}
+          <div className="flex flex-wrap gap-x-7 gap-y-3 border-t border-slate-100 pt-3.5">
+            <Fact label="Loyer" value={facts.rent ? `${facts.rent} / mois` : null} />
+            <Fact label="Bail" value={facts.typeLabel} />
+            <Fact label="Période" value={period || null} />
+            {!missingTenant && <Fact label="Locataire" value={facts.tenantName ?? "Non renseigné"} />}
+          </div>
 
-          {/* Où en est le dossier, en une phrase */}
-          {message && (
-            <div
-              className={cn(
-                "flex items-start gap-2 rounded-xl px-3 py-2.5 text-[12.5px] leading-snug",
-                isSigned ? "bg-emerald-50 text-emerald-800" : "bg-slate-50 text-slate-600",
-              )}
-            >
-              {isSigned ? (
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-              )}
-              <span>{message}</span>
-            </div>
+          {/* Sur téléphone, le geste passe sous le texte plutôt que de se
+              comprimer à côté du titre. */}
+          {missingTenant && (
+            <PrimaryAction className="w-full py-3 sm:hidden" onClick={() => setTenantDialogOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+              Ajouter le locataire
+            </PrimaryAction>
           )}
         </div>
 
-        {/* Pied de carte : les deux seules actions possibles */}
-        <div className="flex items-center gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+        {/* 4. Les actions, à part. */}
+        <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3 sm:flex-row sm:items-center">
           {showChat &&
             (demo ? (
               <PrimaryAction
-                className="flex-1"
+                className="w-full py-2.5 sm:flex-1"
                 onClick={() => toast.info("Aperçu — la messagerie du notaire s'ouvre ici")}
               >
                 <MessageSquare className="h-3.5 w-3.5" />
@@ -338,7 +359,7 @@ export function OwnerBailCardV2({
               <BailChatSheet
                 bailId={bail.id}
                 trigger={
-                  <PrimaryAction className="flex-1">
+                  <PrimaryAction className="w-full py-2.5 sm:flex-1">
                     <MessageSquare className="h-3.5 w-3.5" />
                     Contacter le notaire
                   </PrimaryAction>
@@ -349,8 +370,8 @@ export function OwnerBailCardV2({
             <Link
               href={detailHref}
               className={cn(
-                "inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[12.5px] font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50",
-                !showChat && "w-full",
+                "inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[12.5px] font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/40",
+                showChat && "sm:w-auto",
               )}
             >
               Voir le dossier
@@ -358,11 +379,8 @@ export function OwnerBailCardV2({
             </Link>
           ) : (
             <QuietAction
-              className={cn("py-2.5", !showChat && "w-full")}
-              onClick={
-                onViewDetail ??
-                (() => toast.info("Aperçu — le détail du dossier s'ouvre ici"))
-              }
+              className={cn("w-full py-2.5", showChat && "sm:w-auto")}
+              onClick={onViewDetail ?? (() => toast.info("Aperçu — le détail du dossier s'ouvre ici"))}
             >
               Voir le dossier
               <ArrowRight className="h-3.5 w-3.5" />
@@ -376,7 +394,7 @@ export function OwnerBailCardV2({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[17px] tracking-tight">
-              <UserPlus className="h-4.5 w-4.5 text-[#3563e9]" />
+              <UserPlus className="h-4 w-4 text-[#3563e9]" />
               Ajouter un locataire
             </DialogTitle>
             <DialogDescription className="text-[13px] leading-snug">
@@ -438,12 +456,10 @@ export function OwnerBailCardV2({
 
 /**
  * Sur le tableau de bord, un dossier se consulte, il ne se travaille pas :
- * la question est « où en est-il ? », pas « que dois-je remplir ? » — cela
- * vit dans « À faire maintenant », juste au-dessus. Une ligne suffit donc,
- * et quatre dossiers tiennent dans un écran au lieu de quatre défilements.
- *
- * Rien n'est perdu au passage : la messagerie du notaire reste accessible
- * d'ici quand un notaire est assigné, et la ligne entière ouvre le dossier.
+ * ce qui demande une action vit dans « À faire maintenant », juste au-dessus.
+ * Une ligne suffit donc, et quatre dossiers tiennent dans un écran au lieu de
+ * quatre défilements. La messagerie du notaire reste accessible d'ici, et la
+ * ligne entière ouvre le dossier.
  */
 export function OwnerBailRow({
   bail,
@@ -455,59 +471,31 @@ export function OwnerBailRow({
   onOpen?: () => void;
 }) {
   const { demo } = useOwnerRuntime();
-  const isCommercial = bail.bailFamily === BailFamille.COMMERCIAL;
-  const isSigned = bail.status === "SIGNED";
-  const terminal = TERMINAL_STATUSES.includes(bail.status);
-  const statusPill = STATUS_PILLS[bail.status];
-  const stepIndex = STEP_INDEX[bail.status] ?? 0;
-  const notaire = bail.dossierAssignments?.[0]?.notaire ?? null;
-  const tenantName = getTenantName(bail.parties);
-  const propertyLabel =
-    bail.property.label || bail.property.fullAddress?.split(",")[0] || "Bien immobilier";
+  const facts = useBailFacts(bail);
 
-  const summary = [
-    bail.rentAmount != null && bail.rentAmount > 0 ? `${formatRent(bail.rentAmount)}/mois` : null,
-    bail.bailType ? BAIL_TYPE_LABELS[bail.bailType] || bail.bailType : null,
-    tenantName,
-  ]
+  const summary = [facts.rent ? `${facts.rent}/mois` : null, facts.typeLabel, facts.tenantName]
     .filter(Boolean)
     .join(" · ");
 
   const body = (
     <>
-      <IconTile
-        icon={isSigned ? FileCheck2 : isCommercial ? Store : Home}
-        tone={isSigned ? "emerald" : isCommercial ? "amber" : "blue"}
-      />
+      <IconTile icon={facts.view.icon} tone={facts.view.tone} />
       <span className="min-w-0 flex-1">
         {/* Le titre occupe sa ligne entière : sur un téléphone, une pastille
             posée à côté de lui le réduisait à trois mots suivis de points. */}
         <span className="block truncate text-[13.5px] font-semibold tracking-tight text-slate-900">
-          {propertyLabel}
+          {facts.propertyLabel}
         </span>
         {summary && <span className="mt-0.5 block truncate text-[12px] text-slate-500">{summary}</span>}
         <span className="mt-2 flex items-center gap-2">
-          {!terminal && (
-            <span className="flex w-[104px] shrink-0 items-center gap-1">
-              {STEPS.map((step, index) => (
-                <span
-                  key={step}
-                  title={step}
-                  className={cn(
-                    "h-1 flex-1 rounded-full",
-                    // Un dossier signé est vert de bout en bout : le bleu de
-                    // l'étape en cours n'a plus lieu d'être une fois arrivé.
-                    isSigned || stepIndex > index
-                      ? "bg-emerald-400"
-                      : stepIndex === index
-                        ? "bg-[#4373f5]"
-                        : "bg-slate-200",
-                  )}
-                />
-              ))}
-            </span>
+          {!facts.terminal && (
+            <StepBar
+              stepIndex={facts.stepIndex}
+              signed={bail.status === "SIGNED"}
+              className="w-[104px] shrink-0"
+            />
           )}
-          {statusPill && <Pill tone={statusPill.tone}>{statusPill.label}</Pill>}
+          <Pill tone={facts.view.tone}>{facts.view.title}</Pill>
         </span>
       </span>
     </>
@@ -516,7 +504,10 @@ export function OwnerBailRow({
   return (
     <div className="flex items-center gap-2 pr-3">
       {href ? (
-        <Link href={href} className="flex min-w-0 flex-1 items-start gap-3 p-4 transition-colors hover:bg-slate-50/70">
+        <Link
+          href={href}
+          className="flex min-w-0 flex-1 items-start gap-3 p-4 transition-colors hover:bg-slate-50/70"
+        >
           {body}
         </Link>
       ) : (
@@ -529,7 +520,7 @@ export function OwnerBailRow({
         </button>
       )}
 
-      {notaire &&
+      {facts.notaire &&
         (demo ? (
           <button
             type="button"

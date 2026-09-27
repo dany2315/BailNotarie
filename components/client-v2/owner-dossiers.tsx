@@ -111,18 +111,14 @@ export interface OwnerDossiersProps {
   ownerId: string;
 }
 
-const COMPLETION_LABELS: Record<string, string> = {
-  NOT_STARTED: "À compléter",
-  PARTIAL: "Partiel",
-  PENDING_CHECK: "En vérification",
-  COMPLETED: "Complet",
-};
-
-const COMPLETION_TONES: Record<string, Tone> = {
-  NOT_STARTED: "slate",
-  PARTIAL: "amber",
-  PENDING_CHECK: "blue",
-  COMPLETED: "emerald",
+/* L'état de complétude d'un bien n'apparaît que lorsqu'il appelle quelque
+   chose. Un bien complet n'a pas besoin d'une pastille verte pour le dire :
+   son silence suffit, et la ligne reste lisible. « Partiel » devenait de
+   toute façon illisible hors contexte — on dit ce qu'il faut faire. */
+const COMPLETION_VIEW: Record<string, { label: string; tone: Tone }> = {
+  NOT_STARTED: { label: "Infos à compléter", tone: "amber" },
+  PARTIAL: { label: "Infos à compléter", tone: "amber" },
+  PENDING_CHECK: { label: "Infos en vérification", tone: "blue" },
 };
 
 const BAIL_TYPE_LABELS: Record<string, string> = {
@@ -305,7 +301,7 @@ export function OwnerDossiers({ biens, ownerId }: OwnerDossiersProps) {
   };
 
   // ── Filtre : rien n'est masqué tant qu'on ne cherche pas ──────────────────
-  const showSearch = localBiens.length > 4;
+  const showSearch = localBiens.length > 6;
   const visibleBiens = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return localBiens;
@@ -546,6 +542,7 @@ const PropertySection = React.forwardRef<
   const draftBail = bails.find((bail) => bail.status === "DRAFT" && !bail.paidAt);
   const visibleBails = bails.filter((bail) => !(bail.status === "DRAFT" && !bail.paidAt));
   const { allowed, from } = newBailAvailability(bails);
+  const completion = COMPLETION_VIEW[String(bien.completionStatus)];
   const isCommercial = bails.some((bail) => bail.bailFamily === "COMMERCIAL");
 
   const draftHref = draftBail
@@ -569,28 +566,31 @@ const PropertySection = React.forwardRef<
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2.5 px-1">
         <IconTile icon={isCommercial ? Store : Home} tone={isCommercial ? "amber" : "blue"} />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="truncate text-[15.5px] font-bold tracking-tight text-slate-900">
-              {propertyTitle(bien)}
-            </h2>
-            <Pill tone={COMPLETION_TONES[String(bien.completionStatus)] ?? "slate"} className="shrink-0">
-              {COMPLETION_LABELS[String(bien.completionStatus)] ?? String(bien.completionStatus)}
-            </Pill>
-          </div>
+          {/* Le nom du bien garde sa ligne entière : posée à côté de lui, une
+              pastille le réduisait à deux mots sur un téléphone. Ce qui relève
+              de son état descend d'une ligne, groupé. */}
+          <h2 className="truncate text-[15.5px] font-bold tracking-tight text-slate-900">
+            {propertyTitle(bien)}
+          </h2>
           <p className="mt-0.5 truncate text-[12.5px] text-slate-500">
             {bien.fullAddress || "Adresse non renseignée"}
             {bien.surfaceM2 != null && ` · ${bien.surfaceM2} m²`}
           </p>
-          {/* Pourquoi il n'y a pas de bouton « Nouveau bail » ici : dit en une
-              ligne d'information, plutôt qu'en bouton grisé qu'on essaie de
-              cliquer avant de comprendre. */}
-          {!draftBail && !allowed && (
-            <p className="mt-1 flex items-center gap-1.5 text-[11.5px] text-slate-400">
-              <Lock className="h-3 w-3 shrink-0" />
-              {from
-                ? `Nouveau bail dès le ${formatDate(from)}`
-                : "Un bail est déjà actif sur ce bien"}
-            </p>
+          {(completion || (!draftBail && !allowed)) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              {completion && <Pill tone={completion.tone}>{completion.label}</Pill>}
+              {/* Pourquoi il n'y a pas de bouton « Nouveau bail » ici : dit en
+                  une ligne d'information, plutôt qu'en bouton grisé qu'on
+                  essaie de cliquer avant de comprendre. */}
+              {!draftBail && !allowed && (
+                <p className="flex items-center gap-1.5 text-[11.5px] text-slate-400">
+                  <Lock className="h-3 w-3 shrink-0" />
+                  {from
+                    ? `Nouveau bail dès le ${formatDate(from)}`
+                    : "Un bail est déjà actif sur ce bien"}
+                </p>
+              )}
+            </div>
           )}
         </div>
 
