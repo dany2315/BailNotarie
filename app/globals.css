@@ -670,14 +670,28 @@ html {
 .lp-scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
 .lp-scrollbar-none::-webkit-scrollbar { display: none; }
 
-/* Bande d'onglets : on estompe le contenu par un masque plutôt qu'en peignant
-   un dégradé de couleur par-dessus — le fond de la section est un dégradé, un
-   aplat opaque s'y verrait comme une tache. */
-@media (max-width: 1023px) {
-  .lp-fade-right {
-    -webkit-mask-image: linear-gradient(to right, #000 76%, transparent 99%);
-    mask-image: linear-gradient(to right, #000 76%, transparent 99%);
+/* ---------- Section « écran par écran » --------------------------------- */
+
+/* Hauteur de la piste : un écran de défilement par écran de produit. Mesurée
+   en `svh` (petit viewport) et non en `dvh` : la barre d'URL mobile qui se
+   rétracte ferait varier `dvh` en cours de route, la piste serait
+   redimensionnée et l'écran affiché sauterait. La course est plus courte sur
+   mobile, où un écran de téléphone défile plus vite. */
+.lp-track {
+  height: calc(var(--lp-screens, 5) * 70svh);
+}
+
+@media (min-width: 640px) {
+  .lp-track {
+    height: calc(var(--lp-screens, 5) * 85svh);
   }
+}
+
+/* Jauge d'avancement dans l'écran courant : pilotée image par image en JS,
+   donc sans transition qui la ferait traîner derrière le scroll. */
+.lp-gauge {
+  transform-origin: left center;
+  transform: scaleX(0);
 }
 
 /* ---------- Révélations au scroll --------------------------------------- */

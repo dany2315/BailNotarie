@@ -149,6 +149,53 @@ export function SpotlightCard({
 /* ---------- Apparition au scroll ------------------------------------------ */
 
 /**
+ * Filet de sécurité des révélations.
+ *
+ * Un IntersectionObserver ne signale rien quand un élément traverse la fenêtre
+ * entre deux images : lors d'un saut d'ancre ou d'un balayage très rapide, il
+ * passe de « sous la fenêtre » à « au-dessus » sans franchir de seuil, aucune
+ * entrée n'est émise, et il resterait masqué pour de bon. On balaie donc les
+ * éléments encore en attente après chaque saut important — le scroll ordinaire,
+ * lui, ne déclenche rien et ne coûte rien.
+ */
+const pendingReveals = new Set<() => void>();
+let sweepFrame = 0;
+let lastScrollY = 0;
+let sweepBound = false;
+
+function sweepPendingReveals() {
+  sweepFrame = 0;
+  for (const reveal of Array.from(pendingReveals)) reveal();
+}
+
+function onSweepScroll() {
+  const y = window.scrollY;
+  const jumped = Math.abs(y - lastScrollY) > window.innerHeight / 2;
+  lastScrollY = y;
+  if (!jumped || sweepFrame) return;
+  sweepFrame = window.requestAnimationFrame(sweepPendingReveals);
+}
+
+function registerPendingReveal(reveal: () => void) {
+  pendingReveals.add(reveal);
+  if (sweepBound) return;
+  sweepBound = true;
+  lastScrollY = window.scrollY;
+  window.addEventListener("scroll", onSweepScroll, { passive: true });
+}
+
+function unregisterPendingReveal(reveal: () => void) {
+  pendingReveals.delete(reveal);
+  if (pendingReveals.size > 0 || !sweepBound) return;
+  sweepBound = false;
+  window.removeEventListener("scroll", onSweepScroll);
+  if (sweepFrame) {
+    window.cancelAnimationFrame(sweepFrame);
+    sweepFrame = 0;
+  }
+}
+
+/**
  * Marque un élément pour la révélation au scroll.
  *
  * Le contenu reste visible par défaut : il est donc lisible au premier rendu,
@@ -176,26 +223,54 @@ export function useReveal<T extends HTMLElement>(
   React.useLayoutEffect(() => {
     const observed = ref.current;
     if (!observed) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const marked = (targets ? targets() : [observed]).filter(Boolean) as HTMLElement[];
     if (marked.length === 0) return;
 
-    // Déjà visible : on laisse tel quel, sans animation ni masquage.
-    if (observed.getBoundingClientRect().top <= window.innerHeight * threshold) return;
+    const show = () => {
+      for (const element of marked) element.removeAttribute("data-reveal");
+    };
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      show();
+      return;
+    }
+
+    // Déjà visible : on ne masque pas. `show()` plutôt qu'un simple retour, pour
+    // effacer un marquage laissé par un passage précédent de cet effet.
+    if (observed.getBoundingClientRect().top <= window.innerHeight * threshold) {
+      show();
+      return;
+    }
 
     for (const element of marked) element.setAttribute("data-reveal", "hidden");
 
+    let done = false;
+    const reveal = () => {
+      if (done) return;
+      done = true;
+      show();
+      observer.disconnect();
+      unregisterPendingReveal(check);
+    };
+
+    const check = () => {
+      if (observed.getBoundingClientRect().top < window.innerHeight) reveal();
+    };
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (!entries[0]?.isIntersecting) return;
-        for (const element of marked) element.removeAttribute("data-reveal");
-        observer.disconnect();
+        if (entries[0]?.isIntersecting) reveal();
       },
       { rootMargin: "0px 0px -8% 0px" },
     );
     observer.observe(observed);
-    return () => observer.disconnect();
+    registerPendingReveal(check);
+
+    return () => {
+      observer.disconnect();
+      unregisterPendingReveal(check);
+    };
   }, [ref, threshold, targets]);
 }
 

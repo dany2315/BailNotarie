@@ -1,9 +1,7 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, FileText, PenTool, Phone, Send, Workflow } from "lucide-react";
-import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import {
   AppFrame,
   DocumentsMockup,
@@ -14,7 +12,6 @@ import { Reveal, SectionLabel, Tilt3D } from "./ui/lp-primitives";
 
 const STEPS = [
   {
-    number: "01",
     icon: FileText,
     title: "Constitution du dossier 100% en ligne",
     description:
@@ -25,7 +22,6 @@ const STEPS = [
     url: "bailnotarie.fr/commencer",
   },
   {
-    number: "02",
     icon: Send,
     title: "Transmission automatique au notaire",
     description:
@@ -36,7 +32,6 @@ const STEPS = [
     url: "bailnotarie.fr/client/suivi",
   },
   {
-    number: "03",
     icon: PenTool,
     title: "Signature en ligne avec le notaire",
     description:
@@ -49,14 +44,6 @@ const STEPS = [
 ];
 
 export function LpProcess() {
-  const ref = React.useRef<HTMLDivElement>(null);
-  const reduce = useReducedMotion();
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start 75%", "end 60%"],
-  });
-  const lineScale = useTransform(scrollYProgress, [0, 1], [0, 1]);
-
   return (
     <section
       id="processus"
@@ -78,30 +65,22 @@ export function LpProcess() {
           </p>
         </Reveal>
 
-        <div ref={ref} className="relative mt-16">
-          {/* Ligne de progression qui se remplit au scroll */}
-          <div aria-hidden className="absolute inset-x-[16%] top-[58px] hidden h-px bg-slate-200 lg:block">
-            <motion.div
-              style={reduce ? { scaleX: 1 } : { scaleX: lineScale }}
-              className="h-full origin-left bg-gradient-to-r from-[#4373f5] via-[#6366f1] to-emerald-500"
-            />
-          </div>
-
-          <div className="grid gap-8 lg:grid-cols-3 lg:gap-6">
+        <div className="relative mt-16">
+          <div className="grid gap-10 lg:grid-cols-3 lg:gap-6">
             {STEPS.map((step, index) => (
-              <Reveal key={step.number} delay={index * 0.12}>
+              <Reveal key={step.title} delay={index * 0.12}>
                 <div className="relative flex h-full flex-col">
-                  {/* Pastille numérotée */}
-                  <div className="relative z-10 mb-6 flex items-center gap-3">
+                  {/* En-tête : le nom de l'étape, à la place du numéro. La
+                      hauteur minimale garde les trois aperçus alignés quelle que
+                      soit la longueur du libellé. */}
+                  <div className="relative z-10 mb-6 flex min-h-[4.5rem] items-center gap-3.5">
                     <span
-                      className="flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-[0_14px_30px_-14px_rgba(30,58,138,0.9)]"
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-[0_14px_30px_-14px_rgba(30,58,138,0.9)]"
                       style={{ background: `linear-gradient(140deg, ${step.accent}, ${step.accent}dd)` }}
                     >
                       <step.icon className="h-5 w-5" />
                     </span>
-                    <span className="text-[34px] font-bold leading-none tracking-tight text-slate-200">
-                      {step.number}
-                    </span>
+                    <h3 className="text-[17px] font-semibold leading-snug text-slate-900">{step.title}</h3>
                   </div>
 
                   {/* Aperçu produit incliné */}
@@ -123,8 +102,7 @@ export function LpProcess() {
                     </div>
                   </Tilt3D>
 
-                  <h3 className="text-xl font-semibold leading-snug text-slate-900">{step.title}</h3>
-                  <p className="mt-3 text-[15px] leading-relaxed text-slate-600">{step.description}</p>
+                  <p className="text-[15px] leading-relaxed text-slate-600">{step.description}</p>
 
                   <ul className="mt-5 space-y-2.5">
                     {step.bullets.map((bullet) => (

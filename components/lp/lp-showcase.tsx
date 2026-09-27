@@ -2,8 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, FileCheck2, LayoutDashboard, MonitorSmartphone, PenTool, Radar, Upload } from "lucide-react";
-import { motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll } from "motion/react";
+import {
+  ArrowRight,
+  FileCheck2,
+  LayoutDashboard,
+  MonitorSmartphone,
+  PenTool,
+  Radar,
+  Upload,
+} from "lucide-react";
 import {
   AppFrame,
   DashboardMockup,
@@ -15,12 +22,30 @@ import {
 import { AuroraBackdrop, CountUp, NoiseOverlay, Reveal, SectionLabel } from "./ui/lp-primitives";
 import { cn } from "@/lib/utils";
 
-const TABS = [
+/* =========================================================================
+   Le produit, écran par écran.
+
+   La section se fige le temps de parcourir les cinq écrans, puis la page
+   repart. Mécanique : une piste haute de cinq écrans de défilement, un panneau
+   en `position: sticky` par-dessus, et la position du scroll dans la piste
+   choisit l'écran affiché.
+
+   Le scroll natif n'est jamais détourné : rien n'est intercepté ni annulé.
+   Molette, trackpad, doigt, barre de défilement et clavier gardent leur
+   comportement, et la page reprend son cours après le dernier écran.
+
+   L'avancement est calculé à la main dans une boucle rAF plutôt que par une
+   bibliothèque de mouvement : la position vient du rectangle de la piste et de
+   la hauteur réelle du panneau, donc elle reste juste même quand la barre
+   d'URL mobile change la hauteur visible. Seul le changement d'écran provoque
+   un rendu React ; la jauge est écrite directement dans le style du nœud.
+   ========================================================================= */
+
+const SCREENS = [
   {
     id: "dossier",
     icon: LayoutDashboard,
     label: "Constitution du dossier",
-    short: "Dossier",
     title: "Un formulaire guidé, pensé pour les propriétaires",
     text: "Adresse du bien, loyer, parties au contrat : chaque champ est vérifié à la saisie et votre progression est sauvegardée automatiquement.",
     url: "bailnotarie.fr/commencer",
@@ -30,7 +55,6 @@ const TABS = [
     id: "pieces",
     icon: Upload,
     label: "Pièces justificatives",
-    short: "Pièces",
     title: "Vos documents déposés et contrôlés en ligne",
     text: "Titre de propriété, diagnostics, pièces d'identité : vous déposez, la plateforme contrôle la lisibilité et la complétude avant transmission.",
     url: "bailnotarie.fr/client/documents",
@@ -40,7 +64,6 @@ const TABS = [
     id: "suivi",
     icon: Radar,
     label: "Suivi en temps réel",
-    short: "Suivi",
     title: "Vous savez exactement où en est votre bail",
     text: "Dossier transmis, acte en cours de rédaction, créneau de signature proposé : chaque étape est horodatée et notifiée.",
     url: "bailnotarie.fr/client/suivi",
@@ -50,7 +73,6 @@ const TABS = [
     id: "signature",
     icon: PenTool,
     label: "Signature à distance",
-    short: "Signature",
     title: "La signature authentique, en visioconférence",
     text: "Vous signez avec le notaire partenaire depuis chez vous. L'acte authentique est délivré avec force exécutoire immédiate.",
     url: "bailnotarie.fr/client/signature",
@@ -60,7 +82,6 @@ const TABS = [
     id: "espace",
     icon: FileCheck2,
     label: "Espace client",
-    short: "Espace client",
     title: "Tous vos baux et vos biens au même endroit",
     text: "Baux actifs, dossiers en cours, biens et documents : votre espace client centralise l'ensemble de votre patrimoine locatif.",
     url: "bailnotarie.fr/client",
@@ -68,66 +89,103 @@ const TABS = [
   },
 ];
 
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
 /**
- * Le produit, écran par écran.
+ * Suit l'avancement du scroll dans la piste.
  *
- * La section se fige le temps de parcourir les cinq écrans : une piste haute
- * de 5 écrans (70svh chacun sur mobile, 85svh au-delà), un panneau en
- * `position: sticky` par-dessus, et l'avancement du scroll dans la piste
- * choisit l'écran affiché. Le scroll natif n'est jamais
- * détourné — rien n'est intercepté ni annulé — donc la molette, le trackpad,
- * le doigt, la barre de défilement et le clavier gardent leur comportement
- * habituel, et la page repart d'elle-même une fois le dernier écran passé.
+ * Retourne l'index de l'écran courant et une fonction pour se rendre à un
+ * écran donné. La jauge est mise à jour hors de React, par écriture directe
+ * dans le style, pour ne pas provoquer un rendu à chaque image.
  */
-export function LpShowcase() {
+function useScreenProgress(
+  count: number,
+  refs: {
+    track: React.RefObject<HTMLDivElement | null>;
+    panel: React.RefObject<HTMLDivElement | null>;
+    gauge: React.RefObject<HTMLSpanElement | null>;
+  },
+) {
   const [active, setActive] = React.useState(0);
-  const reduce = useReducedMotion();
+  const activeRef = React.useRef(0);
 
-  const trackRef = React.useRef<HTMLDivElement>(null);
-  const tabsRef = React.useRef<HTMLDivElement>(null);
-  const tabRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
+  /** Course utile : ce qui reste à parcourir une fois le panneau collé. */
+  const distance = React.useCallback(() => {
+    const track = refs.track.current;
+    const panel = refs.panel.current;
+    if (!track || !panel) return 0;
+    return Math.max(track.offsetHeight - panel.offsetHeight, 0);
+  }, [refs.panel, refs.track]);
 
-  const { scrollYProgress } = useScroll({
-    target: trackRef,
-    offset: ["start start", "end end"],
-  });
-
-  // Avancement à l'intérieur de l'écran courant : alimente la jauge de l'onglet.
-  const screenProgress = useMotionValue(0);
-
-  useMotionValueEvent(scrollYProgress, "change", (progress) => {
-    const raw = progress * TABS.length;
-    const index = Math.min(TABS.length - 1, Math.max(0, Math.floor(raw)));
-    screenProgress.set(Math.min(1, Math.max(0, raw - index)));
-    setActive((previous) => (previous === index ? previous : index));
-  });
-
-  // Sur mobile la bande d'onglets défile : on ramène l'onglet actif dans le
-  // champ de vision sans faire bouger la page.
   React.useEffect(() => {
-    const strip = tabsRef.current;
-    const tab = tabRefs.current[active];
-    if (!strip || !tab || strip.scrollWidth <= strip.clientWidth) return;
-    const target = tab.offsetLeft - (strip.clientWidth - tab.clientWidth) / 2;
-    strip.scrollTo({ left: Math.max(0, target), behavior: reduce ? "auto" : "smooth" });
-  }, [active, reduce]);
+    let frame = 0;
+
+    const update = () => {
+      frame = 0;
+      const track = refs.track.current;
+      const span = distance();
+      if (!track || span === 0) return;
+
+      const progress = clamp(-track.getBoundingClientRect().top / span, 0, 1);
+      const raw = progress * count;
+      const index = Math.min(count - 1, Math.floor(raw));
+
+      if (refs.gauge.current) {
+        refs.gauge.current.style.transform = `scaleX(${clamp(raw - index, 0, 1)})`;
+      }
+      if (activeRef.current !== index) {
+        activeRef.current = index;
+        setActive(index);
+      }
+    };
+
+    const schedule = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [count, distance, refs.gauge, refs.track]);
 
   /** Amène le scroll au milieu du segment de l'écran demandé. */
-  const jumpTo = React.useCallback(
+  const goTo = React.useCallback(
     (index: number) => {
-      const track = trackRef.current;
-      if (!track) return;
+      const track = refs.track.current;
+      const span = distance();
+      if (!track || span === 0) return;
       const top = track.getBoundingClientRect().top + window.scrollY;
-      const distance = track.offsetHeight - window.innerHeight;
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       window.scrollTo({
-        top: top + ((index + 0.5) / TABS.length) * distance,
+        top: top + ((index + 0.5) / count) * span,
         behavior: reduce ? "auto" : "smooth",
       });
     },
-    [reduce],
+    [count, distance, refs.track],
   );
 
-  const current = TABS[active];
+  return { active, goTo };
+}
+
+export function LpShowcase() {
+  const trackRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const gaugeRef = React.useRef<HTMLSpanElement>(null);
+
+  const { active, goTo } = useScreenProgress(SCREENS.length, {
+    track: trackRef,
+    panel: panelRef,
+    gauge: gaugeRef,
+  });
+
+  const current = SCREENS[active];
 
   return (
     <section
@@ -155,9 +213,9 @@ export function LpShowcase() {
         className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#f7f9ff] to-transparent"
       />
 
-      {/* ---------- Titre (défile normalement) ---------- */}
+      {/* ---------- Titre, en flux normal ---------- */}
       <div className="relative mx-auto max-w-6xl px-5 pt-24 sm:px-8 sm:pt-32">
-        <Reveal className="relative mx-auto max-w-3xl text-center">
+        <Reveal className="mx-auto max-w-3xl text-center">
           <SectionLabel tone="dark" icon={MonitorSmartphone}>
             L&apos;interface BailNotarie
           </SectionLabel>
@@ -172,166 +230,147 @@ export function LpShowcase() {
       </div>
 
       {/* ---------- Piste de défilement ---------- */}
-      <div
-        ref={trackRef}
-        className="relative mt-10 h-[calc(var(--lp-screens)*70svh)] sm:mt-14 sm:h-[calc(var(--lp-screens)*85svh)]"
-        style={{ ["--lp-screens" as string]: TABS.length }}
-      >
-        <div className="sticky top-0 flex h-svh items-center overflow-hidden">
-          {/* La barre de navigation est flottante : on se réserve sa hauteur
-              réelle, publiée par LpNav dans --lp-nav-h, plus une respiration.
-              Une valeur en dur passait sous la barre selon les appareils. */}
-          <div className="relative mx-auto flex h-full w-full max-w-6xl flex-col px-5 pb-4 pt-[calc(var(--lp-nav-h,78px)+1.25rem)] sm:px-8 lg:h-auto lg:pb-0 lg:pt-0">
-            <div className="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5 lg:grid lg:flex-none lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-14">
-              {/* ---------- Sélecteur + texte ---------- */}
-              <div className="min-w-0 shrink-0">
-                <div className="relative">
-                  <div
-                    ref={tabsRef}
-                    role="tablist"
-                    aria-label="Écrans de l'interface BailNotarie"
-                    className="lp-scrollbar-none lp-fade-right -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 lg:mx-0 lg:flex-col lg:gap-2 lg:overflow-visible lg:px-0 lg:pb-0"
-                  >
-                    {TABS.map((tab, index) => {
-                      const selected = index === active;
-                      return (
-                        <button
-                          key={tab.id}
-                          ref={(node) => {
-                            tabRefs.current[index] = node;
-                          }}
-                          role="tab"
-                          type="button"
-                          id={`lp-tab-${tab.id}`}
-                          aria-selected={selected}
-                          aria-controls={`lp-panel-${tab.id}`}
-                          onClick={() => jumpTo(index)}
+      <div ref={trackRef} className="lp-track relative mt-10 sm:mt-14" style={{ ["--lp-screens" as string]: SCREENS.length }}>
+        <div ref={panelRef} className="sticky top-0 flex h-svh items-center overflow-hidden">
+          {/* La barre de navigation flotte au-dessus : on se réserve sa hauteur
+              réelle, publiée par LpNav dans --lp-nav-h, plus une respiration. */}
+          <div className="relative mx-auto flex h-full w-full max-w-6xl flex-col px-5 pb-5 pt-[calc(var(--lp-nav-h,78px)+1.25rem)] sm:px-8 lg:h-auto lg:flex-row lg:items-center lg:gap-14 lg:pb-0 lg:pt-0">
+            {/* ---------- Colonne de gauche ---------- */}
+            <div className="shrink-0 lg:w-[38%]">
+              {/* Sommaire vertical, à partir de lg : les cinq écrans visibles
+                  d'un coup, l'actif souligné par sa jauge d'avancement. */}
+              <ol className="hidden lg:block" aria-label="Écrans de l'interface BailNotarie">
+                {SCREENS.map((screen, index) => {
+                  const selected = index === active;
+                  return (
+                    <li key={screen.id}>
+                      <button
+                        type="button"
+                        onClick={() => goTo(index)}
+                        aria-current={selected ? "true" : undefined}
+                        className={cn(
+                          "group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3.5 text-left transition-colors duration-300",
+                          selected
+                            ? "border-white/20 bg-white/[0.08]"
+                            : "border-transparent hover:border-white/10 hover:bg-white/[0.04]",
+                        )}
+                      >
+                        <span
                           className={cn(
-                            "group relative shrink-0 overflow-hidden rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-300 lg:w-full lg:px-4 lg:py-3.5",
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-300",
                             selected
-                              ? "border-white/20 bg-white/[0.08] shadow-[0_20px_50px_-30px_rgba(67,115,245,0.9)]"
-                              : "border-white/8 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.05]",
+                              ? "bg-gradient-to-br from-[#5b85f7] to-[#3563e9] text-white"
+                              : "bg-white/[0.06] text-blue-100/60 group-hover:text-blue-100",
                           )}
                         >
-                          <span className="flex items-center gap-2.5 lg:gap-3">
-                            <span
-                              className={cn(
-                                "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors duration-300 lg:h-9 lg:w-9",
-                                selected
-                                  ? "bg-gradient-to-br from-[#5b85f7] to-[#3563e9] text-white"
-                                  : "bg-white/[0.06] text-blue-100/60 group-hover:text-blue-100",
-                              )}
-                            >
-                              <tab.icon className="h-4 w-4" />
-                            </span>
-                            <span
-                              className={cn(
-                                "whitespace-nowrap text-[13.5px] font-semibold transition-colors lg:whitespace-normal lg:text-[14.5px]",
-                                selected ? "text-white" : "text-blue-100/70",
-                              )}
-                            >
-                              <span className="lg:hidden">{tab.short}</span>
-                              <span className="hidden lg:inline">{tab.label}</span>
-                            </span>
-                          </span>
-
-                          {/* Jauge : avancement du scroll dans cet écran. */}
-                          {selected && (
-                            <motion.span
-                              aria-hidden
-                              style={{ scaleX: screenProgress }}
-                              className="absolute inset-x-0 bottom-0 h-[2px] origin-left bg-gradient-to-r from-[#5b85f7] to-[#8fb0ff]"
-                            />
+                          <screen.icon className="h-4 w-4" />
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[14.5px] font-semibold transition-colors duration-300",
+                            selected ? "text-white" : "text-blue-100/70",
                           )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                        >
+                          {screen.label}
+                        </span>
+                        {selected && (
+                          <span
+                            ref={gaugeRef}
+                            aria-hidden
+                            className="lp-gauge absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-[#5b85f7] to-[#8fb0ff]"
+                          />
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
 
-                <div className="mt-4 lg:mt-6 lg:min-h-[128px]">
-                  <div key={current.id} className="lp-swap">
-                      <h3 className="text-[17px] font-semibold leading-snug text-white sm:text-xl">
-                        {current.title}
-                      </h3>
-                      <p className="mt-2 line-clamp-3 text-[13.5px] leading-relaxed text-blue-100/70 sm:line-clamp-none sm:text-[15px]">
-                        {current.text}
-                      </p>
-                  </div>
-
-                  <Link
-                    href="/commencer"
-                    className="group mt-4 hidden items-center gap-2 text-[14.5px] font-semibold text-[#8fb0ff] transition-colors hover:text-white lg:inline-flex"
-                  >
-                    Essayer la constitution de dossier
-                    <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                  </Link>
+              {/* Sous lg, pas de liste : un compteur et le nom de l'écran.
+                  Rien ne défile horizontalement, la lecture reste verticale. */}
+              <div className="lg:hidden">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#5b85f7] to-[#3563e9] text-white">
+                    <current.icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-[12.5px] font-semibold uppercase tracking-wide text-[#8fb0ff]">
+                    Écran {active + 1} sur {SCREENS.length}
+                  </span>
                 </div>
               </div>
 
-              {/* ---------- Écran ---------- */}
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:block lg:flex-none">
-                <div className="relative min-h-0 flex-1 lg:flex-none" style={{ perspective: 1600 }}>
+              {/* Texte de l'écran courant. La clé React rejoue l'animation
+                  d'apparition à chaque changement, sans bibliothèque. */}
+              <div key={current.id} className="lp-swap mt-4 lg:mt-7">
+                <h3 className="text-[19px] font-semibold leading-snug text-white sm:text-xl">{current.title}</h3>
+                <p className="mt-2 line-clamp-3 text-[14px] leading-relaxed text-blue-100/70 sm:line-clamp-none sm:text-[15px]">
+                  {current.text}
+                </p>
+              </div>
+
+              <Link
+                href="/commencer"
+                className="group mt-4 hidden items-center gap-2 text-[14.5px] font-semibold text-[#8fb0ff] transition-colors hover:text-white lg:mt-6 lg:inline-flex"
+              >
+                Essayer la constitution de dossier
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+            </div>
+
+            {/* ---------- Écran ---------- */}
+            <div className="mt-4 flex min-h-0 flex-1 flex-col lg:mt-0 lg:block">
+              <div className="relative min-h-0 flex-1 lg:flex-none" style={{ perspective: 1600 }}>
+                <div
+                  aria-hidden
+                  className="absolute -inset-6 rounded-[40px] bg-gradient-to-br from-[#4373f5]/30 via-[#6366f1]/15 to-transparent blur-3xl sm:-inset-8"
+                />
+
+                {/* Inclinaison posée en CSS : présente dès le premier rendu,
+                    au lieu d'être appliquée par le JS après hydratation. */}
+                <div className="lp-screen-tilt relative h-full lg:h-auto">
+                  <AppFrame
+                    url={current.url}
+                    className="relative z-10 flex h-full flex-col ring-1 ring-white/10 lg:block lg:h-auto"
+                    bodyClassName="min-h-0 flex-1 overflow-hidden lg:flex-none lg:overflow-visible"
+                  >
+                    <div key={current.id} className="lp-swap-screen h-full bg-white lg:h-auto lg:min-h-[360px]">
+                      {current.render()}
+                    </div>
+                  </AppFrame>
+
+                  {/* Coupe basse sur petit écran : la maquette continue sous le
+                      pli plutôt que d'être écrasée. */}
                   <div
                     aria-hidden
-                    className="absolute -inset-6 rounded-[40px] bg-gradient-to-br from-[#4373f5]/30 via-[#6366f1]/15 to-transparent blur-3xl sm:-inset-8"
+                    className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-14 rounded-b-[20px] bg-gradient-to-t from-white to-transparent lg:hidden"
                   />
 
-                  {/* Inclinaison posée en CSS : présente dès le premier rendu,
-                      au lieu d'être appliquée par le JS après hydratation. */}
-                  <div className="lp-screen-tilt relative h-full lg:h-auto">
-                    <div
-                      role="tabpanel"
-                      id={`lp-panel-${current.id}`}
-                      aria-labelledby={`lp-tab-${current.id}`}
-                      className="relative h-full lg:h-auto"
-                    >
-                      <AppFrame
-                        url={current.url}
-                        className="relative z-10 flex h-full flex-col ring-1 ring-white/10 lg:h-auto lg:block"
-                        bodyClassName="min-h-0 flex-1 overflow-hidden lg:flex-none lg:overflow-visible"
-                      >
-                        <div key={current.id} className="lp-swap-screen h-full bg-white lg:h-auto lg:min-h-[360px]">
-                          {current.render()}
-                        </div>
-                      </AppFrame>
-
-                      {/* Coupe basse sur petit écran : la maquette continue
-                          sous le pli plutôt que d'être écrasée. */}
-                      <div
-                        aria-hidden
-                        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-14 rounded-b-[20px] bg-gradient-to-t from-white to-transparent sm:hidden"
-                      />
-
-                      {/* Reflet posé sous l'écran */}
-                      <div
-                        aria-hidden
-                        className="lp-reflection absolute inset-x-6 top-full hidden h-28 rounded-[20px] bg-gradient-to-b from-white/25 to-transparent lg:block"
-                      />
-                    </div>
-                  </div>
+                  <div
+                    aria-hidden
+                    className="lp-reflection absolute inset-x-6 top-full hidden h-28 rounded-[20px] bg-gradient-to-b from-white/25 to-transparent lg:block"
+                  />
                 </div>
+              </div>
 
-                {/* Repère de position : indique où l'on en est dans la série. */}
-                <div className="mt-3 flex shrink-0 items-center justify-center gap-1 lg:hidden">
-                  {TABS.map((tab, index) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => jumpTo(index)}
-                      aria-label={`Aller à l'écran : ${tab.label}`}
-                      aria-current={index === active}
-                      className="flex h-8 items-center px-1.5"
-                    >
-                      <span
-                        className={cn(
-                          "block h-1.5 rounded-full transition-all duration-300",
-                          index === active ? "w-6 bg-[#5b85f7]" : "w-1.5 bg-white/25",
-                        )}
-                      />
-                    </button>
-                  ))}
-                </div>
+              {/* Repère de position, sous lg. */}
+              <div className="mt-4 flex shrink-0 items-center justify-center gap-1 lg:hidden">
+                {SCREENS.map((screen, index) => (
+                  <button
+                    key={screen.id}
+                    type="button"
+                    onClick={() => goTo(index)}
+                    aria-label={`Aller à l'écran : ${screen.label}`}
+                    aria-current={index === active ? "true" : undefined}
+                    className="flex h-8 items-center px-1.5"
+                  >
+                    <span
+                      className={cn(
+                        "block h-1.5 rounded-full transition-all duration-300",
+                        index === active ? "w-6 bg-[#5b85f7]" : "w-1.5 bg-white/25",
+                      )}
+                    />
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -345,10 +384,18 @@ export function LpShowcase() {
             {[
               { value: <CountUp to={200} suffix="+" />, label: "dossiers constitués" },
               { value: <CountUp to={150} suffix="+" />, label: "notaires partenaires" },
-              { value: <><CountUp to={4.9} decimals={1} />/5</>, label: "note moyenne" },
+              {
+                value: (
+                  <>
+                    <CountUp to={4.9} decimals={1} />
+                    /5
+                  </>
+                ),
+                label: "note moyenne",
+              },
               { value: "1 sem.", label: "délai moyen" },
-            ].map((stat, index) => (
-              <div key={index} className="bg-[#070c1a] px-5 py-7 text-center">
+            ].map((stat) => (
+              <div key={stat.label} className="bg-[#070c1a] px-5 py-7 text-center">
                 <dt className="sr-only">{stat.label}</dt>
                 <dd>
                   <div className="text-3xl font-bold tracking-tight text-white sm:text-4xl">{stat.value}</div>

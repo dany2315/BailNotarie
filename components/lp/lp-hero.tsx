@@ -26,7 +26,7 @@ const GUARANTEES = [
   { icon: Globe, label: "100% en ligne", tone: "blue" },
   { icon: Clock, label: "Bail notarié en 1 semaine", tone: "blue" },
   { icon: ShieldCheck, label: "Force exécutoire", tone: "green" },
-  { icon: Sparkles, label: "39,90 € TTC, tout compris", tone: "green" },
+  { icon: Sparkles, label: "39,90 € TTC de frais de dossier", tone: "green" },
 ] as const;
 
 export function LpHero() {
