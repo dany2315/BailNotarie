@@ -3,6 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowRight, Menu, Phone, X } from "lucide-react";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ const LINKS = [
   { href: "#avantages", label: "Avantages" },
   { href: "#tarif", label: "Tarif" },
   { href: "#faq", label: "FAQ" },
+  { href: "/simulateur-prix-bail-notarie", label: "Simulateur" },
   { href: "/blog", label: "Blog" },
 ];
 
@@ -26,13 +28,25 @@ const PHONE = "07 49 38 77 56";
 const PHONE_HREF = `tel:${PHONE.replace(/\s/g, "")}`;
 
 /**
- * Barre de navigation flottante.
+ * Barre de navigation du site.
  *
  * Parti pris : la barre ne porte que l'essentiel — repère (logo), navigation,
  * identité et action principale. Le téléphone n'y figure pas : il est présent
- * quatre fois dans la page, dans le menu mobile et dans la bulle de support,
- * et l'entasser ici obligeait à rogner les libellés. Ce qui est gagné en
- * largeur sert à garder les liens visibles dès 1024 px.
+ * quatre fois dans la page d'accueil, dans le menu mobile et dans la bulle de
+ * support, et l'entasser ici obligeait à rogner les libellés. Ce qui est gagné
+ * en largeur sert à garder les liens visibles dès 1024 px.
+ *
+ * Elle sert toutes les pages publiques, et s'adapte à deux situations :
+ *
+ * - sur l'accueil, elle flotte au-dessus du contenu (`fixed`), translucide en
+ *   haut de page puis opaque au défilement, parce que le hero est construit
+ *   pour passer dessous ;
+ * - ailleurs, elle est `sticky` : elle occupe sa place dans le flux, donc
+ *   aucune page n'a à réserver de hauteur, et elle reste opaque du premier
+ *   pixel, sur des fonds qui ne sont pas faits pour transparaître.
+ *
+ * Les ancres de section n'existent que sur l'accueil : hors de celle-ci elles
+ * sont préfixées par `/` pour y ramener le visiteur, au lieu de ne rien faire.
  */
 export function LpNav() {
   const [scrolled, setScrolled] = React.useState(false);
@@ -40,6 +54,14 @@ export function LpNav() {
   const { scrollY } = useScroll();
   const session = useClientSession();
   const navRef = React.useRef<HTMLElement>(null);
+  const pathname = usePathname();
+  const onHome = pathname === "/";
+
+  /** Une ancre ne vaut que sur l'accueil ; ailleurs, on y renvoie. */
+  const resolve = React.useCallback(
+    (href: string) => (href.startsWith("#") && !onHome ? `/${href}` : href),
+    [onHome],
+  );
 
   /**
    * Publie la hauteur occupée par la barre (décalage haut compris) dans
@@ -97,13 +119,18 @@ export function LpNav() {
   const closeMenu = React.useCallback(() => setOpen(false), []);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex flex-col items-center px-4 pt-3 sm:pt-4">
+    <div
+      className={cn(
+        "pointer-events-none z-50 flex flex-col items-center px-4 pt-3 sm:pt-4",
+        onHome ? "fixed inset-x-0 top-0" : "sticky top-0 pb-3 sm:pb-4",
+      )}
+    >
       {/* Entrée en CSS : la barre est dans le HTML, visible, sans attendre le JS. */}
       <nav
         ref={navRef}
         className={cn(
           "lp-enter-down pointer-events-auto flex w-full max-w-7xl items-center justify-between gap-3 rounded-[20px] px-3 py-2.5 transition-all duration-500 sm:gap-4 sm:px-4 sm:py-2",
-          scrolled
+          scrolled || !onHome
             ? "border border-white/70 bg-white/85 shadow-[0_10px_40px_-18px_rgba(30,58,138,0.45)] backdrop-blur-xl"
             : "border border-transparent bg-white/50 backdrop-blur-md",
         )}
@@ -123,8 +150,8 @@ export function LpNav() {
           {LINKS.map((link) => {
             const className =
               "whitespace-nowrap rounded-xl px-2.5 py-2 text-[14px] font-medium text-slate-600 transition-colors hover:bg-slate-900/[0.04] hover:text-slate-900";
-            return isPage(link.href) ? (
-              <Link key={link.href} href={link.href} className={className}>
+            return isPage(link.href) || !onHome ? (
+              <Link key={link.href} href={resolve(link.href)} className={className}>
                 {link.label}
               </Link>
             ) : (
@@ -148,8 +175,11 @@ export function LpNav() {
             href="/commencer"
             className="group hidden shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-3.5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.3)_inset,0_8px_24px_-10px_rgba(53,99,233,0.9)] transition-transform duration-300 hover:-translate-y-0.5 sm:inline-flex sm:px-4"
           >
-            <span className="hidden md:inline">Constituer mon dossier</span>
-            <span className="md:hidden">Commencer</span>
+            {/* Libellé long quand la place le permet : de 768 à 1023 px la barre
+                n'a pas encore ses liens, au-delà de 1280 px elle a de la marge.
+                Entre les deux, « Commencer » laisse les sept liens respirer. */}
+            <span className="hidden md:inline lg:hidden xl:inline">Constituer mon dossier</span>
+            <span className="md:hidden lg:inline xl:hidden">Commencer</span>
             <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
           </Link>
 
@@ -167,13 +197,15 @@ export function LpNav() {
 
       {open && (
         <div
-          className="lp-swap pointer-events-auto mt-2 max-h-[calc(100dvh-7rem)] w-full max-w-7xl overflow-y-auto rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_30px_70px_-30px_rgba(30,58,138,0.6)] backdrop-blur-xl lg:hidden"
+          /* Hors flux : en mode collant, un panneau dans le flux pousserait la
+             page vers le bas à l'ouverture du menu. */
+          className="lp-swap pointer-events-auto absolute inset-x-4 top-full mx-auto mt-2 max-h-[calc(100dvh-7rem)] max-w-7xl overflow-y-auto rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_30px_70px_-30px_rgba(30,58,138,0.6)] backdrop-blur-xl lg:hidden"
         >
           {LINKS.map((link) => {
             const className =
               "block rounded-xl px-4 py-3 text-[15px] font-medium text-slate-700 transition-colors hover:bg-slate-50";
-            return isPage(link.href) ? (
-              <Link key={link.href} href={link.href} onClick={closeMenu} className={className}>
+            return isPage(link.href) || !onHome ? (
+              <Link key={link.href} href={resolve(link.href)} onClick={closeMenu} className={className}>
                 {link.label}
               </Link>
             ) : (

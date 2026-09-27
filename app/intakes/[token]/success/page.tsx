@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight, CheckCircle2, Mail, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 
 export default async function IntakeSuccessPage({
@@ -22,7 +22,7 @@ export default async function IntakeSuccessPage({
   if (intakeLink.status !== "SUBMITTED") {
     return (
       <div className="min-h-screen bg-background">
-      <Header />
+      <LpNav />
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <Card className="max-w-md w-full">
           <CardContent className="pt-6">
@@ -72,7 +72,7 @@ export default async function IntakeSuccessPage({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <Header />
+      <LpNav />
       <main className="min-h-[calc(100vh-80px)] px-4 py-8 sm:py-12">
         <div className="mx-auto max-w-3xl">
           <Card className="overflow-hidden border-0 shadow-2xl py-0">

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,7 +61,7 @@ export default function BlogPage() {
           { name: "Blog" },
         ]}
       />
-      <Header />
+      <LpNav />
       
       {/* Hero Section */}
       <section className="bg-white py-16">

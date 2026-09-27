@@ -1,4 +1,4 @@
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { HideOnRoute } from "@/components/ui/hide-on-route";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export default function ClientProtectedLayout({
   return (
     <div className="flex flex-col h-screen-safe overflow-hidden">
       <HideOnRoute paths={["/client/proprietaire/baux/new"]}>
-        <Header />
+        <LpNav />
       </HideOnRoute>
       <div className="flex-1 min-h-0 overflow-hidden">
         {children}

@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // L'ancienne page de travail du nouveau design est devenue l'accueil.
+  // Les liens de prévisualisation partagés pendant sa conception continuent
+  // donc d'aboutir, au lieu de tomber sur une page introuvable.
+  async redirects() {
+    return [{ source: "/lptest", destination: "/", permanent: true }];
+  },
+
   async headers() {
     return [
       {

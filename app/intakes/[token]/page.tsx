@@ -2,7 +2,7 @@ import { getIntakeLinkByToken, submitIntake } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
 import { IntakeForm } from "@/components/intakes/intake-form";
 import Image from "next/image";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 import { CheckCircle2, XCircle, Home, FileCheck, AlertCircle } from "lucide-react";
@@ -25,7 +25,7 @@ export default async function IntakePage({
     const isSubmitted = intakeLink.status === "SUBMITTED";
     return (
       <>
-        <Header />
+        <LpNav />
         <div className="py-20 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center p-4">
           <Empty className="max-w-lg w-full bg-white/80 backdrop-blur-sm shadow-lg">
             <EmptyHeader className="gap-4">

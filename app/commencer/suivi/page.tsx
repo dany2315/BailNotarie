@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Mail, Loader2, CheckCircle2, MailCheck } from "lucide-react";
 import { getRequestStatusByEmail } from "@/lib/actions/start";
 import { toast } from "sonner";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 
 const emailSchema = z.object({
@@ -55,7 +55,7 @@ export default function SuiviPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <LpNav />
       <main className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         <div className="w-full max-w-2xl space-y-6">
           <Card>

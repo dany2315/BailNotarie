@@ -1,4 +1,4 @@
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -19,7 +19,7 @@ export default function ClientLoginLayout({
 }) {
   return (
     <div className="flex flex-col min-h-full">
-      <Header />
+      <LpNav />
       <div className="flex-1">
         {children}
       </div>

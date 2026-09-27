@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 
 export default async function IntakeReminderPage({
@@ -33,7 +33,7 @@ export default async function IntakeReminderPage({
   if (intakeLink.status === "SUBMITTED") {
     return (
       <div className="min-h-screen bg-background">
-      <Header />
+      <LpNav />
 
         <div className="flex items-center justify-center p-4 min-h-[calc(100vh-80px)]">
           <Card className="max-w-md w-full">
@@ -87,7 +87,7 @@ export default async function IntakeReminderPage({
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <LpNav />
 
       <div className="flex items-center justify-center p-4 min-h-[calc(100vh-80px)]">
         <Card className="max-w-2xl w-full">

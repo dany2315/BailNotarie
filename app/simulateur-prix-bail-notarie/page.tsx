@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 import { PriceSimulatorPage } from "@/components/price-simulator-page";
 import { BreadcrumbSchema } from "@/components/seo/breadcrumb-schema";
@@ -71,7 +71,7 @@ export default function SimulateurPrixBailNotarie() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
       />
-      <Header />
+      <LpNav />
       <PriceSimulatorPage />
       <Footer />
     </>

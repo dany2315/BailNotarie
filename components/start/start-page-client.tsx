@@ -4,7 +4,7 @@ import { useState, startTransition } from "react";
 import { OwnerEmailInputForm } from "@/components/start/owner-email-input-form";
 import { OtpVerificationForm } from "@/components/start/otp-verification-form";
 import { useRouter } from "next/navigation";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 import { notifyAdminsForNewOwnerFromLanding } from "@/lib/actions/start";
 
@@ -73,7 +73,7 @@ export function StartPageClient() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <LpNav />
       <main className="flex-1 flex items-center justify-center py-4 sm:py-6 md:py-8 lg:py-12 px-3 sm:px-4 md:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50/50 relative overflow-hidden">
         {/* Motifs décoratifs en arrière-plan */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">

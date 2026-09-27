@@ -16,7 +16,6 @@ export default function robots(): MetadataRoute.Robots {
         "/login",
         "/register",
         "/blog/page/",
-        "/lptest",
       ],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
