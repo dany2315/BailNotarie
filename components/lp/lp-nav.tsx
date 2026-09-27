@@ -233,15 +233,6 @@ export function LpNav({ overlay = false }: { overlay?: boolean } = {}) {
           >
             <Phone className="h-4 w-4 text-[#4373f5]" /> {PHONE}
           </a>
-
-          <Link
-            href={cta.href}
-            onClick={closeMenu}
-            className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-4 py-3.5 text-[15px] font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.3)_inset,0_8px_24px_-10px_rgba(53,99,233,0.9)] sm:hidden"
-          >
-            {cta.label}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
         </div>
       )}
     </div>
