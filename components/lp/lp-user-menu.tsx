@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   Building2,
   ChevronDown,
-  LayoutDashboard,
   LogIn,
   LogOut,
   UserRound,
@@ -331,15 +330,6 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
         <div className="p-3">
           <IdentityBlock session={session} />
         </div>
-
-        <DropdownMenuSeparator className="mx-1 bg-slate-100" />
-
-        <DropdownMenuItem asChild className="rounded-xl px-3 py-2.5 focus:bg-[#4373f5]/[0.07]">
-          <Link href="/client" className="cursor-pointer">
-            <LayoutDashboard className="mr-2.5 h-4 w-4 text-[#4373f5]" />
-            <span className="text-[14px] font-medium text-slate-700">Mon espace client</span>
-          </Link>
-        </DropdownMenuItem>
 
         <DropdownMenuSeparator className="mx-1 bg-slate-100" />
 
