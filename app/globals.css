@@ -678,13 +678,26 @@ html {
    redimensionnée et l'écran affiché sauterait. La course est plus courte sur
    mobile, où un écran de téléphone défile plus vite. */
 .lp-track {
+  /* La ligne en `vh` est un repli : un navigateur qui ne connaît pas `svh`
+     rejette la déclaration suivante et garderait sinon une piste sans hauteur,
+     ce qui ferait s'effondrer toute la section. */
+  height: calc(var(--lp-screens, 5) * 70vh);
   height: calc(var(--lp-screens, 5) * 70svh);
 }
 
 @media (min-width: 640px) {
   .lp-track {
+    height: calc(var(--lp-screens, 5) * 85vh);
     height: calc(var(--lp-screens, 5) * 85svh);
   }
+}
+
+/* Panneau figé et couche de décor : même repli, plus un plancher qui empêche
+   l'écran produit de se réduire à rien si les deux unités venaient à manquer. */
+.lp-panel {
+  min-height: 26rem;
+  height: 100vh;
+  height: 100svh;
 }
 
 /* Jauge d'avancement dans l'écran courant : pilotée image par image en JS,
@@ -714,6 +727,15 @@ html {
   opacity: 0;
   transform: translate3d(0, var(--lp-y, 26px), 0);
   filter: blur(6px);
+}
+
+/* Sur téléphone, le flou coûte une passe de rendu par élément révélé, au
+   moment précis où le fil principal doit suivre le défilement. Le retrait et
+   le fondu suffisent à l'effet ; le flou reste au grand écran. */
+@media (max-width: 767px) {
+  .lp-reveal[data-reveal="hidden"] {
+    filter: none;
+  }
 }
 
 /* Barre qui se remplit depuis la gauche. */

@@ -198,7 +198,7 @@ export function LpShowcase() {
           qui suit le scroll, pour que le titre, le panneau figé et les chiffres
           partagent exactement le même fond, sans limite visible. */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="sticky top-0 h-svh w-full overflow-hidden">
+        <div className="lp-panel sticky top-0 w-full overflow-hidden">
           <div className="lp-mesh-dark absolute inset-0" />
           <div className="lp-grid-dark absolute inset-0" />
           <AuroraBackdrop tone="dark" />
@@ -230,7 +230,7 @@ export function LpShowcase() {
 
       {/* ---------- Piste de défilement ---------- */}
       <div ref={trackRef} className="lp-track relative mt-10 sm:mt-14" style={{ ["--lp-screens" as string]: SCREENS.length }}>
-        <div ref={panelRef} className="sticky top-0 flex h-svh items-center overflow-hidden">
+        <div ref={panelRef} className="lp-panel sticky top-0 flex items-center overflow-hidden">
           {/* La barre de navigation flotte au-dessus : on se réserve sa hauteur
               réelle, publiée par LpNav dans --lp-nav-h, plus une respiration. */}
           <div className="relative mx-auto flex h-full w-full max-w-6xl flex-col px-5 pb-5 pt-[calc(var(--lp-nav-h,78px)+1.25rem)] sm:px-8 lg:h-auto lg:flex-row lg:items-center lg:gap-14 lg:pb-0 lg:pt-0">

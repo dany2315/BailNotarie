@@ -151,32 +151,45 @@ export function SpotlightCard({
 /**
  * Filet de sécurité des révélations.
  *
- * Un IntersectionObserver ne signale rien quand un élément traverse la fenêtre
- * entre deux images : lors d'un saut d'ancre ou d'un balayage très rapide, il
- * passe de « sous la fenêtre » à « au-dessus » sans franchir de seuil, aucune
- * entrée n'est émise, et il resterait masqué pour de bon. On balaie donc les
- * éléments encore en attente après chaque saut important — le scroll ordinaire,
- * lui, ne déclenche rien et ne coûte rien.
+ * Deux situations échappent à l'IntersectionObserver :
+ *
+ * - le saut : un élément qui traverse la fenêtre entre deux images passe de
+ *   « sous la fenêtre » à « au-dessus » sans franchir de seuil, aucune entrée
+ *   n'est émise, et il resterait masqué pour de bon ;
+ * - le balayage rapide : sur téléphone, le défilement est porté par le
+ *   compositeur pendant que le fil principal, lui, est occupé. Les rappels de
+ *   l'observateur arrivent en retard, et on voit passer le fond d'une section
+ *   avant son contenu.
+ *
+ * Les deux se reconnaissent au même signe : un écart de scroll anormalement
+ * grand entre deux événements, signe que le fil principal n'a pas suivi. On
+ * révèle alors d'un coup tout ce qui approche, et sans animation — une
+ * transition qui démarre au moment où la section arrive à l'écran donnerait
+ * exactement le vide qu'on cherche à éviter. Le défilement ordinaire, lui, ne
+ * déclenche rien et garde ses animations.
  */
-const pendingReveals = new Set<() => void>();
+const pendingReveals = new Set<(reach: number) => void>();
 let sweepFrame = 0;
 let lastScrollY = 0;
 let sweepBound = false;
 
-function sweepPendingReveals() {
-  sweepFrame = 0;
-  for (const reveal of Array.from(pendingReveals)) reveal();
-}
+/** Portée du balayage, en hauteurs de fenêtre, de part et d'autre du cadre. */
+const SWEEP_REACH = 2.5;
 
 function onSweepScroll() {
   const y = window.scrollY;
-  const jumped = Math.abs(y - lastScrollY) > window.innerHeight / 2;
+  const delta = Math.abs(y - lastScrollY);
   lastScrollY = y;
-  if (!jumped || sweepFrame) return;
-  sweepFrame = window.requestAnimationFrame(sweepPendingReveals);
+  // Un événement de scroll qui saute plus d'un tiers de fenêtre veut dire que
+  // les précédents ont été fusionnés : le fil principal est en retard.
+  if (delta < window.innerHeight / 3 || sweepFrame) return;
+  sweepFrame = window.requestAnimationFrame(() => {
+    sweepFrame = 0;
+    for (const reveal of Array.from(pendingReveals)) reveal(SWEEP_REACH);
+  });
 }
 
-function registerPendingReveal(reveal: () => void) {
+function registerPendingReveal(reveal: (reach: number) => void) {
   pendingReveals.add(reveal);
   if (sweepBound) return;
   sweepBound = true;
@@ -184,7 +197,7 @@ function registerPendingReveal(reveal: () => void) {
   window.addEventListener("scroll", onSweepScroll, { passive: true });
 }
 
-function unregisterPendingReveal(reveal: () => void) {
+function unregisterPendingReveal(reveal: (reach: number) => void) {
   pendingReveals.delete(reveal);
   if (pendingReveals.size > 0 || !sweepBound) return;
   sweepBound = false;
@@ -227,8 +240,20 @@ export function useReveal<T extends HTMLElement>(
     const marked = (targets ? targets() : [observed]).filter(Boolean) as HTMLElement[];
     if (marked.length === 0) return;
 
-    const show = () => {
-      for (const element of marked) element.removeAttribute("data-reveal");
+    /** `instant` coupe la transition le temps du retour à l'état visible. */
+    const show = (instant = false) => {
+      for (const element of marked) {
+        if (instant) element.style.transition = "none";
+        element.removeAttribute("data-reveal");
+      }
+      if (!instant) return;
+      // Deux images plus tard, l'état visible est peint : on rend la
+      // transition à l'élément pour ne pas figer ses animations suivantes.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          for (const element of marked) element.style.transition = "";
+        });
+      });
     };
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -246,30 +271,33 @@ export function useReveal<T extends HTMLElement>(
     for (const element of marked) element.setAttribute("data-reveal", "hidden");
 
     let done = false;
-    const reveal = () => {
+    const reveal = (instant = false) => {
       if (done) return;
       done = true;
-      show();
+      show(instant);
       observer.disconnect();
-      unregisterPendingReveal(check);
+      unregisterPendingReveal(sweep);
     };
 
-    const check = () => {
-      if (observed.getBoundingClientRect().top < window.innerHeight) reveal();
+    const sweep = (reach: number) => {
+      if (observed.getBoundingClientRect().top < window.innerHeight * reach) reveal(true);
     };
 
+    // L'observateur prend de l'avance : la marge basse déclenche la révélation
+    // pendant que l'élément est encore sous le pli, de sorte qu'il finit son
+    // entrée au moment où il devient visible, et non après.
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) reveal();
       },
-      { rootMargin: "0px 0px -8% 0px" },
+      { rootMargin: "0px 0px 20% 0px" },
     );
     observer.observe(observed);
-    registerPendingReveal(check);
+    registerPendingReveal(sweep);
 
     return () => {
       observer.disconnect();
-      unregisterPendingReveal(check);
+      unregisterPendingReveal(sweep);
     };
   }, [ref, threshold, targets]);
 }
