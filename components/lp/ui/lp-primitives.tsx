@@ -220,10 +220,8 @@ function unregisterPendingReveal(reveal: (reach: number) => void) {
 export function useReveal<T extends HTMLElement>(
   ref: React.RefObject<T | null>,
   {
-    threshold = 0.9,
     targets,
   }: {
-    threshold?: number;
     /**
      * Éléments à masquer, si ce ne sont pas ceux qu'on observe. Indispensable
      * quand l'animation réduit la boîte à néant — une barre en `scaleX(0)` n'a
@@ -233,7 +231,9 @@ export function useReveal<T extends HTMLElement>(
     targets?: () => (HTMLElement | null)[];
   } = {},
 ) {
-  React.useLayoutEffect(() => {
+  /* `useEffect` et non `useLayoutEffect` : plus rien n'est mesuré ici, donc
+     rien ne justifie de bloquer la peinture. */
+  React.useEffect(() => {
     const observed = ref.current;
     if (!observed) return;
 
@@ -261,15 +261,7 @@ export function useReveal<T extends HTMLElement>(
       return;
     }
 
-    // Déjà visible : on ne masque pas. `show()` plutôt qu'un simple retour, pour
-    // effacer un marquage laissé par un passage précédent de cet effet.
-    if (observed.getBoundingClientRect().top <= window.innerHeight * threshold) {
-      show();
-      return;
-    }
-
-    for (const element of marked) element.setAttribute("data-reveal", "hidden");
-
+    let decided = false;
     let done = false;
     const reveal = (instant = false) => {
       if (done) return;
@@ -283,23 +275,57 @@ export function useReveal<T extends HTMLElement>(
       if (observed.getBoundingClientRect().top < window.innerHeight * reach) reveal(true);
     };
 
-    // L'observateur prend de l'avance : la marge basse déclenche la révélation
-    // pendant que l'élément est encore sous le pli, de sorte qu'il finit son
-    // entrée au moment où il devient visible, et non après.
+    /* C'est l'observateur qui décide si l'élément part en retrait, et non une
+       mesure faite ici.
+     
+       Lire un rectangle depuis un effet oblige le navigateur à recalculer la
+       mise en page de tout le document séance tenante. Sur cette page, haute de
+       vingt mille pixels, la première lecture coûtait à elle seule un quart de
+       seconde — et comme React remet à plus tard l'hydratation de ce qui est
+       hors champ, ces trente-six lectures tombaient toutes ensemble à la
+       première interaction : le premier appui sur le menu bloquait le fil
+       principal une seconde entière.
+
+       L'observateur, lui, calcule ses intersections hors du fil principal et
+       les livre quand elles sont prêtes. Sa première réponse dit si l'élément
+       est déjà dans le cadre : si oui il reste visible, sinon il part en
+       retrait et attend son entrée. Le contenu, lui, est visible par défaut —
+       ce délai d'une image ou deux ne se voit donc jamais, puisqu'il ne
+       concerne que ce qui est hors champ.
+
+       La marge basse prend de l'avance : la révélation commence pendant que
+       l'élément est encore sous le pli, et s'achève au moment où il devient
+       visible. */
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) reveal();
+        const entry = entries[entries.length - 1];
+        if (!entry) return;
+
+        if (!decided) {
+          decided = true;
+          if (entry.isIntersecting) {
+            // `show()` plutôt qu'un simple retour, pour effacer un marquage
+            // laissé par un passage précédent de cet effet.
+            show();
+            observer.disconnect();
+            return;
+          }
+          for (const element of marked) element.setAttribute("data-reveal", "hidden");
+          registerPendingReveal(sweep);
+          return;
+        }
+
+        if (entry.isIntersecting) reveal();
       },
       { rootMargin: "0px 0px 20% 0px" },
     );
     observer.observe(observed);
-    registerPendingReveal(sweep);
 
     return () => {
       observer.disconnect();
       unregisterPendingReveal(sweep);
     };
-  }, [ref, threshold, targets]);
+  }, [ref, targets]);
 }
 
 /** Élément révélé au scroll, visible par défaut. */
