@@ -22,6 +22,9 @@ export function StartPageClient() {
   const [token, setToken] = useState<string | undefined>(undefined);
   const [isExistingClient, setIsExistingClient] = useState(false);
   const [initialError, setInitialError] = useState<Extract<StartHandoff, { step: "error" }> | null>(null);
+  /* L'adresse vient de l'accueil : le parcours qui reste ne compte que le code
+     et le dossier, et le repère d'avancement doit compter comme le visiteur. */
+  const [fromHome, setFromHome] = useState(false);
 
   /* Relais de l'accueil : quand l'adresse y a déjà été saisie, le code est
      parti et il ne reste que la vérification. La lecture se fait avant la
@@ -36,6 +39,7 @@ export function StartPageClient() {
       setEmail(handoff.email);
       setToken(handoff.token);
       setIsExistingClient(handoff.isExistingClient);
+      setFromHome(true);
       setCurrentStep("otp-verification");
       return;
     }
@@ -97,6 +101,8 @@ export function StartPageClient() {
     setToken(undefined);
     setIsExistingClient(false);
     setInitialError(null);
+    // Revenir en arrière remet le parcours complet : l'adresse est à ressaisir.
+    setFromHome(false);
   };
 
   const step = currentStep === "email-input" ? "email" : "otp";
@@ -140,6 +146,8 @@ export function StartPageClient() {
                 isExistingClient={isExistingClient}
                 onSuccess={handleOtpSuccess}
                 onBack={handleBack}
+                stepIndex={fromHome ? 1 : 2}
+                stepTotal={fromHome ? 2 : 3}
               />
             )}
           </div>

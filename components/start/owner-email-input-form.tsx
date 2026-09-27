@@ -103,7 +103,7 @@ export function OwnerEmailInputForm({ onOtpSent, initialEmail = "" }: OwnerEmail
   }
 
   return (
-    <StartCard step="email">
+    <StartCard current={1} total={3}>
       {/* `noValidate` : la bulle native du navigateur court-circuitait la
           validation du formulaire, et son style ne ressemble à rien du reste.
           Le message passe désormais par le schéma, sous le champ. */}

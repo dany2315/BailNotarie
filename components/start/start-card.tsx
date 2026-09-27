@@ -1,75 +1,59 @@
 "use client";
 
 import * as React from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* =========================================================================
    Carte du parcours « Commencer », partagée par les deux étapes.
 
    Elle porte l'habillage — anneau dégradé, verre, ombre portée du design de
-   l'accueil — et le fil d'étapes. Les formulaires n'ont donc à décrire que
-   leurs champs, et les deux écrans ne peuvent pas diverger.
+   l'accueil — et le repère d'avancement. Les formulaires n'ont donc à décrire
+   que leurs champs, et les deux écrans ne peuvent pas diverger.
+
+   Le repère compte les étapes qui restent réellement à faire : quand
+   l'adresse a été saisie sur l'accueil, le parcours n'en a plus que deux, et
+   afficher la première comme franchie reviendrait à montrer un chemin que ce
+   visiteur n'a jamais emprunté.
    ========================================================================= */
 
-/* Libellés courts : à trois étapes sur la largeur d'une carte, un intitulé de
-   deux mots est tronqué avant d'être lu. */
-const STEPS = [
-  { key: "email", label: "E-mail" },
-  { key: "otp", label: "Code" },
-  { key: "dossier", label: "Dossier" },
-] as const;
-
-type StepKey = (typeof STEPS)[number]["key"];
-
-function Stepper({ current }: { current: StepKey }) {
-  const index = STEPS.findIndex((step) => step.key === current);
-
+function Progress({ current, total }: { current: number; total: number }) {
   return (
-    <ol className="mb-6 flex items-center gap-2" aria-label="Étapes de la création de votre dossier">
-      {STEPS.map((step, i) => {
-        const done = i < index;
-        const active = i === index;
-        return (
-          <li key={step.key} className="flex min-w-0 flex-1 items-center gap-2">
-            <span
-              aria-current={active ? "step" : undefined}
-              className={cn(
-                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11.5px] font-semibold transition-colors duration-300",
-                done && "bg-emerald-500 text-white",
-                active && "bg-gradient-to-b from-[#5b85f7] to-[#3563e9] text-white shadow-[0_6px_16px_-8px_rgba(53,99,233,1)]",
-                !done && !active && "bg-slate-100 text-slate-400",
-              )}
-            >
-              {done ? <Check className="h-3 w-3" /> : i + 1}
-            </span>
-            <span
-              className={cn(
-                "truncate text-[12.5px] font-medium transition-colors duration-300",
-                active ? "text-slate-900" : "text-slate-400",
-                // Sous 400 px, seul le libellé de l'étape en cours tient.
-                active ? "inline" : "hidden min-[420px]:inline",
-              )}
-            >
-              {step.label}
-            </span>
-            {i < STEPS.length - 1 && (
-              <span aria-hidden className={cn("ml-1 h-px flex-1 rounded-full", done ? "bg-emerald-300" : "bg-slate-200")} />
+    <div className="mb-6 flex items-center gap-3">
+      <span className="shrink-0 text-[11.5px] font-semibold uppercase tracking-[0.13em] text-slate-400">
+        Étape {current} / {total}
+      </span>
+      <span
+        role="progressbar"
+        aria-valuenow={current}
+        aria-valuemin={1}
+        aria-valuemax={total}
+        aria-label={`Étape ${current} sur ${total}`}
+        className="flex flex-1 items-center gap-1.5"
+      >
+        {Array.from({ length: total }, (_, index) => (
+          <span
+            key={index}
+            className={cn(
+              "h-[3px] flex-1 rounded-full transition-colors duration-500",
+              index < current ? "bg-gradient-to-r from-[#5b85f7] to-[#3563e9]" : "bg-slate-200/90",
             )}
-          </li>
-        );
-      })}
-    </ol>
+          />
+        ))}
+      </span>
+    </div>
   );
 }
 
 export function StartCard({
-  step,
+  current,
+  total,
   title,
   description,
   children,
 }: {
-  step: StepKey;
+  current: number;
+  total: number;
   title?: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
@@ -82,8 +66,7 @@ export function StartCard({
         className="pointer-events-none absolute -inset-x-6 -bottom-6 h-24 rounded-[50%] bg-[#4373f5]/20 blur-[60px]"
       />
       <div className="lp-ring-gradient relative overflow-hidden rounded-[26px] bg-white/95 p-5 shadow-[0_40px_100px_-50px_rgba(30,58,138,0.6)] backdrop-blur-xl sm:p-7">
-        <div aria-hidden className="lp-sheen pointer-events-none absolute inset-x-0 top-0 h-px" />
-        <Stepper current={step} />
+        <Progress current={current} total={total} />
         {(title || description) && (
           <div className="mb-5">
             {title && <h2 className="text-[19px] font-semibold leading-snug text-slate-900">{title}</h2>}

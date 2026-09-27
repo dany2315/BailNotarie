@@ -22,6 +22,9 @@ interface OtpVerificationFormProps {
   isExistingClient: boolean;
   onSuccess: (isExistingClient: boolean, token: string | undefined) => void;
   onBack: () => void;
+  /** Rang de cette étape et longueur du parcours réellement suivi. */
+  stepIndex?: number;
+  stepTotal?: number;
 }
 
 export function OtpVerificationForm({
@@ -30,6 +33,8 @@ export function OtpVerificationForm({
   isExistingClient,
   onSuccess,
   onBack,
+  stepIndex = 2,
+  stepTotal = 3,
 }: OtpVerificationFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -125,7 +130,8 @@ export function OtpVerificationForm({
 
   return (
     <StartCard
-      step="otp"
+      current={stepIndex}
+      total={stepTotal}
       title="Entrez votre code de vérification"
       description={
         <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">

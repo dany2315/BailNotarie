@@ -84,22 +84,34 @@ export function LpStartField({ className }: { className?: string }) {
 
   return (
     <form onSubmit={submit} noValidate className={cn("w-full", className)}>
-      <label htmlFor="lp-start-email" className="sr-only">
-        Votre adresse e-mail de propriétaire
+      {/* Dit ce que le champ déclenche. Sans cette ligne, une adresse e-mail
+          dans un hero se lit comme une inscription à une lettre d'information. */}
+      <label
+        htmlFor="lp-start-email"
+        className="mb-2 block text-center text-[12.5px] font-semibold uppercase tracking-[0.13em] text-slate-500"
+      >
+        Ouvrez votre dossier
       </label>
 
       <div className="relative">
-        <Mail className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400 sm:left-5" />
+        {/* Pastille à gauche, en écho au bouton de droite : les deux bouts du
+            champ disent ce qu'on y met et ce qui s'ensuit. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-2 top-1/2 flex h-[46px] w-[46px] -translate-y-1/2 items-center justify-center rounded-xl bg-[#4373f5]/[0.09] text-[#3563e9] sm:left-2.5 sm:h-[50px] sm:w-[50px]"
+        >
+          <Mail className="h-[19px] w-[19px]" />
+        </span>
         <input
           id="lp-start-email"
           type="email"
           inputMode="email"
           autoComplete="email"
-          placeholder="Votre e-mail"
+          placeholder="Votre e-mail de propriétaire"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           disabled={loading}
-          className="h-[60px] w-full rounded-2xl border border-white/80 bg-white/90 pl-11 pr-[58px] text-[16px] text-slate-900 shadow-[0_18px_44px_-24px_rgba(30,58,138,0.55)] outline-none backdrop-blur-xl transition-shadow placeholder:text-slate-400 focus:border-[#4373f5]/50 focus:shadow-[0_18px_44px_-20px_rgba(53,99,233,0.7)] sm:h-[66px] sm:pl-12 sm:pr-[150px] sm:text-[17px]"
+          className="h-[60px] w-full rounded-2xl border border-white/80 bg-white/90 pl-[62px] pr-[58px] text-[16px] text-slate-900 shadow-[0_18px_44px_-24px_rgba(30,58,138,0.55)] outline-none backdrop-blur-xl transition-shadow placeholder:text-slate-400 focus:border-[#4373f5]/50 focus:shadow-[0_18px_44px_-20px_rgba(53,99,233,0.7)] sm:h-[66px] sm:pl-[70px] sm:pr-[150px] sm:text-[17px]"
         />
 
         {/* Dans le champ : aucune hauteur prise, aucun décalage à l'apparition. */}
