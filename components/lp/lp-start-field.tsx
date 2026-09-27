@@ -94,14 +94,6 @@ export function LpStartField({ className }: { className?: string }) {
       </label>
 
       <div className="relative">
-        {/* Pastille à gauche, en écho au bouton de droite : les deux bouts du
-            champ disent ce qu'on y met et ce qui s'ensuit. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute left-2 top-1/2 flex h-[46px] w-[46px] -translate-y-1/2 items-center justify-center rounded-xl bg-[#4373f5]/[0.09] text-[#3563e9] sm:left-2.5 sm:h-[50px] sm:w-[50px]"
-        >
-          <Mail className="h-[19px] w-[19px]" />
-        </span>
         <input
           id="lp-start-email"
           type="email"
@@ -114,13 +106,35 @@ export function LpStartField({ className }: { className?: string }) {
           className="h-[60px] w-full rounded-2xl border border-white/80 bg-white/90 pl-[62px] pr-[58px] text-[16px] text-slate-900 shadow-[0_18px_44px_-24px_rgba(30,58,138,0.55)] outline-none backdrop-blur-xl transition-shadow placeholder:text-slate-400 focus:border-[#4373f5]/50 focus:shadow-[0_18px_44px_-20px_rgba(53,99,233,0.7)] sm:h-[66px] sm:pl-[70px] sm:pr-[150px] sm:text-[17px]"
         />
 
+        {/* Pastille à gauche, en écho au bouton de droite : les deux bouts du
+            champ disent ce qu'on y met et ce qui s'ensuit.
+
+            `z-10` n'est pas décoratif : le champ porte un `backdrop-blur`, ce
+            qui en fait un contexte d'empilement peint au même niveau que les
+            éléments positionnés sans z-index. À égalité, c'est l'ordre du
+            document qui tranche — et le champ, écrit après, passait devant la
+            pastille, que son fond blanc à 90 % effaçait dès que le navigateur
+            avait composé la couche. D'où une icône visible le temps du premier
+            rendu, puis plus rien.
+
+            Deux verrous plutôt qu'un : le `z-10`, et la place dans le document
+            — écrite après le champ, la pastille passe devant même si le
+            z-index venait à être ignoré. Le bouton, déjà écrit après, reçoit la
+            même garantie. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-2 top-1/2 z-10 flex h-[46px] w-[46px] -translate-y-1/2 items-center justify-center rounded-xl bg-[#4373f5]/[0.09] text-[#3563e9] sm:left-2.5 sm:h-[50px] sm:w-[50px]"
+        >
+          <Mail className="h-[19px] w-[19px]" />
+        </span>
+
         {/* Dans le champ : aucune hauteur prise, aucun décalage à l'apparition. */}
         <button
           type="submit"
           disabled={!ready || loading}
           aria-label="Commencer mon dossier"
           className={cn(
-            "group/go absolute right-2 top-1/2 flex h-[46px] -translate-y-1/2 items-center justify-center gap-2 overflow-hidden rounded-xl text-[15px] font-semibold transition-all duration-300 sm:right-2.5 sm:h-[50px]",
+            "group/go absolute right-2 top-1/2 z-10 flex h-[46px] -translate-y-1/2 items-center justify-center gap-2 overflow-hidden rounded-xl text-[15px] font-semibold transition-all duration-300 sm:right-2.5 sm:h-[50px]",
             ready && !loading
               ? "w-[46px] bg-gradient-to-b from-[#5b85f7] to-[#3563e9] text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_12px_28px_-12px_rgba(53,99,233,1)] sm:w-[128px]"
               : "w-[46px] bg-slate-100 text-slate-400 sm:w-[46px]",
