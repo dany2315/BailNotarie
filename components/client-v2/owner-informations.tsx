@@ -249,7 +249,7 @@ export function OwnerInformations({
 
   return (
     <OwnerCanvas>
-      <div className="mx-auto w-full max-w-3xl px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:pb-12">
+      <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:pb-14">
         {/* ── Identité du titulaire ───────────────────────────────────────── */}
         <header className="mb-6">
           <MicroLabel>Espace propriétaire</MicroLabel>

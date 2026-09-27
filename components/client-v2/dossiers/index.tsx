@@ -58,7 +58,7 @@ export function OwnerDossiers({ biens, ownerId, variant = "fiches" }: OwnerDossi
 
   return (
     <OwnerCanvas>
-      <div className="mx-auto w-full max-w-3xl px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:pb-12">
+      <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:pb-14">
         <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             <MicroLabel>Espace propriétaire</MicroLabel>
@@ -73,7 +73,9 @@ export function OwnerDossiers({ biens, ownerId, variant = "fiches" }: OwnerDossi
                   } ${controller.totalBaux > 1 ? "baux" : "bail"}`}
             </p>
           </div>
-          <QuietAction className="hidden py-2.5 sm:inline-flex" onClick={controller.openPropertyDialog}>
+          {/* L'ajout d'un bien vit à côté du titre, à sa place d'action de
+              page — et nulle part ailleurs. */}
+          <QuietAction className="py-2.5 max-sm:w-full" onClick={controller.openPropertyDialog}>
             <Plus className="h-4 w-4" />
             Ajouter un bien
           </QuietAction>
@@ -122,16 +124,6 @@ export function OwnerDossiers({ biens, ownerId, variant = "fiches" }: OwnerDossi
           <Layout controller={controller} />
         )}
 
-        {controller.biens.length > 0 && !controller.query && (
-          <button
-            type="button"
-            onClick={controller.openPropertyDialog}
-            className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/50 py-4 text-[13.5px] font-semibold text-slate-500 transition-colors hover:border-[#4373f5]/40 hover:bg-[#4373f5]/[0.04] hover:text-[#3563e9]"
-          >
-            <Plus className="h-4 w-4" />
-            Ajouter un bien
-          </button>
-        )}
       </div>
 
       {/* ── Création d'un bien ────────────────────────────────────────────── */}

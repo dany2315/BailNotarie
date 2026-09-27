@@ -280,7 +280,7 @@ export function OwnerDashboard({
 
   return (
     <OwnerCanvas>
-      <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:pb-12">
+      <div className="mx-auto w-full max-w-5xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:pb-14">
         {/* ── En-tête ─────────────────────────────────────────────────────── */}
         <header className="mb-5 flex flex-wrap items-end justify-between gap-4 sm:mb-6">
           <div className="min-w-0">

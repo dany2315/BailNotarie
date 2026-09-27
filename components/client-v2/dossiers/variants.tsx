@@ -290,12 +290,7 @@ export function VariantFiches({ controller }: { controller: DossiersController }
                   </div>
                 )}
 
-                <PropertyLines
-                  bien={bien}
-                  controller={controller}
-                  allowed={allowed}
-                  lineClassName="pl-1.5"
-                />
+                <PropertyLines bien={bien} controller={controller} allowed={allowed} />
 
                 {!draft && allowed && (
                   <button
