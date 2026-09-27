@@ -12,13 +12,14 @@ import {
   Loader2,
   Lock,
   Plus,
-  Ruler,
   Search,
+  Store,
 } from "lucide-react";
 import { BailType, CompletionStatus, ProfilType } from "@prisma/client";
 
 import { cn } from "@/lib/utils";
 import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
+import { formatDate } from "@/lib/utils/formatters";
 import {
   Dialog,
   DialogContent,
@@ -41,27 +42,30 @@ import {
   Pill,
   PrimaryAction,
   QuietAction,
-  SectionHeading,
   Surface,
   Tone,
 } from "./owner-ui";
 
 /* =========================================================================
-   « Mes dossiers » — refonte.
+   « Mes dossiers ».
 
-   Toute la logique de `DemandesPageClient` est conservée : sélection d'un
-   bien synchronisée avec l'URL (`?selected=`), ouverture des tiroirs via
-   `?open=bail-… | bien-… | bien-new | bail-new`, détection du brouillon non
-   payé, règle d'un seul bail actif par bien, création d'un bien.
+   Le premier essai reprenait la structure d'origine — choisir un bien à
+   gauche, lire ses baux à droite — en la redessinant. C'était le problème :
+   la page s'appelle « Mes dossiers » mais obligeait d'abord à naviguer dans
+   des biens, et empilait quatre surfaces blanches (rail, fiche du bien, zone
+   d'action, cartes) avant le premier contenu utile.
 
-   Ce qui change :
-   • une seule colonne de biens, vraie liste sur grand écran, rail de pastilles
-     défilantes en une ligne sur mobile (au lieu des grosses tuiles à deux
-     étages) ;
-   • le bien sélectionné reçoit un en-tête qui dit tout de lui (adresse,
-     surface, état du dossier) ;
-   • l'action « démarrer un dossier » devient un bouton plein, pas une carte
-     en pointillés perdue au milieu de la liste.
+   Ici : une seule liste, du haut vers le bas, groupée par bien. Un bien
+   n'est plus une destination mais un intertitre — une ligne, sur le fond de
+   la page, qui porte son nom, son état et ses deux actions. Dessous, ses
+   baux. Tout est visible sans rien sélectionner, et la seule surface blanche
+   reste la carte d'un dossier.
+
+   Toute la logique de `DemandesPageClient` est conservée : `?selected=`
+   (qui fait maintenant défiler jusqu'au bien au lieu de le sélectionner),
+   `?open=bail-… | bien-… | bien-new | bail-new`, la règle d'un seul bail
+   actif par bien, le brouillon non payé, la création d'un bien et les deux
+   tiroirs de détail.
    ========================================================================= */
 
 type PropertyWithBails = {
@@ -130,23 +134,38 @@ const BAIL_TYPE_LABELS: Record<string, string> = {
 
 const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
 
-/** Un bien n'accepte un nouveau bail que si aucun bail actif ne court encore,
-    ou si tous arrivent à échéance dans moins d'un mois. Règle inchangée. */
-function canCreateNewBail(bails: PropertyWithBails["bails"]): boolean {
+/**
+ * Un bien n'accepte un nouveau bail que si aucun bail actif ne court encore,
+ * ou si tous arrivent à échéance dans moins d'un mois. Règle inchangée ; on
+ * renvoie en plus la date à partir de laquelle ce sera possible, pour la dire
+ * au propriétaire au lieu de le laisser deviner.
+ */
+function newBailAvailability(bails: PropertyWithBails["bails"]): { allowed: boolean; from: Date | null } {
   const activeBails = bails.filter((bail) => !TERMINAL_STATUSES.includes(bail.status));
-  if (activeBails.length === 0) return true;
+  if (activeBails.length === 0) return { allowed: true, from: null };
 
-  return activeBails.every((bail) => {
+  let latestUnlock: Date | null = null;
+  let allowed = true;
+
+  for (const bail of activeBails) {
     const endDate = bail.endDate
       ? new Date(bail.endDate)
       : bail.effectiveDate && bail.bailType
         ? calculateBailEndDate(new Date(bail.effectiveDate), bail.bailType as BailType)
         : null;
-    if (!endDate) return false;
+
+    if (!endDate) {
+      // Sans date de fin connue, on ne peut pas ouvrir : règle d'origine.
+      return { allowed: false, from: null };
+    }
+
     const oneMonthBefore = new Date(endDate);
     oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
-    return new Date() >= oneMonthBefore;
-  });
+    if (new Date() < oneMonthBefore) allowed = false;
+    if (!latestUnlock || oneMonthBefore > latestUnlock) latestUnlock = oneMonthBefore;
+  }
+
+  return { allowed, from: allowed ? null : latestUnlock };
 }
 
 function propertyTitle(bien: PropertyWithBails) {
@@ -177,10 +196,10 @@ export function OwnerDossiers({ biens, ownerId }: OwnerDossiersProps) {
   const lastSyncedPropertyId = React.useRef<string | null>(null);
   const lastProcessedOpenParam = React.useRef<string | null>(null);
   const isManuallyOpeningDialog = React.useRef(false);
+  const sectionRefs = React.useRef<Record<string, HTMLElement | null>>({});
+  const lastScrolledTo = React.useRef<string | null>(null);
 
-  const selectedProperty = localBiens.find((bien) => bien.id === selectedPropertyId);
-
-  // ── Synchronisation de la sélection avec l'URL ────────────────────────────
+  // ── Synchronisation de la sélection avec l'URL (inchangée) ────────────────
   React.useEffect(() => {
     if (selectedPropertyId && lastSyncedPropertyId.current !== selectedPropertyId) {
       const currentSelected = searchParams.get("selected");
@@ -196,7 +215,21 @@ export function OwnerDossiers({ biens, ownerId }: OwnerDossiersProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPropertyId, router]);
 
-  // ── Ouverture des tiroirs depuis les query params ─────────────────────────
+  /* Plus de panneau de droite : désigner un bien le fait remonter sous les
+     yeux. On ne défile qu'une fois par bien, et jamais pour le premier
+     affichage de la page (sinon tout arrivant serait poussé vers le bas). */
+  React.useEffect(() => {
+    if (!selectedPropertyId) return;
+    if (lastScrolledTo.current === null) {
+      lastScrolledTo.current = selectedPropertyId;
+      return;
+    }
+    if (lastScrolledTo.current === selectedPropertyId) return;
+    lastScrolledTo.current = selectedPropertyId;
+    sectionRefs.current[selectedPropertyId]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selectedPropertyId]);
+
+  // ── Ouverture des tiroirs depuis les query params (inchangée) ─────────────
   React.useEffect(() => {
     if (isManuallyOpeningDialog.current) {
       isManuallyOpeningDialog.current = false;
@@ -255,9 +288,8 @@ export function OwnerDossiers({ biens, ownerId }: OwnerDossiersProps) {
     setIsPropertyDialogOpen(true);
   };
 
-  const handlePropertySelect = (propertyId: string) => setSelectedPropertyId(propertyId);
-
   const openPropertyDetail = (propertyId: string) => {
+    setSelectedPropertyId(propertyId);
     setSelectedPropertyDetailId(propertyId);
     setIsPropertyDetailOpen(true);
   };
@@ -267,9 +299,14 @@ export function OwnerDossiers({ biens, ownerId }: OwnerDossiersProps) {
     setIsBailDetailOpen(true);
   };
 
-  // ── Rail des biens ────────────────────────────────────────────────────────
-  const showSearch = localBiens.length > 6;
-  const filteredBiens = React.useMemo(() => {
+  const startNewBail = (propertyId: string) => {
+    setSelectedPropertyId(propertyId);
+    router.push(`/client/proprietaire/baux/new?propertyId=${propertyId}`);
+  };
+
+  // ── Filtre : rien n'est masqué tant qu'on ne cherche pas ──────────────────
+  const showSearch = localBiens.length > 4;
+  const visibleBiens = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return localBiens;
     return localBiens.filter((bien) =>
@@ -277,343 +314,100 @@ export function OwnerDossiers({ biens, ownerId }: OwnerDossiersProps) {
     );
   }, [localBiens, query]);
 
+  const totalBaux = localBiens.reduce(
+    (total, bien) => total + (bien.bails?.filter((bail) => !(bail.status === "DRAFT" && !bail.paidAt)).length || 0),
+    0,
+  );
+
   return (
     <OwnerCanvas>
-      <div className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:pb-12">
+      <div className="mx-auto w-full max-w-3xl px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:pb-12">
         {/* ── En-tête ─────────────────────────────────────────────────────── */}
-        <header className="mb-5 flex flex-wrap items-end justify-between gap-4 sm:mb-6">
+        <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             <MicroLabel>Espace propriétaire</MicroLabel>
             <h1 className="lp-title mt-1.5 text-[26px] font-bold text-slate-900 sm:text-[32px]">Mes dossiers</h1>
             <p className="mt-1 text-[13.5px] text-slate-500">
               {localBiens.length === 0
                 ? "Commencez par ajouter un bien"
-                : `${localBiens.length} bien${localBiens.length > 1 ? "s" : ""} · les baux de chacun`}
+                : `${localBiens.length} bien${localBiens.length > 1 ? "s" : ""} · ${totalBaux} ${
+                    totalBaux > 1 ? "baux" : "bail"
+                  }`}
             </p>
           </div>
-          <QuietAction className="hidden py-2.5 lg:inline-flex" onClick={openPropertyDialog}>
+          <QuietAction className="hidden py-2.5 sm:inline-flex" onClick={openPropertyDialog}>
             <Plus className="h-4 w-4" />
             Ajouter un bien
           </QuietAction>
         </header>
 
-        {/* ── Rail mobile : une ligne de pastilles ────────────────────────── */}
-        <div className="-mx-4 mb-4 lg:hidden">
-          <div className="flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {localBiens.map((bien) => {
-              const isSelected = selectedPropertyId === bien.id;
-              return (
-                <button
-                  key={bien.id}
-                  type="button"
-                  onClick={() => handlePropertySelect(bien.id)}
-                  className={cn(
-                    "flex shrink-0 snap-start items-center gap-2 rounded-full border px-3.5 py-2 text-[12.5px] font-semibold transition-all",
-                    isSelected
-                      ? "border-transparent bg-slate-900 text-white shadow-[0_8px_20px_-10px_rgba(15,23,42,0.6)]"
-                      : "border-slate-200 bg-white text-slate-600",
-                  )}
-                >
-                  <Home className={cn("h-3.5 w-3.5", isSelected ? "text-white/80" : "text-slate-400")} />
-                  <span className="max-w-[46vw] truncate">{propertyTitle(bien)}</span>
-                  <span
-                    className={cn(
-                      "rounded-full px-1.5 text-[10.5px] tabular-nums",
-                      isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500",
-                    )}
-                  >
-                    {bien.bails?.length || 0}
-                  </span>
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={openPropertyDialog}
-              className="flex shrink-0 snap-start items-center gap-1.5 rounded-full border border-dashed border-slate-300 bg-white/60 px-3.5 py-2 text-[12.5px] font-semibold text-slate-500"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Ajouter
-            </button>
-          </div>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[288px_minmax(0,1fr)] lg:gap-8">
-          {/* ── Rail desktop ─────────────────────────────────────────────── */}
-          <aside className="hidden lg:block">
-            <Surface tone="raised" className="sticky top-28 overflow-hidden">
-              <div className="flex items-center justify-between px-4 pb-2 pt-4">
-                <MicroLabel>Vos biens</MicroLabel>
-                <span className="text-[11px] font-semibold tabular-nums text-slate-400">
-                  {localBiens.length}
-                </span>
-              </div>
-
-              {showSearch && (
-                <div className="px-3 pb-2">
-                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2">
-                    <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <input
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder="Rechercher un bien"
-                      className="w-full bg-transparent text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="max-h-[52vh] overflow-y-auto px-2 pb-2">
-                {filteredBiens.map((bien) => {
-                  const isSelected = selectedPropertyId === bien.id;
-                  return (
-                    <div key={bien.id} className="relative">
-                      <button
-                        type="button"
-                        onClick={() => handlePropertySelect(bien.id)}
-                        className={cn(
-                          "mb-1 flex w-full items-start gap-2.5 rounded-xl px-2.5 py-2.5 pr-9 text-left transition-colors",
-                          isSelected ? "bg-[#4373f5]/[0.07]" : "hover:bg-slate-50",
-                        )}
-                      >
-                        <IconTile icon={Home} tone={isSelected ? "blue" : "slate"} size="sm" />
-                        <span className="min-w-0 flex-1">
-                          <span
-                            className={cn(
-                              "block truncate text-[13px] font-semibold",
-                              isSelected ? "text-[#3563e9]" : "text-slate-800",
-                            )}
-                          >
-                            {propertyTitle(bien)}
-                          </span>
-                          <span className="mt-0.5 block truncate text-[11.5px] text-slate-500">
-                            {bien.fullAddress || "Adresse non renseignée"}
-                          </span>
-                          <span className="mt-1 block text-[11px] font-medium tabular-nums text-slate-400">
-                            {bien.bails?.length || 0} bail{(bien.bails?.length || 0) > 1 ? "x" : ""}
-                          </span>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openPropertyDetail(bien.id)}
-                        title="Voir la fiche du bien"
-                        className="absolute right-2 top-3 inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span className="sr-only">Voir la fiche</span>
-                      </button>
-                    </div>
-                  );
-                })}
-
-                {filteredBiens.length === 0 && (
-                  <p className="px-3 py-6 text-center text-[12.5px] text-slate-400">
-                    {localBiens.length === 0 ? "Aucun bien" : "Aucun résultat"}
-                  </p>
-                )}
-              </div>
-
+        {/* ── Recherche, seulement quand la liste devient longue ──────────── */}
+        {showSearch && (
+          <div className="mb-5 flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5">
+            <Search className="h-4 w-4 shrink-0 text-slate-400" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Rechercher un bien"
+              className="w-full bg-transparent text-[13.5px] text-slate-700 outline-none placeholder:text-slate-400"
+            />
+            {query && (
               <button
                 type="button"
-                onClick={openPropertyDialog}
-                className="flex w-full items-center gap-2 border-t border-slate-100 px-4 py-3 text-[12.5px] font-semibold text-[#3563e9] transition-colors hover:bg-[#4373f5]/[0.05]"
+                onClick={() => setQuery("")}
+                className="shrink-0 text-[12px] font-semibold text-slate-400 hover:text-slate-600"
               >
-                <Plus className="h-4 w-4" />
-                Ajouter un bien
+                Effacer
               </button>
-            </Surface>
-          </aside>
-
-          {/* ── Contenu du bien sélectionné ──────────────────────────────── */}
-          <div className="min-w-0 space-y-4">
-            {selectedProperty ? (
-              <>
-                {/* Fiche d'en-tête du bien */}
-                <Surface tone="raised" className="p-4 sm:p-5">
-                  <div className="flex items-start gap-3">
-                    <IconTile icon={Building2} tone="blue" size="lg" />
-                    <div className="min-w-0 flex-1">
-                      <h2 className="truncate text-[17px] font-bold tracking-tight text-slate-900">
-                        {propertyTitle(selectedProperty)}
-                      </h2>
-                      {selectedProperty.fullAddress && (
-                        <p className="mt-0.5 truncate text-[12.5px] text-slate-500">
-                          {selectedProperty.fullAddress}
-                        </p>
-                      )}
-                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                        <Pill tone={COMPLETION_TONES[String(selectedProperty.completionStatus)] ?? "slate"}>
-                          {COMPLETION_LABELS[String(selectedProperty.completionStatus)] ??
-                            String(selectedProperty.completionStatus)}
-                        </Pill>
-                        {selectedProperty.surfaceM2 != null && (
-                          <Pill tone="slate" icon={Ruler}>
-                            {selectedProperty.surfaceM2} m²
-                          </Pill>
-                        )}
-                        <Pill tone="slate" icon={FileText}>
-                          {selectedProperty.bails?.length || 0} bail
-                          {(selectedProperty.bails?.length || 0) > 1 ? "x" : ""}
-                        </Pill>
-                      </div>
-                    </div>
-                    <QuietAction
-                      className="hidden shrink-0 sm:inline-flex"
-                      onClick={() => openPropertyDetail(selectedProperty.id)}
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      Fiche du bien
-                    </QuietAction>
-                  </div>
-                  <QuietAction
-                    className="mt-3 w-full sm:hidden"
-                    onClick={() => openPropertyDetail(selectedProperty.id)}
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                    Voir la fiche du bien
-                  </QuietAction>
-                </Surface>
-
-                {/* Zone d'action : reprendre, démarrer, ou attendre */}
-                {(() => {
-                  const bails = selectedProperty.bails || [];
-                  const allowed = canCreateNewBail(bails);
-                  const draftBail = bails.find((bail) => bail.status === "DRAFT" && !bail.paidAt);
-                  const intakeLink = draftBail?.intakes?.[0];
-
-                  if (draftBail) {
-                    const tenant = draftBail.parties?.find(
-                      (party) => party.profilType === ProfilType.LOCATAIRE,
-                    );
-                    const tenantName = tenant?.entreprise
-                      ? tenant.entreprise.legalName || tenant.entreprise.name
-                      : tenant?.persons?.[0]
-                        ? `${tenant.persons[0].firstName || ""} ${tenant.persons[0].lastName || ""}`.trim() ||
-                          tenant.persons[0].email
-                        : null;
-                    const href = intakeLink
-                      ? `/intakes/${intakeLink.token}`
-                      : `/client/proprietaire/baux/new?draftId=${draftBail.id}`;
-
-                    return (
-                      <OwnerTodoCard
-                        propertyLabel={propertyTitle(selectedProperty)}
-                        tenantName={tenantName}
-                        bailTypeLabel={
-                          draftBail.bailType
-                            ? BAIL_TYPE_LABELS[draftBail.bailType] || draftBail.bailType
-                            : null
-                        }
-                        message="Ce dossier n'est pas encore finalisé. Reprenez là où vous en étiez."
-                        continueHref={href}
-                      />
-                    );
-                  }
-
-                  if (!allowed) {
-                    return (
-                      <Surface tone="quiet" className="flex items-start gap-3 p-4">
-                        <IconTile icon={Lock} tone="slate" />
-                        <div className="min-w-0">
-                          <p className="text-[13.5px] font-semibold text-slate-700">
-                            Un bail est déjà actif sur ce bien
-                          </p>
-                          <p className="mt-0.5 text-[12.5px] leading-snug text-slate-500">
-                            Vous pourrez en créer un nouveau un mois avant la fin du bail en cours.
-                          </p>
-                        </div>
-                      </Surface>
-                    );
-                  }
-
-                  return (
-                    <Surface tone="accent" className="flex flex-wrap items-center justify-between gap-3 p-4">
-                      <div className="min-w-0">
-                        <p className="text-[13.5px] font-semibold text-slate-800">
-                          Démarrer un dossier pour ce bien
-                        </p>
-                        <p className="mt-0.5 text-[12.5px] leading-snug text-slate-600">
-                          Comptez cinq minutes. Le locataire peut être ajouté plus tard.
-                        </p>
-                      </div>
-                      <PrimaryAction
-                        className="max-sm:w-full"
-                        onClick={() =>
-                          router.push(
-                            `/client/proprietaire/baux/new${
-                              selectedPropertyId ? `?propertyId=${selectedPropertyId}` : ""
-                            }`,
-                          )
-                        }
-                      >
-                        <Plus className="h-4 w-4" />
-                        Nouveau bail
-                      </PrimaryAction>
-                    </Surface>
-                  );
-                })()}
-
-                {/* Baux du bien (hors brouillons non payés, déjà traités au-dessus) */}
-                {(() => {
-                  const bails = selectedProperty.bails || [];
-                  const visibleBails = bails.filter((bail) => !(bail.status === "DRAFT" && !bail.paidAt));
-                  const hasUnpaidDraft = bails.some((bail) => bail.status === "DRAFT" && !bail.paidAt);
-
-                  if (visibleBails.length > 0) {
-                    return (
-                      <section className="space-y-3 pt-1">
-                        <SectionHeading title="Baux" count={visibleBails.length} />
-                        <div className="space-y-3">
-                          {visibleBails.map((bail) => (
-                            <OwnerBailCardV2
-                              key={bail.id}
-                              bail={{ ...bail, property: selectedProperty }}
-                              context="dossiers"
-                              onViewDetail={() => openBailDetail(bail.id)}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    );
-                  }
-
-                  if (hasUnpaidDraft) return null;
-
-                  return (
-                    <Surface tone="quiet">
-                      <EmptyState
-                        icon={FileText}
-                        title="Aucun bail sur ce bien"
-                        description="Dès qu'un dossier est lancé, son avancement apparaît ici."
-                      />
-                    </Surface>
-                  );
-                })()}
-              </>
-            ) : (
-              <Surface tone="raised">
-                <EmptyState
-                  icon={Home}
-                  title={localBiens.length === 0 ? "Ajoutez votre premier bien" : "Choisissez un bien"}
-                  description={
-                    localBiens.length === 0
-                      ? "Un bien, c'est l'adresse que vous louez. Vous pourrez ensuite lancer un bail dessus."
-                      : "Sélectionnez un bien pour voir ses baux."
-                  }
-                  action={
-                    localBiens.length === 0 ? (
-                      <PrimaryAction className="mt-1 py-3" onClick={openPropertyDialog}>
-                        <Plus className="h-4 w-4" />
-                        Ajouter un bien
-                      </PrimaryAction>
-                    ) : undefined
-                  }
-                />
-              </Surface>
             )}
           </div>
-        </div>
+        )}
+
+        {/* ── La liste ────────────────────────────────────────────────────── */}
+        {localBiens.length === 0 ? (
+          <Surface tone="raised">
+            <EmptyState
+              icon={Home}
+              title="Ajoutez votre premier bien"
+              description="Un bien, c'est l'adresse que vous louez. Vous pourrez ensuite lancer un bail dessus."
+              action={
+                <PrimaryAction className="mt-1 py-3" onClick={openPropertyDialog}>
+                  <Plus className="h-4 w-4" />
+                  Ajouter un bien
+                </PrimaryAction>
+              }
+            />
+          </Surface>
+        ) : visibleBiens.length === 0 ? (
+          <p className="py-10 text-center text-[13.5px] text-slate-400">Aucun bien ne correspond à « {query} ».</p>
+        ) : (
+          <div className="space-y-9">
+            {visibleBiens.map((bien) => (
+              <PropertySection
+                key={bien.id}
+                ref={(node) => {
+                  sectionRefs.current[bien.id] = node;
+                }}
+                bien={bien}
+                onOpenDetail={() => openPropertyDetail(bien.id)}
+                onStartBail={() => startNewBail(bien.id)}
+                onOpenBail={openBailDetail}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* ── Ajouter un bien : en fin de liste, là où l'œil arrive ───────── */}
+        {localBiens.length > 0 && !query && (
+          <button
+            type="button"
+            onClick={openPropertyDialog}
+            className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/50 py-4 text-[13.5px] font-semibold text-slate-500 transition-colors hover:border-[#4373f5]/40 hover:bg-[#4373f5]/[0.04] hover:text-[#3563e9]"
+          >
+            <Plus className="h-4 w-4" />
+            Ajouter un bien
+          </button>
+        )}
       </div>
 
       {/* ── Création d'un bien ────────────────────────────────────────────── */}
@@ -637,7 +431,7 @@ export function OwnerDossiers({ biens, ownerId }: OwnerDossiersProps) {
           )}
           <DialogHeader className="shrink-0 px-6 pb-4 pt-6">
             <DialogTitle className="flex items-center gap-2 text-[17px] tracking-tight">
-              <Building2 className="h-4.5 w-4.5 text-[#3563e9]" />
+              <Building2 className="h-4 w-4 text-[#3563e9]" />
               Ajouter un bien
             </DialogTitle>
             <DialogDescription className="text-[13px] leading-snug">
@@ -647,8 +441,7 @@ export function OwnerDossiers({ biens, ownerId }: OwnerDossiersProps) {
           <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
             {demo ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center text-[12.5px] leading-snug text-slate-500">
-                Aperçu — le formulaire de création de bien existant prend place ici,
-                inchangé.
+                Aperçu — le formulaire de création de bien existant prend place ici, inchangé.
               </div>
             ) : (
               <CreatePropertyForm
@@ -737,6 +530,150 @@ export function OwnerDossiers({ biens, ownerId }: OwnerDossiersProps) {
     </OwnerCanvas>
   );
 }
+
+/* ---------- Un bien et ses baux ------------------------------------------- */
+
+const PropertySection = React.forwardRef<
+  HTMLElement,
+  {
+    bien: PropertyWithBails;
+    onOpenDetail: () => void;
+    onStartBail: () => void;
+    onOpenBail: (bailId: string) => void;
+  }
+>(function PropertySection({ bien, onOpenDetail, onStartBail, onOpenBail }, ref) {
+  const bails = bien.bails || [];
+  const draftBail = bails.find((bail) => bail.status === "DRAFT" && !bail.paidAt);
+  const visibleBails = bails.filter((bail) => !(bail.status === "DRAFT" && !bail.paidAt));
+  const { allowed, from } = newBailAvailability(bails);
+  const isCommercial = bails.some((bail) => bail.bailFamily === "COMMERCIAL");
+
+  const draftHref = draftBail
+    ? draftBail.intakes?.[0]
+      ? `/intakes/${draftBail.intakes[0].token}`
+      : `/client/proprietaire/baux/new?draftId=${draftBail.id}`
+    : null;
+
+  const draftTenant = draftBail?.parties?.find((party) => party.profilType === ProfilType.LOCATAIRE);
+  const draftTenantName = draftTenant?.entreprise
+    ? draftTenant.entreprise.legalName || draftTenant.entreprise.name
+    : draftTenant?.persons?.[0]
+      ? `${draftTenant.persons[0].firstName || ""} ${draftTenant.persons[0].lastName || ""}`.trim() ||
+        draftTenant.persons[0].email
+      : null;
+
+  return (
+    <section ref={ref} className="scroll-mt-28">
+      {/* L'intertitre : posé sur le fond, pas dans une carte — c'est ce qui
+          fait lire « section » et non « quatrième encadré ». */}
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2.5 px-1">
+        <IconTile icon={isCommercial ? Store : Home} tone={isCommercial ? "amber" : "blue"} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="truncate text-[15.5px] font-bold tracking-tight text-slate-900">
+              {propertyTitle(bien)}
+            </h2>
+            <Pill tone={COMPLETION_TONES[String(bien.completionStatus)] ?? "slate"} className="shrink-0">
+              {COMPLETION_LABELS[String(bien.completionStatus)] ?? String(bien.completionStatus)}
+            </Pill>
+          </div>
+          <p className="mt-0.5 truncate text-[12.5px] text-slate-500">
+            {bien.fullAddress || "Adresse non renseignée"}
+            {bien.surfaceM2 != null && ` · ${bien.surfaceM2} m²`}
+          </p>
+          {/* Pourquoi il n'y a pas de bouton « Nouveau bail » ici : dit en une
+              ligne d'information, plutôt qu'en bouton grisé qu'on essaie de
+              cliquer avant de comprendre. */}
+          {!draftBail && !allowed && (
+            <p className="mt-1 flex items-center gap-1.5 text-[11.5px] text-slate-400">
+              <Lock className="h-3 w-3 shrink-0" />
+              {from
+                ? `Nouveau bail dès le ${formatDate(from)}`
+                : "Un bail est déjà actif sur ce bien"}
+            </p>
+          )}
+        </div>
+
+        {/* Sur téléphone, la fiche du bien tient dans une icône au bout du
+            titre : lui donner une pleine largeur la ferait passer pour
+            l'action principale, qui est d'ouvrir un bail. */}
+        <button
+          type="button"
+          onClick={onOpenDetail}
+          title="Fiche du bien"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-800 sm:hidden"
+        >
+          <Eye className="h-4 w-4" />
+          <span className="sr-only">Fiche du bien</span>
+        </button>
+
+        <div className="hidden items-center gap-2 sm:flex">
+          <QuietAction onClick={onOpenDetail}>
+            <Eye className="h-3.5 w-3.5" />
+            Fiche
+          </QuietAction>
+          {!draftBail && allowed && (
+            <PrimaryAction onClick={onStartBail}>
+              <Plus className="h-4 w-4" />
+              Nouveau bail
+            </PrimaryAction>
+          )}
+        </div>
+
+        {!draftBail && allowed && (
+          <PrimaryAction className="w-full py-3 sm:hidden" onClick={onStartBail}>
+            <Plus className="h-4 w-4" />
+            Nouveau bail
+          </PrimaryAction>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {/* Un dossier commencé et pas terminé passe devant : c'est le seul
+            élément de cette page qui demande quelque chose. */}
+        {draftBail && draftHref && (
+          <OwnerTodoCard
+            heading="Dossier en cours"
+            propertyLabel={null}
+            tenantName={draftTenantName}
+            bailTypeLabel={
+              draftBail.bailType ? BAIL_TYPE_LABELS[draftBail.bailType] || draftBail.bailType : null
+            }
+            message="Ce dossier n'est pas encore finalisé. Reprenez là où vous en étiez."
+            continueHref={draftHref}
+          />
+        )}
+
+        {visibleBails.map((bail) => (
+          <OwnerBailCardV2
+            key={bail.id}
+            bail={{ ...bail, property: bien }}
+            context="dossiers"
+            onViewDetail={() => onOpenBail(bail.id)}
+          />
+        ))}
+
+        {visibleBails.length === 0 && !draftBail && (
+          <div className="flex items-center gap-2.5 rounded-2xl border border-dashed border-slate-200 bg-white/40 px-4 py-4">
+            <FileText className="h-4 w-4 shrink-0 text-slate-300" />
+            <p className="text-[12.5px] text-slate-400">
+              Aucun bail sur ce bien.{" "}
+              {allowed && (
+                <button
+                  type="button"
+                  onClick={onStartBail}
+                  className="font-semibold text-[#3563e9] hover:underline"
+                >
+                  Démarrer un dossier
+                </button>
+              )}
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+});
 
 /** Substitut des tiroirs réels dans la maquette : ils chargent un dossier en
     base, ce qu'une page de démonstration ne peut pas faire. */

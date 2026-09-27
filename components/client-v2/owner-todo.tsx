@@ -109,6 +109,7 @@ function DeleteButton({ onDelete, deleting }: { onDelete: () => void; deleting: 
 /* ---------- Remplaçante directe de `OwnerProgressCard` -------------------- */
 
 export function OwnerTodoCard({
+  heading,
   propertyLabel,
   tenantName,
   bailTypeLabel,
@@ -118,6 +119,9 @@ export function OwnerTodoCard({
   onDelete,
   deleting = false,
 }: {
+  /** Titre de la carte. Par défaut le bien — mais quand la carte vit déjà
+      sous l'intertitre de ce bien, le répéter n'apprend rien. */
+  heading?: string;
   propertyLabel: string | null;
   tenantName?: string | null;
   bailTypeLabel?: string | null;
@@ -127,8 +131,9 @@ export function OwnerTodoCard({
   onDelete?: () => void;
   deleting?: boolean;
 }) {
-  const heading = propertyLabel || "Bien non renseigné";
-  const details = [tenantName, bailTypeLabel].filter(Boolean).join(" · ") || null;
+  const title = heading ?? propertyLabel ?? "Bien non renseigné";
+  const details =
+    [heading ? propertyLabel : null, tenantName, bailTypeLabel].filter(Boolean).join(" · ") || null;
 
   return (
     <Surface tone="raised" className="overflow-hidden">
@@ -138,8 +143,8 @@ export function OwnerTodoCard({
       <TodoRow
         icon={ClipboardList}
         tone="amber"
-        kicker="Demande en cours"
-        title={heading}
+        kicker={heading ? undefined : "Demande en cours"}
+        title={title}
         subtitle={details}
         message={message}
         actionLabel={continueLabel}

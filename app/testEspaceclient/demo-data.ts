@@ -33,6 +33,12 @@ const BORDEAUX = {
   fullAddress: "24 rue Notre-Dame, 33000 Bordeaux",
 };
 
+const BASTILLE = {
+  id: "prop-bastille",
+  label: "Studio Bastille",
+  fullAddress: "5 rue de la Roquette, 75011 Paris",
+};
+
 const LOCAL_COMMERCIAL = {
   id: "prop-commerce",
   label: "Local Sainte-Catherine",
@@ -254,6 +260,16 @@ export const DEMO_BIENS = [
         intakes: [{ id: "intake-1", token: "intake-token-demo", status: "OPEN" }],
       },
     ],
+  },
+  {
+    ...BASTILLE,
+    status: "ACTIVE",
+    completionStatus: "PARTIAL",
+    surfaceM2: 19,
+    type: "APPARTEMENT",
+    createdAt: iso(-1),
+    updatedAt: now.toISOString(),
+    bails: [],
   },
 ] as any;
 
