@@ -216,7 +216,13 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
 
   if (session.status === "loading") {
     return (
-      <div className={cn("hidden h-10 w-[58px] items-center rounded-xl border border-slate-200 bg-white p-1 sm:flex", className)} aria-hidden>
+      <div
+        className={cn(
+          "flex h-11 w-[58px] shrink-0 items-center rounded-xl border border-slate-200 bg-white p-1 sm:h-10",
+          className,
+        )}
+        aria-hidden
+      >
         <span className="h-8 w-8 animate-pulse rounded-full bg-slate-200" />
       </div>
     );
@@ -226,13 +232,18 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
     return (
       <Link
         href="/client/login"
+        aria-label="Se connecter à mon espace client"
         className={cn(
-          "hidden h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[13.5px] font-semibold text-slate-700 transition-colors hover:border-[#4373f5]/30 hover:text-[#3563e9] sm:inline-flex xl:px-3.5",
+          "inline-flex h-11 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[13.5px] font-semibold text-slate-700 transition-colors hover:border-[#4373f5]/30 hover:text-[#3563e9] sm:h-10 xl:px-3.5",
           className,
         )}
       >
-        <LogIn className="h-3.5 w-3.5" />
-        <span className="hidden xl:inline">Se connecter</span>
+        <LogIn className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+        {/* Le libellé s'affiche dès qu'il reste de la place : sur téléphone à
+            partir de 400 px, et à nouveau en grand écran. Entre les deux, les
+            liens de navigation occupent la barre et le bouton reste à l'icône,
+            dont le sens est porté par son `aria-label`. */}
+        <span className="hidden min-[400px]:inline lg:hidden xl:inline">Se connecter</span>
       </Link>
     );
   }
@@ -244,7 +255,7 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
           type="button"
           aria-label={`Mon espace client — ${session.displayName}`}
           className={cn(
-            "hidden h-10 shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 pr-1.5 transition-colors hover:border-[#4373f5]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5] focus-visible:ring-offset-2 sm:inline-flex",
+            "inline-flex h-11 shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 pr-1.5 transition-colors hover:border-[#4373f5]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5] focus-visible:ring-offset-2 sm:h-10",
             className,
           )}
         >
@@ -289,74 +300,5 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-/* ---------- Mobile : bloc dans le panneau déroulant --------------------- */
-
-export function LpUserPanel({
-  session,
-  onNavigate,
-}: {
-  session: ClientSession;
-  onNavigate: () => void;
-}) {
-  const handleSignOut = useSignOut();
-
-  if (session.status === "loading") {
-    return (
-      <div className="mb-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3" aria-hidden>
-        <div className="flex items-center gap-3">
-          <span className="h-11 w-11 animate-pulse rounded-full bg-slate-200" />
-          <span className="flex-1 space-y-2">
-            <span className="block h-3.5 w-28 animate-pulse rounded bg-slate-200" />
-            <span className="block h-3 w-40 animate-pulse rounded bg-slate-200" />
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  if (session.status === "guest") {
-    return (
-      <Link
-        href="/client/login"
-        onClick={onNavigate}
-        className="mb-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[15px] font-semibold text-slate-700"
-      >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#4373f5] shadow-sm">
-          <LogIn className="h-4 w-4" />
-        </span>
-        Se connecter à mon espace
-      </Link>
-    );
-  }
-
-  return (
-    <div className="mb-2 rounded-2xl border border-[#4373f5]/15 bg-[#4373f5]/[0.05] p-3">
-      <IdentityBlock session={session} />
-
-      <div className="mt-3 grid gap-2">
-        <Link
-          href="/client"
-          onClick={onNavigate}
-          className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[14.5px] font-semibold text-[#3563e9] shadow-sm"
-        >
-          <LayoutDashboard className="h-4 w-4" />
-          Mon espace client
-        </Link>
-        <button
-          type="button"
-          onClick={() => {
-            onNavigate();
-            handleSignOut();
-          }}
-          className="flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-[13.5px] font-semibold text-red-600"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          Se déconnecter
-        </button>
-      </div>
-    </div>
   );
 }

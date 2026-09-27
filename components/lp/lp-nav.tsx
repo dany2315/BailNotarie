@@ -6,15 +6,21 @@ import Link from "next/link";
 import { ArrowRight, Menu, Phone, X } from "lucide-react";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
-import { ClientAvatar, LpUserMenu, LpUserPanel, useClientSession } from "./lp-user-menu";
+import { LpUserMenu, useClientSession } from "./lp-user-menu";
 
+/* Les ancres restent des <a> : le navigateur les résout sans passer par le
+   routeur. Le blog est une page à part entière, donc un <Link> — il est
+   préchargé et la navigation reste côté client. */
 const LINKS = [
   { href: "#processus", label: "Comment ça marche" },
   { href: "#interface", label: "L'interface" },
   { href: "#avantages", label: "Avantages" },
   { href: "#tarif", label: "Tarif" },
   { href: "#faq", label: "FAQ" },
+  { href: "/blog", label: "Blog" },
 ];
+
+const isPage = (href: string) => href.startsWith("/");
 
 const PHONE = "07 49 38 77 56";
 const PHONE_HREF = `tel:${PHONE.replace(/\s/g, "")}`;
@@ -114,20 +120,28 @@ export function LpNav() {
         </Link>
 
         <div className="hidden items-center gap-1 lg:flex">
-          {LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="whitespace-nowrap rounded-xl px-2.5 py-2 text-[14px] font-medium text-slate-600 transition-colors hover:bg-slate-900/[0.04] hover:text-slate-900"
-            >
-              {link.label}
-            </a>
-          ))}
+          {LINKS.map((link) => {
+            const className =
+              "whitespace-nowrap rounded-xl px-2.5 py-2 text-[14px] font-medium text-slate-600 transition-colors hover:bg-slate-900/[0.04] hover:text-slate-900";
+            return isPage(link.href) ? (
+              <Link key={link.href} href={link.href} className={className}>
+                {link.label}
+              </Link>
+            ) : (
+              <a key={link.href} href={link.href} className={className}>
+                {link.label}
+              </a>
+            );
+          })}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Espace client : avatar seul (l'identité complète est dans le menu)
-              ou « Se connecter » pour un visiteur. */}
+          {/* Espace client, à toutes les largeurs : avatar seul pour un client
+              connecté — l'identité complète et la déconnexion sont dans son
+              menu — ou « Se connecter » pour un visiteur. Sur téléphone, ces
+              deux entrées restent dans la barre : aller les chercher derrière
+              le menu déroulant ajoutait un geste à l'action la plus courante
+              des clients qui reviennent. */}
           <LpUserMenu session={session} />
 
           <Link
@@ -138,17 +152,6 @@ export function LpNav() {
             <span className="md:hidden">Commencer</span>
             <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
           </Link>
-
-          {/* Raccourci espace client sur mobile */}
-          {session.status === "client" && (
-            <Link
-              href="/client"
-              aria-label="Mon espace client"
-              className="flex shrink-0 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5] focus-visible:ring-offset-2 sm:hidden"
-            >
-              <ClientAvatar initials={session.initials} size="lg" />
-            </Link>
-          )}
 
           <button
             type="button"
@@ -166,18 +169,19 @@ export function LpNav() {
         <div
           className="lp-swap pointer-events-auto mt-2 max-h-[calc(100dvh-7rem)] w-full max-w-7xl overflow-y-auto rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_30px_70px_-30px_rgba(30,58,138,0.6)] backdrop-blur-xl lg:hidden"
         >
-          <LpUserPanel session={session} onNavigate={closeMenu} />
-
-          {LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              onClick={closeMenu}
-              className="block rounded-xl px-4 py-3 text-[15px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              {link.label}
-            </a>
-          ))}
+          {LINKS.map((link) => {
+            const className =
+              "block rounded-xl px-4 py-3 text-[15px] font-medium text-slate-700 transition-colors hover:bg-slate-50";
+            return isPage(link.href) ? (
+              <Link key={link.href} href={link.href} onClick={closeMenu} className={className}>
+                {link.label}
+              </Link>
+            ) : (
+              <a key={link.href} href={link.href} onClick={closeMenu} className={className}>
+                {link.label}
+              </a>
+            );
+          })}
 
           <a
             href={PHONE_HREF}
