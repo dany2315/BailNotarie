@@ -79,7 +79,10 @@ export function StartPageClient() {
     /* `lp-root` apporte les jetons du design de l'accueil — couleurs, ombres,
        respect du mouvement réduit — au reste de l'arbre. */
     <div className="lp-root flex min-h-screen flex-col bg-white">
-      <LpNav />
+      {/* Sans réserve : la scène commence en haut de l'écran, la barre flotte
+          dessus et dégage sa hauteur par le `pt-` ci-dessous — comme sur les
+          autres pages du site. */}
+      <LpNav overlay />
 
       <main className="lp-scene relative flex flex-1 items-center justify-center overflow-hidden bg-gradient-to-b from-white via-[#f7f9ff] to-[#eef3ff] px-5 pb-16 pt-[calc(var(--lp-nav-h,76px)+2rem)] sm:pb-20 sm:pt-[calc(var(--lp-nav-h,76px)+3rem)]">
         <div aria-hidden className="lp-mesh absolute inset-0" />
