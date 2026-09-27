@@ -78,64 +78,114 @@ function buildInitials(name: string) {
   return letters || "CL";
 }
 
+/* ---------- Session partagée -------------------------------------------- */
+
+/* La session est lue une fois et partagée par tous les composants qui en
+   dépendent — la barre, son menu, le raccourci mobile. Un état local par
+   composant obligeait chacun à refaire l'appel, et surtout laissait la barre
+   afficher un avatar après une déconnexion : `router.refresh()` rafraîchit les
+   composants serveur, pas l'état d'un composant client déjà monté. Ici, la
+   déconnexion publie l'état « visiteur » et tous les abonnés se mettent à jour
+   dans la même image. */
+
+let sessionState: ClientSession = EMPTY;
+let inFlight: Promise<void> | null = null;
+let lastLoadedAt = 0;
+const subscribers = new Set<(session: ClientSession) => void>();
+
+function publish(next: ClientSession) {
+  sessionState = next;
+  for (const notify of Array.from(subscribers)) notify(next);
+}
+
 /**
- * Récupère la session cliente : l'API dit qui est connecté, l'action serveur
- * donne le nom et l'e-mail réellement affichables (raison sociale pour une
- * entreprise, personne principale pour un particulier).
+ * Lit la session : l'API dit qui est connecté, l'action serveur donne le nom
+ * et l'e-mail réellement affichables (raison sociale pour une entreprise,
+ * personne principale pour un particulier).
  */
-export function useClientSession(): ClientSession {
-  const [session, setSession] = React.useState<ClientSession>(EMPTY);
+async function loadClientSession() {
+  try {
+    const response = await fetch("/api/user/current");
+    const data = (await response.json()) as { isAuthenticated?: boolean; user?: CurrentUser };
 
-  React.useEffect(() => {
-    let cancelled = false;
+    const user = data?.isAuthenticated ? data.user : null;
+    const isClient = user?.role === "UTILISATEUR" && Boolean(user?.clientId);
 
-    async function load() {
-      try {
-        const response = await fetch("/api/user/current");
-        const data = (await response.json()) as { isAuthenticated?: boolean; user?: CurrentUser };
-
-        const user = data?.isAuthenticated ? data.user : null;
-        const isClient = user?.role === "UTILISATEUR" && Boolean(user?.clientId);
-
-        if (!user || !isClient) {
-          if (!cancelled) setSession({ ...EMPTY, status: "guest" });
-          return;
-        }
-
-        let info: ClientInfo | null = null;
-        try {
-          info = (await getClientInfoForHeader(user.clientId as string)) as ClientInfo | null;
-        } catch (error) {
-          console.error("Erreur lors de la récupération des informations du client:", error);
-        }
-
-        const profilType = info?.profilType ?? user.profilType ?? null;
-        const displayName = info?.name || user.name || "Mon espace";
-
-        if (!cancelled) {
-          setSession({
-            status: "client",
-            displayName,
-            email: info?.email || user.email || "",
-            initials: buildInitials(displayName),
-            isCompany: info?.clientType === "entreprise",
-            profilLabel:
-              profilType === "PROPRIETAIRE"
-                ? "Propriétaire"
-                : profilType === "LOCATAIRE"
-                  ? "Locataire"
-                  : null,
-          });
-        }
-      } catch (error) {
-        console.error("Erreur lors de la récupération de l'utilisateur:", error);
-        if (!cancelled) setSession({ ...EMPTY, status: "guest" });
-      }
+    if (!user || !isClient) {
+      publish({ ...EMPTY, status: "guest" });
+      return;
     }
 
-    load();
+    let info: ClientInfo | null = null;
+    try {
+      info = (await getClientInfoForHeader(user.clientId as string)) as ClientInfo | null;
+    } catch (error) {
+      console.error("Erreur lors de la récupération des informations du client:", error);
+    }
+
+    const profilType = info?.profilType ?? user.profilType ?? null;
+    const displayName = info?.name || user.name || "Mon espace";
+
+    publish({
+      status: "client",
+      displayName,
+      email: info?.email || user.email || "",
+      initials: buildInitials(displayName),
+      isCompany: info?.clientType === "entreprise",
+      profilLabel:
+        profilType === "PROPRIETAIRE" ? "Propriétaire" : profilType === "LOCATAIRE" ? "Locataire" : null,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération de l'utilisateur:", error);
+    publish({ ...EMPTY, status: "guest" });
+  } finally {
+    lastLoadedAt = Date.now();
+  }
+}
+
+function ensureLoaded(force = false) {
+  if (inFlight) return;
+  if (!force && sessionState.status !== "loading") return;
+  inFlight = loadClientSession().finally(() => {
+    inFlight = null;
+  });
+}
+
+/** Publie l'état « visiteur » sans attendre le serveur : on vient de partir. */
+export function clearClientSession() {
+  publish({ ...EMPTY, status: "guest" });
+  lastLoadedAt = Date.now();
+}
+
+/** Relit la session, par exemple au retour sur l'onglet. */
+export function refreshClientSession() {
+  ensureLoaded(true);
+}
+
+/** Délai en deçà duquel un retour sur l'onglet ne relance pas de lecture. */
+const REVALIDATE_AFTER_MS = 30_000;
+
+export function useClientSession(): ClientSession {
+  const [session, setSession] = React.useState<ClientSession>(sessionState);
+
+  React.useEffect(() => {
+    subscribers.add(setSession);
+    // L'état a pu changer entre le premier rendu et l'abonnement.
+    setSession(sessionState);
+    ensureLoaded();
+
+    // Déconnexion depuis un autre onglet, session expirée pendant une absence :
+    // au retour sur l'onglet, on relit — mais pas à chaque aller-retour.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastLoadedAt < REVALIDATE_AFTER_MS) return;
+      ensureLoaded(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
-      cancelled = true;
+      subscribers.delete(setSession);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -147,6 +197,9 @@ export function useSignOut() {
   return React.useCallback(async () => {
     try {
       await signOut();
+      // Avant la navigation : la barre doit reprendre son bouton « Se
+      // connecter » dans l'image qui suit, pas au prochain chargement complet.
+      clearClientSession();
       toast.success("Déconnexion réussie");
       router.push("/");
       router.refresh();
