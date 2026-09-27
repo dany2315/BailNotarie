@@ -18,11 +18,11 @@ export default function ClientLoginLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col min-h-full">
-      <LpNav />
-      <div className="flex-1">
-        {children}
-      </div>
+    /* `lp-root` apporte les jetons du design de l'accueil ; la barre flotte
+       sans réserver de hauteur, la scène de la page s'en charge. */
+    <div className="lp-root flex min-h-screen flex-col bg-white">
+      <LpNav overlay />
+      <div className="flex flex-1 flex-col">{children}</div>
     </div>
   );
 }
