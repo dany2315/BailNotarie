@@ -142,7 +142,21 @@ function PropertyLines({
   lineClassName?: string;
 }) {
   const draft = findDraft(bien.bails);
-  const bails = visibleBails(bien.bails);
+
+  /* Ordre d'affichage uniquement — aucune donnée n'est filtrée : ce qui
+     attend une action d'abord, ce qui avance ensuite, ce qui est clos en
+     dernier, et à égalité le plus récent devant. Avec trois baux sur un
+     même bien, l'ancien ordre (celui de la base) faisait remonter un bail
+     terminé au-dessus du bail en cours. */
+  const bails = [...visibleBails(bien.bails)].sort((a, b) => {
+    const rank = (status: string) =>
+      stageOf(status) === "todo" ? 0 : stageOf(status) === "running" ? 1 : 2;
+    const byStage = rank(a.status) - rank(b.status);
+    if (byStage !== 0) return byStage;
+    const dateOf = (bail: BailOfProperty) =>
+      bail.effectiveDate ? new Date(bail.effectiveDate).getTime() : 0;
+    return dateOf(b) - dateOf(a);
+  });
 
   if (!draft && bails.length === 0) {
     return (
