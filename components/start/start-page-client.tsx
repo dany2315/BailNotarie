@@ -6,6 +6,8 @@ import { OtpVerificationForm } from "@/components/start/otp-verification-form";
 import { useRouter } from "next/navigation";
 import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
+import { AuroraBackdrop, NoiseOverlay } from "@/components/lp/ui/lp-primitives";
+import { StartHeading, StartPoints } from "@/components/start/start-aside";
 import { notifyAdminsForNewOwnerFromLanding } from "@/lib/actions/start";
 
 type Step = "email-input" | "otp-verification";
@@ -71,32 +73,50 @@ export function StartPageClient() {
     setIsExistingClient(false);
   };
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <LpNav />
-      <main className="flex-1 flex items-center justify-center py-4 sm:py-6 md:py-8 lg:py-12 px-3 sm:px-4 md:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50/50 relative overflow-hidden">
-        {/* Motifs décoratifs en arrière-plan */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-48 h-48 sm:w-64 sm:h-64 md:w-96 md:h-96 bg-blue-200/20 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-0 right-1/4 w-48 h-48 sm:w-64 sm:h-64 md:w-96 md:h-96 bg-indigo-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-          <div className="absolute top-1/2 left-0 w-32 h-32 sm:w-48 sm:h-48 md:w-64 md:h-64 bg-purple-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-        </div>
+  const step = currentStep === "email-input" ? "email" : "otp";
 
-        <div className="w-full max-w-4xl relative z-10">
-          {currentStep === "email-input" && (
-            <OwnerEmailInputForm onOtpSent={handleOtpSent} />
-          )}
-          {currentStep === "otp-verification" && (
-            <OtpVerificationForm
-              email={email}
-              token={token}
-              isExistingClient={isExistingClient}
-              onSuccess={handleOtpSuccess}
-              onBack={handleBack}
-            />
-          )}
+  return (
+    /* `lp-root` apporte les jetons du design de l'accueil — couleurs, ombres,
+       respect du mouvement réduit — au reste de l'arbre. */
+    <div className="lp-root flex min-h-screen flex-col bg-white">
+      <LpNav />
+
+      <main className="lp-scene relative flex-1 overflow-hidden bg-gradient-to-b from-white via-[#f7f9ff] to-[#eef3ff] pb-20 pt-[calc(var(--lp-nav-h,76px)+2.5rem)] sm:pt-[calc(var(--lp-nav-h,76px)+3.5rem)]">
+        <div aria-hidden className="lp-mesh absolute inset-0" />
+        <div aria-hidden className="lp-grid absolute inset-0" />
+        <AuroraBackdrop />
+        <NoiseOverlay />
+
+        {/* Sur téléphone, l'ordre du document fait la mise en page : titre,
+            formulaire, puis les repères. Au-delà de 1024 px, la grille place
+            titre et repères à gauche, et le formulaire à droite sur les deux
+            rangées — sans dupliquer le titre. */}
+        <div className="relative z-10 mx-auto grid max-w-6xl gap-x-14 gap-y-10 px-5 sm:px-8 lg:grid-cols-2 lg:items-start">
+          <div className="lg:col-start-1 lg:row-start-1">
+            <StartHeading step={step} />
+          </div>
+
+          <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center lg:pl-2">
+            {currentStep === "email-input" && (
+              <OwnerEmailInputForm onOtpSent={handleOtpSent} />
+            )}
+            {currentStep === "otp-verification" && (
+              <OtpVerificationForm
+                email={email}
+                token={token}
+                isExistingClient={isExistingClient}
+                onSuccess={handleOtpSuccess}
+                onBack={handleBack}
+              />
+            )}
+          </div>
+
+          <div className="lg:col-start-1 lg:row-start-2">
+            <StartPoints step={step} />
+          </div>
         </div>
       </main>
+
       <Footer />
     </div>
   );
