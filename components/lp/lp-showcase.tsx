@@ -196,9 +196,17 @@ export function LpShowcase() {
     >
       {/* Décor commun à toute la section : une couche de la hauteur du viewport
           qui suit le scroll, pour que le titre, le panneau figé et les chiffres
-          partagent exactement le même fond, sans limite visible. */}
+          partagent exactement le même fond, sans limite visible.
+
+          Le fond sombre est répété ici, sur cette couche, et pas seulement sur
+          la section. La section fait trois mille pixels de haut ; cette couche,
+          elle, fait une hauteur d'écran et porte des flous animés, donc le
+          navigateur la compose à part. En défilement rapide, il l'affichait
+          déjà quand le fond de la grande section n'était pas encore peint : on
+          voyait les halos bleus sur du blanc. Les deux voyageant désormais
+          ensemble, le cas ne peut plus se produire. */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="lp-panel sticky top-0 w-full overflow-hidden">
+        <div className="lp-panel sticky top-0 w-full overflow-hidden bg-[#070c1a]">
           <div className="lp-mesh-dark absolute inset-0" />
           <div className="lp-grid-dark absolute inset-0" />
           <AuroraBackdrop tone="dark" />

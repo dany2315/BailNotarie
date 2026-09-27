@@ -429,19 +429,19 @@ export function AuroraBackdrop({
     <div aria-hidden className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}>
       <div
         className={cn(
-          "lp-anim-drift absolute -top-40 left-[8%] h-[34rem] w-[34rem] rounded-full blur-[110px]",
+          "lp-aurora-blob lp-anim-drift absolute -top-40 left-[8%] h-[34rem] w-[34rem] rounded-full",
           tone === "light" ? "bg-[#4373f5]/18" : "bg-[#4373f5]/35",
         )}
       />
       <div
         className={cn(
-          "lp-anim-drift absolute -right-24 top-10 h-[28rem] w-[28rem] rounded-full blur-[110px] [animation-delay:-7s]",
+          "lp-aurora-blob lp-anim-drift absolute -right-24 top-10 h-[28rem] w-[28rem] rounded-full [animation-delay:-7s]",
           tone === "light" ? "bg-violet-400/14" : "bg-violet-500/25",
         )}
       />
       <div
         className={cn(
-          "lp-anim-drift absolute bottom-[-12rem] left-1/3 h-[30rem] w-[30rem] rounded-full blur-[120px] [animation-delay:-14s]",
+          "lp-aurora-blob lp-anim-drift absolute bottom-[-12rem] left-1/3 h-[30rem] w-[30rem] rounded-full [animation-delay:-14s]",
           tone === "light" ? "bg-indigo-400/14" : "bg-indigo-500/25",
         )}
       />

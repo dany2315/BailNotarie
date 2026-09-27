@@ -620,6 +620,30 @@ html {
 .lp-anim-caret { animation: lp-caret 1.1s steps(1) infinite; }
 .lp-anim-progress { animation: lp-progress 5s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate; }
 
+/* Halos d'ambiance. Le flou est porté ici plutôt que par une classe utilitaire
+   pour pouvoir être allégé d'un seul endroit : sur téléphone, trois disques de
+   110 px de flou animés en continu tiennent le compositeur occupé pendant le
+   défilement, au moment précis où il doit peindre les sections qui arrivent.
+   Un flou plus court et des halos immobiles donnent le même dégradé à l'œil,
+   pour une fraction du coût. */
+.lp-aurora-blob {
+  filter: blur(110px);
+}
+
+@media (max-width: 767px) {
+  .lp-aurora-blob {
+    filter: blur(64px);
+    animation: none;
+  }
+
+  /* Le grain passe par un mode de fusion, donc par une passe de composition
+     supplémentaire sur toute la hauteur de l'écran — invisible à cette densité
+     de pixels. */
+  .lp-noise {
+    display: none;
+  }
+}
+
 /* Niveau sonore de la visio : trois barres qui montent et descendent. La
    hauteur de repos est celle de l'animation figée, pour que le mouvement
    réduit n'affiche pas des barres écrasées. */
