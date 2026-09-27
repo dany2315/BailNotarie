@@ -657,6 +657,23 @@ html {
   animation: lp-level 1.1s ease-in-out infinite;
 }
 
+/* Contour du participant qui parle : le liseré des outils d'appel, qui suit la
+   voix. Posé en `box-shadow` pour ne rien devoir à la mise en page et ne pas
+   être rogné par le `overflow` de la fenêtre. */
+@keyframes lp-speak {
+  0%, 100% {
+    box-shadow: 0 0 0 1.5px rgba(52, 211, 153, 0.5), 0 0 0 5px rgba(52, 211, 153, 0.09);
+  }
+  50% {
+    box-shadow: 0 0 0 1.5px rgba(52, 211, 153, 0.95), 0 0 0 7px rgba(52, 211, 153, 0.17);
+  }
+}
+
+.lp-anim-speak {
+  box-shadow: 0 0 0 1.5px rgba(52, 211, 153, 0.7), 0 0 0 6px rgba(52, 211, 153, 0.13);
+  animation: lp-speak 1.7s ease-in-out infinite;
+}
+
 .lp-marquee-track {
   animation: lp-marquee-x var(--lp-duration, 40s) linear infinite;
 }

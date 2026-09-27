@@ -13,6 +13,7 @@ import {
   Lock,
   MapPin,
   Mic,
+  MicOff,
   PenTool,
   Search,
   ShieldCheck,
@@ -359,22 +360,28 @@ export function SuiviMockup({ compact = false }: { compact?: boolean }) {
 
 /* Participants de la visio.
 
-   Les photos viennent d'Unsplash et sont appelées par leur URL de diffusion,
-   recadrées côté service : `crop=faces` centre la découpe sur le visage, donc
-   le cadrage reste juste quelle que soit la taille demandée. `unoptimized`
-   évite de repasser par l'optimiseur d'images — la vignette est déjà servie à
-   la bonne taille, et le quota de transformations reste pour les visuels du
-   site.
+   Deux photographies prises pendant un véritable appel vidéo — pas des
+   portraits en studio : le cadrage, le regard vers l'objectif et l'arrière-plan
+   de bureau sont ce qui fait qu'on lit « appel en cours » et non « photo de
+   couverture ». Elles sont appelées par leur URL de diffusion, recadrées côté
+   service : `crop=faces` centre la découpe sur le visage, donc le cadrage reste
+   juste quelle que soit la taille demandée. `unoptimized` évite de repasser par
+   l'optimiseur d'images — la vignette est déjà servie à la bonne taille, et le
+   quota de transformations reste pour les visuels du site.
 
-   Crédits : Osama Madlom (notaire) et Janko Ferlič (propriétaire), Unsplash. */
+   Crédits : Vitaly Gariev (notaire) et LinkedIn Sales Solutions
+   (propriétaire), Unsplash. */
 const CALL = {
-  notaire: {
-    label: "Me Laurent — Étude notariale",
-    src: "https://images.unsplash.com/photo-1734159350022-0acc5f934da5?auto=format&fit=crop&crop=faces&w=900&h=506&q=70",
+  /** Celui qui parle : cadre principal, contour vivant, niveau sonore actif. */
+  speaker: {
+    name: "Me Laurent",
+    role: "Étude notariale",
+    src: "https://images.unsplash.com/photo-1758874384555-de68b8035c24?auto=format&fit=crop&crop=faces&w=900&h=506&q=70",
   },
-  client: {
-    label: "Vous",
-    src: "https://images.unsplash.com/photo-1592158169526-9deda479afce?auto=format&fit=crop&crop=faces&w=360&h=270&q=70",
+  /** Celui qui écoute : incrustation, micro coupé. */
+  viewer: {
+    name: "Vous",
+    src: "https://images.unsplash.com/photo-1616587894289-86480e533129?auto=format&fit=crop&crop=faces&w=360&h=270&q=70",
   },
 };
 
@@ -403,50 +410,65 @@ export function SignatureMockup({ compact = false }: { compact?: boolean }) {
         </span>
       </div>
 
-      {/* Fenêtre visio : le notaire en grand, le propriétaire en incrustation,
-          comme dans un vrai appel. Le fond sombre reste sous les photos : si
-          elles tardent ou manquent, la fenêtre garde l'allure d'une visio. */}
-      <div className="relative mb-3 aspect-[16/9] overflow-hidden rounded-xl bg-[#0f1830]">
+      {/* Fenêtre visio : le notaire en grand, le propriétaire en incrustation.
+          Le contour vert qui respire et le niveau sonore de l'étiquette
+          désignent celui qui parle — c'est la grammaire des outils d'appel, et
+          le micro coupé sur l'incrustation dit le reste. Le fond sombre reste
+          sous les photos : si elles tardent ou manquent, la fenêtre garde
+          l'allure d'une visio. */}
+      <div className="lp-anim-speak relative mb-3 aspect-[16/9] overflow-hidden rounded-xl bg-[#0f1830]">
         <Image
-          src={CALL.notaire.src}
+          src={CALL.speaker.src}
           alt=""
           fill
           unoptimized
           sizes="(max-width: 1024px) 90vw, 460px"
           className="object-cover"
         />
-        {/* Voile haut et bas : garde les incrustations lisibles quelle que
-            soit la luminosité de l'image. */}
+        {/* Voile haut et bas, puis vignettage : rend les incrustations lisibles
+            et donne le léger assombrissement des bords d'une image de webcam. */}
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/70" />
         <div
           aria-hidden
-          className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/70"
+          className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgba(0,0,0,0.35)_100%)]"
         />
 
         {/* Étiquette du participant qui parle */}
         <div className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-lg bg-black/55 px-2 py-1 backdrop-blur-sm">
           <AudioLevel />
-          <span className="text-[9.5px] font-medium text-white/95">{CALL.notaire.label}</span>
+          <span className="text-[9.5px] font-medium text-white/95">
+            {CALL.speaker.name} — {CALL.speaker.role}
+          </span>
         </div>
 
-        <span className="absolute right-2.5 top-2.5 rounded-md bg-black/45 px-1.5 py-0.5 text-[8.5px] font-semibold tracking-wide text-white/80 backdrop-blur-sm">
-          HD
-        </span>
+        {/* Durée d'appel et qualité */}
+        <div className="absolute right-2.5 top-2.5 flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 rounded-md bg-black/45 px-1.5 py-0.5 text-[8.5px] font-medium text-white/85 backdrop-blur-sm">
+            <span className="h-1 w-1 rounded-full bg-red-500" />
+            12:04
+          </span>
+          <span className="rounded-md bg-black/45 px-1.5 py-0.5 text-[8.5px] font-semibold tracking-wide text-white/80 backdrop-blur-sm">
+            HD
+          </span>
+        </div>
 
-        {/* Incrustation du propriétaire */}
+        {/* Incrustation du propriétaire. L'image est retournée : une webcam
+            montre toujours son propre reflet à l'envers. */}
         <div className="absolute bottom-2.5 right-2.5 aspect-[4/3] w-[27%] overflow-hidden rounded-lg bg-[#223055] shadow-[0_8px_20px_-8px_rgba(0,0,0,0.9)] ring-1 ring-white/25">
           <Image
-            src={CALL.client.src}
+            src={CALL.viewer.src}
             alt=""
             fill
             unoptimized
             sizes="140px"
-            className="object-cover"
+            className="-scale-x-100 object-cover"
           />
           <div
             aria-hidden
-            className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-[3px] pt-3 text-[8px] font-medium text-white"
+            className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-[3px] pt-3 text-[8px] font-medium text-white"
           >
-            {CALL.client.label}
+            <MicOff className="h-2 w-2 shrink-0 text-white/75" />
+            {CALL.viewer.name}
           </div>
         </div>
 
