@@ -9,6 +9,7 @@ import {
   SuiviMockup,
 } from "./ui/lp-product-mockups";
 import { Reveal, SectionLabel, Tilt3D } from "./ui/lp-primitives";
+import { useDossierCta } from "./lp-user-menu";
 
 const STEPS = [
   {
@@ -44,6 +45,8 @@ const STEPS = [
 ];
 
 export function LpProcess() {
+  const cta = useDossierCta();
+
   return (
     <section
       id="processus"
@@ -134,10 +137,10 @@ export function LpProcess() {
               </p>
               <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link
-                  href="/commencer"
+                  href={cta.href}
                   className="group inline-flex items-center gap-2 rounded-2xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-7 py-3.5 text-[15px] font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_14px_36px_-14px_rgba(53,99,233,1)] transition-transform duration-300 hover:-translate-y-0.5"
                 >
-                  Commencer maintenant
+                  {cta.connected ? cta.label : "Commencer maintenant"}
                   <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </Link>
                 <a

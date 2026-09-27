@@ -5,8 +5,11 @@ import { ArrowRight, Clock, Phone, ShieldCheck, Sparkles } from "lucide-react";
 import { motion, useReducedMotion, useTransform } from "motion/react";
 import { AuroraBackdrop, NoiseOverlay, Reveal, usePointerParallax } from "./ui/lp-primitives";
 import { FloatingDelayCard, FloatingNotification, FloatingPriceCard } from "./ui/lp-product-mockups";
+import { useDossierCta } from "./lp-user-menu";
 
 export function LpFinalCta() {
+  const cta = useDossierCta();
+
   const reduce = useReducedMotion();
   const parallax = usePointerParallax(1);
   const leftX = useTransform(parallax.x, (value) => value * -22);
@@ -70,10 +73,10 @@ export function LpFinalCta() {
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
-              href="/commencer"
+              href={cta.href}
               className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-8 py-4 text-base font-semibold text-[#1e3a8a] shadow-[0_20px_50px_-20px_rgba(2,6,23,0.6)] transition-transform duration-300 hover:-translate-y-0.5"
             >
-              Constituer mon dossier — 39,90 € TTC
+              {cta.connected ? cta.label : "Constituer mon dossier — 39,90 € TTC"}
               <ArrowRight className="h-4.5 w-4.5 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
             <a

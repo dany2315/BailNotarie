@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   Building2,
   ChevronDown,
-  FileText,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -335,13 +334,6 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
           </Link>
         </DropdownMenuItem>
 
-        <DropdownMenuItem asChild className="rounded-xl px-3 py-2.5 focus:bg-[#4373f5]/[0.07]">
-          <Link href="/commencer" className="cursor-pointer">
-            <FileText className="mr-2.5 h-4 w-4 text-[#4373f5]" />
-            <span className="text-[14px] font-medium text-slate-700">Constituer un dossier</span>
-          </Link>
-        </DropdownMenuItem>
-
         <DropdownMenuSeparator className="mx-1 bg-slate-100" />
 
         <DropdownMenuItem
@@ -354,4 +346,26 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/* ---------- Action principale, selon la session ------------------------- */
+
+/**
+ * Destination et libellé du bouton d'action de la page d'accueil.
+ *
+ * Proposer « Constituer mon dossier » à quelqu'un qui a déjà un dossier en
+ * cours, c'est lui proposer de recommencer : le bouton le ramène donc à son
+ * espace. Tant que la session n'est pas lue, on garde la version visiteur —
+ * c'est elle qui est rendue côté serveur, et c'est aussi la bonne réponse pour
+ * l'immense majorité des visiteurs.
+ */
+export function useDossierCta(): { href: string; label: string; connected: boolean } {
+  const session = useClientSession();
+  const connected = session.status === "client";
+
+  return {
+    href: connected ? "/client" : "/commencer",
+    label: connected ? "Mon espace client" : "Constituer mon dossier",
+    connected,
+  };
 }

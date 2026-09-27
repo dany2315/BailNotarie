@@ -8,6 +8,9 @@ import { authClient } from "@/lib/auth-client";
 import { startAsOwner } from "@/lib/actions/start";
 import { looksLikeEmail, writeStartHandoff } from "@/lib/start-handoff";
 import { cn } from "@/lib/utils";
+import { useClientSession } from "./lp-user-menu";
+import Link from "next/link";
+import { LayoutDashboard } from "lucide-react";
 
 /* =========================================================================
    Champ d'entrée du hero.
@@ -24,6 +27,7 @@ import { cn } from "@/lib/utils";
 
 export function LpStartField({ className }: { className?: string }) {
   const router = useRouter();
+  const session = useClientSession();
   const [email, setEmail] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const ready = looksLikeEmail(email);
@@ -81,6 +85,33 @@ export function LpStartField({ className }: { className?: string }) {
       toast.error(error instanceof Error ? error.message : "Une erreur s'est produite");
     }
   };
+
+  /* Déjà connecté : demander son adresse reviendrait à lui faire rouvrir une
+     porte qu'il a déjà passée, et lui renvoyer un code pour rien. Le champ
+     laisse donc la place au chemin vers son espace. */
+  if (session.status === "client") {
+    return (
+      <div className={cn("w-full", className)}>
+        <Link
+          href="/client"
+          className="group/cta relative flex h-[60px] w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] text-[16px] font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_16px_40px_-16px_rgba(53,99,233,1)] transition-transform duration-300 hover:-translate-y-0.5 sm:h-[66px] sm:text-[17px]"
+        >
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(105deg,transparent_38%,rgba(255,255,255,0.45)_50%,transparent_62%)] transition-transform duration-700 group-hover/cta:translate-x-full"
+          />
+          <span className="relative flex items-center gap-2">
+            <LayoutDashboard className="h-[19px] w-[19px]" />
+            Reprendre mon dossier
+            <ArrowRight className="h-[18px] w-[18px] transition-transform duration-300 group-hover/cta:translate-x-1" />
+          </span>
+        </Link>
+        <p className="mt-3 text-center text-[13px] text-slate-500">
+          Vos baux, vos biens et vos documents, au même endroit.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={submit} noValidate className={cn("w-full", className)}>

@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { ArrowRight, Menu, Phone, X } from "lucide-react";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
-import { LpUserMenu, useClientSession } from "./lp-user-menu";
+import { LpUserMenu, useClientSession, useDossierCta } from "./lp-user-menu";
 
 /* Les ancres restent des <a> : le navigateur les résout sans passer par le
    routeur. Le blog est une page à part entière, donc un <Link> — il est
@@ -61,6 +61,7 @@ export function LpNav({ overlay = false }: { overlay?: boolean } = {}) {
   const [open, setOpen] = React.useState(false);
   const { scrollY } = useScroll();
   const session = useClientSession();
+  const cta = useDossierCta();
   const navRef = React.useRef<HTMLElement>(null);
   const pathname = usePathname();
   const onHome = pathname === "/";
@@ -179,14 +180,18 @@ export function LpNav({ overlay = false }: { overlay?: boolean } = {}) {
           <LpUserMenu session={session} />
 
           <Link
-            href="/commencer"
+            href={cta.href}
             className="group hidden shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-3.5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.3)_inset,0_8px_24px_-10px_rgba(53,99,233,0.9)] transition-transform duration-300 hover:-translate-y-0.5 sm:inline-flex sm:px-4"
           >
             {/* Libellé long quand la place le permet : de 768 à 1023 px la barre
                 n'a pas encore ses liens, au-delà de 1280 px elle a de la marge.
                 Entre les deux, « Commencer » laisse les sept liens respirer. */}
-            <span className="hidden md:inline lg:hidden xl:inline">Constituer mon dossier</span>
-            <span className="md:hidden lg:inline xl:hidden">Commencer</span>
+            <span className="hidden md:inline lg:hidden xl:inline">
+              {cta.connected ? cta.label : "Constituer mon dossier"}
+            </span>
+            <span className="md:hidden lg:inline xl:hidden">
+              {cta.connected ? "Mon espace" : "Commencer"}
+            </span>
             <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
           </Link>
 
@@ -230,11 +235,11 @@ export function LpNav({ overlay = false }: { overlay?: boolean } = {}) {
           </a>
 
           <Link
-            href="/commencer"
+            href={cta.href}
             onClick={closeMenu}
             className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-4 py-3.5 text-[15px] font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.3)_inset,0_8px_24px_-10px_rgba(53,99,233,0.9)] sm:hidden"
           >
-            Constituer mon dossier
+            {cta.label}
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

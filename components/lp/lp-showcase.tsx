@@ -21,6 +21,7 @@ import {
 } from "./ui/lp-product-mockups";
 import { AuroraBackdrop, CountUp, NoiseOverlay, Reveal, SectionLabel } from "./ui/lp-primitives";
 import { cn } from "@/lib/utils";
+import { useDossierCta } from "./lp-user-menu";
 
 /* =========================================================================
    Le produit, écran par écran.
@@ -175,6 +176,8 @@ function useScreenProgress(
 }
 
 export function LpShowcase() {
+  const cta = useDossierCta();
+
   const trackRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const gaugeRef = React.useRef<HTMLSpanElement>(null);
@@ -316,10 +319,10 @@ export function LpShowcase() {
               </div>
 
               <Link
-                href="/commencer"
+                href={cta.href}
                 className="group mt-4 hidden items-center gap-2 text-[14.5px] font-semibold text-[#8fb0ff] transition-colors hover:text-white lg:mt-6 lg:inline-flex"
               >
-                Essayer la constitution de dossier
+                {cta.connected ? cta.label : "Essayer la constitution de dossier"}
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </div>
@@ -415,10 +418,10 @@ export function LpShowcase() {
 
         <div className="mt-8 text-center lg:hidden">
           <Link
-            href="/commencer"
+            href={cta.href}
             className="group inline-flex items-center gap-2 text-[14.5px] font-semibold text-[#8fb0ff] transition-colors hover:text-white"
           >
-            Essayer la constitution de dossier
+            {cta.connected ? cta.label : "Essayer la constitution de dossier"}
             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
         </div>
