@@ -369,8 +369,7 @@ export function SuiviMockup({ compact = false }: { compact?: boolean }) {
    l'optimiseur d'images — la vignette est déjà servie à la bonne taille, et le
    quota de transformations reste pour les visuels du site.
 
-   Crédits : Vitaly Gariev (notaire) et LinkedIn Sales Solutions
-   (propriétaire), Unsplash. */
+   Crédits : Vitaly Gariev, Unsplash, pour les deux participants. */
 const CALL = {
   /** Celui qui parle : cadre principal, contour vivant, niveau sonore actif. */
   speaker: {
@@ -378,10 +377,12 @@ const CALL = {
     role: "Étude notariale",
     src: "https://images.unsplash.com/photo-1758874384555-de68b8035c24?auto=format&fit=crop&crop=faces&w=900&h=506&q=70",
   },
-  /** Celui qui écoute : incrustation, micro coupé. */
+  /** Celui qui écoute : incrustation, micro coupé. Il regarde l'objectif,
+      comme on regarde son interlocuteur pendant un appel — un profil penché
+      sur son écran aurait trahi la photographie de banque d'images. */
   viewer: {
     name: "Vous",
-    src: "https://images.unsplash.com/photo-1616587894289-86480e533129?auto=format&fit=crop&crop=faces&w=360&h=270&q=70",
+    src: "https://images.unsplash.com/photo-1758598497190-f609ecba227b?auto=format&fit=crop&crop=faces&w=360&h=270&q=70",
   },
 };
 
