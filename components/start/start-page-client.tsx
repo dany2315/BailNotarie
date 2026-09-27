@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 import { AuroraBackdrop, NoiseOverlay } from "@/components/lp/ui/lp-primitives";
-import { StartHeading, StartPoints } from "@/components/start/start-aside";
+import { StartHeading } from "@/components/start/start-aside";
 import { notifyAdminsForNewOwnerFromLanding } from "@/lib/actions/start";
 
 type Step = "email-input" | "otp-verification";
@@ -81,22 +81,18 @@ export function StartPageClient() {
     <div className="lp-root flex min-h-screen flex-col bg-white">
       <LpNav />
 
-      <main className="lp-scene relative flex-1 overflow-hidden bg-gradient-to-b from-white via-[#f7f9ff] to-[#eef3ff] pb-20 pt-[calc(var(--lp-nav-h,76px)+2.5rem)] sm:pt-[calc(var(--lp-nav-h,76px)+3.5rem)]">
+      <main className="lp-scene relative flex flex-1 items-center justify-center overflow-hidden bg-gradient-to-b from-white via-[#f7f9ff] to-[#eef3ff] px-5 pb-16 pt-[calc(var(--lp-nav-h,76px)+2rem)] sm:pb-20 sm:pt-[calc(var(--lp-nav-h,76px)+3rem)]">
         <div aria-hidden className="lp-mesh absolute inset-0" />
         <div aria-hidden className="lp-grid absolute inset-0" />
         <AuroraBackdrop />
         <NoiseOverlay />
 
-        {/* Sur téléphone, l'ordre du document fait la mise en page : titre,
-            formulaire, puis les repères. Au-delà de 1024 px, la grille place
-            titre et repères à gauche, et le formulaire à droite sur les deux
-            rangées — sans dupliquer le titre. */}
-        <div className="relative z-10 mx-auto grid max-w-6xl gap-x-14 gap-y-10 px-5 sm:px-8 lg:grid-cols-2 lg:items-start">
-          <div className="lg:col-start-1 lg:row-start-1">
-            <StartHeading step={step} />
-          </div>
+        {/* Une seule colonne, centrée : on arrive ici décidé, le champ doit
+            être la seule chose à regarder. */}
+        <div className="relative z-10 w-full max-w-[30rem]">
+          <StartHeading step={step} />
 
-          <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center lg:pl-2">
+          <div className="mt-7 sm:mt-8">
             {currentStep === "email-input" && (
               <OwnerEmailInputForm onOtpSent={handleOtpSent} />
             )}
@@ -109,10 +105,6 @@ export function StartPageClient() {
                 onBack={handleBack}
               />
             )}
-          </div>
-
-          <div className="lg:col-start-1 lg:row-start-2">
-            <StartPoints step={step} />
           </div>
         </div>
       </main>
