@@ -13,7 +13,7 @@ import { LpUserMenu, useClientSession } from "./lp-user-menu";
    préchargé et la navigation reste côté client. */
 const LINKS = [
   { href: "#processus", label: "Comment ça marche" },
-  { href: "#interface", label: "L'interface" },
+  { href: "#visite-guidee", label: "Visite guidée" },
   { href: "#avantages", label: "Avantages" },
   { href: "#tarif", label: "Tarif" },
   { href: "#faq", label: "FAQ" },

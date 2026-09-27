@@ -189,7 +189,7 @@ export function LpShowcase() {
 
   return (
     <section
-      id="interface"
+      id="visite-guidee"
       aria-labelledby="lp-showcase-title"
       data-lp-chrome="#070c1a"
       className="relative scroll-mt-24 bg-[#070c1a] text-white"
