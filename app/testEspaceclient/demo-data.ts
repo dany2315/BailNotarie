@@ -214,7 +214,10 @@ export const DEMO_BIENS = [
   {
     ...BORDEAUX,
     status: "ACTIVE",
-    completionStatus: "PARTIAL",
+    // Son bail est signé : le bien a donc été validé en amont — un bail ne
+    // part chez le notaire que si le propriétaire, le locataire et le bien
+    // sont tous COMPLETED.
+    completionStatus: "COMPLETED",
     surfaceM2: 96,
     type: "MAISON",
     createdAt: iso(-12),
