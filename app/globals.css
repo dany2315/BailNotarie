@@ -141,7 +141,14 @@ html {
   --shadow-2xl: 0px 4px 10px -2px hsl(225 100% 60% / 0.25);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
-  --background: oklch(0.9687 0.0120 259.8226);
+  /* Toile de fond de l'application. Elle était nettement bleutée : les surfaces
+     qui s'en servent — bandeau d'onglets de l'espace client, pages du tunnel,
+     fond du document — tranchaient sur les zones laissées en blanc, d'où des
+     bandes alternées d'une section à l'autre, et un écart visible autour de la
+     barre de navigation flottante. Presque blanche, elle se confond avec elles
+     et ne laisse ressortir que les cartes, qui sont blanches sur son léger
+     voile bleuté. */
+  --background: oklch(0.9793 0.0045 274.0000);
   --foreground: oklch(0.2433 0.0247 263.9506);
   --shadow-offset-x: 0px;
   --shadow-offset-y: 4px;
@@ -278,14 +285,8 @@ html {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply text-foreground;
+    @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
-    /* Toile de fond du document. Elle sert aux pages qui ne peignent pas la
-       leur, et transparaît autour de la barre de navigation flottante : le
-       bleuté de `--background` y formait une bande qui n'appartenait ni à la
-       barre ni à la page. Le jeton reste inchangé pour les composants qui
-       s'en servent (`bg-background`), seule la toile devient neutre. */
-    background-color: #fff;
   }
 }
 
