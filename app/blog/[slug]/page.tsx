@@ -346,7 +346,8 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         ]}
       />
       <FaqSchema items={faqItems} pageUrl={canonicalUrl} />
-      <LpNav />
+      {/* Sans réserve : la pastille flotte sur l'image de couverture. */}
+      <LpNav overlay />
       <BlogPageClient article={article} faqItems={faqItems} />
       <Footer />
     </>

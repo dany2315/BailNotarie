@@ -25,7 +25,9 @@ export default async function IntakePage({
     const isSubmitted = intakeLink.status === "SUBMITTED";
     return (
       <>
-        <LpNav />
+        {/* Sans réserve : le dégradé commence en haut de l'écran et ses 80 px
+            de marge dégagent déjà la barre. */}
+        <LpNav overlay />
         <div className="py-20 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center p-4">
           <Empty className="max-w-lg w-full bg-white/80 backdrop-blur-sm shadow-lg">
             <EmptyHeader className="gap-4">

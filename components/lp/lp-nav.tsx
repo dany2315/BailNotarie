@@ -38,21 +38,25 @@ const PHONE_HREF = `tel:${PHONE.replace(/\s/g, "")}`;
  *
  * Elle sert toutes les pages publiques, et s'adapte à deux situations :
  *
- * - sur l'accueil, elle flotte au-dessus du contenu (`fixed`), en pastille
- *   arrondie détachée des bords, translucide en haut de page puis opaque au
- *   défilement : le hero est construit pour passer dessous, et c'est lui qui
- *   fait le fond de la marge autour d'elle ;
- * - ailleurs, elle est `sticky`, pleine largeur et collée au bord haut, avec
- *   son propre fond opaque et un filet en bas. Pas de marge autour, donc rien
- *   ne transparaît : en pastille, la bande qui l'entoure laissait voir ce qui
- *   se trouve derrière, c'est-à-dire, selon l'endroit où la page insère la
- *   barre dans son balisage, son propre fond ou celui du document — une
- *   teinte bleutée qui ne correspondait à aucune des deux pages voisines.
+ * Elle flotte partout : pastille arrondie détachée des bords, posée au-dessus
+ * de la page, translucide en haut puis opaque au défilement, le contenu
+ * passant dessous en fondu. La marge qui l'entoure laisse voir la page
+ * elle-même — c'est ce qui la fait flotter plutôt que la poser.
+ *
+ * Sur l'accueil, le hero est construit pour commencer sous elle : rien à
+ * réserver. Ailleurs, les pages ne le sont pas, donc la barre pose derrière
+ * elle un bloc de sa propre hauteur, à l'intérieur du conteneur de la page —
+ * le fond de celle-ci remonte ainsi jusqu'en haut de l'écran et c'est lui,
+ * et non celui du document, qu'on aperçoit autour de la pastille.
+ *
+ * `overlay` supprime ce bloc, pour les pages qui dégagent déjà le haut :
+ * l'article de blog, dont l'image de couverture est pleine page et n'a rien
+ * à lire dans sa partie haute, gagne à la voir passer dessous.
  *
  * Les ancres de section n'existent que sur l'accueil : hors de celle-ci elles
  * sont préfixées par `/` pour y ramener le visiteur, au lieu de ne rien faire.
  */
-export function LpNav() {
+export function LpNav({ overlay = false }: { overlay?: boolean } = {}) {
   const [scrolled, setScrolled] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const { scrollY } = useScroll();
@@ -123,27 +127,19 @@ export function LpNav() {
   const closeMenu = React.useCallback(() => setOpen(false), []);
 
   return (
-    <div
-      className={cn(
-        "z-50 flex flex-col items-center",
-        onHome
-          ? "pointer-events-none fixed inset-x-0 top-0 px-4 pt-3 sm:pt-4"
-          : "sticky top-0 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl",
-      )}
-    >
+    <>
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex flex-col items-center px-4 pt-3 sm:pt-4">
       {/* Entrée en CSS : la barre est dans le HTML, visible, sans attendre le JS. */}
       <nav
         ref={navRef}
         className={cn(
-          "lp-enter-down flex w-full max-w-7xl items-center justify-between gap-3 sm:gap-4",
-          onHome
-            ? cn(
-                "pointer-events-auto rounded-[20px] px-3 py-2.5 transition-all duration-500 sm:px-4 sm:py-2",
-                scrolled
-                  ? "border border-white/70 bg-white/85 shadow-[0_10px_40px_-18px_rgba(30,58,138,0.45)] backdrop-blur-xl"
-                  : "border border-transparent bg-white/50 backdrop-blur-md",
-              )
-            : "px-4 py-2.5 sm:px-6 sm:py-2",
+          "lp-enter-down pointer-events-auto flex w-full max-w-7xl items-center justify-between gap-3 rounded-[20px] px-3 py-2.5 transition-all duration-500 sm:gap-4 sm:px-4 sm:py-2",
+          // Hors de l'accueil, la page commence juste sous la barre : celle-ci
+          // est opaque d'emblée, sans quoi les premiers mots se liraient au
+          // travers.
+          scrolled || !onHome
+            ? "border border-white/70 bg-white/85 shadow-[0_10px_40px_-18px_rgba(30,58,138,0.45)] backdrop-blur-xl"
+            : "border border-transparent bg-white/50 backdrop-blur-md",
         )}
       >
         <Link href="/" className="flex shrink-0 items-center" aria-label="BailNotarie — accueil">
@@ -210,10 +206,7 @@ export function LpNav() {
         <div
           /* Hors flux : en mode collant, un panneau dans le flux pousserait la
              page vers le bas à l'ouverture du menu. */
-          className={cn(
-            "lp-swap pointer-events-auto absolute inset-x-4 top-full mx-auto max-h-[calc(100dvh-7rem)] max-w-7xl overflow-y-auto rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_30px_70px_-30px_rgba(30,58,138,0.6)] backdrop-blur-xl lg:hidden",
-            onHome ? "mt-2" : "mt-1.5",
-          )}
+          className="lp-swap pointer-events-auto absolute inset-x-4 top-full mx-auto mt-2 max-h-[calc(100dvh-7rem)] max-w-7xl overflow-y-auto rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_30px_70px_-30px_rgba(30,58,138,0.6)] backdrop-blur-xl lg:hidden"
         >
           {LINKS.map((link) => {
             const className =
@@ -247,5 +240,13 @@ export function LpNav() {
         </div>
       )}
     </div>
+
+      {/* Réserve la hauteur de la barre à l'intérieur du conteneur de la page,
+          pour que son fond remonte derrière la pastille. `--lp-nav-h` est
+          publiée ci-dessus ; la valeur de repli couvre le premier rendu. */}
+      {!onHome && !overlay && (
+        <div aria-hidden style={{ height: "calc(var(--lp-nav-h, 76px) + 0.75rem)" }} />
+      )}
+    </>
   );
 }

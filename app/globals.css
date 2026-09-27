@@ -278,8 +278,14 @@ html {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
     letter-spacing: var(--tracking-normal);
+    /* Toile de fond du document. Elle sert aux pages qui ne peignent pas la
+       leur, et transparaît autour de la barre de navigation flottante : le
+       bleuté de `--background` y formait une bande qui n'appartenait ni à la
+       barre ni à la page. Le jeton reste inchangé pour les composants qui
+       s'en servent (`bg-background`), seule la toile devient neutre. */
+    background-color: #fff;
   }
 }
 
