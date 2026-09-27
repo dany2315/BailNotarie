@@ -728,6 +728,14 @@ html {
   filter: blur(1px);
 }
 
+/* Dégagement sous la barre flottante, pour les pages dont la première section
+   porte le fond : elle commence en haut de l'écran — la marge autour de la
+   pastille montre donc sa couleur, et non celle du conteneur au-dessus — et
+   réserve elle-même la hauteur de la barre, plus une respiration. */
+.pt-nav {
+  padding-top: calc(var(--lp-nav-h, 76px) + 2rem);
+}
+
 .lp-scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
 .lp-scrollbar-none::-webkit-scrollbar { display: none; }
 
