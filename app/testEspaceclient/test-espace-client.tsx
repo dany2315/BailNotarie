@@ -13,7 +13,7 @@ import {
 import { OwnerDashboard } from "@/components/client-v2/owner-dashboard";
 import { OwnerDossiers, VARIANTS, type DossiersVariant } from "@/components/client-v2/owner-dossiers";
 import { OwnerInformations } from "@/components/client-v2/owner-informations";
-import { TenantBaux, TenantDashboard } from "@/components/client-v2/tenant";
+import { TenantBailDetail, TenantBaux, TenantDashboard } from "@/components/client-v2/tenant";
 import { cn } from "@/lib/utils";
 import {
   DEMO_ACTIVE_INTAKES,
@@ -26,6 +26,7 @@ import {
   DEMO_PENDING_REQUESTS,
   DEMO_PERSONS,
   DEMO_TENANT_BAUX,
+  DEMO_TENANT_DETAIL,
   DEMO_TENANT_INTAKE,
   DEMO_TENANT_NAME,
   DEMO_TENANT_PERSONS,
@@ -71,6 +72,7 @@ export function TestEspaceClient() {
   const [tab, setTab] = React.useState<OwnerTabKey>("dashboard");
   const [asEntreprise, setAsEntreprise] = React.useState(false);
   const [dossiersVariant, setDossiersVariant] = React.useState<DossiersVariant>("fiches");
+  const [tenantDetail, setTenantDetail] = React.useState<string | null>(null);
 
   return (
     <OwnerRuntime demo>
@@ -90,6 +92,7 @@ export function TestEspaceClient() {
                 onClick={() => {
                   setSpace(option.key);
                   setTab("dashboard");
+                  setTenantDetail(null);
                 }}
                 className={cn(
                   "rounded-full px-4 py-1.5 text-[12px] font-semibold transition-colors",
@@ -105,7 +108,10 @@ export function TestEspaceClient() {
         <OwnerTabsBar
           tabs={space === "locataire" ? TENANT_TABS : OWNER_TABS}
           active={tab}
-          onSelect={setTab}
+          onSelect={(key) => {
+            setTab(key);
+            setTenantDetail(null);
+          }}
           className="!pt-3"
         />
 
@@ -145,7 +151,21 @@ export function TestEspaceClient() {
           />
         )}
 
-        {space === "locataire" && tab === "dossiers" && <TenantBaux baux={DEMO_TENANT_BAUX} />}
+        {space === "locataire" && tab === "dossiers" && (
+          tenantDetail ? (
+            <TenantBailDetail
+              bail={DEMO_TENANT_DETAIL}
+              bailId={DEMO_TENANT_DETAIL.id}
+              proprietaireName="Camille Fabre"
+              hasProprietaire
+              notaire={{ name: "Me Laurent", email: "me.laurent@example.fr" }}
+              openChat={false}
+              demoChat
+            />
+          ) : (
+            <TenantBaux baux={DEMO_TENANT_BAUX} onOpenDetail={setTenantDetail} />
+          )
+        )}
 
         {space === "locataire" && tab === "informations" && (
           <OwnerInformations

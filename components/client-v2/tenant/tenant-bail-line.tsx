@@ -76,9 +76,12 @@ function Fact({ label, value }: { label: string; value?: string | null }) {
 export function TenantBailLine({
   bail,
   className,
+  onOpenDetail,
 }: {
   bail: TenantBail;
   className?: string;
+  /** Fourni par la maquette, qui n'a pas d'URL de dossier à suivre. */
+  onOpenDetail?: (bailId: string) => void;
 }) {
   const { demo } = useOwnerRuntime();
   const facts = tenantBailFacts(bail);
@@ -186,7 +189,11 @@ export function TenantBailLine({
           {demo ? (
             <button
               type="button"
-              onClick={() => toast.info("Aperçu — la page du dossier s'ouvre ici")}
+              onClick={() =>
+                onOpenDetail
+                  ? onOpenDetail(bail.id)
+                  : toast.info("Aperçu — la page du dossier s'ouvre ici")
+              }
               className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[12.5px] font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 sm:w-auto"
             >
               Ouvrir le dossier complet

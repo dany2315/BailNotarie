@@ -507,3 +507,37 @@ export const DEMO_TENANT_PERSONS = [
     ],
   },
 ] as any;
+
+/** Le bail que la maquette ouvre en page de détail, avec les champs que seule
+    cette page affiche (charges, dépôt de garantie, jour de paiement). */
+export const DEMO_TENANT_DETAIL = {
+  id: "t-bail-lyon",
+  status: "CLIENT_CONTACTED",
+  bailType: "BAIL_MEUBLE_1_ANS",
+  bailFamily: "HABITATION",
+  rentAmount: 780,
+  monthlyCharges: 45,
+  securityDeposit: 780,
+  effectiveDate: iso(1),
+  endDate: iso(13),
+  paymentDay: 5,
+  property: {
+    label: "Studio Vitton",
+    fullAddress: "8 cours Vitton, 69006 Lyon",
+    surfaceM2: { toString: () => "24" },
+  },
+  documents: [
+    {
+      id: "t-doc-bail",
+      kind: "BAIL_SIGNE",
+      label: "Projet d'acte",
+      createdAt: iso(-1),
+    },
+    {
+      id: "t-doc-dpe",
+      kind: "DPE",
+      label: null,
+      createdAt: iso(-2),
+    },
+  ],
+} as any;

@@ -21,9 +21,11 @@ import { STEP_INDEX, TERMINAL_STATUSES, type TenantBail } from "./model";
 
 export interface TenantBauxProps {
   baux: TenantBail[];
+  /** Fourni par la maquette uniquement. */
+  onOpenDetail?: (bailId: string) => void;
 }
 
-export function TenantBaux({ baux }: TenantBauxProps) {
+export function TenantBaux({ baux, onOpenDetail }: TenantBauxProps) {
   const [query, setQuery] = React.useState("");
   const showSearch = baux.length > 6;
 
@@ -99,7 +101,7 @@ export function TenantBaux({ baux }: TenantBauxProps) {
                 <SectionHeading title="En cours" count={running.length} />
                 <Surface tone="raised" className="divide-y divide-slate-200/60 overflow-hidden">
                   {running.map((bail) => (
-                    <TenantBailLine key={bail.id} bail={bail} />
+                    <TenantBailLine key={bail.id} bail={bail} onOpenDetail={onOpenDetail} />
                   ))}
                 </Surface>
               </section>
@@ -110,7 +112,7 @@ export function TenantBaux({ baux }: TenantBauxProps) {
                 <SectionHeading title="Terminés" count={closed.length} />
                 <Surface tone="raised" className="divide-y divide-slate-200/60 overflow-hidden">
                   {closed.map((bail) => (
-                    <TenantBailLine key={bail.id} bail={bail} />
+                    <TenantBailLine key={bail.id} bail={bail} onOpenDetail={onOpenDetail} />
                   ))}
                 </Surface>
               </section>
