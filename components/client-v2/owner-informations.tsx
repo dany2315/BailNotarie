@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Building2, FileText, Home, Mail, MapPin, Phone, ShieldCheck, UserRound, Users } from "lucide-react";
+import { Building2, FileText, Home, KeyRound, Mail, MapPin, Phone, ShieldCheck, UserRound, Users } from "lucide-react";
 import { ClientType } from "@prisma/client";
 
 import { cn } from "@/lib/utils";
@@ -88,7 +88,14 @@ export interface OwnerInformationsProps {
   persons?: Person[];
   entreprise?: Entreprise | null;
   clientDocuments?: Doc[];
+  /** Le profil du titulaire : change la pastille, et rien d'autre. */
+  profil?: "proprietaire" | "locataire";
 }
+
+const PROFIL_VIEW = {
+  proprietaire: { label: "Propriétaire", icon: Home },
+  locataire: { label: "Locataire", icon: KeyRound },
+} as const;
 
 /* ---------- Blocs ---------------------------------------------------------- */
 
@@ -222,7 +229,9 @@ export function OwnerInformations({
   persons = [],
   entreprise,
   clientDocuments = [],
+  profil = "proprietaire",
 }: OwnerInformationsProps) {
+  const profilView = PROFIL_VIEW[profil];
   const isEntreprise = clientType === ClientType.PERSONNE_MORALE || clientType === "PERSONNE_MORALE";
   const [activePersonId, setActivePersonId] = React.useState<string>(persons[0]?.id || "");
   const activePerson = persons.find((person) => person.id === activePersonId) || persons[0];
@@ -252,7 +261,7 @@ export function OwnerInformations({
       <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:pb-14">
         {/* ── Identité du titulaire ───────────────────────────────────────── */}
         <header className="mb-6">
-          <MicroLabel>Espace propriétaire</MicroLabel>
+          <MicroLabel>Espace {profilView.label.toLowerCase()}</MicroLabel>
           <div className="mt-2.5 flex items-center gap-3.5">
             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] text-[17px] font-bold text-white shadow-[0_12px_28px_-12px_rgba(53,99,233,0.8)]">
               {isEntreprise ? <Building2 className="h-6 w-6" /> : initials || <UserRound className="h-6 w-6" />}
@@ -262,8 +271,8 @@ export function OwnerInformations({
                 {displayName}
               </h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <Pill tone="blue" icon={Home}>
-                  Propriétaire
+                <Pill tone="blue" icon={profilView.icon}>
+                  {profilView.label}
                 </Pill>
                 <span className="truncate text-[12.5px] text-slate-500">{subtitle}</span>
               </div>

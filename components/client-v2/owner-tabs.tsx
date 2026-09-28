@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ClipboardList, UserRound } from "lucide-react";
+import { ClipboardList, FileText, LayoutDashboard, UserRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -23,49 +23,51 @@ import { cn } from "@/lib/utils";
 
 export type OwnerTabKey = "dashboard" | "dossiers" | "informations";
 
-const TABS: Array<{ key: OwnerTabKey; label: string; short: string; href: string; icon: React.ElementType }> = [
-  {
-    key: "dashboard",
-    label: "Tableau de bord",
-    short: "Accueil",
-    href: "/client/proprietaire",
-    icon: LayoutDashboard,
-  },
-  {
-    key: "dossiers",
-    label: "Mes dossiers",
-    short: "Dossiers",
-    href: "/client/proprietaire/demandes",
-    icon: ClipboardList,
-  },
-  {
-    key: "informations",
-    label: "Mes informations",
-    short: "Profil",
-    href: "/client/proprietaire/informations",
-    icon: UserRound,
-  },
+export type SpaceTab = {
+  key: OwnerTabKey;
+  label: string;
+  short: string;
+  href: string;
+  icon: React.ElementType;
+};
+
+/** Les trois pages du propriétaire. */
+export const OWNER_TABS: SpaceTab[] = [
+  { key: "dashboard", label: "Tableau de bord", short: "Accueil", href: "/client/proprietaire", icon: LayoutDashboard },
+  { key: "dossiers", label: "Mes dossiers", short: "Dossiers", href: "/client/proprietaire/demandes", icon: ClipboardList },
+  { key: "informations", label: "Mes informations", short: "Profil", href: "/client/proprietaire/informations", icon: UserRound },
 ];
 
-function useActiveTab(explicit?: OwnerTabKey): OwnerTabKey {
+/** Les trois pages du locataire. Il n'a pas de biens : ses baux tiennent la
+    place que les dossiers occupent chez le propriétaire. */
+export const TENANT_TABS: SpaceTab[] = [
+  { key: "dashboard", label: "Tableau de bord", short: "Accueil", href: "/client/locataire", icon: LayoutDashboard },
+  { key: "dossiers", label: "Mes baux", short: "Mes baux", href: "/client/locataire/baux", icon: FileText },
+  { key: "informations", label: "Mes informations", short: "Profil", href: "/client/locataire/informations", icon: UserRound },
+];
+
+function useActiveTab(tabs: SpaceTab[], explicit?: OwnerTabKey): OwnerTabKey {
   const pathname = usePathname();
   if (explicit) return explicit;
-  if (pathname?.startsWith("/client/proprietaire/demandes")) return "dossiers";
-  if (pathname?.startsWith("/client/proprietaire/informations")) return "informations";
-  return "dashboard";
+  const match = tabs
+    .filter((tab) => tab.key !== "dashboard")
+    .find((tab) => pathname?.startsWith(tab.href));
+  return match?.key ?? "dashboard";
 }
 
 /** Le segmenté du haut (à partir de 640 px). */
 export function OwnerTabsBar({
+  tabs = OWNER_TABS,
   active: explicitActive,
   onSelect,
   className,
 }: {
+  tabs?: SpaceTab[];
   active?: OwnerTabKey;
   onSelect?: (key: OwnerTabKey) => void;
   className?: string;
 }) {
-  const active = useActiveTab(explicitActive);
+  const active = useActiveTab(tabs, explicitActive);
 
   return (
     <div
@@ -82,7 +84,7 @@ export function OwnerTabsBar({
         className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-background via-background/85 to-transparent"
       />
       <div className="pointer-events-auto relative inline-flex gap-1 rounded-2xl border border-slate-200/80 bg-white/80 p-1.5 shadow-[0_2px_4px_rgba(15,23,42,0.04),0_18px_44px_-28px_rgba(30,58,138,0.35)] backdrop-blur-xl">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = tab.key === active;
           const content = (
             <>
@@ -113,13 +115,15 @@ export function OwnerTabsBar({
 
 /** La barre basse fixe (en dessous de 640 px). */
 export function OwnerTabsDock({
+  tabs = OWNER_TABS,
   active: explicitActive,
   onSelect,
 }: {
+  tabs?: SpaceTab[];
   active?: OwnerTabKey;
   onSelect?: (key: OwnerTabKey) => void;
 }) {
-  const active = useActiveTab(explicitActive);
+  const active = useActiveTab(tabs, explicitActive);
 
   return (
     <nav
@@ -127,7 +131,7 @@ export function OwnerTabsDock({
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="mx-auto flex max-w-md">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = tab.key === active;
           const content = (
             <>

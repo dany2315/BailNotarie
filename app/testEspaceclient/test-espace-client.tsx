@@ -3,10 +3,17 @@
 import * as React from "react";
 import { LpNav } from "@/components/lp/lp-nav";
 import { OwnerRuntime } from "@/components/client-v2/owner-runtime";
-import { OwnerTabsBar, OwnerTabsDock, OwnerTabKey } from "@/components/client-v2/owner-tabs";
+import {
+  OwnerTabsBar,
+  OwnerTabsDock,
+  OwnerTabKey,
+  OWNER_TABS,
+  TENANT_TABS,
+} from "@/components/client-v2/owner-tabs";
 import { OwnerDashboard } from "@/components/client-v2/owner-dashboard";
 import { OwnerDossiers, VARIANTS, type DossiersVariant } from "@/components/client-v2/owner-dossiers";
 import { OwnerInformations } from "@/components/client-v2/owner-informations";
+import { TenantBaux, TenantDashboard } from "@/components/client-v2/tenant";
 import { cn } from "@/lib/utils";
 import {
   DEMO_ACTIVE_INTAKES,
@@ -18,6 +25,11 @@ import {
   DEMO_OWNER_ID,
   DEMO_PENDING_REQUESTS,
   DEMO_PERSONS,
+  DEMO_TENANT_BAUX,
+  DEMO_TENANT_INTAKE,
+  DEMO_TENANT_NAME,
+  DEMO_TENANT_PERSONS,
+  DEMO_TENANT_REQUESTS,
   DEMO_USER_NAME,
 } from "./demo-data";
 
@@ -55,6 +67,7 @@ const ENTREPRISE = {
 } as any;
 
 export function TestEspaceClient() {
+  const [space, setSpace] = React.useState<"proprietaire" | "locataire">("proprietaire");
   const [tab, setTab] = React.useState<OwnerTabKey>("dashboard");
   const [asEntreprise, setAsEntreprise] = React.useState(false);
   const [dossiersVariant, setDossiersVariant] = React.useState<DossiersVariant>("fiches");
@@ -64,11 +77,41 @@ export function TestEspaceClient() {
       <div className="min-h-svh bg-background pb-[76px] sm:pb-0">
         <LpNav overlay />
 
-        <OwnerTabsBar active={tab} onSelect={setTab} />
+        {/* Sélecteur réservé à la maquette : les deux côtés du bail. */}
+        <div className="mx-auto flex w-full max-w-3xl justify-center px-4 pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:px-6">
+          <div className="inline-flex gap-1 rounded-full border border-slate-200/80 bg-white/80 p-1 backdrop-blur">
+            {[
+              { key: "proprietaire" as const, label: "Propriétaire" },
+              { key: "locataire" as const, label: "Locataire" },
+            ].map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => {
+                  setSpace(option.key);
+                  setTab("dashboard");
+                }}
+                className={cn(
+                  "rounded-full px-4 py-1.5 text-[12px] font-semibold transition-colors",
+                  space === option.key ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-800",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <OwnerTabsBar
+          tabs={space === "locataire" ? TENANT_TABS : OWNER_TABS}
+          active={tab}
+          onSelect={setTab}
+          className="!pt-3"
+        />
 
         {/* Bascule de données réservée à la maquette : la même page vue par un
             particulier et par une société. */}
-        {tab === "informations" && (
+        {space === "proprietaire" && tab === "informations" && (
           <div className="mx-auto flex max-w-3xl justify-center px-4 pt-4 sm:justify-end sm:px-6">
             <div className="inline-flex gap-1 rounded-full border border-slate-200/80 bg-white/80 p-1 backdrop-blur">
               {[
@@ -93,7 +136,27 @@ export function TestEspaceClient() {
           </div>
         )}
 
-        {tab === "dashboard" && (
+        {space === "locataire" && tab === "dashboard" && (
+          <TenantDashboard
+            baux={DEMO_TENANT_BAUX}
+            pendingRequests={DEMO_TENANT_REQUESTS}
+            activeIntake={DEMO_TENANT_INTAKE}
+            userName={DEMO_TENANT_NAME}
+          />
+        )}
+
+        {space === "locataire" && tab === "dossiers" && <TenantBaux baux={DEMO_TENANT_BAUX} />}
+
+        {space === "locataire" && tab === "informations" && (
+          <OwnerInformations
+            profil="locataire"
+            clientType="PERSONNE_PHYSIQUE"
+            persons={DEMO_TENANT_PERSONS}
+            clientDocuments={DEMO_CLIENT_DOCUMENTS}
+          />
+        )}
+
+        {space === "proprietaire" && tab === "dashboard" && (
           <OwnerDashboard
             baux={DEMO_BAUX}
             pendingRequests={DEMO_PENDING_REQUESTS}
@@ -103,7 +166,7 @@ export function TestEspaceClient() {
           />
         )}
 
-        {tab === "dossiers" && (
+        {space === "proprietaire" && tab === "dossiers" && (
           <>
             {/* Sélecteur réservé à la maquette : quatre compositions de la
                 même page, avec les mêmes données et la même logique. */}
@@ -143,7 +206,7 @@ export function TestEspaceClient() {
           </>
         )}
 
-        {tab === "informations" &&
+        {space === "proprietaire" && tab === "informations" &&
           (asEntreprise ? (
             <OwnerInformations
               clientType="PERSONNE_MORALE"
@@ -158,7 +221,11 @@ export function TestEspaceClient() {
             />
           ))}
 
-        <OwnerTabsDock active={tab} onSelect={setTab} />
+        <OwnerTabsDock
+          tabs={space === "locataire" ? TENANT_TABS : OWNER_TABS}
+          active={tab}
+          onSelect={setTab}
+        />
 
         <span className="pointer-events-none fixed bottom-4 left-4 z-30 hidden rounded-full border border-slate-200/80 bg-white/85 px-3 py-1 text-[11px] font-semibold text-slate-400 backdrop-blur sm:block">
           Maquette · /testEspaceclient

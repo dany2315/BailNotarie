@@ -394,3 +394,116 @@ export const DEMO_PERSONS = [
 ] as any;
 
 export const DEMO_CLIENT_DOCUMENTS = [] as any;
+
+/* ---------- Espace locataire --------------------------------------------- */
+
+/* Vu de l'autre côté du bail : c'est le propriétaire qui est nommé, et le
+   locataire n'a rien à créer — il suit, complète quand on le lui demande, et
+   parle à son notaire. */
+
+const ownerPartyForTenant = {
+  id: "party-owner-2",
+  profilType: "PROPRIETAIRE",
+  persons: [{ firstName: "Camille", lastName: "Fabre", email: "camille.fabre@example.com" }],
+  entreprise: null,
+};
+
+const tenantSelf = {
+  id: "party-self",
+  profilType: "LOCATAIRE",
+  persons: [{ firstName: "Maxime", lastName: "Bonnet", email: "maxime.bonnet@example.com" }],
+  entreprise: null,
+};
+
+export const DEMO_TENANT_NAME = "Maxime Bonnet";
+
+export const DEMO_TENANT_BAUX = [
+  {
+    id: "t-bail-lyon",
+    bailType: "BAIL_MEUBLE_1_ANS",
+    bailFamily: "HABITATION",
+    status: "CLIENT_CONTACTED",
+    rentAmount: 780,
+    effectiveDate: iso(1),
+    endDate: null,
+    property: LYON,
+    parties: [ownerPartyForTenant, tenantSelf],
+    dossierAssignments: [
+      { id: "t-assign-1", notaire: { id: "not-1", name: "Me Laurent", email: "me.laurent@example.fr" } },
+    ],
+  },
+  {
+    id: "t-bail-form",
+    bailType: "BAIL_NU_3_ANS",
+    bailFamily: "HABITATION",
+    status: "AWAITING_TENANT_FORM",
+    rentAmount: 1450,
+    effectiveDate: iso(2),
+    endDate: null,
+    property: PARIS,
+    parties: [ownerPartyForTenant, tenantSelf],
+    dossierAssignments: [],
+  },
+  {
+    id: "t-bail-ancien",
+    bailType: "BAIL_MEUBLE_1_ANS",
+    bailFamily: "HABITATION",
+    status: "TERMINATED",
+    rentAmount: 690,
+    effectiveDate: iso(-25),
+    endDate: iso(-1),
+    property: BORDEAUX,
+    parties: [ownerPartyForTenant, tenantSelf],
+    dossierAssignments: [
+      { id: "t-assign-2", notaire: { id: "not-2", name: "Me Vidal", email: "me.vidal@example.fr" } },
+    ],
+  },
+] as any;
+
+export const DEMO_TENANT_REQUESTS = [
+  {
+    id: "t-req-1",
+    title: "Pièce d'identité à renvoyer",
+    content: "Le scan est coupé en bas. Pouvez-vous le reprendre en entier ?",
+    createdAt: now.toISOString(),
+    bail: { id: "t-bail-lyon", property: LYON },
+  },
+] as any;
+
+export const DEMO_TENANT_INTAKE = {
+  token: "t-intake-token",
+  intakeUrl: "/intakes/t-intake-token",
+  stage: "identity" as const,
+  description: "Vos informations personnelles",
+  propertyLabel: "Appartement Rivoli",
+  bailType: "BAIL_NU_3_ANS",
+  bailId: "t-bail-form",
+} as any;
+
+export const DEMO_TENANT_PERSONS = [
+  {
+    id: "t-person-1",
+    firstName: "Maxime",
+    lastName: "Bonnet",
+    profession: "Développeur",
+    familyStatus: "CELIBATAIRE",
+    matrimonialRegime: null,
+    birthPlace: "Lyon (69)",
+    birthDate: "1994-06-21T00:00:00.000Z",
+    email: "maxime.bonnet@example.com",
+    phone: "06 45 78 12 909",
+    fullAddress: "8 cours Vitton, 69006 Lyon",
+    nationality: "Française",
+    isPrimary: true,
+    documents: [
+      {
+        id: "t-doc-1",
+        kind: "PIECE_IDENTITE",
+        fileKey: "demo/t-piece-identite.pdf",
+        mimeType: "application/pdf",
+        label: "Carte d'identité",
+        createdAt: iso(-2),
+      },
+    ],
+  },
+] as any;
