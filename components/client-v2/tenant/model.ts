@@ -77,6 +77,11 @@ export const ACTIVE_STATUSES = [
 /** Les statuts où le bail ne bouge plus. */
 export const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
 
+export const BAIL_FAMILY_LABELS: Record<string, string> = {
+  HABITATION: "Bail d'habitation",
+  COMMERCIAL: "Bail commercial",
+};
+
 export const BAIL_TYPE_LABELS: Record<string, string> = {
   BAIL_NU_3_ANS: "Bail nu 3 ans",
   BAIL_NU_6_ANS: "Bail nu 6 ans",
@@ -157,6 +162,7 @@ export function tenantBailFacts(bail: TenantBail) {
     notaire: bail.dossierAssignments?.[0]?.notaire ?? null,
     proprietaire: getProprietaireName(bail.parties),
     isCommercial: bail.bailFamily === "COMMERCIAL",
+    familyLabel: bail.bailFamily ? BAIL_FAMILY_LABELS[bail.bailFamily] || bail.bailFamily : null,
     rent:
       bail.rentAmount != null && bail.rentAmount > 0
         ? new Intl.NumberFormat("fr-FR", {

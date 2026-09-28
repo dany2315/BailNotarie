@@ -169,6 +169,7 @@ export function TenantBailLine({
           <div className="flex flex-wrap gap-x-7 gap-y-3">
             <Fact label="Bien" value={facts.propertyDescription} />
             <Fact label="Loyer" value={facts.rent ? `${facts.rent} / mois` : null} />
+            <Fact label="Nature" value={facts.familyLabel} />
             <Fact label="Bail" value={facts.typeLabel} />
             <Fact label="Période" value={period || null} />
             <Fact label="Propriétaire" value={facts.proprietaire ?? "Non renseigné"} />
