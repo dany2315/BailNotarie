@@ -41,11 +41,8 @@ import { Progress } from "@/components/ui/progress";
 import { getPusherClient } from "@/lib/pusher-client";
 import type { Channel } from "pusher-js";
 import { ChatPanel } from "@/components/chat-v2/chat-panel";
-import {
-  CHAT_SHEET_CLASS,
-  ConfirmDialog,
-  RequestRespondForm,
-} from "@/components/chat-v2/chat-ui";
+import { ChatDock } from "@/components/chat-v2/chat-dock";
+import { ConfirmDialog, RequestRespondForm } from "@/components/chat-v2/chat-ui";
 import { toTimeline } from "@/components/chat-v2/adapters";
 
 const messageSchema = z.object({
@@ -973,18 +970,16 @@ export function BailChatSheet({ bailId, trigger, defaultOpen = false }: BailChat
   );
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        {trigger || defaultTrigger}
-      </SheetTrigger>
-      {/* Plein écran sur mobile, bulle flottante à partir de sm. */}
-      <SheetContent className={CHAT_SHEET_CLASS}>
-        <SheetTitle className="sr-only">
-          {otherUser ? `Discussion avec Maître ${otherUser.name || otherUser.email}` : "Discussion sur le bail"}
-        </SheetTitle>
-        <SheetDescription className="sr-only">
-          {isNotaire ? "Communiquez avec les clients" : "Communiquez avec le notaire"}
-        </SheetDescription>
+    <ChatDock
+      open={open}
+      onOpenChange={setOpen}
+      trigger={trigger || defaultTrigger}
+      label={
+        otherUser
+          ? `Discussion avec Maître ${otherUser.name || otherUser.email}`
+          : "Discussion sur le bail"
+      }
+    >
 
         <ChatPanel
           interlocutor={{
@@ -1134,7 +1129,6 @@ export function BailChatSheet({ bailId, trigger, defaultOpen = false }: BailChat
             }
           }}
         />
-      </SheetContent>
-    </Sheet>
+    </ChatDock>
   );
 }

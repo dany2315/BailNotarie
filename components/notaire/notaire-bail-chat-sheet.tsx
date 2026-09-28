@@ -54,8 +54,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getPusherClient } from "@/lib/pusher-client";
 import { ChatPanel } from "@/components/chat-v2/chat-panel";
+import { ChatDock } from "@/components/chat-v2/chat-dock";
 import {
-  CHAT_SHEET_CLASS,
   ConfirmDialog,
   RequestStatusControl,
   type RequestStatus,
@@ -989,25 +989,17 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
   );
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      {/* Ne pas afficher le trigger si le composant est contrôlé depuis l'extérieur */}
-      {controlledOpen === undefined && (
-        <SheetTrigger asChild>
-          {trigger || defaultTrigger}
-        </SheetTrigger>
-      )}
-      {/* Plein écran sur mobile, bulle flottante à partir de sm. */}
-      <SheetContent className={CHAT_SHEET_CLASS}>
-        <SheetTitle className="sr-only">
-          {otherUser
-            ? `Discussion avec ${otherUser.partyName || otherUser.name || otherUser.email}`
-            : "Discussion avec les clients"}
-        </SheetTitle>
-        <SheetDescription className="sr-only">
-          {otherUser?.profilType
-            ? `Communiquez avec le ${otherUser.profilType.toLowerCase()}`
-            : "Communiquez avec les parties du bail et créez des demandes"}
-        </SheetDescription>
+    <ChatDock
+      open={open}
+      onOpenChange={setOpen}
+      /* Ne pas afficher le trigger si le composant est contrôlé depuis l'extérieur */
+      trigger={controlledOpen === undefined ? trigger || defaultTrigger : undefined}
+      label={
+        otherUser
+          ? `Discussion avec ${otherUser.partyName || otherUser.name || otherUser.email}`
+          : "Discussion avec les clients"
+      }
+    >
 
         <ChatPanel
           interlocutor={{
@@ -1381,8 +1373,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
             }
           }}
         />
-      </SheetContent>
-    </Sheet>
+    </ChatDock>
   );
 }
 

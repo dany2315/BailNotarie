@@ -273,6 +273,9 @@ export function ContactBubble() {
         ref={wrapperRef}
         className={cn(
           "fixed z-[60] flex items-center gap-2 select-none",
+          // La messagerie du bail occupe le même coin : on s'efface le temps
+          // de la conversation (marque posée par ChatDock).
+          "[html[data-chat-open]_&]:hidden",
           dragging ? "cursor-grabbing" : "cursor-grab"
         )}
         style={{
