@@ -2,7 +2,20 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Building2, FileText, Home, MessageSquare, ScanSearch, Store, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  Check,
+  FileText,
+  Home,
+  MessageSquare,
+  Minus,
+  ScanSearch,
+  ShieldCheck,
+  Sofa,
+  Store,
+  UserRound,
+} from "lucide-react";
 
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils/formatters";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
@@ -12,6 +25,7 @@ import {
   IconTile,
   MicroLabel,
   OwnerCanvas,
+  PageNav,
   Pill,
   PrimaryAction,
   ReadField,
@@ -44,6 +58,25 @@ export type TenantBailDetailData = {
     label: string | null;
     fullAddress: string | null;
     surfaceM2: { toString(): string } | null;
+    type: string | null;
+    legalStatus: string | null;
+    /** Zone tendue et encadrement : ce sont des droits du locataire. */
+    isTightZone: boolean;
+    hasRentControl: boolean;
+    /** Le mobilier exigé par la loi pour une location meublée. */
+    hasLiterie: boolean;
+    hasRideaux: boolean;
+    hasPlaquesCuisson: boolean;
+    hasFour: boolean;
+    hasRefrigerateur: boolean;
+    hasCongelateur: boolean;
+    hasVaisselle: boolean;
+    hasUstensilesCuisine: boolean;
+    hasTable: boolean;
+    hasSieges: boolean;
+    hasEtageresRangement: boolean;
+    hasLuminaires: boolean;
+    hasMaterielEntretien: boolean;
   };
   documents: Array<{
     id: string;
@@ -52,6 +85,36 @@ export type TenantBailDetailData = {
     createdAt: Date | string;
   }>;
 };
+
+const PROPERTY_TYPE_LABELS: Record<string, string> = {
+  APPARTEMENT: "Appartement",
+  MAISON: "Maison",
+};
+
+const LEGAL_STATUS_LABELS: Record<string, string> = {
+  PLEIN_PROPRIETE: "Pleine propriété",
+  CO_PROPRIETE: "Copropriété",
+  LOTISSEMENT: "Lotissement",
+};
+
+/** L'ameublement que la loi impose pour une location meublée. */
+const FURNITURE: Array<{ key: string; label: string }> = [
+  { key: "hasLiterie", label: "Literie avec couette ou couverture" },
+  { key: "hasRideaux", label: "Volets ou rideaux dans les chambres" },
+  { key: "hasPlaquesCuisson", label: "Plaques de cuisson" },
+  { key: "hasFour", label: "Four ou four à micro-ondes" },
+  { key: "hasRefrigerateur", label: "Réfrigérateur" },
+  { key: "hasCongelateur", label: "Congélateur ou compartiment à congélation" },
+  { key: "hasVaisselle", label: "Vaisselle en nombre suffisant" },
+  { key: "hasUstensilesCuisine", label: "Ustensiles de cuisine" },
+  { key: "hasTable", label: "Table" },
+  { key: "hasSieges", label: "Sièges" },
+  { key: "hasEtageresRangement", label: "Étagères de rangement" },
+  { key: "hasLuminaires", label: "Luminaires" },
+  { key: "hasMaterielEntretien", label: "Matériel d'entretien ménager" },
+];
+
+const FURNISHED_TYPES = ["BAIL_MEUBLE_1_ANS", "BAIL_MEUBLE_9_MOIS"];
 
 export function TenantBailDetail({
   bail,
@@ -84,15 +147,17 @@ export function TenantBailDetail({
     <OwnerCanvas>
       <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:pb-14">
         {/* ── Retour + identité du bail ──────────────────────────────────── */}
-        <Link
-          href="/client/locataire/baux"
-          className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-slate-500 transition-colors hover:text-slate-800"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Mes baux
-        </Link>
+        {/* Même navigation que les pages du propriétaire : une flèche pour le
+            geste rapide, un fil d'Ariane pour situer la page. */}
+        <PageNav
+          backHref="/client/locataire/baux"
+          trail={[
+            { label: "Mes baux", href: "/client/locataire/baux" },
+            { label: propertyTitle },
+          ]}
+        />
 
-        <header className="mb-6 mt-3">
+        <header className="mb-6 mt-5">
           <MicroLabel>Espace locataire</MicroLabel>
           <div className="mt-2 flex items-start gap-3.5">
             <IconTile icon={isCommercial ? Store : Home} tone="blue" size="lg" />
@@ -159,11 +224,84 @@ export function TenantBailDetail({
             <FieldGrid>
               <ReadField label="Adresse" value={bail.property.fullAddress} wide />
               {bail.property.label && <ReadField label="Label" value={bail.property.label} />}
+              {bail.property.type && (
+                <ReadField
+                  label="Type de logement"
+                  value={PROPERTY_TYPE_LABELS[bail.property.type] ?? bail.property.type}
+                />
+              )}
               {bail.property.surfaceM2 && (
                 <ReadField label="Surface" value={`${bail.property.surfaceM2.toString()} m²`} />
               )}
+              {bail.property.legalStatus && (
+                <ReadField
+                  label="Statut du bien"
+                  value={LEGAL_STATUS_LABELS[bail.property.legalStatus] ?? bail.property.legalStatus}
+                />
+              )}
             </FieldGrid>
+
+            {/* Deux mentions qui ne relèvent pas de la description du logement
+                mais des droits du locataire : autant qu'il les lise ici. */}
+            {(bail.property.isTightZone || bail.property.hasRentControl) && (
+              <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
+                {bail.property.isTightZone && (
+                  <p className="flex gap-2 text-[12.5px] leading-snug text-slate-500">
+                    <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#3563e9]" />
+                    <span>
+                      <span className="font-semibold text-slate-700">Zone tendue.</span> Le préavis
+                      de départ y est réduit à un mois.
+                    </span>
+                  </p>
+                )}
+                {bail.property.hasRentControl && (
+                  <p className="flex gap-2 text-[12.5px] leading-snug text-slate-500">
+                    <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#3563e9]" />
+                    <span>
+                      <span className="font-semibold text-slate-700">Loyer encadré.</span> Le loyer
+                      de ce logement est plafonné par arrêté préfectoral.
+                    </span>
+                  </p>
+                )}
+              </div>
+            )}
           </Surface>
+
+          {/* ── Le mobilier, pour une location meublée ───────────────────── */}
+          {bail.bailType && FURNISHED_TYPES.includes(bail.bailType) && (
+            <Surface tone="raised" className="p-4 sm:p-5">
+              <div className="mb-1 flex items-center gap-2.5">
+                <IconTile icon={Sofa} tone="blue" size="sm" />
+                <MicroLabel>Le mobilier fourni</MicroLabel>
+              </div>
+              <p className="mb-4 text-[12.5px] leading-snug text-slate-500">
+                La loi fixe la liste du mobilier qu'un logement meublé doit comporter. Voici ce que
+                le propriétaire a déclaré pour ce logement.
+              </p>
+              <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                {FURNITURE.map((item) => {
+                  const present = Boolean(
+                    (bail.property as unknown as Record<string, boolean>)[item.key],
+                  );
+                  return (
+                    <li
+                      key={item.key}
+                      className="flex items-start gap-2 text-[12.5px] leading-snug"
+                    >
+                      {present ? (
+                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      ) : (
+                        <Minus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-300" />
+                      )}
+                      <span className={present ? "text-slate-700" : "text-slate-400"}>
+                        {item.label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Surface>
+          )}
 
           {/* ── Les personnes ────────────────────────────────────────────── */}
           {(proprietaire || notaire) && (
