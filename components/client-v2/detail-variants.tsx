@@ -134,7 +134,9 @@ function Bandeau({ model }: { model: DetailModel }) {
     <div className="min-h-full bg-[#f4f6fb]">
       {/* Le bandeau : la page principale n'en a jamais, donc sa seule présence
           dit qu'on est descendu d'un cran. */}
-      <header className="relative overflow-hidden bg-gradient-to-br from-[#1b2f6b] via-[#25428f] to-[#3563e9] pb-16 pt-6 sm:pt-8">
+      {/* La barre du site flotte au-dessus du contenu : sur mobile, chaque mise
+          en page lui réserve sa hauteur, comme le fait OwnerCanvas ailleurs. */}
+      <header className="relative overflow-hidden bg-gradient-to-br from-[#1b2f6b] via-[#25428f] to-[#3563e9] pb-16 pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:pt-8">
         <div
           aria-hidden
           className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl"
@@ -208,11 +210,15 @@ function Bandeau({ model }: { model: DetailModel }) {
 
 function Feuille({ model }: { model: DetailModel }) {
   return (
-    <div className="min-h-full bg-gradient-to-b from-[#e8edf9] to-[#f4f6fb] px-0 pb-0 pt-3 sm:px-6 sm:pb-6 sm:pt-5">
+    <div className="min-h-full bg-gradient-to-b from-[#e8edf9] to-[#f4f6fb] px-0 pb-0 pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:px-6 sm:pb-6 sm:pt-5">
       {/* Une feuille posée sur l'espace client : on voit le canevas dépasser
           autour, comme une fiche sortie d'un dossier. */}
-      <div className="mx-auto min-h-[calc(100dvh-0.75rem)] w-full max-w-3xl overflow-hidden rounded-t-[28px] bg-white shadow-[0_-2px_0_rgba(255,255,255,0.8),0_30px_70px_-40px_rgba(15,23,42,0.4)] ring-1 ring-slate-200/70 sm:min-h-0 sm:rounded-[28px]">
-        <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-xl sm:px-6">
+      <div className="mx-auto min-h-[calc(100dvh-var(--lp-nav-h,76px)-1rem)] w-full max-w-3xl overflow-hidden rounded-t-[28px] bg-white shadow-[0_-2px_0_rgba(255,255,255,0.8),0_30px_70px_-40px_rgba(15,23,42,0.4)] ring-1 ring-slate-200/70 sm:min-h-0 sm:rounded-[28px]">
+        {/* Pas de `sticky` ici : la feuille est en `overflow-hidden` pour ses
+            coins arrondis, ce qui annule le collage — la barre se contentait
+            de glisser par-dessus le titre. Elle défile donc avec la page, et
+            le fil d'Ariane reste atteignable d'un retour en haut. */}
+        <div className="flex items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 sm:px-6">
           <BackArrow href={model.backHref} />
           <Trail model={model} />
         </div>
@@ -288,7 +294,7 @@ function Feuille({ model }: { model: DetailModel }) {
 function Rail({ model }: { model: DetailModel }) {
   return (
     <div className="min-h-full bg-[#f4f6fb]">
-      <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-5 sm:px-6">
+      <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:px-6 sm:pt-5">
         <div className="flex items-center gap-3">
           <BackArrow href={model.backHref} />
           <Trail model={model} />
@@ -363,14 +369,14 @@ function Editorial({ model }: { model: DetailModel }) {
     <div className="min-h-full bg-white">
       {/* Une barre fine qui reste : le seul élément de chrome, et le repère
           permanent qu'on est dans une fiche. */}
-      <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/85 backdrop-blur-xl">
+      <div className="sticky top-[calc(var(--lp-nav-h,76px)+0.5rem)] z-10 border-b border-slate-100 bg-white/85 backdrop-blur-xl sm:top-0">
         <div className="mx-auto flex w-full max-w-2xl items-center gap-3 px-4 py-2.5 sm:px-6">
           <BackArrow href={model.backHref} />
           <Trail model={model} />
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-2xl px-4 pb-20 pt-10 sm:px-6">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-20 pt-[calc(var(--lp-nav-h,76px)+1.5rem)] sm:px-6 sm:pt-10">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#3563e9]">
           {model.eyebrow}
         </p>
