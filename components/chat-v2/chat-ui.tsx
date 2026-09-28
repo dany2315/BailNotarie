@@ -1,0 +1,708 @@
+"use client";
+
+import * as React from "react";
+import {
+  ArrowDown,
+  Check,
+  CheckCheck,
+  Clock,
+  Download,
+  FileText,
+  Loader2,
+  Paperclip,
+  Scale,
+  Send,
+  Upload,
+  X,
+} from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+/* =========================================================================
+   Les briques d'une conversation.
+
+   Découpage volontairement calqué sur le motif `Message` de shadcn —
+   `Conversation`, `Message`, `MessageContent`, `MessageAvatar`,
+   `PromptInput` — pour que remplacer ces composants par les leurs, le jour
+   où le registre sera accessible, ne demande qu'un changement d'import.
+
+   L'écriture, elle, est celle du site : mêmes surfaces, même bleu, mêmes
+   micro-libellés que l'espace client.
+   ========================================================================= */
+
+/* ---------- Le fil ---------------------------------------------------------- */
+
+export const Conversation = React.forwardRef<
+  HTMLDivElement,
+  {
+    children: React.ReactNode;
+    className?: string;
+    onScroll?: React.UIEventHandler<HTMLDivElement>;
+  }
+>(function Conversation({ children, className, onScroll }, ref) {
+  return (
+    <div
+      ref={ref}
+      onScroll={onScroll}
+      className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain", className)}
+    >
+      <div className="flex flex-col gap-1 px-4 py-6 sm:px-5">{children}</div>
+    </div>
+  );
+});
+
+/** Le repère de jour, qui remplace la répétition de la date sur chaque bulle. */
+export function DateSeparator({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="my-4 flex items-center gap-3 first:mt-0">
+      <span className="h-px flex-1 bg-slate-200/70" />
+      <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-400 ring-1 ring-slate-200/70">
+        {children}
+      </span>
+      <span className="h-px flex-1 bg-slate-200/70" />
+    </div>
+  );
+}
+
+export type MessageStatus = "sending" | "sent" | "read" | "error";
+
+/* ---------- Un message ------------------------------------------------------ */
+
+export function Message({
+  from,
+  /** Dernier d'une série du même auteur : c'est lui qui porte l'avatar et l'heure. */
+  last = true,
+  children,
+}: {
+  from: "me" | "them";
+  last?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-end gap-2",
+        from === "me" ? "flex-row-reverse" : "flex-row",
+        last ? "mb-1.5" : "mb-0.5",
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function MessageAvatar({
+  name,
+  role,
+  hidden = false,
+  /** Décale l'avatar quand l'heure s'affiche sous la bulle, pour rester à sa hauteur. */
+  withMeta = false,
+}: {
+  name: string;
+  role?: "notaire" | "client";
+  hidden?: boolean;
+  withMeta?: boolean;
+}) {
+  if (hidden) return <span aria-hidden className={cn("h-7 w-7 shrink-0", withMeta && "mb-[19px]")} />;
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  return (
+    <span
+      className={cn(
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10.5px] font-bold",
+        role === "notaire" ? "bg-[#4373f5] text-white" : "bg-slate-200 text-slate-600",
+        withMeta && "mb-[19px]",
+      )}
+    >
+      {role === "notaire" ? <Scale className="h-3.5 w-3.5" /> : initials || "?"}
+    </span>
+  );
+}
+
+export function MessageContent({
+  from,
+  last = true,
+  status,
+  time,
+  author,
+  children,
+}: {
+  from: "me" | "them";
+  last?: boolean;
+  status?: MessageStatus;
+  time?: string;
+  author?: string;
+  children: React.ReactNode;
+}) {
+  const mine = from === "me";
+  return (
+    <div className={cn("flex min-w-0 max-w-[78%] flex-col gap-1", mine && "items-end")}>
+      {author && !mine && (
+        <span className="px-1 text-[11px] font-semibold text-slate-400">{author}</span>
+      )}
+      <div
+        className={cn(
+          "w-fit max-w-full break-words px-3.5 py-2.5 text-[13.5px] leading-relaxed",
+          mine
+            ? "rounded-2xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] text-white shadow-[0_8px_20px_-10px_rgba(53,99,233,0.65)]"
+            : "rounded-2xl bg-white text-slate-800 ring-1 ring-slate-200/80",
+          // Le coin fermé du côté de l'auteur, seulement sur le dernier d'une série.
+          last && (mine ? "rounded-br-md" : "rounded-bl-md"),
+          status === "error" && "opacity-70 ring-1 ring-red-300",
+        )}
+      >
+        {children}
+      </div>
+      {last && (time || status) && (
+        <span
+          className={cn(
+            "flex items-center gap-1 px-1 text-[10.5px] tabular-nums text-slate-400",
+            mine && "flex-row-reverse",
+          )}
+        >
+          {time}
+          {mine && status === "sending" && <Clock className="h-3 w-3" />}
+          {mine && status === "sent" && <Check className="h-3 w-3" />}
+          {mine && status === "read" && <CheckCheck className="h-3 w-3 text-[#3563e9]" />}
+          {mine && status === "error" && <span className="text-red-500">non envoyé</span>}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Une pièce jointe, dans une bulle ou sous elle. */
+export function MessageAttachment({
+  name,
+  meta,
+  tone = "them",
+  onDownload,
+}: {
+  name: string;
+  meta?: string;
+  tone?: "me" | "them";
+  onDownload?: () => void;
+}) {
+  const mine = tone === "me";
+  return (
+    <div
+      className={cn(
+        "mt-2 flex items-center gap-2.5 rounded-xl px-2.5 py-2 first:mt-0",
+        mine ? "bg-white/15" : "bg-slate-50 ring-1 ring-slate-200/70",
+      )}
+    >
+      <span
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+          mine ? "bg-white/20 text-white" : "bg-white text-[#3563e9] ring-1 ring-slate-200/70",
+        )}
+      >
+        <FileText className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={cn("block truncate text-[12.5px] font-semibold", mine ? "text-white" : "text-slate-800")}>
+          {name}
+        </span>
+        {meta && (
+          <span className={cn("block text-[11px]", mine ? "text-white/70" : "text-slate-400")}>{meta}</span>
+        )}
+      </span>
+      <button
+        type="button"
+        onClick={onDownload}
+        title="Télécharger"
+        className={cn(
+          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+          mine ? "text-white/80 hover:bg-white/20 hover:text-white" : "text-slate-400 hover:bg-white hover:text-slate-700",
+        )}
+      >
+        <Download className="h-4 w-4" />
+        <span className="sr-only">Télécharger</span>
+      </button>
+    </div>
+  );
+}
+
+/** Les trois points, quand l'autre écrit. */
+export function TypingBubble({ name, role }: { name: string; role?: "notaire" | "client" }) {
+  return (
+    <div className="mb-1.5 flex items-end gap-2">
+      <MessageAvatar name={name} role={role} />
+      <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-white px-3.5 py-3 ring-1 ring-slate-200/80">
+        {[0, 150, 300].map((delay) => (
+          <span
+            key={delay}
+            className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-300"
+            style={{ animationDelay: `${delay}ms` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Une demande du notaire dans le fil ------------------------------ */
+
+export function RequestCard({
+  title,
+  content,
+  status,
+  documents = [],
+  onDownloadDocument,
+  /** Le formulaire de réponse, fourni par l'appelant : il garde sa logique d'envoi. */
+  respond,
+  respondLabel = "Envoyer le document",
+}: {
+  title: string;
+  content: string;
+  status: "pending" | "completed";
+  documents?: Array<{ id: string; name: string; meta?: string }>;
+  onDownloadDocument?: (id: string) => void;
+  respond?: React.ReactNode;
+  respondLabel?: string;
+}) {
+  const pending = status === "pending";
+  // Ouvrir la zone de réponse est un état d'affichage, rien de plus.
+  const [expanded, setExpanded] = React.useState(false);
+
+  return (
+    <div className="my-3 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200/80">
+      <div aria-hidden className={cn("h-1", pending ? "bg-amber-400" : "bg-emerald-400")} />
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          <span
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+              pending ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600",
+            )}
+          >
+            {pending ? <Upload className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+              {pending ? "Document demandé" : "Demande complétée"}
+            </p>
+            <p className="mt-0.5 text-[14px] font-semibold leading-tight tracking-tight text-slate-900">
+              {title}
+            </p>
+            <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-snug text-slate-500">
+              {content}
+            </p>
+          </div>
+        </div>
+
+        {documents.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {documents.map((doc) => (
+              <MessageAttachment
+                key={doc.id}
+                name={doc.name}
+                meta={doc.meta ?? "Envoyé en réponse"}
+                onDownload={onDownloadDocument ? () => onDownloadDocument(doc.id) : undefined}
+              />
+            ))}
+          </div>
+        )}
+
+        {respond && !expanded && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-slate-800 sm:w-auto"
+          >
+            <Paperclip className="h-4 w-4" />
+            {respondLabel}
+          </button>
+        )}
+        {respond && expanded && (
+          <div className="mt-3.5 border-t border-slate-100 pt-3.5">{respond}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Répondre à une demande : l'habillage seul ----------------------- */
+
+/**
+ * Le formulaire de réponse, sans logique d'envoi : l'appelant garde ses appels
+ * réseau, sa progression et ses messages d'erreur, et ne passe ici que l'état.
+ */
+export function RequestRespondForm({
+  files,
+  onPick,
+  onRemoveFile,
+  onSubmit,
+  sending = false,
+  progress = 0,
+  accept = ".pdf,.doc,.docx,.jpg,.jpeg,.png",
+}: {
+  files: Array<{ name: string; size: number }>;
+  onPick: (files: FileList | null) => void;
+  onRemoveFile: (index: number) => void;
+  onSubmit: () => void;
+  sending?: boolean;
+  progress?: number;
+  accept?: string;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="space-y-3">
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept={accept}
+        className="hidden"
+        onChange={(event) => {
+          onPick(event.target.files);
+          event.target.value = "";
+        }}
+      />
+
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={sending}
+        className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-3.5 py-3 text-left transition-colors hover:border-[#4373f5]/50 hover:bg-[#4373f5]/[0.04] disabled:opacity-60"
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-[#3563e9] ring-1 ring-slate-200/70">
+          <Upload className="h-4 w-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[12.5px] font-semibold text-slate-800">
+            Choisir des documents
+          </span>
+          <span className="block text-[11px] text-slate-400">PDF, Word ou image</span>
+        </span>
+      </button>
+
+      {files.length > 0 && (
+        <ul className="space-y-1.5">
+          {files.map((file, index) => (
+            <li
+              key={`${file.name}-${index}`}
+              className="flex items-center gap-2.5 rounded-xl bg-slate-50 px-2.5 py-2 ring-1 ring-slate-200/70"
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-slate-700">
+                {file.name}
+              </span>
+              <span className="shrink-0 text-[11px] tabular-nums text-slate-400">
+                {(file.size / 1024).toFixed(0)} Ko
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemoveFile(index)}
+                disabled={sending}
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white hover:text-slate-700 disabled:opacity-50"
+              >
+                <X className="h-3 w-3" />
+                <span className="sr-only">Retirer</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {sending && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
+            <span>Envoi en cours…</span>
+            <span className="tabular-nums">{Math.round(progress)} %</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#5b85f7] to-[#3563e9] transition-[width] duration-200"
+              style={{ width: `${Math.max(progress, 4)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={sending || files.length === 0}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-4 py-2.5 text-[12.5px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(53,99,233,0.9)] transition-opacity disabled:opacity-50"
+      >
+        {sending ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Envoi en cours…
+          </>
+        ) : (
+          <>
+            <Send className="h-4 w-4" />
+            Envoyer {files.length > 0 ? `${files.length} fichier${files.length > 1 ? "s" : ""}` : "les documents"}
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
+/* ---------- Le composeur ---------------------------------------------------- */
+
+export function PromptInput({
+  value,
+  onChange,
+  onSubmit,
+  onAttach,
+  files = [],
+  onRemoveFile,
+  sending = false,
+  placeholder = "Écrivez votre message…",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onAttach?: () => void;
+  files?: Array<{ name: string; size: number }>;
+  onRemoveFile?: (index: number) => void;
+  sending?: boolean;
+  placeholder?: string;
+}) {
+  const canSend = !sending && (value.trim().length > 0 || files.length > 0);
+  const areaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // La zone grandit avec le texte, jusqu'à un plafond.
+  React.useEffect(() => {
+    const area = areaRef.current;
+    if (!area) return;
+    area.style.height = "auto";
+    area.style.height = `${Math.min(area.scrollHeight, 140)}px`;
+  }, [value]);
+
+  return (
+    <div className="border-t border-slate-200/70 bg-white/80 p-3 backdrop-blur-xl sm:p-4">
+      <div className="rounded-2xl bg-white ring-1 ring-slate-200/80 transition-shadow focus-within:ring-2 focus-within:ring-[#4373f5]/40">
+        {files.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 border-b border-slate-100 p-2.5">
+            {files.map((file, index) => (
+              <span
+                key={`${file.name}-${index}`}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-slate-50 py-1 pl-2 pr-1 text-[11.5px] font-medium text-slate-600 ring-1 ring-slate-200/70"
+              >
+                <FileText className="h-3 w-3 shrink-0 text-slate-400" />
+                <span className="truncate">{file.name}</span>
+                <span className="shrink-0 tabular-nums text-slate-400">
+                  {(file.size / 1024).toFixed(0)} Ko
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onRemoveFile?.(index)}
+                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+                >
+                  <X className="h-3 w-3" />
+                  <span className="sr-only">Retirer</span>
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-end gap-1 p-1.5">
+          <button
+            type="button"
+            onClick={onAttach}
+            disabled={sending}
+            title="Joindre un document"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+          >
+            <Paperclip className="h-[18px] w-[18px]" />
+            <span className="sr-only">Joindre un document</span>
+          </button>
+
+          <textarea
+            ref={areaRef}
+            rows={1}
+            value={value}
+            disabled={sending}
+            placeholder={placeholder}
+            onChange={(event) => onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (canSend) onSubmit();
+              }
+            }}
+            className="min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[13.5px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
+          />
+
+          <button
+            type="button"
+            onClick={() => canSend && onSubmit()}
+            disabled={!canSend}
+            title="Envoyer"
+            className={cn(
+              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
+              canSend
+                ? "bg-gradient-to-b from-[#5b85f7] to-[#3563e9] text-white shadow-[0_8px_18px_-8px_rgba(53,99,233,0.8)]"
+                : "bg-slate-100 text-slate-300",
+            )}
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <span className="sr-only">Envoyer</span>
+          </button>
+        </div>
+      </div>
+      <p className="mt-2 px-1 text-[11px] text-slate-400">
+        Entrée pour envoyer · Maj + Entrée pour aller à la ligne
+      </p>
+    </div>
+  );
+}
+
+/* ---------- L'en-tête -------------------------------------------------------- */
+
+export function ChatHeader({
+  name,
+  role,
+  online,
+  typing,
+  subtitle,
+  onClose,
+}: {
+  name: string;
+  role?: "notaire" | "client";
+  online?: boolean;
+  typing?: boolean;
+  subtitle?: string;
+  onClose?: () => void;
+}) {
+  return (
+    <header className="flex items-center gap-3 border-b border-slate-200/70 bg-white/80 px-4 py-3.5 backdrop-blur-xl sm:px-5">
+      <span className="relative shrink-0">
+        <span
+          className={cn(
+            "flex h-10 w-10 items-center justify-center rounded-full text-[12px] font-bold",
+            role === "notaire" ? "bg-gradient-to-b from-[#5b85f7] to-[#3563e9] text-white" : "bg-slate-200 text-slate-600",
+          )}
+        >
+          {role === "notaire" ? (
+            <Scale className="h-[18px] w-[18px]" />
+          ) : (
+            name
+              .split(" ")
+              .filter(Boolean)
+              .map((part) => part[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()
+          )}
+        </span>
+        {online && (
+          <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white" />
+        )}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-2 text-[14.5px] font-semibold tracking-tight text-slate-900">
+          <span className="truncate">{name}</span>
+          {role === "notaire" && (
+            <span className="shrink-0 rounded-full bg-[#4373f5]/10 px-2 py-0.5 text-[10.5px] font-semibold text-[#3563e9]">
+              Notaire
+            </span>
+          )}
+        </p>
+        <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-slate-500">
+          {typing ? (
+            <>
+              <span className="flex gap-0.5">
+                {[0, 150, 300].map((delay) => (
+                  <span
+                    key={delay}
+                    className="h-1 w-1 animate-bounce rounded-full bg-slate-400"
+                    style={{ animationDelay: `${delay}ms` }}
+                  />
+                ))}
+              </span>
+              en train d&apos;écrire…
+            </>
+          ) : online ? (
+            "en ligne"
+          ) : (
+            subtitle
+          )}
+        </p>
+      </div>
+
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Fermer</span>
+        </button>
+      )}
+    </header>
+  );
+}
+
+/** Le bouton « revenir en bas », quand on a remonté le fil. */
+export function ScrollToBottom({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute bottom-4 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[11.5px] font-semibold text-slate-600 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] ring-1 ring-slate-200/70"
+    >
+      <ArrowDown className="h-3.5 w-3.5" />
+      Derniers messages
+    </button>
+  );
+}
+
+
+/* ---------- Chargement ------------------------------------------------------ */
+
+/** Le fil pendant la première requête : la forme des bulles, sans le contenu. */
+export function ChatSkeleton() {
+  const rows: Array<{ from: "me" | "them"; width: string }> = [
+    { from: "them", width: "62%" },
+    { from: "them", width: "44%" },
+    { from: "me", width: "52%" },
+    { from: "them", width: "70%" },
+    { from: "me", width: "38%" },
+  ];
+  return (
+    <div className="flex flex-col gap-3 px-4 py-6 sm:px-5" aria-hidden>
+      {rows.map((row, index) => (
+        <div
+          key={index}
+          className={cn("flex items-end gap-2", row.from === "me" ? "flex-row-reverse" : "flex-row")}
+        >
+          <span className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-slate-200/70" />
+          <span
+            className={cn(
+              "h-10 animate-pulse rounded-2xl",
+              row.from === "me" ? "bg-[#4373f5]/15" : "bg-slate-200/70",
+            )}
+            style={{ width: row.width }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Le petit bandeau « Mise à jour… », le temps d'un rafraîchissement. */
+export function RefreshChip({ children = "Mise à jour…" }: { children?: React.ReactNode }) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center pt-2.5">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-slate-500 shadow-[0_6px_18px_-8px_rgba(15,23,42,0.35)] ring-1 ring-slate-200/70 backdrop-blur">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        {children}
+      </span>
+    </div>
+  );
+}
