@@ -11,9 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { BailDetailDrawer } from "@/components/client/bail-detail-drawer";
-import { DrawerBoundary } from "../drawer-boundary";
-import { PropertyDetailDrawer } from "@/components/client/property-detail-drawer";
 import { CreatePropertyForm, CreatePropertyFormRef } from "@/components/client/create-property-form";
 import {
   EmptyState,
@@ -200,56 +197,23 @@ export function OwnerDossiers({ biens, ownerId, variant = "fiches" }: OwnerDossi
         </DialogContent>
       </Dialog>
 
-      {/* ── Tiroirs de détail ─────────────────────────────────────────────── */}
-      {demo ? (
+      {/* ── Aperçus de la maquette ────────────────────────────────────────
+          Hors maquette, le détail d'un bien et celui d'un bail sont des pages
+          à part entière : plus de tiroir à monter ici. */}
+      {demo && (
         <>
           <PreviewDrawer
             open={bailDrawer.open}
             onClose={() => bailDrawer.setOpen(false)}
             title="Détail du dossier"
-            body="Aperçu — le tiroir de détail du bail existant s'ouvre ici, avec son suivi, ses documents et sa messagerie."
+            body="Aperçu — la page du bail s'ouvre ici, avec son suivi, ses documents et sa messagerie."
           />
           <PreviewDrawer
             open={propertyDrawer.open}
             onClose={() => propertyDrawer.setOpen(false)}
             title="Fiche du bien"
-            body="Aperçu — la fiche du bien existante s'ouvre ici."
+            body="Aperçu — la page du bien s'ouvre ici."
           />
-        </>
-      ) : (
-        <>
-          {bailDrawer.bailId && (
-            <DrawerBoundary
-              key={bailDrawer.bailId}
-              onClose={() => {
-                bailDrawer.clearChat();
-                bailDrawer.setOpen(false);
-              }}
-            >
-              <BailDetailDrawer
-                open={bailDrawer.open}
-                onOpenChange={(open) => {
-                  if (!open) bailDrawer.clearChat();
-                  bailDrawer.setOpen(open);
-                }}
-                bailId={bailDrawer.bailId}
-                defaultOpenChat={bailDrawer.chatFor === bailDrawer.bailId}
-                onPropertyClick={bailDrawer.onPropertyClick}
-              />
-            </DrawerBoundary>
-          )}
-          {propertyDrawer.propertyId && (
-            <DrawerBoundary
-              key={propertyDrawer.propertyId}
-              onClose={() => propertyDrawer.setOpen(false)}
-            >
-              <PropertyDetailDrawer
-                open={propertyDrawer.open}
-                onOpenChange={propertyDrawer.setOpen}
-                propertyId={propertyDrawer.propertyId}
-              />
-            </DrawerBoundary>
-          )}
         </>
       )}
     </OwnerCanvas>

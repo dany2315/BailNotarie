@@ -95,7 +95,12 @@ export function useDossiersController(biens: PropertyWithBails[]) {
     } else if (open?.startsWith("bail-")) {
       const bailId = open.replace("bail-", "");
       const wantChat = searchParams.get("chat") === "1";
-      if (selectedBailId !== bailId) {
+      if (!demo) {
+        // Les liens déjà envoyés par mail continuent de fonctionner : ils
+        // mènent maintenant à la page du bail.
+        lastProcessedOpenParam.current = open;
+        router.replace(`/client/proprietaire/baux/${bailId}${wantChat ? "?chat=1" : ""}`);
+      } else if (selectedBailId !== bailId) {
         lastProcessedOpenParam.current = open;
         setSelectedBailId(bailId);
         setOpenChatWithBailId(wantChat ? bailId : null);
@@ -104,9 +109,13 @@ export function useDossiersController(biens: PropertyWithBails[]) {
     } else if (open?.startsWith("bien-")) {
       const propertyId = open.replace("bien-", "");
       lastProcessedOpenParam.current = open;
-      setSelectedPropertyId(propertyId);
-      setSelectedPropertyDetailId(propertyId);
-      setIsPropertyDetailOpen(true);
+      if (!demo) {
+        router.replace(`/client/proprietaire/biens/${propertyId}`);
+      } else {
+        setSelectedPropertyId(propertyId);
+        setSelectedPropertyDetailId(propertyId);
+        setIsPropertyDetailOpen(true);
+      }
     } else if (!open) {
       lastProcessedOpenParam.current = null;
     }
@@ -136,16 +145,33 @@ export function useDossiersController(biens: PropertyWithBails[]) {
     setIsPropertyDialogOpen(true);
   }, []);
 
-  const openPropertyDetail = React.useCallback((propertyId: string) => {
-    setSelectedPropertyId(propertyId);
-    setSelectedPropertyDetailId(propertyId);
-    setIsPropertyDetailOpen(true);
-  }, []);
+  // Le détail d'un bien et celui d'un bail sont des pages : on y va, on en
+  // revient par la flèche ou le fil d'Ariane, et le lien se partage. Seule la
+  // maquette garde des tiroirs — elle n'a pas de dossier en base à ouvrir.
+  const openPropertyDetail = React.useCallback(
+    (propertyId: string) => {
+      if (demo) {
+        setSelectedPropertyId(propertyId);
+        setSelectedPropertyDetailId(propertyId);
+        setIsPropertyDetailOpen(true);
+        return;
+      }
+      router.push(`/client/proprietaire/biens/${propertyId}`);
+    },
+    [demo, router],
+  );
 
-  const openBailDetail = React.useCallback((bailId: string) => {
-    setSelectedBailId(bailId);
-    setIsBailDetailOpen(true);
-  }, []);
+  const openBailDetail = React.useCallback(
+    (bailId: string) => {
+      if (demo) {
+        setSelectedBailId(bailId);
+        setIsBailDetailOpen(true);
+        return;
+      }
+      router.push(`/client/proprietaire/baux/${bailId}`);
+    },
+    [demo, router],
+  );
 
   const startNewBail = React.useCallback(
     (propertyId: string) => {

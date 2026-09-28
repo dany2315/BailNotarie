@@ -130,19 +130,17 @@ export function OwnerTabsDock({
       className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/90 backdrop-blur-xl sm:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="mx-auto flex max-w-md">
+      <div className="mx-auto flex max-w-md gap-1 px-2 py-1.5">
         {tabs.map((tab) => {
           const isActive = tab.key === active;
           const content = (
             <>
-              <span
+              <tab.icon
                 className={cn(
-                  "flex h-8 w-14 items-center justify-center rounded-xl transition-colors",
-                  isActive ? "bg-[#4373f5]/10 text-[#3563e9]" : "text-slate-400",
+                  "h-[18px] w-[18px]",
+                  isActive ? "text-[#3563e9]" : "text-slate-400",
                 )}
-              >
-                <tab.icon className="h-[18px] w-[18px]" />
-              </span>
+              />
               <span
                 className={cn(
                   "text-[10.5px] font-semibold",
@@ -153,7 +151,12 @@ export function OwnerTabsDock({
               </span>
             </>
           );
-          const classes = "flex flex-1 flex-col items-center gap-0.5 py-2";
+          // La teinte de l'onglet actif couvre le bouton entier, icône et
+          // libellé compris : c'est le bouton qui est actif, pas l'icône.
+          const classes = cn(
+            "flex flex-1 flex-col items-center gap-1 rounded-2xl py-2 transition-colors",
+            isActive ? "bg-[#4373f5]/10" : "active:bg-slate-100",
+          );
           return onSelect ? (
             <button
               key={tab.key}
