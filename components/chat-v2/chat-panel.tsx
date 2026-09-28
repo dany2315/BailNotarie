@@ -16,6 +16,8 @@ import {
   RefreshChip,
   RequestCard,
   PromptInput,
+  type PromptAction,
+  type RequestStatus,
   ScrollToBottom,
   TypingBubble,
   type MessageStatus,
@@ -55,7 +57,11 @@ export type ChatRequestView = {
   createdAt: Date | string;
   title: string;
   content: string;
-  status: "pending" | "completed";
+  status: RequestStatus;
+  /** « Propriétaire », « Locataire » : à qui la demande s'adresse. */
+  targets?: string[];
+  /** L'auteur de la demande, affiché au-dessus de la carte. */
+  authorName?: string | null;
   documents?: ChatAttachmentView[];
   /** Quand c'est vrai, la zone de réponse est proposée. */
   canRespond?: boolean;
@@ -118,6 +124,8 @@ export type ChatPanelProps = {
   interlocutor: {
     name: string;
     role?: "notaire" | "client";
+    /** « Notaire », « Propriétaire », « Locataire »… */
+    badge?: string;
     online?: boolean;
     typing?: boolean;
     subtitle?: string;
@@ -132,15 +140,23 @@ export type ChatPanelProps = {
     onChange: (value: string) => void;
     onSubmit: () => void;
     onAttach?: () => void;
+    /** Les entrées du menu « + » : côté notaire, la demande de document. */
+    actions?: PromptAction[];
     files?: Array<{ name: string; size: number }>;
     onRemoveFile?: (index: number) => void;
     sending?: boolean;
+    /** Faux côté notaire : Entrée va à la ligne, seul le bouton envoie. */
+    enterToSend?: boolean;
     placeholder?: string;
+    onTyping?: () => void;
   };
   onDownloadAttachment?: (attachmentId: string) => void;
+  onOpenAttachment?: (attachmentId: string) => void;
   onDeleteMessage?: (messageId: string) => void;
   /** Le formulaire de réponse d'une demande, rendu par l'appelant. */
   renderRespond?: (request: ChatRequestView) => React.ReactNode;
+  /** Les commandes du notaire sur une demande : statut, suppression. */
+  renderRequestFooter?: (request: ChatRequestView) => React.ReactNode;
   onClose?: () => void;
   className?: string;
 };
@@ -154,8 +170,10 @@ export function ChatPanel({
   emptyHint = "Écrivez le premier message : le notaire vous répond ici.",
   composer,
   onDownloadAttachment,
+  onOpenAttachment,
   onDeleteMessage,
   renderRespond,
+  renderRequestFooter,
   onClose,
   className,
 }: ChatPanelProps) {
@@ -189,6 +207,7 @@ export function ChatPanel({
       <ChatHeader
         name={interlocutor.name}
         role={interlocutor.role}
+        badge={interlocutor.badge}
         online={interlocutor.online}
         typing={interlocutor.typing}
         subtitle={interlocutor.subtitle}
@@ -235,13 +254,21 @@ export function ChatPanel({
                         title={request.title}
                         content={request.content}
                         status={request.status}
+                        targets={request.targets}
+                        meta={
+                          request.authorName
+                            ? `${request.authorName} · ${timeLabel(request.createdAt)}`
+                            : undefined
+                        }
                         documents={request.documents}
                         onDownloadDocument={onDownloadAttachment}
+                        onOpenDocument={onOpenAttachment}
                         respond={
                           request.canRespond && request.status === "pending"
                             ? renderRespond?.(request)
                             : undefined
                         }
+                        footer={renderRequestFooter?.(request)}
                       />
                     </React.Fragment>
                   );
@@ -282,6 +309,9 @@ export function ChatPanel({
                               name={attachment.name}
                               meta={attachment.meta}
                               tone={mine ? "me" : "them"}
+                              onOpen={
+                                onOpenAttachment ? () => onOpenAttachment(attachment.id) : undefined
+                              }
                               onDownload={
                                 onDownloadAttachment
                                   ? () => onDownloadAttachment(attachment.id)
@@ -325,10 +355,13 @@ export function ChatPanel({
         onChange={composer.onChange}
         onSubmit={composer.onSubmit}
         onAttach={composer.onAttach}
+        actions={composer.actions}
         files={composer.files}
         onRemoveFile={composer.onRemoveFile}
         sending={composer.sending}
+        enterToSend={composer.enterToSend}
         placeholder={composer.placeholder}
+        onTyping={composer.onTyping}
       />
     </div>
   );

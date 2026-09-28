@@ -1,10 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { Monitor, Smartphone } from "lucide-react";
+import { FileText, Monitor, Paperclip, Smartphone } from "lucide-react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { RequestRespondForm } from "./chat-ui";
+import { RequestRespondForm, RequestStatusControl, type RequestStatus } from "./chat-ui";
 import {
   ChatPanel,
   type ChatMessageView,
@@ -67,7 +75,9 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
         title: "Titre de propriété",
         content: "Merci de joindre l'acte d'acquisition du bien, ou l'attestation notariée.",
         status: "completed",
-        documents: [{ id: "nd1", name: "acte-acquisition-2019.pdf", meta: "Reçu · 2,4 Mo" }],
+        targets: ["Propriétaire"],
+        authorName: "Moi",
+        documents: [{ id: "nd1", name: "acte-acquisition-2019.pdf", meta: "David Lévy · 2,4 Mo" }],
       }),
       message("n3", "them", "Voilà pour le titre. J'ai aussi le dernier avis de taxe foncière si besoin.", 1_500, { authorName: "David Lévy" }),
       message("n4", "me", "Merci, c'est noté. Il me reste l'attestation d'assurance propriétaire non occupant.", 96, { canDelete: true }),
@@ -75,6 +85,15 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
         title: "Attestation d'assurance PNO",
         content: "Une attestation en cours de validité suffit. Dès réception, je lance la rédaction du bail.",
         status: "pending",
+        targets: ["Propriétaire"],
+        authorName: "Moi",
+      }),
+      request("nr3", 92, {
+        title: "Dernier avis de taxe foncière",
+        content: "Finalement inutile : le titre de propriété suffit pour la rédaction.",
+        status: "cancelled",
+        targets: ["Propriétaire"],
+        authorName: "Moi",
       }),
       message("n5", "them", "Je la demande à mon assureur, je vous l'envoie dans la journée.", 28, { authorName: "David Lévy" }),
       message("n6", "me", "Très bien. Le projet de bail sera prêt sous 48 h après réception.", 12, { canDelete: true }),
@@ -89,7 +108,9 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
         title: "Justificatif de domicile",
         content: "Une quittance de loyer ou une facture d'énergie de moins de trois mois.",
         status: "completed",
-        documents: [{ id: "ld1", name: "quittance-juillet.pdf", meta: "Envoyé · 480 Ko" }],
+        targets: ["Locataire"],
+        authorName: "Maître Claire Ferrand",
+        documents: [{ id: "ld1", name: "quittance-juillet.pdf", meta: "Moi · 480 Ko" }],
       }),
       message("l3", "me", "C'est envoyé. Bonne réception.", 1_460),
       message("l4", "them", "Parfait. Dernière pièce et nous pourrons signer.", 140, { authorName: "Maître Claire Ferrand", authorRole: "notaire" }),
@@ -97,6 +118,8 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
         title: "Attestation d'assurance habitation",
         content: "L'attestation doit couvrir le logement à la date d'entrée, soit le 1er octobre.",
         status: "pending",
+        targets: ["Locataire"],
+        authorName: "Maître Claire Ferrand",
         canRespond: true,
       }),
       message("l5", "me", "Je récupère l'attestation auprès de mon assureur et je la dépose ici.", 34, { status: "read" }),
@@ -111,7 +134,9 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
       title: "Titre de propriété",
       content: "Merci de joindre l'acte d'acquisition du bien, ou l'attestation notariée.",
       status: "completed",
-      documents: [{ id: "pd1", name: "acte-acquisition-2019.pdf", meta: "Envoyé · 2,4 Mo" }],
+      targets: ["Propriétaire"],
+      authorName: "Maître Claire Ferrand",
+      documents: [{ id: "pd1", name: "acte-acquisition-2019.pdf", meta: "Moi · 2,4 Mo" }],
     }),
     message("p3", "me", "Voilà le titre de propriété. J'ai aussi la taxe foncière si vous en avez besoin.", 1_552, {
       attachments: [{ id: "pa1", name: "taxe-fonciere-2025.pdf", meta: "1,1 Mo" }],
@@ -122,6 +147,8 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
       title: "Attestation d'assurance PNO",
       content: "Une attestation en cours de validité suffit. Dès réception, je lance la rédaction du bail.",
       status: "pending",
+      targets: ["Propriétaire"],
+      authorName: "Maître Claire Ferrand",
       canRespond: true,
     }),
     message("p6", "me", "Je la demande à mon assureur aujourd'hui.", 26, { status: "read" }),
@@ -147,10 +174,28 @@ const REPLIES: Record<Persona, string[]> = {
   ],
 };
 
-const INTERLOCUTOR: Record<Persona, { name: string; role: "notaire" | "client"; subtitle: string }> = {
-  proprietaire: { name: "Maître Claire Ferrand", role: "notaire", subtitle: "vu il y a 4 min" },
-  locataire: { name: "Maître Claire Ferrand", role: "notaire", subtitle: "vu il y a 4 min" },
-  notaire: { name: "David Lévy", role: "client", subtitle: "vu il y a 12 min" },
+const INTERLOCUTOR: Record<
+  Persona,
+  { name: string; role: "notaire" | "client"; badge: string; subtitle: string }
+> = {
+  proprietaire: {
+    name: "Maître Claire Ferrand",
+    role: "notaire",
+    badge: "Notaire",
+    subtitle: "vu il y a 4 min",
+  },
+  locataire: {
+    name: "Maître Claire Ferrand",
+    role: "notaire",
+    badge: "Notaire",
+    subtitle: "vu il y a 4 min",
+  },
+  notaire: {
+    name: "David Lévy",
+    role: "client",
+    badge: "Propriétaire",
+    subtitle: "vu il y a 12 min",
+  },
 };
 
 /* ---------- Le pilote de la maquette ---------------------------------------- */
@@ -326,6 +371,135 @@ function PreviewRespondForm({
   );
 }
 
+/* ---------- Créer une demande, côté notaire --------------------------------- */
+
+/**
+ * Le dialogue tel que le notaire l'ouvre depuis la barre d'écriture. Ici il ne
+ * fait qu'ajouter une carte au fil ; dans l'application, il garde son appel à
+ * `createNotaireRequest` et ses validations.
+ */
+function NewRequestDialog({
+  open,
+  onOpenChange,
+  onCreate,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreate: (request: { title: string; content: string; targets: string[] }) => void;
+}) {
+  const [title, setTitle] = React.useState("");
+  const [content, setContent] = React.useState("");
+  const [targets, setTargets] = React.useState<string[]>(["Propriétaire"]);
+
+  const toggle = (target: string) =>
+    setTargets((current) =>
+      current.includes(target) ? current.filter((t) => t !== target) : [...current, target],
+    );
+
+  const submit = () => {
+    if (!title.trim() || !content.trim() || targets.length === 0) return;
+    onCreate({ title: title.trim(), content: content.trim(), targets });
+    setTitle("");
+    setContent("");
+    setTargets(["Propriétaire"]);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-[17px] font-semibold tracking-tight">
+            Créer une demande de document
+          </DialogTitle>
+          <DialogDescription className="text-[12.5px]">
+            Demander un document à David Lévy (Propriétaire)
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label
+              htmlFor="request-title"
+              className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400"
+            >
+              Nom du document
+            </label>
+            <input
+              id="request-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Ex. Attestation d'assurance"
+              className="w-full rounded-xl bg-slate-50 px-3.5 py-2.5 text-base text-slate-800 ring-1 ring-slate-200/80 outline-none transition-shadow placeholder:text-slate-400 focus:ring-2 focus:ring-[#4373f5]/40"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label
+              htmlFor="request-content"
+              className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400"
+            >
+              Contenu de la demande
+            </label>
+            <textarea
+              id="request-content"
+              rows={4}
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              placeholder="Décrivez ce que vous attendez…"
+              className="w-full resize-none rounded-xl bg-slate-50 px-3.5 py-2.5 text-base leading-relaxed text-slate-800 ring-1 ring-slate-200/80 outline-none transition-shadow placeholder:text-slate-400 focus:ring-2 focus:ring-[#4373f5]/40"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+              Destinataire
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {["Propriétaire", "Locataire"].map((target) => {
+                const active = targets.includes(target);
+                return (
+                  <button
+                    key={target}
+                    type="button"
+                    onClick={() => toggle(target)}
+                    className={cn(
+                      "rounded-xl px-3.5 py-2 text-[12.5px] font-semibold transition-colors",
+                      active
+                        ? "bg-[#4373f5]/10 text-[#3563e9] ring-1 ring-[#4373f5]/30"
+                        : "bg-slate-50 text-slate-500 ring-1 ring-slate-200/80 hover:text-slate-800",
+                    )}
+                  >
+                    {target}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="rounded-xl px-4 py-2.5 text-[12.5px] font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!title.trim() || !content.trim() || targets.length === 0}
+            className="rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-4 py-2.5 text-[12.5px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(53,99,233,0.9)] transition-opacity disabled:opacity-50"
+          >
+            Créer la demande
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ---------- La page --------------------------------------------------------- */
 
 export function ChatPreview() {
@@ -340,6 +514,8 @@ export function ChatPreview() {
 
   const chat = usePreviewChat(persona);
   const who = INTERLOCUTOR[persona];
+  const isNotaire = persona === "notaire";
+  const [requestDialog, setRequestDialog] = React.useState(false);
 
   const completeRequest = (requestId: string, files: File[]) => {
     chat.setItems((current) =>
@@ -366,11 +542,44 @@ export function ChatPreview() {
     );
   };
 
+  const addRequest = (request: { title: string; content: string; targets: string[] }) => {
+    const id = `req-${Date.now()}`;
+    const createdAt = new Date();
+    chat.setItems((current) => [
+      ...current,
+      {
+        type: "request",
+        id,
+        createdAt,
+        data: {
+          id,
+          createdAt,
+          title: request.title,
+          content: request.content,
+          status: "pending",
+          targets: request.targets,
+          authorName: "Moi",
+        },
+      },
+    ]);
+  };
+
+  const setRequestStatus = (requestId: string, status: RequestStatus) => {
+    chat.setItems((current) =>
+      current.map((item) =>
+        item.type === "request" && item.id === requestId
+          ? { ...item, data: { ...item.data, status } }
+          : item,
+      ),
+    );
+  };
+
   const panel = (
     <ChatPanel
       interlocutor={{
         name: who.name,
         role: who.role,
+        badge: who.badge,
         online: persona !== "notaire",
         typing: chat.typing,
         subtitle: who.subtitle,
@@ -382,17 +591,49 @@ export function ChatPreview() {
         onChange: chat.setValue,
         onSubmit: chat.submit,
         onAttach: () => chat.pickerRef.current?.click(),
+        // Côté notaire, la barre d'écriture ouvre aussi la demande de document.
+        actions: isNotaire
+          ? [
+              {
+                id: "request",
+                label: "Demande de document",
+                icon: FileText,
+                onSelect: () => setRequestDialog(true),
+              },
+              {
+                id: "attach",
+                label: "Ajouter photo / fichiers",
+                icon: Paperclip,
+                onSelect: () => chat.pickerRef.current?.click(),
+              },
+            ]
+          : undefined,
+        // Côté notaire, Entrée va à la ligne : seul le bouton envoie.
+        enterToSend: !isNotaire,
         files: chat.files.map((file) => ({ name: file.name, size: file.size })),
         onRemoveFile: (index) =>
           chat.setFiles((current) => current.filter((_, i) => i !== index)),
-        placeholder:
-          persona === "notaire" ? "Écrire à votre client…" : "Écrire au notaire…",
+        placeholder: isNotaire ? "Écrire à votre client…" : "Écrire au notaire…",
       }}
       onDeleteMessage={chat.removeMessage}
       onDownloadAttachment={() => undefined}
+      onOpenAttachment={() => undefined}
       renderRespond={(request) => (
         <PreviewRespondForm onDone={(files) => completeRequest(request.id, files)} />
       )}
+      renderRequestFooter={
+        isNotaire
+          ? (request) => (
+              <RequestStatusControl
+                status={request.status}
+                onChange={(status) => setRequestStatus(request.id, status)}
+                onDelete={() =>
+                  chat.setItems((current) => current.filter((item) => item.id !== request.id))
+                }
+              />
+            )
+          : undefined
+      }
       onClose={() => undefined}
     />
   );
@@ -412,6 +653,12 @@ export function ChatPreview() {
           }
           event.target.value = "";
         }}
+      />
+
+      <NewRequestDialog
+        open={requestDialog}
+        onOpenChange={setRequestDialog}
+        onCreate={addRequest}
       />
 
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
@@ -502,7 +749,8 @@ export function ChatPreview() {
           {[
             "Bulles regroupées par auteur, séparateurs de jour, heure sur la dernière du groupe",
             "Accusés : en cours, envoyé, lu — et l'état « non envoyé » en cas d'échec",
-            "Demandes du notaire dans le fil, avec dépôt de documents et progression",
+            "Demandes du notaire dans le fil : en attente, complétée, annulée, avec destinataires",
+            "Côté notaire : « + » dans la barre d'écriture pour créer une demande, et statut modifiable",
             "Pièces jointes dans la bulle, téléchargement au clic",
             "Présence, « en train d'écrire… », squelette de chargement, retour en bas",
             "Suppression d'un message au survol, comme aujourd'hui",

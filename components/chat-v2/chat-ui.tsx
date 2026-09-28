@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   ArrowDown,
+  Ban,
   Check,
   CheckCheck,
   Clock,
@@ -10,12 +11,20 @@ import {
   FileText,
   Loader2,
   Paperclip,
+  Plus,
   Scale,
   Send,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 /* =========================================================================
@@ -181,11 +190,13 @@ export function MessageAttachment({
   name,
   meta,
   tone = "them",
+  onOpen,
   onDownload,
 }: {
   name: string;
   meta?: string;
   tone?: "me" | "them";
+  onOpen?: () => void;
   onDownload?: () => void;
 }) {
   const mine = tone === "me";
@@ -205,9 +216,22 @@ export function MessageAttachment({
         <FileText className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={cn("block truncate text-[12.5px] font-semibold", mine ? "text-white" : "text-slate-800")}>
-          {name}
-        </span>
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            className={cn(
+              "block max-w-full truncate text-left text-[12.5px] font-semibold underline-offset-2 hover:underline",
+              mine ? "text-white" : "text-slate-800",
+            )}
+          >
+            {name}
+          </button>
+        ) : (
+          <span className={cn("block truncate text-[12.5px] font-semibold", mine ? "text-white" : "text-slate-800")}>
+            {name}
+          </span>
+        )}
         {meta && (
           <span className={cn("block text-[11px]", mine ? "text-white/70" : "text-slate-400")}>{meta}</span>
         )}
@@ -248,81 +272,196 @@ export function TypingBubble({ name, role }: { name: string; role?: "notaire" | 
 
 /* ---------- Une demande du notaire dans le fil ------------------------------ */
 
+export type RequestStatus = "pending" | "completed" | "cancelled";
+
+const REQUEST_VIEW: Record<
+  RequestStatus,
+  { label: string; rule: string; tile: string; icon: React.ElementType }
+> = {
+  pending: {
+    label: "Document demandé",
+    rule: "bg-amber-400",
+    tile: "bg-amber-100 text-amber-600",
+    icon: Upload,
+  },
+  completed: {
+    label: "Demande complétée",
+    rule: "bg-emerald-400",
+    tile: "bg-emerald-100 text-emerald-600",
+    icon: Check,
+  },
+  cancelled: {
+    label: "Demande annulée",
+    rule: "bg-slate-300",
+    tile: "bg-slate-100 text-slate-500",
+    icon: Ban,
+  },
+};
+
 export function RequestCard({
   title,
   content,
   status,
+  /** « Propriétaire », « Locataire » : à qui la demande s'adresse. */
+  targets = [],
+  /** La ligne d'auteur et d'heure, comme au-dessus d'une bulle. */
+  meta,
   documents = [],
   onDownloadDocument,
+  onOpenDocument,
   /** Le formulaire de réponse, fourni par l'appelant : il garde sa logique d'envoi. */
   respond,
   respondLabel = "Envoyer le document",
+  /** Les commandes du notaire : changement de statut, suppression. */
+  footer,
 }: {
   title: string;
   content: string;
-  status: "pending" | "completed";
+  status: RequestStatus;
+  targets?: string[];
+  meta?: string;
   documents?: Array<{ id: string; name: string; meta?: string }>;
   onDownloadDocument?: (id: string) => void;
+  onOpenDocument?: (id: string) => void;
   respond?: React.ReactNode;
   respondLabel?: string;
+  footer?: React.ReactNode;
 }) {
-  const pending = status === "pending";
+  const view = REQUEST_VIEW[status];
+  const Icon = view.icon;
   // Ouvrir la zone de réponse est un état d'affichage, rien de plus.
   const [expanded, setExpanded] = React.useState(false);
 
   return (
-    <div className="my-3 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200/80">
-      <div aria-hidden className={cn("h-1", pending ? "bg-amber-400" : "bg-emerald-400")} />
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          <span
-            className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-              pending ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600",
-            )}
-          >
-            {pending ? <Upload className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-              {pending ? "Document demandé" : "Demande complétée"}
-            </p>
-            <p className="mt-0.5 text-[14px] font-semibold leading-tight tracking-tight text-slate-900">
-              {title}
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-snug text-slate-500">
-              {content}
-            </p>
+    <div className="my-3">
+      {meta && (
+        <p className="mb-1 px-1 text-[11px] font-semibold text-slate-400">{meta}</p>
+      )}
+      <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200/80">
+        <div aria-hidden className={cn("h-1", view.rule)} />
+        <div className="p-4">
+          <div className="flex items-start gap-3">
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                view.tile,
+              )}
+            >
+              <Icon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                {view.label}
+              </p>
+              <p
+                className={cn(
+                  "mt-0.5 text-[14px] font-semibold leading-tight tracking-tight text-slate-900",
+                  status === "cancelled" && "text-slate-400 line-through",
+                )}
+              >
+                {title}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-snug text-slate-500">
+                {content}
+              </p>
+              {targets.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {targets.map((target) => (
+                    <span
+                      key={target}
+                      className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-500"
+                    >
+                      {target}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+
+          {documents.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="px-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                Documents fournis
+              </p>
+              {documents.map((doc) => (
+                <MessageAttachment
+                  key={doc.id}
+                  name={doc.name}
+                  meta={doc.meta}
+                  onOpen={onOpenDocument ? () => onOpenDocument(doc.id) : undefined}
+                  onDownload={onDownloadDocument ? () => onDownloadDocument(doc.id) : undefined}
+                />
+              ))}
+            </div>
+          )}
+
+          {respond && !expanded && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-slate-800 sm:w-auto"
+            >
+              <Paperclip className="h-4 w-4" />
+              {respondLabel}
+            </button>
+          )}
+          {respond && expanded && (
+            <div className="mt-3.5 border-t border-slate-100 pt-3.5">{respond}</div>
+          )}
+
+          {footer && <div className="mt-3.5 border-t border-slate-100 pt-3">{footer}</div>}
         </div>
-
-        {documents.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {documents.map((doc) => (
-              <MessageAttachment
-                key={doc.id}
-                name={doc.name}
-                meta={doc.meta ?? "Envoyé en réponse"}
-                onDownload={onDownloadDocument ? () => onDownloadDocument(doc.id) : undefined}
-              />
-            ))}
-          </div>
-        )}
-
-        {respond && !expanded && (
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            className="mt-3.5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-slate-800 sm:w-auto"
-          >
-            <Paperclip className="h-4 w-4" />
-            {respondLabel}
-          </button>
-        )}
-        {respond && expanded && (
-          <div className="mt-3.5 border-t border-slate-100 pt-3.5">{respond}</div>
-        )}
       </div>
+    </div>
+  );
+}
+
+/* ---------- Les commandes d'une demande, côté notaire ----------------------- */
+
+/** Le statut d'une demande, tel que le notaire peut le changer. */
+export function RequestStatusControl({
+  status,
+  onChange,
+  onDelete,
+  busy = false,
+}: {
+  status: RequestStatus;
+  onChange: (status: RequestStatus) => void;
+  onDelete?: () => void;
+  busy?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <label className="sr-only" htmlFor="request-status">
+        Statut de la demande
+      </label>
+      <div className="relative flex-1">
+        <select
+          id="request-status"
+          value={status}
+          disabled={busy}
+          onChange={(event) => onChange(event.target.value as RequestStatus)}
+          className="w-full appearance-none rounded-xl bg-slate-50 py-2 pl-3 pr-8 text-[12.5px] font-semibold text-slate-700 ring-1 ring-slate-200/80 outline-none transition-shadow focus:ring-2 focus:ring-[#4373f5]/40 disabled:opacity-60"
+        >
+          <option value="pending">En attente</option>
+          <option value="completed">Complétée</option>
+          <option value="cancelled">Annulée</option>
+        </select>
+        <ArrowDown className="pointer-events-none absolute right-3 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+      </div>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={busy}
+          title="Supprimer la demande"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          <span className="sr-only">Supprimer la demande</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -450,24 +589,39 @@ export function RequestRespondForm({
 
 /* ---------- Le composeur ---------------------------------------------------- */
 
+export type PromptAction = {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  onSelect: () => void;
+};
+
 export function PromptInput({
   value,
   onChange,
   onSubmit,
   onAttach,
+  /** Les entrées du menu « + ». Sans elles, le trombone reste seul. */
+  actions,
   files = [],
   onRemoveFile,
   sending = false,
+  /** Faux côté notaire : Entrée va à la ligne, seul le bouton envoie. */
+  enterToSend = true,
   placeholder = "Écrivez votre message…",
+  onTyping,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
   onAttach?: () => void;
+  actions?: PromptAction[];
   files?: Array<{ name: string; size: number }>;
   onRemoveFile?: (index: number) => void;
   sending?: boolean;
+  enterToSend?: boolean;
   placeholder?: string;
+  onTyping?: () => void;
 }) {
   const canSend = !sending && (value.trim().length > 0 || files.length > 0);
   const areaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -509,16 +663,44 @@ export function PromptInput({
         )}
 
         <div className="flex items-end gap-1 p-1.5">
-          <button
-            type="button"
-            onClick={onAttach}
-            disabled={sending}
-            title="Joindre un document"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-          >
-            <Paperclip className="h-[18px] w-[18px]" />
-            <span className="sr-only">Joindre un document</span>
-          </button>
+          {actions && actions.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  disabled={sending}
+                  title="Ajouter"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                >
+                  <Plus className="h-[18px] w-[18px]" />
+                  <span className="sr-only">Ajouter</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-60 rounded-xl">
+                {actions.map((action) => (
+                  <DropdownMenuItem
+                    key={action.id}
+                    onSelect={action.onSelect}
+                    className="cursor-pointer gap-2 rounded-lg text-[13px] font-medium"
+                  >
+                    <action.icon className="h-4 w-4 shrink-0 text-slate-400" />
+                    {action.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <button
+              type="button"
+              onClick={onAttach}
+              disabled={sending}
+              title="Joindre un document"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+            >
+              <Paperclip className="h-[18px] w-[18px]" />
+              <span className="sr-only">Joindre un document</span>
+            </button>
+          )}
 
           <textarea
             ref={areaRef}
@@ -528,12 +710,14 @@ export function PromptInput({
             placeholder={placeholder}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
+              onTyping?.();
+              if (enterToSend && event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 if (canSend) onSubmit();
               }
             }}
-            className="min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[13.5px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
+            /* 16 px : en dessous, les navigateurs mobiles zooment à la mise au point. */
+            className="min-h-[36px] flex-1 resize-none bg-transparent py-2 text-base leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
           />
 
           <button
@@ -554,7 +738,9 @@ export function PromptInput({
         </div>
       </div>
       <p className="mt-2 px-1 text-[11px] text-slate-400">
-        Entrée pour envoyer · Maj + Entrée pour aller à la ligne
+        {enterToSend
+          ? "Entrée pour envoyer · Maj + Entrée pour aller à la ligne"
+          : "Entrée va à la ligne · le bouton envoie le message"}
       </p>
     </div>
   );
@@ -565,6 +751,8 @@ export function PromptInput({
 export function ChatHeader({
   name,
   role,
+  /** « Notaire », « Propriétaire », « Locataire »… */
+  badge,
   online,
   typing,
   subtitle,
@@ -572,6 +760,7 @@ export function ChatHeader({
 }: {
   name: string;
   role?: "notaire" | "client";
+  badge?: string;
   online?: boolean;
   typing?: boolean;
   subtitle?: string;
@@ -606,9 +795,16 @@ export function ChatHeader({
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-[14.5px] font-semibold tracking-tight text-slate-900">
           <span className="truncate">{name}</span>
-          {role === "notaire" && (
-            <span className="shrink-0 rounded-full bg-[#4373f5]/10 px-2 py-0.5 text-[10.5px] font-semibold text-[#3563e9]">
-              Notaire
+          {badge && (
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+                role === "notaire"
+                  ? "bg-[#4373f5]/10 text-[#3563e9]"
+                  : "bg-slate-100 text-slate-500",
+              )}
+            >
+              {badge}
             </span>
           )}
         </p>
