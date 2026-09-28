@@ -6,6 +6,7 @@ import { MessageSquare, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ChatHeader,
+  ChatHeaderSkeleton,
   ChatSkeleton,
   Conversation,
   DateSeparator,
@@ -37,6 +38,9 @@ export type ChatAttachmentView = {
   id: string;
   name: string;
   meta?: string;
+  /** Qui a envoyé la pièce, et à quel titre. */
+  by?: string;
+  byBadge?: string;
 };
 
 export type ChatMessageView = {
@@ -58,6 +62,8 @@ export type ChatRequestView = {
   title: string;
   content: string;
   status: RequestStatus;
+  /** Vrai le temps que la création parvienne au serveur. */
+  sending?: boolean;
   /** « Propriétaire », « Locataire » : à qui la demande s'adresse. */
   targets?: string[];
   /** L'auteur de la demande, affiché au-dessus de la carte. */
@@ -149,9 +155,12 @@ export type ChatPanelProps = {
     enterToSend?: boolean;
     placeholder?: string;
     onTyping?: () => void;
+    error?: string | null;
   };
   onDownloadAttachment?: (attachmentId: string) => void;
   onOpenAttachment?: (attachmentId: string) => void;
+  /** Réservé au notaire : verser une pièce du fil aux annexes du bail. */
+  onAddAttachmentToBail?: (attachmentId: string) => void;
   onDeleteMessage?: (messageId: string) => void;
   /** Le formulaire de réponse d'une demande, rendu par l'appelant. */
   renderRespond?: (request: ChatRequestView) => React.ReactNode;
@@ -171,6 +180,7 @@ export function ChatPanel({
   composer,
   onDownloadAttachment,
   onOpenAttachment,
+  onAddAttachmentToBail,
   onDeleteMessage,
   renderRespond,
   renderRequestFooter,
@@ -204,15 +214,19 @@ export function ChatPanel({
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col bg-[#f7f8fb]", className)}>
-      <ChatHeader
-        name={interlocutor.name}
-        role={interlocutor.role}
-        badge={interlocutor.badge}
-        online={interlocutor.online}
-        typing={interlocutor.typing}
-        subtitle={interlocutor.subtitle}
-        onClose={onClose}
-      />
+      {loading && !interlocutor.name ? (
+        <ChatHeaderSkeleton />
+      ) : (
+        <ChatHeader
+          name={interlocutor.name}
+          role={interlocutor.role}
+          badge={interlocutor.badge}
+          online={interlocutor.online}
+          typing={interlocutor.typing}
+          subtitle={interlocutor.subtitle}
+          onClose={onClose}
+        />
+      )}
 
       <div className="relative flex min-h-0 flex-1 flex-col">
         {refreshing && !loading && <RefreshChip />}
@@ -254,6 +268,7 @@ export function ChatPanel({
                         title={request.title}
                         content={request.content}
                         status={request.status}
+                        sending={request.sending}
                         targets={request.targets}
                         meta={
                           request.authorName
@@ -263,6 +278,7 @@ export function ChatPanel({
                         documents={request.documents}
                         onDownloadDocument={onDownloadAttachment}
                         onOpenDocument={onOpenAttachment}
+                        onAddDocumentToBail={onAddAttachmentToBail}
                         respond={
                           request.canRespond && request.status === "pending"
                             ? renderRespond?.(request)
@@ -282,7 +298,12 @@ export function ChatPanel({
                 return (
                   <React.Fragment key={item.id}>
                     {separator}
-                    <div className="group/message relative">
+                    <div
+                      className={cn(
+                        "group/message relative",
+                        message.status === "sending" && "opacity-70",
+                      )}
+                    >
                       <Message from={message.from} last={last}>
                         {/* Mes messages se passent d'avatar : l'alignement suffit. */}
                         {!mine && (
@@ -308,6 +329,8 @@ export function ChatPanel({
                               key={attachment.id}
                               name={attachment.name}
                               meta={attachment.meta}
+                              by={attachment.by}
+                              byBadge={attachment.byBadge}
                               tone={mine ? "me" : "them"}
                               onOpen={
                                 onOpenAttachment ? () => onOpenAttachment(attachment.id) : undefined
@@ -315,6 +338,11 @@ export function ChatPanel({
                               onDownload={
                                 onDownloadAttachment
                                   ? () => onDownloadAttachment(attachment.id)
+                                  : undefined
+                              }
+                              onAddToBail={
+                                onAddAttachmentToBail
+                                  ? () => onAddAttachmentToBail(attachment.id)
                                   : undefined
                               }
                             />
@@ -362,6 +390,7 @@ export function ChatPanel({
         enterToSend={composer.enterToSend}
         placeholder={composer.placeholder}
         onTyping={composer.onTyping}
+        error={composer.error}
       />
     </div>
   );

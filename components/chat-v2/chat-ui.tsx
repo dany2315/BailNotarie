@@ -15,10 +15,19 @@ import {
   Scale,
   Send,
   Trash2,
+  User,
   Upload,
   X,
 } from "lucide-react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -189,15 +198,26 @@ export function MessageContent({
 export function MessageAttachment({
   name,
   meta,
+  /** Qui a envoyé la pièce, sous son nom. */
+  by,
+  /** « Propriétaire », « Locataire » : la qualité de l'expéditeur. */
+  byBadge,
   tone = "them",
   onOpen,
   onDownload,
+  /** Réservé au notaire : verser la pièce aux annexes du bail. */
+  onAddToBail,
+  addToBailLabel = "Ajouter",
 }: {
   name: string;
   meta?: string;
+  by?: string;
+  byBadge?: string;
   tone?: "me" | "them";
   onOpen?: () => void;
   onDownload?: () => void;
+  onAddToBail?: () => void;
+  addToBailLabel?: string;
 }) {
   const mine = tone === "me";
   return (
@@ -232,22 +252,63 @@ export function MessageAttachment({
             {name}
           </span>
         )}
-        {meta && (
-          <span className={cn("block text-[11px]", mine ? "text-white/70" : "text-slate-400")}>{meta}</span>
+        {(meta || by) && (
+          <span
+            className={cn(
+              "mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]",
+              mine ? "text-white/70" : "text-slate-400",
+            )}
+          >
+            {by && (
+              <span className="inline-flex items-center gap-1">
+                <User className="h-3 w-3" />
+                {by}
+              </span>
+            )}
+            {by && byBadge && (
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-px text-[10px] font-semibold",
+                  mine ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500",
+                )}
+              >
+                {byBadge}
+              </span>
+            )}
+            {meta && <span>{meta}</span>}
+          </span>
         )}
       </span>
-      <button
-        type="button"
-        onClick={onDownload}
-        title="Télécharger"
-        className={cn(
-          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-          mine ? "text-white/80 hover:bg-white/20 hover:text-white" : "text-slate-400 hover:bg-white hover:text-slate-700",
-        )}
-      >
-        <Download className="h-4 w-4" />
-        <span className="sr-only">Télécharger</span>
-      </button>
+      {onAddToBail && (
+        <button
+          type="button"
+          onClick={onAddToBail}
+          title="Ajouter aux pièces annexes du bail"
+          className={cn(
+            "inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-[11.5px] font-semibold transition-colors",
+            mine
+              ? "text-white/80 hover:bg-white/20 hover:text-white"
+              : "text-[#3563e9] hover:bg-[#4373f5]/10",
+          )}
+        >
+          <Check className="h-3.5 w-3.5" />
+          {addToBailLabel}
+        </button>
+      )}
+      {onDownload && (
+        <button
+          type="button"
+          onClick={onDownload}
+          title="Télécharger"
+          className={cn(
+            "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+            mine ? "text-white/80 hover:bg-white/20 hover:text-white" : "text-slate-400 hover:bg-white hover:text-slate-700",
+          )}
+        >
+          <Download className="h-4 w-4" />
+          <span className="sr-only">Télécharger</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -302,6 +363,8 @@ export function RequestCard({
   title,
   content,
   status,
+  /** Vrai le temps que la création parvienne au serveur. */
+  sending = false,
   /** « Propriétaire », « Locataire » : à qui la demande s'adresse. */
   targets = [],
   /** La ligne d'auteur et d'heure, comme au-dessus d'une bulle. */
@@ -309,6 +372,7 @@ export function RequestCard({
   documents = [],
   onDownloadDocument,
   onOpenDocument,
+  onAddDocumentToBail,
   /** Le formulaire de réponse, fourni par l'appelant : il garde sa logique d'envoi. */
   respond,
   respondLabel = "Envoyer le document",
@@ -318,11 +382,13 @@ export function RequestCard({
   title: string;
   content: string;
   status: RequestStatus;
+  sending?: boolean;
   targets?: string[];
   meta?: string;
-  documents?: Array<{ id: string; name: string; meta?: string }>;
+  documents?: Array<{ id: string; name: string; meta?: string; by?: string; byBadge?: string }>;
   onDownloadDocument?: (id: string) => void;
   onOpenDocument?: (id: string) => void;
+  onAddDocumentToBail?: (id: string) => void;
   respond?: React.ReactNode;
   respondLabel?: string;
   footer?: React.ReactNode;
@@ -333,9 +399,12 @@ export function RequestCard({
   const [expanded, setExpanded] = React.useState(false);
 
   return (
-    <div className="my-3">
+    <div className={cn("my-3", sending && "opacity-70")}>
       {meta && (
-        <p className="mb-1 px-1 text-[11px] font-semibold text-slate-400">{meta}</p>
+        <p className="mb-1 flex items-center gap-1.5 px-1 text-[11px] font-semibold text-slate-400">
+          {meta}
+          {sending && <Loader2 className="h-3 w-3 animate-spin" />}
+        </p>
       )}
       <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200/80">
         <div aria-hidden className={cn("h-1", view.rule)} />
@@ -389,8 +458,13 @@ export function RequestCard({
                   key={doc.id}
                   name={doc.name}
                   meta={doc.meta}
+                  by={doc.by}
+                  byBadge={doc.byBadge}
                   onOpen={onOpenDocument ? () => onOpenDocument(doc.id) : undefined}
                   onDownload={onDownloadDocument ? () => onDownloadDocument(doc.id) : undefined}
+                  onAddToBail={
+                    onAddDocumentToBail ? () => onAddDocumentToBail(doc.id) : undefined
+                  }
                 />
               ))}
             </div>
@@ -610,6 +684,7 @@ export function PromptInput({
   enterToSend = true,
   placeholder = "Écrivez votre message…",
   onTyping,
+  error,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -622,6 +697,8 @@ export function PromptInput({
   enterToSend?: boolean;
   placeholder?: string;
   onTyping?: () => void;
+  /** Le message de validation, sous le champ. */
+  error?: string | null;
 }) {
   const canSend = !sending && (value.trim().length > 0 || files.length > 0);
   const areaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -638,7 +715,12 @@ export function PromptInput({
     <div className="border-t border-slate-200/70 bg-white/80 p-3 backdrop-blur-xl sm:p-4">
       <div className="rounded-2xl bg-white ring-1 ring-slate-200/80 transition-shadow focus-within:ring-2 focus-within:ring-[#4373f5]/40">
         {files.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 border-b border-slate-100 p-2.5">
+          <div className="space-y-1.5 border-b border-slate-100 p-2.5">
+            <p className="px-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+              {files.length} fichier{files.length > 1 ? "s" : ""} sélectionné
+              {files.length > 1 ? "s" : ""}
+            </p>
+            <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
             {files.map((file, index) => (
               <span
                 key={`${file.name}-${index}`}
@@ -659,6 +741,7 @@ export function PromptInput({
                 </button>
               </span>
             ))}
+            </div>
           </div>
         )}
 
@@ -737,6 +820,7 @@ export function PromptInput({
           </button>
         </div>
       </div>
+      {error && <p className="mt-2 px-1 text-[11.5px] font-medium text-red-600">{error}</p>}
       <p className="mt-2 px-1 text-[11px] text-slate-400">
         {enterToSend
           ? "Entrée pour envoyer · Maj + Entrée pour aller à la ligne"
@@ -900,5 +984,89 @@ export function RefreshChip({ children = "Mise à jour…" }: { children?: React
         {children}
       </span>
     </div>
+  );
+}
+
+
+/** L'en-tête pendant la première requête : la forme, sans les noms. */
+export function ChatHeaderSkeleton() {
+  return (
+    <header
+      aria-hidden
+      className="flex items-center gap-3 border-b border-slate-200/70 bg-white/80 px-4 py-3.5 backdrop-blur-xl sm:px-5"
+    >
+      <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-slate-200/70" />
+      <div className="flex-1 space-y-2">
+        <span className="block h-4 w-40 animate-pulse rounded bg-slate-200/70" />
+        <span className="block h-3 w-24 animate-pulse rounded bg-slate-200/60" />
+      </div>
+    </header>
+  );
+}
+
+/* ---------- Confirmations --------------------------------------------------- */
+
+/**
+ * La confirmation avant une suppression. L'appelant garde son action serveur
+ * et son message d'erreur ; ce composant n'est que la fenêtre.
+ */
+export function ConfirmDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  warning,
+  confirmLabel = "Supprimer",
+  cancelLabel = "Annuler",
+  busy = false,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  warning?: React.ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  busy?: boolean;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-[17px] font-semibold tracking-tight">{title}</DialogTitle>
+          <DialogDescription className="text-[12.5px] leading-relaxed">
+            {description}
+          </DialogDescription>
+        </DialogHeader>
+
+        {warning && (
+          <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-[12.5px] font-medium leading-snug text-red-600">
+            {warning}
+          </p>
+        )}
+
+        <DialogFooter className="gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            disabled={busy}
+            className="rounded-xl px-4 py-2.5 text-[12.5px] font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {confirmLabel}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

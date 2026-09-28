@@ -12,7 +12,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { RequestRespondForm, RequestStatusControl, type RequestStatus } from "./chat-ui";
+import {
+  ConfirmDialog,
+  RequestRespondForm,
+  RequestStatusControl,
+  type RequestStatus,
+} from "./chat-ui";
 import {
   ChatPanel,
   type ChatMessageView,
@@ -53,7 +58,16 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
     type: "message",
     id,
     createdAt: at(base, minutesAgo),
-    data: { id, from, content, createdAt: at(base, minutesAgo), status: from === "me" ? "read" : undefined, ...extra },
+    data: {
+      id,
+      from,
+      content,
+      createdAt: at(base, minutesAgo),
+      status: from === "me" ? "read" : undefined,
+      // Comme aujourd'hui : on ne peut supprimer que ses propres messages.
+      canDelete: from === "me",
+      ...extra,
+    },
   });
 
   const request = (
@@ -77,7 +91,9 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
         status: "completed",
         targets: ["Propriétaire"],
         authorName: "Moi",
-        documents: [{ id: "nd1", name: "acte-acquisition-2019.pdf", meta: "David Lévy · 2,4 Mo" }],
+        documents: [
+          { id: "nd1", name: "acte-acquisition-2019.pdf", meta: "2,4 Mo", by: "David Lévy", byBadge: "Propriétaire" },
+        ],
       }),
       message("n3", "them", "Voilà pour le titre. J'ai aussi le dernier avis de taxe foncière si besoin.", 1_500, { authorName: "David Lévy" }),
       message("n4", "me", "Merci, c'est noté. Il me reste l'attestation d'assurance propriétaire non occupant.", 96, { canDelete: true }),
@@ -110,7 +126,9 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
         status: "completed",
         targets: ["Locataire"],
         authorName: "Maître Claire Ferrand",
-        documents: [{ id: "ld1", name: "quittance-juillet.pdf", meta: "Moi · 480 Ko" }],
+        documents: [
+          { id: "ld1", name: "quittance-juillet.pdf", meta: "480 Ko", by: "Moi", byBadge: "Locataire" },
+        ],
       }),
       message("l3", "me", "C'est envoyé. Bonne réception.", 1_460),
       message("l4", "them", "Parfait. Dernière pièce et nous pourrons signer.", 140, { authorName: "Maître Claire Ferrand", authorRole: "notaire" }),
@@ -136,7 +154,9 @@ function scenario(persona: Persona, base: number): ChatTimelineItem[] {
       status: "completed",
       targets: ["Propriétaire"],
       authorName: "Maître Claire Ferrand",
-      documents: [{ id: "pd1", name: "acte-acquisition-2019.pdf", meta: "Moi · 2,4 Mo" }],
+      documents: [
+        { id: "pd1", name: "acte-acquisition-2019.pdf", meta: "2,4 Mo", by: "Moi", byBadge: "Propriétaire" },
+      ],
     }),
     message("p3", "me", "Voilà le titre de propriété. J'ai aussi la taxe foncière si vous en avez besoin.", 1_552, {
       attachments: [{ id: "pa1", name: "taxe-fonciere-2025.pdf", meta: "1,1 Mo" }],
@@ -516,6 +536,19 @@ export function ChatPreview() {
   const who = INTERLOCUTOR[persona];
   const isNotaire = persona === "notaire";
   const [requestDialog, setRequestDialog] = React.useState(false);
+  const [messageToDelete, setMessageToDelete] = React.useState<string | null>(null);
+  const [requestToDelete, setRequestToDelete] = React.useState<string | null>(null);
+
+  const deletedMessage = chat.items.find(
+    (item) => item.type === "message" && item.id === messageToDelete,
+  );
+  const messageHasDocument =
+    deletedMessage?.type === "message" && (deletedMessage.data.attachments?.length ?? 0) > 0;
+  const deletedRequest = chat.items.find(
+    (item) => item.type === "request" && item.id === requestToDelete,
+  );
+  const requestDocuments =
+    deletedRequest?.type === "request" ? deletedRequest.data.documents?.length ?? 0 : 0;
 
   const completeRequest = (requestId: string, files: File[]) => {
     chat.setItems((current) =>
@@ -615,9 +648,11 @@ export function ChatPreview() {
           chat.setFiles((current) => current.filter((_, i) => i !== index)),
         placeholder: isNotaire ? "Écrire à votre client…" : "Écrire au notaire…",
       }}
-      onDeleteMessage={chat.removeMessage}
+      onDeleteMessage={setMessageToDelete}
       onDownloadAttachment={() => undefined}
       onOpenAttachment={() => undefined}
+      // Réservé au notaire, comme aujourd'hui.
+      onAddAttachmentToBail={isNotaire ? () => undefined : undefined}
       renderRespond={(request) => (
         <PreviewRespondForm onDone={(files) => completeRequest(request.id, files)} />
       )}
@@ -627,9 +662,7 @@ export function ChatPreview() {
               <RequestStatusControl
                 status={request.status}
                 onChange={(status) => setRequestStatus(request.id, status)}
-                onDelete={() =>
-                  chat.setItems((current) => current.filter((item) => item.id !== request.id))
-                }
+                onDelete={() => setRequestToDelete(request.id)}
               />
             )
           : undefined
@@ -659,6 +692,34 @@ export function ChatPreview() {
         open={requestDialog}
         onOpenChange={setRequestDialog}
         onCreate={addRequest}
+      />
+
+      <ConfirmDialog
+        open={messageToDelete !== null}
+        onOpenChange={(value) => !value && setMessageToDelete(null)}
+        title="Supprimer le message"
+        description="Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible."
+        warning={messageHasDocument ? "Le document associé sera également supprimé." : undefined}
+        onConfirm={() => {
+          if (messageToDelete) chat.removeMessage(messageToDelete);
+          setMessageToDelete(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={requestToDelete !== null}
+        onOpenChange={(value) => !value && setRequestToDelete(null)}
+        title="Supprimer la demande"
+        description="Êtes-vous sûr de vouloir supprimer cette demande de document ? Cette action est irréversible."
+        warning={
+          requestDocuments > 0
+            ? `Les documents associés (${requestDocuments}) seront également supprimés.`
+            : undefined
+        }
+        onConfirm={() => {
+          chat.setItems((current) => current.filter((item) => item.id !== requestToDelete));
+          setRequestToDelete(null);
+        }}
       />
 
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
@@ -753,7 +814,8 @@ export function ChatPreview() {
             "Côté notaire : « + » dans la barre d'écriture pour créer une demande, et statut modifiable",
             "Pièces jointes dans la bulle, téléchargement au clic",
             "Présence, « en train d'écrire… », squelette de chargement, retour en bas",
-            "Suppression d'un message au survol, comme aujourd'hui",
+            "Suppression au survol, avec la fenêtre de confirmation et son avertissement",
+            "Notaire : « Ajouter » pour verser une pièce du fil aux annexes du bail",
           ].map((line) => (
             <li key={line} className="flex gap-2">
               <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-[#4373f5]" />
