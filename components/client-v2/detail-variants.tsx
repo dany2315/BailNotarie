@@ -211,7 +211,7 @@ function Feuille({ model }: { model: DetailModel }) {
     <div className="min-h-full bg-gradient-to-b from-[#e8edf9] to-[#f4f6fb] px-0 pb-0 pt-3 sm:px-6 sm:pb-6 sm:pt-5">
       {/* Une feuille posée sur l'espace client : on voit le canevas dépasser
           autour, comme une fiche sortie d'un dossier. */}
-      <div className="mx-auto w-full max-w-3xl overflow-hidden rounded-t-[28px] bg-white shadow-[0_-2px_0_rgba(255,255,255,0.8),0_30px_70px_-40px_rgba(15,23,42,0.4)] ring-1 ring-slate-200/70 sm:rounded-[28px]">
+      <div className="mx-auto min-h-[calc(100dvh-0.75rem)] w-full max-w-3xl overflow-hidden rounded-t-[28px] bg-white shadow-[0_-2px_0_rgba(255,255,255,0.8),0_30px_70px_-40px_rgba(15,23,42,0.4)] ring-1 ring-slate-200/70 sm:min-h-0 sm:rounded-[28px]">
         <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-xl sm:px-6">
           <BackArrow href={model.backHref} />
           <Trail model={model} />
@@ -242,8 +242,18 @@ function Feuille({ model }: { model: DetailModel }) {
 
           {model.stats.length > 0 && (
             <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-slate-100 sm:grid-cols-4">
-              {model.stats.map((stat) => (
-                <div key={stat.label} className="bg-slate-50/70 px-3.5 py-3">
+              {model.stats.map((stat, index) => (
+                <div
+                  key={stat.label}
+                  className={cn(
+                    "bg-slate-50/70 px-3.5 py-3",
+                    // Le dernier d'un nombre impair prend toute la largeur :
+                    // pas de case vide au bout de la rangée.
+                    index === model.stats.length - 1 &&
+                      model.stats.length % 2 === 1 &&
+                      "col-span-2 sm:col-span-1",
+                  )}
+                >
                   <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
                     {stat.label}
                   </p>
