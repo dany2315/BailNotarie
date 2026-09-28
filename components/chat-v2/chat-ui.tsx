@@ -177,12 +177,8 @@ export function MessageContent({
         {children}
       </div>
       {last && (time || status) && (
-        <span
-          className={cn(
-            "flex items-center gap-1 px-1 text-[10.5px] tabular-nums text-slate-400",
-            mine && "flex-row-reverse",
-          )}
-        >
+        /* L'accusé se lit après l'heure : 07:22 ✓✓ */
+        <span className="flex items-center gap-1 px-1 text-[10.5px] tabular-nums text-slate-400">
           {time}
           {mine && status === "sending" && <Clock className="h-3 w-3" />}
           {mine && status === "sent" && <Check className="h-3 w-3" />}
