@@ -1,9 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { ArrowLeft, ChevronRight } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 
 /* =========================================================================
@@ -23,10 +20,23 @@ import { cn } from "@/lib/utils";
 /** Le canevas commun aux trois pages : dégradé très doux + halo bleu discret
     en haut, pour que la barre de navigation flottante ait quelque chose à
     laisser deviner derrière elle. */
-export function OwnerCanvas({ children, className }: { children: React.ReactNode; className?: string }) {
+export function OwnerCanvas({
+  children,
+  className,
+  /** Faux quand une barre au-dessus réserve déjà la hauteur de la barre du site. */
+  navOffset = true,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  navOffset?: boolean;
+}) {
   return (
     <div
-      className={cn("relative min-h-full pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:pt-0", className)}
+      className={cn(
+        "relative min-h-full",
+        navOffset && "pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:pt-0",
+        className,
+      )}
     >
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[420px] overflow-hidden">
         <div className="absolute -top-40 left-1/2 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-[#4373f5]/[0.11] blur-[110px]" />
@@ -327,65 +337,3 @@ export function EmptyState({
 }
 
 /* ---------- Divers -------------------------------------------------------- */
-
-/* ---------- Revenir en arrière ----------------------------------------------- */
-
-/**
- * La navigation de retour d'une page de détail : une flèche pour le geste
- * rapide, et un fil d'Ariane pour savoir où l'on est.
- *
- * Les deux coexistent parce qu'ils ne servent pas la même chose : la flèche
- * est un raccourci, le fil situe la page dans l'arborescence et permet de
- * remonter de plusieurs crans d'un seul clic.
- */
-export function PageNav({
-  backHref,
-  backLabel = "Retour",
-  trail,
-  className,
-}: {
-  backHref: string;
-  backLabel?: string;
-  /** Du plus général au plus précis. Le dernier est la page courante. */
-  trail: Array<{ label: string; href?: string }>;
-  className?: string;
-}) {
-  return (
-    <nav aria-label="Fil d'Ariane" className={cn("flex flex-col gap-2", className)}>
-      <Link
-        href={backHref}
-        className="inline-flex w-fit items-center gap-1.5 rounded-lg text-[12.5px] font-semibold text-slate-500 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/50"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        {backLabel}
-      </Link>
-
-      {/* Sur un téléphone, le fil défile plutôt que de passer à la ligne. */}
-      <ol className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap text-[11.5px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {trail.map((step, index) => {
-          const last = index === trail.length - 1;
-          return (
-            <li key={`${step.label}-${index}`} className="flex shrink-0 items-center gap-1.5">
-              {index > 0 && <ChevronRight className="h-3 w-3 shrink-0 text-slate-300" />}
-              {step.href && !last ? (
-                <Link
-                  href={step.href}
-                  className="font-medium text-slate-400 transition-colors hover:text-slate-700"
-                >
-                  {step.label}
-                </Link>
-              ) : (
-                <span
-                  aria-current={last ? "page" : undefined}
-                  className={cn("font-semibold", last ? "text-slate-700" : "text-slate-400")}
-                >
-                  {step.label}
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
-}

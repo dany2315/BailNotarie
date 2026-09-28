@@ -9,6 +9,7 @@ import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
 import { BailChatSheet } from "@/components/client/bail-chat-sheet";
 import { BailDocumentPreview } from "@/components/client/bail-document-preview";
 import { PrimaryAction, QuietAction } from "./owner-ui";
+import { SubPageBar } from "./owner-tabs";
 import type { DetailModel } from "./detail-model";
 import { DetailVariant } from "./detail-variants";
 import { BAIL_TYPE_LABELS, STATUS_VIEW } from "./owner-bail-card";
@@ -238,5 +239,10 @@ export function BailPage({
     ],
   };
 
-  return <DetailVariant variant="rail" model={model} />;
+  return (
+    <>
+      <SubPageBar backHref={model.backHref} trail={model.trail} />
+      <DetailVariant variant="rail" model={model} chrome={false} />
+    </>
+  );
 }

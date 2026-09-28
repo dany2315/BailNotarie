@@ -7,6 +7,7 @@ import { Building2, ChevronRight, FileText, Home, Plus } from "lucide-react";
 import { formatDate } from "@/lib/utils/formatters";
 import { BailDocumentPreview } from "@/components/client/bail-document-preview";
 import { EmptyState, PrimaryAction } from "./owner-ui";
+import { SubPageBar } from "./owner-tabs";
 import type { DetailModel } from "./detail-model";
 import { DetailVariant } from "./detail-variants";
 import { STATUS_VIEW } from "./owner-bail-card";
@@ -191,5 +192,12 @@ export function PropertyPage({ property }: { property: PropertyPageData }) {
     ],
   };
 
-  return <DetailVariant variant="feuille" model={model} />;
+  return (
+    <>
+      {/* La barre des sous-pages prend la place du segmenté : un seul niveau
+          de navigation à l'écran, dans la même matière. */}
+      <SubPageBar backHref={model.backHref} trail={model.trail} />
+      <DetailVariant variant="feuille" model={model} chrome={false} />
+    </>
+  );
 }

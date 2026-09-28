@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -72,9 +73,32 @@ function Trail({
 
 function BackArrow({ href, tone = "clair" }: { href: string; tone?: "clair" | "sombre" }) {
   const dim = tone === "sombre";
+  const router = useRouter();
+
+  // Revenir en arrière, pas choisir une destination : c'est le fil d'Ariane qui
+  // nomme les étapes. `href` ne sert que de repli, sans historique.
+  const goBack = () => {
+    // Deux repères, parce qu'aucun n'est fiable seul : Next numérote ses
+    // propres entrées dans `history.state.idx` quand il le fournit ; sinon on
+    // se rabat sur la longueur de l'historique, qui vaut 1 dans un onglet
+    // ouvert directement. Sans rien derrière nous, la flèche rejoint le parent
+    // plutôt que de faire sortir du site.
+    if (typeof window !== "undefined") {
+      const state = window.history.state as { idx?: number } | null;
+      const enArriere =
+        typeof state?.idx === "number" ? state.idx > 0 : window.history.length > 1;
+      if (enArriere) {
+        router.back();
+        return;
+      }
+    }
+    router.push(href);
+  };
+
   return (
-    <Link
-      href={href}
+    <button
+      type="button"
+      onClick={goBack}
       title="Retour"
       className={cn(
         "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
@@ -85,7 +109,7 @@ function BackArrow({ href, tone = "clair" }: { href: string; tone?: "clair" | "s
     >
       <ArrowLeft className="h-4 w-4" />
       <span className="sr-only">Retour</span>
-    </Link>
+    </button>
   );
 }
 
@@ -129,25 +153,32 @@ function FieldRows({ section }: { section: DetailSection }) {
 
 /* ---------- 1. Bandeau -------------------------------------------------------- */
 
-function Bandeau({ model }: { model: DetailModel }) {
+function Bandeau({ model, chrome }: { model: DetailModel; chrome: boolean }) {
   return (
     <div className="min-h-full bg-[#f4f6fb]">
       {/* Le bandeau : la page principale n'en a jamais, donc sa seule présence
           dit qu'on est descendu d'un cran. */}
       {/* La barre du site flotte au-dessus du contenu : sur mobile, chaque mise
           en page lui réserve sa hauteur, comme le fait OwnerCanvas ailleurs. */}
-      <header className="relative overflow-hidden bg-gradient-to-br from-[#1b2f6b] via-[#25428f] to-[#3563e9] pb-16 pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:pt-8">
+      <header
+        className={cn(
+          "relative overflow-hidden bg-gradient-to-br from-[#1b2f6b] via-[#25428f] to-[#3563e9] pb-16 sm:pt-8",
+          chrome ? "pt-[calc(var(--lp-nav-h,76px)+0.5rem)]" : "pt-6",
+        )}
+      >
         <div
           aria-hidden
           className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl"
         />
         <div className="relative mx-auto w-full max-w-4xl px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <BackArrow href={model.backHref} tone="sombre" />
-            <Trail model={model} tone="sombre" />
-          </div>
+          {chrome && (
+            <div className="mb-6 flex items-center gap-3">
+              <BackArrow href={model.backHref} tone="sombre" />
+              <Trail model={model} tone="sombre" />
+            </div>
+          )}
 
-          <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/50">
+          <p className=" text-[10px] font-semibold uppercase tracking-[0.14em] text-white/50">
             {model.eyebrow}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -208,20 +239,23 @@ function Bandeau({ model }: { model: DetailModel }) {
 
 /* ---------- 2. Feuille -------------------------------------------------------- */
 
-function Feuille({ model }: { model: DetailModel }) {
+function Feuille({ model, chrome }: { model: DetailModel; chrome: boolean }) {
   return (
-    <div className="min-h-full bg-gradient-to-b from-[#e8edf9] to-[#f4f6fb] px-0 pb-0 pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:px-6 sm:pb-6 sm:pt-5">
+    <div
+      className={cn(
+        "min-h-full bg-gradient-to-b from-[#e8edf9] to-[#f4f6fb] px-0 pb-0 sm:px-6 sm:pb-6 sm:pt-5",
+        chrome ? "pt-[calc(var(--lp-nav-h,76px)+0.5rem)]" : "pt-0",
+      )}
+    >
       {/* Une feuille posée sur l'espace client : on voit le canevas dépasser
           autour, comme une fiche sortie d'un dossier. */}
       <div className="mx-auto min-h-[calc(100dvh-var(--lp-nav-h,76px)-1rem)] w-full max-w-3xl overflow-hidden rounded-t-[28px] bg-white shadow-[0_-2px_0_rgba(255,255,255,0.8),0_30px_70px_-40px_rgba(15,23,42,0.4)] ring-1 ring-slate-200/70 sm:min-h-0 sm:rounded-[28px]">
-        {/* Pas de `sticky` ici : la feuille est en `overflow-hidden` pour ses
-            coins arrondis, ce qui annule le collage — la barre se contentait
-            de glisser par-dessus le titre. Elle défile donc avec la page, et
-            le fil d'Ariane reste atteignable d'un retour en haut. */}
-        <div className="flex items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 sm:px-6">
-          <BackArrow href={model.backHref} />
-          <Trail model={model} />
-        </div>
+        {chrome && (
+          <div className="flex items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 sm:px-6">
+            <BackArrow href={model.backHref} />
+            <Trail model={model} />
+          </div>
+        )}
 
         <div className="px-4 pb-14 pt-6 sm:px-6">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#3563e9]">
@@ -291,16 +325,23 @@ function Feuille({ model }: { model: DetailModel }) {
 
 /* ---------- 3. Rail ----------------------------------------------------------- */
 
-function Rail({ model }: { model: DetailModel }) {
+function Rail({ model, chrome }: { model: DetailModel; chrome: boolean }) {
   return (
     <div className="min-h-full bg-[#f4f6fb]">
-      <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:px-6 sm:pt-5">
-        <div className="flex items-center gap-3">
-          <BackArrow href={model.backHref} />
-          <Trail model={model} />
-        </div>
+      <div
+        className={cn(
+          "mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6 sm:pt-5",
+          chrome ? "pt-[calc(var(--lp-nav-h,76px)+0.5rem)]" : "pt-0 sm:pt-0",
+        )}
+      >
+        {chrome && (
+          <div className="flex items-center gap-3">
+            <BackArrow href={model.backHref} />
+            <Trail model={model} />
+          </div>
+        )}
 
-        <div className="mt-5 gap-6 lg:grid lg:grid-cols-[19rem_minmax(0,1fr)] lg:items-start">
+        <div className={cn("gap-6 lg:grid lg:grid-cols-[19rem_minmax(0,1fr)] lg:items-start", chrome && "mt-5")}>
           {/* Le résumé reste sous les yeux pendant qu'on lit le détail. */}
           <aside className="lg:sticky lg:top-5">
             <Surface tone="raised" className="p-5">
@@ -364,19 +405,26 @@ function Rail({ model }: { model: DetailModel }) {
 
 /* ---------- 4. Éditorial ------------------------------------------------------ */
 
-function Editorial({ model }: { model: DetailModel }) {
+function Editorial({ model, chrome }: { model: DetailModel; chrome: boolean }) {
   return (
     <div className="min-h-full bg-white">
       {/* Une barre fine qui reste : le seul élément de chrome, et le repère
           permanent qu'on est dans une fiche. */}
-      <div className="sticky top-[calc(var(--lp-nav-h,76px)+0.5rem)] z-10 border-b border-slate-100 bg-white/85 backdrop-blur-xl sm:top-0">
-        <div className="mx-auto flex w-full max-w-2xl items-center gap-3 px-4 py-2.5 sm:px-6">
-          <BackArrow href={model.backHref} />
-          <Trail model={model} />
+      {chrome && (
+        <div className="sticky top-[calc(var(--lp-nav-h,76px)+0.5rem)] z-10 border-b border-slate-100 bg-white/85 backdrop-blur-xl sm:top-0">
+          <div className="mx-auto flex w-full max-w-2xl items-center gap-3 px-4 py-2.5 sm:px-6">
+            <BackArrow href={model.backHref} />
+            <Trail model={model} />
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="mx-auto w-full max-w-2xl px-4 pb-20 pt-[calc(var(--lp-nav-h,76px)+1.5rem)] sm:px-6 sm:pt-10">
+      <div
+        className={cn(
+          "mx-auto w-full max-w-2xl px-4 pb-20 sm:px-6 sm:pt-10",
+          chrome ? "pt-[calc(var(--lp-nav-h,76px)+1.5rem)]" : "pt-6",
+        )}
+      >
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#3563e9]">
           {model.eyebrow}
         </p>
@@ -427,9 +475,18 @@ function Editorial({ model }: { model: DetailModel }) {
 
 /* ---------- Le sélecteur ------------------------------------------------------ */
 
-export function DetailVariant({ variant, model }: { variant: VariantKey; model: DetailModel }) {
-  if (variant === "bandeau") return <Bandeau model={model} />;
-  if (variant === "feuille") return <Feuille model={model} />;
-  if (variant === "rail") return <Rail model={model} />;
-  return <Editorial model={model} />;
+export function DetailVariant({
+  variant,
+  model,
+  /** Faux quand la barre du haut porte déjà la flèche et le fil d'Ariane. */
+  chrome = true,
+}: {
+  variant: VariantKey;
+  model: DetailModel;
+  chrome?: boolean;
+}) {
+  if (variant === "bandeau") return <Bandeau model={model} chrome={chrome} />;
+  if (variant === "feuille") return <Feuille model={model} chrome={chrome} />;
+  if (variant === "rail") return <Rail model={model} chrome={chrome} />;
+  return <Editorial model={model} chrome={chrome} />;
 }

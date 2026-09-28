@@ -25,12 +25,12 @@ import {
   IconTile,
   MicroLabel,
   OwnerCanvas,
-  PageNav,
   Pill,
   PrimaryAction,
   ReadField,
   Surface,
 } from "../owner-ui";
+import { SubPageBar } from "../owner-tabs";
 import { TenantStepBar } from "./tenant-bail-line";
 import { BAIL_TYPE_LABELS, STATUS_VIEW, STEP_INDEX, TERMINAL_STATUSES } from "./model";
 
@@ -144,18 +144,19 @@ export function TenantBailDetail({
   const proprietaire = hasProprietaire;
 
   return (
-    <OwnerCanvas>
-      <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:pb-14">
-        {/* ── Retour + identité du bail ──────────────────────────────────── */}
-        {/* Même navigation que les pages du propriétaire : une flèche pour le
-            geste rapide, un fil d'Ariane pour situer la page. */}
-        <PageNav
-          backHref="/client/locataire/baux"
-          trail={[
-            { label: "Mes baux", href: "/client/locataire/baux" },
-            { label: propertyTitle },
-          ]}
-        />
+    <>
+      {/* ── Retour + fil d'Ariane ──────────────────────────────────────────
+          La même barre de sous-page que chez le propriétaire : elle occupe
+          l'emplacement du segmenté, qui s'efface sur cette route. */}
+      <SubPageBar
+        backHref="/client/locataire/baux"
+        trail={[
+          { label: "Mes baux", href: "/client/locataire/baux" },
+          { label: propertyTitle },
+        ]}
+      />
+      <OwnerCanvas navOffset={false}>
+        <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-2 sm:px-6 sm:pt-4 lg:pb-14">
 
         <header className="mb-6 mt-5">
           <MicroLabel>Espace locataire</MicroLabel>
@@ -371,8 +372,9 @@ export function TenantBailDetail({
               </div>
             </Surface>
           )}
+          </div>
         </div>
-      </div>
-    </OwnerCanvas>
+      </OwnerCanvas>
+    </>
   );
 }
