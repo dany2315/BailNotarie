@@ -41,7 +41,11 @@ import { Progress } from "@/components/ui/progress";
 import { getPusherClient } from "@/lib/pusher-client";
 import type { Channel } from "pusher-js";
 import { ChatPanel } from "@/components/chat-v2/chat-panel";
-import { ConfirmDialog, RequestRespondForm } from "@/components/chat-v2/chat-ui";
+import {
+  CHAT_SHEET_CLASS,
+  ConfirmDialog,
+  RequestRespondForm,
+} from "@/components/chat-v2/chat-ui";
 import { toTimeline } from "@/components/chat-v2/adapters";
 
 const messageSchema = z.object({
@@ -973,9 +977,8 @@ export function BailChatSheet({ bailId, trigger, defaultOpen = false }: BailChat
       <SheetTrigger asChild>
         {trigger || defaultTrigger}
       </SheetTrigger>
-      {/* Pleine largeur sur mobile, tiroir de 2xl à partir de sm. La croix du
-          tiroir est masquée : l'en-tête de la conversation porte la sienne. */}
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl [&>button:last-child]:hidden">
+      {/* Plein écran sur mobile, bulle flottante à partir de sm. */}
+      <SheetContent className={CHAT_SHEET_CLASS}>
         <SheetTitle className="sr-only">
           {otherUser ? `Discussion avec Maître ${otherUser.name || otherUser.email}` : "Discussion sur le bail"}
         </SheetTitle>

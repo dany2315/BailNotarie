@@ -893,7 +893,8 @@ export function ChatHeader({
             </span>
           )}
         </p>
-        <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-slate-500">
+        {/* Une seule ligne : dans la bulle, la place est comptée. */}
+        <p className="mt-0.5 flex items-center gap-1.5 truncate text-[12px] text-slate-500">
           {typing ? (
             <>
               <span className="flex gap-0.5">
@@ -910,7 +911,7 @@ export function ChatHeader({
           ) : online ? (
             "en ligne"
           ) : (
-            subtitle
+            <span className="truncate">{subtitle}</span>
           )}
         </p>
       </div>
@@ -1071,3 +1072,25 @@ export function ConfirmDialog({
     </Dialog>
   );
 }
+
+
+/* ---------- Le tiroir ------------------------------------------------------- */
+
+/**
+ * L'habillage du panneau de conversation.
+ *
+ * Sur mobile, la conversation prend l'écran : c'est la seule mise en page
+ * tenable au pouce. À partir de `sm`, elle se détache en bulle posée en bas à
+ * droite, aux angles arrondis, et laisse voir la page derrière elle.
+ *
+ * La croix native du tiroir est masquée : l'en-tête de la conversation porte
+ * la sienne, à sa place.
+ */
+export const CHAT_SHEET_CLASS = cn(
+  "flex w-full flex-col gap-0 overflow-hidden p-0",
+  "[&>button:last-child]:hidden",
+  "sm:inset-y-auto sm:top-auto sm:bottom-5 sm:right-5",
+  "sm:h-[min(46rem,calc(100dvh-2.5rem))] sm:max-w-[28rem]",
+  "sm:rounded-[28px] sm:border sm:border-slate-200/70",
+  "sm:shadow-[0_32px_80px_-28px_rgba(15,23,42,0.45)]",
+);

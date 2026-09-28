@@ -55,6 +55,7 @@ import { cn } from "@/lib/utils";
 import { getPusherClient } from "@/lib/pusher-client";
 import { ChatPanel } from "@/components/chat-v2/chat-panel";
 import {
+  CHAT_SHEET_CLASS,
   ConfirmDialog,
   RequestStatusControl,
   type RequestStatus,
@@ -995,9 +996,8 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
           {trigger || defaultTrigger}
         </SheetTrigger>
       )}
-      {/* Pleine largeur sur mobile, tiroir de 2xl à partir de sm. La croix du
-          tiroir est masquée : l'en-tête de la conversation porte la sienne. */}
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl [&>button:last-child]:hidden">
+      {/* Plein écran sur mobile, bulle flottante à partir de sm. */}
+      <SheetContent className={CHAT_SHEET_CLASS}>
         <SheetTitle className="sr-only">
           {otherUser
             ? `Discussion avec ${otherUser.partyName || otherUser.name || otherUser.email}`
