@@ -920,6 +920,7 @@ export function ChatHeader({
         <button
           type="button"
           onClick={onClose}
+          title="Fermer"
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
         >
           <X className="h-4 w-4" />

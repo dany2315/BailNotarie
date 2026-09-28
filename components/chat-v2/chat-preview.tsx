@@ -537,6 +537,8 @@ export function ChatPreview() {
   const isNotaire = persona === "notaire";
   const [requestDialog, setRequestDialog] = React.useState(false);
   const [messageToDelete, setMessageToDelete] = React.useState<string | null>(null);
+  // La croix ferme pour de vrai, même dans la maquette.
+  const [closed, setClosed] = React.useState(false);
   const [requestToDelete, setRequestToDelete] = React.useState<string | null>(null);
 
   const deletedMessage = chat.items.find(
@@ -667,7 +669,7 @@ export function ChatPreview() {
             )
           : undefined
       }
-      onClose={() => undefined}
+      onClose={() => setClosed(true)}
     />
   );
 
@@ -782,7 +784,18 @@ export function ChatPreview() {
 
         {/* ── L'aperçu ─────────────────────────────────────────────────────── */}
         <div className="mt-6">
-          {device === "desktop" ? (
+          {closed ? (
+            <div className="flex flex-col items-center gap-4 rounded-[22px] bg-white py-16 ring-1 ring-slate-200/70">
+              <p className="text-[13.5px] text-slate-500">La conversation est fermée.</p>
+              <button
+                type="button"
+                onClick={() => setClosed(false)}
+                className="rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-4 py-2.5 text-[12.5px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(53,99,233,0.9)]"
+              >
+                Rouvrir la conversation
+              </button>
+            </div>
+          ) : device === "desktop" ? (
             <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_40px_80px_-40px_rgba(15,23,42,0.35)] ring-1 ring-slate-200/70">
               <div className="flex items-center gap-1.5 border-b border-slate-200/70 bg-slate-50/80 px-4 py-2.5">
                 {["#f87171", "#fbbf24", "#34d399"].map((color) => (
