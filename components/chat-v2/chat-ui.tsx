@@ -692,7 +692,7 @@ export function PromptInput({
   sending?: boolean;
   enterToSend?: boolean;
   placeholder?: string;
-  onTyping?: () => void;
+  onTyping?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   /** Le message de validation, sous le champ. */
   error?: string | null;
 }) {
@@ -794,7 +794,7 @@ export function PromptInput({
             placeholder={placeholder}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {
-              onTyping?.();
+              onTyping?.(event);
               if (enterToSend && event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 if (canSend) onSubmit();

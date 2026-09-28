@@ -35,9 +35,12 @@ import {
    ========================================================================= */
 
 export type ChatAttachmentView = {
+  /** L'identifiant du document en base. */
   id: string;
   name: string;
   meta?: string;
+  /** La clé S3, dont dépendent l'ouverture et le téléchargement. */
+  fileKey?: string;
   /** Qui a envoyé la pièce, et à quel titre. */
   by?: string;
   byBadge?: string;
@@ -154,13 +157,13 @@ export type ChatPanelProps = {
     /** Faux côté notaire : Entrée va à la ligne, seul le bouton envoie. */
     enterToSend?: boolean;
     placeholder?: string;
-    onTyping?: () => void;
+    onTyping?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
     error?: string | null;
   };
-  onDownloadAttachment?: (attachmentId: string) => void;
-  onOpenAttachment?: (attachmentId: string) => void;
+  onDownloadAttachment?: (attachment: ChatAttachmentView) => void;
+  onOpenAttachment?: (attachment: ChatAttachmentView) => void;
   /** Réservé au notaire : verser une pièce du fil aux annexes du bail. */
-  onAddAttachmentToBail?: (attachmentId: string) => void;
+  onAddAttachmentToBail?: (attachment: ChatAttachmentView) => void;
   onDeleteMessage?: (messageId: string) => void;
   /** Le formulaire de réponse d'une demande, rendu par l'appelant. */
   renderRespond?: (request: ChatRequestView) => React.ReactNode;
@@ -276,9 +279,30 @@ export function ChatPanel({
                             : undefined
                         }
                         documents={request.documents}
-                        onDownloadDocument={onDownloadAttachment}
-                        onOpenDocument={onOpenAttachment}
-                        onAddDocumentToBail={onAddAttachmentToBail}
+                        onDownloadDocument={
+                          onDownloadAttachment
+                            ? (id) => {
+                                const doc = request.documents?.find((d) => d.id === id);
+                                if (doc) onDownloadAttachment(doc);
+                              }
+                            : undefined
+                        }
+                        onOpenDocument={
+                          onOpenAttachment
+                            ? (id) => {
+                                const doc = request.documents?.find((d) => d.id === id);
+                                if (doc) onOpenAttachment(doc);
+                              }
+                            : undefined
+                        }
+                        onAddDocumentToBail={
+                          onAddAttachmentToBail
+                            ? (id) => {
+                                const doc = request.documents?.find((d) => d.id === id);
+                                if (doc) onAddAttachmentToBail(doc);
+                              }
+                            : undefined
+                        }
                         respond={
                           request.canRespond && request.status === "pending"
                             ? renderRespond?.(request)
@@ -333,16 +357,16 @@ export function ChatPanel({
                               byBadge={attachment.byBadge}
                               tone={mine ? "me" : "them"}
                               onOpen={
-                                onOpenAttachment ? () => onOpenAttachment(attachment.id) : undefined
+                                onOpenAttachment ? () => onOpenAttachment(attachment) : undefined
                               }
                               onDownload={
                                 onDownloadAttachment
-                                  ? () => onDownloadAttachment(attachment.id)
+                                  ? () => onDownloadAttachment(attachment)
                                   : undefined
                               }
                               onAddToBail={
                                 onAddAttachmentToBail
-                                  ? () => onAddAttachmentToBail(attachment.id)
+                                  ? () => onAddAttachmentToBail(attachment)
                                   : undefined
                               }
                             />

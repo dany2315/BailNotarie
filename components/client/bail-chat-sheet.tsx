@@ -40,6 +40,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { getPusherClient } from "@/lib/pusher-client";
 import type { Channel } from "pusher-js";
+import { ChatPanel } from "@/components/chat-v2/chat-panel";
+import { ConfirmDialog, RequestRespondForm } from "@/components/chat-v2/chat-ui";
+import { toTimeline } from "@/components/chat-v2/adapters";
 
 const messageSchema = z.object({
   content: z.string().optional(),
@@ -243,46 +246,18 @@ function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: stri
   };
 
   return (
-    <div className="mt-3 space-y-3 border-t pt-3">
-      <FileUpload
-        label="Répondre avec des documents"
-        files={responseFiles}
-        onFilesChange={setResponseFiles}
-        multiple
-        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-        disabled={isResponding}
-      />
-      <div className="space-y-2">
-        {isResponding && (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Upload en cours...</span>
-              <span>{Math.round(uploadProgress)}%</span>
-            </div>
-            <Progress value={uploadProgress} className="h-2" />
-          </div>
-        )}
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleResponseSubmit}
-          disabled={isResponding || responseFiles.length === 0}
-          className="w-full"
-        >
-          {isResponding ? (
-            <>
-              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-              Envoi en cours...
-            </>
-          ) : (
-            <>
-              <Send className="mr-2 h-3 w-3" />
-              Envoyer {responseFiles.length} fichier{responseFiles.length > 1 ? "s" : ""}
-            </>
-          )}
-        </Button>
-      </div>
-    </div>
+    <RequestRespondForm
+      files={responseFiles}
+      onPick={(picked) =>
+        picked && setResponseFiles((current) => [...current, ...Array.from(picked)])
+      }
+      onRemoveFile={(index) =>
+        setResponseFiles((current) => current.filter((_, i) => i !== index))
+      }
+      onSubmit={handleResponseSubmit}
+      sending={isResponding}
+      progress={uploadProgress}
+    />
   );
 }
 
@@ -326,6 +301,7 @@ export function BailChatSheet({ bailId, trigger, defaultOpen = false }: BailChat
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<MessageFormData>({
     resolver: zodResolver(messageSchema),
@@ -997,566 +973,165 @@ export function BailChatSheet({ bailId, trigger, defaultOpen = false }: BailChat
       <SheetTrigger asChild>
         {trigger || defaultTrigger}
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-2xl flex flex-col p-0">
-        <SheetHeader className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center gap-3">
-            {/* Skeleton pour le header pendant le chargement */}
-            {initialLoading && !otherUser ? (
-              <>
-                <Skeleton className="h-10 w-10 rounded-full shrink-0" />
-                <div className="flex-1 min-w-0 space-y-2">
-                  <SheetTitle className="sr-only">Chargement de la discussion</SheetTitle>
-                  <Skeleton className="h-5 w-40" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-              </>
-            ) : (
-              <>
-                {otherUser && (
-                  <Avatar className="h-10 w-10 shrink-0">
-                    <AvatarFallback className={otherUser.role === Role.NOTAIRE ? "bg-blue-500 text-white" : "bg-muted"}>
-                      {otherUser.role === Role.NOTAIRE ? (
-                        <Scale className="h-5 w-5" />
-                      ) : (
-                        (otherUser.name || otherUser.email || "U")
-                          .split(" ")
-                          .map((n: string) => n[0])
-                          .join("")
-                          .toUpperCase()
-                          .slice(0, 2)
-                      )}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-                <div className="flex-1 min-w-0">
-                  <SheetTitle className="text-lg">
-                    {otherUser ? (`Maitre ${otherUser.name}` || otherUser.email || "Utilisateur") : "Discussion sur le bail"} 
-                    {otherUser && <Badge variant="outline" className="text-xs font-light text-muted-foreground ml-2">Notaire</Badge>}
-                  </SheetTitle>
-                  <div className="flex items-center gap-2 mt-1">
-                    {isOtherUserTyping ? (
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <div className="flex gap-1">
-                          <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                          <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                          <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></div>
-                        </div>
-                        <span className="text-xs">en train d'écrire...</span>
-                      </div>
-                    ) : isOtherUserOnline ? (
-                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-xs">en ligne</span>
-                      </div>
-                    ) : (
-                      <SheetDescription className="text-xs mt-0">
-                        {isNotaire ? "Communiquez avec les clients" : "Communiquez avec le notaire"}
-                      </SheetDescription>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </SheetHeader>
+      {/* Pleine largeur sur mobile, tiroir de 2xl à partir de sm. La croix du
+          tiroir est masquée : l'en-tête de la conversation porte la sienne. */}
+      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl [&>button:last-child]:hidden">
+        <SheetTitle className="sr-only">
+          {otherUser ? `Discussion avec Maître ${otherUser.name || otherUser.email}` : "Discussion sur le bail"}
+        </SheetTitle>
+        <SheetDescription className="sr-only">
+          {isNotaire ? "Communiquez avec les clients" : "Communiquez avec le notaire"}
+        </SheetDescription>
 
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Zone de messages */}
-          <ScrollArea ref={scrollAreaRef} className="flex-1 px-4 py-6">
-            {/* Indicateur de rafraîchissement discret en haut */}
-            {refreshing && messages.length > 0 && (
-              <div className="flex justify-center py-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Mise à jour...</span>
-                </div>
-              </div>
-            )}
-            
-            <div className="space-y-6">
-              {initialLoading ? (
-                /* Skeletons de messages pendant le chargement */
-                <div className="space-y-6">
-                  {/* Message entrant skeleton */}
-                  <div className="flex gap-3">
-                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                    <div className="flex flex-col gap-1 max-w-[75%]">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-3 w-20" />
-                        <Skeleton className="h-3 w-16" />
-                      </div>
-                      <Skeleton className="h-16 w-64 rounded-2xl rounded-bl-md" />
-                    </div>
-                  </div>
-                  {/* Message sortant skeleton */}
-                  <div className="flex gap-3 flex-row-reverse">
-                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                    <div className="flex flex-col gap-1 items-end max-w-[75%]">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-3 w-16" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                      <Skeleton className="h-12 w-48 rounded-2xl rounded-br-md" />
-                    </div>
-                  </div>
-                  {/* Message entrant skeleton */}
-                  <div className="flex gap-3">
-                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                    <div className="flex flex-col gap-1 max-w-[75%]">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-3 w-20" />
-                        <Skeleton className="h-3 w-16" />
-                      </div>
-                      <Skeleton className="h-20 w-72 rounded-2xl rounded-bl-md" />
-                    </div>
-                  </div>
-                  {/* Demande skeleton */}
-                  <div className="flex gap-3">
-                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                    <div className="flex-1 max-w-[75%]">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Skeleton className="h-3 w-24" />
-                        <Skeleton className="h-3 w-16" />
-                      </div>
-                      <Skeleton className="h-32 w-full rounded-lg" />
-                    </div>
-                  </div>
-                </div>
-              ) : allItems.length === 0 ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center space-y-2">
-                    <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground/50" />
-                    <p className="text-sm text-muted-foreground">
-                      Aucun message pour le moment. Commencez la conversation !
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {allItems.map((item) => {
-                      if (item.type === "message") {
-                        const message = item.data;
-                        const isOwnMessage = message.senderId === currentUserId;
-                        const isNotaireMessage = message.sender.role === Role.NOTAIRE;
-                        const senderInitials = (message.sender.name || message.sender.email || "U")
-                          .split(" ")
-                          .map((n: string) => n[0])
-                          .join("")
-                          .toUpperCase()
-                          .slice(0, 2);
-                        
-                        // Vérifier si c'est un message optimiste
-                        const optimisticStatus = optimisticMessages.get(message.id);
-                        const isOptimistic = optimisticStatus !== undefined;
-                        const isSending = optimisticStatus?.status === 'sending';
-
-                        return (
-                          <div
-                            key={`message-${message.id}`}
-                            className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"} ${isSending ? "opacity-70" : ""}`}
-                          >
-                            <Avatar className="h-8 w-8 shrink-0">
-                              <AvatarFallback className={isNotaireMessage ? "bg-blue-500 text-white" : "bg-muted"}>
-                                {isNotaireMessage ? (
-                                  <Scale className="h-4 w-4" />
-                                ) : (
-                                  senderInitials
-                                )}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className={`flex flex-col gap-1 ${isOwnMessage ? "items-end" : "items-start"} max-w-[75%] group`}>
-                              <div className="flex items-center gap-2 px-1">
-                                <span className="text-xs font-medium text-foreground">
-                                  {isOwnMessage ? "Moi" : (message.sender.name || message.sender.email)}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDateTime(message.createdAt)}
-                                </span>
-                                {isSending && (
-                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                )}
-                                {isOwnMessage && !isOptimistic && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={() => setMessageToDelete(message.id)}
-                                  >
-                                    <Trash2 className="h-3 w-3 text-destructive" />
-                                  </Button>
-                                )}
-                              </div>
-                              <div
-                                className={`rounded-2xl px-4 py-2.5 relative ${
-                                  isOwnMessage
-                                    ? "bg-primary text-primary-foreground rounded-br-md"
-                                    : "bg-muted rounded-bl-md"
-                                }`}
-                              >
-                                {message.content && (
-                                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                                )}
-                                {message.document && (
-                                  <div className={`mt-2 p-2 rounded-lg flex items-center gap-2 ${
-                                    isOwnMessage ? "bg-white/10" : "bg-background"
-                                  }`}>
-                                    <FileText className="h-4 w-4 shrink-0" />
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        const signedUrl = await getSignedUrlForDownload(message.document.fileKey);
-                                        window.open(signedUrl, "_blank", "noopener,noreferrer");
-                                      }}
-                                      className="text-sm underline hover:no-underline flex-1 truncate text-left"
-                                    >
-                                      {message.document.label || "Document"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDownloadDocument(
-                                        message.document.fileKey,
-                                        message.document.label || "Document"
-                                      )}
-                                      className="shrink-0 hover:opacity-70 transition-opacity"
-                                      title="Télécharger le document"
-                                    >
-                                      <Download className="h-4 w-4" />
-                                    </button>
-                                    {isNotaire && (
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 px-2 text-xs shrink-0"
-                                        onClick={async () => {
-                                          try {
-                                            await addChatDocumentToBail(bailId, message.document.id);
-                                            toast.success("Document ajouté aux pièces annexes du bail");
-                                            // Pas besoin de recharger - le document est déjà dans le message
-                                          } catch (error: any) {
-                                            toast.error("Erreur", {
-                                              description: error.message || "Impossible d'ajouter le document",
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        <Check className="h-3 w-3 mr-1" />
-                                        Ajouter
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      } else {
-                        const request = item.data;
-
-                        return (
-                          <div key={`request-${request.id}`} className="flex gap-3">
-                            <Avatar className="h-8 w-8 shrink-0">
-                              <AvatarFallback className="bg-orange-500 text-white">
-                                <FileText className="h-4 w-4" />
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex flex-col gap-1 max-w-[75%] flex-1">
-                              <div className="flex items-center gap-2 px-1">
-                                <span className="text-xs font-medium text-foreground">
-                                  {request.createdBy.name || request.createdBy.email}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDateTime(request.createdAt)}
-                                </span>
-                              </div>
-                              <Card className={`${
-                                  request.status === NotaireRequestStatus.COMPLETED 
-                                    ? "border-green-200 bg-green-50/50 dark:bg-green-950/20" 
-                                    : "border-orange-200 bg-orange-50/50 dark:bg-orange-950/20"
-                                }`}>
-                                <CardContent>
-                                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                    <Badge variant="outline" className={`${
-                                      request.status === NotaireRequestStatus.COMPLETED 
-                                        ? "border-green-300 text-green-700" 
-                                        : "border-orange-300 text-orange-700"
-                                    }`}>
-                                      Demande de document
-                                    </Badge>
-                                    {request.status === NotaireRequestStatus.PENDING && (
-                                      <Badge className="bg-orange-600 text-white">En attente</Badge>
-                                    )}
-                                    {request.status === NotaireRequestStatus.COMPLETED && (
-                                      <Badge className="bg-green-600 text-white">Complétée</Badge>
-                                    )}
-                                  </div>
-                                  <h4 className="font-semibold text-sm mb-1">{request.title}</h4>
-                                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                    {request.content}
-                                  </p>
-                                  {/* Afficher les documents déjà fournis pour cette demande */}
-                                  {request.documents && request.documents.length > 0 && (
-                                    <div className="mt-3 space-y-2">
-                                      <p className="text-xs font-medium text-muted-foreground">Documents fournis :</p>
-                                      {request.documents.map((doc: any) => {
-                                        // Déterminer le nom de l'expéditeur
-                                        const isOwnDocument = doc.uploadedBy?.id === currentUserId;
-                                        const senderName = isOwnDocument 
-                                          ? "Moi"
-                                          : doc.client?.entreprise 
-                                            ? (doc.client.entreprise.legalName || doc.client.entreprise.name)
-                                            : doc.client?.persons?.[0]
-                                              ? `${doc.client.persons[0].firstName || ""} ${doc.client.persons[0].lastName || ""}`.trim()
-                                              : doc.uploadedBy?.name || doc.uploadedBy?.email || "Utilisateur";
-                                        const profilType = doc.client?.profilType === "PROPRIETAIRE" 
-                                          ? "Propriétaire" 
-                                          : doc.client?.profilType === "LOCATAIRE" 
-                                            ? "Locataire" 
-                                            : null;
-                                        
-                                        return (
-                                          <div key={doc.id} className="flex flex-col gap-1 text-xs bg-background p-2 rounded">
-                                            <div className="flex items-center gap-2">
-                                              <FileText className="h-3 w-3 shrink-0" />
-                                              <button
-                                                type="button"
-                                                onClick={async () => {
-                                                  const signedUrl = await getSignedUrlForDownload(doc.fileKey);
-                                                  window.open(signedUrl, "_blank", "noopener,noreferrer");
-                                                }}
-                                                className="underline hover:no-underline flex-1 truncate text-blue-600 hover:text-blue-800 text-left"
-                                              >
-                                                {doc.label || "Document"}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => handleDownloadDocument(
-                                                  doc.fileKey,
-                                                  doc.label || "Document"
-                                                )}
-                                                className="shrink-0 hover:opacity-70 transition-opacity"
-                                                title="Télécharger le document"
-                                              >
-                                                <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                              </button>
-                                            </div>
-                                            <div className="flex items-center gap-1 text-muted-foreground pl-5">
-                                              <User className="h-3 w-3" />
-                                              <span>{senderName}</span>
-                                              {profilType && (
-                                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
-                                                  {profilType}
-                                                </Badge>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                  {/* Formulaire de réponse pour les demandes de document */}
-                                  {request.status === NotaireRequestStatus.PENDING && (
-                                    <RequestResponseForm requestId={request.id} bailId={bailId} />
-                                  )}
-                                </CardContent>
-                              </Card>
-                            </div>
-                          </div>
-                        );
-                      }
-                  })}
-                </>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-
-          {/* Zone de fichiers sélectionnés */}
-          {selectedFiles.length > 0 && (
-            <div className="px-4 py-2 border-t bg-muted/50">
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">
-                  {selectedFiles.length} fichier{selectedFiles.length > 1 ? "s" : ""} sélectionné{selectedFiles.length > 1 ? "s" : ""}
-                </div>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {selectedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="flex-1 truncate">{file.name}</span>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        ({(file.size / 1024).toFixed(0)} KB)
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 shrink-0"
-                        onClick={() => removeFile(index)}
-                        disabled={sending || uploading}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Formulaire d'envoi */}
-          <form onSubmit={handleSubmit(onSubmit)} className="border-t p-4">
-            <InputGroup className="max-w-none">
-              <InputGroupButton
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending || uploading}
-                className="shrink-0"
-              >
-                <Paperclip className="h-4 w-4" />
-              </InputGroupButton>
-              <InputGroupTextarea
-                placeholder="Tapez votre message..."
-                {...register("content")}
-                disabled={sending || uploading}
-                rows={1}
-                className="max-h-32 resize-none"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!sending && !uploading && (watch("content")?.trim() || selectedFiles.length > 0)) {
-                      // Arrêter l'indicateur de saisie avant d'envoyer
-                      if (pusherChannelRef.current && session?.user?.id) {
-                        try {
-                          pusherChannelRef.current.trigger("client-typing", {
-                            userId: session.user.id,
-                            isTyping: false,
-                          });
-                        } catch (error) {
-                          // Ignorer les erreurs
-                        }
-                      }
-                      handleSubmit(onSubmit)();
-                    }
-                  } else {
-                    // Émettre l'événement "typing" quand l'utilisateur tape
-                    if (pusherChannelRef.current && session?.user?.id) {
-                      if (typingDebounceRef.current) {
-                        clearTimeout(typingDebounceRef.current);
-                      }
-                      try {
-                        pusherChannelRef.current.trigger("client-typing", {
-                          userId: session.user.id,
-                          isTyping: true,
-                        });
-                      } catch (error) {
-                        // Ignorer les erreurs
-                      }
-                      // Arrêter l'indicateur après 3 secondes d'inactivité
-                      typingDebounceRef.current = setTimeout(() => {
-                        if (pusherChannelRef.current && session?.user?.id) {
-                          try {
-                            pusherChannelRef.current.trigger("client-typing", {
-                              userId: session.user.id,
-                              isTyping: false,
-                            });
-                          } catch (error) {
-                            // Ignorer les erreurs
-                          }
-                        }
-                      }, 3000);
+        <ChatPanel
+          interlocutor={{
+            name: otherUser
+              ? otherUser.name
+                ? `Maître ${otherUser.name}`
+                : otherUser.email || "Utilisateur"
+              : "Discussion sur le bail",
+            role: otherUser?.role === Role.NOTAIRE ? "notaire" : "client",
+            badge: otherUser ? "Notaire" : undefined,
+            online: isOtherUserOnline,
+            typing: isOtherUserTyping,
+            subtitle: isNotaire ? "Communiquez avec les clients" : "Communiquez avec le notaire",
+          }}
+          items={toTimeline(allItems, {
+            currentUserId,
+            // Côté client, on répond à une demande en attente.
+            canRespond: true,
+            optimisticMessages,
+          })}
+          loading={initialLoading}
+          refreshing={refreshing && messages.length > 0}
+          emptyTitle="Aucun message pour le moment"
+          emptyHint="Commencez la conversation !"
+          composer={{
+            value: watch("content") || "",
+            onChange: (value) => setValue("content", value),
+            onSubmit: () => {
+              if (sending || uploading) return;
+              if (!watch("content")?.trim() && selectedFiles.length === 0) return;
+              // Arrêter l'indicateur de saisie avant d'envoyer
+              if (pusherChannelRef.current && session?.user?.id) {
+                try {
+                  pusherChannelRef.current.trigger("client-typing", {
+                    userId: session.user.id,
+                    isTyping: false,
+                  });
+                } catch (error) {
+                  // Ignorer les erreurs
+                }
+              }
+              handleSubmit(onSubmit)();
+            },
+            onAttach: () => fileInputRef.current?.click(),
+            files: selectedFiles.map((file) => ({ name: file.name, size: file.size })),
+            onRemoveFile: removeFile,
+            sending: sending || uploading,
+            placeholder: "Tapez votre message...",
+            error: errors.content?.message,
+            onTyping: (event) => {
+              // L'envoi par Entrée s'occupe lui-même d'éteindre l'indicateur.
+              if (event.key === "Enter" && !event.shiftKey) return;
+              if (pusherChannelRef.current && session?.user?.id) {
+                if (typingDebounceRef.current) {
+                  clearTimeout(typingDebounceRef.current);
+                }
+                try {
+                  pusherChannelRef.current.trigger("client-typing", {
+                    userId: session.user.id,
+                    isTyping: true,
+                  });
+                } catch (error) {
+                  // Ignorer les erreurs
+                }
+                // Arrêter l'indicateur après 3 secondes d'inactivité
+                typingDebounceRef.current = setTimeout(() => {
+                  if (pusherChannelRef.current && session?.user?.id) {
+                    try {
+                      pusherChannelRef.current.trigger("client-typing", {
+                        userId: session.user.id,
+                        isTyping: false,
+                      });
+                    } catch (error) {
+                      // Ignorer les erreurs
                     }
                   }
-                }}
-              />
-              <InputGroupButton
-                type="submit"
-                variant="ghost"
-                size="sm"
-                disabled={sending || uploading || (selectedFiles.length === 0 && !watch("content")?.trim())}
-                className="shrink-0"
-              >
-                {sending || uploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </InputGroupButton>
-            </InputGroup>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-              onChange={handleFileSelect}
-              disabled={sending || uploading}
-              className="hidden"
-              multiple
-            />
-            {errors.content && (
-              <p className="text-sm text-destructive mt-2 px-1">{errors.content.message}</p>
-            )}
-          </form>
-        </div>
-
-        {/* Dialog de confirmation de suppression */}
-        <Dialog open={messageToDelete !== null} onOpenChange={(open) => !open && setMessageToDelete(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Supprimer le message</DialogTitle>
-              <DialogDescription>
-                Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible.
-                {messages.find(m => m.id === messageToDelete)?.document && (
-                  <span className="block mt-2 text-destructive font-medium">
-                    Le document associé sera également supprimé.
-                  </span>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setMessageToDelete(null)}
-                disabled={isDeleting}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  if (!messageToDelete) return;
+                }, 3000);
+              }
+            },
+          }}
+          onOpenAttachment={async (attachment) => {
+            const signedUrl = await getSignedUrlForDownload(attachment.fileKey || "");
+            window.open(signedUrl, "_blank", "noopener,noreferrer");
+          }}
+          onDownloadAttachment={(attachment) =>
+            handleDownloadDocument(attachment.fileKey || "", attachment.name)
+          }
+          onAddAttachmentToBail={
+            isNotaire
+              ? async (attachment) => {
                   try {
-                    setIsDeleting(true);
-                    await deleteBailMessage(messageToDelete);
-                    toast.success("Message supprimé");
-                    setMessageToDelete(null);
-                    // Ne pas recharger - Pusher mettra à jour automatiquement via message-deleted
+                    await addChatDocumentToBail(bailId, attachment.id);
+                    toast.success("Document ajouté aux pièces annexes du bail");
+                    // Pas besoin de recharger - le document est déjà dans le message
                   } catch (error: any) {
                     toast.error("Erreur", {
-                      description: error.message || "Impossible de supprimer le message",
+                      description: error.message || "Impossible d'ajouter le document",
                     });
-                  } finally {
-                    setIsDeleting(false);
                   }
-                }}
-                disabled={isDeleting}
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Suppression...
-                  </>
-                ) : (
-                  "Supprimer"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                }
+              : undefined
+          }
+          onDeleteMessage={setMessageToDelete}
+          renderRespond={(request) => (
+            <RequestResponseForm requestId={request.id} bailId={bailId} />
+          )}
+          onClose={() => setOpen(false)}
+        />
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+          onChange={handleFileSelect}
+          disabled={sending || uploading}
+          className="hidden"
+          multiple
+        />
+
+        {/* Dialog de confirmation de suppression */}
+        <ConfirmDialog
+          open={messageToDelete !== null}
+          onOpenChange={(value) => !value && setMessageToDelete(null)}
+          title="Supprimer le message"
+          description="Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible."
+          warning={
+            messages.find((m) => m.id === messageToDelete)?.document
+              ? "Le document associé sera également supprimé."
+              : undefined
+          }
+          busy={isDeleting}
+          confirmLabel={isDeleting ? "Suppression..." : "Supprimer"}
+          onConfirm={async () => {
+            if (!messageToDelete) return;
+            try {
+              setIsDeleting(true);
+              await deleteBailMessage(messageToDelete);
+              toast.success("Message supprimé");
+              setMessageToDelete(null);
+              // Ne pas recharger - Pusher mettra à jour automatiquement via message-deleted
+            } catch (error: any) {
+              toast.error("Erreur", {
+                description: error.message || "Impossible de supprimer le message",
+              });
+            } finally {
+              setIsDeleting(false);
+            }
+          }}
+        />
       </SheetContent>
     </Sheet>
   );
 }
-
-
