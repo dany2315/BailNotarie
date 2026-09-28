@@ -62,7 +62,7 @@ export function TestEspaceClient() {
   return (
     <OwnerRuntime demo>
       <div className="min-h-svh bg-background pb-[76px] sm:pb-0">
-        <LpNav />
+        <LpNav overlay />
 
         <OwnerTabsBar active={tab} onSelect={setTab} />
 

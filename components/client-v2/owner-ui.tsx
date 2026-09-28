@@ -22,7 +22,9 @@ import { cn } from "@/lib/utils";
     laisser deviner derrière elle. */
 export function OwnerCanvas({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("relative min-h-full", className)}>
+    <div
+      className={cn("relative min-h-full pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:pt-0", className)}
+    >
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[420px] overflow-hidden">
         <div className="absolute -top-40 left-1/2 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-[#4373f5]/[0.11] blur-[110px]" />
         <div className="absolute -top-24 right-[8%] h-[260px] w-[260px] rounded-full bg-[#8b5cf6]/[0.09] blur-[100px]" />

@@ -68,8 +68,20 @@ export function OwnerTabsBar({
   const active = useActiveTab(explicitActive);
 
   return (
-    <div className={cn("hidden justify-center px-4 pt-4 sm:flex", className)}>
-      <div className="inline-flex gap-1 rounded-2xl border border-slate-200/80 bg-white/80 p-1.5 shadow-[0_2px_4px_rgba(15,23,42,0.04),0_18px_44px_-28px_rgba(30,58,138,0.35)] backdrop-blur-xl">
+    <div
+      className={cn(
+        "pointer-events-none sticky top-0 z-30 hidden justify-center px-4 pb-3 sm:flex",
+        className,
+      )}
+      style={{ paddingTop: "calc(var(--lp-nav-h, 76px) + 0.5rem)" }}
+    >
+      {/* Le contenu qui remonte se dissout dans la couleur de la page avant
+          d'atteindre la barre, au lieu de la traverser en pleine lisibilité. */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-background via-background/85 to-transparent"
+      />
+      <div className="pointer-events-auto relative inline-flex gap-1 rounded-2xl border border-slate-200/80 bg-white/80 p-1.5 shadow-[0_2px_4px_rgba(15,23,42,0.04),0_18px_44px_-28px_rgba(30,58,138,0.35)] backdrop-blur-xl">
         {TABS.map((tab) => {
           const isActive = tab.key === active;
           const content = (

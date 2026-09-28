@@ -46,10 +46,12 @@ export default async function ProprietaireProtectedLayout({
           dessous, une barre basse fixe à portée du pouce — d'où la réserve de
           place en bas du conteneur de défilement. Les deux disparaissent sur
           le parcours de création d'un bail, comme l'ancien bandeau. */}
-      <HideOnRoute paths={HIDE_NAV_ON}>
-        <OwnerTabsBar />
-      </HideOnRoute>
-      <OwnerScrollArea hideDockOn={HIDE_NAV_ON}>{children}</OwnerScrollArea>
+      <OwnerScrollArea hideDockOn={HIDE_NAV_ON}>
+        <HideOnRoute paths={HIDE_NAV_ON}>
+          <OwnerTabsBar />
+        </HideOnRoute>
+        {children}
+      </OwnerScrollArea>
       <HideOnRoute paths={HIDE_NAV_ON}>
         <OwnerTabsDock />
       </HideOnRoute>

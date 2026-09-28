@@ -35,7 +35,13 @@ export default async function LocataireProtectedLayout({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    // La barre du site flotte désormais au-dessus du conteneur : tant que
+    // l'espace locataire n'est pas refondu, il réserve lui-même sa hauteur
+    // pour rester à sa place d'origine.
+    <div
+      className="flex h-full flex-col overflow-hidden"
+      style={{ paddingTop: "calc(var(--lp-nav-h, 76px) + 0.75rem)" }}
+    >
         <LocataireHeader 
           userId={user.id}
           userName={user.name}
