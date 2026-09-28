@@ -698,13 +698,18 @@ export function PromptInput({
 }) {
   const canSend = !sending && (value.trim().length > 0 || files.length > 0);
   const areaRef = React.useRef<HTMLTextAreaElement>(null);
+  // Sur une seule ligne, les boutons se centrent sur le texte ; dès que la zone
+  // grandit, ils redescendent au bas du champ.
+  const [multiline, setMultiline] = React.useState(false);
 
   // La zone grandit avec le texte, jusqu'à un plafond.
   React.useEffect(() => {
     const area = areaRef.current;
     if (!area) return;
     area.style.height = "auto";
-    area.style.height = `${Math.min(area.scrollHeight, 140)}px`;
+    const height = Math.min(area.scrollHeight, 140);
+    area.style.height = `${height}px`;
+    setMultiline(height > 44);
   }, [value]);
 
   return (
@@ -741,7 +746,7 @@ export function PromptInput({
           </div>
         )}
 
-        <div className="flex items-end gap-1 p-1.5">
+        <div className={cn("flex gap-1 p-1.5", multiline ? "items-end" : "items-center")}>
           {actions && actions.length > 0 ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
