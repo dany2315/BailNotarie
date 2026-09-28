@@ -73,7 +73,11 @@ export function ChatDock({
             role="dialog"
             aria-label={label}
             className={cn(
-              "fixed inset-0 z-50 flex flex-col overflow-hidden bg-white",
+              // `pointer-events-auto` est vital : un tiroir ouvert en dessous
+              // (le détail d'un bail, par exemple) pose `pointer-events: none`
+              // sur le corps de la page, dont ce panneau hérite. Sans cette
+              // ligne, la croix ne répond plus.
+              "pointer-events-auto fixed inset-0 z-50 flex flex-col overflow-hidden bg-white",
               "duration-300 animate-in fade-in-0 slide-in-from-bottom-4",
               "sm:inset-auto sm:bottom-5 sm:right-5",
               "sm:h-[min(46rem,calc(100dvh-2.5rem))] sm:w-[28rem]",
