@@ -165,7 +165,11 @@ export default function TestFiches() {
           Quatre façons de dire « sous-page »
         </h1>
 
-        <div className="mt-6 flex flex-wrap items-center gap-2.5">
+        <div className="mt-6 flex flex-wrap items-end gap-x-3 gap-y-4">
+          <div>
+            <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+              Mise en page
+            </p>
           <div className="inline-flex rounded-xl bg-white p-1 ring-1 ring-slate-200/80">
             {VARIANTS.map((entry) => (
               <button
@@ -183,6 +187,11 @@ export default function TestFiches() {
               </button>
             ))}
           </div>
+          </div>
+          <div>
+            <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+              Quelle page
+            </p>
           <div className="inline-flex rounded-xl bg-white p-1 ring-1 ring-slate-200/80">
             {(["bien", "bail"] as const).map((entry) => (
               <button
@@ -198,6 +207,11 @@ export default function TestFiches() {
               </button>
             ))}
           </div>
+          </div>
+          <div>
+            <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+              Écran
+            </p>
           <div className="inline-flex rounded-xl bg-white p-1 ring-1 ring-slate-200/80">
             {([
               { id: "desktop" as const, label: "Bureau", icon: Monitor },
@@ -217,11 +231,24 @@ export default function TestFiches() {
               </button>
             ))}
           </div>
+          </div>
         </div>
 
-        <p className="mt-3 text-[12.5px] text-slate-500">{current.idea}</p>
+        {/* Ce qu'on regarde, écrit noir sur blanc : sur une maquette à trois
+            bascules, on ne devine pas l'état courant. */}
+        <div className="mt-6 flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200/80">
+          <span className="text-[13.5px] font-bold tracking-tight text-slate-900">
+            Option {current.name}
+          </span>
+          <span className="text-[13px] text-slate-400">·</span>
+          <span className="text-[13.5px] font-semibold text-[#3563e9]">
+            {kind === "bien" ? "Page du bien" : "Page du bail"}
+          </span>
+          <span className="text-[13px] text-slate-400">·</span>
+          <span className="text-[12.5px] text-slate-500">{current.idea}</span>
+        </div>
 
-        <div className="mt-6">
+        <div className="mt-4">
           {device === "desktop" ? (
             <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_40px_80px_-40px_rgba(15,23,42,0.35)] ring-1 ring-slate-200/70">
               <div className="h-[760px] overflow-y-auto">
