@@ -55,6 +55,7 @@ export default async function ProprietaireBienDetailPage({
         fullAddress: property.fullAddress,
         surfaceM2: property.surfaceM2,
         type: property.type,
+        legalStatus: property.legalStatus,
         completionStatus: property.completionStatus,
         createdAt: property.createdAt,
         updatedAt: property.updatedAt,

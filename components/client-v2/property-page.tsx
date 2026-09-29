@@ -36,12 +36,19 @@ const PROPERTY_TYPE_LABELS: Record<string, string> = {
   MAISON: "Maison",
 };
 
+const LEGAL_STATUS_LABELS: Record<string, string> = {
+  PLEIN_PROPRIETE: "Pleine propriété",
+  CO_PROPRIETE: "Copropriété",
+  LOTISSEMENT: "Lotissement",
+};
+
 export type PropertyPageData = {
   id: string;
   label: string | null;
   fullAddress: string | null;
   surfaceM2: { toString(): string } | null;
   type: string | null;
+  legalStatus: string | null;
   completionStatus: string | null;
   createdAt: Date | string | null;
   updatedAt: Date | string | null;
@@ -105,13 +112,19 @@ export function PropertyPage({ property }: { property: PropertyPageData }) {
         id: "infos",
         title: "Informations",
         icon: Building2,
+        // Ni la surface ni le type : ils sont déjà en chiffres au-dessus. Et
+        // l'adresse n'apparaît que si elle n'est pas déjà le titre de la page.
         fields: [
-          { label: "Adresse", value: property.fullAddress, wide: true },
-          { label: "Label", value: property.label },
-          { label: "Type de logement", value: typeLabel },
           {
-            label: "Surface",
-            value: property.surfaceM2 ? `${property.surfaceM2.toString()} m²` : null,
+            label: "Adresse",
+            value: property.label ? property.fullAddress : null,
+            wide: true,
+          },
+          {
+            label: "Statut du bien",
+            value: property.legalStatus
+              ? LEGAL_STATUS_LABELS[property.legalStatus] ?? property.legalStatus
+              : null,
           },
           { label: "Créé le", value: property.createdAt ? formatDate(property.createdAt) : null },
           {

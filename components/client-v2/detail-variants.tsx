@@ -284,7 +284,18 @@ function Feuille({ model, chrome }: { model: DetailModel; chrome: boolean }) {
           {model.actions && <div className="mt-5 flex flex-wrap gap-2">{model.actions}</div>}
 
           {model.stats.length > 0 && (
-            <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-slate-100 sm:grid-cols-4">
+            <div
+              className={cn(
+                "mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-slate-100",
+                // Le nombre de colonnes suit le nombre de chiffres : trois
+                // chiffres sur quatre colonnes laissaient une case vide.
+                model.stats.length === 2
+                  ? "sm:grid-cols-2"
+                  : model.stats.length === 3
+                    ? "sm:grid-cols-3"
+                    : "sm:grid-cols-4",
+              )}
+            >
               {model.stats.map((stat, index) => (
                 <div
                   key={stat.label}
