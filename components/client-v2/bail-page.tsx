@@ -2,7 +2,17 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Building2, Euro, FileText, Home, Mail, MessageSquare, RotateCcw, UserRound } from "lucide-react";
+import {
+  Building2,
+  Euro,
+  FileText,
+  Home,
+  Mail,
+  MessageSquare,
+  RotateCcw,
+  UserPlus,
+  UserRound,
+} from "lucide-react";
 
 import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
@@ -10,6 +20,7 @@ import { BailChatSheet } from "@/components/client/bail-chat-sheet";
 import { BailDocumentPreview } from "@/components/client/bail-document-preview";
 import { PrimaryAction, QuietAction } from "./owner-ui";
 import { SubPageBar } from "./owner-tabs";
+import { AddTenantDialog } from "./add-tenant-dialog";
 import type { DetailModel } from "./detail-model";
 import { DetailVariant } from "./detail-variants";
 import { BAIL_TYPE_LABELS, STATUS_VIEW } from "./owner-bail-card";
@@ -64,6 +75,11 @@ export function BailPage({
   hasNotaire: boolean;
   openChat: boolean;
 }) {
+  // Le locataire manque tant que le bail l'attend : c'est l'action qui débloque
+  // le dossier, et elle n'était atteignable que depuis la liste.
+  const missingTenant = bail.status === "AWAITING_TENANT" && !tenantName;
+  const [tenantDialog, setTenantDialog] = React.useState(false);
+
   const view = STATUS_VIEW[bail.status];
   const endDate = calculateBailEndDate(bail.effectiveDate as any, bail.bailType as any);
   const totalMonthly = (bail.rentAmount ?? 0) + bail.monthlyCharges;
@@ -105,6 +121,12 @@ export function BailPage({
     ].filter(Boolean) as DetailModel["stats"],
     actions: (
       <>
+        {missingTenant && (
+          <PrimaryAction className="w-full py-2.5" onClick={() => setTenantDialog(true)}>
+            <UserPlus className="h-4 w-4" />
+            Ajouter le locataire
+          </PrimaryAction>
+        )}
         {bail.status === "TERMINATED" && (
           <Link href={`/client/proprietaire/baux/${bail.id}/renouveler`}>
             <PrimaryAction className="w-full py-2.5">
@@ -166,14 +188,16 @@ export function BailPage({
           },
         ],
       },
-      ...(tenantName
+      // La section paraît même sans locataire : « Non renseigné » dit ce qui
+      // manque, là où l'absence de section laissait croire à un oubli.
+      ...(tenantName || missingTenant
         ? [
             {
               id: "locataire",
               title: "Le locataire",
               icon: UserRound,
               fields: [
-                { label: "Nom", value: tenantName },
+                { label: "Nom", value: tenantName ?? "Non renseigné" },
                 { label: "Email", value: tenantEmail },
               ],
               node: tenantEmail ? (
@@ -243,6 +267,8 @@ export function BailPage({
     <>
       <SubPageBar backHref={model.backHref} trail={model.trail} />
       <DetailVariant variant="rail" model={model} chrome={false} />
+      {/* Le même dialogue que la liste : une seule logique d'ajout. */}
+      <AddTenantDialog bailId={bail.id} open={tenantDialog} onOpenChange={setTenantDialog} />
     </>
   );
 }

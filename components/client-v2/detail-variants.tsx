@@ -155,7 +155,7 @@ function FieldRows({ section }: { section: DetailSection }) {
 
 function Bandeau({ model, chrome }: { model: DetailModel; chrome: boolean }) {
   return (
-    <div className="min-h-full bg-[#f4f6fb]">
+    <div className="min-h-full bg-background">
       {/* Le bandeau : la page principale n'en a jamais, donc sa seule présence
           dit qu'on est descendu d'un cran. */}
       {/* La barre du site flotte au-dessus du contenu : sur mobile, chaque mise
@@ -241,9 +241,12 @@ function Bandeau({ model, chrome }: { model: DetailModel; chrome: boolean }) {
 
 function Feuille({ model, chrome }: { model: DetailModel; chrome: boolean }) {
   return (
+    /* Le fond est celui de l'espace client, pas une teinte à part : le dégradé
+       de dissolution de la barre du haut tombe ainsi sur la même couleur, et la
+       couture disparaît. */
     <div
       className={cn(
-        "min-h-full bg-gradient-to-b from-[#e8edf9] to-[#f4f6fb] px-0 pb-0 sm:px-6 sm:pb-6 sm:pt-5",
+        "min-h-full bg-background px-0 pb-0 sm:px-6 sm:pb-6 sm:pt-5",
         chrome ? "pt-[calc(var(--lp-nav-h,76px)+0.5rem)]" : "pt-0",
       )}
     >
@@ -327,7 +330,7 @@ function Feuille({ model, chrome }: { model: DetailModel; chrome: boolean }) {
 
 function Rail({ model, chrome }: { model: DetailModel; chrome: boolean }) {
   return (
-    <div className="min-h-full bg-[#f4f6fb]">
+    <div className="min-h-full bg-background">
       <div
         className={cn(
           "mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6 sm:pt-5",

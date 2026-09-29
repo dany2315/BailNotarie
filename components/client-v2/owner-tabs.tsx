@@ -250,6 +250,15 @@ export function SubPageBar({
   trail: Array<{ label: string; href?: string }>;
 }) {
   const router = useRouter();
+  const trailRef = React.useRef<HTMLOListElement>(null);
+
+  // Quand le fil déborde — un nom de bien long sur un téléphone —, c'est la fin
+  // qui compte : la page où l'on est. On ouvre donc le fil sur sa droite, les
+  // étapes parentes restant accessibles en le faisant glisser.
+  React.useEffect(() => {
+    const list = trailRef.current;
+    if (list) list.scrollLeft = list.scrollWidth;
+  }, [trail]);
 
   // La flèche revient en arrière — elle ne choisit pas une destination. C'est
   // le fil d'Ariane qui nomme les étapes. Sans historique (lien reçu par mail,
@@ -289,7 +298,10 @@ export function SubPageBar({
         </button>
 
         {/* Sur un téléphone, le fil défile plutôt que de passer à la ligne. */}
-        <ol className="flex min-w-0 items-center gap-1.5 overflow-x-auto whitespace-nowrap text-[12px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <ol
+          ref={trailRef}
+          className="flex min-w-0 items-center gap-1.5 overflow-x-auto whitespace-nowrap text-[12px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {trail.map((step, index) => {
             const last = index === trail.length - 1;
             return (
