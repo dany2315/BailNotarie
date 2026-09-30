@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  ChevronDown,
   FileCheck2,
   LayoutDashboard,
   MonitorSmartphone,
@@ -39,7 +40,14 @@ import { WithDossierCta } from "./lp-user-menu";
    bibliothèque de mouvement : la position vient du rectangle de la piste et de
    la hauteur réelle du panneau, donc elle reste juste même quand la barre
    d'URL mobile change la hauteur visible. Seul le changement d'écran provoque
-   un rendu React ; la jauge est écrite directement dans le style du nœud.
+   un rendu React ; l'avancement est écrit directement dans le style du rail.
+
+   L'indicateur est vertical dans les deux déclinaisons, et c'est une décision
+   de fond : il montre le geste attendu. Une rangée de repères alignés côte à
+   côte disait le contraire de ce que fait la section — on y lisait un balayage
+   horizontal alors que tout se joue au défilement. Le rail se remplit donc de
+   haut en bas, du premier écran vers le dernier, et une invitation à défiler
+   accompagne le premier écran le temps que le geste soit compris.
    ========================================================================= */
 
 const SCREENS = [
@@ -92,6 +100,50 @@ const SCREENS = [
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
+/* ---------- Pièces de l'indicateur d'avancement -------------------------- */
+
+/**
+ * Le rail : une piste fine et son remplissage.
+ *
+ * Le centrage est porté par la piste et la mise à l'échelle par le
+ * remplissage. Les deux sur le même nœud, l'échelle écraserait la translation
+ * qui centre le rail — et il glisserait hors de son axe en cours de scroll.
+ */
+const ProgressRail = React.forwardRef<HTMLSpanElement, { className?: string }>(function ProgressRail(
+  { className },
+  ref,
+) {
+  return (
+    <span ref={ref} aria-hidden className={cn("overflow-hidden rounded-full bg-white/[0.11]", className)}>
+      <span className="lp-rail-fill absolute inset-0 bg-gradient-to-b from-[#3563e9] via-[#5b85f7] to-[#cfe0ff]" />
+    </span>
+  );
+});
+
+/**
+ * L'invitation à défiler, le temps du premier écran.
+ *
+ * Elle garde sa place dans le flux quand elle s'efface : sous `lg` le panneau
+ * est déjà court, une ligne qui disparaîtrait décalerait la maquette d'un cran
+ * au moment précis où l'on commence à lire. L'affichage vient de `className` :
+ * la ligne n'apparaît pas aux deux tailles au même endroit.
+ */
+function ScrollHint({ show, className }: { show: boolean; className?: string }) {
+  return (
+    <p
+      aria-hidden
+      className={cn(
+        "h-4 items-center gap-1.5 text-[11.5px] font-medium text-blue-100/60 transition-opacity duration-500",
+        show ? "opacity-100" : "opacity-0",
+        className,
+      )}
+    >
+      <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-[#8fb0ff]", show && "lp-nudge-down")} />
+      Défilez pour parcourir les écrans
+    </p>
+  );
+}
+
 /**
  * Suit l'avancement du scroll dans la piste.
  *
@@ -104,7 +156,11 @@ function useScreenProgress(
   refs: {
     track: React.RefObject<HTMLDivElement | null>;
     panel: React.RefObject<HTMLDivElement | null>;
-    gauge: React.RefObject<HTMLSpanElement | null>;
+    /** Les deux rails d'avancement, celui de la version compacte et celui du
+        sommaire. Ils reçoivent `--lp-p`, de 0 au premier écran à 1 au dernier ;
+        la propriété étant héritée, leurs enfants la lisent sans être touchés. */
+    railCompact: React.RefObject<HTMLSpanElement | null>;
+    railFull: React.RefObject<HTMLSpanElement | null>;
   },
 ) {
   const [active, setActive] = React.useState(0);
@@ -131,9 +187,10 @@ function useScreenProgress(
       const raw = progress * count;
       const index = Math.min(count - 1, Math.floor(raw));
 
-      if (refs.gauge.current) {
-        refs.gauge.current.style.transform = `scaleX(${clamp(raw - index, 0, 1)})`;
-      }
+      const value = String(progress);
+      refs.railCompact.current?.style.setProperty("--lp-p", value);
+      refs.railFull.current?.style.setProperty("--lp-p", value);
+
       if (activeRef.current !== index) {
         activeRef.current = index;
         setActive(index);
@@ -154,7 +211,7 @@ function useScreenProgress(
       window.removeEventListener("resize", schedule);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [count, distance, refs.gauge, refs.track]);
+  }, [count, distance, refs.railCompact, refs.railFull, refs.track]);
 
   /** Amène le scroll au milieu du segment de l'écran demandé. */
   const goTo = React.useCallback(
@@ -178,12 +235,14 @@ function useScreenProgress(
 export function LpShowcase() {
   const trackRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
-  const gaugeRef = React.useRef<HTMLSpanElement>(null);
+  const railCompactRef = React.useRef<HTMLSpanElement>(null);
+  const railFullRef = React.useRef<HTMLSpanElement>(null);
 
   const { active, goTo } = useScreenProgress(SCREENS.length, {
     track: trackRef,
     panel: panelRef,
-    gauge: gaugeRef,
+    railCompact: railCompactRef,
+    railFull: railFullRef,
   });
 
   const current = SCREENS[active];
@@ -245,57 +304,75 @@ export function LpShowcase() {
           <div className="relative mx-auto flex h-full w-full max-w-6xl flex-col px-5 pb-5 pt-[calc(var(--lp-nav-h,78px)+1.25rem)] sm:px-8 lg:h-auto lg:flex-row lg:items-center lg:gap-14 lg:pb-0 lg:pt-0">
             {/* ---------- Colonne de gauche ---------- */}
             <div className="shrink-0 lg:w-[38%]">
-              {/* Sommaire vertical, à partir de lg : les cinq écrans visibles
-                  d'un coup, l'actif souligné par sa jauge d'avancement. */}
-              <ol className="hidden lg:block" aria-label="Écrans de l'interface BailNotarie">
-                {SCREENS.map((screen, index) => {
-                  const selected = index === active;
-                  return (
-                    <li key={screen.id}>
-                      <button
-                        type="button"
-                        onClick={() => goTo(index)}
-                        aria-current={selected ? "true" : undefined}
-                        className={cn(
-                          "group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3.5 text-left transition-colors duration-300",
-                          selected
-                            ? "border-white/20 bg-white/[0.08]"
-                            : "border-transparent hover:border-white/10 hover:bg-white/[0.04]",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-300",
-                            selected
-                              ? "bg-gradient-to-br from-[#5b85f7] to-[#3563e9] text-white"
-                              : "bg-white/[0.06] text-blue-100/60 group-hover:text-blue-100",
-                          )}
-                        >
-                          <screen.icon className="h-4 w-4" />
-                        </span>
-                        <span
-                          className={cn(
-                            "text-[14.5px] font-semibold transition-colors duration-300",
-                            selected ? "text-white" : "text-blue-100/70",
-                          )}
-                        >
-                          {screen.label}
-                        </span>
-                        {selected && (
-                          <span
-                            ref={gaugeRef}
-                            aria-hidden
-                            className="lp-gauge absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-[#5b85f7] to-[#8fb0ff]"
-                          />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
+              {/* Sommaire, à partir de lg : les cinq écrans visibles d'un
+                  coup, enfilés sur un rail qui se remplit en descendant.
 
-              {/* Sous lg, pas de liste : un compteur et le nom de l'écran.
-                  Rien ne défile horizontalement, la lecture reste verticale. */}
+                  Le rail remplace le trait horizontal qui soulignait l'écran
+                  actif. Le trait avançait de gauche à droite pendant que la
+                  section, elle, avance de haut en bas ; le rail dit le vrai
+                  sens du parcours, et la ligne pleine derrière les stations
+                  donne en plus la position exacte entre deux écrans. */}
+              <div className="relative hidden lg:block">
+                <ProgressRail ref={railFullRef} className="absolute bottom-0 left-[5px] top-0 w-[2px]" />
+                <ol aria-label="Écrans de l'interface BailNotarie">
+                  {SCREENS.map((screen, index) => {
+                    const selected = index === active;
+                    const reached = index <= active;
+                    return (
+                      <li key={screen.id} className="relative pl-7">
+                        {/* Station sur le rail, centrée sur la ligne du libellé. */}
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "absolute left-[1px] top-1/2 -translate-y-1/2 rounded-full transition-all duration-300",
+                            selected
+                              ? "h-2.5 w-2.5 bg-[#8fb0ff] shadow-[0_0_0_4px_rgba(143,176,255,0.16)]"
+                              : reached
+                                ? "h-1.5 w-1.5 translate-x-[2px] bg-[#5b85f7]"
+                                : "h-1.5 w-1.5 translate-x-[2px] bg-white/25",
+                          )}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => goTo(index)}
+                          aria-current={selected ? "true" : undefined}
+                          className={cn(
+                            "group flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition-colors duration-300",
+                            selected
+                              ? "border-white/20 bg-white/[0.08]"
+                              : "border-transparent hover:border-white/10 hover:bg-white/[0.04]",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-300",
+                              selected
+                                ? "bg-gradient-to-br from-[#5b85f7] to-[#3563e9] text-white"
+                                : "bg-white/[0.06] text-blue-100/60 group-hover:text-blue-100",
+                            )}
+                          >
+                            <screen.icon className="h-4 w-4" />
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[14.5px] font-semibold transition-colors duration-300",
+                              selected ? "text-white" : "text-blue-100/70",
+                            )}
+                          >
+                            {screen.label}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <ScrollHint show={active === 0} className="mt-4 hidden pl-7 lg:flex" />
+              </div>
+
+              {/* Sous lg, pas de liste : un compteur, le nom de l'écran, et
+                  l'invitation à défiler le temps du premier. Elle est posée
+                  ici, en haut, parce que c'est la première chose qu'on lit en
+                  arrivant — le moment où le geste attendu doit être clair. */}
               <div className="lg:hidden">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#5b85f7] to-[#3563e9] text-white">
@@ -305,6 +382,7 @@ export function LpShowcase() {
                     Écran {active + 1} sur {SCREENS.length}
                   </span>
                 </div>
+                <ScrollHint show={active === 0} className="mt-2 flex" />
               </div>
 
               {/* Texte de l'écran courant. La clé React rejoue l'animation
@@ -330,11 +408,68 @@ export function LpShowcase() {
             </div>
 
             {/* ---------- Écran ---------- */}
-            <div className="mt-4 flex min-h-0 flex-1 flex-col lg:mt-0 lg:block">
-              <div className="relative min-h-0 flex-1 lg:flex-none" style={{ perspective: 1600 }}>
+            <div className="mt-4 flex min-h-0 flex-1 gap-2.5 lg:mt-0 lg:block">
+              {/* Repère de position, sous lg : un rail dressé le long de la
+                  maquette, et non plus une rangée de points sous elle.
+
+                  C'est tout le propos de ce bloc. Alignés côte à côte, les
+                  points empruntaient la forme d'un carrousel et invitaient au
+                  balayage latéral, quand la section ne répond qu'au
+                  défilement. Debout, la même information devient l'aveu du
+                  geste attendu. Chaque station reste un raccourci.
+
+                  Les pastilles mesurent six à dix pixels mais leur bouton
+                  fait trente-six sur vingt-quatre : la cible du doigt ne se
+                  règle pas sur la taille du dessin.
+
+                  Il est posé à gauche, comme le rail du sommaire : c'est le
+                  même repère aux deux tailles. À droite, il passait sous la
+                  bulle d'assistance, qui flotte en bas de cet angle et rendait
+                  la dernière station impossible à toucher. */}
+              <div className="flex w-6 shrink-0 flex-col items-center gap-2 lg:hidden">
+                <div className="relative w-full flex-1">
+                  <ProgressRail
+                    ref={railCompactRef}
+                    className="absolute bottom-0 left-1/2 top-0 w-[2px] -translate-x-1/2"
+                  />
+                  {SCREENS.map((screen, index) => (
+                    <button
+                      key={screen.id}
+                      type="button"
+                      onClick={() => goTo(index)}
+                      aria-label={`Aller à l'écran : ${screen.label}`}
+                      aria-current={index === active ? "true" : undefined}
+                      style={{ top: `${((index + 0.5) / SCREENS.length) * 100}%` }}
+                      className="absolute left-1/2 flex h-9 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+                    >
+                      <span
+                        className={cn(
+                          "block rounded-full transition-all duration-300",
+                          index === active
+                            ? "h-2.5 w-2.5 bg-[#8fb0ff] shadow-[0_0_0_4px_rgba(143,176,255,0.16)]"
+                            : index < active
+                              ? "h-1.5 w-1.5 bg-[#5b85f7]"
+                              : "h-1.5 w-1.5 bg-white/25",
+                        )}
+                      />
+                    </button>
+                  ))}
+                </div>
+                {/* La flèche reste au pied du rail : elle désigne le sens, et
+                    s'agite le temps du premier écran seulement. */}
+                <ChevronDown
+                  aria-hidden
+                  className={cn("h-4 w-4 shrink-0 text-[#8fb0ff]/70", active === 0 && "lp-nudge-down")}
+                />
+              </div>
+              <div className="relative min-h-0 min-w-0 flex-1 lg:flex-none" style={{ perspective: 1600 }}>
+                {/* Halo : purement décoratif, et débordant de six à huit
+                    pixels hors de la maquette. Sans `pointer-events-none` il
+                    happe les touches dans toute cette marge — y compris sur le
+                    rail voisin, dont plus aucune station n'était atteignable. */}
                 <div
                   aria-hidden
-                  className="absolute -inset-6 rounded-[40px] bg-gradient-to-br from-[#4373f5]/30 via-[#6366f1]/15 to-transparent blur-3xl sm:-inset-8"
+                  className="pointer-events-none absolute -inset-6 rounded-[40px] bg-gradient-to-br from-[#4373f5]/30 via-[#6366f1]/15 to-transparent blur-3xl sm:-inset-8"
                 />
 
                 {/* Inclinaison posée en CSS : présente dès le premier rendu,
@@ -364,26 +499,6 @@ export function LpShowcase() {
                 </div>
               </div>
 
-              {/* Repère de position, sous lg. */}
-              <div className="mt-4 flex shrink-0 items-center justify-center gap-1 lg:hidden">
-                {SCREENS.map((screen, index) => (
-                  <button
-                    key={screen.id}
-                    type="button"
-                    onClick={() => goTo(index)}
-                    aria-label={`Aller à l'écran : ${screen.label}`}
-                    aria-current={index === active ? "true" : undefined}
-                    className="flex h-8 items-center px-1.5"
-                  >
-                    <span
-                      className={cn(
-                        "block h-1.5 rounded-full transition-all duration-300",
-                        index === active ? "w-6 bg-[#5b85f7]" : "w-1.5 bg-white/25",
-                      )}
-                    />
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         </div>

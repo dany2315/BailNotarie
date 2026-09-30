@@ -769,11 +769,39 @@ html {
   height: 100svh;
 }
 
-/* Jauge d'avancement dans l'écran courant : pilotée image par image en JS,
-   donc sans transition qui la ferait traîner derrière le scroll. */
-.lp-gauge {
-  transform-origin: left center;
-  transform: scaleX(0);
+/* Rail d'avancement de la section : une ligne verticale que le scroll remplit
+   de haut en bas. L'orientation n'est pas un détail de style — c'est elle qui
+   dit au visiteur dans quel sens la section avance. Une rangée de repères
+   posés côte à côte laissait croire qu'il fallait balayer horizontalement.
+
+   `--lp-p` (0 → 1) est écrit image par image par le JS sur le rail ; la
+   propriété étant héritée, la barre de remplissage et le curseur la lisent
+   tous les deux. Aucune transition : la jauge doit coller au scroll, pas le
+   suivre avec un temps de retard.
+
+   Le dégradé est porté par l'élément mis à l'échelle, donc sa pointe claire
+   reste toujours à l'extrémité basse du remplissage : la tête de lecture
+   descend avec le doigt, sans nœud supplémentaire à positionner. */
+.lp-rail-fill {
+  transform-origin: top center;
+  transform: scaleY(var(--lp-p, 0));
+}
+
+/* Invitation à défiler, montrée le temps du premier écran. Un mouvement court
+   vers le bas, de l'amplitude d'un battement : il désigne le sens de lecture
+   sans attirer l'œil hors du produit. */
+@keyframes lp-nudge-down {
+  0%,
+  100% {
+    transform: translateY(-1px);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+.lp-nudge-down {
+  animation: lp-nudge-down 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 /* ---------- Révélations au scroll --------------------------------------- */
