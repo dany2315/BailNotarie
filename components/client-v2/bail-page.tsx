@@ -10,6 +10,7 @@ import {
   Mail,
   MessageSquare,
   RotateCcw,
+  Scale,
   UserPlus,
   UserRound,
 } from "lucide-react";
@@ -67,12 +68,15 @@ export function BailPage({
   tenantName,
   tenantEmail,
   hasNotaire,
+  notaireName,
   openChat,
 }: {
   bail: BailPageData;
   tenantName: string | null;
   tenantEmail: string | null;
   hasNotaire: boolean;
+  /** Le notaire en charge du dossier, quand il en porte un nom. */
+  notaireName: string | null;
   openChat: boolean;
 }) {
   // Le locataire manque tant que le bail l'attend : c'est l'action qui débloque
@@ -209,6 +213,20 @@ export function BailPage({
                   Écrire au locataire
                 </a>
               ) : undefined,
+            },
+          ]
+        : []),
+      // L'interlocuteur du dossier, nommé : « Discuter avec le notaire »
+      // n'apprenait pas avec qui.
+      ...(hasNotaire
+        ? [
+            {
+              id: "notaire",
+              title: "Votre notaire",
+              icon: Scale,
+              fields: [
+                { label: "Notaire en charge", value: notaireName ?? "Notaire assigné" },
+              ],
             },
           ]
         : []),

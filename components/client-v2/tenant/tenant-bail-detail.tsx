@@ -168,7 +168,9 @@ export function TenantBailDetail({
               </h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <Pill tone={statusTone}>{statusTitle}</Pill>
-                {bail.property.fullAddress && (
+                {/* L'adresse n'est rappelée que si elle n'est pas déjà le titre,
+                    c'est-à-dire quand le bien porte un label. */}
+                {bail.property.label && bail.property.fullAddress && (
                   <span className="truncate text-[12.5px] text-slate-500">
                     {bail.property.fullAddress}
                   </span>
@@ -186,6 +188,31 @@ export function TenantBailDetail({
           )}
           {view?.note && (
             <p className="mt-3 text-[13px] leading-snug text-slate-500">{view.note}</p>
+          )}
+
+          {/* La messagerie se propose en haut de page : reléguée en bas, parmi
+              les interlocuteurs, un locataire pouvait ne jamais savoir qu'il a
+              le droit d'écrire au notaire. */}
+          {notaire && (
+            <div className="mt-5">
+              {demoChat ? (
+                <PrimaryAction className="w-full py-3 sm:w-auto" disabled>
+                  <MessageSquare className="h-4 w-4" />
+                  Contacter le notaire
+                </PrimaryAction>
+              ) : (
+                <BailChatSheet
+                  bailId={bailId}
+                  defaultOpen={openChat}
+                  trigger={
+                    <PrimaryAction className="w-full py-3 sm:w-auto">
+                      <MessageSquare className="h-4 w-4" />
+                      Contacter le notaire
+                    </PrimaryAction>
+                  }
+                />
+              )}
+            </div>
           )}
         </header>
 
@@ -311,35 +338,13 @@ export function TenantBailDetail({
                 <IconTile icon={UserRound} tone="blue" size="sm" />
                 <MicroLabel>Vos interlocuteurs</MicroLabel>
               </div>
+              {/* Pas d'adresse électronique : l'échange avec le notaire passe
+                  par la messagerie du dossier, qui garde une trace et rattache
+                  les pièces au bail. */}
               <FieldGrid>
                 {proprietaire && <ReadField label="Propriétaire" value={proprietaireName} />}
-                {notaire && (
-                  <ReadField label="Notaire" value={notaire.name || notaire.email} />
-                )}
-                {notaire?.email && <ReadField label="Email du notaire" value={notaire.email} />}
+                {notaire && <ReadField label="Notaire" value={notaire.name} />}
               </FieldGrid>
-
-              {notaire && (
-                <div className="mt-4">
-                  {demoChat ? (
-                    <PrimaryAction className="w-full py-3 sm:w-auto" disabled>
-                      <MessageSquare className="h-4 w-4" />
-                      Contacter le notaire
-                    </PrimaryAction>
-                  ) : (
-                    <BailChatSheet
-                      bailId={bailId}
-                      defaultOpen={openChat}
-                      trigger={
-                        <PrimaryAction className="w-full py-3 sm:w-auto">
-                          <MessageSquare className="h-4 w-4" />
-                          Contacter le notaire
-                        </PrimaryAction>
-                      }
-                    />
-                  )}
-                </div>
-              )}
             </Surface>
           )}
 

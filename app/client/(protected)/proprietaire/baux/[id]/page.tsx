@@ -65,6 +65,7 @@ export default async function ProprietaireBailDetailPage({
       tenantName={tenantName || null}
       tenantEmail={tenantEmail}
       hasNotaire={!!bail.dossierAssignments?.[0]?.notaire}
+      notaireName={bail.dossierAssignments?.[0]?.notaire?.name ?? null}
       openChat={chat === "1"}
     />
   );
