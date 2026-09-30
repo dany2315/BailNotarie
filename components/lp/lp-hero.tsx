@@ -40,9 +40,23 @@ export function LpHero() {
     target: sceneRef,
     offset: ["start end", "center center"],
   });
-  const rotateX = useTransform(scrollYProgress, [0, 1], [26, 3]);
-  const scale = useTransform(scrollYProgress, [0, 1], [0.86, 1]);
-  const translateY = useTransform(scrollYProgress, [0, 1], [56, 0]);
+  // L'animation finit exactement à plat — 0°, échelle 1, aucun décalage.
+  //
+  // Elle s'arrêtait auparavant à 3° d'inclinaison. Trois degrés ne se voient
+  // pas, mais ils suffisent : une rotation 3D, même minime, fait passer tout
+  // le sous-arbre par un rééchantillonnage, et le texte de la maquette y perd
+  // 63 % de sa netteté (énergie des contours mesurée au navigateur, même zone
+  // avec et sans la transformation). Or c'est au repos qu'on la lit. À
+  // l'arrivée la matrice est l'identité, donc les pixels sont les vrais.
+  //
+  // Le départ est aussi plus sobre. Partir de 26°, 0,86 et 56 px posait la
+  // maquette très bas dans la boîte que la mise en page lui réserve : sous le
+  // bouton s'ouvrait un vide de 154 px en grand écran et 172 px sur téléphone,
+  // pour une marge CSS de 64 et 48 px. Le mouvement de redressement reste,
+  // l'à-plat de départ en moins.
+  const rotateX = useTransform(scrollYProgress, [0, 1], [12, 0]);
+  const scale = useTransform(scrollYProgress, [0, 1], [0.965, 1]);
+  const translateY = useTransform(scrollYProgress, [0, 1], [26, 0]);
 
   // Parallaxe curseur : les satellites bougent plus que la fenêtre centrale.
   const frameX = useTransform(parallax.x, (value) => value * -8);
@@ -148,7 +162,7 @@ export function LpHero() {
         </div>
 
         {/* ---------- Scène 3D ---------- */}
-        <div ref={sceneRef} className="relative mt-12 sm:mt-16" style={{ perspective: 1600 }}>
+        <div ref={sceneRef} className="relative mt-7 sm:mt-10" style={{ perspective: 1600 }}>
           {/* Halo au sol */}
           <div
             aria-hidden

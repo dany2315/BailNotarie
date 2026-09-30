@@ -913,13 +913,18 @@ html {
   animation: lp-fade-scale 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Inclinaison de l'écran produit : en CSS, donc présente dès le premier
-   rendu, au lieu d'être posée par le JS après coup. */
-@media (min-width: 1024px) {
-  .lp-screen-tilt {
-    transform: rotateX(6deg) rotateY(-8deg);
-  }
-}
+/* L'écran produit est présenté de face.
+   
+   Il était incliné de 6° et -8° à partir de 1024 px. Une rotation 3D fait
+   passer tout le sous-arbre par un rééchantillonnage, et l'écran produit est
+   presque entièrement fait de texte : mesurée au navigateur sur la même zone,
+   l'énergie des contours passe de 1468 avec l'inclinaison à 2793 sans, soit
+   90 % de netteté récupérée. Réduire l'angle ne sert à rien — 3°/-4° ne rend
+   que 7 % : le coût est payé dès le premier degré, pas proportionnellement.
+   
+   Une section qui s'appelle « le produit, écran par écran » doit d'abord se
+   lire. La profondeur reste portée par le halo, l'ombre et le reflet au pied
+   du cadre, qui eux ne coûtent rien à la netteté. */
 
 /* ---------- Curseur de loyer (section tarif) ---------------------------- */
 

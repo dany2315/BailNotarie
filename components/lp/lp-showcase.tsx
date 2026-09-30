@@ -472,9 +472,7 @@ export function LpShowcase() {
                   className="pointer-events-none absolute -inset-6 rounded-[40px] bg-gradient-to-br from-[#4373f5]/30 via-[#6366f1]/15 to-transparent blur-3xl sm:-inset-8"
                 />
 
-                {/* Inclinaison posée en CSS : présente dès le premier rendu,
-                    au lieu d'être appliquée par le JS après hydratation. */}
-                <div className="lp-screen-tilt relative h-full lg:h-auto">
+                <div className="relative h-full lg:h-auto">
                   <AppFrame
                     url={current.url}
                     className="relative z-10 flex h-full flex-col ring-1 ring-white/10 lg:block lg:h-auto"
