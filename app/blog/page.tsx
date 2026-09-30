@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,10 +61,10 @@ export default function BlogPage() {
           { name: "Blog" },
         ]}
       />
-      <Header />
-      
-      {/* Hero Section */}
-      <section className="bg-white py-16">
+      {/* La barre flotte sur la section, qui commence donc en haut de
+          l'écran et dégage elle-même sa hauteur. */}
+      <section className="bg-white pb-16 pt-nav">
+        <LpNav overlay />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">

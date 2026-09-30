@@ -4,10 +4,9 @@ import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { OtpCodeInput } from "@/components/ui/otp-code-input";
-import { ArrowLeft, CheckCircle2, Loader2, Mail, RefreshCw, ShieldCheck, Timer } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Mail, RefreshCw, Timer } from "lucide-react";
+import { StartCard, StartSubmit } from "@/components/start/start-card";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 
@@ -23,6 +22,9 @@ interface OtpVerificationFormProps {
   isExistingClient: boolean;
   onSuccess: (isExistingClient: boolean, token: string | undefined) => void;
   onBack: () => void;
+  /** Rang de cette étape et longueur du parcours réellement suivi. */
+  stepIndex?: number;
+  stepTotal?: number;
 }
 
 export function OtpVerificationForm({
@@ -31,6 +33,8 @@ export function OtpVerificationForm({
   isExistingClient,
   onSuccess,
   onBack,
+  stepIndex = 2,
+  stepTotal = 3,
 }: OtpVerificationFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -125,112 +129,69 @@ export function OtpVerificationForm({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto animate-fade-in">
-      <Card className="border-0 shadow-xl sm:shadow-2xl bg-white/95 backdrop-blur-sm overflow-hidden pt-0">
-        {/* Header avec gradient */}
-        <div className="relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-4 sm:p-6 md:p-8 lg:p-12">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 right-0 w-32 h-32 sm:w-48 sm:h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
-            <div className="absolute bottom-0 left-0 w-32 h-32 sm:w-48 sm:h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
-          </div>
-          <div className="relative z-10 text-center space-y-3 sm:space-y-4">
-            <div className="flex justify-center mb-2 sm:mb-4">
-              <div className="bg-white/20 backdrop-blur-sm rounded-full p-3">
-                <ShieldCheck className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
-              </div>
-            </div>
-            <CardTitle className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white">
-              Vérification de votre email
-            </CardTitle>
-            <CardDescription className="text-sm sm:text-base md:text-lg text-blue-100 max-w-2xl mx-auto">
-              Nous avons envoyé un code à 6 chiffres à votre adresse email
-            </CardDescription>
-          </div>
+    <StartCard
+      current={stepIndex}
+      total={stepTotal}
+      title="Entrez votre code de vérification"
+      description={
+        <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          Envoyé à
+          <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#4373f5]/[0.08] px-2.5 py-1 text-[13px] font-medium text-[#2a4fd4]">
+            <Mail className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{email}</span>
+          </span>
+        </span>
+      }
+    >
+      <form onSubmit={handleSubmit(onOTPSubmit)} className="space-y-5">
+        <Controller
+          name="code"
+          control={control}
+          render={({ field }) => (
+            <OtpCodeInput
+              id="start-otp-code"
+              label=""
+              value={field.value || ""}
+              onChange={field.onChange}
+              disabled={isLoading}
+              autoFocus
+              error={errors.code?.message}
+            />
+          )}
+        />
+
+        <div className="flex items-center justify-center gap-1.5 text-[13px] text-slate-500">
+          <Timer className="h-4 w-4 text-slate-400" />
+          Valide pendant 10 minutes
         </div>
 
-        <CardContent className="p-4 sm:p-6 md:p-8 lg:p-12">
-          {/* Badge email */}
-          <div className="flex items-center justify-center gap-2 mb-6 sm:mb-8">
-            <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2.5 rounded-full border border-blue-200">
-              <Mail className="h-4 w-4" />
-              <span className="text-sm sm:text-base font-medium">{email}</span>
-            </div>
-          </div>
+        <StartSubmit loading={isLoading} loadingLabel="Vérification…">
+          <CheckCircle2 className="h-[18px] w-[18px]" />
+          Vérifier et continuer
+        </StartSubmit>
 
-          <form onSubmit={handleSubmit(onOTPSubmit)} className="space-y-6 sm:space-y-8">
-            {/* Champ OTP */}
-            <Controller
-              name="code"
-              control={control}
-              render={({ field }) => (
-                <OtpCodeInput
-                  id="start-otp-code"
-                  value={field.value || ""}
-                  onChange={field.onChange}
-                  disabled={isLoading}
-                  autoFocus
-                  error={errors.code?.message}
-                />
-              )}
-            />
+        <div className="flex flex-col items-stretch gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={isLoading}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[13.5px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 disabled:opacity-50"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Changer d&apos;e-mail
+          </button>
 
-            {/* Info validité */}
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Timer className="h-4 w-4" />
-              <span>Ce code est valide pendant 10 minutes</span>
-            </div>
-
-            {/* Boutons */}
-            <div className="space-y-3">
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-300"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Vérification en cours...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="mr-2 h-5 w-5" />
-                    Vérifier et continuer
-                  </>
-                )}
-              </Button>
-
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={onBack}
-                  disabled={isLoading}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Changer d'email
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleResendOtp}
-                  disabled={isLoading || isResending || resendCooldown > 0}
-                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${isResending ? "animate-spin" : ""}`} />
-                  {resendCooldown > 0
-                    ? `Renvoyer dans ${resendCooldown}s`
-                    : "Renvoyer le code"}
-                </Button>
-              </div>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          <button
+            type="button"
+            onClick={handleResendOtp}
+            disabled={isLoading || isResending || resendCooldown > 0}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[13.5px] font-semibold text-[#3563e9] transition-colors hover:bg-[#4373f5]/[0.07] disabled:text-slate-400 disabled:hover:bg-transparent"
+          >
+            <RefreshCw className={`h-4 w-4 ${isResending ? "animate-spin" : ""}`} />
+            {resendCooldown > 0 ? `Renvoyer dans ${resendCooldown}s` : "Renvoyer le code"}
+          </button>
+        </div>
+      </form>
+    </StartCard>
   );
 }
-

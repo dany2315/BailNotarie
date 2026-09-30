@@ -6,15 +6,14 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { OtpCodeInput } from "@/components/ui/otp-code-input";
-import { Loader2, Mail, User, Lock, ArrowLeft } from "lucide-react";
-import Image from "next/image";
+import { ArrowLeft, ArrowRight, LayoutDashboard, Lock, Mail, RefreshCw, ShieldCheck, Timer } from "lucide-react";
 import { authClient, useSession } from "@/lib/auth-client";
 import { LoadingScreen } from "@/components/ui/loading-screen";
+import { SectionLabel, AuroraBackdrop, NoiseOverlay } from "@/components/lp/ui/lp-primitives";
+import { StartCard, StartSubmit } from "@/components/start/start-card";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -254,151 +253,147 @@ export default function ClientLoginPage() {
     return null; // Retourner null pendant la redirection
   }
 
-  return (
-    <div className="flex flex-1 min-h-0 h-screen">
-      {/* Section gauche avec image et branding */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 overflow-hidden">
-        {/* Motifs décoratifs */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-        </div>
-        
-        <div className="relative z-10 flex flex-col justify-center items-center p-12 text-white">
-          <div className="mb-8">
-            <Image
-              src="/logoSans.png"
-              alt="BailNotarie"
-              width={120}
-              height={120}
-              className="rounded-full bg-white p-4 shadow-xl"
-            />
-          </div>
-          <h1 className="text-4xl font-bold mb-4 text-center">Bienvenue sur votre espace client</h1>
-          <p className="text-xl text-blue-100 text-center max-w-md">
-            Accédez à vos baux, gérez vos biens et communiquez avec votre notaire en toute simplicité.
-          </p>
-        </div>
-      </div>
+  const otp = step === "otp";
 
-      {/* Section droite avec formulaire */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
-        <div className="w-full max-w-md">
-          <Card>
-            <CardHeader className="space-y-1">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <User className="h-6 w-6 text-blue-600" />
-                  <CardTitle className="text-2xl">Espace Client</CardTitle>
+  return (
+    /* Même scène que l'accueil et que « Commencer » : une colonne centrée, le
+       fond dégradé, la grille et les halos, et rien d'autre que ce qu'il faut
+       pour entrer. La barre flotte dessus, la scène dégage sa hauteur. */
+    <main className="lp-scene relative flex min-h-screen flex-1 items-center justify-center overflow-hidden bg-gradient-to-b from-white via-[#f7f9ff] to-[#eef3ff] px-5 pb-16 pt-[calc(var(--lp-nav-h,76px)+2rem)] sm:pb-20 sm:pt-[calc(var(--lp-nav-h,76px)+3rem)]">
+      <div aria-hidden className="lp-mesh absolute inset-0" />
+      <div aria-hidden className="lp-grid absolute inset-0" />
+      <AuroraBackdrop />
+      <NoiseOverlay />
+
+      <div className="relative z-10 w-full max-w-[30rem]">
+        <div className="lp-enter-up text-center">
+          <SectionLabel icon={otp ? ShieldCheck : LayoutDashboard}>
+            {otp ? "Vérification" : "Espace client"}
+          </SectionLabel>
+          <h1 className="lp-title lp-balance mt-5 text-[2rem] font-bold leading-[1.1] text-slate-900 sm:text-[2.6rem]">
+            {otp ? (
+              <>
+                Un code vient de <span className="lp-gradient-text">partir</span>
+              </>
+            ) : (
+              <>
+                Content de vous <span className="lp-gradient-text">revoir</span>
+              </>
+            )}
+          </h1>
+        </div>
+
+        <div className="mt-7 sm:mt-8">
+          {!otp ? (
+            <StartCard current={1} total={2}>
+              <form noValidate onSubmit={handleSubmitEmail(onEmailSubmit)} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-[14px] font-semibold text-slate-800">
+                    Votre adresse e-mail
+                  </Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-4 top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      placeholder="vous@exemple.fr"
+                      className="h-14 rounded-2xl border-slate-200 bg-white pl-12 text-[16px] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow placeholder:text-slate-400 focus-visible:border-[#4373f5] focus-visible:ring-4 focus-visible:ring-[#4373f5]/15"
+                      {...registerEmail("email")}
+                      disabled={isLoading}
+                      autoFocus
+                    />
+                  </div>
+                  {emailErrors.email && (
+                    <p className="text-[13px] font-medium text-red-600">{emailErrors.email.message}</p>
+                  )}
+                  <p className="flex items-center gap-1.5 text-[13px] text-slate-500">
+                    <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    Un code vous sera envoyé. Aucun mot de passe à créer.
+                  </p>
                 </div>
-                {step === "otp" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
+
+                <StartSubmit loading={isLoading} loadingLabel="Envoi du code…">
+                  Recevoir mon code
+                  <ArrowRight className="h-[18px] w-[18px] transition-transform duration-300 group-hover/cta:translate-x-1" />
+                </StartSubmit>
+              </form>
+            </StartCard>
+          ) : (
+            <StartCard
+              current={2}
+              total={2}
+              title="Entrez votre code de connexion"
+              description={
+                <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                  Envoyé à
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#4373f5]/[0.08] px-2.5 py-1 text-[13px] font-medium text-[#2a4fd4]">
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{email}</span>
+                  </span>
+                </span>
+              }
+            >
+              <form onSubmit={handleSubmitOTP(onOTPSubmit)} className="space-y-5">
+                <Controller
+                  name="code"
+                  control={controlOTP}
+                  render={({ field }) => (
+                    <OtpCodeInput
+                      id="client-login-otp-code"
+                      label=""
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      disabled={isLoading}
+                      autoFocus
+                      error={otpErrors.code?.message}
+                    />
+                  )}
+                />
+
+                <div className="flex items-center justify-center gap-1.5 text-[13px] text-slate-500">
+                  <Timer className="h-4 w-4 text-slate-400" />
+                  Valide pendant 10 minutes
+                </div>
+
+                <StartSubmit loading={isLoading} loadingLabel="Connexion…">
+                  <Lock className="h-[18px] w-[18px]" />
+                  Se connecter
+                </StartSubmit>
+
+                <div className="flex flex-col items-stretch gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <button
+                    type="button"
                     onClick={() => {
                       setStep("email");
                       setEmail("");
                     }}
+                    disabled={isLoading}
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[13.5px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 disabled:opacity-50"
                   >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Retour
-                  </Button>
-                )}
-              </div>
-              <CardDescription>
-                {step === "email"
-                  ? "Connectez-vous avec votre email pour accéder à votre espace"
-                  : `Entrez le code à 6 chiffres envoyé à ${email}`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {step === "email" ? (
-                <form onSubmit={handleSubmitEmail(onEmailSubmit)} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Adresse email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="votre@email.com"
-                        className="pl-10"
-                        {...registerEmail("email")}
-                        disabled={isLoading}
-                      />
-                    </div>
-                    {emailErrors.email && (
-                      <p className="text-sm text-destructive">{emailErrors.email.message}</p>
-                    )}
-                  </div>
+                    <ArrowLeft className="h-4 w-4" />
+                    Changer d&apos;e-mail
+                  </button>
 
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Envoi en cours...
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="mr-2 h-4 w-4" />
-                        Recevoir le code de connexion
-                      </>
-                    )}
-                  </Button>
-                </form>
-              ) : (
-                <form onSubmit={handleSubmitOTP(onOTPSubmit)} className="space-y-4">
-                  <Controller
-                    name="code"
-                    control={controlOTP}
-                    render={({ field }) => (
-                      <OtpCodeInput
-                        id="client-login-otp-code"
-                        value={field.value || ""}
-                        onChange={field.onChange}
-                        disabled={isLoading}
-                        autoFocus
-                        error={otpErrors.code?.message}
-                      />
-                    )}
-                  />
-
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Connexion...
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="mr-2 h-4 w-4" />
-                        Se connecter
-                      </>
-                    )}
-                  </Button>
-
-                  <div className="text-center text-sm text-muted-foreground">
-                    <p>Vous n'avez pas reçu le code ?</p>
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="p-0 h-auto"
-                      onClick={() => {
-                        setStep("email");
-                        handleSubmitEmail(onEmailSubmit)();
-                      }}
-                      disabled={isLoading}
-                    >
-                      Renvoyer le code
-                    </Button>
-                  </div>
-                </form>
-              )}
-            </CardContent>
-          </Card>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("email");
+                      handleSubmitEmail(onEmailSubmit)();
+                    }}
+                    disabled={isLoading}
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-[13.5px] font-semibold text-[#3563e9] transition-colors hover:bg-[#4373f5]/[0.07] disabled:text-slate-400 disabled:hover:bg-transparent"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Renvoyer le code
+                  </button>
+                </div>
+              </form>
+            </StartCard>
+          )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }
-

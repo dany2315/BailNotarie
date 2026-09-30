@@ -2,18 +2,16 @@ import { requireLocataireAuth } from "@/lib/auth-helpers";
 import { canAccessBail } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Home, User, Calendar, Euro } from "lucide-react";
-import Link from "next/link";
-import { formatDate, formatCurrency, formatDateTime } from "@/lib/utils/formatters";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ProfilType, BailStatus } from "@prisma/client";
-import { BailChatSheet } from "@/components/client/bail-chat-sheet";
+import { BailStatus, ProfilType } from "@prisma/client";
+
+import { TenantBailDetail } from "@/components/client-v2/tenant/tenant-bail-detail";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
+/* Libellés d'origine, conservés comme repli : ils couvrent tous les statuts
+   de l'énumération, là où l'écriture côté locataire n'en nomme que les
+   étapes qu'un locataire traverse. */
 const statusLabels: Record<BailStatus, string> = {
   DRAFT: "Brouillon",
   AWAITING_TENANT: "En attente du locataire",
@@ -25,19 +23,6 @@ const statusLabels: Record<BailStatus, string> = {
   TERMINATED: "Terminé",
   DESISTE: "Désisté",
   CLASSE_SANS_SUITE: "Classé sans suite",
-};
-
-const statusColors: Record<BailStatus, string> = {
-  DRAFT: "bg-gray-100 text-gray-800",
-  AWAITING_TENANT: "bg-violet-100 text-violet-800",
-  AWAITING_TENANT_FORM: "bg-indigo-100 text-indigo-800",
-  PENDING_VALIDATION: "bg-amber-100 text-amber-800",
-  READY_FOR_NOTARY: "bg-blue-100 text-blue-800",
-  CLIENT_CONTACTED: "bg-purple-100 text-purple-800",
-  SIGNED: "bg-green-100 text-green-800",
-  TERMINATED: "bg-gray-100 text-gray-800",
-  DESISTE: "bg-red-100 text-red-800",
-  CLASSE_SANS_SUITE: "bg-gray-100 text-gray-800",
 };
 
 export default async function LocataireBailDetailPage({
@@ -120,159 +105,13 @@ export default async function LocataireBailDetailPage({
   const notaire = bail.dossierAssignments[0]?.notaire;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/client/locataire/baux">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Retour
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">Mon bail</h1>
-            <p className="text-muted-foreground">{bail.property.label || bail.property.fullAddress}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Informations du bail */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Informations du bail</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Statut</span>
-              <Badge className={statusColors[bail.status]}>
-                {statusLabels[bail.status]}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Type de bail</span>
-              <span className="text-sm font-medium">{bail.bailType}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Loyer mensuel</span>
-              <span className="text-sm font-medium">{formatCurrency(bail.rentAmount)}</span>
-            </div>
-            {bail.monthlyCharges > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Charges mensuelles</span>
-                <span className="text-sm font-medium">{formatCurrency(bail.monthlyCharges)}</span>
-              </div>
-            )}
-            {bail.securityDeposit > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Dépôt de garantie</span>
-                <span className="text-sm font-medium">{formatCurrency(bail.securityDeposit)}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Date de début</span>
-              <span className="text-sm font-medium">{formatDate(bail.effectiveDate)}</span>
-            </div>
-            {bail.endDate && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Date de fin</span>
-                <span className="text-sm font-medium">{formatDate(bail.endDate)}</span>
-              </div>
-            )}
-            {bail.paymentDay && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Jour de paiement</span>
-                <span className="text-sm font-medium">Le {bail.paymentDay} de chaque mois</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Informations du bien */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Informations du bien</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <span className="text-sm text-muted-foreground">Adresse</span>
-              <p className="text-sm font-medium mt-1">{bail.property.fullAddress}</p>
-            </div>
-            {bail.property.label && (
-              <div>
-                <span className="text-sm text-muted-foreground">Label</span>
-                <p className="text-sm font-medium mt-1">{bail.property.label}</p>
-              </div>
-            )}
-            {bail.property.surfaceM2 && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Surface</span>
-                <span className="text-sm font-medium">{bail.property.surfaceM2.toString()} m²</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Informations du propriétaire */}
-        {proprietaire && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Propriétaire</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm font-medium">{proprietaireName}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Notaire assigné */}
-        {notaire && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Notaire assigné</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm font-medium">{notaire.name || notaire.email}</p>
-              {notaire.email && (
-                <p className="text-xs text-muted-foreground mt-1">{notaire.email}</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Chat avec le notaire */}
-      {notaire && (
-        <div className="flex justify-end">
-          <BailChatSheet bailId={bailId} defaultOpen={openChat} />
-        </div>
-      )}
-
-      {/* Documents */}
-      {bail.documents.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Documents</CardTitle>
-            <CardDescription>{bail.documents.length} document{bail.documents.length > 1 ? "s" : ""}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {bail.documents.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-2 border rounded">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{doc.label || doc.kind}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDateTime(doc.createdAt)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+    <TenantBailDetail
+      bail={bail as any}
+      bailId={bailId}
+      proprietaireName={proprietaireName}
+      hasProprietaire={Boolean(proprietaire)}
+      notaire={notaire ?? null}
+      openChat={openChat}
+    />
   );
 }
-

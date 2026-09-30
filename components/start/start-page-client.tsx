@@ -1,12 +1,17 @@
 "use client";
 
+import * as React from "react";
 import { useState, startTransition } from "react";
 import { OwnerEmailInputForm } from "@/components/start/owner-email-input-form";
+import { AlreadyClientState } from "@/components/start/already-client-state";
 import { OtpVerificationForm } from "@/components/start/otp-verification-form";
 import { useRouter } from "next/navigation";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
+import { AuroraBackdrop, NoiseOverlay } from "@/components/lp/ui/lp-primitives";
+import { StartHeading } from "@/components/start/start-aside";
 import { notifyAdminsForNewOwnerFromLanding } from "@/lib/actions/start";
+import { takeStartHandoff, type StartHandoff } from "@/lib/start-handoff";
 
 type Step = "email-input" | "otp-verification";
 
@@ -16,6 +21,32 @@ export function StartPageClient() {
   const [email, setEmail] = useState("");
   const [token, setToken] = useState<string | undefined>(undefined);
   const [isExistingClient, setIsExistingClient] = useState(false);
+  const [initialError, setInitialError] = useState<Extract<StartHandoff, { step: "error" }> | null>(null);
+  /* L'adresse vient de l'accueil : le parcours qui reste ne compte que le code
+     et le dossier, et le repère d'avancement doit compter comme le visiteur. */
+  const [fromHome, setFromHome] = useState(false);
+
+  /* Relais de l'accueil : quand l'adresse y a déjà été saisie, le code est
+     parti et il ne reste que la vérification. La lecture se fait avant la
+     première peinture, sinon l'écran de l'e-mail apparaîtrait un instant
+     avant d'être remplacé. */
+  const useBeforePaint = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
+  useBeforePaint(() => {
+    const handoff = takeStartHandoff();
+    if (!handoff) return;
+
+    if (handoff.step === "otp") {
+      setEmail(handoff.email);
+      setToken(handoff.token);
+      setIsExistingClient(handoff.isExistingClient);
+      setFromHome(true);
+      setCurrentStep("otp-verification");
+      return;
+    }
+
+    setEmail(handoff.email);
+    setInitialError(handoff);
+  }, []);
 
   // Callback quand l'OTP a été envoyé avec succès
   const handleOtpSent = (
@@ -69,34 +100,60 @@ export function StartPageClient() {
     setEmail("");
     setToken(undefined);
     setIsExistingClient(false);
+    setInitialError(null);
+    // Revenir en arrière remet le parcours complet : l'adresse est à ressaisir.
+    setFromHome(false);
   };
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-1 flex items-center justify-center py-4 sm:py-6 md:py-8 lg:py-12 px-3 sm:px-4 md:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50/50 relative overflow-hidden">
-        {/* Motifs décoratifs en arrière-plan */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-48 h-48 sm:w-64 sm:h-64 md:w-96 md:h-96 bg-blue-200/20 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-0 right-1/4 w-48 h-48 sm:w-64 sm:h-64 md:w-96 md:h-96 bg-indigo-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-          <div className="absolute top-1/2 left-0 w-32 h-32 sm:w-48 sm:h-48 md:w-64 md:h-64 bg-purple-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-        </div>
+  const step = currentStep === "email-input" ? "email" : "otp";
 
-        <div className="w-full max-w-4xl relative z-10">
-          {currentStep === "email-input" && (
-            <OwnerEmailInputForm onOtpSent={handleOtpSent} />
-          )}
-          {currentStep === "otp-verification" && (
-            <OtpVerificationForm
-              email={email}
-              token={token}
-              isExistingClient={isExistingClient}
-              onSuccess={handleOtpSuccess}
-              onBack={handleBack}
-            />
-          )}
+  return (
+    /* `lp-root` apporte les jetons du design de l'accueil — couleurs, ombres,
+       respect du mouvement réduit — au reste de l'arbre. */
+    <div className="lp-root flex min-h-screen flex-col bg-white">
+      {/* Sans réserve : la scène commence en haut de l'écran, la barre flotte
+          dessus et dégage sa hauteur par le `pt-` ci-dessous — comme sur les
+          autres pages du site. */}
+      <LpNav overlay />
+
+      <main className="lp-scene relative flex flex-1 items-center justify-center overflow-hidden bg-gradient-to-b from-white via-[#f7f9ff] to-[#eef3ff] px-5 pb-16 pt-[calc(var(--lp-nav-h,76px)+2rem)] sm:pb-20 sm:pt-[calc(var(--lp-nav-h,76px)+3rem)]">
+        <div aria-hidden className="lp-mesh absolute inset-0" />
+        <div aria-hidden className="lp-grid absolute inset-0" />
+        <AuroraBackdrop />
+        <NoiseOverlay />
+
+        {/* Une seule colonne, centrée : on arrive ici décidé, le champ doit
+            être la seule chose à regarder. */}
+        <div className="relative z-10 w-full max-w-[30rem]">
+          <StartHeading step={step} />
+
+          <div className="mt-7 sm:mt-8">
+            {currentStep === "email-input" && initialError && (
+              <AlreadyClientState
+                message={initialError.message}
+                redirectTo={initialError.redirectTo}
+                redirectLabel={initialError.redirectLabel || "Contactez-nous"}
+                onBack={handleBack}
+              />
+            )}
+            {currentStep === "email-input" && !initialError && (
+              <OwnerEmailInputForm onOtpSent={handleOtpSent} initialEmail={email} />
+            )}
+            {currentStep === "otp-verification" && (
+              <OtpVerificationForm
+                email={email}
+                token={token}
+                isExistingClient={isExistingClient}
+                onSuccess={handleOtpSuccess}
+                onBack={handleBack}
+                stepIndex={fromHome ? 1 : 2}
+                stepTotal={fromHome ? 2 : 3}
+              />
+            )}
+          </div>
         </div>
       </main>
+
       <Footer />
     </div>
   );

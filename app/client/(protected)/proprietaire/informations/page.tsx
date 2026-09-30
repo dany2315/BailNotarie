@@ -1,8 +1,8 @@
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
 import { getClientFullInfo } from "@/lib/actions/client-space";
-import { ClientInfoDisplay } from "@/components/client/client-info-display";
-import { Card, CardContent } from "@/components/ui/card";
-import { UserRound, Building2, Home } from "lucide-react";
+import { OwnerInformations } from "@/components/client-v2/owner-informations";
+import { Surface, EmptyState } from "@/components/client-v2/owner-ui";
+import { UserRound } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -13,57 +13,23 @@ export default async function ProprietaireInformationsPage() {
 
   if (!clientData) {
     return (
-      <div className="p-4 sm:p-6 md:max-w-2xl md:mx-auto">
-        <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-muted-foreground">Client introuvable</p>
-          </CardContent>
-        </Card>
+      <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
+        <Surface tone="raised">
+          <EmptyState icon={UserRound} title="Client introuvable" />
+        </Surface>
       </div>
     );
   }
 
-  const isEntreprise = clientData.type === "PERSONNE_MORALE";
-  const primaryPerson = clientData.persons?.[0];
-  const displayName = isEntreprise
-    ? clientData.entreprise?.legalName || clientData.entreprise?.name || "Entreprise"
-    : primaryPerson
-    ? `${primaryPerson.firstName || ""} ${primaryPerson.lastName || ""}`.trim() || primaryPerson.email || "Propriétaire"
-    : "Propriétaire";
-
-  const initials = displayName
-    .split(" ")
-    .slice(0, 2)
-    .map((w: string) => w[0])
-    .join("")
-    .toUpperCase();
-
+  /* Le nom affiché, les initiales et la répartition par nature des champs
+     sont calculés dans le composant : la page ne fait que transmettre ce que
+     la base renvoie. */
   return (
-    <div className="p-4 sm:p-6 space-y-8 md:max-w-2xl md:mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <div className="h-14 w-14 rounded-2xl flex items-center justify-center text-lg font-bold shrink-0 bg-primary/10 text-primary">
-          {isEntreprise ? <Building2 className="h-7 w-7" /> : (initials || <UserRound className="h-7 w-7" />)}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-bold truncate">{displayName}</h1>
-            <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 shrink-0">
-              <Home className="h-3 w-3" />
-              Propriétaire
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground mt-0.5">Informations personnelles</p>
-        </div>
-      </div>
-
-      {/* Contenu */}
-      <ClientInfoDisplay
-        clientType={clientData.type}
-        persons={clientData.persons || []}
-        entreprise={clientData.entreprise}
-        clientDocuments={clientData.documents || []}
-      />
-    </div>
+    <OwnerInformations
+      clientType={clientData.type}
+      persons={clientData.persons || []}
+      entreprise={clientData.entreprise}
+      clientDocuments={clientData.documents || []}
+    />
   );
 }

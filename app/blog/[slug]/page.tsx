@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
-import { Header } from "@/components/header"
+import { LpNav } from "@/components/lp/lp-nav"
 import { Footer } from "@/components/footer"
 import { blogData, blogCategories } from '@/lib/blog-data'
 import { generateArticleMetadata } from '@/lib/blog-utils'
@@ -346,7 +346,8 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         ]}
       />
       <FaqSchema items={faqItems} pageUrl={canonicalUrl} />
-      <Header />
+      {/* Sans réserve : la pastille flotte sur l'image de couverture. */}
+      <LpNav overlay />
       <BlogPageClient article={article} faqItems={faqItems} />
       <Footer />
     </>

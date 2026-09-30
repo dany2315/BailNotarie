@@ -6,7 +6,7 @@ import {
 } from "@/lib/actions/client-space";
 import { getClientBailDrafts } from "@/lib/actions/leases";
 import { ProfilType } from "@prisma/client";
-import { DashboardProprietaireClient } from "@/components/client/dashboard-proprietaire-client";
+import { OwnerDashboard } from "@/components/client-v2/owner-dashboard";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -22,7 +22,7 @@ export default async function ProprietaireDashboardPage() {
   ]);
 
   return (
-    <DashboardProprietaireClient
+    <OwnerDashboard
       baux={baux as any}
       pendingRequests={pendingRequests as any}
       activeIntakes={activeIntakes}

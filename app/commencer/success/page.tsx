@@ -1,10 +1,16 @@
 import { getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
-import { ArrowRight, CheckCircle2, Mail, ShieldCheck, Receipt, Download } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Header } from "@/components/header";
-import { Footer } from "@/components/footer";
+import { ArrowRight, CheckCircle2, Clock, Download, Mail, Receipt, ShieldCheck } from "lucide-react";
+import { MicroLabel, Surface } from "@/components/client-v2/owner-ui";
+import {
+  IntakeActions,
+  IntakeHero,
+  IntakeNote,
+  IntakePrimaryLink,
+  IntakeQuietLink,
+  IntakeShell,
+  IntakeSteps,
+} from "@/components/intake/intake-state";
 import { stripe } from "@/lib/stripe";
 
 export default async function IntakeSuccessPage({
@@ -28,22 +34,17 @@ export default async function IntakeSuccessPage({
   // Vérifier que le formulaire a bien été soumis
   if (intakeLink.status !== "SUBMITTED") {
     return (
-      <div className="min-h-screen bg-background">
-      <Header />
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <h1 className="text-2xl font-bold">Formulaire non soumis</h1>
-              <p className="text-muted-foreground">
-                Ce formulaire n'a pas encore été soumis. Veuillez compléter le formulaire pour accéder à cette page.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      <Footer />
-    </div>
+      <IntakeShell tone="progress">
+        <div className="space-y-7">
+          <IntakeHero
+            tone="progress"
+            icon={Clock}
+            kicker="Formulaire non soumis"
+            title="Ce formulaire n'a pas encore été soumis"
+            description="Complétez-le jusqu'au bout pour accéder à cette page."
+          />
+        </div>
+      </IntakeShell>
     );
   }
 
@@ -94,102 +95,73 @@ export default async function IntakeSuccessPage({
       ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <Header />
-      <main className="min-h-[calc(100vh-80px)] px-4 py-8 sm:py-12">
-        <div className="mx-auto max-w-3xl">
-          <Card className="overflow-hidden border-0 shadow-2xl py-0">
-            <CardContent className="p-0">
-              <div className="bg-gradient-to-r from-emerald-600 to-green-600 px-6 py-5 text-white sm:px-10">
-                <div className="mx-auto mb-5 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur">
-                  <CheckCircle2 className="h-5 w-5" />
-                </div>
-                <h1 className="text-center text-2xl font-bold sm:text-3xl">
-                  Votre demande a été enregistrée avec succès
-                </h1>
-                <p className="mt-3 text-center text-emerald-50">
-                  Merci {clientName}. Votre dossier est bien pris en compte.
-                </p>
+    <IntakeShell tone="success" width="wide">
+      <div className="space-y-7">
+        <IntakeHero
+          tone="success"
+          icon={CheckCircle2}
+          kicker="Demande enregistrée"
+          title="C'est envoyé"
+          description={`Merci ${clientName}. Votre dossier est entre nos mains — vous n'avez plus rien à faire pour l'instant.`}
+        />
+
+        <IntakeSteps title="La suite" steps={nextSteps} />
+
+        {/* Reçu de paiement */}
+        {isOwner && (
+          <Surface tone="raised" className="p-5 sm:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <Receipt className="h-4 w-4 text-slate-400" />
+                <MicroLabel>Reçu de paiement</MicroLabel>
               </div>
+              {receiptUrl && (
+                <a
+                  href={receiptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Télécharger
+                </a>
+              )}
+            </div>
 
-              <div className="space-y-6 p-6 sm:p-8">
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
-                  <div className="mb-2 flex items-center gap-2 text-emerald-800">
-                    <ShieldCheck className="h-5 w-5" />
-                    <span className="font-semibold">Confirmation envoyée</span>
-                  </div>
-                  <p className="text-sm text-emerald-700">
-                    {isOwner
-                      ? "Un email de confirmation vous sera envoyé. En cas de pièce manquante, nous vous contacterons rapidement."
-                      : "Un email de confirmation vous sera envoyé. Le propriétaire est informé de l’avancement de votre dossier."}
-                  </p>
-                </div>
+            <div className="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-3.5">
+              <span className="text-[13.5px] text-slate-600">Frais de dossier BailNotarie</span>
+              <span className="text-[16px] font-bold tabular-nums tracking-tight text-slate-900">
+                39,90 € TTC
+              </span>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-[11.5px] tabular-nums text-slate-400">
+              <span>Réf. {token.slice(0, 8).toUpperCase()}</span>
+              <span>Paiement unique</span>
+            </div>
+            <p className="mt-3 text-[11.5px] leading-snug text-slate-400">
+              Ces frais couvrent la constitution, vérification et transmission de votre dossier. Les
+              émoluments du notaire seront facturés séparément.
+            </p>
+          </Surface>
+        )}
 
-                <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-                  <h2 className="mb-4 text-lg font-semibold text-slate-900">Prochaines étapes</h2>
-                  <ul className="space-y-3">
-                    {nextSteps.map((step, index) => (
-                      <li key={step} className="flex items-start gap-3 text-sm text-slate-700">
-                        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
-                          {index + 1}
-                        </div>
-                        <span>{step}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+        <IntakeNote icon={ShieldCheck} tone="success">
+          {isOwner
+            ? "Un email de confirmation vous sera envoyé. En cas de pièce manquante, nous vous contacterons rapidement."
+            : "Un email de confirmation vous sera envoyé. Le propriétaire est informé de l'avancement de votre dossier."}
+        </IntakeNote>
 
-                {/* Reçu de paiement */}
-                {isOwner && (
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Receipt className="h-4 w-4 text-slate-500" />
-                        <h2 className="text-sm font-semibold text-slate-700">Reçu de paiement</h2>
-                      </div>
-                      {receiptUrl && (
-                        <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
-                          <a href={receiptUrl} target="_blank" rel="noopener noreferrer">
-                            <Download className="h-3.5 w-3.5" />
-                            Télécharger le reçu
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-600">Frais de dossier BailNotarie</span>
-                      <span className="font-bold text-slate-900">39,90 € TTC</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
-                      <span>Réf. {token.slice(0, 8).toUpperCase()}</span>
-                      <span>Paiement unique</span>
-                    </div>
-                    <p className="mt-3 text-xs text-slate-400 leading-snug">
-                      Ces frais couvrent la constitution, vérification et transmission de votre dossier. Les émoluments du notaire seront facturés séparément.
-                    </p>
-                  </div>
-                )}
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Button asChild size="lg" className="h-11 bg-green-600 hover:bg-green-700">
-                    <a href={clientSpaceUrl} className="flex items-center justify-center gap-2">
-                      Accéder à mon espace client
-                      <ArrowRight className="h-4 w-4" />
-                    </a>
-                  </Button>
-                  <Button asChild variant="outline" size="lg" className="h-11">
-                    <a href="mailto:contact@bailnotarie.fr" target="_blank" className="flex items-center justify-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      Contacter le support
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-      <Footer />
-    </div>
+        <IntakeActions>
+          <IntakePrimaryLink href={clientSpaceUrl}>
+            Accéder à mon espace client
+            <ArrowRight className="h-4 w-4" />
+          </IntakePrimaryLink>
+          <IntakeQuietLink href="mailto:contact@bailnotarie.fr" external>
+            <Mail className="h-4 w-4" />
+            Contacter le support
+          </IntakeQuietLink>
+        </IntakeActions>
+      </div>
+    </IntakeShell>
   );
 }

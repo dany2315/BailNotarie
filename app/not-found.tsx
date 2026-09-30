@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 import { Home, ArrowLeft, Search, FileText, Phone, Mail, Workflow } from "lucide-react";
 import Image from "next/image";
@@ -14,7 +14,7 @@ export default function NotFound() {
   
   return (
     <main className="min-h-screen bg-gray-50">
-      <Header />
+      <LpNav />
       
       {/* Section 404 */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">

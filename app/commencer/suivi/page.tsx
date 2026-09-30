@@ -4,15 +4,12 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Loader2, CheckCircle2, MailCheck } from "lucide-react";
+import { Mail, Loader2, MailCheck, Search, ShieldCheck } from "lucide-react";
 import { getRequestStatusByEmail } from "@/lib/actions/start";
 import { toast } from "sonner";
-import { Header } from "@/components/header";
-import { Footer } from "@/components/footer";
+
+import { MicroLabel, PrimaryAction, QuietAction, Surface } from "@/components/client-v2/owner-ui";
+import { IntakeHero, IntakeNote, IntakeShell } from "@/components/intake/intake-state";
 
 const emailSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -53,116 +50,99 @@ export default function SuiviPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <div className="w-full max-w-2xl space-y-6">
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl md:text-3xl font-bold">
-                Suivi de votre demande
-              </CardTitle>
-              <CardDescription className="text-base md:text-lg">
-                Entrez votre adresse email pour recevoir les informations de suivi de votre demande de bail notarié par email
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-base font-semibold">
-                    Email *
-                  </Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="votre@email.com"
-                      className="pl-10"
-                      {...form.register("email")}
-                      disabled={isLoading || emailSent}
-                    />
-                  </div>
-                  {form.formState.errors.email && (
-                    <p className="text-sm text-destructive">
-                      {form.formState.errors.email.message}
-                    </p>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    Pour des raisons de sécurité, les informations de suivi seront envoyées uniquement à l'adresse email associée à votre demande.
-                  </p>
-                </div>
+  // Une fois l'email parti, la page n'a plus de formulaire à montrer : elle
+  // confirme, et propose le seul geste restant.
+  if (emailSent) {
+    return (
+      <IntakeShell tone="success">
+        <div className="space-y-7">
+          <IntakeHero
+            tone="success"
+            icon={MailCheck}
+            kicker="Suivi envoyé"
+            title="C'est parti dans votre boîte"
+            description={
+              <>
+                Tout l&apos;état d&apos;avancement de votre demande a été envoyé à{" "}
+                <span className="font-semibold text-slate-700">{submittedEmail}</span>.
+              </>
+            }
+          />
 
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full"
-                  disabled={isLoading || emailSent}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Envoi en cours...
-                    </>
-                  ) : emailSent ? (
-                    <>
-                      <MailCheck className="mr-2 h-4 w-4" />
-                      Email envoyé
-                    </>
-                  ) : (
-                    "Recevoir le suivi par email"
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          <IntakeNote icon={Search} tone="success">
+            Rien au bout de quelques minutes ? Regardez dans vos courriers indésirables.
+          </IntakeNote>
 
-          {emailSent && (
-            <Card className="border-green-200 bg-green-50">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="h-8 w-8 text-green-600" />
-                  <div>
-                    <CardTitle className="text-green-800">
-                      Email envoyé avec succès
-                    </CardTitle>
-                    <CardDescription className="text-green-700">
-                      Les informations de suivi ont été envoyées à {submittedEmail}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-white rounded-lg p-4 border border-green-200">
-                  <p className="text-sm text-gray-700 mb-2">
-                    <strong>✅ Vérifiez votre boîte de réception</strong>
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Un email contenant toutes les informations sur l'état d'avancement de votre demande de bail notarié a été envoyé à l'adresse <strong>{submittedEmail}</strong>.
-                  </p>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Si vous ne recevez pas l'email dans les prochaines minutes, vérifiez votre dossier de courrier indésirable (spam).
-                  </p>
-                </div>
-                <Button
-                  onClick={() => {
-                    setEmailSent(false);
-                    setSubmittedEmail("");
-                    form.reset();
-                  }}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Demander un autre suivi
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          <div className="flex justify-center">
+            <QuietAction
+              className="py-3"
+              onClick={() => {
+                setEmailSent(false);
+                setSubmittedEmail("");
+                form.reset();
+              }}
+            >
+              Demander un autre suivi
+            </QuietAction>
+          </div>
         </div>
-      </main>
-      <Footer />
-    </div>
+      </IntakeShell>
+    );
+  }
+
+  return (
+    <IntakeShell tone="info">
+      <div className="space-y-7">
+        <IntakeHero
+          icon={Search}
+          kicker="Suivi de demande"
+          title="Où en est mon dossier ?"
+          description="Entrez votre adresse email : nous vous envoyons l'état d'avancement de votre demande de bail notarié."
+        />
+
+        <Surface tone="raised" className="p-5 sm:p-6">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <div>
+              <MicroLabel className="mb-2">Votre email</MicroLabel>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="votre@email.com"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-[14px] text-slate-800 outline-none transition-shadow placeholder:text-slate-400 focus:border-[#4373f5] focus:shadow-[0_0_0_3px_rgba(67,115,245,0.15)] disabled:opacity-60"
+                  {...form.register("email")}
+                  disabled={isLoading || emailSent}
+                />
+              </div>
+              {form.formState.errors.email && (
+                <p className="mt-2 text-[12.5px] font-medium text-red-600">
+                  {form.formState.errors.email.message}
+                </p>
+              )}
+            </div>
+
+            <PrimaryAction type="submit" className="w-full py-3.5" disabled={isLoading || emailSent}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Envoi en cours…
+                </>
+              ) : (
+                <>
+                  Recevoir le suivi par email
+                  <Mail className="h-4 w-4" />
+                </>
+              )}
+            </PrimaryAction>
+          </form>
+        </Surface>
+
+        <IntakeNote icon={ShieldCheck}>
+          Pour des raisons de sécurité, le suivi n&apos;est envoyé qu&apos;à l&apos;adresse email
+          associée à la demande.
+        </IntakeNote>
+      </div>
+    </IntakeShell>
   );
 }
-

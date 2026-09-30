@@ -1,5 +1,6 @@
 "use client";
 
+import { LpNav } from "@/components/lp/lp-nav";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Calculator, Euro, FileCheck2, Users } from "lucide-react";
@@ -78,6 +79,9 @@ export function PriceSimulatorPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-blue-50/70 via-white to-white">
+      {/* Dans le conteneur qui porte le fond, pour qu'il remonte derrière la
+          barre flottante au lieu de laisser voir celui du document. */}
+      <LpNav />
       <section className="py-10 md:py-16">
         <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
           <nav aria-label="Fil d'Ariane" className="mb-6 flex items-center justify-center gap-2 text-sm text-slate-500">

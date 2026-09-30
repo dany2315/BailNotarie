@@ -26,9 +26,11 @@ export function OtpCodeInput({
 
   return (
     <div className="space-y-3">
-      <Label htmlFor={id} className="text-base sm:text-lg font-semibold text-center block">
-        {label}
-      </Label>
+      {label ? (
+        <Label htmlFor={id} className="text-base sm:text-lg font-semibold text-center block">
+          {label}
+        </Label>
+      ) : null}
       <div className="flex justify-center">
         <InputOTP
           id={id}

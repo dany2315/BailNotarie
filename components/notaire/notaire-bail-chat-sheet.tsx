@@ -51,7 +51,16 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { getPusherClient } from "@/lib/pusher-client";
+import { ChatPanel } from "@/components/chat-v2/chat-panel";
+import { ChatDock } from "@/components/chat-v2/chat-dock";
+import {
+  ConfirmDialog,
+  RequestStatusControl,
+  type RequestStatus,
+} from "@/components/chat-v2/chat-ui";
+import { toTimeline } from "@/components/chat-v2/adapters";
 import type { Channel } from "pusher-js";
 
 const messageSchema = z.object({
@@ -209,6 +218,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
     handleSubmit: handleSubmitMessage,
     reset: resetMessage,
     watch: watchMessage,
+    setValue: setValueMessage,
     formState: { errors: messageErrors },
   } = useForm<MessageFormData>({
     resolver: zodResolver(messageSchema),
@@ -979,888 +989,440 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
   );
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      {/* Ne pas afficher le trigger si le composant est contrôlé depuis l'extérieur */}
-      {controlledOpen === undefined && (
-        <SheetTrigger asChild>
-          {trigger || defaultTrigger}
-        </SheetTrigger>
-      )}
-      <SheetContent className="w-full sm:max-w-2xl flex flex-col p-0">
-        <SheetHeader className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              {/* Skeleton pour le header pendant le chargement */}
-              {initialLoading && !otherUser ? (
-                <>
-                  <Skeleton className="h-10 w-10 rounded-full shrink-0" />
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <SheetTitle className="sr-only">Chargement de la discussion</SheetTitle>
-                    <Skeleton className="h-5 w-40" />
-                    <Skeleton className="h-4 w-24" />
-                  </div>
-                </>
-              ) : (
-                <>
-                  {otherUser && (
-                    <Avatar className="h-10 w-10 shrink-0">
-                      <AvatarFallback className={otherUser.role === Role.NOTAIRE ? "bg-blue-500 text-white" : "bg-muted"}>
-                        {otherUser.role === Role.NOTAIRE ? (
-                          <Scale className="h-5 w-5" />
-                        ) : (
-                          (otherUser.name || otherUser.email || "U")
-                            .split(" ")
-                            .map((n: string) => n[0])
-                            .join("")
-                            .toUpperCase()
-                            .slice(0, 2)
-                        )}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <SheetTitle className="text-lg">
-                      {otherUser 
-                        ? (otherUser.partyName || otherUser.name || otherUser.email || "Utilisateur")
-                        : "Discussion avec les clients"}
-                    </SheetTitle>
-                    <div className="flex items-center gap-2 mt-1">
-                      {otherUser?.profilType && (
-                        <Badge variant="outline" className="text-xs">
-                          {otherUser.profilType}
-                        </Badge>
-                      )}
-                      {isOtherUserTyping ? (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <div className="flex gap-1">
-                            <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                            <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                            <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></div>
-                          </div>
-                          <span className="text-xs">en train d'écrire...</span>
-                        </div>
-                      ) : isOtherUserOnline && otherUser?.id ? (
-                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="text-xs">en ligne</span>
-                        </div>
-                      ) : (
-                        <SheetDescription className="text-xs mt-0">
-                          {otherUser?.profilType 
-                            ? `Communiquez avec le ${otherUser.profilType.toLowerCase()}`
-                            : "Communiquez avec les parties du bail et créez des demandes"}
-                        </SheetDescription>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-            {/* Dialog pour créer une demande (ouvert depuis l'InputGroup) */}
-            {isNotaire && (
-              <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Créer une demande de document</DialogTitle>
-                    <DialogDescription>
-                      {selectedParty && otherUser?.partyName 
-                        ? `Demander un document à ${otherUser.partyName} (${otherUser.profilType})`
-                        : "Demander des documents aux parties du dossier"
-                      }
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleSubmitRequest(onSubmitRequest)} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="title">Nom du document *</Label>
-                      <Input
-                        id="title"
-                        placeholder="Ex: Piéce d'identiter"
-                        {...registerRequest("title")}
-                      />
-                      {requestErrors.title && (
-                        <p className="text-sm text-destructive">{requestErrors.title.message}</p>
-                      )}
-                    </div>
+    <ChatDock
+      open={open}
+      onOpenChange={setOpen}
+      /* Ne pas afficher le trigger si le composant est contrôlé depuis l'extérieur */
+      trigger={controlledOpen === undefined ? trigger || defaultTrigger : undefined}
+      label={
+        otherUser
+          ? `Discussion avec ${otherUser.partyName || otherUser.name || otherUser.email}`
+          : "Discussion avec les clients"
+      }
+    >
 
-                    <div className="space-y-2">
-                      <Label htmlFor="content">Contenu de la demande *</Label>
-                      <Textarea
-                        id="content"
-                        placeholder="Décrivez en détail ce que vous demandez..."
-                        rows={6}
-                        {...registerRequest("content")}
-                      />
-                      {requestErrors.content && (
-                        <p className="text-sm text-destructive">{requestErrors.content.message}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-3">
-                      <Label>Destinataire</Label>
-                      
-                      {/* Si une partie spécifique est sélectionnée, afficher simplement le destinataire */}
-                      {selectedParty && otherUser ? (
-                        <div className="p-3 bg-muted rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{otherUser.partyName || otherUser.name}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {otherUser.profilType}
-                            </Badge>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Sinon, afficher les options de sélection */}
-                          {proprietaires.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id="targetProprietaire"
-                                  checked={targetProprietaire}
-                                  onCheckedChange={(checked) =>
-                                    setValue("targetProprietaire", checked === true)
-                                  }
-                                />
-                                <Label
-                                  htmlFor="targetProprietaire"
-                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                >
-                                  Propriétaire{proprietaires.length > 1 ? "s" : ""}
-                                </Label>
-                              </div>
-                              {targetProprietaire && (
-                                <div className="ml-6 space-y-1">
-                                  {proprietaires.map((prop) => (
-                                    <div key={prop.id} className="text-sm text-muted-foreground">
-                                      • {getPartyName(prop)}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {locataires.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id="targetLocataire"
-                                  checked={targetLocataire}
-                                  onCheckedChange={(checked) =>
-                                    setValue("targetLocataire", checked === true)
-                                  }
-                                />
-                                <Label
-                                  htmlFor="targetLocataire"
-                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                >
-                                  Locataire{locataires.length > 1 ? "s" : ""}
-                                </Label>
-                              </div>
-                              {targetLocataire && (
-                                <div className="ml-6 space-y-1">
-                                  {locataires.map((loc) => (
-                                    <div key={loc.id} className="text-sm text-muted-foreground">
-                                      • {getPartyName(loc)}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {proprietaires.length === 0 && locataires.length === 0 && (
-                            <p className="text-sm text-muted-foreground">
-                              Aucune partie disponible dans ce dossier
-                            </p>
-                          )}
-                        </>
-                      )}
-
-                      {requestErrors.targetProprietaire && !selectedParty && (
-                        <p className="text-sm text-destructive">
-                          {requestErrors.targetProprietaire.message}
-                        </p>
-                      )}
-                    </div>
-
-                    <DialogFooter>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setIsRequestDialogOpen(false);
-                          resetRequest();
-                        }}
-                        disabled={sending}
-                      >
-                        Annuler
-                      </Button>
-                      <Button type="submit" disabled={sending}>
-                        {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Créer la demande
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-        </SheetHeader>
-
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Zone de messages */}
-          <ScrollArea ref={scrollAreaRef} className="flex-1 px-4 py-6">
-            {/* Indicateur de rafraîchissement discret en haut */}
-            {refreshing && messages.length > 0 && (
-              <div className="flex justify-center py-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Mise à jour...</span>
-                </div>
-              </div>
-            )}
-            
-            <div className="space-y-6">
-              {initialLoading ? (
-                /* Skeletons de messages pendant le chargement */
-                <div className="space-y-6">
-                  {/* Message entrant skeleton */}
-                  <div className="flex gap-3">
-                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                    <div className="flex flex-col gap-1 max-w-[75%]">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-3 w-20" />
-                        <Skeleton className="h-3 w-16" />
-                      </div>
-                      <Skeleton className="h-16 w-64 rounded-2xl rounded-bl-md" />
-                    </div>
-                  </div>
-                  {/* Message sortant skeleton */}
-                  <div className="flex gap-3 flex-row-reverse">
-                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                    <div className="flex flex-col gap-1 items-end max-w-[75%]">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-3 w-16" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                      <Skeleton className="h-12 w-48 rounded-2xl rounded-br-md" />
-                    </div>
-                  </div>
-                  {/* Message entrant skeleton */}
-                  <div className="flex gap-3">
-                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                    <div className="flex flex-col gap-1 max-w-[75%]">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-3 w-20" />
-                        <Skeleton className="h-3 w-16" />
-                      </div>
-                      <Skeleton className="h-20 w-72 rounded-2xl rounded-bl-md" />
-                    </div>
-                  </div>
-                  {/* Demande skeleton */}
-                  <div className="flex gap-3">
-                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                    <div className="flex-1 max-w-[75%]">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Skeleton className="h-3 w-24" />
-                        <Skeleton className="h-3 w-16" />
-                      </div>
-                      <Skeleton className="h-32 w-full rounded-lg" />
-                    </div>
-                  </div>
-                </div>
-              ) : allItems.length === 0 ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center space-y-2">
-                    <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground/50" />
-                    <p className="text-sm text-muted-foreground">
-                      Aucun message pour le moment. Commencez la conversation !
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {allItems.map((item) => {
-                      if (item.type === "message") {
-                        const message = item.data;
-                        const isOwnMessage = message.senderId === currentUserId;
-                        const isNotaireMessage = message.sender.role === Role.NOTAIRE;
-                        const senderInitials = (message.sender.name || message.sender.email || "U")
-                          .split(" ")
-                          .map((n: string) => n.charAt(0))
-                          .join("")
-                          .toUpperCase()
-                          .slice(0, 2);
-                        
-                        // Vérifier si c'est un message optimiste
-                        const optimisticStatus = optimisticMessages.get(message.id);
-                        const isOptimistic = optimisticStatus !== undefined;
-                        const isSending = optimisticStatus?.status === 'sending';
-
-                        return (
-                          <div
-                            key={`message-${message.id}`}
-                            className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"} ${isSending ? "opacity-70" : ""}`}
-                          >
-                            <Avatar className="h-8 w-8 shrink-0">
-                              <AvatarFallback className={isNotaireMessage ? "bg-blue-500 text-white" : "bg-muted"}>
-                                {isNotaireMessage ? (
-                                  <Scale className="h-4 w-4" />
-                                ) : (
-                                  senderInitials
-                                )}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className={`flex flex-col gap-1 ${isOwnMessage ? "items-end" : "items-start"} max-w-[75%] group`}>
-                              <div className="flex items-center gap-2 px-1">
-                                <span className="text-xs font-medium text-foreground">
-                                  {isOwnMessage ? "Moi" : (message.sender.name || message.sender.email)}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDateTime(message.createdAt)}
-                                </span>
-                                {isSending && (
-                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                )}
-                                {isOwnMessage && !isOptimistic && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={() => setMessageToDelete(message.id)}
-                                  >
-                                    <Trash2 className="h-3 w-3 text-destructive" />
-                                  </Button>
-                                )}
-                              </div>
-                              <div
-                                className={`rounded-2xl px-4 py-2.5 relative ${
-                                  isOwnMessage
-                                    ? "bg-primary text-primary-foreground rounded-br-md"
-                                    : "bg-muted rounded-bl-md"
-                                }`}
-                              >
-                                {message.content && (
-                                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                                )}
-                                {message.document && (
-                                  <div className={`mt-2 p-2 rounded-lg flex items-center gap-2 ${
-                                    isOwnMessage ? "bg-white/10" : "bg-background"
-                                  }`}>
-                                    <FileText className="h-4 w-4 shrink-0" />
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        const signedUrl = await getSignedUrlForDownload(message.document.fileKey);
-                                        window.open(signedUrl, "_blank", "noopener,noreferrer");
-                                      }}
-                                      className="text-sm underline hover:no-underline flex-1 truncate text-left"
-                                    >
-                                      {message.document.label || "Document"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDownloadDocument(
-                                        message.document.fileKey,
-                                        message.document.label || "Document"
-                                      )}
-                                      className="shrink-0 hover:opacity-70 transition-opacity"
-                                      title="Télécharger le document"
-                                    >
-                                      <Download className="h-4 w-4" />
-                                    </button>
-                                    {isNotaire && (
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 px-2 text-xs shrink-0"
-                                        onClick={async () => {
-                                          try {
-                                            await addChatDocumentToBail(bailId, message.document.id);
-                                            toast.success("Document ajouté aux pièces annexes du bail");
-                                            // Pas besoin de recharger - le document est déjà dans le message
-                                          } catch (error: any) {
-                                            toast.error("Erreur", {
-                                              description: error.message || "Impossible d'ajouter le document",
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        <Check className="h-3 w-3 mr-1" />
-                                        Ajouter
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      } else {
-                        const request = item.data;
-                        
-                        // Vérifier si c'est une demande optimiste
-                        const optimisticRequestStatus = optimisticRequests.get(request.id);
-                        const isRequestOptimistic = optimisticRequestStatus !== undefined;
-                        const isRequestSending = optimisticRequestStatus?.status === 'sending';
-                        
-                        const RequestStatusControl = ({ requestId, currentStatus }: { requestId: string; currentStatus: NotaireRequestStatus }) => {
-                          const [isUpdating, setIsUpdating] = useState(false);
-
-                          const handleStatusChange = async (newStatus: NotaireRequestStatus) => {
-                            try {
-                              setIsUpdating(true);
-                              await updateNotaireRequestStatus(requestId, newStatus);
-                              toast.success("Statut mis à jour");
-                              // Pusher mettra à jour automatiquement via request-updated
-                            } catch (error: any) {
-                              toast.error("Erreur", {
-                                description: error.message || "Impossible de mettre à jour le statut",
-                              });
-                            } finally {
-                              setIsUpdating(false);
-                            }
-                          };
-
-                          return (
-                            <div className="flex gap-2 mt-2">
-                              <Select
-                                value={currentStatus}
-                                onValueChange={(value) => handleStatusChange(value as NotaireRequestStatus)}
-                                disabled={isUpdating}
-                              >
-                                <SelectTrigger className="h-7 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value={NotaireRequestStatus.PENDING}>En attente</SelectItem>
-                                  <SelectItem value={NotaireRequestStatus.COMPLETED}>Complétée</SelectItem>
-                                  <SelectItem value={NotaireRequestStatus.CANCELLED}>Annulée</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          );
-                        };
-
-                        return (
-                          <div key={`request-${request.id}`} className={`flex gap-3 flex-row-reverse ${isRequestSending ? "opacity-70" : ""}`}>
-                            <Avatar className="h-8 w-8 shrink-0">
-                              <AvatarFallback className="bg-blue-500 text-white">
-                                <Scale className="h-4 w-4" />
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex flex-col gap-1 items-end max-w-[75%]">
-                              <div className="flex items-center gap-2 px-1">
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDateTime(request.createdAt)}
-                                </span>
-                                <span className="text-xs font-medium text-foreground">
-                                  {request.createdById === currentUserId ? "Moi" : (request.createdBy.name || request.createdBy.email)}
-                                </span>
-                                {isRequestSending && (
-                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                )}
-                              </div>
-                              <Card className={`${
-                                  request.status === NotaireRequestStatus.COMPLETED 
-                                    ? "border-green-200 bg-green-50/50 dark:bg-green-950/20" 
-                                    : request.status === NotaireRequestStatus.CANCELLED
-                                      ? "border-gray-200 bg-gray-50/50 dark:bg-gray-950/20"
-                                      : "border-orange-200 bg-orange-50/50 dark:bg-orange-950/20"
-                                }`}>
-                                <CardContent >
-                                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                    <Badge variant="outline" className={`${
-                                      request.status === NotaireRequestStatus.COMPLETED 
-                                        ? "border-green-300 text-green-700" 
-                                        : request.status === NotaireRequestStatus.CANCELLED
-                                          ? "border-gray-300 text-gray-700"
-                                          : "border-orange-300 text-orange-700"
-                                    }`}>
-                                      Demande de document
-                                    </Badge>
-                                    {request.status === NotaireRequestStatus.PENDING && (
-                                      <Badge className="bg-orange-600 text-white">En attente</Badge>
-                                    )}
-                                    {request.status === NotaireRequestStatus.COMPLETED && (
-                                      <Badge className="bg-green-600 text-white">Complétée</Badge>
-                                    )}
-                                    {request.status === NotaireRequestStatus.CANCELLED && (
-                                      <Badge className="bg-gray-600 text-white">Annulée</Badge>
-                                    )}
-                                  </div>
-                                  <h4 className="font-semibold text-sm mb-1">{request.title}</h4>
-                                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                    {request.content}
-                                  </p>
-                                  <div className="flex gap-2 mt-2">
-                                    {request.targetProprietaire && (
-                                      <Badge variant="outline" className="text-xs">
-                                        Propriétaire
-                                      </Badge>
-                                    )}
-                                    {request.targetLocataire && (
-                                      <Badge variant="outline" className="text-xs">
-                                        Locataire
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  {/* Afficher les documents déjà fournis pour cette demande */}
-                                  {request.documents && request.documents.length > 0 && (
-                                    <div className="mt-3 space-y-2">
-                                      <p className="text-xs font-medium text-muted-foreground">Documents fournis :</p>
-                                      {request.documents.map((doc: any) => {
-                                        // Déterminer le nom de l'expéditeur
-                                        const isOwnDocument = doc.uploadedBy?.id === currentUserId;
-                                        const senderName = isOwnDocument 
-                                          ? "Moi"
-                                          : doc.client?.entreprise 
-                                            ? (doc.client.entreprise.legalName || doc.client.entreprise.name)
-                                            : doc.client?.persons?.[0]
-                                              ? `${doc.client.persons[0].firstName || ""} ${doc.client.persons[0].lastName || ""}`.trim()
-                                              : doc.uploadedBy?.name || doc.uploadedBy?.email || "Utilisateur";
-                                        const profilType = doc.client?.profilType === "PROPRIETAIRE" 
-                                          ? "Propriétaire" 
-                                          : doc.client?.profilType === "LOCATAIRE" 
-                                            ? "Locataire" 
-                                            : null;
-                                        
-                                        return (
-                                          <div key={doc.id} className="flex flex-col gap-1 text-xs bg-background p-2 rounded">
-                                            <div className="flex items-center gap-2">
-                                              <FileText className="h-3 w-3 shrink-0" />
-                                              <button
-                                                type="button"
-                                                onClick={async () => {
-                                                  const signedUrl = await getSignedUrlForDownload(doc.fileKey);
-                                                  window.open(signedUrl, "_blank", "noopener,noreferrer");
-                                                }}
-                                                className="underline hover:no-underline flex-1 truncate text-blue-600 hover:text-blue-800 text-left"
-                                              >
-                                                {doc.label || "Document"}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => handleDownloadDocument(
-                                                  doc.fileKey,
-                                                  doc.label || "Document"
-                                                )}
-                                                className="shrink-0 hover:opacity-70 transition-opacity"
-                                                title="Télécharger le document"
-                                              >
-                                                <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                              </button>
-                                            </div>
-                                            <div className="flex items-center gap-1 text-muted-foreground pl-5">
-                                              <User className="h-3 w-3" />
-                                              <span>{senderName}</span>
-                                              {profilType && (
-                                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
-                                                  {profilType}
-                                                </Badge>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                  {/* Contrôle du statut pour le notaire */}
-                                  {isNotaire && (
-                                    <div className="flex items-center gap-2 mt-2">
-                                      <RequestStatusControl requestId={request.id} currentStatus={request.status} />
-                                      {/* Bouton de suppression */}
-                                      <Button
-                                        type="button"
-                                        variant="destructive"
-                                        size="sm"
-                                        className="h-7 text-xs"
-                                        onClick={() => setRequestToDelete(request.id)}
-                                      >
-                                        <Trash2 className="h-3 w-3 mr-1" />
-                                        Supprimer
-                                      </Button>
-                                    </div>
-                                  )}
-                                </CardContent>
-                              </Card>
-                            </div>
-                          </div>
-                        );
-                      }
-                  })}
-                </>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-
-          {/* Zone de fichiers sélectionnés */}
-          {selectedFiles.length > 0 && (
-            <div className="px-4 py-2 border-t bg-muted/50 space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">
-                {selectedFiles.length} fichier{selectedFiles.length > 1 ? "s" : ""} sélectionné{selectedFiles.length > 1 ? "s" : ""}
-              </div>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {selectedFiles.map((file, index) => (
-                  <div key={index} className="flex items-center gap-2 text-sm">
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="flex-1 truncate">{file.name}</span>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      ({(file.size / 1024).toFixed(0)} KB)
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 shrink-0"
-                      onClick={() => removeFile(index)}
-                      disabled={sending || uploading}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Formulaire d'envoi de message */}
-          <form onSubmit={handleSubmitMessage(onSubmitMessage)} className="border-t bg-background/95 p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground leading-none">
-                Écrivez un message ou joignez un document
-              </p>
-              {selectedFiles.length > 0 && (
-                <span className="text-xs font-medium text-primary leading-none">
-                  {selectedFiles.length} fichier{selectedFiles.length > 1 ? "s" : ""} prêt{selectedFiles.length > 1 ? "s" : ""}
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-end gap-2 rounded-xl border border-input bg-background px-2 py-2">
-              <div className="flex items-center gap-1 pb-1">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={sending || uploading}
-                      className="h-9 w-9 shrink-0"
-                      title="Ajouter"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" side="top" className="w-56">
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        if (!selectedPartyId || selectedPartyId === "all") {
-                          toast.error("Destinataire requis", {
-                            description: "Veuillez sélectionner un propriétaire ou locataire pour créer une demande",
-                          });
-                          return;
-                        }
-                        setIsRequestDialogOpen(true);
-                      }}
-                    >
-                      <FileText className="h-4 w-4 mr-2 shrink-0" />
-                      Demande de document
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => fileInputRef.current?.click()}
-                    >
-                      <Paperclip className="h-4 w-4 mr-2 shrink-0" />
-                      Ajouter photo / fichiers
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              <Textarea
-                placeholder="Tapez votre message..."
-                {...registerMessage("content")}
-                disabled={sending || uploading}
-                rows={1}
-                className="min-h-[44px] max-h-32 flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
-                onKeyDown={(e) => {
-                  // Entrée doit créer une nouvelle ligne.
-                  // L'envoi se fait uniquement via le bouton Envoyer.
+        <ChatPanel
+          interlocutor={{
+            name: otherUser
+              ? otherUser.partyName || otherUser.name || otherUser.email || "Utilisateur"
+              : "Discussion avec les clients",
+            role: otherUser?.role === Role.NOTAIRE ? "notaire" : "client",
+            badge: otherUser?.profilType || undefined,
+            online: isOtherUserOnline && !!otherUser?.id,
+            typing: isOtherUserTyping,
+            subtitle: otherUser?.profilType
+              ? `Communiquez avec le ${otherUser.profilType.toLowerCase()}`
+              : "Communiquez avec les parties du bail et créez des demandes",
+          }}
+          items={toTimeline(allItems, {
+            currentUserId,
+            // Le notaire ne dépose pas de réponse : il suit le statut.
+            canRespond: false,
+            showTargets: true,
+            optimisticMessages,
+            optimisticRequests,
+          })}
+          loading={initialLoading}
+          refreshing={refreshing && messages.length > 0}
+          emptyTitle="Aucun message pour le moment"
+          emptyHint="Commencez la conversation !"
+          composer={{
+            value: watchMessage("content") || "",
+            onChange: (value) => setValueMessage("content", value),
+            // Entrée va à la ligne : l'envoi se fait uniquement par le bouton.
+            enterToSend: false,
+            onSubmit: () => {
+              if (sending || uploading) return;
+              if (!watchMessage("content")?.trim() && selectedFiles.length === 0) return;
+              handleSubmitMessage(onSubmitMessage)();
+            },
+            actions: [
+              {
+                id: "request",
+                label: "Demande de document",
+                icon: FileText,
+                onSelect: () => {
+                  if (!selectedPartyId || selectedPartyId === "all") {
+                    toast.error("Destinataire requis", {
+                      description:
+                        "Veuillez sélectionner un propriétaire ou locataire pour créer une demande",
+                    });
+                    return;
+                  }
+                  setIsRequestDialogOpen(true);
+                },
+              },
+              {
+                id: "attach",
+                label: "Ajouter photo / fichiers",
+                icon: Paperclip,
+                onSelect: () => fileInputRef.current?.click(),
+              },
+            ],
+            files: selectedFiles.map((file) => ({ name: file.name, size: file.size })),
+            onRemoveFile: removeFile,
+            sending: sending || uploading,
+            placeholder: "Tapez votre message...",
+            error: messageErrors.content?.message,
+            onTyping: () => {
+              if (pusherChannelRef.current && session?.user?.id) {
+                if (typingDebounceRef.current) {
+                  clearTimeout(typingDebounceRef.current);
+                }
+                try {
+                  pusherChannelRef.current.trigger("client-typing", {
+                    userId: session.user.id,
+                    isTyping: true,
+                  });
+                } catch (error) {
+                  // Ignorer les erreurs
+                }
+                // Arrêter l'indicateur après 3 secondes d'inactivité
+                typingDebounceRef.current = setTimeout(() => {
                   if (pusherChannelRef.current && session?.user?.id) {
-                    if (typingDebounceRef.current) {
-                      clearTimeout(typingDebounceRef.current);
-                    }
                     try {
                       pusherChannelRef.current.trigger("client-typing", {
                         userId: session.user.id,
-                        isTyping: true,
+                        isTyping: false,
                       });
                     } catch (error) {
                       // Ignorer les erreurs
                     }
-                    // Arrêter l'indicateur après 3 secondes d'inactivité
-                    typingDebounceRef.current = setTimeout(() => {
-                      if (pusherChannelRef.current && session?.user?.id) {
-                        try {
-                          pusherChannelRef.current.trigger("client-typing", {
-                            userId: session.user.id,
-                            isTyping: false,
-                          });
-                        } catch (error) {
-                          // Ignorer les erreurs
-                        }
-                      }
-                    }, 3000);
                   }
-                }}
-              />
+                }, 3000);
+              }
+            },
+          }}
+          onOpenAttachment={async (attachment) => {
+            const signedUrl = await getSignedUrlForDownload(attachment.fileKey || "");
+            window.open(signedUrl, "_blank", "noopener,noreferrer");
+          }}
+          onDownloadAttachment={(attachment) =>
+            handleDownloadDocument(attachment.fileKey || "", attachment.name)
+          }
+          onAddAttachmentToBail={
+            isNotaire
+              ? async (attachment) => {
+                  try {
+                    await addChatDocumentToBail(bailId, attachment.id);
+                    toast.success("Document ajouté aux pièces annexes du bail");
+                    // Pas besoin de recharger - le document est déjà dans le message
+                  } catch (error: any) {
+                    toast.error("Erreur", {
+                      description: error.message || "Impossible d'ajouter le document",
+                    });
+                  }
+                }
+              : undefined
+          }
+          onDeleteMessage={setMessageToDelete}
+          renderRequestFooter={
+            isNotaire
+              ? (request) => (
+                  <NotaireRequestControls
+                    requestId={request.id}
+                    currentStatus={request.status}
+                    onDelete={() => setRequestToDelete(request.id)}
+                  />
+                )
+              : undefined
+          }
+          onClose={() => setOpen(false)}
+        />
 
-              <Button
-                type="submit"
-                variant="default"
-                size="icon"
-                disabled={sending || uploading || (selectedFiles.length === 0 && !watchMessage("content")?.trim())}
-                className="h-9 w-9 shrink-0 self-end mb-1"
-              >
-                {sending || uploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-              onChange={handleFileSelect}
-              disabled={sending || uploading}
-              className="hidden"
-              multiple
-            />
-            {messageErrors.content && (
-              <p className="text-sm text-destructive mt-2 px-1">{messageErrors.content.message}</p>
-            )}
-          </form>
-        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+          onChange={handleFileSelect}
+          disabled={sending || uploading}
+          className="hidden"
+          multiple
+        />
+
+        {/* Dialog pour créer une demande (ouvert depuis la barre d'écriture) */}
+        {isNotaire && (
+          <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
+            <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-[17px] font-semibold tracking-tight">
+                  Créer une demande de document
+                </DialogTitle>
+                <DialogDescription className="text-[12.5px]">
+                  {selectedParty && otherUser?.partyName
+                    ? `Demander un document à ${otherUser.partyName} (${otherUser.profilType})`
+                    : "Demander des documents aux parties du dossier"}
+                </DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleSubmitRequest(onSubmitRequest)} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="title"
+                    className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400"
+                  >
+                    Nom du document *
+                  </label>
+                  <input
+                    id="title"
+                    placeholder="Ex. Pièce d'identité"
+                    {...registerRequest("title")}
+                    className="w-full rounded-xl bg-slate-50 px-3.5 py-2.5 text-base text-slate-800 outline-none ring-1 ring-slate-200/80 transition-shadow placeholder:text-slate-400 focus:ring-2 focus:ring-[#4373f5]/40"
+                  />
+                  {requestErrors.title && (
+                    <p className="text-[12px] font-medium text-red-600">
+                      {requestErrors.title.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="content"
+                    className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400"
+                  >
+                    Contenu de la demande *
+                  </label>
+                  <textarea
+                    id="content"
+                    rows={5}
+                    placeholder="Décrivez en détail ce que vous demandez..."
+                    {...registerRequest("content")}
+                    className="w-full resize-none rounded-xl bg-slate-50 px-3.5 py-2.5 text-base leading-relaxed text-slate-800 outline-none ring-1 ring-slate-200/80 transition-shadow placeholder:text-slate-400 focus:ring-2 focus:ring-[#4373f5]/40"
+                  />
+                  {requestErrors.content && (
+                    <p className="text-[12px] font-medium text-red-600">
+                      {requestErrors.content.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                    Destinataire
+                  </p>
+
+                  {/* Si une partie précise est sélectionnée, elle s'impose */}
+                  {selectedParty && otherUser ? (
+                    <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 ring-1 ring-slate-200/80">
+                      <User className="h-4 w-4 shrink-0 text-slate-400" />
+                      <span className="text-[13px] font-semibold text-slate-800">
+                        {otherUser.partyName || otherUser.name}
+                      </span>
+                      {otherUser.profilType && (
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-slate-500 ring-1 ring-slate-200/70">
+                          {otherUser.profilType}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {proprietaires.length > 0 && (
+                        <div className="space-y-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setValue("targetProprietaire", !targetProprietaire)}
+                            className={cn(
+                              "w-full rounded-xl px-3.5 py-2.5 text-left text-[12.5px] font-semibold transition-colors",
+                              targetProprietaire
+                                ? "bg-[#4373f5]/10 text-[#3563e9] ring-1 ring-[#4373f5]/30"
+                                : "bg-slate-50 text-slate-500 ring-1 ring-slate-200/80 hover:text-slate-800",
+                            )}
+                          >
+                            Propriétaire{proprietaires.length > 1 ? "s" : ""}
+                          </button>
+                          {targetProprietaire && (
+                            <ul className="space-y-0.5 pl-3.5">
+                              {proprietaires.map((prop) => (
+                                <li key={prop.id} className="text-[12px] text-slate-500">
+                                  • {getPartyName(prop)}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+
+                      {locataires.length > 0 && (
+                        <div className="space-y-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setValue("targetLocataire", !targetLocataire)}
+                            className={cn(
+                              "w-full rounded-xl px-3.5 py-2.5 text-left text-[12.5px] font-semibold transition-colors",
+                              targetLocataire
+                                ? "bg-[#4373f5]/10 text-[#3563e9] ring-1 ring-[#4373f5]/30"
+                                : "bg-slate-50 text-slate-500 ring-1 ring-slate-200/80 hover:text-slate-800",
+                            )}
+                          >
+                            Locataire{locataires.length > 1 ? "s" : ""}
+                          </button>
+                          {targetLocataire && (
+                            <ul className="space-y-0.5 pl-3.5">
+                              {locataires.map((loc) => (
+                                <li key={loc.id} className="text-[12px] text-slate-500">
+                                  • {getPartyName(loc)}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+
+                      {proprietaires.length === 0 && locataires.length === 0 && (
+                        <p className="text-[12.5px] text-slate-500">
+                          Aucune partie disponible dans ce dossier
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {requestErrors.targetProprietaire && !selectedParty && (
+                    <p className="text-[12px] font-medium text-red-600">
+                      {requestErrors.targetProprietaire.message}
+                    </p>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRequestDialogOpen(false);
+                      resetRequest();
+                    }}
+                    disabled={sending}
+                    className="rounded-xl px-4 py-2.5 text-[12.5px] font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sending}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#5b85f7] to-[#3563e9] px-4 py-2.5 text-[12.5px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(53,99,233,0.9)] transition-opacity disabled:opacity-50"
+                  >
+                    {sending && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Créer la demande
+                  </button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Dialog de confirmation de suppression */}
-        <Dialog open={messageToDelete !== null} onOpenChange={(open) => !open && setMessageToDelete(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Supprimer le message</DialogTitle>
-              <DialogDescription>
-                Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible.
-                {messages.find(m => m.id === messageToDelete)?.document && (
-                  <span className="block mt-2 text-destructive font-medium">
-                    Le document associé sera également supprimé.
-                  </span>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setMessageToDelete(null)}
-                disabled={isDeleting}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  if (!messageToDelete) return;
-                  try {
-                    setIsDeleting(true);
-                    await deleteBailMessage(messageToDelete);
-                    toast.success("Message supprimé");
-                    setMessageToDelete(null);
-                    // Ne pas recharger - Pusher mettra à jour automatiquement via message-deleted
-                  } catch (error: any) {
-                    toast.error("Erreur", {
-                      description: error.message || "Impossible de supprimer le message",
-                    });
-                  } finally {
-                    setIsDeleting(false);
-                  }
-                }}
-                disabled={isDeleting}
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Suppression...
-                  </>
-                ) : (
-                  "Supprimer"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+          open={messageToDelete !== null}
+          onOpenChange={(value) => !value && setMessageToDelete(null)}
+          title="Supprimer le message"
+          description="Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible."
+          warning={
+            messages.find((m) => m.id === messageToDelete)?.document
+              ? "Le document associé sera également supprimé."
+              : undefined
+          }
+          busy={isDeleting}
+          confirmLabel={isDeleting ? "Suppression..." : "Supprimer"}
+          onConfirm={async () => {
+            if (!messageToDelete) return;
+            try {
+              setIsDeleting(true);
+              await deleteBailMessage(messageToDelete);
+              toast.success("Message supprimé");
+              setMessageToDelete(null);
+              // Ne pas recharger - Pusher mettra à jour automatiquement via message-deleted
+            } catch (error: any) {
+              toast.error("Erreur", {
+                description: error.message || "Impossible de supprimer le message",
+              });
+            } finally {
+              setIsDeleting(false);
+            }
+          }}
+        />
 
         {/* Dialog de confirmation de suppression de demande */}
-        <Dialog open={requestToDelete !== null} onOpenChange={(open) => !open && setRequestToDelete(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Supprimer la demande</DialogTitle>
-              <DialogDescription>
-                Êtes-vous sûr de vouloir supprimer cette demande de document ? Cette action est irréversible.
-                {requests.find(r => r.id === requestToDelete)?.bailMessages && requests.find(r => r.id === requestToDelete)!.bailMessages.length > 0 && (
-                  <span className="block mt-2 text-destructive font-medium">
-                    Les documents associés ({requests.find(r => r.id === requestToDelete)!.bailMessages.length}) seront également supprimés.
-                  </span>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setRequestToDelete(null)}
-                disabled={isDeletingRequest}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  if (!requestToDelete) return;
-                  try {
-                    setIsDeletingRequest(true);
-                    await deleteNotaireRequest(requestToDelete);
-                    toast.success("Demande supprimée");
-                    setRequestToDelete(null);
-                    // Recharger les messages pour mettre à jour la liste
-                    await loadMessages(true);
-                  } catch (error: any) {
-                    toast.error("Erreur", {
-                      description: error.message || "Impossible de supprimer la demande",
-                    });
-                  } finally {
-                    setIsDeletingRequest(false);
-                  }
-                }}
-                disabled={isDeletingRequest}
-              >
-                {isDeletingRequest ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Suppression...
-                  </>
-                ) : (
-                  "Supprimer"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </SheetContent>
-    </Sheet>
+        <ConfirmDialog
+          open={requestToDelete !== null}
+          onOpenChange={(value) => !value && setRequestToDelete(null)}
+          title="Supprimer la demande"
+          description="Êtes-vous sûr de vouloir supprimer cette demande de document ? Cette action est irréversible."
+          warning={
+            requests.find((r) => r.id === requestToDelete)?.bailMessages &&
+            requests.find((r) => r.id === requestToDelete)!.bailMessages.length > 0
+              ? `Les documents associés (${requests.find((r) => r.id === requestToDelete)!.bailMessages.length}) seront également supprimés.`
+              : undefined
+          }
+          busy={isDeletingRequest}
+          confirmLabel={isDeletingRequest ? "Suppression..." : "Supprimer"}
+          onConfirm={async () => {
+            if (!requestToDelete) return;
+            try {
+              setIsDeletingRequest(true);
+              await deleteNotaireRequest(requestToDelete);
+              toast.success("Demande supprimée");
+              setRequestToDelete(null);
+              // Recharger les messages pour mettre à jour la liste
+              await loadMessages(true);
+            } catch (error: any) {
+              toast.error("Erreur", {
+                description: error.message || "Impossible de supprimer la demande",
+              });
+            } finally {
+              setIsDeletingRequest(false);
+            }
+          }}
+        />
+    </ChatDock>
   );
 }
 
+/* -------------------------------------------------------------------------
+   Le statut d'une demande, côté notaire.
+
+   Repris tel quel du composant d'origine : même appel serveur, même message
+   de succès, même remontée d'erreur. Seul l'habillage change.
+   ------------------------------------------------------------------------- */
+
+function NotaireRequestControls({
+  requestId,
+  currentStatus,
+  onDelete,
+}: {
+  requestId: string;
+  currentStatus: RequestStatus;
+  onDelete: () => void;
+}) {
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleStatusChange = async (newStatus: RequestStatus) => {
+    try {
+      setIsUpdating(true);
+      await updateNotaireRequestStatus(
+        requestId,
+        newStatus === "completed"
+          ? NotaireRequestStatus.COMPLETED
+          : newStatus === "cancelled"
+            ? NotaireRequestStatus.CANCELLED
+            : NotaireRequestStatus.PENDING,
+      );
+      toast.success("Statut mis à jour");
+      // Pusher mettra à jour automatiquement via request-updated
+    } catch (error: any) {
+      toast.error("Erreur", {
+        description: error.message || "Impossible de mettre à jour le statut",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  return (
+    <RequestStatusControl
+      status={currentStatus}
+      onChange={handleStatusChange}
+      onDelete={onDelete}
+      busy={isUpdating}
+    />
+  );
+}
