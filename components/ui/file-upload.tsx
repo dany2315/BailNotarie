@@ -128,11 +128,12 @@ export function FileUpload({
   const syncMultipleValue = useCallback(
     (nextFiles: File[]) => {
       onFilesChange?.(nextFiles);
-      if (!isMultipleMode) {
-        onChange?.(nextFiles[0] ?? null);
-      }
+      // onChange recoit le premier fichier meme en mode multiple : les formulaires
+      // appelants stockent un File unique et s'en servent pour valider les pieces
+      // obligatoires. Sans cela leur etat restait vide apres un upload reussi.
+      onChange?.(nextFiles[0] ?? null);
     },
-    [isMultipleMode, onChange, onFilesChange]
+    [onChange, onFilesChange]
   );
 
   const updateUploadItem = useCallback((itemId: string, patch: Partial<UploadItem>) => {
@@ -827,6 +828,29 @@ export function FileUpload({
     );
   };
 
+  // Un seul input fichier pour tout le composant. Il etait auparavant rendu dans
+  // chaque zone de depot : la variante desktop et la variante mobile etant toutes
+  // deux montees, le DOM portait deux <input> avec le meme id et le meme ref.
+  // inputRef pointait alors sur le second (la variante mobile, masquee en
+  // display:none sur desktop), le clic sur la zone visible ouvrait le selecteur
+  // sur le mauvais champ et l'evenement change pouvait ne jamais partir.
+  // stopPropagation sur l'input : il est desormais hors des zones cliquables, mais
+  // cela garantit qu'aucun conteneur parent ne pourra re-declencher .click() alors
+  // que le selecteur de fichier est deja ouvert.
+  const renderFileInput = () => (
+    <Input
+      id={inputId}
+      ref={inputRef}
+      type="file"
+      accept={accept}
+      onChange={handleInputChange}
+      disabled={disabled || isUploading}
+      className="hidden"
+      multiple={isMultipleMode || Boolean(documentKind)}
+      onClick={(event) => event.stopPropagation()}
+    />
+  );
+
   const renderDropzone = (mobile: boolean) => (
     <div
       className={cn(
@@ -845,16 +869,6 @@ export function FileUpload({
         }
       }}
     >
-      <Input
-        id={inputId}
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        onChange={handleInputChange}
-        disabled={disabled || isUploading}
-        className="hidden"
-        multiple={isMultipleMode || Boolean(documentKind)}
-      />
       <Upload className={cn("mx-auto mb-2 text-muted-foreground", mobile ? "size-6" : "size-8")} />
       <p className={cn("text-muted-foreground", mobile ? "text-xs" : "text-sm")}>
         {isMultipleMode || documentKind
@@ -884,16 +898,6 @@ export function FileUpload({
         }
       }}
     >
-      <Input
-        id={inputId}
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        onChange={handleInputChange}
-        disabled={disabled || isUploading}
-        className="hidden"
-        multiple={isMultipleMode || Boolean(documentKind)}
-      />
       <Upload className="size-4 shrink-0 text-muted-foreground" />
       <span className="text-muted-foreground">
         {isUploading ? "Upload en cours…" : "Ajouter un fichier"}
@@ -907,6 +911,8 @@ export function FileUpload({
         {label}
         {required && <span className="ml-1 text-destructive">*</span>}
       </Label>
+
+      {renderFileInput()}
 
       {renderUploadStack()}
       {compact ? renderCompactTrigger() : (
