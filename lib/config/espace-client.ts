@@ -12,7 +12,6 @@ import type { DossiersVariant } from "@/components/client-v2/dossiers";
  * • "etapes"   — les dossiers regroupés par avancement
  * • "liste"    — aucun carton, intertitres collants au défilement
  *
- * Changer cette seule valeur bascule la page. La maquette
- * `/testEspaceclient` permet de les comparer avant de trancher.
+ * Changer cette seule valeur bascule la page.
  */
 export const OWNER_DOSSIERS_VIEW: DossiersVariant = "fiches";

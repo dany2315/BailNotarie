@@ -6,11 +6,11 @@ import * as React from "react";
    Contexte d'exécution de l'espace client.
 
    En production il n'y a rien à fournir : les composants appellent les vraies
-   server actions et ouvrent les vrais tiroirs de détail. La maquette
-   `/testEspaceclient` enveloppe les pages dans `<OwnerRuntime demo>` pour que
-   les mutations soient simulées en local (aucune écriture en base sur des
-   identifiants fictifs) et que les tiroirs qui chargent un dossier réel
-   soient remplacés par un aperçu.
+   server actions et ouvrent les vraies pages de détail. Enveloppées dans
+   `<OwnerRuntime demo>`, les mêmes pages simulent leurs mutations en local
+   (aucune écriture en base sur des identifiants fictifs) et remplacent par un
+   aperçu les vues qui chargent un dossier réel — de quoi monter une maquette
+   sans toucher à la logique.
    ========================================================================= */
 
 type OwnerRuntimeValue = { demo: boolean };
