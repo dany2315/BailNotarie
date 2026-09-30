@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Building2,
   ChevronDown,
-  LogIn,
+  CircleUserRound,
   LogOut,
   UserRound,
 } from "lucide-react";
@@ -296,7 +296,13 @@ export function LpUserMenu({ session, className }: { session: ClientSession; cla
           className,
         )}
       >
-        <LogIn className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+        {/* Un buste dans un cercle, et non la flèche de `LogIn` : celle-ci
+            pointe vers l'extérieur du montant de porte qu'elle traverse, si
+            bien qu'on la lit comme une sortie — l'exact contraire du geste
+            proposé. Ce cercle reprend en outre la forme de l'avatar qui
+            occupe cette place une fois la session ouverte : le même endroit
+            veut toujours dire « vous ». */}
+        <CircleUserRound className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
         {/* Le libellé s'affiche dès qu'il reste de la place : sur téléphone à
             partir de 400 px, et à nouveau en grand écran. Entre les deux, les
             liens de navigation occupent la barre et le bouton reste à l'icône,

@@ -160,11 +160,6 @@ export function ContactBubble() {
         currentX: rect.left,
         currentY: rect.top,
       };
-      try {
-        wrapper.setPointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
     };
 
     const onMove = (e: PointerEvent) => {
@@ -196,11 +191,6 @@ export function ContactBubble() {
       const state = dragState.current;
       if (!state || e.pointerId !== state.pointerId) return;
       dragState.current = null;
-      try {
-        wrapper.releasePointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
       if (state.moved) {
         setDragging(false);
         justDraggedRef.current = true;
@@ -218,17 +208,28 @@ export function ContactBubble() {
       }
     };
 
-    // passive: false pour pouvoir preventDefault() sur iOS Safari
+    // L'appui est écouté sur la bulle ; le déplacement et le relâchement le
+    // sont sur la fenêtre.
+    //
+    // Ce partage remplace `setPointerCapture`, qui tenait ce rôle et coûtait
+    // les deux boutons : un élément qui capture le pointeur reçoit aussi le
+    // `click` à la place de la cible réelle, si bien que « Support » et la
+    // croix ne voyaient jamais le leur. Écouter sur la fenêtre suit le doigt
+    // partout, y compris hors de la bulle et au premier mouvement brusque,
+    // sans rien détourner. Les écouteurs sortent immédiatement tant qu'aucun
+    // appui n'est en cours sur la bulle.
+    //
+    // passive: false pour pouvoir preventDefault() sur iOS Safari.
     wrapper.addEventListener("pointerdown", onDown, { passive: false });
-    wrapper.addEventListener("pointermove", onMove, { passive: false });
-    wrapper.addEventListener("pointerup", onUp, { passive: false });
-    wrapper.addEventListener("pointercancel", onUp, { passive: false });
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp, { passive: false });
+    window.addEventListener("pointercancel", onUp, { passive: false });
 
     return () => {
       wrapper.removeEventListener("pointerdown", onDown);
-      wrapper.removeEventListener("pointermove", onMove);
-      wrapper.removeEventListener("pointerup", onUp);
-      wrapper.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     };
   }, []);
 
@@ -242,7 +243,13 @@ export function ContactBubble() {
     : {
         left: 0,
         top: 0,
-        transform: `translate3d(${pos!.x}px, ${pos!.y}px, 0)`,
+        // Translation plate au repos. `translate3d` promeut la bulle sur sa
+        // propre couche de composition en permanence ; quand elle change de
+        // taille (pastille réduite), la couche laissée derrière peut rester
+        // affichée telle quelle — c'est le rectangle clair qui apparaissait
+        // à la place du fond. Le glisser, lui, pose `translate3d` directement
+        // dans le style de l'élément : il garde son accélération.
+        transform: `translate(${pos!.x}px, ${pos!.y}px)`,
       };
 
   const onMainClick = () => {
@@ -281,7 +288,10 @@ export function ContactBubble() {
         style={{
           ...wrapperStyle,
           touchAction: "none",
-          willChange: "transform",
+          // Annoncé pendant le glisser seulement : `will-change` permanent
+          // maintient une couche dédiée tout le temps, pour un gain nul hors
+          // déplacement et le même risque de rémanence.
+          willChange: dragging ? "transform" : undefined,
         }}
       >
         {minimized ? (
@@ -291,7 +301,11 @@ export function ContactBubble() {
             aria-label="Réafficher le support"
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-full",
-              "bg-[#4373f5]/40 text-white opacity-60 backdrop-blur-sm transition-colors",
+              // Sans `backdrop-blur` : un filtre d'arrière-plan oblige le
+              // navigateur à isoler ce qui se trouve dessous, et c'est le
+              // second moyen d'obtenir une zone qui ne se repeint plus. La
+              // pastille reste lisible avec un aplat un peu plus franc.
+              "bg-[#4373f5]/70 text-white opacity-70 transition-colors",
               "hover:opacity-100 hover:bg-[#4373f5]"
             )}
           >
@@ -326,7 +340,11 @@ export function ContactBubble() {
               aria-label="Masquer le support"
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-full",
-                "bg-slate-900/70 text-white shadow-md backdrop-blur-sm transition-colors",
+                // Même raison que la pastille réduite, et c'est ici le cas le
+                // plus probable : ce bouton est justement celui qui disparaît,
+                // et son filtre d'arrière-plan couvrait exactement la zone
+                // restée claire.
+                "bg-slate-900/80 text-white shadow-md transition-colors",
                 "hover:bg-slate-900"
               )}
             >
