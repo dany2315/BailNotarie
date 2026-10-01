@@ -7,6 +7,8 @@ import type { E164Number } from "libphonenumber-js";
 import { useMemo } from "react";
 
 interface PhoneInputProps {
+  /** Repris par la saisie elle-même, pour qu'un libellé puisse la désigner. */
+  id?: string;
   value?: string | E164Number;
   onChange?: (value: E164Number | undefined) => void;
   defaultCountry?: "FR" | "US" | "GB" | string;
@@ -18,6 +20,7 @@ interface PhoneInputProps {
 }
 
 export function PhoneInput({
+  id,
   value,
   onChange,
   defaultCountry = "FR",
@@ -44,6 +47,7 @@ export function PhoneInput({
 
   return (
     <PhoneInputLib
+      id={id}
       value={e164Value}
       onChange={handleChange}
       defaultCountry={defaultCountry as any}
