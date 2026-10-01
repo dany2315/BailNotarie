@@ -22,7 +22,7 @@ import { LpTestimonials } from "@/components/lp/lp-testimonials";
 import { LpPricing } from "@/components/lp/lp-pricing";
 import { LpFaq } from "@/components/lp/lp-faq";
 import { LpFinalCta } from "@/components/lp/lp-final-cta";
-import { ContactForm } from "@/components/contact-form";
+import { LpContact } from "@/components/lp/lp-contact";
 
 export const metadata: Metadata = generateDynamicMetadata({ page: "home" });
 
@@ -47,29 +47,7 @@ export default function Home() {
         <LpFaq />
         <LpFinalCta />
 
-        {/* Contact */}
-        <section
-          id="contact"
-          aria-labelledby="lp-contact-title"
-          data-lp-chrome="#ffffff"
-          className="relative scroll-mt-24 overflow-hidden bg-gradient-to-b from-[#f7f9ff] to-white py-24 sm:py-28"
-        >
-          <div aria-hidden className="lp-grid absolute inset-0 opacity-50" />
-          <div className="relative mx-auto max-w-7xl px-5 sm:px-8">
-            <div className="mx-auto mb-12 max-w-2xl text-center">
-              <h2
-                id="lp-contact-title"
-                className="lp-title lp-balance text-3xl font-bold text-slate-900 sm:text-[2.6rem]"
-              >
-                Une question ? Contactez-nous
-              </h2>
-              <p className="lp-balance mt-4 text-lg leading-relaxed text-slate-600">
-                Notre équipe est là pour vous accompagner dans la constitution de votre dossier de bail notarié.
-              </p>
-            </div>
-            <ContactForm />
-          </div>
-        </section>
+        <LpContact />
 
         <div data-lp-chrome="#ffffff" className="border-t border-slate-200 bg-white py-4 text-center">
           <p className="text-xs text-slate-400">

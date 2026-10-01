@@ -1,6 +1,7 @@
 "use client";
 
 import { Phone } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
 interface PhoneButtonProps {
@@ -20,7 +21,9 @@ export function PhoneButton({ phoneNumber, className, size = "default", onClick 
   return (
     <Button 
       onClick={handleCall}
-      className={`bg-green-600 hover:bg-green-700 text-white font-semibold cursor-pointer ${className}`}
+      // `cn` et non une concaténation : les classes de l'appelant doivent
+      // pouvoir remplacer celles-ci, et non s'y ajouter en espérant gagner.
+      className={cn("cursor-pointer bg-green-600 font-semibold text-white hover:bg-green-700", className)}
       size={size}
     >
       <Phone className={`${withLabel ? "mr-2 h-4 w-4" : " h-4 w-4"}`} />
