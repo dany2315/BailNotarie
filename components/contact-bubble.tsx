@@ -238,7 +238,11 @@ export function ContactBubble() {
   const wrapperStyle: React.CSSProperties = useFallback
     ? {
         right: 16,
-        bottom: `calc(env(safe-area-inset-bottom, 0px) + 88px)`,
+        // Au-dessus du bouton de retour en haut, qui occupe le ras du coin :
+        // 20 px de garde + ses 44 px + 48 px de respiration. `max` et non une
+        // addition, car la barre d'onglets porte déjà le décalage de sécurité
+        // dans sa hauteur.
+        bottom: `calc(max(var(--bn-dock-h, 0px), env(safe-area-inset-bottom, 0px)) + 112px)`,
       }
     : {
         left: 0,

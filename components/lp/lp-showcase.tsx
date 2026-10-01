@@ -409,6 +409,40 @@ export function LpShowcase() {
 
             {/* ---------- Écran ---------- */}
             <div className="mt-4 flex min-h-0 flex-1 gap-2.5 lg:mt-0 lg:block">
+              <div className="relative min-h-0 min-w-0 flex-1 lg:flex-none" style={{ perspective: 1600 }}>
+                {/* Halo : purement décoratif, et débordant de six à huit
+                    pixels hors de la maquette. Sans `pointer-events-none` il
+                    happe les touches dans toute cette marge — y compris sur le
+                    rail voisin, dont plus aucune station n'était atteignable. */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -inset-6 rounded-[40px] bg-gradient-to-br from-[#4373f5]/30 via-[#6366f1]/15 to-transparent blur-3xl sm:-inset-8"
+                />
+
+                <div className="relative h-full lg:h-auto">
+                  <AppFrame
+                    url={current.url}
+                    className="relative z-10 flex h-full flex-col ring-1 ring-white/10 lg:block lg:h-auto"
+                    bodyClassName="min-h-0 flex-1 overflow-hidden lg:flex-none lg:overflow-visible"
+                  >
+                    <div key={current.id} className="lp-swap-screen h-full bg-white lg:h-auto lg:min-h-[360px]">
+                      {current.render()}
+                    </div>
+                  </AppFrame>
+
+                  {/* Coupe basse sur petit écran : la maquette continue sous le
+                      pli plutôt que d'être écrasée. */}
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-14 rounded-b-[20px] bg-gradient-to-t from-white to-transparent lg:hidden"
+                  />
+
+                  <div
+                    aria-hidden
+                    className="lp-reflection absolute inset-x-6 top-full hidden h-28 rounded-[20px] bg-gradient-to-b from-white/25 to-transparent lg:block"
+                  />
+                </div>
+              </div>
               {/* Repère de position, sous lg : un rail dressé le long de la
                   maquette, et non plus une rangée de points sous elle.
 
@@ -422,11 +456,18 @@ export function LpShowcase() {
                   fait trente-six sur vingt-quatre : la cible du doigt ne se
                   règle pas sur la taille du dessin.
 
-                  Il est posé à gauche, comme le rail du sommaire : c'est le
-                  même repère aux deux tailles. À droite, il passait sous la
-                  bulle d'assistance, qui flotte en bas de cet angle et rendait
-                  la dernière station impossible à toucher. */}
-              <div className="flex w-6 shrink-0 flex-col items-center gap-2 lg:hidden">
+                  Il longe la maquette par la droite, du côté du pouce. Les
+                  deux boutons flottants occupent le même angle : la colonne
+                  se réserve donc une garde en bas, calculée sur la hauteur
+                  qu'ils déclarent, pour qu'aucune station ne finisse sous
+                  eux. Sans elle, la dernière devenait intouchable. */}
+              <div
+                className="flex w-6 shrink-0 flex-col items-center gap-2 lg:hidden"
+                style={{
+                  paddingBottom:
+                    "calc(max(var(--bn-dock-h, 0px), env(safe-area-inset-bottom, 0px)) + 148px)",
+                }}
+              >
                 <div className="relative w-full flex-1">
                   <ProgressRail
                     ref={railCompactRef}
@@ -461,40 +502,6 @@ export function LpShowcase() {
                   aria-hidden
                   className={cn("h-4 w-4 shrink-0 text-[#8fb0ff]/70", active === 0 && "lp-nudge-down")}
                 />
-              </div>
-              <div className="relative min-h-0 min-w-0 flex-1 lg:flex-none" style={{ perspective: 1600 }}>
-                {/* Halo : purement décoratif, et débordant de six à huit
-                    pixels hors de la maquette. Sans `pointer-events-none` il
-                    happe les touches dans toute cette marge — y compris sur le
-                    rail voisin, dont plus aucune station n'était atteignable. */}
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute -inset-6 rounded-[40px] bg-gradient-to-br from-[#4373f5]/30 via-[#6366f1]/15 to-transparent blur-3xl sm:-inset-8"
-                />
-
-                <div className="relative h-full lg:h-auto">
-                  <AppFrame
-                    url={current.url}
-                    className="relative z-10 flex h-full flex-col ring-1 ring-white/10 lg:block lg:h-auto"
-                    bodyClassName="min-h-0 flex-1 overflow-hidden lg:flex-none lg:overflow-visible"
-                  >
-                    <div key={current.id} className="lp-swap-screen h-full bg-white lg:h-auto lg:min-h-[360px]">
-                      {current.render()}
-                    </div>
-                  </AppFrame>
-
-                  {/* Coupe basse sur petit écran : la maquette continue sous le
-                      pli plutôt que d'être écrasée. */}
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-14 rounded-b-[20px] bg-gradient-to-t from-white to-transparent lg:hidden"
-                  />
-
-                  <div
-                    aria-hidden
-                    className="lp-reflection absolute inset-x-6 top-full hidden h-28 rounded-[20px] bg-gradient-to-b from-white/25 to-transparent lg:block"
-                  />
-                </div>
               </div>
 
             </div>

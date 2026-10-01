@@ -171,9 +171,39 @@ export function OwnerTabsDock({
   onSelect?: (key: OwnerTabKey) => void;
 }) {
   const active = useActiveTab(tabs, explicitActive);
+  const navRef = React.useRef<HTMLElement>(null);
+
+  /**
+   * Publie la hauteur de la barre dans `--bn-dock-h`, comme `LpNav` le fait
+   * pour la sienne. Les boutons flottants du coin bas droit — le retour en
+   * haut, la bulle d'assistance — s'en servent pour se poser au-dessus
+   * d'elle. Sans cela il faudrait une valeur en dur, qui redevient fausse dès
+   * que la barre change de hauteur d'un appareil à l'autre. La mesure inclut
+   * le décalage de sécurité, déjà porté en `padding-bottom` ici.
+   */
+  React.useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+
+    const publish = () => {
+      document.documentElement.style.setProperty("--bn-dock-h", `${Math.round(nav.offsetHeight)}px`);
+    };
+
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(nav);
+    window.addEventListener("resize", publish);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", publish);
+      // La barre quitte l'écran : plus rien à dégager.
+      document.documentElement.style.removeProperty("--bn-dock-h");
+    };
+  }, []);
 
   return (
     <nav
+      ref={navRef}
       className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/90 backdrop-blur-xl sm:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >

@@ -7,6 +7,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Toaster } from "@/components/shared/toaster";
 import { ContactBubble } from "@/components/contact-bubble";
+import { ScrollToTop } from "@/components/scroll-to-top";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -173,7 +174,10 @@ export default function RootLayout({
       <StructuredData />
       {/* Toaster pour les notifications */}
       <Toaster />
-      {/* Bulle support flottante (présente sur toutes les pages) */}
+      {/* Boutons flottants du coin bas droit, présents sur toutes les pages.
+          Le retour en haut se pose au ras de la barre d'onglets ; la bulle
+          d'assistance s'empile au-dessus de lui. */}
+      <ScrollToTop />
       <ContactBubble />
       </body>
     </html>
