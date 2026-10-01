@@ -627,19 +627,31 @@ html {
 .lp-anim-caret { animation: lp-caret 1.1s steps(1) infinite; }
 .lp-anim-progress { animation: lp-progress 5s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate; }
 
-/* Halos d'ambiance. Le flou est porté ici plutôt que par une classe utilitaire
-   pour pouvoir être allégé d'un seul endroit : sur téléphone, trois disques de
-   110 px de flou animés en continu tiennent le compositeur occupé pendant le
-   défilement, au moment précis où il doit peindre les sections qui arrivent.
-   Un flou plus court et des halos immobiles donnent le même dégradé à l'œil,
-   pour une fraction du coût. */
+/* Halos d'ambiance : dégradés radiaux, et non plus disques floutés.
+
+   C'étaient trois disques portant `filter: blur()`. Un filtre oblige le
+   navigateur à refabriquer la zone filtrée chaque fois qu'elle doit être
+   repeinte — ce qui arrive dès qu'un élément fixe passe au-dessus, la bulle
+   d'assistance par exemple. La rastérisation se faisant par tuiles, certaines
+   revenaient vides : des rectangles clairs restaient en travers du hero là où
+   la bulle était passée, puisque la teinte du fond venait justement de ces
+   halos. Le défaut se voyait sur iOS, où le grain est déjà désactivé — ce
+   n'était donc pas le mode de fusion, mais bien le flou.
+
+   Un dégradé radial donne le même halo diffus et n'est qu'une peinture
+   ordinaire : rien à refabriquer, aucune tuile à perdre, et le coût tombe au
+   passage. La couleur est posée par `color` sur chaque halo, que le dégradé
+   reprend par `currentColor` ; les boîtes sont agrandies d'autant que le flou
+   débordait, pour retrouver la même étendue. */
 .lp-aurora-blob {
-  filter: blur(110px);
+  background-image: radial-gradient(closest-side, currentColor, transparent);
 }
 
 @media (max-width: 767px) {
   .lp-aurora-blob {
-    filter: blur(64px);
+    /* Trois halos animés en continu tiennent le compositeur occupé pendant le
+       défilement, au moment précis où il doit peindre les sections qui
+       arrivent. Immobiles, ils donnent le même fond à l'œil. */
     animation: none;
   }
 
