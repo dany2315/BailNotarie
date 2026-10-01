@@ -322,18 +322,20 @@ export function ContactBubble() {
               onClick={onMainClick}
               aria-label="Contacter le support"
               className={cn(
-                "flex h-12 items-center gap-2 rounded-full pl-3 pr-4",
+                // Une pastille d'invitation, pas un bandeau : elle flotte sur
+                // du contenu, et chaque pixel qu'elle prend en cache un.
+                "flex h-10 items-center gap-1.5 rounded-full pl-2.5 pr-3.5",
                 "bg-[#4373f5] text-white shadow-lg shadow-blue-500/30 transition-all duration-150",
                 "hover:shadow-xl active:scale-95",
-                "sm:h-14",
+                "sm:h-11",
                 // origine du scale opposée au bord pour que l'agrandissement
                 // (hover/active/drag) parte du côté libre et ne déborde pas
                 onLeftSide ? "origin-left" : "origin-right",
                 dragging && "scale-105 shadow-2xl"
               )}
             >
-              <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
-              <span className="text-sm font-semibold whitespace-nowrap sm:text-base">
+              <MessageCircle className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+              <span className="whitespace-nowrap text-[13px] font-semibold sm:text-sm">
                 Support
               </span>
             </button>

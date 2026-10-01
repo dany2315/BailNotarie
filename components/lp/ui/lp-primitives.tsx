@@ -453,22 +453,25 @@ export function AuroraBackdrop({
 }) {
   return (
     <div aria-hidden className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}>
+      {/* La teinte passe par `color`, et non par un fond : c'est le dégradé
+          radial de `.lp-aurora-blob` qui la reprend. Les boîtes sont plus
+          larges qu'avant d'autant que le flou débordait du disque. */}
       <div
         className={cn(
-          "lp-aurora-blob lp-anim-drift absolute -top-40 left-[8%] h-[34rem] w-[34rem] rounded-full",
-          tone === "light" ? "bg-[#4373f5]/18" : "bg-[#4373f5]/35",
+          "lp-aurora-blob lp-anim-drift absolute -top-64 left-[2%] h-[58rem] w-[58rem] rounded-full",
+          tone === "light" ? "text-[#4373f5]/27" : "text-[#4373f5]/40",
         )}
       />
       <div
         className={cn(
-          "lp-aurora-blob lp-anim-drift absolute -right-24 top-10 h-[28rem] w-[28rem] rounded-full [animation-delay:-7s]",
-          tone === "light" ? "bg-violet-400/14" : "bg-violet-500/25",
+          "lp-aurora-blob lp-anim-drift absolute -right-48 -top-8 h-[48rem] w-[48rem] rounded-full [animation-delay:-7s]",
+          tone === "light" ? "text-violet-400/23" : "text-violet-500/30",
         )}
       />
       <div
         className={cn(
-          "lp-aurora-blob lp-anim-drift absolute bottom-[-12rem] left-1/3 h-[30rem] w-[30rem] rounded-full [animation-delay:-14s]",
-          tone === "light" ? "bg-indigo-400/14" : "bg-indigo-500/25",
+          "lp-aurora-blob lp-anim-drift absolute bottom-[-22rem] left-[22%] h-[52rem] w-[52rem] rounded-full [animation-delay:-14s]",
+          tone === "light" ? "text-indigo-400/22" : "text-indigo-500/30",
         )}
       />
     </div>
