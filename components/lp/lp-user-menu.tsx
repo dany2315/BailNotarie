@@ -11,7 +11,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
-import { signOut } from "@/lib/auth-client";
+import { authClient, signOut } from "@/lib/auth-client";
 import { getClientInfoForHeader } from "@/lib/actions/client-info";
 import {
   DropdownMenu,
@@ -96,15 +96,44 @@ function publish(next: ClientSession) {
   for (const notify of Array.from(subscribers)) notify(next);
 }
 
+/* Numéro de la dernière lecture : une réponse arrivée après une lecture plus
+   récente, ou après une déconnexion, est ignorée. */
+let generation = 0;
+
+/** Délai au-delà duquel on renonce au nom affichable. */
+const INFO_TIMEOUT_MS = 8_000;
+
+function buildClientSession(user: CurrentUser, info: ClientInfo | null): ClientSession {
+  const profilType = info?.profilType ?? user.profilType ?? null;
+  const displayName = info?.name || user.name || "Mon espace";
+  return {
+    status: "client",
+    displayName,
+    email: info?.email || user.email || "",
+    initials: buildInitials(displayName),
+    isCompany: info?.clientType === "entreprise",
+    profilLabel:
+      profilType === "PROPRIETAIRE" ? "Propriétaire" : profilType === "LOCATAIRE" ? "Locataire" : null,
+  };
+}
+
 /**
  * Lit la session : l'API dit qui est connecté, l'action serveur donne le nom
  * et l'e-mail réellement affichables (raison sociale pour une entreprise,
  * personne principale pour un particulier).
+ *
+ * Le statut « client » est publié dès la réponse de l'API, sans attendre
+ * l'action serveur : celle-ci peut être interrompue par une navigation qui
+ * part au même moment (c'est le cas juste après la connexion OTP de
+ * « Commencer »), et sa promesse ne se règle alors jamais. Les boutons de la
+ * barre ne doivent pas en dépendre ; seul le nom affiché en dépend.
  */
 async function loadClientSession() {
+  const current = ++generation;
   try {
-    const response = await fetch("/api/user/current");
+    const response = await fetch("/api/user/current", { cache: "no-store" });
     const data = (await response.json()) as { isAuthenticated?: boolean; user?: CurrentUser };
+    if (current !== generation) return;
 
     const user = data?.isAuthenticated ? data.user : null;
     const isClient = user?.role === "UTILISATEUR" && Boolean(user?.clientId);
@@ -114,43 +143,51 @@ async function loadClientSession() {
       return;
     }
 
-    let info: ClientInfo | null = null;
-    try {
-      info = (await getClientInfoForHeader(user.clientId as string)) as ClientInfo | null;
-    } catch (error) {
-      console.error("Erreur lors de la récupération des informations du client:", error);
-    }
+    publish(buildClientSession(user, null));
 
-    const profilType = info?.profilType ?? user.profilType ?? null;
-    const displayName = info?.name || user.name || "Mon espace";
-
-    publish({
-      status: "client",
-      displayName,
-      email: info?.email || user.email || "",
-      initials: buildInitials(displayName),
-      isCompany: info?.clientType === "entreprise",
-      profilLabel:
-        profilType === "PROPRIETAIRE" ? "Propriétaire" : profilType === "LOCATAIRE" ? "Locataire" : null,
-    });
+    // Enrichissement hors du chemin critique, borné dans le temps.
+    void Promise.race([
+      getClientInfoForHeader(user.clientId as string) as Promise<ClientInfo | null>,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), INFO_TIMEOUT_MS)),
+    ])
+      .then((info) => {
+        if (info && current === generation && sessionState.status === "client") {
+          publish(buildClientSession(user, info));
+        }
+      })
+      .catch((error) => {
+        console.error("Erreur lors de la récupération des informations du client:", error);
+      });
   } catch (error) {
     console.error("Erreur lors de la récupération de l'utilisateur:", error);
-    publish({ ...EMPTY, status: "guest" });
+    if (current === generation) publish({ ...EMPTY, status: "guest" });
   } finally {
     lastLoadedAt = Date.now();
   }
 }
 
+/* Une relecture forcée demandée pendant une lecture en cours ne doit pas se
+   perdre : la lecture en cours a pu partir avant le changement de session. */
+let reloadQueued = false;
+
 function ensureLoaded(force = false) {
-  if (inFlight) return;
+  if (inFlight) {
+    if (force) reloadQueued = true;
+    return;
+  }
   if (!force && sessionState.status !== "loading") return;
   inFlight = loadClientSession().finally(() => {
     inFlight = null;
+    if (reloadQueued) {
+      reloadQueued = false;
+      ensureLoaded(true);
+    }
   });
 }
 
 /** Publie l'état « visiteur » sans attendre le serveur : on vient de partir. */
 export function clearClientSession() {
+  generation++;
   publish({ ...EMPTY, status: "guest" });
   lastLoadedAt = Date.now();
 }
@@ -163,6 +200,28 @@ export function refreshClientSession() {
 /** Délai en deçà duquel un retour sur l'onglet ne relance pas de lecture. */
 const REVALIDATE_AFTER_MS = 30_000;
 
+/* Connexion et déconnexion se font souvent sans rechargement : le code OTP
+   de « Commencer » ouvre la session puis enchaîne sur le formulaire, la page
+   de confirmation, etc. par `router.push`. Sans relecture, la barre gardait
+   l'état « visiteur » lu avant la connexion — « Se connecter » et
+   « Constituer mon dossier » renvoyaient alors un client connecté vers un
+   écran de connexion. better-auth bascule `$sessionSignal` à chaque
+   connexion OTP et déconnexion : on s'y abonne une fois pour toutes. */
+let authSignalBound = false;
+function bindAuthSignal() {
+  if (authSignalBound || typeof window === "undefined") return;
+  authSignalBound = true;
+  let first = true;
+  authClient.$store.listen("$sessionSignal", () => {
+    // nanostores appelle l'abonné immédiatement avec la valeur courante.
+    if (first) {
+      first = false;
+      return;
+    }
+    ensureLoaded(true);
+  });
+}
+
 /** Abonnement commun : lecture initiale, publication, revalidation. */
 function useSessionSubscription(onChange: (session: ClientSession) => void) {
   const ref = React.useRef(onChange);
@@ -173,6 +232,7 @@ function useSessionSubscription(onChange: (session: ClientSession) => void) {
     subscribers.add(listener);
     // L'état a pu changer entre le premier rendu et l'abonnement.
     listener(sessionState);
+    bindAuthSignal();
     ensureLoaded();
 
     // Déconnexion depuis un autre onglet, session expirée pendant une absence :
