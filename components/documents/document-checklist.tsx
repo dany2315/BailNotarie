@@ -8,6 +8,7 @@ import { useDownloadFile } from "@/hooks/use-download-file";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { cn } from "@/lib/utils";
 import type { ChecklistRow } from "@/lib/utils/document-checklist";
+import { VerifyToggle } from "@/components/admin/verify-buttons";
 
 function formatSize(size?: number | null) {
   if (!size || size <= 0) return null;
@@ -24,15 +25,26 @@ function formatDay(date?: Date | string | null) {
  * Pièces d'un bloc (personne, société, bien, bail) : une ligne par pièce
  * attendue, présente ou manquante, avec aperçu et téléchargement.
  */
+export interface ChecklistVerification {
+  bailId: string;
+  /** Bloc déjà validé : les boutons sont verrouillés. */
+  locked: boolean;
+  /** Par clé de ligne : clé du point de contrôle et état. */
+  points: Record<string, { pointKey: string; verified: boolean }>;
+}
+
 export function DocumentChecklist({
   rows,
   className,
   inset = false,
+  verification,
 }: {
   rows: ChecklistRow[];
   className?: string;
   /** Dans un bloc de la fiche : mêmes marges que les points de contrôle. */
   inset?: boolean;
+  /** Fiche dossier : chaque pièce présente se valide comme un point de contrôle. */
+  verification?: ChecklistVerification;
 }) {
   const { downloadFile, isFileDownloading } = useDownloadFile();
 
@@ -45,16 +57,19 @@ export function DocumentChecklist({
       {rows.map((row) => {
         const present = row.documents.length > 0;
         const missing = row.required && !present;
+        const point = verification && present ? verification.points[row.key] : undefined;
+        // Avec la vérification : coche verte seulement une fois la pièce validée.
+        const checked = present && (!verification || !!point?.verified);
         return (
           <li key={row.key} className={cn("grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-2", inset ? "px-5 py-3.5" : "py-3")}>
             <span
               aria-hidden
               className={cn(
                 "mt-0.5 flex size-[22px] items-center justify-center rounded-full text-xs font-bold",
-                present ? "bg-green-100 text-green-800" : missing ? "bg-red-100 text-red-800" : "border-2 border-slate-300",
+                checked ? "bg-green-100 text-green-800" : missing ? "bg-red-100 text-red-800" : "border-2 border-slate-300",
               )}
             >
-              {present ? <Check className="size-3.5" strokeWidth={3} /> : missing ? "!" : ""}
+              {checked ? <Check className="size-3.5" strokeWidth={3} /> : missing ? "!" : ""}
             </span>
             <div className="flex min-w-0 flex-col gap-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -62,7 +77,12 @@ export function DocumentChecklist({
                   {row.label || documentKindLabels[row.kind] || row.kind}
                   {row.required && <span className="sr-only"> (obligatoire)</span>}
                 </span>
-                {row.extra}
+                <span className="flex items-center gap-2">
+                  {row.extra}
+                  {point && verification && (
+                    <VerifyToggle bailId={verification.bailId} pointKey={point.pointKey} verified={point.verified} locked={verification.locked} />
+                  )}
+                </span>
               </div>
               {missing && <span className="text-sm font-semibold text-red-700">Manquante</span>}
               {!present && !row.required && <span className="text-sm text-muted-foreground">Non fournie (facultative)</span>}

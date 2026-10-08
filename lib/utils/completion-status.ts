@@ -73,6 +73,21 @@ export async function checkClientCompletionDetailed(clientId: string): Promise<{
     };
   }
 
+  return computeClientMissingData(client);
+}
+
+/**
+ * Calcul des manques d'un client à partir de ses données déjà chargées
+ * (personnes, société et documents). Même règle que la vérification
+ * détaillée, sans requête : utilisable pour toute une liste de clients.
+ */
+export function computeClientMissingData(client: {
+  type: ClientType;
+  profilType: ProfilType;
+  persons?: Array<any> | null;
+  entreprise?: any | null;
+  documents?: Array<any> | null;
+}): { hasAllFields: boolean; hasAllDocuments: boolean; missingData: MissingDataByEntity } {
   const missingData: MissingDataByEntity = {
     persons: [],
     entreprise: null,

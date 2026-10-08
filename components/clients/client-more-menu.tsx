@@ -3,9 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Copy, Edit, FileText, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, Edit, FileText, ListChecks, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { ProfilType } from "@prisma/client";
+import { ProfilType, type CompletionStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DeleteClientDialog } from "@/components/clients/delete-client-dialog";
+import { CompletionStatusDialog } from "@/components/shared/completion-status-dialog";
 import { deleteClient, sendIntakeLinkToClient } from "@/lib/actions/clients";
 
 interface ClientMoreMenuProps {
@@ -24,6 +25,8 @@ interface ClientMoreMenuProps {
   profilType: ProfilType;
   /** Dernier lien de formulaire (en attente de préférence), pour le copier. */
   intakeLink?: { token: string; target: string } | null;
+  /** Statut de complétion actuel (changement manuel, cas particuliers). */
+  completionStatus: CompletionStatus;
   triggerClassName?: string;
 }
 
@@ -37,8 +40,9 @@ const FORM_LABELS: Record<string, string> = {
  * Actions de la fiche client rangées sous « Plus » (mêmes actions qu'avant :
  * modifier, envoyer le formulaire, copier son lien, supprimer).
  */
-export function ClientMoreMenu({ clientId, clientName, hasEmail, profilType, intakeLink, triggerClassName }: ClientMoreMenuProps) {
+export function ClientMoreMenu({ clientId, clientName, hasEmail, profilType, intakeLink, completionStatus, triggerClassName }: ClientMoreMenuProps) {
   const router = useRouter();
+  const [statusOpen, setStatusOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<{
@@ -113,6 +117,10 @@ export function ClientMoreMenu({ clientId, clientName, hasEmail, profilType, int
               Copier le lien du formulaire
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem className="min-h-10 cursor-pointer" onSelect={() => setStatusOpen(true)}>
+            <ListChecks className="size-4" />
+            Changer le statut de complétion…
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="min-h-10 cursor-pointer text-destructive focus:text-destructive"
@@ -126,6 +134,8 @@ export function ClientMoreMenu({ clientId, clientName, hasEmail, profilType, int
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <CompletionStatusDialog type="client" id={clientId} currentStatus={completionStatus} open={statusOpen} onOpenChange={setStatusOpen} />
 
       <DeleteClientDialog
         open={deleteOpen}

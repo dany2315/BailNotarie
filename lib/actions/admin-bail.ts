@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
 import { revalidatePath } from "next/cache";
 import {
   BailStatus,
@@ -221,10 +222,16 @@ const isoDay = z
 
 /** Champs modifiables en direct, et leur validation. L'e-mail est exclu : il
     sert à la connexion du client et se modifie depuis la page complète. */
+/** Téléphone au format international (même contrôle que les formulaires). */
+const phoneField = z
+  .string()
+  .trim()
+  .refine((value) => isValidPhoneNumberSafe(value), { message: "Numéro de téléphone invalide" });
+
 const PERSON_FIELDS = {
   firstName: text(100),
   lastName: text(100),
-  phone: text(30),
+  phone: phoneField,
   fullAddress: text(300),
   nationality: text(100),
   birthPlace: text(200),
@@ -238,7 +245,7 @@ const ENTREPRISE_FIELDS = {
   legalName: text(200),
   name: text(200),
   registration: text(100),
-  phone: text(30),
+  phone: phoneField,
   fullAddress: text(300),
 } as const;
 

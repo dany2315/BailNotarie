@@ -351,18 +351,18 @@ model Property {
   status      PropertyStatus   @default(NON_LOUER)
 
   // Données géographiques enrichies (via API BAN)
-  housenumber String?
-  street      String?
-  city        String?
-  postalCode  String?
-  district    String? // Arrondissement pour Paris/Lyon/Marseille
-  inseeCode   String?
-  department  String?
-  region      String?
-  latitude    Decimal?         @db.Decimal(10, 8)
-  longitude   Decimal?         @db.Decimal(11, 8)
-  isTightZone Boolean          @default(false)
-  hasRentControl Boolean       @default(false)
+  housenumber    String?
+  street         String?
+  city           String?
+  postalCode     String?
+  district       String? // Arrondissement pour Paris/Lyon/Marseille
+  inseeCode      String?
+  department     String?
+  region         String?
+  latitude       Decimal? @db.Decimal(10, 8)
+  longitude      Decimal? @db.Decimal(11, 8)
+  isTightZone    Boolean  @default(false)
+  hasRentControl Boolean  @default(false)
 
   // Mobilier obligatoire pour location meublée
   hasLiterie           Boolean @default(false) // Literie avec couette ou couverture
@@ -407,16 +407,16 @@ model Property {
  */
 
 model ZoneTendue {
-  id               String   @id @default(cuid())
-  inseeCode        String  @unique
-  city             String
-  postalCode       String
-  department       String
-  region           String
-  isActive         Boolean  @default(true)
-  rentControlEnabled Boolean @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  inseeCode          String   @unique
+  city               String
+  postalCode         String
+  department         String
+  region             String
+  isActive           Boolean  @default(true)
+  rentControlEnabled Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   rentControls RentControl[]
 
@@ -426,15 +426,15 @@ model ZoneTendue {
 }
 
 model RentControl {
-  id           String   @id @default(cuid())
-  zoneTendueId String
-  zoneTendue   ZoneTendue @relation(fields: [zoneTendueId], references: [id], onDelete: Cascade)
-  propertyType BienType
-  maxRentPerM2 Decimal  @db.Decimal(10, 2)
+  id            String     @id @default(cuid())
+  zoneTendueId  String
+  zoneTendue    ZoneTendue @relation(fields: [zoneTendueId], references: [id], onDelete: Cascade)
+  propertyType  BienType
+  maxRentPerM2  Decimal    @db.Decimal(10, 2)
   effectiveDate DateTime
-  endDate      DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  endDate       DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   @@index([zoneTendueId])
   @@index([propertyType])
@@ -485,9 +485,27 @@ model Bail {
 
   auditLogs BailAuditLog[] @relation("BailAuditLogs")
 
+  // Points de la fiche de vérification validés par l'équipe
+  verificationChecks BailVerificationCheck[]
+
   @@index([status])
   @@index([propertyId])
   @@index([effectiveDate])
+}
+
+/// Point de contrôle validé sur la fiche de vérification d'un dossier.
+/// La clé contient une empreinte des données vérifiées : si elles changent,
+/// le point redevient « à valider » (l'ancienne ligne reste sans effet).
+model BailVerificationCheck {
+  id           String   @id @default(cuid())
+  bailId       String
+  bail         Bail     @relation(fields: [bailId], references: [id], onDelete: Cascade)
+  pointKey     String
+  verifiedById String?
+  createdAt    DateTime @default(now())
+
+  @@unique([bailId, pointKey])
+  @@index([bailId])
 }
 
 model BailAuditLog {
@@ -505,7 +523,7 @@ model BailAuditLog {
   notaireName String?
 
   actorId   String?
-  actor     User?  @relation("BailAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actor     User?   @relation("BailAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
   actorName String
 
   createdAt DateTime @default(now())
@@ -566,19 +584,19 @@ model IntakeLink {
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id])
 
-  status               IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
-  submittedAt          DateTime?
-  formEmailSentAt      DateTime?
+  status              IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
+  submittedAt         DateTime?
+  formEmailSentAt     DateTime?
   // Suivi d'envoi et d'ouverture du formulaire, pour l'espace administrateur.
   // formEmailCount compte chaque envoi (le premier et les relances) ;
   // lastFormEmailSentAt est la date du dernier envoi.
-  formEmailCount       Int          @default(0)
-  lastFormEmailSentAt  DateTime?
+  formEmailCount      Int          @default(0)
+  lastFormEmailSentAt DateTime?
   // Première et dernière ouverture du formulaire par le client (pas par un admin).
-  firstOpenedAt        DateTime?
-  lastOpenedAt         DateTime?
+  firstOpenedAt       DateTime?
+  lastOpenedAt        DateTime?
 
-  stripePaymentIntentId String?   @db.Text // Temporaire : cache pour réutiliser le PaymentIntent
+  stripePaymentIntentId String? @db.Text // Temporaire : cache pour réutiliser le PaymentIntent
 
   bailFamilyPreference BailFamille?
 

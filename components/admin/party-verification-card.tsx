@@ -6,6 +6,7 @@ import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/per
 import { buildChecklistRows, toChecklistDocument, type ChecklistDocument } from "@/lib/utils/document-checklist";
 import { getRequiredClientFields } from "@/lib/utils/required-fields";
 import { cn } from "@/lib/utils";
+import { formatPhone } from "@/lib/utils/phone-format";
 
 /**
  * Fiche client (maquette « Client ») : carte « Identité » avec un onglet par
@@ -35,7 +36,7 @@ const PERSON_FIELDS: FieldDef[] = [
   { field: "familyStatus", label: "Situation familiale", kind: "familyStatus", format: (v) => (v ? FAMILY_STATUS_LABELS[v] || v : null) },
   { field: "matrimonialRegime", label: "Régime matrimonial", kind: "matrimonialRegime", format: (v) => (v ? MATRIMONIAL_REGIME_LABELS[v] || v : null) },
   { field: "email", label: "E-mail", readOnly: true },
-  { field: "phone", label: "Téléphone" },
+  { field: "phone", label: "Téléphone", kind: "phone", format: formatPhone },
   { field: "fullAddress", label: "Adresse" },
 ];
 
@@ -44,7 +45,7 @@ const ENTREPRISE_FIELDS: FieldDef[] = [
   { field: "name", label: "Nom commercial" },
   { field: "registration", label: "Numéro d'immatriculation" },
   { field: "email", label: "E-mail", readOnly: true },
-  { field: "phone", label: "Téléphone" },
+  { field: "phone", label: "Téléphone", kind: "phone", format: formatPhone },
   { field: "fullAddress", label: "Adresse du siège" },
 ];
 

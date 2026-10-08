@@ -11,7 +11,8 @@ import {
   FamilyStatusBadge,
   MatrimonialRegimeBadge
 } from "@/components/shared/status-badge";
-import { CompletionStatusSelect } from "@/components/shared/completion-status-select";
+import { CompletionChip } from "@/components/shared/completion-chip";
+import { CompletionStatusDialogButton } from "@/components/shared/completion-status-dialog";
 import { formatDate, formatCurrency, formatSurface, formatDateTime } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -108,13 +109,10 @@ export default async function PropertyDetailPage({
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
           <ButtonGroup className="w-full sm:w-auto justify-end">
             {property.completionStatus && (
-              <CompletionStatusSelect
-                type="property"
-                id={property.id}
-                currentStatus={property.completionStatus}
-                viewLabel={false}
-                asChild
-              />
+              <span className="mr-1 flex items-center gap-1">
+                <CompletionChip status={property.completionStatus} />
+                <CompletionStatusDialogButton type="property" id={property.id} currentStatus={property.completionStatus} />
+              </span>
             )}
             <Button asChild className=" sm:w-auto" variant="outline">
               <Link href={`/interface/properties/${property.id}/edit`}>
@@ -312,11 +310,10 @@ export default async function PropertyDetailPage({
               </div>
               <CardDescription>Informations du propriétaire</CardDescription>
             </div>
-            <CompletionStatusSelect
-              type="client"
-              id={property.owner.id}
-              currentStatus={property.owner.completionStatus ?? "NOT_STARTED"}
-            />
+            <span className="flex items-center gap-1">
+              <CompletionChip status={property.owner.completionStatus} />
+              <CompletionStatusDialogButton type="client" id={property.owner.id} currentStatus={property.owner.completionStatus ?? "NOT_STARTED"} />
+            </span>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

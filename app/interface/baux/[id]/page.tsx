@@ -6,7 +6,6 @@ import { BailStatus, CompletionStatus, DocumentKind } from "@prisma/client";
 import { getLease, getBailMissingData } from "@/lib/actions/leases";
 import { getDocuments } from "@/lib/actions/documents";
 import { getBailFollowUp, type IntakeTracking } from "@/lib/actions/admin-bail";
-import { CompletionStatusSelect } from "@/components/shared/completion-status-select";
 import { InternalNotes } from "@/components/comments/internal-notes";
 import { TenantCreateButton } from "@/components/leases/tenant-create-button";
 import { BailAuditTimeline } from "@/components/leases/bail-audit-timeline";
@@ -16,9 +15,11 @@ import { RequestMissingButton, type MissingRequestRecipient } from "@/components
 import { describeMissingItems } from "@/lib/utils/missing-items";
 import { intakeSummary } from "@/lib/utils/intake-summary";
 import { documentKindLabels } from "@/lib/utils/document-labels";
-import { PartyCheckSection } from "@/components/admin/party-check-section";
+import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, withVerified } from "@/components/admin/party-check-section";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
-import { ValidateBlockButton } from "@/components/admin/validate-block-button";
+import { ValidateAllButton, VerifyToggle } from "@/components/admin/verify-buttons";
+import { pointKey, summarize, summaryChip } from "@/lib/utils/verification";
+import { prisma } from "@/lib/prisma";
 import { DocumentChecklist } from "@/components/documents/document-checklist";
 import { DiagnosticsLegend } from "@/components/documents/diagnostics-legend";
 import { buildChecklistRows, toChecklistDocument } from "@/lib/utils/document-checklist";
@@ -127,14 +128,16 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const tenant = lease.parties?.find((p: any) => p.profilType === "LOCATAIRE") || null;
   const owner = lease.parties?.find((p: any) => p.profilType === "PROPRIETAIRE") || lease.property?.owner || null;
 
-  const [tenantClientDocs, ownerClientDocs, propertyDocuments, bailDocuments, missingData, followUp] = await Promise.all([
+  const [tenantClientDocs, ownerClientDocs, propertyDocuments, bailDocuments, missingData, followUp, verificationChecks] = await Promise.all([
     tenant ? getDocuments({ clientId: tenant.id }) : Promise.resolve([]),
     owner ? getDocuments({ clientId: owner.id }) : Promise.resolve([]),
     lease.property ? getDocuments({ propertyId: lease.property.id }) : Promise.resolve([]),
     getDocuments({ bailId: lease.id }),
     getBailMissingData(lease.id),
     getBailFollowUp(lease.id),
+    prisma.bailVerificationCheck.findMany({ where: { bailId: lease.id }, select: { pointKey: true } }),
   ]);
+  const verifiedKeys = new Set(verificationChecks.map((c) => c.pointKey));
 
   // Pièces du client hors personnes et société (déjà affichées dans leur bloc).
   const commonDocs = (docs: any[]) => docs.filter((doc: any) => !doc.personId && !doc.entrepriseId);
@@ -148,7 +151,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     hasNotaire: !!followUp.notaire,
     pendingNotaireRequests: followUp.pendingRequests.length,
   });
-  const totalMissing = missingData?.totalMissing ?? 0;
   const ownerName = partyDisplayName(owner);
   const tenantName = partyDisplayName(tenant);
   const isMeuble = lease.bailType === "BAIL_MEUBLE_1_ANS" || lease.bailType === "BAIL_MEUBLE_9_MOIS";
@@ -159,11 +161,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     lease.status === BailStatus.AWAITING_TENANT_FORM ||
     lease.status === BailStatus.PENDING_VALIDATION ||
     (lease.status === BailStatus.READY_FOR_NOTARY && !followUp.notaire);
-  const sendDisabledReason = !tenant
-    ? "Ajoutez d'abord le locataire."
-    : totalMissing > 0
-      ? `Impossible pour l'instant : ${totalMissing} élément${totalMissing > 1 ? "s" : ""} manquant${totalMissing > 1 ? "s" : ""}.`
-      : null;
 
   // Contrôles automatiques réellement en place.
   const maxDeposit = isMeuble ? lease.rentAmount * 2 : lease.rentAmount;
@@ -176,13 +173,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
   const ownerIntake = followUp.intakes.find((i) => i.target === "OWNER");
   const tenantIntake = followUp.intakes.find((i) => i.target === "TENANT");
-
-  const blocks = [
-    { label: "Propriétaire", status: owner?.completionStatus as string | undefined, missing: (missingData?.owner?.totalMissingFields || 0) + (missingData?.owner?.totalMissingDocuments || 0), href: "#bloc-proprietaire" },
-    { label: "Locataire", status: tenant?.completionStatus as string | undefined, missing: (missingData?.tenant?.totalMissingFields || 0) + (missingData?.tenant?.totalMissingDocuments || 0), href: "#bloc-locataire" },
-    { label: "Bien", status: property?.completionStatus as string | undefined, missing: (missingData?.property?.missingFields.length || 0) + (missingData?.property?.missingDocuments.length || 0), href: "#bloc-bien" },
-  ];
-  const verifiedBlocks = blocks.filter((b) => b.status === CompletionStatus.COMPLETED).length;
 
   // « Demander les pièces manquantes » : ce qui manque, par destinataire.
   const partyEmail = (party: any): string =>
@@ -211,12 +201,21 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     },
   ].filter(Boolean) as MissingRequestRecipient[];
 
-  // Points du bloc « Le bail »
+  // ---- Fiche de vérification : un point par donnée, comme la maquette ----
+  // Une fois le dossier envoyé au notaire (ou un bloc déjà « Complété »), ses
+  // points sont considérés comme vérifiés et verrouillés.
+  const pastVerification = stage.key === "notaire" || stage.key === "signe" || stage.key === "clos";
+  const bailLocked = pastVerification;
+  const ownerLocked = pastVerification || owner?.completionStatus === CompletionStatus.COMPLETED;
+  const tenantLocked = pastVerification || tenant?.completionStatus === CompletionStatus.COMPLETED;
+  const propertyLocked = pastVerification || property?.completionStatus === CompletionStatus.COMPLETED;
+
+  // Le bail
   const bailMissing = new Set(missingData?.bail.missingFields || []);
   const months = lease.rentAmount > 0 ? Math.round((lease.securityDeposit / lease.rentAmount) * 10) / 10 : null;
   const bailPoints = [
     {
-      key: "type",
+      key: pointKey("bail:type", [lease.bailType, lease.bailFamily, lease.effectiveDate, lease.endDate]),
       label: "Type et durée",
       missing: ["effectiveDate"].filter((f) => bailMissing.has(f)),
       text: [
@@ -227,7 +226,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       ],
     },
     {
-      key: "loyer",
+      key: pointKey("bail:loyer", [lease.rentAmount, lease.monthlyCharges, lease.paymentDay]),
       label: "Loyer et charges",
       missing: ["rentAmount", "paymentDay"].filter((f) => bailMissing.has(f)),
       text: [
@@ -238,9 +237,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       ],
     },
     {
-      key: "depot",
+      key: pointKey("bail:depot", [lease.securityDeposit, lease.rentAmount, lease.bailType]),
       label: "Dépôt de garantie",
-      missing: ["securityDeposit"].filter((f) => bailMissing.has(f)),
+      missing: [...["securityDeposit"].filter((f) => bailMissing.has(f)), ...(depositOk ? [] : ["depositLimit"])],
       text: [
         `${formatCurrency(lease.securityDeposit)}${months !== null ? ` · ${String(months).replace(".", ",")} mois de loyer hors charges` : ""}`,
         depositOk
@@ -249,19 +248,88 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       ],
     },
   ];
+  const bailExtraMissing = ["tenant", "owner", "property"].filter((f) => bailMissing.has(f));
+  const bailStates = withVerified(
+    [
+      ...bailPoints.map((p) => ({ key: p.key, missing: p.missing.length > 0 })),
+      ...bailExtraMissing.map((f) => ({ key: `bail:${f}:absent`, missing: true })),
+    ],
+    verifiedKeys,
+    bailLocked,
+  );
   const bailMissingCount = missingData?.bail.missingFields.length || 0;
 
-  // Bloc « Le bien »
-  const propertyMissing = (missingData?.property?.missingFields.length || 0) + (missingData?.property?.missingDocuments.length || 0);
+  // Propriétaire et locataire
+  const ownerPoints = buildPartyPoints(owner, missingData?.owner || null, commonDocs(ownerClientDocs), "PROPRIETAIRE");
+  const tenantPoints = buildPartyPoints(tenant, missingData?.tenant || null, commonDocs(tenantClientDocs), "LOCATAIRE");
+  const ownerStates = withVerified(ownerPoints.points, verifiedKeys, ownerLocked);
+  const tenantStates = withVerified(tenantPoints.points, verifiedKeys, tenantLocked);
+
+  // Le bien
   const furniturePresent = property ? FURNITURE.filter((item) => !!property[item.key]).length : 0;
+  const propertyDocRows = property
+    ? buildChecklistRows(getRequiredPropertyFields(property.legalStatus).requiredDocuments, (propertyDocuments as any[]).map(toChecklistDocument), {
+        keyPrefix: `property-${property.id}`,
+        labels: { [DocumentKind.INSURANCE]: "Assurance du propriétaire", [DocumentKind.RIB]: "RIB du propriétaire" },
+        extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
+      })
+    : [];
+  const propertyDocKeys = docRowKeys(propertyDocRows);
+  const propertyDescKey = property
+    ? pointKey(`property:${property.id}:description`, [
+        property.fullAddress,
+        property.label,
+        property.type,
+        property.surfaceM2 ? Number(property.surfaceM2) : null,
+        property.legalStatus,
+        property.status,
+      ])
+    : "property:absent";
+  const propertyDescMissing = !property || (missingData?.property?.missingFields.length || 0) > 0;
+  const propertyStates = withVerified(
+    [{ key: propertyDescKey, missing: propertyDescMissing }, ...docPoints(propertyDocRows, propertyDocKeys)],
+    verifiedKeys,
+    propertyLocked,
+  );
+
+  // Contrôles réglementaires (manuels)
+  const diagnosticsIds = (propertyDocuments as any[]).filter((d) => d.kind === DocumentKind.DIAGNOSTICS).map((d) => d.id).sort();
+  const rulesPoints = [
+    { key: pointKey("rules:plafond", [lease.rentAmount, surface, property?.inseeCode || null]), label: "Plafond de loyer" },
+    { key: pointKey("rules:dpe", diagnosticsIds), label: "Classe DPE" },
+  ];
+  const rulesStates = withVerified(rulesPoints.map((p) => ({ key: p.key, missing: false })), verifiedKeys, bailLocked);
+
+  const isVerified = (key: string, locked: boolean) => locked || verifiedKeys.has(key);
+  const sections = [
+    { id: "bloc-bail", title: "Le bail", summary: summarize(bailStates) },
+    { id: "bloc-proprietaire", title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire", summary: summarize(ownerStates) },
+    { id: "bloc-locataire", title: "Locataire", summary: summarize(tenantStates) },
+    { id: "bloc-bien", title: "Le bien", summary: summarize(propertyStates) },
+    { id: "bloc-controles", title: "Contrôles réglementaires", summary: summarize(rulesStates) },
+  ];
+  const overall = summarize([...bailStates, ...ownerStates, ...tenantStates, ...propertyStates, ...rulesStates]);
+  const totalMissing = Math.max(missingData?.totalMissing ?? 0, overall.missing);
+
+  const sendDisabledReason = !tenant
+    ? "Ajoutez d'abord le locataire."
+    : totalMissing > 0
+      ? `${totalMissing} élément${totalMissing > 1 ? "s" : ""} manquant${totalMissing > 1 ? "s" : ""}.`
+      : overall.remaining > 0
+        ? `Encore ${overall.remaining} point${overall.remaining > 1 ? "s" : ""} à valider.`
+        : null;
 
   const stepItems = STAGE_ORDER.filter((key) => key !== "clos" || stage.key === "clos");
-  const progress = Math.round((verifiedBlocks / blocks.length) * 100);
-  const ctaHelp = sendDisabledReason
-    ? `Envoi bloqué : ${sendDisabledReason.replace("Impossible pour l'instant : ", "")} Saisissez l'information si vous l'avez obtenue par téléphone, ou demandez-la au client.`
-    : verifiedBlocks < blocks.length
-      ? "Rien ne manque. Validez chaque bloc, ou envoyez directement au notaire : l'envoi marque les trois blocs comme vérifiés."
-      : "Tout est vérifié : le dossier peut partir chez le notaire.";
+  const progress = overall.total > 0 ? Math.round((overall.verified / overall.total) * 100) : 0;
+  const ctaHelp = pastVerification
+    ? "Dossier validé et transmis au notaire."
+    : !tenant
+      ? "Bouton bloqué : ajoutez d'abord le locataire."
+      : totalMissing > 0
+        ? `Bouton bloqué : ${totalMissing} élément${totalMissing > 1 ? "s" : ""} manquant${totalMissing > 1 ? "s" : ""}. Demandez-${totalMissing > 1 ? "les" : "le"} au client ou saisissez-${totalMissing > 1 ? "les" : "le"} si vous ${totalMissing > 1 ? "les" : "l'"}avez obtenu${totalMissing > 1 ? "s" : ""} par téléphone.`
+        : overall.remaining > 0
+          ? `Encore ${overall.remaining} point${overall.remaining > 1 ? "s" : ""} à valider avant l'envoi au notaire.`
+          : "Tout est vérifié : le dossier peut partir chez le notaire.";
 
   return (
     <div className="flex flex-col gap-5 pb-10">
@@ -274,21 +342,22 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         <div className="flex flex-col gap-3.5">
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={cn("inline-flex h-[30px] items-center rounded-lg px-3 text-[13.5px] font-semibold", stage.className)}>{stage.label}</span>
+              <span className={cn("inline-flex h-[30px] items-center whitespace-nowrap rounded-lg px-2.5 text-[13.5px] font-semibold sm:px-3", stage.className)}>{stage.label}</span>
               {lease.paidAt ? (
-                <span className="inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-green-100 px-3 text-[13.5px] font-semibold text-green-800">
+                <span className="inline-flex h-[30px] items-center gap-1 whitespace-nowrap rounded-lg bg-green-100 px-2.5 text-[13.5px] sm:gap-1.5 sm:px-3 font-semibold text-green-800">
                   <Check className="size-4" strokeWidth={3} />
-                  Frais payés le {formatDate(lease.paidAt)}
+                  Frais payés le {formatDate(lease.paidAt).slice(0, 5)}
                   {/* Le paiement Stripe est toujours de 39,90 € (montant contrôlé côté serveur). */}
                   {lease.stripePaymentIntentId ? " · 39,90 €" : ""}
                 </span>
               ) : (
-                <span className="inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-red-100 px-3 text-[13.5px] font-semibold text-red-800">
+                <span className="inline-flex h-[30px] items-center gap-1 whitespace-nowrap rounded-lg bg-red-100 px-2.5 text-[13.5px] sm:gap-1.5 sm:px-3 font-semibold text-red-800">
                   <CreditCard className="size-4" />
                   Frais de dossier non payés
                 </span>
               )}
-              <span className="text-[13px] text-muted-foreground">
+              {/* Sur téléphone : les deux pastilles côte à côte, le statut en dessous. */}
+              <span className="basis-full text-[13px] text-muted-foreground sm:basis-auto">
                 {STATUS_LABELS[lease.status as keyof typeof STATUS_LABELS] || lease.status}
                 {isActiveStage(stage.key) && (
                   <>
@@ -375,60 +444,64 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             title="Le bail"
             subtitle="Conditions saisies par le propriétaire"
             headerRight={
-              bailMissingCount > 0 ? (
-                <>
-                  <StateChip tone="missing">
-                    {bailMissingCount} manquant{bailMissingCount > 1 ? "s" : ""}
-                  </StateChip>
+              <>
+                <StateChip tone={summaryChip(sections[0].summary).tone}>{summaryChip(sections[0].summary).label}</StateChip>
+                {bailMissingCount > 0 && (
                   <Link
                     href={`/interface/baux/${lease.id}/edit`}
                     className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium hover:bg-muted"
                   >
                     Compléter
                   </Link>
-                </>
-              ) : (
-                <StateChip tone="ok">Complet</StateChip>
-              )
+                )}
+                {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={sections[0].summary.pendingKeys} />}
+              </>
             }
           >
             <CheckList>
-              {bailPoints.map((point) => (
-                <CheckPoint
-                  key={point.key}
-                  state={point.missing.length > 0 || (point.key === "depot" && !depositOk) ? "missing" : "ok"}
-                  label={point.label}
-                  note={
-                    point.missing.length > 0
-                      ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}`
-                      : null
-                  }
-                >
-                  {point.text.filter(Boolean).join("\n")}
-                </CheckPoint>
+              {bailPoints.map((point) => {
+                const missing = point.missing.length > 0;
+                const verified = !missing && isVerified(point.key, bailLocked);
+                return (
+                  <CheckPoint
+                    key={point.key}
+                    state={missing ? "missing" : verified ? "ok" : "todo"}
+                    label={point.label}
+                    note={
+                      point.missing.includes("depositLimit")
+                        ? "Dépôt au-dessus de la limite légale"
+                        : missing
+                          ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}`
+                          : null
+                    }
+                    actions={!missing && <VerifyToggle bailId={lease.id} pointKey={point.key} verified={verified} locked={bailLocked} />}
+                  >
+                    {point.text.filter(Boolean).join("\n")}
+                  </CheckPoint>
+                );
+              })}
+              {bailExtraMissing.map((f) => (
+                <CheckPoint key={f} state="missing" label={BAIL_FIELD_LABELS[f]} note={`Manquant : ${BAIL_FIELD_LABELS[f].toLowerCase()}`} />
               ))}
-              {["tenant", "owner", "property"]
-                .filter((f) => bailMissing.has(f))
-                .map((f) => (
-                  <CheckPoint key={f} state="missing" label={BAIL_FIELD_LABELS[f]} note={`Manquant : ${BAIL_FIELD_LABELS[f].toLowerCase()}`} />
-                ))}
             </CheckList>
           </CheckSection>
 
           <PartyCheckSection
             id="bloc-proprietaire"
             role="PROPRIETAIRE"
-            party={owner}
-            clientDocuments={commonDocs(ownerClientDocs)}
-            missing={missingData?.owner || null}
+            data={ownerPoints}
+            bailId={lease.id}
+            verifiedKeys={verifiedKeys}
+            locked={ownerLocked}
             formNote={formNote(ownerIntake)}
           />
           <PartyCheckSection
             id="bloc-locataire"
             role="LOCATAIRE"
-            party={tenant}
-            clientDocuments={commonDocs(tenantClientDocs)}
-            missing={missingData?.tenant || null}
+            data={tenantPoints}
+            bailId={lease.id}
+            verifiedKeys={verifiedKeys}
+            locked={tenantLocked}
             formNote={formNote(tenantIntake)}
             emptyAction={<TenantCreateButton bailId={lease.id} />}
           />
@@ -459,26 +532,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             headerRight={
               property && (
                 <>
-                  {propertyMissing > 0 && (
-                    <StateChip tone="missing">
-                      {propertyMissing} manquant{propertyMissing > 1 ? "s" : ""}
-                    </StateChip>
-                  )}
-                  <CompletionStatusSelect
-                    type="property"
-                    id={property.id}
-                    currentStatus={property.completionStatus}
-                    viewLabel={false}
-                    showValueLabel
-                    className="h-8"
-                  />
-                  {property.completionStatus !== CompletionStatus.COMPLETED && (
-                    <ValidateBlockButton
-                      type="property"
-                      id={property.id}
-                      disabledReason={propertyMissing > 0 ? "Complétez d'abord les éléments manquants." : null}
-                    />
-                  )}
+                  <StateChip tone={summaryChip(sections[3].summary).tone}>{summaryChip(sections[3].summary).label}</StateChip>
+                  {!propertyLocked && <ValidateAllButton bailId={lease.id} pointKeys={sections[3].summary.pendingKeys} />}
                 </>
               )
             }
@@ -518,12 +573,22 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               <>
                 <CheckList>
                   <CheckPoint
-                    state={missingData?.property?.missingFields.length ? "missing" : "ok"}
+                    state={propertyDescMissing ? "missing" : isVerified(propertyDescKey, propertyLocked) ? "ok" : "todo"}
                     label="Adresse et description"
                     note={
                       missingData?.property?.missingFields.length
                         ? `Manquant : ${missingData.property.missingFields.map((f) => (f === "fullAddress" ? "adresse" : f)).join(", ")}`
                         : null
+                    }
+                    actions={
+                      !propertyDescMissing && (
+                        <VerifyToggle
+                          bailId={lease.id}
+                          pointKey={propertyDescKey}
+                          verified={isVerified(propertyDescKey, propertyLocked)}
+                          locked={propertyLocked}
+                        />
+                      )
                     }
                   >
                     {[
@@ -544,15 +609,14 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 <div className="border-t">
                   <DocumentChecklist
                     inset
-                    rows={buildChecklistRows(
-                      getRequiredPropertyFields(property.legalStatus).requiredDocuments,
-                      (propertyDocuments as any[]).map(toChecklistDocument),
-                      {
-                        keyPrefix: `property-${property.id}`,
-                        labels: { [DocumentKind.INSURANCE]: "Assurance du propriétaire", [DocumentKind.RIB]: "RIB du propriétaire" },
-                        extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
-                      },
-                    )}
+                    rows={propertyDocRows}
+                    verification={{
+                      bailId: lease.id,
+                      locked: propertyLocked,
+                      points: Object.fromEntries(
+                        Object.entries(propertyDocKeys).map(([rowKey, key]) => [rowKey, { pointKey: key, verified: isVerified(key, propertyLocked) }]),
+                      ),
+                    }}
                   />
                 </div>
               </>
@@ -566,10 +630,26 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             id="bloc-controles"
             title="Contrôles réglementaires"
             subtitle="À vérifier par vous : pas de contrôle automatique pour l'instant"
-            headerRight={<StateChip tone="todo">À vérifier</StateChip>}
+            headerRight={
+              <>
+                <StateChip tone={summaryChip(sections[4].summary).tone}>{summaryChip(sections[4].summary).label}</StateChip>
+                {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={sections[4].summary.pendingKeys} />}
+              </>
+            }
           >
             <CheckList>
-              <CheckPoint state="todo" label="Plafond de loyer">
+              <CheckPoint
+                state={isVerified(rulesPoints[0].key, bailLocked) ? "ok" : "todo"}
+                label="Plafond de loyer"
+                actions={
+                  <VerifyToggle
+                    bailId={lease.id}
+                    pointKey={rulesPoints[0].key}
+                    verified={isVerified(rulesPoints[0].key, bailLocked)}
+                    locked={bailLocked}
+                  />
+                }
+              >
                 {lease.rentAmount > 0
                   ? `${formatCurrency(lease.rentAmount)}${
                       surface ? ` pour ${formatSurface(surface)}, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m² hors charges` : ""
@@ -577,7 +657,18 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   : "Loyer non renseigné."}
                 {"\n"}Si la commune encadre les loyers, comparer au loyer de référence majoré.
               </CheckPoint>
-              <CheckPoint state="todo" label="Classe DPE">
+              <CheckPoint
+                state={isVerified(rulesPoints[1].key, bailLocked) ? "ok" : "todo"}
+                label="Classe DPE"
+                actions={
+                  <VerifyToggle
+                    bailId={lease.id}
+                    pointKey={rulesPoints[1].key}
+                    verified={isVerified(rulesPoints[1].key, bailLocked)}
+                    locked={bailLocked}
+                  />
+                }
+              >
                 {"À lire dans les diagnostics.\nG : location interdite · F : interdite à partir de 2028 · F et G : loyer gelé."}
               </CheckPoint>
             </CheckList>
@@ -646,32 +737,31 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="text-base font-semibold">Vérification</h2>
               <span className="text-sm font-bold">
-                {verifiedBlocks} / {blocks.length}
+                {overall.verified} / {overall.total}
               </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
             </div>
             <ul className="flex flex-col">
-              {blocks.map((block) => (
-                <li key={block.label}>
-                  <a href={block.href} className="flex min-h-8 items-center justify-between gap-2 text-sm hover:underline">
-                    <span>{block.label}</span>
-                    <span
-                      className={cn(
-                        "font-semibold",
-                        block.missing > 0 ? "text-red-700" : block.status === "COMPLETED" ? "text-green-700" : "text-muted-foreground",
-                      )}
-                    >
-                      {block.missing > 0
-                        ? `${block.missing} manquant${block.missing > 1 ? "s" : ""}`
-                        : block.status
-                          ? COMPLETION_LABELS[block.status] || block.status
-                          : "—"}
-                    </span>
-                  </a>
-                </li>
-              ))}
+              {sections.map((section) => {
+                const chip = summaryChip(section.summary);
+                return (
+                  <li key={section.id}>
+                    <a href={`#${section.id}`} className="flex min-h-8 items-center justify-between gap-2 text-sm hover:underline">
+                      <span>{section.title}</span>
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          chip.tone === "missing" ? "text-red-700" : chip.tone === "ok" ? "text-green-700" : "text-muted-foreground",
+                        )}
+                      >
+                        {chip.label}
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
             <p className="text-[13px] leading-relaxed text-muted-foreground">{ctaHelp}</p>
           </section>

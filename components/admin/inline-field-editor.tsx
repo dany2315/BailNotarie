@@ -11,10 +11,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateInput } from "@/components/ui/date-picker";
 import { NationalitySelect } from "@/components/ui/nationality-select";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { updatePartyFieldAdmin } from "@/lib/actions/admin-bail";
 import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 
-export type InlineFieldKind = "text" | "date" | "nationality" | "familyStatus" | "matrimonialRegime";
+export type InlineFieldKind = "text" | "date" | "nationality" | "familyStatus" | "matrimonialRegime" | "phone";
 
 interface InlineFieldEditorProps {
   entity: "person" | "entreprise";
@@ -45,6 +46,7 @@ export function FieldInput({
     return <DateInput id={id} value={value} onChange={onChange} fromYear={new Date().getFullYear() - 120} toYear={new Date().getFullYear()} />;
   }
   if (kind === "nationality") return <NationalitySelect value={value} onValueChange={onChange} />;
+  if (kind === "phone") return <PhoneInput id={id} value={value || undefined} onChange={(v) => onChange(v || "")} defaultCountry="FR" />;
   if (options) {
     return (
       <Select value={value} onValueChange={onChange}>

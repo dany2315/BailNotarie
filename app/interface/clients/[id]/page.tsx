@@ -5,7 +5,6 @@ import { BailStatus, ClientType, NotaireRequestStatus, ProfilType } from "@prism
 import { prisma } from "@/lib/prisma";
 import { getClient, getClientMissingData } from "@/lib/actions/clients";
 import { Button } from "@/components/ui/button";
-import { CompletionStatusSelect } from "@/components/shared/completion-status-select";
 import { PropertyBailsViewer } from "@/components/clients/property-bails-viewer";
 import { ClientMoreMenu } from "@/components/clients/client-more-menu";
 import { ClientDocumentsCard, ClientIdentityCard } from "@/components/admin/party-verification-card";
@@ -156,7 +155,6 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             ) : (
               <StateChip tone="ok">Rien ne manque</StateChip>
             )}
-            <CompletionStatusSelect type="client" id={client.id} currentStatus={client.completionStatus} viewLabel={false} showValueLabel className="h-7" />
           </div>
           <h1 className="break-words text-[28px] font-bold leading-tight tracking-tight">{clientName}</h1>
           <p className="text-sm text-muted-foreground">{subtitle}</p>
@@ -187,6 +185,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             hasEmail={!!clientEmail}
             profilType={client.profilType}
             intakeLink={latestIntake ? { token: latestIntake.token, target: latestIntake.target } : null}
+            completionStatus={client.completionStatus}
             triggerClassName="h-11 gap-2 px-4"
           />
         </div>
