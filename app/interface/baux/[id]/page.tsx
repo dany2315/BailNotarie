@@ -847,6 +847,7 @@ export default async function LeaseDetailPage({
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Documents du bien ({propertyDocuments.length})</p>
                 <DocumentsStackByKind
                   documents={propertyDocuments}
+                  showDiagnosticsLegend
                   documentKindLabels={documentKindLabels}
                 />
               </div>
@@ -870,6 +871,7 @@ export default async function LeaseDetailPage({
           <CardContent>
             <DocumentsStackByKind
               documents={bailDocuments}
+              showDiagnosticsLegend
               documentKindLabels={documentKindLabels}
             />
           </CardContent>

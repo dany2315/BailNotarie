@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { DocumentStackList } from "@/components/documents/document-stack-list";
 import { documentKindLabels as defaultLabels } from "@/lib/utils/document-labels";
+import { DiagnosticsLegend } from "@/components/documents/diagnostics-legend";
 
 export interface DocumentForStack {
   id: string;
@@ -26,6 +27,8 @@ interface DocumentsStackByKindProps {
   /** @deprecated Utiliser ownerLabel (string) à la place — les fonctions ne peuvent pas être passées depuis Server Components */
   getOwnerLabel?: (doc: DocumentForStack) => string | null;
   className?: string;
+  /** Affiche l'aide-mémoire de validité à côté du groupe « Diagnostics ». */
+  showDiagnosticsLegend?: boolean;
 }
 
 /**
@@ -40,6 +43,7 @@ export function DocumentsStackByKind({
   ownerLabel,
   getOwnerLabel,
   className,
+  showDiagnosticsLegend = false,
 }: DocumentsStackByKindProps) {
   const labels = useMemo(() => ({ ...defaultLabels, ...documentKindLabels }), [documentKindLabels]);
 
@@ -77,7 +81,14 @@ export function DocumentsStackByKind({
         const kindLabel = labels[kind] || kind;
         return (
           <div key={kind} className="min-w-0 w-full overflow-visible space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">{kindLabel}</p>
+            {showDiagnosticsLegend && kind === "DIAGNOSTICS" ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-muted-foreground">{kindLabel}</p>
+                <DiagnosticsLegend />
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-muted-foreground">{kindLabel}</p>
+            )}
             <DocumentStackList
               documents={stackDocuments}
               onDelete={onDelete}
