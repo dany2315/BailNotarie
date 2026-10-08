@@ -6,6 +6,7 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -614,10 +615,21 @@ export function EditClientForm({ client }: EditClientFormProps) {
 
                           <div className="space-y-2">
                             <Label htmlFor={`persons.${index}.birthDate`}>Date de naissance</Label>
-                            <Input
-                              type="date"
-                              {...form.register(`persons.${index}.birthDate`)}
-                              disabled={isLoading}
+                            <Controller
+                              name={`persons.${index}.birthDate`}
+                              control={form.control}
+                              render={({ field }) => (
+                                <DateInput
+                                  id={`persons.${index}.birthDate`}
+                                  name={field.name}
+                                  value={field.value as string | undefined}
+                                  onChange={field.onChange}
+                                  onBlur={field.onBlur}
+                                  disabled={isLoading}
+                                  fromYear={new Date().getFullYear() - 120}
+                                  toYear={new Date().getFullYear()}
+                                />
+                              )}
                             />
                           </div>
                         </div>

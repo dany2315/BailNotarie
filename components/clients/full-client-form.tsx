@@ -6,6 +6,7 @@ import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-picker";
 import { NumberInputGroup } from "@/components/ui/number-input-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -406,7 +407,22 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="birthDate">Date de naissance</Label>
-                    <Input id="birthDate" type="date" {...form.register("birthDate")} disabled={isLoading} />
+                    <Controller
+                      name="birthDate"
+                      control={form.control}
+                      render={({ field }) => (
+                        <DateInput
+                          id="birthDate"
+                          name={field.name}
+                          value={field.value as string | undefined}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          disabled={isLoading}
+                          fromYear={new Date().getFullYear() - 120}
+                          toYear={new Date().getFullYear()}
+                        />
+                      )}
+                    />
                   </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -625,11 +641,21 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`additionalPersons.${index}.birthDate`}>Date de naissance</Label>
-                      <Input
-                        id={`additionalPersons.${index}.birthDate`}
-                        type="date"
-                        {...form.register(`additionalPersons.${index}.birthDate` as const)}
-                        disabled={isLoading}
+                      <Controller
+                        name={`additionalPersons.${index}.birthDate` as const}
+                        control={form.control}
+                        render={({ field }) => (
+                          <DateInput
+                            id={`additionalPersons.${index}.birthDate`}
+                            name={field.name}
+                            value={field.value as string | undefined}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            disabled={isLoading}
+                            fromYear={new Date().getFullYear() - 120}
+                            toYear={new Date().getFullYear()}
+                          />
+                        )}
                       />
                     </div>
                   </div>
@@ -810,7 +836,21 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bailEffectiveDate">Date de prise d'effet *</Label>
-                <Input id="bailEffectiveDate" type="date" {...form.register("bailEffectiveDate")} disabled={isLoading} />
+                <Controller
+                  name="bailEffectiveDate"
+                  control={form.control}
+                  render={({ field }) => (
+                    <DateInput
+                      id="bailEffectiveDate"
+                      name={field.name}
+                      value={field.value as string | undefined}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      disabled={isLoading}
+                      aria-invalid={!!form.formState.errors.bailEffectiveDate}
+                    />
+                  )}
+                />
                 {form.formState.errors.bailEffectiveDate && (
                   <p className="text-sm text-destructive">{(form.formState.errors.bailEffectiveDate as any)?.message}</p>
                 )}
@@ -819,7 +859,20 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="bailEndDate">Date de fin</Label>
-                <Input id="bailEndDate" type="date" {...form.register("bailEndDate")} disabled={isLoading} />
+                <Controller
+                  name="bailEndDate"
+                  control={form.control}
+                  render={({ field }) => (
+                    <DateInput
+                      id="bailEndDate"
+                      name={field.name}
+                      value={field.value as string | undefined}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      disabled={isLoading}
+                    />
+                  )}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bailPaymentDay">Jour de paiement</Label>

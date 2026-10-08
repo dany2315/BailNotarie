@@ -6,6 +6,7 @@ import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-picker";
 import { NumberInputGroup } from "@/components/ui/number-input-group";
 import { Label } from "@/components/ui/label";
 import {
@@ -466,11 +467,20 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="effectiveDate">Date de prise d'effet *</Label>
-              <Input
-                id="effectiveDate"
-                type="date"
-                {...form.register("effectiveDate")}
-                disabled={isLoading}
+              <Controller
+                name="effectiveDate"
+                control={form.control}
+                render={({ field }) => (
+                  <DateInput
+                    id="effectiveDate"
+                    name={field.name}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    disabled={isLoading}
+                    aria-invalid={!!form.formState.errors.effectiveDate}
+                  />
+                )}
               />
               {form.formState.errors.effectiveDate && (
                 <p className="text-sm text-destructive">
@@ -481,11 +491,19 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
 
             <div className="space-y-2">
               <Label htmlFor="endDate">Date de fin</Label>
-              <Input
-                id="endDate"
-                type="date"
-                {...form.register("endDate")}
-                disabled={isLoading}
+              <Controller
+                name="endDate"
+                control={form.control}
+                render={({ field }) => (
+                  <DateInput
+                    id="endDate"
+                    name={field.name}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    disabled={isLoading}
+                  />
+                )}
               />
             </div>
           </div>

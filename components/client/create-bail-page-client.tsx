@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateInput } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -155,6 +156,7 @@ export function CreateBailPageClient({
 
   const {
     register,
+    control,
     handleSubmit,
     setValue,
     watch,
@@ -670,11 +672,21 @@ export function CreateBailPageClient({
             </div>
 
             <div className="space-y-2">
-              <Label>Date de début *</Label>
-              <Input
-                type="date"
-                className="w-full h-11"
-                {...register("effectiveDate")}
+              <Label htmlFor="effectiveDate">Date de début *</Label>
+              <Controller
+                name="effectiveDate"
+                control={control}
+                render={({ field }) => (
+                  <DateInput
+                    id="effectiveDate"
+                    name={field.name}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    className="h-11"
+                    aria-invalid={!!errors.effectiveDate}
+                  />
+                )}
               />
               {errors.effectiveDate && (
                 <p className="text-sm text-destructive">{errors.effectiveDate.message}</p>

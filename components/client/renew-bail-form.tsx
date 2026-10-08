@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { renewBail } from "@/lib/actions/bail-renewal";
-import { formatDate } from "@/lib/utils/formatters";
+import { dateToIsoDay } from "@/lib/utils/bail-duration";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -42,14 +42,17 @@ export function RenewBailForm({ bail }: RenewBailFormProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const {
-    register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<RenewBailFormData>({
     resolver: zodResolver(renewBailSchema),
+    // Valeurs au format « yyyy-MM-dd », le seul que lit `new Date()` sans
+    // ambiguïté à l'envoi. La date de fin reste vide : celle de l'ancien bail
+    // n'a pas de sens pour un bail qui commence aujourd'hui.
     defaultValues: {
-      effectiveDate: formatDate(new Date()),
-      endDate: bail.endDate ? formatDate(bail.endDate) : undefined,
+      effectiveDate: dateToIsoDay(new Date()),
+      endDate: "",
     },
   });
 
@@ -85,11 +88,20 @@ export function RenewBailForm({ bail }: RenewBailFormProps) {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="effectiveDate">Date de début *</Label>
-            <Input
-              id="effectiveDate"
-              type="date"
-              {...register("effectiveDate")}
-              disabled={isLoading}
+            <Controller
+              name="effectiveDate"
+              control={control}
+              render={({ field }) => (
+                <DateInput
+                  id="effectiveDate"
+                  name={field.name}
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  disabled={isLoading}
+                  aria-invalid={!!errors.effectiveDate}
+                />
+              )}
             />
             {errors.effectiveDate && (
               <p className="text-sm text-destructive">{errors.effectiveDate.message}</p>
@@ -98,11 +110,20 @@ export function RenewBailForm({ bail }: RenewBailFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="endDate">Date de fin (optionnel)</Label>
-            <Input
-              id="endDate"
-              type="date"
-              {...register("endDate")}
-              disabled={isLoading}
+            <Controller
+              name="endDate"
+              control={control}
+              render={({ field }) => (
+                <DateInput
+                  id="endDate"
+                  name={field.name}
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  disabled={isLoading}
+                  aria-invalid={!!errors.endDate}
+                />
+              )}
             />
             {errors.endDate && (
               <p className="text-sm text-destructive">{errors.endDate.message}</p>
