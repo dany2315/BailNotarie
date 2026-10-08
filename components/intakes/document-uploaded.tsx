@@ -40,6 +40,8 @@ export function DocumentUploaded({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const hasLoadedRef = useRef(false);
+  // Passe à vrai dès que la liste a été affichée une fois.
+  const shownOnceRef = useRef(false);
 
   useEffect(() => {
     hasLoadedRef.current = false;
@@ -63,6 +65,7 @@ export function DocumentUploaded({
     const loadDocuments = async () => {
       if (tokenDocumentsData.has(token)) {
         setDocuments(filterDocuments(tokenDocumentsData.get(token) || []));
+        shownOnceRef.current = true;
         setLoading(false);
         return;
       }
@@ -75,12 +78,16 @@ export function DocumentUploaded({
         } catch (loadError) {
           console.error("Erreur lors du chargement des documents:", loadError);
         } finally {
+          shownOnceRef.current = true;
           setLoading(false);
         }
         return;
       }
 
-      setLoading(true);
+      // Squelette au premier chargement seulement. Sur une relecture (après un
+      // upload), la liste affichée reste en place : la remplacer par un
+      // squelette démontait aussi la zone d'upload du bloc.
+      if (!shownOnceRef.current) setLoading(true);
       const loadPromise = getIntakeDocuments(token);
       tokenDocumentsCache.set(token, loadPromise);
 
@@ -93,6 +100,7 @@ export function DocumentUploaded({
         console.error("Erreur lors du chargement des documents:", loadError);
         tokenDocumentsCache.delete(token);
       } finally {
+        shownOnceRef.current = true;
         setLoading(false);
       }
     };

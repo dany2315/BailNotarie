@@ -58,7 +58,7 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentUploaded } from "./document-uploaded";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { NationalitySelect } from "@/components/ui/nationality-select";
-import { DatePicker, formatDateToLocalString } from "@/components/ui/date-picker";
+import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
@@ -879,9 +879,13 @@ useEffect(() => {
 
   const [openAccordionValue, setOpenAccordionValue] = useState<string>(`person-0`);
 
-  // Fonction pour gérer les changements d'état d'upload
+  // Uploads en cours, toutes zones confondues. Un compteur et non un booléen :
+  // plusieurs zones peuvent envoyer en même temps, et la fin du premier envoi
+  // ne doit pas réactiver « Continuer » tant qu'un autre tourne encore.
+  const activeUploadsRef = useRef(0);
   const handleUploadStateChange = (isUploading: boolean) => {
-    setIsFileUploading(isUploading);
+    activeUploadsRef.current = Math.max(0, activeUploadsRef.current + (isUploading ? 1 : -1));
+    setIsFileUploading(activeUploadsRef.current > 0);
   };
 
   // File refs
@@ -3504,11 +3508,16 @@ const ClientInfoStep = ({
                       name={`persons.${index}.birthDate` as any}
                       control={form.control}
                       render={({ field }) => (
-                        <DatePicker
+                        <DateInput
+                          id={`persons.${index}.birthDate`}
+                          name={field.name}
                           value={field.value ? toDateValue(field.value as any) : undefined}
-                          onChange={(val) =>
-                            field.onChange(toDateValue(val as any) || undefined)
-                          }
+                          onChange={(val) => field.onChange(val || undefined)}
+                          onBlur={field.onBlur}
+                          autoComplete="bday"
+                          fromYear={new Date().getFullYear() - 120}
+                          toYear={new Date().getFullYear()}
+                          aria-invalid={!!form.formState.errors.persons?.[index]?.birthDate}
                         />
                       )}
                     />
@@ -4327,14 +4336,18 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
       </div>
 
       <div className="space-y-2">
-        <Label>Date de prise d'effet *</Label>
+        <Label htmlFor="bailEffectiveDate">Date de prise d'effet *</Label>
         <Controller
           name="bailEffectiveDate"
           control={form.control}
           render={({ field }) => (
-            <DatePicker
+            <DateInput
+              id="bailEffectiveDate"
+              name={field.name}
               value={field.value ? toDateValue(field.value as any) : undefined}
-              onChange={(val) => field.onChange(toDateValue(val as any) || "")}
+              onChange={(val) => field.onChange(val || "")}
+              onBlur={field.onBlur}
+              aria-invalid={!!form.formState.errors.bailEffectiveDate}
             />
           )}
         />

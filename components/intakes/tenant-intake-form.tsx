@@ -31,7 +31,7 @@ import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DatePicker, formatDateToLocalString } from "@/components/ui/date-picker";
+import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
 import useIsMobile from "@/hooks/useIsMobile";
 import {
   Accordion,
@@ -263,9 +263,13 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentStep]);
 
-  // Fonction pour gérer les changements d'état d'upload
+  // Uploads en cours, toutes zones confondues. Un compteur et non un booléen :
+  // plusieurs zones peuvent envoyer en même temps, et la fin du premier envoi
+  // ne doit pas réactiver « Continuer » tant qu'un autre tourne encore.
+  const activeUploadsRef = useRef(0);
   const handleUploadStateChange = (isUploading: boolean) => {
-    setIsFileUploading(isUploading);
+    activeUploadsRef.current = Math.max(0, activeUploadsRef.current + (isUploading ? 1 : -1));
+    setIsFileUploading(activeUploadsRef.current > 0);
   };
   
   // Recalculer client quand intakeLink change
@@ -2543,11 +2547,16 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           name={`persons.${index}.birthDate` as any}
                           control={form.control}
                           render={({ field }) => (
-                            <DatePicker
+                            <DateInput
+                              id={`persons.${index}.birthDate`}
+                              name={field.name}
                               value={field.value ? toDateValue(field.value as any) : undefined}
-                              onChange={(val) =>
-                                field.onChange(toDateValue(val as any) || undefined)
-                              }
+                              onChange={(val) => field.onChange(val || undefined)}
+                              onBlur={field.onBlur}
+                              autoComplete="bday"
+                              fromYear={new Date().getFullYear() - 120}
+                              toYear={new Date().getFullYear()}
+                              aria-invalid={!!form.formState.errors.persons?.[index]?.birthDate}
                             />
                           )}
                         />
@@ -2661,7 +2670,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           kbisRef.current.files = dt.files;
                         }
                       }}
-                      disabled={isSubmitting || isFileUploading}
+                      disabled={isSubmitting}
                       uploadToken={intakeLink.token}
                       documentKind="KBIS"
                       documentClientId={client?.id}
@@ -2683,7 +2692,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           statutesRef.current.files = dt.files;
                         }
                       }}
-                      disabled={isSubmitting || isFileUploading}
+                      disabled={isSubmitting}
                       uploadToken={intakeLink.token}
                       documentKind="STATUTES"
                       documentClientId={client?.id}
@@ -2729,7 +2738,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                                   personRefs.idIdentity.current.files = dt.files;
                                 }
                               }}
-                              disabled={isSubmitting || isFileUploading}
+                              disabled={isSubmitting}
                               uploadToken={intakeLink.token}
                               documentKind="ID_IDENTITY"
                               documentClientId={client?.id}
@@ -2764,7 +2773,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                                 livretDeFamilleRef.current.files = dt.files;
                               }
                             }}
-                            disabled={isSubmitting || isFileUploading}
+                            disabled={isSubmitting}
                             uploadToken={intakeLink.token}
                             documentKind="LIVRET_DE_FAMILLE"
                             documentClientId={client?.id}
@@ -2791,7 +2800,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                                 contratDePacsRef.current.files = dt.files;
                               }
                             }}
-                            disabled={isSubmitting || isFileUploading}
+                            disabled={isSubmitting}
                             uploadToken={intakeLink.token}
                             documentKind="CONTRAT_DE_PACS"
                             documentClientId={client?.id}
@@ -2823,7 +2832,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           insuranceTenantRef.current.files = dt.files;
                         }
                       }}
-                      disabled={isSubmitting || isFileUploading}
+                      disabled={isSubmitting}
                       uploadToken={intakeLink.token}
                       documentKind="INSURANCE"
                       documentClientId={client?.id}
@@ -2845,7 +2854,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           ribTenantRef.current.files = dt.files;
                         }
                       }}
-                      disabled={isSubmitting || isFileUploading}
+                      disabled={isSubmitting}
                       uploadToken={intakeLink.token}
                       documentKind="RIB"
                       documentClientId={client?.id}
