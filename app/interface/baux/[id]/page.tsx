@@ -1,884 +1,772 @@
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, ArrowUpRight, Check, CreditCard, X } from "lucide-react";
+import { BailStatus, CompletionStatus, DocumentKind } from "@prisma/client";
 import { getLease, getBailMissingData } from "@/lib/actions/leases";
 import { getDocuments } from "@/lib/actions/documents";
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit, FileText, Mail, Phone, MapPin, Calendar, Euro, Home, User, Building2, Download, ExternalLink, ArrowRight, UserPlus, CheckCircle2, CreditCard } from "lucide-react";
-import { 
-  StatusBadge, 
-  PropertyTypeBadge, 
-  PropertyLegalStatusBadge,
-  FamilyStatusBadge,
-  MatrimonialRegimeBadge
-} from "@/components/shared/status-badge";
+import { getBailFollowUp, type IntakeTracking } from "@/lib/actions/admin-bail";
 import { CompletionStatusSelect } from "@/components/shared/completion-status-select";
-import { formatDate, formatCurrency, formatSurface } from "@/lib/utils/formatters";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { DocumentsStackByKind } from "@/components/documents/documents-stack-by-kind";
-import { CommentsDrawer } from "@/components/comments/comments-drawer";
-import { ButtonGroup } from "@/components/ui/button-group";
+import { InternalNotes } from "@/components/comments/internal-notes";
 import { TenantCreateButton } from "@/components/leases/tenant-create-button";
-import { DeleteLeaseButton } from "@/components/leases/delete-lease-button";
-import { AssignBailButton } from "@/components/leases/assign-bail-button";
-import { documentKindLabels } from "@/lib/utils/document-labels";
-import { LeaseMissingDataCard } from "@/components/leases/lease-missing-data-card";
 import { BailAuditTimeline } from "@/components/leases/bail-audit-timeline";
-import { LeaseStatusSelect } from "@/components/leases/lease-status-select";
+import { BailMoreMenu } from "@/components/leases/bail-more-menu";
+import { SendToNotaryButton } from "@/components/leases/send-to-notary-dialog";
+import { RequestMissingButton, type MissingRequestRecipient } from "@/components/leases/request-missing-button";
+import { describeMissingItems } from "@/lib/utils/missing-items";
+import { intakeSummary } from "@/lib/utils/intake-summary";
+import { documentKindLabels } from "@/lib/utils/document-labels";
+import { PartyCheckSection } from "@/components/admin/party-check-section";
+import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
+import { ValidateBlockButton } from "@/components/admin/validate-block-button";
+import { DocumentChecklist } from "@/components/documents/document-checklist";
+import { DiagnosticsLegend } from "@/components/documents/diagnostics-legend";
+import { buildChecklistRows, toChecklistDocument } from "@/lib/utils/document-checklist";
+import { getRequiredPropertyFields } from "@/lib/utils/required-fields";
+import { formatCurrency, formatDate, formatDateTime, formatSurface } from "@/lib/utils/formatters";
+import {
+  ACTOR_LABELS,
+  STAGES,
+  STAGE_ORDER,
+  STATUS_LABELS,
+  STALE_AFTER_DAYS,
+  daysSince,
+  getLastActivity,
+  getNextAction,
+  getStage,
+  isActiveStage,
+} from "@/lib/utils/bail-stage";
+import { cn } from "@/lib/utils";
 
-export default async function LeaseDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const resolvedParams = await params;
-  const lease = await getLease(resolvedParams.id);
+export const dynamic = "force-dynamic";
 
-  if (!lease) {
-    notFound();
-  }
+const BAIL_TYPE_LABELS: Record<string, string> = {
+  BAIL_NU_3_ANS: "Bail nu 3 ans",
+  BAIL_NU_6_ANS: "Bail nu 6 ans",
+  BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
+  BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
+};
+const BAIL_FAMILY_LABELS: Record<string, string> = { HABITATION: "Habitation", COMMERCIAL: "Commercial" };
+const PROPERTY_TYPE_LABELS: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison" };
+const LEGAL_STATUS_LABELS: Record<string, string> = {
+  PLEIN_PROPRIETE: "Pleine propriété",
+  CO_PROPRIETE: "Copropriété",
+  LOTISSEMENT: "Lotissement",
+};
+const BAIL_FIELD_LABELS: Record<string, string> = {
+  rentAmount: "Loyer",
+  effectiveDate: "Date de prise d'effet",
+  paymentDay: "Jour de paiement",
+  securityDeposit: "Dépôt de garantie",
+  tenant: "Locataire",
+  owner: "Propriétaire",
+  property: "Bien",
+};
 
-  // Trouver le locataire et le propriétaire dans les parties
-  const tenant = lease.parties?.find((p: any) => p.profilType === "LOCATAIRE");
-  const owner = lease.parties?.find((p: any) => p.profilType === "PROPRIETAIRE") || lease.property?.owner;
+const FURNITURE: Array<{ key: string; label: string }> = [
+  { key: "hasLiterie", label: "Literie avec couette ou couverture" },
+  { key: "hasRideaux", label: "Volets ou rideaux" },
+  { key: "hasPlaquesCuisson", label: "Plaques de cuisson" },
+  { key: "hasFour", label: "Four ou micro-onde" },
+  { key: "hasRefrigerateur", label: "Réfrigérateur" },
+  { key: "hasCongelateur", label: "Congélateur (-6° max)" },
+  { key: "hasVaisselle", label: "Vaisselle" },
+  { key: "hasUstensilesCuisine", label: "Ustensiles de cuisine" },
+  { key: "hasTable", label: "Table" },
+  { key: "hasSieges", label: "Sièges" },
+  { key: "hasEtageresRangement", label: "Étagères de rangement" },
+  { key: "hasLuminaires", label: "Luminaires" },
+  { key: "hasMaterielEntretien", label: "Matériel d'entretien" },
+];
 
-  // Récupérer les documents et les données manquantes
-  // Pour les documents du client, récupérer aussi ceux des personnes et de l'entreprise
-  const [tenantClientDocs, ownerClientDocs, propertyDocuments, bailDocuments, missingData] = await Promise.all([
+/** Qui a la main, dans la ligne de statut de l'en-tête. */
+const WAITING_ON: Record<string, string> = {
+  nous: "à faire par nous",
+  proprietaire: "en attente du propriétaire",
+  locataire: "en attente du locataire",
+  client: "en attente du client",
+  notaire: "chez le notaire",
+};
+
+const COMPLETION_LABELS: Record<string, string> = {
+  NOT_STARTED: "Pas commencé",
+  PARTIAL: "Incomplet",
+  PENDING_CHECK: "À vérifier",
+  COMPLETED: "Vérifié",
+};
+
+function partyDisplayName(party: any): string {
+  if (!party) return "";
+  if (party.type === "PERSONNE_MORALE") return party.entreprise?.legalName || party.entreprise?.name || "Société";
+  const names = (party.persons || []).map((p: any) => [p.firstName, p.lastName].filter(Boolean).join(" ")).filter(Boolean);
+  return names.join(" et ") || party.persons?.[0]?.email || "";
+}
+
+/** Ligne « libellé : valeur » des encadrés de la colonne et des détails. */
+function KV({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words">{children}</dd>
+    </>
+  );
+}
+
+/** « formulaire rempli le 01/10 » pour le sous-titre d'un bloc. */
+function formNote(link: IntakeTracking | undefined): string | null {
+  if (!link) return null;
+  if (link.submittedAt) return `formulaire rempli le ${formatDate(link.submittedAt)}`;
+  return "formulaire en attente";
+}
+
+export default async function LeaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const lease = await getLease(id);
+  if (!lease) notFound();
+
+  const tenant = lease.parties?.find((p: any) => p.profilType === "LOCATAIRE") || null;
+  const owner = lease.parties?.find((p: any) => p.profilType === "PROPRIETAIRE") || lease.property?.owner || null;
+
+  const [tenantClientDocs, ownerClientDocs, propertyDocuments, bailDocuments, missingData, followUp] = await Promise.all([
     tenant ? getDocuments({ clientId: tenant.id }) : Promise.resolve([]),
     owner ? getDocuments({ clientId: owner.id }) : Promise.resolve([]),
     lease.property ? getDocuments({ propertyId: lease.property.id }) : Promise.resolve([]),
     getDocuments({ bailId: lease.id }),
     getBailMissingData(lease.id),
+    getBailFollowUp(lease.id),
   ]);
 
-  // Séparer les documents du locataire par personne et documents communs
-  const tenantPersonDocuments: Map<string, any[]> = new Map();
-  const tenantCommonDocuments: any[] = [];
-  
-  if (tenant) {
-    // Documents communs (documents du client sans personId)
-    tenantCommonDocuments.push(...tenantClientDocs.filter((doc: any) => !doc.personId));
-    
-    // Documents par personne
-    if (tenant.persons) {
-      for (const person of tenant.persons) {
-        const personDocs = (person as any).documents || [];
-        const docsWithPerson = personDocs.map((doc: any) => ({
-          ...doc,
-          person: {
-            id: person.id,
-            firstName: person.firstName,
-            lastName: person.lastName,
-            isPrimary: person.isPrimary,
-          },
-        }));
-        tenantPersonDocuments.set(person.id, docsWithPerson);
-      }
-    }
-    
-    // Documents de l'entreprise
-    const tenantEntreprise = tenant.entreprise;
-    if (tenantEntreprise) {
-      const entrepriseDocs = (tenantEntreprise as any).documents || [];
-      tenantCommonDocuments.push(...entrepriseDocs.map((doc: any) => ({
-        ...doc,
-        entreprise: {
-          id: tenantEntreprise.id,
-          legalName: tenantEntreprise.legalName,
-          name: tenantEntreprise.name,
-        },
-      })));
-    }
-  }
+  // Pièces du client hors personnes et société (déjà affichées dans leur bloc).
+  const commonDocs = (docs: any[]) => docs.filter((doc: any) => !doc.personId && !doc.entrepriseId);
 
-  // Séparer les documents du propriétaire par personne et documents communs
-  const ownerPersonDocuments: Map<string, any[]> = new Map();
-  const ownerCommonDocuments: any[] = [];
-  
-  if (owner) {
-    // Documents communs (documents du client sans personId)
-    ownerCommonDocuments.push(...ownerClientDocs.filter((doc: any) => !doc.personId));
-    
-    // Documents par personne
-    if (owner.persons) {
-      for (const person of owner.persons) {
-        const personDocs = (person as any).documents || [];
-        const docsWithPerson = personDocs.map((doc: any) => ({
-          ...doc,
-          person: {
-            id: person.id,
-            firstName: person.firstName,
-            lastName: person.lastName,
-            isPrimary: person.isPrimary,
-          },
-        }));
-        ownerPersonDocuments.set(person.id, docsWithPerson);
-      }
-    }
-    
-    // Documents de l'entreprise
-    const ownerEntreprise = owner.entreprise;
-    if (ownerEntreprise) {
-      const entrepriseDocs = (ownerEntreprise as any).documents || [];
-      ownerCommonDocuments.push(...entrepriseDocs.map((doc: any) => ({
-        ...doc,
-        entreprise: {
-          id: ownerEntreprise.id,
-          legalName: ownerEntreprise.legalName,
-          name: ownerEntreprise.name,
-        },
-      })));
-    }
-  }
+  const stage = getStage(lease.status);
+  const lastActivity = getLastActivity(lease.updatedAt, followUp.lastActivityAt);
+  const waitingDays = daysSince(lastActivity);
+  const nextAction = getNextAction({
+    status: lease.status,
+    hasTenant: !!tenant,
+    hasNotaire: !!followUp.notaire,
+    pendingNotaireRequests: followUp.pendingRequests.length,
+  });
+  const totalMissing = missingData?.totalMissing ?? 0;
+  const ownerName = partyDisplayName(owner);
+  const tenantName = partyDisplayName(tenant);
+  const isMeuble = lease.bailType === "BAIL_MEUBLE_1_ANS" || lease.bailType === "BAIL_MEUBLE_9_MOIS";
+  const property: any = lease.property;
 
-  // Formater les noms en utilisant les personnes principales ou l'entreprise
-  const tenantPrimaryPerson = tenant?.persons?.find((p: any) => p.isPrimary) || tenant?.persons?.[0];
-  const ownerPrimaryPerson = owner?.persons?.find((p: any) => p.isPrimary) || owner?.persons?.[0];
-  
-  const tenantName = tenant
-    ? tenant.type === "PERSONNE_PHYSIQUE"
-      ? tenantPrimaryPerson
-        ? `${tenantPrimaryPerson.firstName || ""} ${tenantPrimaryPerson.lastName || ""}`.trim() || tenantPrimaryPerson.email || ""
-        : ""
-      : tenant.entreprise?.legalName || tenant.entreprise?.name || ""
-    : "";
+  // Bouton principal selon l'étape.
+  const canSend =
+    lease.status === BailStatus.AWAITING_TENANT_FORM ||
+    lease.status === BailStatus.PENDING_VALIDATION ||
+    (lease.status === BailStatus.READY_FOR_NOTARY && !followUp.notaire);
+  const sendDisabledReason = !tenant
+    ? "Ajoutez d'abord le locataire."
+    : totalMissing > 0
+      ? `Impossible pour l'instant : ${totalMissing} élément${totalMissing > 1 ? "s" : ""} manquant${totalMissing > 1 ? "s" : ""}.`
+      : null;
 
-  const ownerName = owner
-    ? owner.type === "PERSONNE_PHYSIQUE"
-      ? ownerPrimaryPerson
-        ? `${ownerPrimaryPerson.firstName || ""} ${ownerPrimaryPerson.lastName || ""}`.trim() || ownerPrimaryPerson.email || ""
-        : ""
-      : owner.entreprise?.legalName || owner.entreprise?.name || ""
-    : "";
+  // Contrôles automatiques réellement en place.
+  const maxDeposit = isMeuble ? lease.rentAmount * 2 : lease.rentAmount;
+  const depositOk = lease.securityDeposit <= maxDeposit;
+  const docsMissing =
+    (missingData?.owner?.totalMissingDocuments || 0) +
+    (missingData?.tenant?.totalMissingDocuments || 0) +
+    (missingData?.property?.missingDocuments.length || 0);
+  const surface = property?.surfaceM2 ? Number(property.surfaceM2) : null;
 
-  const bailFamilyLabels: Record<string, string> = {
-    HABITATION: "Habitation",
-    COMMERCIAL: "Commercial",
-  };
+  const ownerIntake = followUp.intakes.find((i) => i.target === "OWNER");
+  const tenantIntake = followUp.intakes.find((i) => i.target === "TENANT");
 
-  const bailTypeLabels: Record<string, string> = {
-    BAIL_NU_3_ANS: "Bail nue 3 ans",
-    BAIL_NU_6_ANS: "Bail nue 6 ans",
-    BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
-    BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
-  };
+  const blocks = [
+    { label: "Propriétaire", status: owner?.completionStatus as string | undefined, missing: (missingData?.owner?.totalMissingFields || 0) + (missingData?.owner?.totalMissingDocuments || 0), href: "#bloc-proprietaire" },
+    { label: "Locataire", status: tenant?.completionStatus as string | undefined, missing: (missingData?.tenant?.totalMissingFields || 0) + (missingData?.tenant?.totalMissingDocuments || 0), href: "#bloc-locataire" },
+    { label: "Bien", status: property?.completionStatus as string | undefined, missing: (missingData?.property?.missingFields.length || 0) + (missingData?.property?.missingDocuments.length || 0), href: "#bloc-bien" },
+  ];
+  const verifiedBlocks = blocks.filter((b) => b.status === CompletionStatus.COMPLETED).length;
 
+  // « Demander les pièces manquantes » : ce qui manque, par destinataire.
+  const partyEmail = (party: any): string =>
+    party?.type === "PERSONNE_MORALE"
+      ? party.entreprise?.email || ""
+      : (party?.persons?.find((p: any) => p.isPrimary) || party?.persons?.[0])?.email || "";
+  const ownerExtraItems = [
+    ...(missingData?.bail.missingFields || [])
+      .filter((f) => !["tenant", "owner", "property"].includes(f))
+      .map((f) => BAIL_FIELD_LABELS[f] || f),
+    ...(missingData?.property?.missingFields || []).map((f) => (f === "fullAddress" ? "Adresse du bien" : f)),
+    ...(missingData?.property?.missingDocuments || []).map((k) => documentKindLabels[k] || k),
+  ];
+  const missingRecipients: MissingRequestRecipient[] = [
+    owner && {
+      role: "Propriétaire",
+      name: ownerName,
+      email: partyEmail(owner),
+      items: [...describeMissingItems(missingData?.owner || null), ...ownerExtraItems],
+    },
+    tenant && {
+      role: "Locataire",
+      name: tenantName,
+      email: partyEmail(tenant),
+      items: describeMissingItems(missingData?.tenant || null),
+    },
+  ].filter(Boolean) as MissingRequestRecipient[];
+
+  // Points du bloc « Le bail »
+  const bailMissing = new Set(missingData?.bail.missingFields || []);
+  const months = lease.rentAmount > 0 ? Math.round((lease.securityDeposit / lease.rentAmount) * 10) / 10 : null;
+  const bailPoints = [
+    {
+      key: "type",
+      label: "Type et durée",
+      missing: ["effectiveDate"].filter((f) => bailMissing.has(f)),
+      text: [
+        `${BAIL_TYPE_LABELS[lease.bailType] || lease.bailType} · ${BAIL_FAMILY_LABELS[lease.bailFamily] || lease.bailFamily}`,
+        lease.effectiveDate
+          ? `À partir du ${formatDate(lease.effectiveDate)}${lease.endDate ? ` jusqu'au ${formatDate(lease.endDate)}` : ""}`
+          : null,
+      ],
+    },
+    {
+      key: "loyer",
+      label: "Loyer et charges",
+      missing: ["rentAmount", "paymentDay"].filter((f) => bailMissing.has(f)),
+      text: [
+        lease.rentAmount > 0
+          ? `${formatCurrency(lease.rentAmount)} de loyer + ${formatCurrency(lease.monthlyCharges)} de charges par mois`
+          : null,
+        lease.paymentDay ? `Payable le ${lease.paymentDay} de chaque mois` : null,
+      ],
+    },
+    {
+      key: "depot",
+      label: "Dépôt de garantie",
+      missing: ["securityDeposit"].filter((f) => bailMissing.has(f)),
+      text: [
+        `${formatCurrency(lease.securityDeposit)}${months !== null ? ` · ${String(months).replace(".", ",")} mois de loyer hors charges` : ""}`,
+        depositOk
+          ? `Limite de ${isMeuble ? "2 mois (meublé)" : "1 mois (bail nu)"} respectée`
+          : `Au-dessus de la limite de ${isMeuble ? "2 mois" : "1 mois"}`,
+      ],
+    },
+  ];
+  const bailMissingCount = missingData?.bail.missingFields.length || 0;
+
+  // Bloc « Le bien »
+  const propertyMissing = (missingData?.property?.missingFields.length || 0) + (missingData?.property?.missingDocuments.length || 0);
+  const furniturePresent = property ? FURNITURE.filter((item) => !!property[item.key]).length : 0;
+
+  const stepItems = STAGE_ORDER.filter((key) => key !== "clos" || stage.key === "clos");
+  const progress = Math.round((verifiedBlocks / blocks.length) * 100);
+  const ctaHelp = sendDisabledReason
+    ? `Envoi bloqué : ${sendDisabledReason.replace("Impossible pour l'instant : ", "")} Saisissez l'information si vous l'avez obtenue par téléphone, ou demandez-la au client.`
+    : verifiedBlocks < blocks.length
+      ? "Rien ne manque. Validez chaque bloc, ou envoyez directement au notaire : l'envoi marque les trois blocs comme vérifiés."
+      : "Tout est vérifié : le dossier peut partir chez le notaire.";
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      {/* En-tête */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-start gap-3 sm:gap-4">
-          <Link href="/interface/baux">
-            <Button variant="ghost" size="icon" className="shrink-0">
-              <ArrowLeft className="size-4" />
-            </Button>
-          </Link>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">Bail #{lease.id.slice(-8).toUpperCase()}</h1>
-              <StatusBadge status={lease.status} />
-            </div>
-            <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-              Détails complets du bail notarié
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <ButtonGroup className="w-full sm:w-auto justify-end">
-              <LeaseStatusSelect
-                leaseId={lease.id}
-                currentStatus={lease.status}
-              />
-              <Button asChild className=" sm:w-auto" variant="outline">
-                <Link href={`/interface/baux/${lease.id}/edit`} className=" sm:flex-initial">
-                    <Edit className="size-4 sm:mr-2" />
-                    <span className="">Modifier</span>
-                  </Link>
-              </Button>
-              <AssignBailButton 
-                bailId={lease.id}
-              />
-              <CommentsDrawer target="BAIL" targetId={lease.id} />
-              <DeleteLeaseButton
-                leaseId={lease.id}
-                tenant={tenant && tenantName ? { id: tenant.id, name: tenantName } : null}
-              />
-            </ButtonGroup>
-            
-          </div>
-        </div>
-      </div>
-
-      {/* Section des données manquantes */}
-      {missingData && (
-        <LeaseMissingDataCard 
-          missingData={missingData} 
-          bailId={lease.id}
-        />
-      )}
-
-      {/* Informations du bail */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <FileText className="size-5 text-muted-foreground" />
-            <CardTitle>Informations du bail</CardTitle>
-          </div>
-          <CardDescription>Détails du contrat de bail</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Section Type et Statut */}
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type de bail</p>
-              <p className="text-base font-semibold">{bailTypeLabels[lease.bailType] || lease.bailType}</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Famille</p>
-              <p className="text-base font-semibold">{bailFamilyLabels[lease.bailFamily] || lease.bailFamily}</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Statut</p>
-              <StatusBadge status={lease.status} />
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Section Dates */}
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date de prise d'effet</p>
-              <div className="flex items-center gap-2">
-                <Calendar className="size-4 text-muted-foreground" />
-                <p className="text-base font-medium">{formatDate(lease.effectiveDate)}</p>
-              </div>
-            </div>
-            {lease.endDate && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date de fin</p>
-                <div className="flex items-center gap-2">
-                  <Calendar className="size-4 text-muted-foreground" />
-                  <p className="text-base font-medium">{formatDate(lease.endDate)}</p>
-                </div>
-              </div>
-            )}
-            {lease.paymentDay && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Jour de paiement</p>
-                <p className="text-base font-medium">Le {lease.paymentDay} de chaque mois</p>
-              </div>
-            )}
-          </div>
-
-          <Separator />
-
-          {/* Section Financière - Mise en évidence */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations financières</p>
+    <div className="flex flex-col gap-5 pb-10">
+      {/* En-tête collant (statique sur téléphone) */}
+      <div className="-mx-4 -mt-6 flex flex-col gap-3 border-b bg-background/95 px-4 pb-4 pt-5 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:-mx-6 sm:px-6 md:sticky md:top-16 md:z-30 lg:-mx-8 lg:px-8">
+        <Link href="/interface/baux" className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-primary hover:underline">
+          <ArrowLeft className="size-4" />
+          Dossiers
+        </Link>
+        <div className="flex flex-col gap-3.5">
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cn("inline-flex h-[30px] items-center rounded-lg px-3 text-[13.5px] font-semibold", stage.className)}>{stage.label}</span>
               {lease.paidAt ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  Frais de dossier payés le {formatDate(lease.paidAt)}
+                <span className="inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-green-100 px-3 text-[13.5px] font-semibold text-green-800">
+                  <Check className="size-4" strokeWidth={3} />
+                  Frais payés le {formatDate(lease.paidAt)}
+                  {/* Le paiement Stripe est toujours de 39,90 € (montant contrôlé côté serveur). */}
+                  {lease.stripePaymentIntentId ? " · 39,90 €" : ""}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
-                  <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                <span className="inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-red-100 px-3 text-[13.5px] font-semibold text-red-800">
+                  <CreditCard className="size-4" />
                   Frais de dossier non payés
                 </span>
               )}
+              <span className="text-[13px] text-muted-foreground">
+                {STATUS_LABELS[lease.status as keyof typeof STATUS_LABELS] || lease.status}
+                {isActiveStage(stage.key) && (
+                  <>
+                    {" · "}
+                    <span className={cn(waitingDays > STALE_AFTER_DAYS && "font-semibold text-red-700")}>
+                      {waitingDays === 0 ? "activité aujourd'hui" : `depuis ${waitingDays} jour${waitingDays > 1 ? "s" : ""}`}
+                    </span>
+                  </>
+                )}
+                {nextAction.actor !== "personne" && ` · ${WAITING_ON[nextAction.actor] || ACTOR_LABELS[nextAction.actor].toLowerCase()}`}
+              </span>
             </div>
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Euro className="size-4" />
-                  <p className="text-xs font-medium uppercase tracking-wide">Loyer mensuel</p>
-                </div>
-                <p className="text-2xl font-bold">{formatCurrency(Number(lease.rentAmount))}</p>
-              </div>
-              {lease.monthlyCharges > 0 && (
-                <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Euro className="size-4" />
-                    <p className="text-xs font-medium uppercase tracking-wide">Charges mensuelles</p>
-                  </div>
-                  <p className="text-2xl font-bold">{formatCurrency(Number(lease.monthlyCharges))}</p>
-                </div>
-              )}
-              {lease.securityDeposit > 0 && (
-                <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Euro className="size-4" />
-                    <p className="text-xs font-medium uppercase tracking-wide">Dépôt de garantie</p>
-                  </div>
-                  <p className="text-2xl font-bold">{formatCurrency(Number(lease.securityDeposit))}</p>
-                </div>
-              )}
-            </div>
+            <h1 className="break-words text-[26px] font-bold leading-tight tracking-tight">
+              {property?.fullAddress || property?.label || `Bail #${lease.id.slice(-8).toUpperCase()}`}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {BAIL_TYPE_LABELS[lease.bailType] || lease.bailType} · {BAIL_FAMILY_LABELS[lease.bailFamily] || lease.bailFamily} ·{" "}
+              {ownerName || "propriétaire non renseigné"} → {tenantName || "locataire à ajouter"}
+            </p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Parties du bail */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-        
-        {/* Propriétaire */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-row items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Building2 className="size-5 text-muted-foreground" />
-                  <CardTitle>Propriétaire</CardTitle>
-                </div>
-                <CardDescription>Informations du propriétaire</CardDescription>
-              </div>
-              {owner && (
-                <CompletionStatusSelect
-                  type="client"
-                  id={owner.id}
-                  currentStatus={owner.completionStatus}
+          {/* Actions sous le titre, comme dans la maquette : « Demander… », « Plus », puis le bouton
+              principal ; sur téléphone, le bouton principal passe en premier sur toute la largeur. */}
+          <div className="flex flex-wrap items-center gap-2">
+            {canSend && (
+              <div className="w-full sm:order-last sm:w-auto">
+                <SendToNotaryButton
+                  bailId={lease.id}
+                  assignedNotaireName={followUp.notaire?.name}
+                  disabledReason={sendDisabledReason}
+                  label={lease.status === BailStatus.READY_FOR_NOTARY ? "Assigner un notaire" : "Valider et envoyer au notaire"}
+                  hideReason
                 />
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {owner ? (
-              <>
-                {/* Section Identité générale */}
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nom</p>
-                    <Link href={`/interface/clients/${owner.id}`} className="flex items-center gap-2 font-semibold hover:underline group">
-                      {ownerName || "-"}
-                      <ArrowRight className="size-3 -rotate-45 group-hover:text-foreground text-muted-foreground transition-colors" />
-                    </Link>
-                    <StatusBadge status={owner.type} />
-                  </div>
-                </div>
-
-                {/* Affichage par personne - Personne Physique */}
-                {owner.type === "PERSONNE_PHYSIQUE" && owner.persons && owner.persons.length > 0 && (
-                  <>
-                    {owner.persons.map((person: any, personIndex: number) => {
-                      const personDocs = ownerPersonDocuments.get(person.id) || [];
-                      const personName = [person.firstName, person.lastName].filter(Boolean).join(" ") || "Sans nom";
-                      
-                      return (
-                        <div key={person.id}>
-                          {personIndex > 0 && <Separator className="my-6" />}
-                          
-                          {/* En-tête de la personne */}
-                          <div className="space-y-4">
-                            <div className="flex items-center gap-2">
-                              <Badge variant={person.isPrimary ? "default" : "outline"}>
-                                {person.isPrimary ? "Personne principale" : `Personne ${personIndex + 1}`}
-                              </Badge>
-                              <p className="text-sm font-semibold">{personName}</p>
-                            </div>
-
-                            {/* Contact */}
-                            {(person.email || person.phone || person.fullAddress) && (
-                              <div className="space-y-3">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact</p>
-                                <div className="space-y-2">
-                                  {person.email && (
-                                    <div className="flex items-center gap-2">
-                                      <Mail className="size-4 text-muted-foreground shrink-0" />
-                                      <a href={`mailto:${person.email}`} className="text-sm hover:underline">
-                                        {person.email}
-                                      </a>
-                                    </div>
-                                  )}
-                                  {person.phone && (
-                                    <div className="flex items-center gap-2">
-                                      <Phone className="size-4 text-muted-foreground shrink-0" />
-                                      <a href={`tel:${person.phone}`} className="text-sm hover:underline">
-                                        {person.phone}
-                                      </a>
-                                    </div>
-                                  )}
-                                  {person.fullAddress && (
-                                    <div className="flex items-start gap-2">
-                                      <MapPin className="size-4 text-muted-foreground mt-0.5 shrink-0" />
-                                      <p className="text-sm">{person.fullAddress}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Détails personnels */}
-                            {(person.birthDate || person.birthPlace || person.nationality || person.profession || person.familyStatus) && (
-                              <div className="space-y-3">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations personnelles</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  {person.birthDate && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Date de naissance</p>
-                                      <p className="text-sm">{formatDate(person.birthDate)}</p>
-                                    </div>
-                                  )}
-                                  {person.birthPlace && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Lieu de naissance</p>
-                                      <p className="text-sm">{person.birthPlace}</p>
-                                    </div>
-                                  )}
-                                  {person.nationality && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Nationalité</p>
-                                      <p className="text-sm">{person.nationality}</p>
-                                    </div>
-                                  )}
-                                  {person.profession && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Profession</p>
-                                      <p className="text-sm">{person.profession}</p>
-                                    </div>
-                                  )}
-                                  {person.familyStatus && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Statut familial</p>
-                                      <FamilyStatusBadge status={person.familyStatus} />
-                                    </div>
-                                  )}
-                                  {person.familyStatus === "MARIE" && person.matrimonialRegime && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Régime matrimonial</p>
-                                      <MatrimonialRegimeBadge regime={person.matrimonialRegime} />
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Documents de la personne */}
-                            {personDocs.length > 0 && (
-                              <div className="space-y-2">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                  Documents de {personName} ({personDocs.length})
-                                </p>
-                                <DocumentsStackByKind
-                                  documents={personDocs}
-                                  documentKindLabels={documentKindLabels}
-                                  ownerLabel={personName}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-
-                {/* Personne Morale */}
-                {owner.type === "PERSONNE_MORALE" && owner.entreprise && (
-                  <>
-                    <Separator />
-                    <div className="space-y-4">
-                      {/* Contact entreprise */}
-                      {(owner.entreprise.email || owner.entreprise.phone || owner.entreprise.fullAddress) && (
-                        <div className="space-y-3">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact</p>
-                          <div className="space-y-2">
-                            {owner.entreprise.email && (
-                              <div className="flex items-center gap-2">
-                                <Mail className="size-4 text-muted-foreground shrink-0" />
-                                <a href={`mailto:${owner.entreprise.email}`} className="text-sm hover:underline">
-                                  {owner.entreprise.email}
-                                </a>
-                              </div>
-                            )}
-                            {owner.entreprise.phone && (
-                              <div className="flex items-center gap-2">
-                                <Phone className="size-4 text-muted-foreground shrink-0" />
-                                <a href={`tel:${owner.entreprise.phone}`} className="text-sm hover:underline">
-                                  {owner.entreprise.phone}
-                                </a>
-                              </div>
-                            )}
-                            {owner.entreprise.fullAddress && (
-                              <div className="flex items-start gap-2">
-                                <MapPin className="size-4 text-muted-foreground mt-0.5 shrink-0" />
-                                <p className="text-sm">{owner.entreprise.fullAddress}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Numéro d'immatriculation */}
-                      {owner.entreprise.registration && (
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Numéro d'immatriculation</p>
-                          <p className="text-sm font-mono">{owner.entreprise.registration}</p>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* Documents communs */}
-                {ownerCommonDocuments.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        Documents communs ({ownerCommonDocuments.length})
-                      </p>
-                      <DocumentsStackByKind
-                        documents={ownerCommonDocuments}
-                        documentKindLabels={documentKindLabels}
-                        ownerLabel="Propriétaire"
-                      />
-                    </div>
-                  </>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">Aucun propriétaire assigné</p>
-            )}
-          </CardContent>
-        </Card>
-        {/* Locataire */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-row items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Building2 className="size-5 text-muted-foreground" />
-                  <CardTitle>Locataire</CardTitle>
-                </div>
-                <CardDescription>Informations du locataire</CardDescription>
-              </div>
-              {tenant && (
-                <CompletionStatusSelect
-                  type="client"
-                  id={tenant.id}
-                  currentStatus={tenant.completionStatus ?? "NOT_STARTED"}
-                />
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {tenant ? (
-              <>
-                {/* Section Identité générale */}
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nom</p>
-                    <Link href={`/interface/clients/${tenant.id}`} className="flex items-center gap-2 font-semibold hover:underline group">
-                      {tenantName || "-"}
-                      <ArrowRight className="size-3 -rotate-45 group-hover:text-foreground text-muted-foreground transition-colors" />
-                    </Link>
-                    <StatusBadge status={tenant.type} />
-                  </div>
-                </div>
-
-                {/* Affichage par personne - Personne Physique */}
-                {tenant.type === "PERSONNE_PHYSIQUE" && tenant.persons && tenant.persons.length > 0 && (
-                  <>
-                    {tenant.persons.map((person: any, personIndex: number) => {
-                      const personDocs = tenantPersonDocuments.get(person.id) || [];
-                      const personName = [person.firstName, person.lastName].filter(Boolean).join(" ") || "Sans nom";
-                      
-                      return (
-                        <div key={person.id}>
-                          {personIndex > 0 && <Separator className="my-6" />}
-                          
-                          {/* En-tête de la personne */}
-                          <div className="space-y-4">
-                            <div className="flex items-center gap-2">
-                              <Badge variant={person.isPrimary ? "default" : "outline"}>
-                                {person.isPrimary ? "Personne principale" : `Personne ${personIndex + 1}`}
-                              </Badge>
-                              <p className="text-sm font-semibold">{personName}</p>
-                            </div>
-
-                            {/* Contact */}
-                            {(person.email || person.phone || person.fullAddress) && (
-                              <div className="space-y-3">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact</p>
-                                <div className="space-y-2">
-                                  {person.email && (
-                                    <div className="flex items-center gap-2">
-                                      <Mail className="size-4 text-muted-foreground shrink-0" />
-                                      <a href={`mailto:${person.email}`} className="text-sm hover:underline">
-                                        {person.email}
-                                      </a>
-                                    </div>
-                                  )}
-                                  {person.phone && (
-                                    <div className="flex items-center gap-2">
-                                      <Phone className="size-4 text-muted-foreground shrink-0" />
-                                      <a href={`tel:${person.phone}`} className="text-sm hover:underline">
-                                        {person.phone}
-                                      </a>
-                                    </div>
-                                  )}
-                                  {person.fullAddress && (
-                                    <div className="flex items-start gap-2">
-                                      <MapPin className="size-4 text-muted-foreground mt-0.5 shrink-0" />
-                                      <p className="text-sm">{person.fullAddress}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Détails personnels */}
-                            {(person.birthDate || person.birthPlace || person.nationality || person.profession || person.familyStatus) && (
-                              <div className="space-y-3">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Informations personnelles</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  {person.birthDate && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Date de naissance</p>
-                                      <p className="text-sm">{formatDate(person.birthDate)}</p>
-                                    </div>
-                                  )}
-                                  {person.birthPlace && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Lieu de naissance</p>
-                                      <p className="text-sm">{person.birthPlace}</p>
-                                    </div>
-                                  )}
-                                  {person.nationality && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Nationalité</p>
-                                      <p className="text-sm">{person.nationality}</p>
-                                    </div>
-                                  )}
-                                  {person.profession && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Profession</p>
-                                      <p className="text-sm">{person.profession}</p>
-                                    </div>
-                                  )}
-                                  {person.familyStatus && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Statut familial</p>
-                                      <FamilyStatusBadge status={person.familyStatus} />
-                                    </div>
-                                  )}
-                                  {person.familyStatus === "MARIE" && person.matrimonialRegime && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">Régime matrimonial</p>
-                                      <MatrimonialRegimeBadge regime={person.matrimonialRegime} />
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Documents de la personne */}
-                            {personDocs.length > 0 && (
-                              <div className="space-y-2">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                  Documents de {personName} ({personDocs.length})
-                                </p>
-                                <DocumentsStackByKind
-                                  documents={personDocs}
-                                  documentKindLabels={documentKindLabels}
-                                  ownerLabel={personName}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-
-                {/* Personne Morale */}
-                {tenant.type === "PERSONNE_MORALE" && tenant.entreprise && (
-                  <>
-                    <Separator />
-                    <div className="space-y-4">
-                      {/* Contact entreprise */}
-                      {(tenant.entreprise.email || tenant.entreprise.phone || tenant.entreprise.fullAddress) && (
-                        <div className="space-y-3">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact</p>
-                          <div className="space-y-2">
-                            {tenant.entreprise.email && (
-                              <div className="flex items-center gap-2">
-                                <Mail className="size-4 text-muted-foreground shrink-0" />
-                                <a href={`mailto:${tenant.entreprise.email}`} className="text-sm hover:underline">
-                                  {tenant.entreprise.email}
-                                </a>
-                              </div>
-                            )}
-                            {tenant.entreprise.phone && (
-                              <div className="flex items-center gap-2">
-                                <Phone className="size-4 text-muted-foreground shrink-0" />
-                                <a href={`tel:${tenant.entreprise.phone}`} className="text-sm hover:underline">
-                                  {tenant.entreprise.phone}
-                                </a>
-                              </div>
-                            )}
-                            {tenant.entreprise.fullAddress && (
-                              <div className="flex items-start gap-2">
-                                <MapPin className="size-4 text-muted-foreground mt-0.5 shrink-0" />
-                                <p className="text-sm">{tenant.entreprise.fullAddress}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Numéro d'immatriculation */}
-                      {tenant.entreprise.registration && (
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Numéro d'immatriculation</p>
-                          <p className="text-sm font-mono">{tenant.entreprise.registration}</p>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* Documents communs */}
-                {tenantCommonDocuments.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        Documents communs ({tenantCommonDocuments.length})
-                      </p>
-                      <DocumentsStackByKind
-                        documents={tenantCommonDocuments}
-                        documentKindLabels={documentKindLabels}
-                        ownerLabel="Locataire"
-                      />
-                    </div>
-                  </>
-                )}
-              </>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">Aucun locataire assigné</p>
-                <TenantCreateButton bailId={lease.id} />
               </div>
             )}
-          </CardContent>
-        </Card>
+            <RequestMissingButton
+              recipients={missingRecipients}
+              address={property?.fullAddress || property?.label || "votre logement"}
+              className="h-11 min-w-0 flex-1 px-3 sm:flex-none sm:px-4"
+            />
+            {lease.status === BailStatus.AWAITING_TENANT && !tenant && <TenantCreateButton bailId={lease.id} />}
+            <BailMoreMenu
+              bailId={lease.id}
+              status={lease.status}
+              tenant={tenant && tenantName ? { id: tenant.id, name: tenantName } : null}
+              triggerClassName="h-11 gap-1.5 px-3 sm:gap-2 sm:px-4"
+            />
+          </div>
+        </div>
+        {/* Étapes */}
+        <ol className="flex flex-wrap items-center gap-x-2.5 gap-y-2" aria-label="Étapes du dossier">
+          {stepItems.map((key, index) => {
+            const currentIndex = stepItems.indexOf(stage.key);
+            const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "todo";
+            return (
+              <li key={key} className="flex items-center gap-2.5">
+                <span className={cn("flex items-center gap-2 whitespace-nowrap text-[13px] font-semibold", state === "todo" && "text-muted-foreground")}>
+                  <span
+                    className={cn(
+                      "flex size-[22px] items-center justify-center rounded-full text-xs font-bold",
+                      state === "done" && "bg-green-100 text-green-800",
+                      state === "current" && "bg-primary text-primary-foreground",
+                      state === "todo" && "bg-muted text-muted-foreground",
+                    )}
+                    aria-current={state === "current" ? "step" : undefined}
+                  >
+                    {state === "done" ? <Check className="size-3.5" strokeWidth={3} /> : index + 1}
+                  </span>
+                  {STAGES[key].label}
+                </span>
+                {index < stepItems.length - 1 && (
+                  <span aria-hidden className={cn("h-0.5 w-7 rounded", state === "done" ? "bg-green-300" : "bg-border")} />
+                )}
+              </li>
+            );
+          })}
+        </ol>
       </div>
 
-      {/* Bien */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex flex-col items-start justify-between">
-            <div className="flex items-center gap-2">
-              <Home className="size-5 text-muted-foreground" />
-              <CardTitle>Bien immobilier</CardTitle>
-            </div>
-          <CardDescription>Informations du bien loué</CardDescription>
-         </div>
-          <div className="flex items-center gap-2">
-            <CompletionStatusSelect
-              type="property"
-              id={lease.property.id}
-              currentStatus={lease.property.completionStatus}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {lease.property ? (
-            <>
-              {/* Section Informations principales */}
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide"> Adresse</p>
-                  <div className="flex items-start gap-2">
-                    <MapPin className="size-4 text-muted-foreground mt-0.5 shrink-0" />
-                    <Link href={`/interface/properties/${lease.property.id}`} className="flex items-center gap-2 font-semibold hover:underline group">
-                    {lease.property.fullAddress || "-"}
-                      <ArrowRight className="size-3 -rotate-45 group-hover:text-foreground text-muted-foreground transition-colors" />
-                    </Link>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="flex min-w-0 flex-col gap-[18px]">
+          {/* Le bail */}
+          <CheckSection
+            id="bloc-bail"
+            title="Le bail"
+            subtitle="Conditions saisies par le propriétaire"
+            headerRight={
+              bailMissingCount > 0 ? (
+                <>
+                  <StateChip tone="missing">
+                    {bailMissingCount} manquant{bailMissingCount > 1 ? "s" : ""}
+                  </StateChip>
+                  <Link
+                    href={`/interface/baux/${lease.id}/edit`}
+                    className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium hover:bg-muted"
+                  >
+                    Compléter
+                  </Link>
+                </>
+              ) : (
+                <StateChip tone="ok">Complet</StateChip>
+              )
+            }
+          >
+            <CheckList>
+              {bailPoints.map((point) => (
+                <CheckPoint
+                  key={point.key}
+                  state={point.missing.length > 0 || (point.key === "depot" && !depositOk) ? "missing" : "ok"}
+                  label={point.label}
+                  note={
+                    point.missing.length > 0
+                      ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}`
+                      : null
+                  }
+                >
+                  {point.text.filter(Boolean).join("\n")}
+                </CheckPoint>
+              ))}
+              {["tenant", "owner", "property"]
+                .filter((f) => bailMissing.has(f))
+                .map((f) => (
+                  <CheckPoint key={f} state="missing" label={BAIL_FIELD_LABELS[f]} note={`Manquant : ${BAIL_FIELD_LABELS[f].toLowerCase()}`} />
+                ))}
+            </CheckList>
+          </CheckSection>
+
+          <PartyCheckSection
+            id="bloc-proprietaire"
+            role="PROPRIETAIRE"
+            party={owner}
+            clientDocuments={commonDocs(ownerClientDocs)}
+            missing={missingData?.owner || null}
+            formNote={formNote(ownerIntake)}
+          />
+          <PartyCheckSection
+            id="bloc-locataire"
+            role="LOCATAIRE"
+            party={tenant}
+            clientDocuments={commonDocs(tenantClientDocs)}
+            missing={missingData?.tenant || null}
+            formNote={formNote(tenantIntake)}
+            emptyAction={<TenantCreateButton bailId={lease.id} />}
+          />
+
+          {/* Le bien */}
+          <CheckSection
+            id="bloc-bien"
+            title="Le bien"
+            subtitle={
+              property ? (
+                <>
+                  {[
+                    property.type && (PROPERTY_TYPE_LABELS[property.type] || property.type),
+                    property.legalStatus && (LEGAL_STATUS_LABELS[property.legalStatus] || property.legalStatus).toLowerCase(),
+                    surface && formatSurface(surface),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}{" "}
+                  <Link href={`/interface/properties/${property.id}`} className="ml-1 inline-flex items-center gap-0.5 font-medium text-primary hover:underline">
+                    Fiche du bien
+                    <ArrowUpRight className="size-3.5" />
+                  </Link>
+                </>
+              ) : (
+                "Aucun bien associé"
+              )
+            }
+            headerRight={
+              property && (
+                <>
+                  {propertyMissing > 0 && (
+                    <StateChip tone="missing">
+                      {propertyMissing} manquant{propertyMissing > 1 ? "s" : ""}
+                    </StateChip>
+                  )}
+                  <CompletionStatusSelect
+                    type="property"
+                    id={property.id}
+                    currentStatus={property.completionStatus}
+                    viewLabel={false}
+                    showValueLabel
+                    className="h-8"
+                  />
+                  {property.completionStatus !== CompletionStatus.COMPLETED && (
+                    <ValidateBlockButton
+                      type="property"
+                      id={property.id}
+                      disabledReason={propertyMissing > 0 ? "Complétez d'abord les éléments manquants." : null}
+                    />
+                  )}
+                </>
+              )
+            }
+            footer={
+              property && (
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">Équipements du meublé</span>
+                    <StateChip tone={isMeuble ? (furniturePresent === FURNITURE.length ? "ok" : "missing") : "neutral"}>
+                      {isMeuble ? `${furniturePresent} / ${FURNITURE.length} présents` : "Non concerné · bail nu"}
+                    </StateChip>
                   </div>
+                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-3.5 gap-y-1.5">
+                    {FURNITURE.map((item) => {
+                      const ok = !!property[item.key];
+                      return (
+                        <li
+                          key={item.key}
+                          className={cn("flex items-center gap-1.5 text-[13px]", isMeuble ? (ok ? "" : "text-red-700") : "text-muted-foreground")}
+                        >
+                          {isMeuble &&
+                            (ok ? (
+                              <Check className="size-3.5 shrink-0 text-green-700" strokeWidth={3} aria-label="présent" />
+                            ) : (
+                              <X className="size-3.5 shrink-0" aria-label="absent" />
+                            ))}
+                          {item.label}
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
-
-                {lease.property.label && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Libellé</p>
-                    <p className="text-sm">{lease.property.label}</p>
-                  </div>
-                )}
-
-                {lease.property.surfaceM2 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Surface</p>
-                    <p className="text-sm font-medium">{formatSurface(Number(lease.property.surfaceM2))}</p>
-                  </div>
-                )}
-
-                {lease.property.type && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</p>
-                    <PropertyTypeBadge type={lease.property.type} />
-                  </div>
-                )}
-
-                {lease.property.legalStatus && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Statut légal</p>
-                    <PropertyLegalStatusBadge status={lease.property.legalStatus} />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Statut</p>
-                  <StatusBadge status={lease.property.status} />
+              )
+            }
+          >
+            {property ? (
+              <>
+                <CheckList>
+                  <CheckPoint
+                    state={missingData?.property?.missingFields.length ? "missing" : "ok"}
+                    label="Adresse et description"
+                    note={
+                      missingData?.property?.missingFields.length
+                        ? `Manquant : ${missingData.property.missingFields.map((f) => (f === "fullAddress" ? "adresse" : f)).join(", ")}`
+                        : null
+                    }
+                  >
+                    {[
+                      [property.fullAddress, property.label && `« ${property.label} »`].filter(Boolean).join(" · "),
+                      [
+                        property.type && (PROPERTY_TYPE_LABELS[property.type] || property.type),
+                        surface && formatSurface(surface),
+                        property.legalStatus && (LEGAL_STATUS_LABELS[property.legalStatus] || property.legalStatus),
+                        property.status === "LOUER" ? "loué" : "non loué",
+                      ]
+                        .filter(Boolean)
+                        .join(" · "),
+                    ]
+                      .filter(Boolean)
+                      .join("\n")}
+                  </CheckPoint>
+                </CheckList>
+                <div className="border-t">
+                  <DocumentChecklist
+                    inset
+                    rows={buildChecklistRows(
+                      getRequiredPropertyFields(property.legalStatus).requiredDocuments,
+                      (propertyDocuments as any[]).map(toChecklistDocument),
+                      {
+                        keyPrefix: `property-${property.id}`,
+                        labels: { [DocumentKind.INSURANCE]: "Assurance du propriétaire", [DocumentKind.RIB]: "RIB du propriétaire" },
+                        extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
+                      },
+                    )}
+                  />
                 </div>
-              </div>
+              </>
+            ) : (
+              <p className="px-5 py-4 text-sm text-muted-foreground">Aucun bien associé à ce dossier.</p>
+            )}
+          </CheckSection>
 
-              <Separator />
+          {/* Contrôles réglementaires : manuels pour l'instant */}
+          <CheckSection
+            id="bloc-controles"
+            title="Contrôles réglementaires"
+            subtitle="À vérifier par vous : pas de contrôle automatique pour l'instant"
+            headerRight={<StateChip tone="todo">À vérifier</StateChip>}
+          >
+            <CheckList>
+              <CheckPoint state="todo" label="Plafond de loyer">
+                {lease.rentAmount > 0
+                  ? `${formatCurrency(lease.rentAmount)}${
+                      surface ? ` pour ${formatSurface(surface)}, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m² hors charges` : ""
+                    }.`
+                  : "Loyer non renseigné."}
+                {"\n"}Si la commune encadre les loyers, comparer au loyer de référence majoré.
+              </CheckPoint>
+              <CheckPoint state="todo" label="Classe DPE">
+                {"À lire dans les diagnostics.\nG : location interdite · F : interdite à partir de 2028 · F et G : loyer gelé."}
+              </CheckPoint>
+            </CheckList>
+          </CheckSection>
 
-              {/* Section Documents */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Documents du bien ({propertyDocuments.length})</p>
-                <DocumentsStackByKind
-                  documents={propertyDocuments}
-                  showDiagnosticsLegend
-                  documentKindLabels={documentKindLabels}
-                />
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Aucun bien assigné</p>
+          {bailDocuments.length > 0 && (
+            <CheckSection id="bloc-documents" title="Documents du bail" subtitle="Pièces rattachées au bail lui-même">
+              <DocumentChecklist
+                inset
+                rows={buildChecklistRows([], (bailDocuments as any[]).map(toChecklistDocument), {
+                  keyPrefix: `bail-${lease.id}`,
+                  extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
+                })}
+              />
+            </CheckSection>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Documents du bail */}
-      {bailDocuments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <FileText className="size-5 text-muted-foreground" />
-              <CardTitle>Documents du bail</CardTitle>
+          <details className="group overflow-hidden rounded-xl border bg-card">
+            <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-[15px] font-semibold">
+              Détails techniques et historique
+              <span className="text-[13px] font-medium text-muted-foreground group-open:hidden">Référence, paiement, adresse normalisée, historique</span>
+              <span className="hidden text-[13px] font-medium text-muted-foreground group-open:inline">Masquer</span>
+            </summary>
+            <div className="flex flex-col gap-5 px-5 pb-5">
+              <dl className="grid grid-cols-1 gap-x-3.5 gap-y-1.5 text-[13.5px] sm:grid-cols-[170px_minmax(0,1fr)]">
+                <KV label="Référence">
+                  <span className="font-mono">#{lease.id.slice(-8).toUpperCase()}</span>
+                </KV>
+                <KV label="Identifiant complet">
+                  <span className="break-all font-mono text-xs">{lease.id}</span>
+                </KV>
+                <KV label="Créé le">
+                  {formatDateTime(lease.createdAt)}
+                  {lease.createdBy ? ` par ${lease.createdBy.name || lease.createdBy.email}` : " · via le formulaire propriétaire"}
+                </KV>
+                <KV label="Modifié le">
+                  {formatDateTime(lease.updatedAt)}
+                  {lease.updatedBy ? ` par ${lease.updatedBy.name || lease.updatedBy.email}` : ""}
+                </KV>
+                <KV label="Paiement">
+                  {lease.paidAt ? `Payé le ${formatDate(lease.paidAt)}` : "Non payé"}
+                  {lease.stripePaymentIntentId && <span className="break-all font-mono text-xs"> · Stripe {lease.stripePaymentIntentId}</span>}
+                </KV>
+                <KV label="Adresse normalisée">
+                  {property
+                    ? [property.housenumber, property.street, property.postalCode, property.city, property.district, property.department, property.region]
+                        .filter(Boolean)
+                        .join(" · ") || "—"
+                    : "—"}
+                  {property?.inseeCode ? ` · INSEE ${property.inseeCode}` : ""}
+                  {property?.latitude && property?.longitude ? ` · ${Number(property.latitude)}, ${Number(property.longitude)}` : ""}
+                </KV>
+                <KV label="Statut du bien">{property ? (property.status === "LOUER" ? "Loué" : "Non loué") : "—"}</KV>
+              </dl>
+              <div className="flex flex-col gap-3">
+                <h3 className="text-sm font-semibold">Historique</h3>
+                <BailAuditTimeline bailId={lease.id} bare />
+              </div>
             </div>
-            <CardDescription>Documents associés au bail ({bailDocuments.length})</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DocumentsStackByKind
-              documents={bailDocuments}
-              showDiagnosticsLegend
-              documentKindLabels={documentKindLabels}
-            />
-          </CardContent>
-        </Card>
-      )}
+          </details>
+        </div>
 
-      <BailAuditTimeline bailId={lease.id} />
+        {/* Colonne latérale (en premier sur téléphone) */}
+        <aside className="order-first flex min-w-0 flex-col gap-4 lg:order-none">
+          <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-base font-semibold">Vérification</h2>
+              <span className="text-sm font-bold">
+                {verifiedBlocks} / {blocks.length}
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+            </div>
+            <ul className="flex flex-col">
+              {blocks.map((block) => (
+                <li key={block.label}>
+                  <a href={block.href} className="flex min-h-8 items-center justify-between gap-2 text-sm hover:underline">
+                    <span>{block.label}</span>
+                    <span
+                      className={cn(
+                        "font-semibold",
+                        block.missing > 0 ? "text-red-700" : block.status === "COMPLETED" ? "text-green-700" : "text-muted-foreground",
+                      )}
+                    >
+                      {block.missing > 0
+                        ? `${block.missing} manquant${block.missing > 1 ? "s" : ""}`
+                        : block.status
+                          ? COMPLETION_LABELS[block.status] || block.status
+                          : "—"}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">{ctaHelp}</p>
+          </section>
+
+          <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
+            <h2 className="text-base font-semibold">Déjà contrôlé automatiquement</h2>
+            {[
+              {
+                ok: depositOk,
+                title: depositOk ? "Dépôt de garantie conforme" : "Dépôt de garantie trop élevé",
+                detail: "Limite de 1 mois (nu) ou 2 mois (meublé) imposée à la saisie",
+              },
+              {
+                ok: docsMissing === 0,
+                title:
+                  docsMissing === 0
+                    ? "Pièces obligatoires présentes"
+                    : `${docsMissing} pièce${docsMissing > 1 ? "s" : ""} obligatoire${docsMissing > 1 ? "s" : ""} manquante${docsMissing > 1 ? "s" : ""}`,
+                detail: "Calcul selon la situation familiale et la copropriété",
+              },
+            ].map((check) => (
+              <div key={check.detail} className="grid grid-cols-[22px_minmax(0,1fr)] gap-2.5">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "flex size-[22px] items-center justify-center rounded-full",
+                    check.ok ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
+                  )}
+                >
+                  {check.ok ? <Check className="size-3.5" strokeWidth={3} /> : <X className="size-3.5" strokeWidth={3} />}
+                </span>
+                <span className="flex flex-col gap-0.5">
+                  <strong className="text-sm font-semibold">{check.title}</strong>
+                  <span className="text-[13px] leading-snug text-muted-foreground">{check.detail}</span>
+                </span>
+              </div>
+            ))}
+            <p className="text-[12.5px] leading-snug text-muted-foreground">
+              Plafond de loyer et classe DPE ne sont pas contrôlés automatiquement : ils figurent dans « Contrôles réglementaires », à valider par vous.
+            </p>
+          </section>
+
+          <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
+            <h2 className="text-base font-semibold">Suivi</h2>
+            <dl className="grid grid-cols-[130px_minmax(0,1fr)] gap-x-3 gap-y-2 text-[13.5px]">
+              <KV label="Frais de dossier">
+                <StateChip tone={lease.paidAt ? "ok" : "missing"} className="h-6">
+                  {lease.paidAt ? `Payés le ${formatDate(lease.paidAt)}` : "Non payés"}
+                </StateChip>
+              </KV>
+              <KV label="Notaire">
+                {followUp.notaire ? (
+                  <>
+                    <Link href={`/interface/notaires/${followUp.notaire.id}/dossiers`} className="font-medium hover:underline">
+                      {followUp.notaire.name}
+                    </Link>
+                    <span className="text-muted-foreground"> · depuis le {formatDate(followUp.notaire.assignedAt)}</span>
+                  </>
+                ) : (
+                  "Non assigné"
+                )}
+              </KV>
+              <KV label="Formulaire propriétaire">{intakeSummary(ownerIntake)}</KV>
+              <KV label="Formulaire locataire">{intakeSummary(tenantIntake)}</KV>
+              <KV label="Demandes en cours du notaire">
+                {followUp.pendingRequests.length === 0 ? (
+                  "Aucune"
+                ) : (
+                  <ul className="flex flex-col gap-1.5">
+                    {followUp.pendingRequests.map((r) => (
+                      <li key={r.id}>
+                        <strong className="font-semibold">{r.title}</strong>
+                        <span className="block text-xs text-muted-foreground">
+                          Pour : {r.target} · le {formatDate(r.createdAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </KV>
+            </dl>
+            <p className="text-[12.5px] text-muted-foreground">
+              Seules les demandes ouvertes du notaire apparaissent ici ; ses discussions avec les parties ne sont pas affichées.
+            </p>
+          </section>
+
+          <section className="flex flex-col gap-2.5 rounded-xl border bg-card p-[18px]">
+            <div>
+              <h2 className="text-base font-semibold">Notes internes</h2>
+              <p className="text-[12.5px] text-muted-foreground">Visibles par l&apos;équipe uniquement.</p>
+            </div>
+            <InternalNotes target="BAIL" targetId={lease.id} />
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }

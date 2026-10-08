@@ -13,31 +13,31 @@ export function DashboardActionButtons() {
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-        <Link href="/interface/clients/new" className="w-full sm:w-auto">
-          <Button size="sm" className="w-full gap-2 sm:w-auto">
-            <Plus className="size-4 sm:mr-2" />
+      <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center">
+        <Button asChild size="sm" className="h-10 gap-1.5 sm:h-8">
+          <Link href="/interface/clients/new">
+            <Plus className="size-4" />
             <span className="hidden sm:inline">Nouveau dossier</span>
             <span className="sm:hidden">Dossier</span>
-          </Button>
-        </Link>
-        <Button 
-          size="sm" 
+          </Link>
+        </Button>
+        <Button
+          size="sm"
           variant="outline"
-          className="w-full gap-2 sm:w-auto"
+          className="h-10 gap-1.5 sm:h-8"
           onClick={() => setIsLeadDialogOpen(true)}
         >
-          <UserPlus className="size-4 sm:mr-2" />
+          <UserPlus className="size-4" />
           <span className="hidden sm:inline">Ajouter un lead</span>
           <span className="sm:hidden">Lead</span>
         </Button>
-        <Button 
-          size="sm" 
+        <Button
+          size="sm"
           variant="outline"
-          className="w-full gap-2 sm:w-auto"
+          className="h-10 gap-1.5 sm:h-8"
           onClick={() => setIsOwnerDialogOpen(true)}
         >
-          <Mail className="size-4 sm:mr-2" />
+          <Mail className="size-4" />
           <span className="hidden sm:inline">Inviter le propriétaire</span>
           <span className="sm:hidden">Inviter</span>
         </Button>

@@ -569,6 +569,14 @@ model IntakeLink {
   status               IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
   submittedAt          DateTime?
   formEmailSentAt      DateTime?
+  // Suivi d'envoi et d'ouverture du formulaire, pour l'espace administrateur.
+  // formEmailCount compte chaque envoi (le premier et les relances) ;
+  // lastFormEmailSentAt est la date du dernier envoi.
+  formEmailCount       Int          @default(0)
+  lastFormEmailSentAt  DateTime?
+  // Première et dernière ouverture du formulaire par le client (pas par un admin).
+  firstOpenedAt        DateTime?
+  lastOpenedAt         DateTime?
 
   stripePaymentIntentId String?   @db.Text // Temporaire : cache pour réutiliser le PaymentIntent
 

@@ -52,6 +52,15 @@ interface DataTableProps<T> {
   belowSearchContent?: React.ReactNode;
   actions?: React.ComponentType<{ row: T }> | ((row: T) => React.ReactNode);
   rowRefs?: React.MutableRefObject<Map<string, HTMLTableRowElement>>;
+  /**
+   * Facultatif : carte affichée à la place du tableau sur téléphone (< md).
+   * Sans elle, le tableau défile horizontalement comme avant.
+   */
+  mobileCard?: React.ComponentType<{ row: T }>;
+  /** Facultatif : teinte les lignes dont ce champ est vide (ex. « paidAt » : non payés). */
+  highlightRowsWithout?: string;
+  /** Marges de cellule réduites (tableaux à nombreuses colonnes). */
+  compact?: boolean;
 }
 
 export function DataTable<T extends { id: string }>({
@@ -69,7 +78,11 @@ export function DataTable<T extends { id: string }>({
   belowSearchContent,
   actions,
   rowRefs,
+  mobileCard: MobileCard,
+  highlightRowsWithout,
+  compact = false,
 }: DataTableProps<T>) {
+  const highlighted = (row: T) => !!highlightRowsWithout && !(row as any)[highlightRowsWithout];
   // Si onPageChange est fourni, utiliser le mode client-side (pas d'URL)
   // Sinon, utiliser l'URL (mode serveur)
   const isClientSide = !!onPageChange;
@@ -234,13 +247,38 @@ export function DataTable<T extends { id: string }>({
         )}
       </div>
 
-      <div className="rounded-md border relative">
+      {MobileCard && (
+        <ul className="flex flex-col gap-3 md:hidden">
+          {data.length === 0 ? (
+            <li className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+              Aucun résultat trouvé.
+            </li>
+          ) : (
+            data.map((row) => {
+              if (!row || !row.id) return null;
+              const ActionsComponent = actions as React.ComponentType<{ row: T }> | undefined;
+              return (
+                <li key={row.id} className={cn("relative rounded-xl border bg-card p-4", highlighted(row) && "border-red-200")}>
+                  <MobileCard row={row} />
+                  {ActionsComponent && (
+                    <div className="absolute right-2 top-2">
+                      <ActionsComponent row={row} />
+                    </div>
+                  )}
+                </li>
+              );
+            })
+          )}
+        </ul>
+      )}
+
+      <div className={cn("rounded-md border relative", MobileCard && "hidden md:block")}>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 {columns.map((column) => (
-                  <TableHead key={column.id}>{column.header}</TableHead>
+                  <TableHead key={column.id} className={cn(compact && "px-3")}>{column.header}</TableHead>
                 ))}
                 {actions && <TableHead className="w-[100px]">Actions</TableHead>}
               </TableRow>
@@ -261,8 +299,9 @@ export function DataTable<T extends { id: string }>({
                     return null;
                   }
                   return (
-                    <TableRow 
+                    <TableRow
                       key={row.id}
+                      className={cn(highlighted(row) && "bg-red-50/50 hover:bg-red-50")}
                       ref={(el) => {
                         if (el && rowRefs) {
                           rowRefs.current.set(row.id, el);
@@ -294,7 +333,7 @@ export function DataTable<T extends { id: string }>({
                         }
                         
                         return (
-                          <TableCell key={column.id}>
+                          <TableCell key={column.id} className={cn(compact && "px-3")}>
                             {content}
                           </TableCell>
                         );

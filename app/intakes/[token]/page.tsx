@@ -1,6 +1,7 @@
 import { getIntakeLinkByToken, submitIntake } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
 import { IntakeForm } from "@/components/intakes/intake-form";
+import { IntakeOpenTracker } from "@/components/intakes/intake-open-tracker";
 import Image from "next/image";
 import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
@@ -16,7 +17,6 @@ export default async function IntakePage({
 }) {
   const resolvedParams = await params;
   const intakeLink = await getIntakeLinkByToken(resolvedParams.token);
-  console.log(intakeLink);
   if (!intakeLink) {
     notFound();
   }
@@ -85,6 +85,7 @@ export default async function IntakePage({
 
   return (
     <div className="h-screen-safe overflow-hidden bg-background">
+      <IntakeOpenTracker token={resolvedParams.token} />
       <IntakeForm intakeLink={intakeLink} />
     </div>
   );

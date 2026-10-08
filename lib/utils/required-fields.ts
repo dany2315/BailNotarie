@@ -68,7 +68,9 @@ export function getRequiredClientFields(
     requiredDocuments = [];
   }
 
-  return { requiredFields, requiredDocuments };
+  // Dédoublonnage : « matrimonialRegime » pouvait être ajouté deux fois
+  // (marié sans régime), ce qui comptait un manque en double.
+  return { requiredFields: Array.from(new Set(requiredFields)), requiredDocuments: Array.from(new Set(requiredDocuments)) };
 }
 
 /**

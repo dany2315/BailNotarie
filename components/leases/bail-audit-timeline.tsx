@@ -7,6 +7,8 @@ import { CheckCircle2, CircleDollarSign, FileCheck2, History, Landmark, UserPlus
 
 type BailAuditTimelineProps = {
   bailId: string;
+  /** Sans carte ni titre : pour l'intégrer dans un autre bloc. */
+  bare?: boolean;
 };
 
 function getEventSentence(log: BailAuditLog) {
@@ -45,19 +47,11 @@ function getEventIcon(eventType: BailAuditEventType) {
   }
 }
 
-export async function BailAuditTimeline({ bailId }: BailAuditTimelineProps) {
+export async function BailAuditTimeline({ bailId, bare = false }: BailAuditTimelineProps) {
   const logs = await getBailAuditLogs(bailId);
 
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <History className="size-5 text-muted-foreground" />
-          <CardTitle className="text-base">Historique du bail</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {logs.length === 0 ? (
+  const content =
+        logs.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucun événement enregistré pour ce bail.</p>
         ) : (
           <ol className="space-y-3">
@@ -85,8 +79,19 @@ export async function BailAuditTimeline({ bailId }: BailAuditTimelineProps) {
               );
             })}
           </ol>
-        )}
-      </CardContent>
+        );
+
+  if (bare) return content;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <History className="size-5 text-muted-foreground" />
+          <CardTitle className="text-base">Historique du bail</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>{content}</CardContent>
     </Card>
   );
 }

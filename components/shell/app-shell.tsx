@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
+import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Separator } from "../ui/separator";
 import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown";
@@ -53,15 +54,63 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+// « Paramètres » retiré : la page /interface/settings n'existe pas.
 const navigation = [
-  { name: "Dashboard", href: "/interface", icon: LayoutDashboard },
-  { name: "Baux", href: "/interface/baux", icon: FileText },
+  { name: "À traiter", href: "/interface", icon: LayoutDashboard, exact: true },
+  { name: "Dossiers", href: "/interface/baux", icon: FileText },
   { name: "Clients", href: "/interface/clients", icon: Users },
   { name: "Biens", href: "/interface/properties", icon: Building2 },
-  { name: "Intakes", href: "/interface/intakes", icon: LinkIcon },
   { name: "Notaires", href: "/interface/notaires", icon: GraduationCap },
-  { name: "Paramètres", href: "/interface/settings", icon: Settings },
+  { name: "Formulaires envoyés", href: "/interface/intakes", icon: LinkIcon },
+  { name: "Notifications", href: "/interface/notifications", icon: Bell },
 ];
+
+function isNavActive(item: (typeof navigation)[number], pathname: string | null) {
+  if (!pathname) return false;
+  if (item.exact) return pathname === item.href || pathname === item.href + "/";
+  return pathname === item.href || pathname.startsWith(item.href + "/");
+}
+
+/**
+ * Navigation sur téléphone : une seule ligne qui défile sous l'en-tête, pour
+ * changer de section sans ouvrir le menu latéral (qui garde le compte et la
+ * déconnexion).
+ */
+function MobileNav() {
+  const pathname = usePathname();
+  const listRef = React.useRef<HTMLUListElement>(null);
+
+  // Garder la section active visible (ex. « Notifications », en fin de ligne).
+  React.useEffect(() => {
+    const active = listRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    active?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [pathname]);
+
+  return (
+    <nav aria-label="Navigation" className="border-b bg-background md:hidden">
+      <ul ref={listRef} className="flex gap-1 overflow-x-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {navigation.map((item) => {
+          const active = isNavActive(item, pathname);
+          return (
+            <li key={item.href} className="shrink-0">
+              <Link
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium whitespace-nowrap",
+                  active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                <item.icon className="size-4" />
+                {item.name}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
 
 function AppSidebar() {
   const pathname = usePathname();
@@ -102,14 +151,7 @@ function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {navigation.map((item) => {
-                let isActive;
-                if (item.name === "Dashboard") {
-                  // Dashboard est actif uniquement pour /interface ou /interface/
-                  isActive = pathname === item.href || pathname === item.href + "/";
-                } else {
-                  // Pour les autres items, actif si le pathname correspond ou commence par l'href
-                  isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
-                }
+                const isActive = isNavActive(item, pathname);
                 return (
                   <SidebarMenuItem key={item.name} >
                     <SidebarMenuButton asChild isActive={isActive} tooltip={item.name} >
@@ -215,6 +257,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
+        <MobileNav />
         <main className="py-6 px-4 sm:px-6 lg:px-8">
           {children}
         </main>

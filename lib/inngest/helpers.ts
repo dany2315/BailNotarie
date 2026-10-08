@@ -1,4 +1,23 @@
 import { inngest } from "./client";
+import { prisma } from "@/lib/prisma";
+
+/**
+ * Enregistre l'envoi d'un formulaire sur son lien (compteur et date du dernier
+ * envoi), pour le suivi côté administrateur. Le jeton est le dernier segment
+ * de l'URL du formulaire. Un échec ici ne doit jamais empêcher l'envoi.
+ */
+async function recordFormEmailSent(formUrl: string) {
+  try {
+    const token = new URL(formUrl, "http://localhost").pathname.split("/").filter(Boolean).pop();
+    if (!token) return;
+    await prisma.intakeLink.updateMany({
+      where: { token },
+      data: { formEmailCount: { increment: 1 }, lastFormEmailSentAt: new Date() },
+    });
+  } catch (error) {
+    console.error("[recordFormEmailSent] Suivi d'envoi non enregistré:", error);
+  }
+}
 
 /**
  * Déclenche l'envoi d'un email de confirmation de contact
@@ -62,6 +81,7 @@ export async function triggerOwnerFormEmail(data: {
     name: "email/intake.owner-form",
     data,
   });
+  await recordFormEmailSent(data.formUrl);
 }
 
 /**
@@ -77,6 +97,7 @@ export async function triggerTenantFormEmail(data: {
     name: "email/intake.tenant-form",
     data,
   });
+  await recordFormEmailSent(data.formUrl);
 }
 
 /**

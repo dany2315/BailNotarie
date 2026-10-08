@@ -1,24 +1,27 @@
-import { getLeasePaymentCounts, getLeases } from "@/lib/actions/leases";
+import { getLeasePaymentCounts, getLeaseStatusCounts, getLeases } from "@/lib/actions/leases";
 import { DataTable, Column } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { getPaginationParams } from "@/lib/utils/pagination";
-import { LeaseActions } from "@/components/leases/lease-actions";
 import {
-  LeaseReferenceCell,
-  LeasePropertyCell,
-  LeaseTenantCell,
-  LeaseOwnerCell,
-  LeaseStatusCell,
-  LeaseDateCell,
-  LeaseDepositCell,
+  LeaseDossierCell,
+  LeasePartiesCell,
+  LeaseMobileCard,
+  LeaseWaitingCell,
+  LeaseRowActionCell,
+  LeaseStageCell,
+  LeaseNextActionCell,
   LeaseNotaireCell,
-  LeaseCreatedDateCell,
   LeasePaymentCell,
 } from "@/components/leases/lease-table-cells";
 import { BailStatusFilterWrapper } from "@/components/leases/bail-status-filter-wrapper";
 import { LeasePaymentTabs } from "@/components/leases/lease-payment-tabs";
+import { LeaseStageTabs } from "@/components/leases/lease-stage-tabs";
+import { LeaseSortToggle } from "@/components/leases/lease-sort-toggle";
+import { LeaseNotaireFilter } from "@/components/leases/lease-notaire-filter";
+import { prisma } from "@/lib/prisma";
+import { Role } from "@prisma/client";
 
 export default async function LeasesPage({
   searchParams,
@@ -47,63 +50,78 @@ export default async function LeasesPage({
   const paymentParam = urlParams.get("payment");
   const paymentFilter = paymentParam === "paid" || paymentParam === "unpaid" ? paymentParam : undefined;
   
+  const notaireFilter = urlParams.get("notaire") || undefined;
   const baseFilters = {
     search: params.search,
     status: statusFilter,
     propertyId: urlParams.get("propertyId") || undefined,
     tenantId: urlParams.get("tenantId") || undefined,
+    notaire: notaireFilter,
   };
 
-  const [result, paymentCounts] = await Promise.all([
+  // Par défaut : les dossiers qui attendent depuis le plus longtemps d'abord.
+  const sortParam = urlParams.get("sort") === "recent" ? "recent" : "attente";
+
+  const [result, paymentCounts, statusCounts, notaires] = await Promise.all([
     getLeases({
       page: params.page || 1,
       pageSize: params.pageSize || 10,
       ...baseFilters,
       payment: paymentFilter,
+      sort: sortParam,
     }),
     getLeasePaymentCounts(baseFilters),
+    getLeaseStatusCounts({ search: params.search, payment: paymentFilter, notaire: notaireFilter }),
+    prisma.user.findMany({
+      where: { role: Role.NOTAIRE },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
+  // Le paiement vient juste après le dossier : le statut ne dit pas si les
+  // frais sont réglés (un dossier créé depuis l'interface peut être en attente
+  // du locataire sans avoir été payé).
   const columns: Column<(typeof result.data)[0]>[] = [
     {
-      id: "reference",
-      header: "N° Référence",
-      cell: LeaseReferenceCell,
-    },
-    {
-      id: "createdAt",
-      header: "Créé le",
-      cell: LeaseCreatedDateCell,
-    },
-    {
-      id: "owner",
-      header: "Propriétaire",
-      cell: LeaseOwnerCell,
-    },
-    {
-      id: "tenant",
-      header: "Locataire",
-      cell: LeaseTenantCell,
-    },
-    {
-      id: "status",
-      header: "Statut",
-      cell: LeaseStatusCell,
-    },
-    {
-      id: "property",
-      header: "Bien",
-      cell: LeasePropertyCell,
+      id: "dossier",
+      header: "Dossier",
+      cell: LeaseDossierCell,
     },
     {
       id: "payment",
-      header: "Paiement",
+      header: "Frais de dossier",
       cell: LeasePaymentCell,
     },
     {
+      id: "stage",
+      header: "Étape",
+      cell: LeaseStageCell,
+    },
+    {
+      id: "parties",
+      header: "Propriétaire → Locataire",
+      cell: LeasePartiesCell,
+    },
+    {
+      id: "next",
+      header: "Prochaine action",
+      cell: LeaseNextActionCell,
+    },
+    {
       id: "notaire",
-      header: "Notaire assigné",
+      header: "Notaire",
       cell: LeaseNotaireCell,
+    },
+    {
+      id: "waiting",
+      header: "Attente",
+      cell: LeaseWaitingCell,
+    },
+    {
+      id: "action",
+      header: "",
+      cell: LeaseRowActionCell,
     },
   ];
 
@@ -111,20 +129,17 @@ export default async function LeasesPage({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Baux</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Dossiers</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Gestion des baux notariés
+            Un dossier = un bail, son bien et ses parties.
           </p>
         </div>
-        <div className="flex-shrink-0">
+        <Button asChild className="w-full gap-2 sm:w-auto">
           <Link href="/interface/baux/new">
-            <Button className="w-full sm:w-auto">
-              <Plus className="size-4 mr-2" />
-              <span className="hidden sm:inline">Nouveau bail</span>
-              <span className="sm:hidden">Nouveau</span>
-            </Button>
+            <Plus className="size-4" />
+            Nouveau dossier
           </Link>
-        </div>
+        </Button>
       </div>
 
       <DataTable
@@ -134,10 +149,27 @@ export default async function LeasesPage({
         page={result.page}
         pageSize={result.pageSize}
         totalPages={result.totalPages}
-        searchPlaceholder="Rechercher par bien, locataire..."
-        belowSearchContent={<LeasePaymentTabs counts={paymentCounts} />}
+        searchPlaceholder="Rechercher par adresse, nom, e-mail..."
+        belowSearchContent={
+          <div className="flex flex-col gap-3">
+            <LeaseStageTabs statusCounts={statusCounts} />
+            <div className="flex flex-wrap items-center gap-3">
+              <LeasePaymentTabs counts={paymentCounts} />
+              <LeaseNotaireFilter notaires={notaires.map((n) => ({ id: n.id, name: n.name || n.email }))} />
+              <LeaseSortToggle />
+            </div>
+            <p className="text-[13.5px] text-muted-foreground">
+              {result.total} dossier{result.total > 1 ? "s" : ""} ·{" "}
+              {sortParam === "attente"
+                ? "triés par attente, du plus ancien au plus récent"
+                : "triés du plus récent au plus ancien"}
+            </p>
+          </div>
+        }
         filters={<BailStatusFilterWrapper />}
-        actions={LeaseActions}
+        compact
+        mobileCard={LeaseMobileCard}
+        highlightRowsWithout="paidAt"
       />
     </div>
   );

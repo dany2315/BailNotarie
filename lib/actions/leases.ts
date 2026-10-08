@@ -632,6 +632,13 @@ export async function getLease(id: string) {
   });
 }
 
+/** Filtre « Notaire » de la liste : « none » = non assigné, sinon l'id du notaire. */
+function notaireWhere(notaire?: string) {
+  if (!notaire) return {};
+  if (notaire === "none") return { dossierAssignments: { none: {} } };
+  return { dossierAssignments: { some: { notaireId: notaire } } };
+}
+
 export async function getLeases(params: {
   page?: number;
   pageSize?: number;
@@ -640,10 +647,12 @@ export async function getLeases(params: {
   propertyId?: string;
   tenantId?: string;
   payment?: "paid" | "unpaid";
+  sort?: "recent" | "attente";
+  notaire?: string;
 }) {
   await requireAuth();
 
-  const where: any = {};
+  const where: any = { ...notaireWhere(params.notaire) };
 
   if (params.status) {
     // Gérer plusieurs statuts (tableau ou chaîne séparée par des virgules)
@@ -724,12 +733,21 @@ export async function getLeases(params: {
                 email: true,
               },
             },
+            // Demandes du notaire encore en attente (prochaine action)
+            _count: { select: { requests: { where: { status: "PENDING" } } } },
           },
+        },
+        // Dernière activité du dossier (calcul de l'attente)
+        auditLogs: {
+          select: { createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
         },
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { createdAt: "desc" },
+      // « attente » : les dossiers sans évolution depuis le plus longtemps d'abord
+      orderBy: params.sort === "attente" ? { updatedAt: "asc" } : { createdAt: "desc" },
     }),
     prisma.bail.count({ where }),
   ]);
@@ -746,15 +764,49 @@ export async function getLeases(params: {
   };
 }
 
+/**
+ * Nombre de dossiers par statut, avec les mêmes filtres de recherche et de
+ * paiement que la liste (le filtre de statut est volontairement ignoré : les
+ * onglets d'étape s'en servent pour afficher leurs propres compteurs).
+ */
+export async function getLeaseStatusCounts(params: {
+  search?: string;
+  payment?: "paid" | "unpaid";
+  notaire?: string;
+}): Promise<Record<string, number>> {
+  await requireAuth();
+
+  const where: any = { ...notaireWhere(params.notaire) };
+  if (params.payment === "paid") where.paidAt = { not: null };
+  else if (params.payment === "unpaid") where.paidAt = null;
+  if (params.search) {
+    where.OR = [
+      { property: { fullAddress: { contains: params.search, mode: "insensitive" } } },
+      { parties: { some: { persons: { some: { firstName: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { persons: { some: { lastName: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { persons: { some: { email: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { entreprise: { legalName: { contains: params.search, mode: "insensitive" } } } } },
+      { parties: { some: { entreprise: { name: { contains: params.search, mode: "insensitive" } } } } },
+      { parties: { some: { entreprise: { email: { contains: params.search, mode: "insensitive" } } } } },
+    ];
+  }
+
+  const groups = await prisma.bail.groupBy({ by: ["status"], where, _count: { _all: true } });
+  const counts: Record<string, number> = {};
+  for (const g of groups) counts[g.status] = g._count._all;
+  return counts;
+}
+
 export async function getLeasePaymentCounts(params: {
   search?: string;
   status?: string | string[];
   propertyId?: string;
   tenantId?: string;
+  notaire?: string;
 }) {
   await requireAuth();
 
-  const baseWhere: any = {};
+  const baseWhere: any = { ...notaireWhere(params.notaire) };
 
   if (params.status) {
     const statuses = Array.isArray(params.status)

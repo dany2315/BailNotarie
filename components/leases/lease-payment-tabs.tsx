@@ -16,8 +16,8 @@ interface LeasePaymentTabsProps {
 
 const tabs: Array<{ value: PaymentFilter; label: string; countKey: keyof LeasePaymentTabsProps["counts"] }> = [
   { value: "all", label: "Tous", countKey: "total" },
-  { value: "unpaid", label: "Demandes non payées", countKey: "unpaid" },
-  { value: "paid", label: "Baux payés", countKey: "paid" },
+  { value: "unpaid", label: "Frais non payés", countKey: "unpaid" },
+  { value: "paid", label: "Frais payés", countKey: "paid" },
 ];
 
 export function LeasePaymentTabs({ counts }: LeasePaymentTabsProps) {
@@ -43,7 +43,7 @@ export function LeasePaymentTabs({ counts }: LeasePaymentTabsProps) {
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex max-w-full gap-2 overflow-x-auto [scrollbar-width:none] sm:flex-wrap [&::-webkit-scrollbar]:hidden">
       {tabs.map((tab) => {
         const active = currentPayment === tab.value;
 
@@ -54,7 +54,7 @@ export function LeasePaymentTabs({ counts }: LeasePaymentTabsProps) {
             onClick={() => handleChange(tab.value)}
             disabled={isPending}
             className={cn(
-              "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors disabled:opacity-60",
+              "inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-colors disabled:opacity-60",
               active
                 ? "border-primary bg-primary text-primary-foreground shadow-sm"
                 : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"

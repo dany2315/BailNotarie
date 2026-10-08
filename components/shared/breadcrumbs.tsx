@@ -5,6 +5,19 @@ import { usePathname } from "next/navigation";
 import { ChevronRight, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Libellés des sections, alignés sur le menu. */
+const SEGMENT_LABELS: Record<string, string> = {
+  baux: "Dossiers",
+  clients: "Clients",
+  properties: "Biens",
+  notaires: "Notaires",
+  intakes: "Formulaires envoyés",
+  notifications: "Notifications",
+  recherche: "Recherche",
+  edit: "Modifier",
+  new: "Nouveau",
+};
+
 export function Breadcrumbs() {
   const pathname = usePathname();
   const allSegments = pathname.split("/").filter(Boolean);
@@ -30,7 +43,11 @@ export function Breadcrumbs() {
   const breadcrumbs = segments.map((segment, index) => {
     const pathSegments = ["interface", ...segments.slice(0, index + 1)];
     const href = "/" + pathSegments.join("/");
-    const label = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ");
+    // Un identifiant technique (cuid) n'apporte rien à l'écran : on affiche « Fiche ».
+    const isId = /^c[a-z0-9]{20,}$/.test(segment);
+    const label = isId
+      ? "Fiche"
+      : SEGMENT_LABELS[segment] || segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ");
     return { href, label };
   });
 
