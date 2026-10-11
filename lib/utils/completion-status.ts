@@ -110,7 +110,8 @@ export function computeClientMissingData(client: {
   );
 
   // Champs requis pour chaque personne (non seulement la personne principale)
-  const personRequiredFields = ["firstName", "lastName", "nationality", "birthDate", "birthPlace"];
+  // La situation familiale est exigée par les formulaires pour chaque personne.
+  const personRequiredFields = ["firstName", "lastName", "nationality", "birthDate", "birthPlace", "familyStatus"];
   
   // Pour les personnes physiques
   if (client.type === ClientType.PERSONNE_PHYSIQUE) {
@@ -289,7 +290,8 @@ export async function checkClientCompletion(clientId: string): Promise<{
   );
 
   // Champs requis pour chaque personne (non seulement la personne principale)
-  const personRequiredFields = ["firstName", "lastName", "nationality", "birthDate", "birthPlace"];
+  // La situation familiale est exigée par les formulaires pour chaque personne.
+  const personRequiredFields = ["firstName", "lastName", "nationality", "birthDate", "birthPlace", "familyStatus"];
 
   // Agréger tous les documents depuis persons et entreprise
   const allDocuments: any[] = [];

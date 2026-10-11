@@ -9,6 +9,7 @@ import { documentKindLabels } from "@/lib/utils/document-labels";
 import { cn } from "@/lib/utils";
 import type { ChecklistRow } from "@/lib/utils/document-checklist";
 import { VerifyToggle } from "@/components/admin/verify-buttons";
+import { DocumentUploadButton } from "@/components/documents/document-upload-button";
 
 function formatSize(size?: number | null) {
   if (!size || size <= 0) return null;
@@ -38,6 +39,7 @@ export function DocumentChecklist({
   className,
   inset = false,
   verification,
+  editable = false,
 }: {
   rows: ChecklistRow[];
   className?: string;
@@ -45,6 +47,8 @@ export function DocumentChecklist({
   inset?: boolean;
   /** Fiche dossier : chaque pièce présente se valide comme un point de contrôle. */
   verification?: ChecklistVerification;
+  /** Fiches admin : « Ajouter » une pièce manquante, « Remplacer » une pièce existante. */
+  editable?: boolean;
 }) {
   const { downloadFile, isFileDownloading } = useDownloadFile();
 
@@ -60,8 +64,17 @@ export function DocumentChecklist({
         const point = verification && present ? verification.points[row.key] : undefined;
         // Avec la vérification : coche verte seulement une fois la pièce validée.
         const checked = present && (!verification || !!point?.verified);
+        const canUpload = editable && !!row.upload;
+        const hasActions = (point && verification) || (canUpload && !present);
         return (
-          <li key={row.key} className={cn("grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-2", inset ? "px-5 py-3.5" : "py-3")}>
+          <li
+            key={row.key}
+            className={cn(
+              "grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-2.5",
+              hasActions && "sm:grid-cols-[22px_minmax(0,1fr)_auto]",
+              inset ? "px-5 py-3.5" : "py-3",
+            )}
+          >
             <span
               aria-hidden
               className={cn(
@@ -71,20 +84,15 @@ export function DocumentChecklist({
             >
               {checked ? <Check className="size-3.5" strokeWidth={3} /> : missing ? "!" : ""}
             </span>
-            <div className="flex min-w-0 flex-col gap-1">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <span className={cn("font-semibold leading-snug", inset ? "text-[14.5px]" : "text-sm")}>
                   {row.label || documentKindLabels[row.kind] || row.kind}
                   {row.required && <span className="sr-only"> (obligatoire)</span>}
                 </span>
-                <span className="flex items-center gap-2">
-                  {row.extra}
-                  {point && verification && (
-                    <VerifyToggle bailId={verification.bailId} pointKey={point.pointKey} verified={point.verified} locked={verification.locked} />
-                  )}
-                </span>
+                {row.extra}
               </div>
-              {missing && <span className="text-sm font-semibold text-red-700">Manquante</span>}
+              {missing && <span className="text-[13px] font-semibold text-red-700">Manquante</span>}
               {!present && !row.required && <span className="text-sm text-muted-foreground">Non fournie (facultative)</span>}
               {row.documents.map((doc) => {
                 const meta = [doc.label, formatSize(doc.size), formatDay(doc.createdAt) && `ajoutée le ${formatDay(doc.createdAt)}`]
@@ -92,11 +100,11 @@ export function DocumentChecklist({
                   .join(" · ");
                 const downloading = isFileDownloading(doc.fileKey);
                 return (
-                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-sm text-muted-foreground">{meta || "Fichier"}</span>
-                    <span className="flex shrink-0 gap-2">
+                  <div key={doc.id} className="flex flex-col gap-2">
+                    <span className="min-w-0 truncate text-[13px] text-muted-foreground">{meta || "Fichier"}</span>
+                    <span className="flex flex-wrap gap-2">
                       <DocumentViewer document={doc} documentKindLabels={documentKindLabels}>
-                        <Button type="button" variant="outline" size="sm" className="h-9">
+                        <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
                           <Eye className="size-4" />
                           Voir
                         </Button>
@@ -105,18 +113,35 @@ export function DocumentChecklist({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-9"
+                        className="h-9 gap-1.5"
                         disabled={downloading}
                         onClick={() => downloadFile(doc.fileKey, doc.label || documentKindLabels[doc.kind] || `document-${doc.id}`)}
                       >
                         {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                         Télécharger
                       </Button>
+                      {canUpload && <DocumentUploadButton target={row.upload!} kind={row.kind} replaceIds={[doc.id]} />}
                     </span>
                   </div>
                 );
               })}
+              {canUpload && present && (
+                <DocumentUploadButton
+                  target={row.upload!}
+                  kind={row.kind}
+                  label="Ajouter un autre fichier"
+                  className="h-8 w-fit border-dashed px-2.5 text-xs text-muted-foreground"
+                />
+              )}
             </div>
+            {hasActions && (
+              <div className="col-span-2 flex flex-wrap items-start gap-2 sm:col-span-1 sm:justify-end [&>*]:flex-1 sm:[&>*]:flex-none">
+                {point && verification && (
+                  <VerifyToggle bailId={verification.bailId} pointKey={point.pointKey} verified={point.verified} locked={verification.locked} />
+                )}
+                {canUpload && !present && <DocumentUploadButton target={row.upload!} kind={row.kind} />}
+              </div>
+            )}
           </li>
         );
       })}

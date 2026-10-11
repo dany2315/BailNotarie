@@ -1,12 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { setVerificationPoints } from "@/lib/actions/verification";
 import { cn } from "@/lib/utils";
+
+/*
+ * Pas de router.refresh() ici : l'action revalide la fiche et sa réponse met
+ * déjà la page à jour ; un refresh en plus provoquait des rechargements complets.
+ */
 
 /**
  * « Valider » / « ✓ Vérifié » d'un point de contrôle (comme dans la maquette).
@@ -24,11 +28,22 @@ export function VerifyToggle({
   verified: boolean;
   locked?: boolean;
 }) {
-  const router = useRouter();
   const [optimistic, setOptimistic] = React.useState(verified);
   const [pending, startTransition] = React.useTransition();
 
   React.useEffect(() => setOptimistic(verified), [verified]);
+
+  if (locked) {
+    return (
+      <span
+        className="inline-flex h-9 min-w-[6.5rem] items-center justify-center gap-1.5 rounded-md border border-green-200 bg-green-100 px-3 text-sm font-medium text-green-800"
+        title="Dossier transmis au notaire : la vérification est close"
+      >
+        <Check className="size-3.5" strokeWidth={3} />
+        Vérifié
+      </span>
+    );
+  }
 
   const toggle = () => {
     const next = !optimistic;
@@ -40,7 +55,6 @@ export function VerifyToggle({
         toast.error(result.error);
         return;
       }
-      router.refresh();
     });
   };
 
@@ -66,7 +80,6 @@ export function VerifyToggle({
 
 /** « Tout valider » d'un bloc : valide d'un coup les points restants (hors manquants). */
 export function ValidateAllButton({ bailId, pointKeys }: { bailId: string; pointKeys: string[] }) {
-  const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   if (pointKeys.length === 0) return null;
 
@@ -77,7 +90,6 @@ export function ValidateAllButton({ bailId, pointKeys }: { bailId: string; point
         toast.error(result.error);
         return;
       }
-      router.refresh();
     });
 
   return (

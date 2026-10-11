@@ -11,6 +11,15 @@ export interface ChecklistDocument {
   createdAt?: Date | string | null;
 }
 
+/** Où rattacher une pièce envoyée depuis la fiche (une seule cible). */
+export interface DocumentTargetLike {
+  personId?: string;
+  entrepriseId?: string;
+  clientId?: string;
+  propertyId?: string;
+  bailId?: string;
+}
+
 export interface ChecklistRow {
   key: string;
   kind: string;
@@ -18,6 +27,8 @@ export interface ChecklistRow {
   required: boolean;
   documents: ChecklistDocument[];
   extra?: ReactNode;
+  /** Cible pour « Ajouter » / « Remplacer » depuis la fiche. */
+  upload?: DocumentTargetLike;
 }
 
 /**
@@ -28,7 +39,13 @@ export interface ChecklistRow {
 export function buildChecklistRows(
   requiredKinds: string[],
   documents: ChecklistDocument[],
-  options: { keyPrefix: string; labels?: Partial<Record<string, string>>; extras?: Partial<Record<string, ReactNode>> },
+  options: {
+    keyPrefix: string;
+    labels?: Partial<Record<string, string>>;
+    extras?: Partial<Record<string, ReactNode>>;
+    /** Cible des envois depuis la fiche (personne, société, client, bien ou bail). */
+    target?: DocumentTargetLike;
+  },
 ): ChecklistRow[] {
   const byKind = new Map<string, ChecklistDocument[]>();
   for (const doc of documents) {
@@ -43,6 +60,7 @@ export function buildChecklistRows(
     required: true,
     documents: byKind.get(kind) || [],
     extra: options.extras?.[kind],
+    upload: options.target,
   }));
   for (const [kind, docs] of byKind) {
     if (requiredKinds.includes(kind)) continue;
@@ -53,6 +71,7 @@ export function buildChecklistRows(
       required: false,
       documents: docs,
       extra: options.extras?.[kind],
+      upload: options.target,
     });
   }
   return rows;

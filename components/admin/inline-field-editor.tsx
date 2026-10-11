@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -83,7 +82,6 @@ export function FieldInput({
  * complète la donnée obtenue par téléphone sans quitter le dossier.
  */
 export function InlineFieldEditor({ entity, id, field, label, kind = "text", value }: InlineFieldEditorProps) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(value || "");
   const [saving, setSaving] = React.useState(false);
@@ -100,7 +98,6 @@ export function InlineFieldEditor({ entity, id, field, label, kind = "text", val
     if (result.success) {
       toast.success(`${label} enregistré`);
       setOpen(false);
-      router.refresh();
     } else {
       toast.error(result.error);
     }
@@ -173,7 +170,6 @@ export function GroupFieldEditor({
   title: string;
   fields: GroupField[];
 }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [drafts, setDrafts] = React.useState<Record<string, string>>({});
   const [saving, setSaving] = React.useState(false);
@@ -201,7 +197,6 @@ export function GroupFieldEditor({
       toast.success(changed.length > 1 ? `${changed.length} champs enregistrés` : `${changed[0].label} enregistré`);
       setOpen(false);
     }
-    router.refresh();
   };
 
   return (

@@ -34,7 +34,7 @@ const FIELD_META: Record<string, { label: string; kind?: InlineFieldKind; date?:
 };
 
 /** Champs de base exigés pour toute personne (pas seulement la principale). */
-const BASE_PERSON_REQUIRED = ["firstName", "lastName", "nationality", "birthDate", "birthPlace"];
+const BASE_PERSON_REQUIRED = ["firstName", "lastName", "nationality", "birthDate", "birthPlace", "familyStatus"];
 
 const ROLE_TITLES = { PROPRIETAIRE: "Propriétaire", LOCATAIRE: "Locataire", LEAD: "Prospect" } as const;
 
@@ -234,12 +234,14 @@ export function buildPartyPoints(
     ...(isCompany && party.entreprise
       ? buildChecklistRows(companyKinds, ((party.entreprise.documents || []) as any[]).map(toChecklistDocument), {
           keyPrefix: `ent-${party.entreprise.id}`,
+          target: { entrepriseId: party.entreprise.id },
         })
       : []),
     ...(!isCompany
       ? persons.flatMap((person) =>
           buildChecklistRows(personKinds, ((person.documents || []) as any[]).map(toChecklistDocument), {
             keyPrefix: `person-${person.id}`,
+            target: { personId: person.id },
             labels: {
               [DocumentKind.ID_IDENTITY]: persons.length > 1 ? `Pièce d'identité · ${person.firstName || "personne"}` : "Pièce d'identité",
             },
@@ -248,6 +250,7 @@ export function buildPartyPoints(
       : []),
     ...buildChecklistRows(clientKinds, clientDocuments.map(toChecklistDocument) as ChecklistDocument[], {
       keyPrefix: `client-${party.id}`,
+      target: { clientId: party.id },
     }),
   ];
   const docKeys = docRowKeys(docRows);
@@ -362,6 +365,7 @@ export function PartyCheckSection({
           <DocumentChecklist
             rows={data.docRows}
             inset
+            editable={!locked}
             verification={{
               bailId,
               locked,

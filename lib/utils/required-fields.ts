@@ -28,7 +28,7 @@ export function getRequiredClientFields(
   
   // Champs spécifiques selon le type
   if (type === ClientType.PERSONNE_PHYSIQUE) {
-    requiredFields.push("firstName", "lastName", "nationality", "birthDate", "birthPlace");
+    requiredFields.push("firstName", "lastName", "nationality", "birthDate", "birthPlace", "familyStatus");
     
     // Documents requis pour personne physique
     requiredDocuments.push(DocumentKind.ID_IDENTITY);

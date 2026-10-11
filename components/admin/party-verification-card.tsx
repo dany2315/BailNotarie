@@ -50,7 +50,7 @@ const ENTREPRISE_FIELDS: FieldDef[] = [
 ];
 
 /** Champs de base exigés pour toute personne (pas seulement la principale). */
-const BASE_PERSON_REQUIRED = ["firstName", "lastName", "nationality", "birthDate", "birthPlace"];
+const BASE_PERSON_REQUIRED = ["firstName", "lastName", "nationality", "birthDate", "birthPlace", "familyStatus"];
 
 function FieldGrid({
   entity,
@@ -211,12 +211,14 @@ export function ClientDocumentsCard({ party, clientDocuments }: { party: any; cl
     ...(isCompany && party.entreprise
       ? buildChecklistRows(companyKinds, ((party.entreprise.documents || []) as any[]).map(toChecklistDocument), {
           keyPrefix: `ent-${party.entreprise.id}`,
+          target: { entrepriseId: party.entreprise.id },
         })
       : []),
     ...(!isCompany
       ? persons.flatMap((person) =>
           buildChecklistRows(personKinds, ((person.documents || []) as any[]).map(toChecklistDocument), {
             keyPrefix: `person-${person.id}`,
+            target: { personId: person.id },
             labels: {
               [DocumentKind.ID_IDENTITY]: persons.length > 1 ? `Pièce d'identité · ${person.firstName || "personne"}` : "Pièce d'identité",
             },
@@ -225,6 +227,7 @@ export function ClientDocumentsCard({ party, clientDocuments }: { party: any; cl
       : []),
     ...buildChecklistRows(clientKinds, clientDocuments.map(toChecklistDocument) as ChecklistDocument[], {
       keyPrefix: `client-${party.id}`,
+      target: { clientId: party.id },
     }),
   ];
   const missingCount = rows.filter((r) => r.required && r.documents.length === 0).length;
@@ -241,7 +244,7 @@ export function ClientDocumentsCard({ party, clientDocuments }: { party: any; cl
         <h2 className="text-[17px] font-semibold">Pièces</h2>
         <span className={cn("text-[13px]", missingCount > 0 ? "font-semibold text-red-700" : "text-muted-foreground")}>{summary}</span>
       </div>
-      {rows.length > 0 && <DocumentChecklist rows={rows} inset />}
+      {rows.length > 0 && <DocumentChecklist rows={rows} inset editable />}
     </section>
   );
 }

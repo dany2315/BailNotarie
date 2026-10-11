@@ -202,13 +202,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   ].filter(Boolean) as MissingRequestRecipient[];
 
   // ---- Fiche de vérification : un point par donnée, comme la maquette ----
-  // Une fois le dossier envoyé au notaire (ou un bloc déjà « Complété »), ses
-  // points sont considérés comme vérifiés et verrouillés.
+  // Une fois le dossier envoyé au notaire, ses points sont considérés comme
+  // vérifiés et verrouillés.
   const pastVerification = stage.key === "notaire" || stage.key === "signe" || stage.key === "clos";
   const bailLocked = pastVerification;
-  const ownerLocked = pastVerification || owner?.completionStatus === CompletionStatus.COMPLETED;
-  const tenantLocked = pastVerification || tenant?.completionStatus === CompletionStatus.COMPLETED;
-  const propertyLocked = pastVerification || property?.completionStatus === CompletionStatus.COMPLETED;
+  // La vérification est propre à chaque dossier : un client ou un bien déjà « Complété »
+  // (par exemple pour un autre dossier) se revérifie ici. Seul l'envoi au notaire verrouille.
+  const ownerLocked = pastVerification;
+  const tenantLocked = pastVerification;
+  const propertyLocked = pastVerification;
 
   // Le bail
   const bailMissing = new Set(missingData?.bail.missingFields || []);
@@ -270,6 +272,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const propertyDocRows = property
     ? buildChecklistRows(getRequiredPropertyFields(property.legalStatus).requiredDocuments, (propertyDocuments as any[]).map(toChecklistDocument), {
         keyPrefix: `property-${property.id}`,
+        target: { propertyId: property.id },
         labels: { [DocumentKind.INSURANCE]: "Assurance du propriétaire", [DocumentKind.RIB]: "RIB du propriétaire" },
         extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
       })
@@ -609,6 +612,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 <div className="border-t">
                   <DocumentChecklist
                     inset
+                    editable={!propertyLocked}
                     rows={propertyDocRows}
                     verification={{
                       bailId: lease.id,
@@ -678,8 +682,10 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             <CheckSection id="bloc-documents" title="Documents du bail" subtitle="Pièces rattachées au bail lui-même">
               <DocumentChecklist
                 inset
+                editable
                 rows={buildChecklistRows([], (bailDocuments as any[]).map(toChecklistDocument), {
                   keyPrefix: `bail-${lease.id}`,
+                  target: { bailId: lease.id },
                   extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
                 })}
               />
