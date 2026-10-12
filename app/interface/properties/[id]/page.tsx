@@ -22,6 +22,9 @@ import { DocumentsStackByKind } from "@/components/documents/documents-stack-by-
 import { ButtonGroup } from "@/components/ui/button-group";
 import { DeletePropertyButton } from "@/components/properties/delete-property-button";
 import { documentKindLabels } from "@/lib/utils/document-labels";
+import { assessDpe } from "@/lib/utils/dpe";
+import { DpeEditor } from "@/components/admin/dpe-editor";
+import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
 
 export default async function PropertyDetailPage({
   params,
@@ -40,6 +43,8 @@ export default async function PropertyDetailPage({
     getDocuments({ propertyId: property.id }),
     getDocuments({ clientId: property.owner.id }),
   ]);
+
+  const dpe = assessDpe(property.dpeClass, property.dpeDate);
 
   // Fonction helper pour sérialiser les Decimal
   const serializeDecimal = (value: any): any => {
@@ -227,6 +232,27 @@ export default async function PropertyDetailPage({
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Statut</p>
               <StatusBadge status={property.status} />
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Section DPE : saisie manuelle depuis le diagnostic */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-col gap-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Diagnostic de performance énergétique</p>
+              <div className="text-sm">
+                <DpeSummary dpeClass={property.dpeClass} gesClass={property.gesClass} dpeDate={property.dpeDate} assessment={dpe} />
+              </div>
+              {dpe.message && (
+                <p className="text-[13px] font-semibold text-red-700">{dpe.message}</p>
+              )}
+            </div>
+            <DpeEditor
+              propertyId={property.id}
+              dpeClass={property.dpeClass}
+              gesClass={property.gesClass}
+              dpeDate={dpeDateValue(property.dpeDate)}
+            />
           </div>
 
           <Separator />

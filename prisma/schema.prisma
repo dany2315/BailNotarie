@@ -69,6 +69,17 @@ enum BienLegalStatus {
   LOTISSEMENT
 }
 
+/// Classe d'un DPE (énergie ou climat), de A à G.
+enum EnergyClass {
+  A
+  B
+  C
+  D
+  E
+  F
+  G
+}
+
 enum BailType {
   BAIL_NU_3_ANS
   BAIL_NU_6_ANS
@@ -363,6 +374,11 @@ model Property {
   longitude      Decimal? @db.Decimal(11, 8)
   isTightZone    Boolean  @default(false)
   hasRentControl Boolean  @default(false)
+
+  // DPE saisi à la main par l'équipe (la validité se calcule depuis la date)
+  dpeClass EnergyClass?
+  gesClass EnergyClass?
+  dpeDate  DateTime?
 
   // Mobilier obligatoire pour location meublée
   hasLiterie           Boolean @default(false) // Literie avec couette ou couverture

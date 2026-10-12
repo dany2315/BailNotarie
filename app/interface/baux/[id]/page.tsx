@@ -38,6 +38,9 @@ import {
   isActiveStage,
 } from "@/lib/utils/bail-stage";
 import { cn } from "@/lib/utils";
+import { assessDpe } from "@/lib/utils/dpe";
+import { DpeEditor } from "@/components/admin/dpe-editor";
+import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -299,9 +302,18 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const diagnosticsIds = (propertyDocuments as any[]).filter((d) => d.kind === DocumentKind.DIAGNOSTICS).map((d) => d.id).sort();
   const rulesPoints = [
     { key: pointKey("rules:plafond", [lease.rentAmount, surface, property?.inseeCode || null]), label: "Plafond de loyer" },
-    { key: pointKey("rules:dpe", diagnosticsIds), label: "Classe DPE" },
+    {
+      key: pointKey("rules:dpe", [...diagnosticsIds, property?.dpeClass || null, property?.gesClass || null, dpeDateValue(property?.dpeDate)]),
+      label: "Classe DPE",
+    },
   ];
-  const rulesStates = withVerified(rulesPoints.map((p) => ({ key: p.key, missing: false })), verifiedKeys, bailLocked);
+  // DPE saisi à la main : à saisir, expiré ou classe interdite à la location = bloquant.
+  const dpe = assessDpe(property?.dpeClass, property?.dpeDate);
+  const rulesStates = withVerified(
+    rulesPoints.map((p, index) => ({ key: p.key, missing: index === 1 && dpe.blocking })),
+    verifiedKeys,
+    bailLocked,
+  );
 
   const isVerified = (key: string, locked: boolean) => locked || verifiedKeys.has(key);
   const sections = [
@@ -633,7 +645,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           <CheckSection
             id="bloc-controles"
             title="Contrôles réglementaires"
-            subtitle="À vérifier par vous : pas de contrôle automatique pour l'instant"
+            subtitle="À vérifier par vous : le DPE se saisit ici, depuis le diagnostic"
             headerRight={
               <>
                 <StateChip tone={summaryChip(sections[4].summary).tone}>{summaryChip(sections[4].summary).label}</StateChip>
@@ -662,18 +674,33 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 {"\n"}Si la commune encadre les loyers, comparer au loyer de référence majoré.
               </CheckPoint>
               <CheckPoint
-                state={isVerified(rulesPoints[1].key, bailLocked) ? "ok" : "todo"}
+                state={dpe.blocking ? "missing" : isVerified(rulesPoints[1].key, bailLocked) ? "ok" : "todo"}
                 label="Classe DPE"
+                note={dpe.message}
                 actions={
-                  <VerifyToggle
-                    bailId={lease.id}
-                    pointKey={rulesPoints[1].key}
-                    verified={isVerified(rulesPoints[1].key, bailLocked)}
-                    locked={bailLocked}
-                  />
+                  (property && !bailLocked) || !dpe.blocking ? (
+                    <>
+                      {property && !bailLocked && (
+                        <DpeEditor
+                          propertyId={property.id}
+                          dpeClass={property.dpeClass}
+                          gesClass={property.gesClass}
+                          dpeDate={dpeDateValue(property.dpeDate)}
+                        />
+                      )}
+                      {!dpe.blocking && (
+                        <VerifyToggle
+                          bailId={lease.id}
+                          pointKey={rulesPoints[1].key}
+                          verified={isVerified(rulesPoints[1].key, bailLocked)}
+                          locked={bailLocked}
+                        />
+                      )}
+                    </>
+                  ) : null
                 }
               >
-                {"À lire dans les diagnostics.\nG : location interdite · F : interdite à partir de 2028 · F et G : loyer gelé."}
+                <DpeSummary dpeClass={property?.dpeClass || null} gesClass={property?.gesClass || null} dpeDate={property?.dpeDate || null} assessment={dpe} />
               </CheckPoint>
             </CheckList>
           </CheckSection>
@@ -806,7 +833,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               </div>
             ))}
             <p className="text-[12.5px] leading-snug text-muted-foreground">
-              Plafond de loyer et classe DPE ne sont pas contrôlés automatiquement : ils figurent dans « Contrôles réglementaires », à valider par vous.
+              Plafond de loyer et DPE figurent dans « Contrôles réglementaires » : saisissez la classe et la date du DPE, puis validez-les.
             </p>
           </section>
 
