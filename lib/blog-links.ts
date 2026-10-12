@@ -121,6 +121,30 @@ const DIAGNOSTICS: BlogLink = {
   hint: "Durées de validité et conséquences d'un document périmé.",
 };
 
+const PREAVIS: BlogLink = {
+  href: "/blog/preavis-location-1-mois-ou-3-mois",
+  label: "Préavis de location : 1 mois ou 3 mois",
+  hint: "Zone tendue, motifs de préavis réduit et date de fin du préavis.",
+};
+
+const ETAT_DES_LIEUX: BlogLink = {
+  href: "/blog/etat-des-lieux-de-sortie",
+  label: "État des lieux de sortie",
+  hint: "Préparer la sortie, distinguer vétusté et dégradation.",
+};
+
+const REVISION_LOYER: BlogLink = {
+  href: "/blog/revision-loyer-calcul-irl",
+  label: "Révision du loyer : calcul IRL",
+  hint: "Formule, indices Insee et calculateur de révision.",
+};
+
+const DEPOT_GARANTIE: BlogLink = {
+  href: "/blog/depot-de-garantie-location",
+  label: "Dépôt de garantie : montant et restitution",
+  hint: "Plafonds, délai de restitution et pénalité de retard.",
+};
+
 /**
  * Liens contextuels par article, indexes sur le slug.
  * Trois a quatre destinations par article, choisies pour leur proximite de sujet.
@@ -161,7 +185,11 @@ export const BLOG_RELATED_LINKS: Record<string, BlogLink[]> = {
   "bail-commercial-notarie-contrat-3-6-9": [COMMERCIAL, DEROGATOIRE, FORCE_EXEC, COUT],
   "bail-derogatoire-article-l145-5-code-commerce": [COMMERCIAL, COMMERCIAL_NOTAIRE, FORCE_EXEC, SIMULATEUR],
   "bail-commercial": [COMMERCIAL_NOTAIRE, DEROGATOIRE, FORCE_EXEC, COUT],
-  "location-meublee-ou-location-nue-quelles-differences": [DIAGNOSTICS, OBLIGATIONS, COUT, SIMULATEUR],
+  "location-meublee-ou-location-nue-quelles-differences": [DIAGNOSTICS, PREAVIS, COUT, SIMULATEUR],
+  "preavis-location-1-mois-ou-3-mois": [ETAT_DES_LIEUX, DEPOT_GARANTIE, MEUBLE, SIMULATEUR],
+  "etat-des-lieux-de-sortie": [DEPOT_GARANTIE, PREAVIS, FORCE_EXEC, SIMULATEUR],
+  "revision-loyer-calcul-irl": [DIAGNOSTICS, DEPOT_GARANTIE, OBLIGATIONS, COUT],
+  "depot-de-garantie-location": [ETAT_DES_LIEUX, REVISION_LOYER, SAISIE, SIMULATEUR],
 };
 
 /** Liens contextuels d'un article, en excluant un eventuel auto-lien. */

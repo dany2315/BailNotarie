@@ -53,6 +53,16 @@ export const blogCategories = [
         name: "Bail Notarié",
         slug: "bail-notarie",
     },
+    {
+        id: "2",
+        name: "Fin de bail et litiges",
+        slug: "fin-de-bail-et-litiges",
+    },
+    {
+        id: "3",
+        name: "Loyer et charges",
+        slug: "loyer-et-charges",
+    },
 ]
 
 
@@ -400,5 +410,93 @@ export const blogData = [
         createdAt: new Date("2026-07-19"),
         updatedAt: new Date("2026-07-19"),
         categoryId: "1",
+      },
+      {
+        id: "blog-17",
+        title: "Préavis de location : 1 mois ou 3 mois, quelles règles appliquer ?",
+        slug: "preavis-location-1-mois-ou-3-mois",
+        description:
+          "Préavis de location vide ou meublée, zone tendue, motifs du préavis réduit à 1 mois, date de fin et lettre de congé : les règles 2026 et un calculateur.",
+        content: "",
+        readTime: 7,
+        metaTitle: "Préavis location : 1 ou 3 mois ? Règles 2026",
+        metaDescription: "Préavis location vide ou meublée, zone tendue, motifs du préavis d'1 mois : calculez votre date de fin et obtenez une lettre de congé prête à envoyer.",
+        metaKeywords:
+          "préavis location, préavis 1 mois, préavis 3 mois, préavis zone tendue, préavis location meublée, préavis location vide, préavis 1 mois location, réduction préavis location, lettre préavis location, lettre préavis zone tendue, date fin préavis, préavis logement",
+        imageUrl: "https://images.unsplash.com/photo-1758523671087-b256bbbca475?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1758523671087-b256bbbca475?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Vitaly Gariev",
+            profileUrl: "https://unsplash.com/@silverkblack",
+        },
+        createdAt: new Date("2026-10-12"),
+        updatedAt: new Date("2026-10-12"),
+        categoryId: "2",
+      },
+      {
+        id: "blog-18",
+        title: "État des lieux de sortie : comment éviter les conflits au départ du locataire ?",
+        slug: "etat-des-lieux-de-sortie",
+        description:
+          "État des lieux d'entrée et de sortie : préparation, contenu obligatoire, vétusté ou dégradation, désaccord et effet sur le dépôt de garantie, avec un simulateur de vétusté.",
+        content: "",
+        readTime: 8,
+        metaTitle: "État des lieux de sortie : checklist, vétusté",
+        metaDescription: "État des lieux de sortie : le préparer, distinguer vétusté et dégradation, gérer un désaccord et récupérer son dépôt de garantie. Simulateur inclus.",
+        metaKeywords:
+          "état des lieux, état des lieux de sortie, état des lieux de sortie locataire, état des lieux d'entrée, état des lieux location, vétusté location, grille de vétusté, dégradation logement, litige état des lieux, état des lieux commissaire de justice, retenue dépôt de garantie",
+        imageUrl: "https://images.unsplash.com/photo-1757742690834-aa581b9f53b2?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1757742690834-aa581b9f53b2?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Christian Lue",
+            profileUrl: "https://unsplash.com/@christianlue",
+        },
+        createdAt: new Date("2026-10-12"),
+        updatedAt: new Date("2026-10-12"),
+        categoryId: "2",
+      },
+      {
+        id: "blog-19",
+        title: "Révision du loyer : conditions, calcul et contestation",
+        slug: "revision-loyer-calcul-irl",
+        description:
+          "Révision annuelle du loyer : clause obligatoire, calcul avec l'IRL, délai d'un an, logements DPE F et G et contestation, avec un calculateur basé sur les indices Insee.",
+        content: "",
+        readTime: 7,
+        metaTitle: "Révision loyer 2026 : calcul IRL et simulateur",
+        metaDescription: "Calculez la révision de votre loyer avec les indices IRL de l'Insee : formule, date d'application, délai d'un an, logements F et G et contestation.",
+        metaKeywords:
+          "révision loyer, révision loyer 2026, calcul IRL, calcul IRL simulateur, révision loyer IRL, indice de référence des loyers, augmentation loyer 2026, augmentation de loyer annuelle, révision loyer DPE F G, contester augmentation loyer, indexation loyer habitation",
+        imageUrl: "https://images.unsplash.com/photo-1626266061368-46a8f578ddd6?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1626266061368-46a8f578ddd6?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Towfiqu barbhuiya",
+            profileUrl: "https://unsplash.com/@towfiqu999999",
+        },
+        createdAt: new Date("2026-10-12"),
+        updatedAt: new Date("2026-10-12"),
+        categoryId: "3",
+      },
+      {
+        id: "blog-20",
+        title: "Dépôt de garantie en location : montant, restitution et litiges",
+        slug: "depot-de-garantie-location",
+        description:
+          "Dépôt de garantie : plafond en location vide ou meublée, retenues autorisées, délai de restitution, caution non rendue et pénalité de 10 %, avec un calculateur.",
+        content: "",
+        readTime: 7,
+        metaTitle: "Dépôt de garantie : montant, délai, litiges",
+        metaDescription: "Dépôt de garantie : plafond vide ou meublé, restitution sous 1 ou 2 mois, retenues autorisées, caution non rendue et pénalité de 10 %. Calculateur inclus.",
+        metaKeywords:
+          "dépôt de garantie, dépôt de garantie location, délai restitution caution, restitution dépôt de garantie, caution non rendue, caution non rendue après 2 mois, retenue dépôt de garantie, dépôt de garantie meublé, caution appartement, majoration 10 % dépôt de garantie",
+        imageUrl: "https://images.unsplash.com/photo-1743487014165-c26c868b8186?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1743487014165-c26c868b8186?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Jakub Żerdzicki",
+            profileUrl: "https://unsplash.com/@jakubzerdzicki",
+        },
+        createdAt: new Date("2026-10-12"),
+        updatedAt: new Date("2026-10-12"),
+        categoryId: "2",
       },
 ]
