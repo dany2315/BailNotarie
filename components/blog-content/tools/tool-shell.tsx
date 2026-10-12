@@ -53,8 +53,10 @@ const fieldClass =
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: (id: string) => ReactNode }) {
   const id = useId();
+  // min-w-0 : dans une grille, un enfant ne retrecit pas sous la largeur
+  // naturelle de son champ sans cette regle.
   return (
-    <div>
+    <div className="min-w-0">
       <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-800">
         {label}
       </label>
@@ -100,8 +102,25 @@ export function NumberInput({
   );
 }
 
+/**
+ * Safari iOS donne au champ date natif une largeur intrinseque qui ignore
+ * `width: 100%` et deborde de la carte : on retire l'apparence native, on
+ * autorise le retrecissement et on aligne la valeur a gauche comme les autres
+ * champs.
+ */
+const dateFieldClass =
+  'appearance-none [-webkit-appearance:none] min-w-0 max-w-full text-left [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:min-h-[1.5em]';
+
 export function DateInput({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
-  return <input id={id} type="date" value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass} />;
+  return (
+    <input
+      id={id}
+      type="date"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`${fieldClass} ${dateFieldClass}`}
+    />
+  );
 }
 
 export function SelectInput({
@@ -139,7 +158,7 @@ export function Segmented<T extends string>({
   options: { value: T; label: string }[];
 }) {
   return (
-    <fieldset>
+    <fieldset className="min-w-0">
       <legend className="mb-1.5 block text-sm font-medium text-gray-800">{label}</legend>
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
         {options.map((option) => {
