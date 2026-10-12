@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Copy, Edit, GraduationCap, ListChecks, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, Edit, GraduationCap, ListChecks, Trash2, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import type { BailStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
@@ -18,12 +18,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AssignDossierDialog } from "@/components/notaires/assign-dossier-dialog";
 import { LeaseStatusSelect } from "@/components/leases/lease-status-select";
 import { DeleteLeaseDialog } from "@/components/leases/delete-lease-dialog";
+import { ChangeTenantDialog } from "@/components/leases/change-tenant-dialog";
 import { deleteLease } from "@/lib/actions/leases";
 
 interface BailMoreMenuProps {
   bailId: string;
   status: BailStatus;
   tenant?: { id: string; name: string } | null;
+  /** Dossier pas encore transmis au notaire, avec un locataire : on peut le remplacer. */
+  canChangeTenant?: boolean;
   /** Classes du bouton « Plus » (hauteur alignée sur les autres actions). */
   triggerClassName?: string;
 }
@@ -32,10 +35,11 @@ interface BailMoreMenuProps {
  * Actions rares de la fiche bail, rangées sous « Plus » : aucune n'est
  * retirée, elles cèdent seulement la place au bouton principal.
  */
-export function BailMoreMenu({ bailId, status, tenant, triggerClassName }: BailMoreMenuProps) {
+export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerClassName }: BailMoreMenuProps) {
   const router = useRouter();
   const [assignOpen, setAssignOpen] = React.useState(false);
   const [statusOpen, setStatusOpen] = React.useState(false);
+  const [tenantOpen, setTenantOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<{
@@ -78,6 +82,12 @@ export function BailMoreMenu({ bailId, status, tenant, triggerClassName }: BailM
               Modifier les informations du bail
             </Link>
           </DropdownMenuItem>
+          {canChangeTenant && (
+            <DropdownMenuItem className="min-h-10 cursor-pointer" onSelect={() => setTenantOpen(true)}>
+              <UserCog className="size-4" />
+              Changer de locataire…
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem className="min-h-10 cursor-pointer" onSelect={() => setStatusOpen(true)}>
             <ListChecks className="size-4" />
             Changer le statut manuellement
@@ -124,6 +134,10 @@ export function BailMoreMenu({ bailId, status, tenant, triggerClassName }: BailM
           <LeaseStatusSelect leaseId={bailId} currentStatus={status} className="h-11 w-full" />
         </DialogContent>
       </Dialog>
+
+      {canChangeTenant && (
+        <ChangeTenantDialog open={tenantOpen} onOpenChange={setTenantOpen} bailId={bailId} currentTenant={tenant ?? null} />
+      )}
 
       <AssignDossierDialog open={assignOpen} onOpenChange={setAssignOpen} initialBailId={bailId} />
 

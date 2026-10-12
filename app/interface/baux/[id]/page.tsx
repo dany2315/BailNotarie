@@ -38,6 +38,8 @@ import {
   isActiveStage,
 } from "@/lib/utils/bail-stage";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { BailTermsEditor, type BailTermInput } from "@/components/admin/bail-terms-editor";
 import { assessDpe } from "@/lib/utils/dpe";
 import { DpeEditor } from "@/components/admin/dpe-editor";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
@@ -217,12 +219,19 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
   // Le bail
   const bailMissing = new Set(missingData?.bail.missingFields || []);
+  const dateValue = (date: Date | string | null | undefined) => (date ? format(new Date(date), "yyyy-MM-dd") : "");
   const months = lease.rentAmount > 0 ? Math.round((lease.securityDeposit / lease.rentAmount) * 10) / 10 : null;
   const bailPoints = [
     {
       key: pointKey("bail:type", [lease.bailType, lease.bailFamily, lease.effectiveDate, lease.endDate]),
       label: "Type et durée",
       missing: ["effectiveDate"].filter((f) => bailMissing.has(f)),
+      fields: [
+        { field: "bailType", label: "Type de bail", value: lease.bailType },
+        { field: "bailFamily", label: "Usage", value: lease.bailFamily },
+        { field: "effectiveDate", label: "Date de prise d'effet", value: dateValue(lease.effectiveDate), missing: bailMissing.has("effectiveDate") },
+        { field: "endDate", label: "Date de fin (facultative)", value: dateValue(lease.endDate), optional: true },
+      ] as BailTermInput[],
       text: [
         `${BAIL_TYPE_LABELS[lease.bailType] || lease.bailType} · ${BAIL_FAMILY_LABELS[lease.bailFamily] || lease.bailFamily}`,
         lease.effectiveDate
@@ -234,6 +243,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       key: pointKey("bail:loyer", [lease.rentAmount, lease.monthlyCharges, lease.paymentDay]),
       label: "Loyer et charges",
       missing: ["rentAmount", "paymentDay"].filter((f) => bailMissing.has(f)),
+      fields: [
+        { field: "rentAmount", label: "Loyer hors charges", value: lease.rentAmount > 0 ? String(lease.rentAmount) : "", missing: bailMissing.has("rentAmount") },
+        { field: "monthlyCharges", label: "Charges mensuelles", value: String(lease.monthlyCharges ?? 0) },
+        { field: "paymentDay", label: "Jour de paiement", value: lease.paymentDay ? String(lease.paymentDay) : "", missing: bailMissing.has("paymentDay") },
+      ] as BailTermInput[],
       text: [
         lease.rentAmount > 0
           ? `${formatCurrency(lease.rentAmount)} de loyer + ${formatCurrency(lease.monthlyCharges)} de charges par mois`
@@ -245,6 +259,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       key: pointKey("bail:depot", [lease.securityDeposit, lease.rentAmount, lease.bailType]),
       label: "Dépôt de garantie",
       missing: [...["securityDeposit"].filter((f) => bailMissing.has(f)), ...(depositOk ? [] : ["depositLimit"])],
+      fields: [
+        {
+          field: "securityDeposit",
+          label: "Dépôt de garantie",
+          value: String(lease.securityDeposit ?? 0),
+          missing: bailMissing.has("securityDeposit"),
+          help: lease.rentAmount > 0 ? `Maximum ${formatCurrency(maxDeposit)} (${isMeuble ? "2 mois de loyer, meublé" : "1 mois de loyer, bail nu"})` : undefined,
+        },
+      ] as BailTermInput[],
       text: [
         `${formatCurrency(lease.securityDeposit)}${months !== null ? ` · ${String(months).replace(".", ",")} mois de loyer hors charges` : ""}`,
         depositOk
@@ -262,7 +285,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     verifiedKeys,
     bailLocked,
   );
-  const bailMissingCount = missingData?.bail.missingFields.length || 0;
 
   // Propriétaire et locataire
   const ownerPoints = buildPartyPoints(owner, missingData?.owner || null, commonDocs(ownerClientDocs), "PROPRIETAIRE");
@@ -417,6 +439,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               bailId={lease.id}
               status={lease.status}
               tenant={tenant && tenantName ? { id: tenant.id, name: tenantName } : null}
+              canChangeTenant={!!tenant && !pastVerification}
               triggerClassName="h-11 gap-1.5 px-3 sm:gap-2 sm:px-4"
             />
           </div>
@@ -461,14 +484,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             headerRight={
               <>
                 <StateChip tone={summaryChip(sections[0].summary).tone}>{summaryChip(sections[0].summary).label}</StateChip>
-                {bailMissingCount > 0 && (
-                  <Link
-                    href={`/interface/baux/${lease.id}/edit`}
-                    className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium hover:bg-muted"
-                  >
-                    Compléter
-                  </Link>
-                )}
                 {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={sections[0].summary.pendingKeys} />}
               </>
             }
@@ -489,7 +504,14 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}`
                           : null
                     }
-                    actions={!missing && <VerifyToggle bailId={lease.id} pointKey={point.key} verified={verified} locked={bailLocked} />}
+                    actions={
+                      (!bailLocked || !missing) && (
+                        <>
+                          {!bailLocked && <BailTermsEditor bailId={lease.id} title={point.label} fields={point.fields} />}
+                          {!missing && <VerifyToggle bailId={lease.id} pointKey={point.key} verified={verified} locked={bailLocked} />}
+                        </>
+                      )
+                    }
                   >
                     {point.text.filter(Boolean).join("\n")}
                   </CheckPoint>
