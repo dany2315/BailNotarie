@@ -8,6 +8,7 @@ import { BlogPageClient } from '@/components/blog-page-client'
 import { ArticleSchema } from '@/components/seo/article-schema'
 import { FaqSchema } from '@/components/seo/faq-schema'
 import { BreadcrumbSchema } from '@/components/seo/breadcrumb-schema'
+import { LATEST_IRL, formatIrl } from '@/lib/irl'
 
 // ISR : les articles sont statiques (contenu dans lib/blog-data.ts + composants
 // React figes). Ils sont pre-rendus au build via generateStaticParams et
@@ -304,6 +305,130 @@ function getFaqForSlug(slug: string) {
         question: "Peut-on faire un bail notarié pour une location meublée ou nue ?",
         answer:
           "Oui. Un bail notarié peut être conclu aussi bien pour une location nue que pour une location meublée. Établi sous forme d'acte authentique par un notaire, il bénéficie de la force exécutoire, ce qui facilite notamment le recouvrement des loyers impayés selon les procédures prévues par la loi.",
+      },
+    ];
+  }
+
+  if (slug === "preavis-location-1-mois-ou-3-mois") {
+    return [
+      {
+        question: "Quel est le préavis pour quitter une location ?",
+        answer:
+          "Le préavis du locataire est de 3 mois pour une location vide et de 1 mois pour une location meublée, un bail étudiant ou un bail mobilité. En location vide, il est réduit à 1 mois en zone tendue ou dans les situations prévues par l'article 15 de la loi du 6 juillet 1989.",
+      },
+      {
+        question: "Comment bénéficier d'un préavis d'un mois en location vide ?",
+        answer:
+          "Le logement doit être situé en zone tendue, ou le locataire doit se trouver dans l'un des cas prévus par la loi : premier emploi, mutation, perte d'emploi ou nouvel emploi consécutif à une perte d'emploi, état de santé constaté par certificat médical, bénéfice du RSA ou de l'AAH, attribution d'un logement social ou certaines situations de violences. Le motif doit être indiqué et justifié dans la lettre de congé.",
+      },
+      {
+        question: "Comment savoir si mon logement est en zone tendue ?",
+        answer:
+          "La liste des communes en zone tendue est fixée par décret et a été élargie en 2023. Le simulateur officiel de Service Public permet de vérifier une commune en quelques secondes. Pour bénéficier du préavis d'un mois, mentionnez expressément la zone tendue dans votre lettre.",
+      },
+      {
+        question: "Le préavis commence-t-il à l'envoi ou à la réception de la lettre ?",
+        answer:
+          "À la réception. Le préavis court à partir de la réception effective de la lettre recommandée, de la remise en main propre ou de la signification par commissaire de justice. Une lettre recommandée non retirée et retournée à l'expéditeur ne fait pas courir le délai.",
+      },
+      {
+        question: "Peut-on envoyer son préavis par email ?",
+        answer:
+          "Non, un simple email ne constitue pas un congé valable. La lettre recommandée électronique est possible sous conditions, notamment l'accord préalable du bailleur lorsqu'il est un particulier.",
+      },
+      {
+        question: "Faut-il payer le loyer pendant le préavis si l'on part plus tôt ?",
+        answer:
+          "Oui, le loyer et les charges restent dus jusqu'à la fin du préavis, même si le logement est vide. Le paiement cesse plus tôt si un nouveau locataire entre dans les lieux avec l'accord du bailleur, ou si les parties conviennent par écrit d'une fin anticipée.",
+      },
+    ];
+  }
+
+  if (slug === "etat-des-lieux-de-sortie") {
+    return [
+      {
+        question: "Qui paie l'état des lieux de sortie ?",
+        answer:
+          "Établi par le locataire et le bailleur, il est gratuit. Réalisé par un professionnel mandaté par le bailleur, il ne peut pas être facturé au locataire. S'il est établi par un commissaire de justice faute d'accord, le coût, réglementé, est partagé par moitié.",
+      },
+      {
+        question: "Quelle est la différence entre vétusté et dégradation ?",
+        answer:
+          "La vétusté est l'usure due au temps et à un usage normal : elle ne peut entraîner aucune retenue sur le dépôt de garantie. La dégradation résulte d'un usage anormal ou d'un accident imputable au locataire. Une grille de vétusté convenue au bail aide à chiffrer la part éventuellement due.",
+      },
+      {
+        question: "Que faire en cas de désaccord sur l'état des lieux de sortie ?",
+        answer:
+          "Faites corriger les mentions inexactes avant de signer ou portez des réserves explicites. Si l'état des lieux amiable est impossible, l'une des parties peut faire appel à un commissaire de justice, qui convoque les deux parties au moins 7 jours à l'avance. La commission départementale de conciliation peut aussi être saisie gratuitement.",
+      },
+      {
+        question: "Que se passe-t-il sans état des lieux d'entrée ?",
+        answer:
+          "Le locataire est présumé avoir reçu le logement en bon état et doit le rendre ainsi, sauf preuve contraire. Cette présomption ne joue pas si le bailleur a fait obstacle à l'établissement de l'état des lieux d'entrée.",
+      },
+      {
+        question: "Quel délai pour récupérer le dépôt de garantie après l'état des lieux ?",
+        answer:
+          "Le délai court à la remise des clés : un mois si l'état des lieux de sortie est conforme à celui d'entrée, deux mois s'il y a des différences. Les retenues doivent être justifiées par des devis, factures ou décomptes.",
+      },
+    ];
+  }
+
+  if (slug === "revision-loyer-calcul-irl") {
+    return [
+      {
+        question: "Comment calculer la révision du loyer ?",
+        answer:
+          "Nouveau loyer = loyer mensuel hors charges × nouvel IRL ÷ IRL du même trimestre de l'année précédente. Le trimestre de référence est celui prévu dans la clause de révision du bail ; à défaut, on retient le dernier indice publié à la signature du contrat.",
+      },
+      {
+        question: "Quel est le dernier indice de référence des loyers ?",
+        answer: `Le dernier IRL publié par l'Insee, pour le ${LATEST_IRL.quarter === 1 ? "1er" : `${LATEST_IRL.quarter}e`} trimestre ${LATEST_IRL.year}, s'établit à ${formatIrl(LATEST_IRL.value)} en France métropolitaine. Un nouvel indice est publié chaque trimestre.`,
+      },
+      {
+        question: "Le propriétaire peut-il augmenter le loyer sans clause de révision ?",
+        answer:
+          "Non. La révision annuelle n'est possible que si le bail contient une clause de révision. Sans elle, le loyer ne peut pas être augmenté à ce titre en cours de bail.",
+      },
+      {
+        question: "Une révision de loyer oubliée peut-elle être réclamée rétroactivement ?",
+        answer:
+          "Non. Le bailleur dispose d'un an à compter de la date prévue pour demander la révision, qui prend effet à la date de la demande, sans rattrapage des mois passés. Au-delà d'un an, la révision de l'année écoulée est perdue.",
+      },
+      {
+        question: "Peut-on réviser le loyer d'un logement classé F ou G ?",
+        answer:
+          "Non. La révision est interdite pour les logements classés F ou G au DPE lorsque le bail a été signé, renouvelé ou tacitement reconduit depuis le 24 août 2022 en métropole, ou depuis le 1er juillet 2024 dans les territoires ultramarins concernés.",
+      },
+    ];
+  }
+
+  if (slug === "depot-de-garantie-location") {
+    return [
+      {
+        question: "Quel est le montant maximum du dépôt de garantie ?",
+        answer:
+          "Un mois de loyer hors charges pour une location vide, deux mois pour une location meublée classique. Aucun dépôt de garantie ne peut être demandé dans un bail mobilité. Ce sont des plafonds, pas des montants obligatoires.",
+      },
+      {
+        question: "Quel est le délai de restitution du dépôt de garantie ?",
+        answer:
+          "Un mois à compter de la remise des clés si l'état des lieux de sortie est conforme à celui d'entrée, deux mois s'il présente des différences. En copropriété, une provision justifiée de 20 % au plus peut être conservée jusqu'à l'arrêté annuel des comptes.",
+      },
+      {
+        question: "Que faire si la caution n'est pas rendue après 2 mois ?",
+        answer:
+          "Demandez un décompte écrit, puis adressez une mise en demeure par lettre recommandée avec avis de réception. Le solde dû est majoré de 10 % du loyer mensuel hors charges pour chaque mois de retard commencé. En l'absence d'accord, saisissez un conciliateur ou la commission départementale de conciliation, puis le juge si nécessaire.",
+      },
+      {
+        question: "Quelles retenues le propriétaire peut-il faire sur le dépôt de garantie ?",
+        answer:
+          "Les loyers et charges restant dus et les réparations de dégradations imputables au locataire, sur justificatifs (états des lieux, devis, factures). L'usure normale liée au temps ne peut pas être retenue.",
+      },
+      {
+        question: "Quelle est la différence entre dépôt de garantie et caution ?",
+        answer:
+          "Le dépôt de garantie est une somme versée au bailleur à la signature du bail. La caution est une personne ou un organisme qui s'engage à payer les dettes locatives si le locataire ne le fait pas.",
       },
     ];
   }

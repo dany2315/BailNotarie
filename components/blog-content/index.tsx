@@ -15,6 +15,10 @@ export { Blog13Content } from './blog-13-content';
 export { Blog14Content } from './blog-14-content';
 export { Blog15Content } from './blog-15-content';
 export { Blog16Content } from './blog-16-content';
+export { Blog17Content } from './blog-17-content';
+export { Blog18Content } from './blog-18-content';
+export { Blog19Content } from './blog-19-content';
+export { Blog20Content } from './blog-20-content';
 
 
 

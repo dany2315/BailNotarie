@@ -14,7 +14,7 @@ import { getRelatedLinksWithMedia } from '@/lib/blog-links';
 import { blogData } from '@/lib/blog-data';
 import { ArticleImage } from '@/components/blog/article-image';
 import { RelatedThumbnail } from '@/components/blog/related-thumbnail';
-import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content } from '@/components/blog-content';
+import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content, Blog17Content, Blog18Content, Blog19Content, Blog20Content } from '@/components/blog-content';
 
 type TocItem = {
   id: string;
@@ -46,6 +46,10 @@ const contentComponents: Record<string, React.ComponentType> = {
   'blog-14': Blog14Content,
   'blog-15': Blog15Content,
   'blog-16': Blog16Content,
+  'blog-17': Blog17Content,
+  'blog-18': Blog18Content,
+  'blog-19': Blog19Content,
+  'blog-20': Blog20Content,
 };
 
 const articleExperiences: Record<string, ArticleExperience> = {
@@ -291,6 +295,81 @@ const articleExperiences: Record<string, ArticleExperience> = {
     ],
     ctaLabel: 'Constituer mon dossier de bail notarié',
     ctaDescription: "Que vous louiez vide ou meublé, préparez votre dossier de bail notarié en ligne et sécurisez votre location.",
+  },
+  'blog-17': {
+    quickAnswer: "Le préavis du locataire est de 3 mois pour une location vide et de 1 mois pour une location meublée. En location vide, il passe à 1 mois en zone tendue ou en cas de premier emploi, mutation, perte d'emploi, raison de santé, RSA ou AAH, ou attribution d'un logement social, à condition d'indiquer et de justifier le motif dans la lettre de congé. Le délai court à la réception du courrier.",
+    keyPoints: [
+      "3 mois en vide, 1 mois en meublé, en zone tendue ou avec un motif justifié",
+      "Le délai court à la réception de la lettre, pas à son envoi",
+      "Calculateur de date de fin et lettre de congé pré-remplie",
+    ],
+    toc: [
+      { id: 'duree-preavis', label: '1 mois ou 3 mois ?' },
+      { id: 'calculateur-preavis', label: 'Calculer mon préavis' },
+      { id: 'preavis-zone-tendue', label: 'Zone tendue' },
+      { id: 'motifs-preavis-1-mois', label: 'Motifs de préavis réduit' },
+      { id: 'preavis-location-meublee', label: 'Location meublée' },
+      { id: 'lettre-preavis', label: 'Envoyer sa lettre' },
+      { id: 'date-preavis', label: 'Date de fin du préavis' },
+    ],
+    ctaLabel: 'Préparer mon bail notarié',
+    ctaDescription: "Propriétaire : profitez du préavis pour relouer avec un bail notarié, préparé en ligne.",
+  },
+  'blog-18': {
+    quickAnswer: "L'état des lieux de sortie se fait à la remise des clés et se compare à l'état des lieux d'entrée. Seules les dégradations imputables au locataire peuvent être retenues sur le dépôt de garantie, pas l'usure normale (vétusté). Il ne peut pas être facturé au locataire et, en cas de blocage, un commissaire de justice peut l'établir, à frais partagés.",
+    keyPoints: [
+      "Comparer point par point avec l'état des lieux d'entrée",
+      "Vétusté ou dégradation : simulateur de grille de vétusté",
+      "Désaccord : réserves, commissaire de justice, conciliation",
+    ],
+    toc: [
+      { id: 'etat-des-lieux-entree-sortie', label: 'Entrée et sortie' },
+      { id: 'preparer-etat-des-lieux', label: 'Préparer la sortie' },
+      { id: 'contenu-etat-des-lieux', label: 'Contenu obligatoire' },
+      { id: 'vetuste-degradation', label: 'Vétusté ou dégradation' },
+      { id: 'simulateur-vetuste', label: 'Simulateur de vétusté' },
+      { id: 'litige-etat-des-lieux', label: 'En cas de désaccord' },
+      { id: 'depot-de-garantie', label: 'Effet sur le dépôt' },
+    ],
+    ctaLabel: 'Constituer mon dossier',
+    ctaDescription: "Pour votre prochaine location, préparez un bail notarié en ligne avec un dossier complet.",
+  },
+  'blog-19': {
+    quickAnswer: "Le loyer peut être révisé une fois par an seulement si le bail contient une clause de révision. Nouveau loyer = loyer hors charges × nouvel IRL ÷ IRL du même trimestre de l'année précédente. Le bailleur a un an pour la demander, sans effet rétroactif, et la révision est interdite pour les logements classés F ou G.",
+    keyPoints: [
+      "Clause de révision obligatoire, une fois par an",
+      "Calculateur avec les indices IRL officiels de l'Insee",
+      "Pas de rattrapage rétroactif, révision gelée en DPE F et G",
+    ],
+    toc: [
+      { id: 'conditions-revision', label: 'Conditions' },
+      { id: 'irl', label: 'L’indice IRL' },
+      { id: 'calculateur-irl', label: 'Calculer ma révision' },
+      { id: 'calcul-revision', label: 'La formule' },
+      { id: 'revision-oubliee', label: 'Hausse oubliée' },
+      { id: 'dpe-f-g', label: 'Logements F et G' },
+      { id: 'contester-augmentation', label: 'Contester' },
+    ],
+    ctaLabel: 'Préparer mon bail notarié',
+    ctaDescription: "Une clause de révision vérifiée par le notaire, et un titre exécutoire en cas d'impayé.",
+  },
+  'blog-20': {
+    quickAnswer: "Le dépôt de garantie est plafonné à 1 mois de loyer hors charges en location vide et à 2 mois en meublé ; il est interdit en bail mobilité. Il doit être restitué dans le mois suivant la remise des clés si l'état des lieux est conforme, dans les 2 mois sinon. Chaque mois de retard commencé majore le solde de 10 % du loyer.",
+    keyPoints: [
+      "Plafond : 1 mois en vide, 2 mois en meublé",
+      "Restitution sous 1 ou 2 mois après la remise des clés",
+      "Calculateur de plafond, de date limite et de pénalité",
+    ],
+    toc: [
+      { id: 'depot-ou-caution', label: 'Dépôt ou caution ?' },
+      { id: 'montant-depot', label: 'Montant maximal' },
+      { id: 'calculateur-depot-garantie', label: 'Calculateur' },
+      { id: 'retenues', label: 'Retenues autorisées' },
+      { id: 'delai-restitution', label: 'Délai de restitution' },
+      { id: 'caution-non-rendue', label: 'Caution non rendue' },
+    ],
+    ctaLabel: 'Préparer mon bail notarié',
+    ctaDescription: "Le dépôt couvre un ou deux mois : le bail notarié protège vos loyers au-delà.",
   },
 };
 
