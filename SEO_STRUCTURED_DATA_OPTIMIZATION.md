@@ -49,7 +49,7 @@ Implémenter le schéma de données structurées "SoftwareApplication" pour affi
     "reviewCount": 2000
   },
   "contactPoint": {
-    "telephone": "+33749387756",
+    "telephone": "+33768098624",
     "email": "contact@bailnotarie.fr"
   }
 }

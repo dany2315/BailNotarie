@@ -82,11 +82,11 @@ export function LpFinalCta() {
               )}
             </WithDossierCta>
             <a
-              href="tel:0749387756"
+              href="tel:0768098624"
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-8 py-4 text-base font-semibold text-white backdrop-blur transition-colors hover:bg-white/20"
             >
               <Phone className="h-4.5 w-4.5" />
-              07 49 38 77 56
+              07 68 09 86 24
             </a>
           </div>
 

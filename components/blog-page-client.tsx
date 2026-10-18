@@ -686,7 +686,7 @@ export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) 
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 sm:self-end">
                     <a
-                      href="tel:0749387756"
+                      href="tel:0768098624"
                       className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50 transition-colors"
                     >
                       <PhoneCall className="mr-2 h-4 w-4" />
@@ -731,7 +731,7 @@ export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) 
                     {articleExperience.ctaLabel || 'Créer mon bail notarié'}
                   </Link>
                   <a
-                    href="tel:0749387756"
+                    href="tel:0768098624"
                     className="inline-flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50 transition-colors"
                   >
                     <PhoneCall className="mr-2 h-4 w-4" />
@@ -817,7 +817,7 @@ export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) 
             
             <div className="flex items-center gap-2 shrink-0">
               <a
-                href="tel:0749387756"
+                href="tel:0768098624"
                 className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800"
                 aria-label="Appeler maintenant"
               >

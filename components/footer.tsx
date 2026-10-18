@@ -53,9 +53,9 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">Contact</h3>
             <div className="space-y-3 text-sm text-gray-400">
-              <Button variant="link" className="flex h-auto max-w-full items-center justify-start space-x-2 px-0 text-white cursor-pointer" onClick={() => window.open('tel:0749387756', '_blank')}>
+              <Button variant="link" className="flex h-auto max-w-full items-center justify-start space-x-2 px-0 text-white cursor-pointer" onClick={() => window.open('tel:0768098624', '_blank')}>
                 <Phone className="h-4 w-4 shrink-0" />
-                <span>07 49 38 77 56</span>
+                <span>07 68 09 86 24</span>
               </Button>
               {/* h-auto + px-0 + break-all : sans cela, l'adresse e-mail ne peut
                   pas rétrécir dans sa colonne et déborde la page entre 640 et

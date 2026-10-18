@@ -339,7 +339,7 @@ export default function MailConfirmation({
               lineHeight: "1.6",
               margin: "0 0 32px 0"
             }}>
-              En attendant notre retour, n'hésitez pas à nous contacter directement au <strong>07 49 38 77 56</strong> pour toute question urgente.
+              En attendant notre retour, n'hésitez pas à nous contacter directement au <strong>07 68 09 86 24</strong> pour toute question urgente.
             </Text>
 
             {/* CTA principal */}
@@ -389,7 +389,7 @@ export default function MailConfirmation({
               fontSize: "12px",
               margin: "0 0 8px 0"
             }}>
-              <Link href="tel:+33749387756" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 49 38 77 56</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
+              <Link href="tel:+33768098624" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 68 09 86 24</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
             </Text>
             <Text style={{ 
               color: "#9ca3af",

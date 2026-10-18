@@ -188,7 +188,7 @@ export function ProcessSection() {
 
                 {activeStep === 4 && (
                   <Button 
-                    onClick={() => window.location.href = 'tel:0749387756'}
+                    onClick={() => window.location.href = 'tel:0768098624'}
                     className="bg-blue-600 hover:bg-blue-700 cursor-pointer"
                   >
                     <Phone className="mr-2 h-4 w-4" />
@@ -265,7 +265,7 @@ export function ProcessSection() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button 
-                onClick={() => window.location.href = 'tel:0749387756'}
+                onClick={() => window.location.href = 'tel:0768098624'}
                 className="bg-green-600 hover:bg-green-700 cursor-pointer"
               >
                 <Phone className="mr-2 h-4 w-4" />

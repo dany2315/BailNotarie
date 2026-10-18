@@ -119,7 +119,7 @@ export function HowItWorksSection() {
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <PhoneButton
-              phoneNumber="07 49 38 77 56"
+              phoneNumber="07 68 09 86 24"
               size="lg"
               className="sm:text-lg text-md px-8 py-3 h-auto border-2 border-blue-200/60 bg-white shadow-md text-[#4373f5] rounded-xl hover:bg-blue-100 transition-all duration-200"
             />

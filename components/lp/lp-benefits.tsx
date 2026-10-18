@@ -232,10 +232,10 @@ export function LpBenefits() {
                   Une équipe joignable par téléphone à chaque étape de votre démarche de bail authentifié.
                 </p>
                 <a
-                  href="tel:0749387756"
+                  href="tel:0768098624"
                   className="mt-6 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13.5px] font-semibold text-slate-700 transition-colors hover:border-[#4373f5]/30 hover:text-[#3563e9]"
                 >
-                  07 49 38 77 56
+                  07 68 09 86 24
                 </a>
               </SpotlightCard>
             </Tilt3D>

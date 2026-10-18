@@ -162,7 +162,7 @@ export function PartnershipSection() {
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
                 <PhoneButton
-                  phoneNumber="07 49 38 77 56"
+                  phoneNumber="07 68 09 86 24"
                   size="lg"
                   className="text-lg px-8 py-6  bg-white/10 hover:bg-white/20 text-white border-2 border-white/30 shadow-lg hover:shadow-xl transition-all duration-300"
                 />

@@ -62,7 +62,7 @@ export function CTAFinalSection() {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <PhoneButton
-                phoneNumber="07 49 38 77 56"
+                phoneNumber="07 68 09 86 24"
                 size="lg"
                 className="text-lg px-8 py-6 h-auto border-2"
               />

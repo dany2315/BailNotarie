@@ -224,11 +224,11 @@ export function LpFaq() {
             </div>
             <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
               <a
-                href="tel:0749387756"
+                href="tel:0768098624"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[14.5px] font-semibold text-slate-700 transition-colors hover:border-[#4373f5]/30 hover:text-[#3563e9]"
               >
                 <Phone className="h-4 w-4 text-[#4373f5]" />
-                07 49 38 77 56
+                07 68 09 86 24
               </a>
               <Link
                 href="#contact"

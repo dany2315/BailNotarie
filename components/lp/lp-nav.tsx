@@ -24,7 +24,7 @@ const LINKS = [
 
 const isPage = (href: string) => href.startsWith("/");
 
-const PHONE = "07 49 38 77 56";
+const PHONE = "07 68 09 86 24";
 const PHONE_HREF = `tel:${PHONE.replace(/\s/g, "")}`;
 
 /**
