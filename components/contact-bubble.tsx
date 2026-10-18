@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-const CONTACT_PHONE = "0749387756";
-const CONTACT_PHONE_DISPLAY = "07 49 38 77 56";
+const CONTACT_PHONE = "0768098624";
+const CONTACT_PHONE_DISPLAY = "07 68 09 86 24";
 const CONTACT_EMAIL = "contact@bailnotarie.fr";
 const MIN_KEY = "bn-contact-bubble-minimized";
 const POS_KEY = "bn-contact-bubble-pos";

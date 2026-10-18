@@ -31,7 +31,7 @@ export function OrganizationSchema({
   url = "https://www.bailnotarie.fr",
   logo = "https://www.bailnotarie.fr/logoSans.png",
   image = "https://www.bailnotarie.fr/og-cover-v2.png",
-  telephone = "+33749387756",
+  telephone = "+33768098624",
   email = "contact@bailnotarie.fr",
   address = {
     addressCountry: "FR"

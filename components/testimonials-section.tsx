@@ -216,7 +216,7 @@ export function TestimonialsSection() {
               Plus de 200 propriétaires nous font déjà confiance pour sécuriser leurs locations
             </p>
             <Button 
-              onClick={() => window.location.href = 'tel:0749387756'}
+              onClick={() => window.location.href = 'tel:0768098624'}
               className="bg-orange-600 hover:bg-orange-700 w-full sm:w-auto px-8 py-3 text-lg cursor-pointer"
             >
               <Phone className="mr-2 h-5 w-5" />

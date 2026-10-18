@@ -8,7 +8,7 @@ export function CallButton() {
     <Button 
       variant="outline"
       className="text-[#4373f5] w-full space-x-2"
-      onClick={() => window.location.href = 'tel:0749387756'}
+      onClick={() => window.location.href = 'tel:0768098624'}
     >
       <Phone className="size-4" />
       <span>Appeler maintenant</span>

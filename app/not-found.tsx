@@ -138,9 +138,9 @@ export default function NotFound() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild variant="outline" className="bg-blue-600 text-white hover:bg-blue-700">
-                <Link href="tel:0749387756" className="flex items-center gap-2">
+                <Link href="tel:0768098624" className="flex items-center gap-2">
                   <Phone className="h-4 w-4" />
-                  07 49 38 77 56
+                  07 68 09 86 24
                 </Link>
               </Button>
               <Button asChild variant="outline" className="bg-white hover:bg-blue-50">

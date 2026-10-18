@@ -192,7 +192,7 @@ export function Header() {
                 </Link>
               </Button>
             )}
-            <PhoneButton withLabel={false} size="sm" phoneNumber="07 49 38 77 56" className="sm:text-lg text-md px-5 py-3 h-auto border-2 border-blue-200/60 bg-background shadow-md text-[#4373f5] rounded-xl hover:bg-blue-200 transition-all duration-200" />
+            <PhoneButton withLabel={false} size="sm" phoneNumber="07 68 09 86 24" className="sm:text-lg text-md px-5 py-3 h-auto border-2 border-blue-200/60 bg-background shadow-md text-[#4373f5] rounded-xl hover:bg-blue-200 transition-all duration-200" />
           </div>
 
           {/* Menu Mobile avec Sheet */}
@@ -355,7 +355,7 @@ export function Header() {
                             variant="outline" 
                             className="w-full flex items-center justify-start space-x-3 text-left h-auto py-3"
                             onClick={() => {
-                              window.open("tel:0749387756", "_blank");
+                              window.open("tel:0768098624", "_blank");
                             }}
                           >
                             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
@@ -363,7 +363,7 @@ export function Header() {
                             </div>
                             <div className="flex flex-col">
                               <span className="font-medium text-gray-900">Téléphone</span>
-                              <span className="text-sm text-gray-600">07 49 38 77 56</span>
+                              <span className="text-sm text-gray-600">07 68 09 86 24</span>
                               <span className="text-xs text-gray-500 mt-1">Lun-Ven 9h-18h</span>
                             </div>
                           </Button>

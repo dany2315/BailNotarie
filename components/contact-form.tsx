@@ -190,7 +190,7 @@ export function ContactForm() {
               </div>
               <div>
                 <p className="font-medium text-gray-900">Téléphone</p>
-                <Button variant="link" className="text-gray-600 cursor-pointer pl-0" onClick={() => window.open('tel:0749387756', '_blank')}>07 49 38 77 56</Button>
+                <Button variant="link" className="text-gray-600 cursor-pointer pl-0" onClick={() => window.open('tel:0768098624', '_blank')}>07 68 09 86 24</Button>
                 <p className="text-sm text-gray-500">Lun-Ven 9h-18h</p>
               </div>
             </div>
@@ -210,7 +210,7 @@ export function ContactForm() {
 
           <div className="mt-8 pt-6 border-t">
             <PhoneButton 
-              phoneNumber="07 49 38 77 56" 
+              phoneNumber="07 68 09 86 24" 
               className="w-full text-lg py-3 cursor-pointer"
             />
           </div>
