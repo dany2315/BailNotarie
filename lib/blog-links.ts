@@ -150,11 +150,11 @@ const DEPOT_GARANTIE: BlogLink = {
  * Trois a quatre destinations par article, choisies pour leur proximite de sujet.
  */
 export const BLOG_RELATED_LINKS: Record<string, BlogLink[]> = {
-  "bail-notarie-quest-ce-que-cest-et-pourquoi-le-choisir": [COUT, SIMULATEUR, ETAPES, FORCE_EXEC],
+  "bail-notarie-quest-ce-que-cest-et-pourquoi-le-choisir": [COUT, SIMULATEUR, ETAPES, DEPOT_GARANTIE],
   "les-etapes-pour-etablir-un-bail-notarie-guide-complet": [COUT, SIMULATEUR, DISTANCE, OBLIGATIONS],
   "force-executoire-lavantage-majeur-du-bail-notarie": [EXPULSION, SAISIE, COMPARATIF, COUT],
   "bail-notarie-vs-bail-classique-analyse-comparative": [COUT, SIMULATEUR, FORCE_EXEC, DEFINITION],
-  "les-obligations-legales-dans-un-bail-notarie": [DEFINITION, ETAPES, DIAGNOSTICS, COUT],
+  "les-obligations-legales-dans-un-bail-notarie": [DEFINITION, DIAGNOSTICS, REVISION_LOYER, DEPOT_GARANTIE],
   "cout-dun-bail-de-location-notarie-tarifs-partage-des-frais-et-exemples-concrets": [
     SIMULATEUR,
     AUTHENTIQUE,
@@ -185,7 +185,7 @@ export const BLOG_RELATED_LINKS: Record<string, BlogLink[]> = {
   "bail-commercial-notarie-contrat-3-6-9": [COMMERCIAL, DEROGATOIRE, FORCE_EXEC, COUT],
   "bail-derogatoire-article-l145-5-code-commerce": [COMMERCIAL, COMMERCIAL_NOTAIRE, FORCE_EXEC, SIMULATEUR],
   "bail-commercial": [COMMERCIAL_NOTAIRE, DEROGATOIRE, FORCE_EXEC, COUT],
-  "location-meublee-ou-location-nue-quelles-differences": [DIAGNOSTICS, PREAVIS, COUT, SIMULATEUR],
+  "location-meublee-ou-location-nue-quelles-differences": [DIAGNOSTICS, PREAVIS, ETAT_DES_LIEUX, SIMULATEUR],
   "preavis-location-1-mois-ou-3-mois": [ETAT_DES_LIEUX, DEPOT_GARANTIE, MEUBLE, SIMULATEUR],
   "etat-des-lieux-de-sortie": [DEPOT_GARANTIE, PREAVIS, FORCE_EXEC, SIMULATEUR],
   "revision-loyer-calcul-irl": [DIAGNOSTICS, DEPOT_GARANTIE, OBLIGATIONS, COUT],
