@@ -1,7 +1,8 @@
 /**
  * Indice de reference des loyers (IRL), France metropolitaine.
  *
- * Source : Insee, repris par l'ANIL (tableau de l'IRL). Un nouvel indice est
+ * Source : Insee, https://www.insee.fr/fr/statistiques/9081853 (T3 2026).
+ * Un nouvel indice est
  * publie chaque trimestre (mi-janvier, mi-avril, mi-juillet, mi-octobre) :
  * ajouter la ligne en tete de liste et mettre a jour IRL_LAST_PUBLICATION.
  * Le calculateur de l'article "Revision du loyer" lit uniquement ce fichier.
@@ -16,9 +17,10 @@ export interface IrlValue {
 }
 
 /** Date de publication Insee du dernier indice de la liste. */
-export const IRL_LAST_PUBLICATION = "2026-07-10";
+export const IRL_LAST_PUBLICATION = "2026-10-15";
 
 export const IRL_SERIES: IrlValue[] = [
+  { year: 2026, quarter: 3, value: 148.06 },
   { year: 2026, quarter: 2, value: 148.37 },
   { year: 2026, quarter: 1, value: 146.6 },
   { year: 2025, quarter: 4, value: 145.78 },
