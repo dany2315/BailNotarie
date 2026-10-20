@@ -420,7 +420,7 @@ export const blogData = [
         content: "",
         readTime: 7,
         metaTitle: "Préavis location : 1 ou 3 mois ? Règles 2026",
-        metaDescription: "Préavis location vide ou meublée, zone tendue, motifs du préavis d'1 mois : calculez votre date de fin et obtenez une lettre de congé prête à envoyer.",
+        metaDescription: "Préavis du locataire : 1 ou 3 mois ? Vérifiez le délai, calculez la date de fin et préparez l'état des lieux et la relocation de votre logement.",
         metaKeywords:
           "préavis location, préavis 1 mois, préavis 3 mois, préavis zone tendue, préavis location meublée, préavis location vide, préavis 1 mois location, réduction préavis location, lettre préavis location, lettre préavis zone tendue, date fin préavis, préavis logement",
         imageUrl: "https://images.unsplash.com/photo-1758523671087-b256bbbca475?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
@@ -430,7 +430,7 @@ export const blogData = [
             profileUrl: "https://unsplash.com/@silverkblack",
         },
         createdAt: new Date("2026-10-12"),
-        updatedAt: new Date("2026-10-12"),
+        updatedAt: new Date("2026-10-20"),
         categoryId: "2",
       },
       {
@@ -442,7 +442,7 @@ export const blogData = [
         content: "",
         readTime: 8,
         metaTitle: "État des lieux de sortie : checklist, vétusté",
-        metaDescription: "État des lieux de sortie : le préparer, distinguer vétusté et dégradation, gérer un désaccord et récupérer son dépôt de garantie. Simulateur inclus.",
+        metaDescription: "Propriétaire : préparez l'état des lieux de sortie, distinguez vétusté et dégradations et justifiez vos retenues. Checklist et simulateur de vétusté.",
         metaKeywords:
           "état des lieux, état des lieux de sortie, état des lieux de sortie locataire, état des lieux d'entrée, état des lieux location, vétusté location, grille de vétusté, dégradation logement, litige état des lieux, état des lieux commissaire de justice, retenue dépôt de garantie",
         imageUrl: "https://images.unsplash.com/photo-1757742690834-aa581b9f53b2?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
@@ -452,7 +452,7 @@ export const blogData = [
             profileUrl: "https://unsplash.com/@christianlue",
         },
         createdAt: new Date("2026-10-12"),
-        updatedAt: new Date("2026-10-12"),
+        updatedAt: new Date("2026-10-20"),
         categoryId: "2",
       },
       {
@@ -464,7 +464,7 @@ export const blogData = [
         content: "",
         readTime: 7,
         metaTitle: "Révision loyer 2026 : calcul IRL et simulateur",
-        metaDescription: "Calculez la révision de votre loyer avec les indices IRL de l'Insee : formule, date d'application, délai d'un an, logements F et G et contestation.",
+        metaDescription: "Propriétaire : calculez la révision du loyer avec les indices IRL Insee, dont le T3 2026. Clause du bail, date d'effet, délai et restrictions DPE.",
         metaKeywords:
           "révision loyer, révision loyer 2026, calcul IRL, calcul IRL simulateur, révision loyer IRL, indice de référence des loyers, augmentation loyer 2026, augmentation de loyer annuelle, révision loyer DPE F G, contester augmentation loyer, indexation loyer habitation",
         imageUrl: "https://images.unsplash.com/photo-1626266061368-46a8f578ddd6?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
@@ -474,7 +474,7 @@ export const blogData = [
             profileUrl: "https://unsplash.com/@towfiqu999999",
         },
         createdAt: new Date("2026-10-12"),
-        updatedAt: new Date("2026-10-12"),
+        updatedAt: new Date("2026-10-20"),
         categoryId: "3",
       },
       {
@@ -486,7 +486,7 @@ export const blogData = [
         content: "",
         readTime: 7,
         metaTitle: "Dépôt de garantie : montant, délai, litiges",
-        metaDescription: "Dépôt de garantie : plafond vide ou meublé, restitution sous 1 ou 2 mois, retenues autorisées, caution non rendue et pénalité de 10 %. Calculateur inclus.",
+        metaDescription: "Dépôt de garantie : quel montant demander, quelles retenues justifier et quand restituer le solde ? Guide propriétaire et calculateur de délai.",
         metaKeywords:
           "dépôt de garantie, dépôt de garantie location, délai restitution caution, restitution dépôt de garantie, caution non rendue, caution non rendue après 2 mois, retenue dépôt de garantie, dépôt de garantie meublé, caution appartement, majoration 10 % dépôt de garantie",
         imageUrl: "https://images.unsplash.com/photo-1743487014165-c26c868b8186?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
@@ -496,7 +496,7 @@ export const blogData = [
             profileUrl: "https://unsplash.com/@jakubzerdzicki",
         },
         createdAt: new Date("2026-10-12"),
-        updatedAt: new Date("2026-10-12"),
+        updatedAt: new Date("2026-10-20"),
         categoryId: "2",
       },
 ]
