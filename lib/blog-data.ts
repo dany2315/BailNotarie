@@ -430,7 +430,7 @@ export const blogData = [
             profileUrl: "https://unsplash.com/@silverkblack",
         },
         createdAt: new Date("2026-10-12"),
-        updatedAt: new Date("2026-10-20"),
+        updatedAt: new Date("2026-10-12"),
         categoryId: "2",
       },
       {
@@ -452,7 +452,7 @@ export const blogData = [
             profileUrl: "https://unsplash.com/@christianlue",
         },
         createdAt: new Date("2026-10-12"),
-        updatedAt: new Date("2026-10-20"),
+        updatedAt: new Date("2026-10-12"),
         categoryId: "2",
       },
       {
@@ -496,7 +496,7 @@ export const blogData = [
             profileUrl: "https://unsplash.com/@jakubzerdzicki",
         },
         createdAt: new Date("2026-10-12"),
-        updatedAt: new Date("2026-10-20"),
+        updatedAt: new Date("2026-10-12"),
         categoryId: "2",
       },
 ]
