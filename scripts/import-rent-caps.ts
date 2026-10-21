@@ -29,6 +29,12 @@ interface TerritoryFile {
   source: { title: string; url: string; geometry?: string };
   simulatorUrl?: string;
   mapUrl?: string;
+  /** Communes entièrement dans une zone (code INSEE → zone), sans contour. */
+  communeZones?: Record<string, string>;
+  /** Communes encadrées en partie : hors des contours, le logement n'est pas concerné. */
+  partialInseeCodes?: string[];
+  /** Contours relevés sur une carte : distance (m) sous laquelle la zone est à confirmer. */
+  precisionM?: number;
   zones: Array<{ code: string; label: string }>;
   areas: Array<{ zone: string; label: string; geometry: Geometry }>;
   references: Array<{
@@ -62,6 +68,14 @@ function check(file: TerritoryFile) {
   const zones = new Set(file.zones.map((z) => z.code));
   const periods = new Set(file.periods ?? DEFAULT_PERIODS);
   for (const area of file.areas) if (!zones.has(area.zone)) throw new Error(`${file.id} : contour hors zone ${area.zone}`);
+  for (const [insee, zone] of Object.entries(file.communeZones ?? {})) {
+    if (!zones.has(zone)) throw new Error(`${file.id} : commune ${insee} hors zone ${zone}`);
+    if (!file.inseeCodes.includes(insee)) throw new Error(`${file.id} : commune ${insee} absente du territoire`);
+  }
+  for (const insee of file.partialInseeCodes ?? []) {
+    if (!file.inseeCodes.includes(insee)) throw new Error(`${file.id} : commune partielle ${insee} absente du territoire`);
+    if (file.communeZones?.[insee]) throw new Error(`${file.id} : commune ${insee} à la fois entière et partielle`);
+  }
   for (const r of file.references) {
     if (!zones.has(r.zone)) throw new Error(`${file.id} : référence hors zone ${r.zone}`);
     if (!periods.has(r.period)) throw new Error(`${file.id} : époque inconnue ${r.period}`);
@@ -104,6 +118,9 @@ async function main() {
             geometrySource: file.source.geometry ?? null,
             simulatorUrl: file.simulatorUrl ?? null,
             mapUrl: file.mapUrl ?? null,
+            communeZones: file.communeZones ?? Prisma.DbNull,
+            partialInseeCodes: file.partialInseeCodes ?? [],
+            precisionM: file.precisionM ?? null,
           },
         });
         if (file.zones.length) {

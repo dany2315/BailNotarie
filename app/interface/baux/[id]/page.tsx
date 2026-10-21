@@ -13,9 +13,9 @@ import { BailMoreMenu } from "@/components/leases/bail-more-menu";
 import { SendToNotaryButton } from "@/components/leases/send-to-notary-dialog";
 import { RemindButton, ReminderCard } from "@/components/reminders/remind-button";
 import { getReminderPanel } from "@/lib/actions/reminders";
-import { assessRentCap, rentCapOverLines } from "@/lib/rent-cap";
-import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
-import { RentCapEditor, RentCapNotifyButton, RentSupplementButton } from "@/components/admin/rent-cap-editor";
+import { assessRentCap, describeRentCapZone, rentCapBlocking, rentCapOverLines } from "@/lib/rent-cap";
+import { EXEMPTION_LABELS, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
+import { RentCapEditor, RentCapExemptionButton, RentCapNotifyButton, RentSupplementButton } from "@/components/admin/rent-cap-editor";
 import { intakeSummary } from "@/lib/utils/intake-summary";
 import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, withVerified } from "@/components/admin/party-check-section";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
@@ -302,10 +302,13 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   // Plafond de loyer : calculé selon l'arrêté d'encadrement en vigueur dans la commune du bien.
   const rentCap = property ? await assessRentCap({ property, bail: lease }) : null;
   const rentCapLines = rentCap ? rentCapOverLines(rentCap) : null;
-  // Calcul conforme (ou commune hors encadrement) : point contrôlé automatiquement.
+  // Contrôlé automatiquement : loyer conforme à l'arrêté applicable, ou pas de plafond (commune non encadrée,
+  // hors périmètre, bail commercial, logement exclu). Adresse non localisée ou bail hors période : à la main.
   const capAuto =
-    !!rentCap && ((rentCap.status === "ok" && !rentCap.outsideValidity) || (rentCap.status === "not_concerned" && !!property?.inseeCode));
-  const capMissing = !property || !!rentCap && (rentCap.status === "missing" || (rentCap.status === "over" && !rentCap.supplement));
+    !!rentCap &&
+    ((rentCap.status === "ok" && rentCap.validity === "in") ||
+      (rentCap.status === "not_concerned" && rentCap.notConcerned !== "no_address"));
+  const capMissing = !property || (!!rentCap && rentCapBlocking(rentCap));
   const rulesPoints = [
     {
       key: pointKey("rules:plafond", [
@@ -317,6 +320,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         property?.constructionPeriod || null,
         lease.bailType,
         lease.rentSupplementReason || null,
+        lease.rentCapExemption || null,
+        lease.effectiveDate ? new Date(lease.effectiveDate).toISOString().slice(0, 10) : null,
       ]),
       label: "Plafond de loyer",
     },
@@ -719,20 +724,29 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     : rentCap.status === "missing"
                       ? `À saisir : ${rentCap.missing.join(", ")}`
                       : rentCap.status === "over" && !rentCap.supplement
-                        ? `Au-dessus du plafond de ${formatCurrency(rentCap.overBy ?? 0)} par mois : à corriger, ou complément de loyer à justifier`
+                        ? rentCap.validity === "in"
+                          ? `Au-dessus du plafond de ${formatCurrency(rentCap.overBy ?? 0)} par mois : à corriger, ou complément de loyer à justifier`
+                          : `Au-dessus du plafond de cet arrêté de ${formatCurrency(rentCap.overBy ?? 0)} par mois : vérifiez l'arrêté applicable à la date du bail`
                         : null
                 }
                 actions={
                   <>
-                    {property && rentCap?.territory && rentCap.status !== "no_data" && !bailLocked && (
+                    {property && rentCap?.territory && rentCap.status !== "no_data" && rentCap.notConcerned !== "exempt" && !bailLocked && (
                       <RentCapEditor
                         propertyId={property.id}
                         periods={rentCap.territory.periods}
                         zones={rentCap.territory.zones}
                         zoneMode={rentCap.territory.zoneMode}
-                        detectedZone={rentCap.zone?.source === "map" ? rentCap.zone.label : null}
+                        detectedZone={rentCap.zone && rentCap.zone.source !== "manual" ? rentCap.zone.label : null}
+                        allowOutside={rentCap.territory.partialCommune}
+                        zoneHint={
+                  rentCap.zoneHint ? (rentCap.zoneHint.kind === "limit" ? rentCap.zoneHint.label : `${rentCap.zoneHint.label} ou hors du périmètre`) : null
+                }
                         values={{ mainRooms: property.mainRooms, constructionPeriod: property.constructionPeriod, rentCapZone: property.rentCapZone }}
                       />
+                    )}
+                    {rentCap?.territory && !bailLocked && (
+                      <RentCapExemptionButton bailId={lease.id} exemption={lease.rentCapExemption} note={lease.rentCapExemptionNote} />
                     )}
                     {rentCap?.status === "over" && !bailLocked && rentCapLines && (
                       <RentCapNotifyButton
@@ -756,7 +770,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 }
               >
                 <span className="flex flex-col gap-1">
-                  {!rentCap || rentCap.status === "not_concerned" ? (
+                  {!rentCap || !rentCap.territory ? (
                     <>
                       <span>
                         {lease.rentAmount > 0
@@ -764,18 +778,34 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           : "Loyer non renseigné."}
                       </span>
                       <span className="text-muted-foreground">
-                        {property?.inseeCode
-                          ? "Commune non soumise à l'encadrement des loyers : pas de plafond à respecter."
-                          : "Adresse non localisée : vérifiez si la commune est soumise à l'encadrement des loyers."}
+                        {rentCap?.notConcerned === "commercial"
+                          ? "Bail commercial : l'encadrement des loyers ne s'applique pas."
+                          : property?.inseeCode
+                            ? "Commune non soumise à l'encadrement des loyers : pas de plafond à respecter."
+                            : "Adresse non localisée : vérifiez si la commune est soumise à l'encadrement des loyers."}
                       </span>
                     </>
                   ) : (
                     <>
+                      <span>
+                        {rentCap.territory.label}
+                        {rentCap.status !== "no_data" && rentCap.notConcerned !== "exempt" ? ` · ${describeRentCapZone(rentCap)}` : ""}
+                      </span>
+                      {rentCap.notConcerned === "exempt" && (
+                        <span className="font-semibold text-amber-800">
+                          Logement exclu de l&apos;encadrement : {EXEMPTION_LABELS[rentCap.exemption?.code || ""] || rentCap.exemption?.code}
+                          {rentCap.exemption?.note ? ` (${rentCap.exemption.note})` : ""}
+                          {lease.rentCapExemptionAt ? `, indiqué le ${formatDate(lease.rentCapExemptionAt)}` : ""}
+                          {lease.rentCapExemptionByName ? ` par ${lease.rentCapExemptionByName}` : ""}. Pas de plafond à respecter.
+                        </span>
+                      )}
+                      {rentCap.notConcerned === "outside_perimeter" && (
+                        <span className="text-muted-foreground">
+                          Commune encadrée en partie seulement : ce logement n&apos;a pas de plafond à respecter.
+                        </span>
+                      )}
                       {rentCap.status === "no_data" && (
                         <>
-                          <span>
-                            {rentCap.territory?.label} : commune soumise à l'encadrement des loyers.
-                          </span>
                           <span>
                             {lease.rentAmount > 0 && surface
                               ? `Loyer : ${formatCurrency(lease.rentAmount)} hors charges, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m².`
@@ -786,25 +816,17 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           </span>
                         </>
                       )}
-                      {rentCap.status !== "no_data" && (
-                      <>
-                      <span>
-                        {rentCap.territory?.label}
-                        {rentCap.zone
-                          ? ` · ${rentCap.zone.label}${rentCap.zone.source === "map" && rentCap.zone.area ? ` (${rentCap.zone.area})` : ""}${rentCap.zone.source === "manual" ? " (choisie par l'équipe)" : ""}`
-                          : " · zone à déterminer"}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {[
-                          property?.mainRooms ? ROOMS_LABELS[Math.min(4, property.mainRooms)] : "pièces ?",
-                          property?.constructionPeriod ? (PERIOD_LABELS[property.constructionPeriod] || property.constructionPeriod).toLowerCase() : "époque ?",
-                          rentCap.furnished ? "meublé" : "non meublé",
-                          rentCap.territory?.houseTypes ? (property?.type === "MAISON" ? "maison" : property?.type === "APPARTEMENT" ? "appartement" : "type ?") : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                      </>
+                      {(rentCap.status === "missing" || rentCap.status === "ok" || rentCap.status === "over") && (
+                        <span className="text-muted-foreground">
+                          {[
+                            property?.mainRooms ? ROOMS_LABELS[Math.min(4, property.mainRooms)] : "pièces ?",
+                            property?.constructionPeriod ? (PERIOD_LABELS[property.constructionPeriod] || property.constructionPeriod).toLowerCase() : "époque ?",
+                            rentCap.furnished ? "meublé" : "non meublé",
+                            rentCap.territory.houseTypes ? (property?.type === "MAISON" ? "maison" : property?.type === "APPARTEMENT" ? "appartement" : "type ?") : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
                       )}
                       {rentCap.reference && rentCap.maxRent != null && (
                         <>
@@ -822,7 +844,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           )}
                         </>
                       )}
-                      {lease.rentSupplementReason && (
+                      {lease.rentSupplementReason && rentCap.status === "over" && (
                         <span className="font-semibold text-amber-800">
                           Complément de loyer justifié
                           {lease.rentSupplementAt ? ` le ${formatDate(lease.rentSupplementAt)}` : ""}
@@ -830,11 +852,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground">
-                        Arrêté en vigueur jusqu'au {formatDate(rentCap.territory?.validTo)} ·{" "}
-                        <a href={rentCap.territory?.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
-                          {rentCap.territory?.mapUrl === rentCap.territory?.sourceUrl ? "texte officiel et cartes des zones" : "texte officiel"}
+                        Arrêté en vigueur du {formatDate(rentCap.territory.validFrom)} au {formatDate(rentCap.territory.validTo)} · barème
+                        intégré le {formatDate(rentCap.territory.importedAt)} ·{" "}
+                        <a href={rentCap.territory.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                          {rentCap.territory.mapUrl === rentCap.territory.sourceUrl ? "texte officiel et cartes des zones" : "texte officiel"}
                         </a>
-                        {rentCap.territory?.simulatorUrl && (
+                        {rentCap.territory.simulatorUrl && (
                           <>
                             {" · "}
                             <a href={rentCap.territory.simulatorUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
@@ -842,7 +865,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                             </a>
                           </>
                         )}
-                        {rentCap.territory?.mapUrl && rentCap.territory.mapUrl !== rentCap.territory.sourceUrl && (
+                        {rentCap.territory.mapUrl && rentCap.territory.mapUrl !== rentCap.territory.sourceUrl && (
                           <>
                             {" · "}
                             <a href={rentCap.territory.mapUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
@@ -851,9 +874,16 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           </>
                         )}
                       </span>
-                      {rentCap.outsideValidity && (
+                      {rentCap.notConcerned !== "exempt" && rentCap.notConcerned !== "outside_perimeter" && rentCap.validity === "after" && (
                         <span className="text-[13px] font-semibold text-amber-800">
-                          La prise d'effet du bail est après la fin de l'arrêté : vérifiez sa prolongation avant de valider.
+                          Le bail prend effet le {formatDate(lease.effectiveDate)}, après la fin de cet arrêté : vérifiez s&apos;il est
+                          prolongé ou remplacé, puis validez à la main.
+                        </span>
+                      )}
+                      {rentCap.notConcerned !== "exempt" && rentCap.notConcerned !== "outside_perimeter" && rentCap.validity === "before" && (
+                        <span className="text-[13px] font-semibold text-amber-800">
+                          Le bail prend effet le {formatDate(lease.effectiveDate)}, avant cet arrêté : c&apos;est l&apos;arrêté précédent qui
+                          s&apos;applique. Vérifiez avec le simulateur officiel, puis validez à la main.
                         </span>
                       )}
                     </>

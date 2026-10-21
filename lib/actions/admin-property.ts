@@ -5,6 +5,7 @@ import { z } from "zod";
 import { EnergyClass, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
+import { OUTSIDE_PERIMETER } from "@/lib/utils/rent-cap";
 
 const schema = z.object({
   propertyId: z.string().min(1),
@@ -83,13 +84,18 @@ export async function updatePropertyRentCapAdmin(
     const candidates = [insee, ...(/^751\d\d$/.test(insee) ? ["75056"] : []), ...(/^6938\d$/.test(insee) ? ["69123"] : [])];
     const territory = await prisma.rentCapTerritory.findFirst({
       where: { inseeCodes: { hasSome: candidates } },
-      select: { periods: true, zones: { select: { code: true } } },
+      select: { periods: true, partialInseeCodes: true, zones: { select: { code: true } } },
     });
     if (territory) {
       if (constructionPeriod && !territory.periods.includes(constructionPeriod)) {
         return { success: false, error: "Époque de construction absente de l'arrêté de cette commune" };
       }
-      if (rentCapZone && !territory.zones.some((z) => z.code === rentCapZone)) {
+      if (rentCapZone === OUTSIDE_PERIMETER) {
+        // « Hors périmètre » : seulement dans une commune encadrée en partie.
+        if (!candidates.some((code) => territory.partialInseeCodes.includes(code))) {
+          return { success: false, error: "Cette commune est entièrement encadrée : choisissez une zone" };
+        }
+      } else if (rentCapZone && !territory.zones.some((z) => z.code === rentCapZone)) {
         return { success: false, error: "Zone absente de l'arrêté de cette commune" };
       }
     }

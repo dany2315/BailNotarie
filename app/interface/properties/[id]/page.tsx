@@ -25,7 +25,7 @@ import { documentKindLabels } from "@/lib/utils/document-labels";
 import { assessDpe } from "@/lib/utils/dpe";
 import { DpeEditor } from "@/components/admin/dpe-editor";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
-import { assessRentCap } from "@/lib/rent-cap";
+import { assessRentCap, describeRentCapZone } from "@/lib/rent-cap";
 import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { RentCapEditor } from "@/components/admin/rent-cap-editor";
 
@@ -273,11 +273,11 @@ export default async function PropertyDetailPage({
                 <div className="flex flex-col gap-1 text-sm">
                   <span>
                     {rentCap.territory.label}
-                    {rentCap.zone
-                      ? ` · ${rentCap.zone.label}${rentCap.zone.source === "map" && rentCap.zone.area ? ` (${rentCap.zone.area})` : ""}${rentCap.zone.source === "manual" ? " (choisie par l'équipe)" : ""}`
-                      : " · zone à déterminer"}
+                    {rentCap.status !== "no_data" ? ` · ${describeRentCapZone(rentCap)}` : ""}
                   </span>
-                  {rentCap.status === "no_data" ? (
+                  {rentCap.notConcerned === "outside_perimeter" ? (
+                    <span className="text-muted-foreground">Commune encadrée en partie seulement : pas de plafond pour ce logement.</span>
+                  ) : rentCap.status === "no_data" ? (
                     <span className="text-muted-foreground">Barème officiel pas encore intégré : le loyer se vérifie avec le simulateur officiel.</span>
                   ) : (
                   <span className="text-muted-foreground">
@@ -286,7 +286,8 @@ export default async function PropertyDetailPage({
                   </span>
                   )}
                   <span className="text-xs text-muted-foreground">
-                    Arrêté en vigueur jusqu&apos;au {formatDate(rentCap.territory.validTo)} ·{" "}
+                    Arrêté en vigueur du {formatDate(rentCap.territory.validFrom)} au {formatDate(rentCap.territory.validTo)} · barème
+                    intégré le {formatDate(rentCap.territory.importedAt)} ·{" "}
                     <a href={rentCap.territory.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
                       texte officiel
                     </a>
@@ -306,7 +307,11 @@ export default async function PropertyDetailPage({
                 periods={rentCap.territory.periods}
                 zones={rentCap.territory.zones}
                 zoneMode={rentCap.territory.zoneMode}
-                detectedZone={rentCap.zone?.source === "map" ? rentCap.zone.label : null}
+                detectedZone={rentCap.zone && rentCap.zone.source !== "manual" ? rentCap.zone.label : null}
+                allowOutside={rentCap.territory.partialCommune}
+                zoneHint={
+                  rentCap.zoneHint ? (rentCap.zoneHint.kind === "limit" ? rentCap.zoneHint.label : `${rentCap.zoneHint.label} ou hors du périmètre`) : null
+                }
                 values={{ mainRooms: property.mainRooms, constructionPeriod: property.constructionPeriod, rentCapZone: property.rentCapZone }}
               />
             )}

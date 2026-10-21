@@ -18,7 +18,7 @@ import { assignDossierToNotaire } from "@/lib/actions/notaires";
 import { getBailMissingData, transitionLease } from "@/lib/actions/leases";
 import { updateClientCompletionStatus } from "@/lib/actions/clients";
 import { updatePropertyCompletionStatus } from "@/lib/actions/properties";
-import { assessRentCap } from "@/lib/rent-cap";
+import { assessRentCap, rentCapBlocking } from "@/lib/rent-cap";
 
 /* ------------------------------------------------------------------ */
 /* Suivi du dossier : notaire, demandes en cours, formulaires          */
@@ -161,6 +161,8 @@ export async function validateAndSendToNotary(
         bailType: true,
         effectiveDate: true,
         rentSupplementReason: true,
+        bailFamily: true,
+        rentCapExemption: true,
         propertyId: true,
         property: {
           select: {
@@ -194,7 +196,7 @@ export async function validateAndSendToNotary(
     if (rentCap.status === "missing") {
       return { success: false, error: `Plafond de loyer : à saisir (${rentCap.missing.join(", ")}).` };
     }
-    if (rentCap.status === "over" && !rentCap.supplement) {
+    if (rentCapBlocking(rentCap)) {
       return { success: false, error: "Le loyer dépasse le loyer de référence majoré : corrigez-le ou indiquez un complément de loyer justifié." };
     }
 

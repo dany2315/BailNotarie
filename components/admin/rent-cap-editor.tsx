@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { Loader2, Mail, Pencil, ShieldCheck } from "lucide-react";
+import { Ban, Loader2, Mail, Pencil, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -11,9 +11,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { updatePropertyRentCapAdmin } from "@/lib/actions/admin-property";
-import { setRentSupplementAdmin } from "@/lib/actions/admin-bail-edit";
+import { setRentCapExemptionAdmin, setRentSupplementAdmin } from "@/lib/actions/admin-bail-edit";
 import { sendBailReminders } from "@/lib/actions/reminders";
-import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
+import { EXEMPTION_LABELS, OUTSIDE_PERIMETER, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 
 const AUTO = "auto";
 const NONE = "none";
@@ -28,6 +28,8 @@ export function RentCapEditor({
   zones,
   zoneMode,
   detectedZone,
+  allowOutside = false,
+  zoneHint = null,
   values,
 }: {
   propertyId: string;
@@ -36,6 +38,10 @@ export function RentCapEditor({
   zoneMode: string;
   /** Zone trouvée sur la carte, le cas échéant. */
   detectedZone: string | null;
+  /** Commune encadrée en partie : le logement peut être hors du périmètre. */
+  allowOutside?: boolean;
+  /** Zone probable, à confirmer sur la carte officielle (adresse proche d'une limite). */
+  zoneHint?: string | null;
   values: { mainRooms: number | null; constructionPeriod: string | null; rentCapZone: string | null };
 }) {
   const pathname = usePathname();
@@ -132,12 +138,15 @@ export function RentCapEditor({
                     {z.label}
                   </SelectItem>
                 ))}
+                {allowOutside && <SelectItem value={OUTSIDE_PERIMETER}>Hors du périmètre encadré</SelectItem>}
               </SelectContent>
             </Select>
             <span className="text-xs text-muted-foreground">
-              {zoneRequired
-                ? "Repérez la zone du logement sur les cartes de l'arrêté (lien ci-dessous)."
-                : "Trouvée automatiquement à partir de l'adresse ; à forcer seulement en cas d'erreur."}
+              {zoneHint
+                ? `Adresse en limite : zone probable « ${zoneHint} », à confirmer sur la carte officielle (lien ci-dessous).`
+                : zoneRequired
+                  ? "Repérez la zone du logement sur les cartes de l'arrêté (lien ci-dessous)."
+                  : "Trouvée automatiquement à partir de l'adresse ; à forcer seulement en cas d'erreur."}
             </span>
           </div>
           <div className="flex justify-end gap-2">
@@ -214,6 +223,111 @@ export function RentSupplementButton({ bailId, reason }: { bailId: string; reaso
               Annuler
             </Button>
             <Button type="button" onClick={() => save(text.trim())} disabled={saving || text.trim().length < 10}>
+              {saving && <Loader2 className="size-4 animate-spin" />}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+const NOT_EXEMPT = "none";
+
+/** Logement exclu de l'encadrement : le plafond ne s'applique pas (motif gardé avec le dossier, retirable). */
+export function RentCapExemptionButton({
+  bailId,
+  exemption,
+  note,
+}: {
+  bailId: string;
+  exemption: string | null;
+  note: string | null;
+}) {
+  const pathname = usePathname();
+  const [open, setOpen] = React.useState(false);
+  const [code, setCode] = React.useState(NOT_EXEMPT);
+  const [text, setText] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setCode(exemption || NOT_EXEMPT);
+    setText(note || "");
+  }, [open, exemption, note]);
+
+  const save = async (value: string | null) => {
+    setSaving(true);
+    const result = await setRentCapExemptionAdmin({ bailId, exemption: value, note: value ? text.trim() || null : null, revalidate: pathname });
+    setSaving(false);
+    if (result.success) {
+      toast.success(value ? "Logement exclu de l'encadrement" : "Encadrement des loyers rétabli");
+      setOpen(false);
+    } else {
+      toast.error(result.error);
+    }
+  };
+  const chosen = code === NOT_EXEMPT ? null : code;
+
+  return (
+    <>
+      <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setOpen(true)}>
+        <Ban className="size-3.5" />
+        {exemption ? "Logement exclu" : "Logement exclu…"}
+      </Button>
+      <Dialog open={open} onOpenChange={(next) => !saving && setOpen(next)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Logement exclu de l'encadrement</DialogTitle>
+            <DialogDescription>
+              Le plafond ne s'applique pas aux logements sociaux, aux logements conventionnés APL ou Anah (loyer fixé par la
+              convention) ni aux logements soumis à la loi de 1948. Indiquez le motif à partir des pièces du dossier.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`exemption-${bailId}`}>Motif</Label>
+              <Select value={code} onValueChange={setCode}>
+                <SelectTrigger id={`exemption-${bailId}`} className="h-10 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NOT_EXEMPT}>Choisir</SelectItem>
+                  {Object.entries(EXEMPTION_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`exemption-note-${bailId}`}>{chosen === "OTHER" ? "Précision" : "Précision (facultatif)"}</Label>
+              <Textarea
+                id={`exemption-note-${bailId}`}
+                rows={3}
+                maxLength={2000}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="Ex. : convention Anah n° 2025-123 jointe au dossier."
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            {exemption && (
+              <Button type="button" variant="ghost" className="sm:mr-auto" onClick={() => save(null)} disabled={saving}>
+                Rétablir l'encadrement
+              </Button>
+            )}
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={() => save(chosen)}
+              disabled={saving || !chosen || (chosen === "OTHER" && text.trim().length < 10)}
+            >
               {saving && <Loader2 className="size-4 animate-spin" />}
               Enregistrer
             </Button>

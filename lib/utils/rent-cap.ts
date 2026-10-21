@@ -54,3 +54,34 @@ export function isFurnishedBail(bailType: string | null | undefined): boolean {
 
 /** Arrondi au centime pour l'affichage des loyers maximaux. */
 export const toCents = (value: number) => Math.round(value * 100) / 100;
+
+/** Distance en mètres d'un point au bord d'un contour (approximation plane, précise à l'échelle d'une ville). */
+export function distanceToBoundaryM([x, y]: [number, number], geometry: CapGeometry): number {
+  const kx = 111320 * Math.cos((y * Math.PI) / 180);
+  const ky = 110540;
+  const rings = geometry.type === "Polygon" ? geometry.coordinates : geometry.coordinates.flat();
+  let best = Infinity;
+  for (const ring of rings) {
+    for (let i = 1; i < ring.length; i++) {
+      const ax = (ring[i - 1][0] - x) * kx;
+      const ay = (ring[i - 1][1] - y) * ky;
+      const dx = (ring[i][0] - x) * kx - ax;
+      const dy = (ring[i][1] - y) * ky - ay;
+      const len = dx * dx + dy * dy;
+      const t = len ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len)) : 0;
+      best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+  }
+  return best;
+}
+
+/** Zone choisie par l'équipe quand le logement est hors du périmètre d'une commune partiellement encadrée. */
+export const OUTSIDE_PERIMETER = "OUTSIDE";
+
+/** Logements exclus de l'encadrement des loyers (article 140 de la loi ELAN). */
+export const EXEMPTION_LABELS: Record<string, string> = {
+  SOCIAL: "Logement social (HLM, SEM conventionnée)",
+  CONVENTIONNE: "Logement conventionné APL ou Anah",
+  LOI_1948: "Logement soumis à la loi de 1948",
+  OTHER: "Autre motif",
+};

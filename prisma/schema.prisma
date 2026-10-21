@@ -448,26 +448,32 @@ model ZoneTendue {
 
 /// Territoire soumis à l'encadrement des loyers (un arrêté préfectoral en vigueur).
 model RentCapTerritory {
-  id             String             @id // ex. « paris », « lyon »
-  label          String
-  inseeCodes     String[]
+  id                String             @id // ex. « paris », « lyon »
+  label             String
+  inseeCodes        String[]
   /// « polygon » : zone trouvée sur la carte ; « manual » : zone choisie par l'équipe
-  zoneMode       String
+  zoneMode          String
   /// Époques de construction de l'arrêté (codes, dans l'ordre)
-  periods        String[]
+  periods           String[]
   /// L'arrêté distingue-t-il maison et appartement ?
-  houseTypes     Boolean            @default(false)
-  validFrom      DateTime
-  validTo        DateTime
-  sourceTitle    String
-  sourceUrl      String
-  geometrySource String?
-  simulatorUrl   String?
-  mapUrl         String?
-  importedAt     DateTime           @default(now())
-  zones          RentCapZone[]
-  areas          RentCapArea[]
-  references     RentCapReference[]
+  houseTypes        Boolean            @default(false)
+  validFrom         DateTime
+  validTo           DateTime
+  sourceTitle       String
+  sourceUrl         String
+  geometrySource    String?
+  simulatorUrl      String?
+  mapUrl            String?
+  /// Communes entièrement dans une zone : { code INSEE: code de zone }
+  communeZones      Json?
+  /// Communes encadrées seulement en partie : hors des contours = hors périmètre
+  partialInseeCodes String[]           @default([])
+  /// Contours relevés sur une carte : à moins de cette distance d'une limite, zone à confirmer
+  precisionM        Int?
+  importedAt        DateTime           @default(now())
+  zones             RentCapZone[]
+  areas             RentCapArea[]
+  references        RentCapReference[]
 }
 
 model RentCapZone {
@@ -559,13 +565,19 @@ model Bail {
   createdBy   User?    @relation("BailCreatedBy", fields: [createdById], references: [id])
   updatedBy   User?    @relation("BailUpdatedBy", fields: [updatedById], references: [id])
 
-  stripePaymentIntentId String?   @db.Text
+  stripePaymentIntentId String? @db.Text
 
   // Complément de loyer justifié (loyer au-dessus du loyer de référence majoré)
   rentSupplementReason String?   @db.Text
   rentSupplementAt     DateTime?
   rentSupplementByName String?
-  paidAt                DateTime?
+
+  // Logement exclu de l'encadrement (logement social, conventionné, loi de 1948…)
+  rentCapExemption       String?
+  rentCapExemptionNote   String?   @db.Text
+  rentCapExemptionAt     DateTime?
+  rentCapExemptionByName String?
+  paidAt                 DateTime?
 
   documents Document[]
   intakes   IntakeLink[] @relation("BailIntakes")

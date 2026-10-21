@@ -21,6 +21,7 @@ import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { validateRentForProperty } from "@/lib/utils/rent-validation";
 import { getStageKey } from "@/lib/utils/bail-stage";
+import { EXEMPTION_LABELS } from "@/lib/utils/rent-cap";
 
 type Result<T = undefined> = ({ success: true } & (T extends undefined ? unknown : { data: T })) | { success: false; error: string };
 
@@ -365,6 +366,47 @@ export async function setRentSupplementAdmin(data: unknown): Promise<Result> {
       rentSupplementReason: reason,
       rentSupplementAt: reason ? new Date() : null,
       rentSupplementByName: reason ? getActorName(user) : null,
+      updatedById: user.id,
+    },
+  });
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  return { success: true };
+}
+
+const exemptionSchema = z
+  .object({
+    bailId: z.string().min(1),
+    // null : le logement redevient soumis à l'encadrement.
+    exemption: z.enum(Object.keys(EXEMPTION_LABELS) as [string, ...string[]]).nullable(),
+    note: z.string().trim().max(2000).nullable(),
+    revalidate: revalidateField,
+  })
+  .refine((d) => d.exemption !== "OTHER" || (d.note?.length ?? 0) >= 10, {
+    message: "Précisez le motif (10 caractères minimum)",
+    path: ["note"],
+  });
+
+/**
+ * Logement exclu de l'encadrement (logement social, conventionné APL ou Anah, loi de 1948…) :
+ * le plafond ne s'applique pas ; le motif et son auteur restent visibles dans le dossier.
+ */
+export async function setRentCapExemptionAdmin(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = exemptionSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, exemption, note, revalidate } = parsed.data;
+  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { status: true } });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+
+  await prisma.bail.update({
+    where: { id: bailId },
+    data: {
+      rentCapExemption: exemption,
+      rentCapExemptionNote: exemption ? note || null : null,
+      rentCapExemptionAt: exemption ? new Date() : null,
+      rentCapExemptionByName: exemption ? getActorName(user) : null,
       updatedById: user.id,
     },
   });

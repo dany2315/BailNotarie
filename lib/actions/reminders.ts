@@ -435,6 +435,8 @@ async function rentCapLines(bailId: string): Promise<string[] | null> {
       bailType: true,
       effectiveDate: true,
       rentSupplementReason: true,
+      bailFamily: true,
+      rentCapExemption: true,
       property: {
         select: {
           inseeCode: true,
