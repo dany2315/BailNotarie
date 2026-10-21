@@ -33,6 +33,7 @@ export function CheckPoint({
   children,
   note,
   actions,
+  actionsBelow = false,
 }: {
   state: PointState;
   label: ReactNode;
@@ -41,9 +42,16 @@ export function CheckPoint({
   /** Ce qui manque, en rouge sous les données. */
   note?: ReactNode;
   actions?: ReactNode;
+  /** Plusieurs actions : sous le contenu, pour lui laisser toute la largeur. */
+  actionsBelow?: boolean;
 }) {
   return (
-    <li className="grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-2.5 px-5 py-3.5 sm:grid-cols-[22px_minmax(0,1fr)_auto]">
+    <li
+      className={cn(
+        "grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-2.5 px-5 py-3.5",
+        !actionsBelow && "sm:grid-cols-[22px_minmax(0,1fr)_auto]",
+      )}
+    >
       <PointIcon state={state} />
       <div className="flex min-w-0 flex-col gap-1">
         <span className="text-[14.5px] font-semibold leading-snug">{label}</span>
@@ -51,7 +59,12 @@ export function CheckPoint({
         {note && <span className="text-[13px] font-semibold text-red-700">{note}</span>}
       </div>
       {actions && (
-        <div className="col-span-2 flex flex-wrap items-start gap-2 sm:col-span-1 sm:justify-end [&>*]:flex-1 sm:[&>*]:flex-none">
+        <div
+          className={cn(
+            "col-span-2 flex flex-wrap items-start gap-2 [&>*]:flex-1 sm:[&>*]:flex-none",
+            actionsBelow ? "sm:col-start-2 sm:col-span-1" : "sm:col-span-1 sm:justify-end",
+          )}
+        >
           {actions}
         </div>
       )}

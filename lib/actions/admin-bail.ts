@@ -18,6 +18,7 @@ import { assignDossierToNotaire } from "@/lib/actions/notaires";
 import { getBailMissingData, transitionLease } from "@/lib/actions/leases";
 import { updateClientCompletionStatus } from "@/lib/actions/clients";
 import { updatePropertyCompletionStatus } from "@/lib/actions/properties";
+import { assessRentCap } from "@/lib/rent-cap";
 
 /* ------------------------------------------------------------------ */
 /* Suivi du dossier : notaire, demandes en cours, formulaires          */
@@ -156,8 +157,24 @@ export async function validateAndSendToNotary(
         id: true,
         status: true,
         paidAt: true,
+        rentAmount: true,
+        bailType: true,
+        effectiveDate: true,
+        rentSupplementReason: true,
         propertyId: true,
-        property: { select: { completionStatus: true } },
+        property: {
+          select: {
+            completionStatus: true,
+            inseeCode: true,
+            latitude: true,
+            longitude: true,
+            surfaceM2: true,
+            type: true,
+            mainRooms: true,
+            constructionPeriod: true,
+            rentCapZone: true,
+          },
+        },
         parties: { select: { id: true, profilType: true, completionStatus: true } },
         dossierAssignments: { select: { id: true }, take: 1 },
       },
@@ -171,6 +188,15 @@ export async function validateAndSendToNotary(
     const tenant = bail.parties.find((p) => p.profilType === "LOCATAIRE");
     if (!owner || !tenant) return { success: false, error: "Le dossier doit avoir un propriétaire et un locataire" };
     if (!bail.paidAt) return { success: false, error: "Les frais de dossier ne sont pas payés : le dossier ne peut pas partir chez le notaire." };
+
+    // Encadrement des loyers : catégorie complète, et loyer au plus au plafond (sauf complément justifié).
+    const rentCap = await assessRentCap({ property: bail.property, bail });
+    if (rentCap.status === "missing") {
+      return { success: false, error: `Plafond de loyer : à saisir (${rentCap.missing.join(", ")}).` };
+    }
+    if (rentCap.status === "over" && !rentCap.supplement) {
+      return { success: false, error: "Le loyer dépasse le loyer de référence majoré : corrigez-le ou indiquez un complément de loyer justifié." };
+    }
 
     const missing = await getBailMissingData(bailId);
     if (!missing) return { success: false, error: "Impossible de contrôler le dossier" };

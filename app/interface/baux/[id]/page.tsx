@@ -13,6 +13,9 @@ import { BailMoreMenu } from "@/components/leases/bail-more-menu";
 import { SendToNotaryButton } from "@/components/leases/send-to-notary-dialog";
 import { RemindButton, ReminderCard } from "@/components/reminders/remind-button";
 import { getReminderPanel } from "@/lib/actions/reminders";
+import { assessRentCap, rentCapOverLines } from "@/lib/rent-cap";
+import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
+import { RentCapEditor, RentCapNotifyButton, RentSupplementButton } from "@/components/admin/rent-cap-editor";
 import { intakeSummary } from "@/lib/utils/intake-summary";
 import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, withVerified } from "@/components/admin/party-check-section";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
@@ -296,8 +299,27 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
   // Contrôles réglementaires (manuels)
   const diagnosticsIds = (propertyDocuments as any[]).filter((d) => d.kind === DocumentKind.DIAGNOSTICS).map((d) => d.id).sort();
+  // Plafond de loyer : calculé selon l'arrêté d'encadrement en vigueur dans la commune du bien.
+  const rentCap = property ? await assessRentCap({ property, bail: lease }) : null;
+  const rentCapLines = rentCap ? rentCapOverLines(rentCap) : null;
+  // Calcul conforme (ou commune hors encadrement) : point contrôlé automatiquement.
+  const capAuto =
+    !!rentCap && ((rentCap.status === "ok" && !rentCap.outsideValidity) || (rentCap.status === "not_concerned" && !!property?.inseeCode));
+  const capMissing = !property || !!rentCap && (rentCap.status === "missing" || (rentCap.status === "over" && !rentCap.supplement));
   const rulesPoints = [
-    { key: pointKey("rules:plafond", [lease.rentAmount, surface, property?.inseeCode || null]), label: "Plafond de loyer" },
+    {
+      key: pointKey("rules:plafond", [
+        lease.rentAmount,
+        surface,
+        property?.inseeCode || null,
+        rentCap?.zone?.code || null,
+        property?.mainRooms ?? null,
+        property?.constructionPeriod || null,
+        lease.bailType,
+        lease.rentSupplementReason || null,
+      ]),
+      label: "Plafond de loyer",
+    },
     {
       key: pointKey("rules:dpe", [...diagnosticsIds, property?.dpeClass || null, property?.gesClass || null, dpeDateValue(property?.dpeDate)]),
       label: "Classe DPE",
@@ -305,11 +327,10 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   ];
   // DPE saisi à la main : à saisir, expiré ou classe interdite à la location = bloquant.
   const dpe = assessDpe(property?.dpeClass, property?.dpeDate);
-  const rulesStates = withVerified(
-    rulesPoints.map((p, index) => ({ key: p.key, missing: index === 1 && dpe.blocking })),
-    verifiedKeys,
-    bailLocked,
-  );
+  const rulesStates = [
+    ...withVerified([{ key: rulesPoints[0].key, missing: capMissing }], verifiedKeys, bailLocked || capAuto),
+    ...withVerified([{ key: rulesPoints[1].key, missing: dpe.blocking }], verifiedKeys, bailLocked),
+  ];
 
   // Paiement des frais de dossier : contrôlé automatiquement (Stripe), bloquant s'il manque.
   const paid = !!lease.paidAt;
@@ -324,6 +345,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     { id: "bloc-bien", title: "Le bien", summary: summarize(propertyStates) },
     { id: "bloc-controles", title: "Contrôles réglementaires", summary: summarize(rulesStates) },
   ];
+  // Résumé d'une section par son identifiant (l'ordre des sections peut changer).
+  const sectionSummary = (id: string) => sections.find((section) => section.id === id)!.summary;
   const overall = summarize([...bailStates, ...paymentStates, ...ownerStates, ...tenantStates, ...propertyStates, ...rulesStates]);
   const totalMissing = Math.max(missingData?.totalMissing ?? 0, overall.missing);
 
@@ -469,8 +492,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             subtitle="Conditions saisies par le propriétaire"
             headerRight={
               <>
-                <StateChip tone={summaryChip(sections[0].summary).tone}>{summaryChip(sections[0].summary).label}</StateChip>
-                {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={sections[0].summary.pendingKeys} />}
+                <StateChip tone={summaryChip(sectionSummary("bloc-bail")).tone}>{summaryChip(sectionSummary("bloc-bail")).label}</StateChip>
+                {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={sectionSummary("bloc-bail").pendingKeys} />}
               </>
             }
           >
@@ -579,8 +602,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             headerRight={
               property && (
                 <>
-                  <StateChip tone={summaryChip(sections[3].summary).tone}>{summaryChip(sections[3].summary).label}</StateChip>
-                  {!propertyLocked && <ValidateAllButton bailId={lease.id} pointKeys={sections[3].summary.pendingKeys} />}
+                  <StateChip tone={summaryChip(sectionSummary("bloc-bien")).tone}>{summaryChip(sectionSummary("bloc-bien")).label}</StateChip>
+                  {!propertyLocked && <ValidateAllButton bailId={lease.id} pointKeys={sectionSummary("bloc-bien").pendingKeys} />}
                 </>
               )
             }
@@ -677,33 +700,165 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           <CheckSection
             id="bloc-controles"
             title="Contrôles réglementaires"
-            subtitle="À vérifier par vous : le DPE se saisit ici, depuis le diagnostic"
+            subtitle="Plafond calculé selon l'arrêté d'encadrement en vigueur ; DPE saisi depuis le diagnostic"
             headerRight={
               <>
-                <StateChip tone={summaryChip(sections[4].summary).tone}>{summaryChip(sections[4].summary).label}</StateChip>
-                {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={sections[4].summary.pendingKeys} />}
+                <StateChip tone={summaryChip(sectionSummary("bloc-controles")).tone}>{summaryChip(sectionSummary("bloc-controles")).label}</StateChip>
+                {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={sectionSummary("bloc-controles").pendingKeys} />}
               </>
             }
           >
             <CheckList>
               <CheckPoint
-                state={isVerified(rulesPoints[0].key, bailLocked) ? "ok" : "todo"}
+                state={capMissing ? "missing" : isVerified(rulesPoints[0].key, bailLocked || capAuto) ? "ok" : "todo"}
                 label="Plafond de loyer"
+                actionsBelow
+                note={
+                  !rentCap
+                    ? null
+                    : rentCap.status === "missing"
+                      ? `À saisir : ${rentCap.missing.join(", ")}`
+                      : rentCap.status === "over" && !rentCap.supplement
+                        ? `Au-dessus du plafond de ${formatCurrency(rentCap.overBy ?? 0)} par mois : à corriger, ou complément de loyer à justifier`
+                        : null
+                }
                 actions={
-                  <VerifyToggle
-                    bailId={lease.id}
-                    pointKey={rulesPoints[0].key}
-                    verified={isVerified(rulesPoints[0].key, bailLocked)}
-                    locked={bailLocked}
-                  />
+                  <>
+                    {property && rentCap?.territory && rentCap.status !== "no_data" && !bailLocked && (
+                      <RentCapEditor
+                        propertyId={property.id}
+                        periods={rentCap.territory.periods}
+                        zones={rentCap.territory.zones}
+                        zoneMode={rentCap.territory.zoneMode}
+                        detectedZone={rentCap.zone?.source === "map" ? rentCap.zone.label : null}
+                        values={{ mainRooms: property.mainRooms, constructionPeriod: property.constructionPeriod, rentCapZone: property.rentCapZone }}
+                      />
+                    )}
+                    {rentCap?.status === "over" && !bailLocked && rentCapLines && (
+                      <RentCapNotifyButton
+                        bailId={lease.id}
+                        owner={reminderPanel.success ? reminderPanel.data.owner : null}
+                        lines={rentCapLines}
+                      />
+                    )}
+                    {(rentCap?.status === "over" || lease.rentSupplementReason) && !bailLocked && (
+                      <RentSupplementButton bailId={lease.id} reason={lease.rentSupplementReason} />
+                    )}
+                    {!capMissing && (
+                      <VerifyToggle
+                        bailId={lease.id}
+                        pointKey={rulesPoints[0].key}
+                        verified={isVerified(rulesPoints[0].key, bailLocked || capAuto)}
+                        locked={bailLocked || capAuto}
+                      />
+                    )}
+                  </>
                 }
               >
-                {lease.rentAmount > 0
-                  ? `${formatCurrency(lease.rentAmount)}${
-                      surface ? ` pour ${formatSurface(surface)}, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m² hors charges` : ""
-                    }.`
-                  : "Loyer non renseigné."}
-                {"\n"}Si la commune encadre les loyers, comparer au loyer de référence majoré.
+                <span className="flex flex-col gap-1">
+                  {!rentCap || rentCap.status === "not_concerned" ? (
+                    <>
+                      <span>
+                        {lease.rentAmount > 0
+                          ? `${formatCurrency(lease.rentAmount)} hors charges${surface ? ` pour ${formatSurface(surface)}, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m²` : ""}.`
+                          : "Loyer non renseigné."}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {property?.inseeCode
+                          ? "Commune non soumise à l'encadrement des loyers : pas de plafond à respecter."
+                          : "Adresse non localisée : vérifiez si la commune est soumise à l'encadrement des loyers."}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {rentCap.status === "no_data" && (
+                        <>
+                          <span>
+                            {rentCap.territory?.label} : commune soumise à l'encadrement des loyers.
+                          </span>
+                          <span>
+                            {lease.rentAmount > 0 && surface
+                              ? `Loyer : ${formatCurrency(lease.rentAmount)} hors charges, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m².`
+                              : "Loyer ou surface non renseigné."}
+                          </span>
+                          <span className="font-semibold text-amber-800">
+                            Barème officiel pas encore intégré : comparez avec le simulateur officiel, puis validez.
+                          </span>
+                        </>
+                      )}
+                      {rentCap.status !== "no_data" && (
+                      <>
+                      <span>
+                        {rentCap.territory?.label}
+                        {rentCap.zone
+                          ? ` · ${rentCap.zone.label}${rentCap.zone.source === "map" && rentCap.zone.area ? ` (${rentCap.zone.area})` : ""}${rentCap.zone.source === "manual" ? " (choisie par l'équipe)" : ""}`
+                          : " · zone à déterminer"}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {[
+                          property?.mainRooms ? ROOMS_LABELS[Math.min(4, property.mainRooms)] : "pièces ?",
+                          property?.constructionPeriod ? (PERIOD_LABELS[property.constructionPeriod] || property.constructionPeriod).toLowerCase() : "époque ?",
+                          rentCap.furnished ? "meublé" : "non meublé",
+                          rentCap.territory?.houseTypes ? (property?.type === "MAISON" ? "maison" : property?.type === "APPARTEMENT" ? "appartement" : "type ?") : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                      </>
+                      )}
+                      {rentCap.reference && rentCap.maxRent != null && (
+                        <>
+                          <span>
+                            Loyer : {formatCurrency(rentCap.rent)} hors charges, soit {(rentCap.rentPerM2 ?? 0).toFixed(2).replace(".", ",")} €/m²
+                          </span>
+                          <span>
+                            Plafond (loyer de référence majoré) : {rentCap.reference.max.toFixed(2).replace(".", ",")} €/m², soit{" "}
+                            <strong className="font-semibold">{formatCurrency(rentCap.maxRent)}</strong> au maximum
+                          </span>
+                          {rentCap.status === "ok" && (
+                            <span className="font-semibold text-green-700">
+                              Conforme : {formatCurrency(Math.abs(rentCap.overBy ?? 0))} sous le plafond
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {lease.rentSupplementReason && (
+                        <span className="font-semibold text-amber-800">
+                          Complément de loyer justifié
+                          {lease.rentSupplementAt ? ` le ${formatDate(lease.rentSupplementAt)}` : ""}
+                          {lease.rentSupplementByName ? ` par ${lease.rentSupplementByName}` : ""} : {lease.rentSupplementReason}
+                        </span>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        Arrêté en vigueur jusqu'au {formatDate(rentCap.territory?.validTo)} ·{" "}
+                        <a href={rentCap.territory?.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                          {rentCap.territory?.mapUrl === rentCap.territory?.sourceUrl ? "texte officiel et cartes des zones" : "texte officiel"}
+                        </a>
+                        {rentCap.territory?.simulatorUrl && (
+                          <>
+                            {" · "}
+                            <a href={rentCap.territory.simulatorUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                              simulateur officiel
+                            </a>
+                          </>
+                        )}
+                        {rentCap.territory?.mapUrl && rentCap.territory.mapUrl !== rentCap.territory.sourceUrl && (
+                          <>
+                            {" · "}
+                            <a href={rentCap.territory.mapUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                              cartes des zones
+                            </a>
+                          </>
+                        )}
+                      </span>
+                      {rentCap.outsideValidity && (
+                        <span className="text-[13px] font-semibold text-amber-800">
+                          La prise d'effet du bail est après la fin de l'arrêté : vérifiez sa prolongation avant de valider.
+                        </span>
+                      )}
+                    </>
+                  )}
+                </span>
               </CheckPoint>
               <CheckPoint
                 state={dpe.blocking ? "missing" : isVerified(rulesPoints[1].key, bailLocked) ? "ok" : "todo"}
@@ -867,7 +1022,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               </div>
             ))}
             <p className="text-[12.5px] leading-snug text-muted-foreground">
-              Plafond de loyer et DPE figurent dans « Contrôles réglementaires » : saisissez la classe et la date du DPE, puis validez-les.
+              Plafond de loyer et DPE figurent dans « Contrôles réglementaires » : le plafond se calcule avec les pièces et l'époque de construction ; le DPE se saisit depuis le diagnostic.
             </p>
           </section>
 

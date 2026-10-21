@@ -333,3 +333,42 @@ export async function changeBailTenantAdmin(data: unknown): Promise<Result<{ ten
   if (previous) revalidatePath(`/interface/clients/${previous.id}`);
   return { success: true, data: { tenantName: option.name, formSent } };
 }
+
+/* ------------------------------------------------------------------ */
+/* Complément de loyer justifié                                         */
+/* ------------------------------------------------------------------ */
+
+const supplementSchema = z.object({
+  bailId: z.string().min(1),
+  // null : on retire le complément.
+  reason: z.string().trim().min(10, "Précisez le motif (10 caractères minimum)").max(2000).nullable(),
+  revalidate: revalidateField,
+});
+
+/**
+ * Loyer au-dessus du loyer de référence majoré : après réponse du propriétaire,
+ * l'équipe indique que le complément de loyer est justifié (caractéristiques
+ * exceptionnelles du logement) et en garde le motif.
+ */
+export async function setRentSupplementAdmin(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = supplementSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, reason, revalidate } = parsed.data;
+  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { status: true } });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+
+  await prisma.bail.update({
+    where: { id: bailId },
+    data: {
+      rentSupplementReason: reason,
+      rentSupplementAt: reason ? new Date() : null,
+      rentSupplementByName: reason ? getActorName(user) : null,
+      updatedById: user.id,
+    },
+  });
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  return { success: true };
+}

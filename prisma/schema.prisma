@@ -380,6 +380,11 @@ model Property {
   gesClass EnergyClass?
   dpeDate  DateTime?
 
+  // Encadrement des loyers : saisis par l'équipe (catégorie du logement au sens de l'arrêté)
+  mainRooms          Int? // Nombre de pièces principales (4 = 4 et plus)
+  constructionPeriod String? // Époque de construction (codes de RentCapReference.period)
+  rentCapZone        String? // Zone choisie à la main quand la carte ne suffit pas
+
   // Mobilier obligatoire pour location meublée
   hasLiterie           Boolean @default(false) // Literie avec couette ou couverture
   hasRideaux           Boolean @default(false) // Volets ou rideaux dans les chambres
@@ -441,6 +446,72 @@ model ZoneTendue {
   @@index([rentControlEnabled])
 }
 
+/// Territoire soumis à l'encadrement des loyers (un arrêté préfectoral en vigueur).
+model RentCapTerritory {
+  id             String             @id // ex. « paris », « lyon »
+  label          String
+  inseeCodes     String[]
+  /// « polygon » : zone trouvée sur la carte ; « manual » : zone choisie par l'équipe
+  zoneMode       String
+  /// Époques de construction de l'arrêté (codes, dans l'ordre)
+  periods        String[]
+  /// L'arrêté distingue-t-il maison et appartement ?
+  houseTypes     Boolean            @default(false)
+  validFrom      DateTime
+  validTo        DateTime
+  sourceTitle    String
+  sourceUrl      String
+  geometrySource String?
+  simulatorUrl   String?
+  mapUrl         String?
+  importedAt     DateTime           @default(now())
+  zones          RentCapZone[]
+  areas          RentCapArea[]
+  references     RentCapReference[]
+}
+
+model RentCapZone {
+  id          String           @id @default(cuid())
+  territoryId String
+  territory   RentCapTerritory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  code        String
+  label       String
+
+  @@unique([territoryId, code])
+}
+
+/// Contour d'un quartier, d'un îlot ou d'une commune, rattaché à une zone.
+model RentCapArea {
+  id          String           @id @default(cuid())
+  territoryId String
+  territory   RentCapTerritory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  zoneCode    String
+  label       String
+  geometry    Json
+  /// Emprise [lonMin, latMin, lonMax, latMax] pour un premier tri rapide
+  bbox        Float[]
+
+  @@index([territoryId])
+}
+
+/// Loyers de référence (€/m²) d'une catégorie de logement dans une zone.
+model RentCapReference {
+  id          String           @id @default(cuid())
+  territoryId String
+  territory   RentCapTerritory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  zoneCode    String
+  /// « ALL », « APPARTEMENT » ou « MAISON »
+  houseType   String
+  rooms       Int
+  period      String
+  furnished   Boolean
+  refMin      Decimal          @db.Decimal(6, 2)
+  ref         Decimal          @db.Decimal(6, 2)
+  refMax      Decimal          @db.Decimal(6, 2)
+
+  @@unique([territoryId, zoneCode, houseType, rooms, period, furnished])
+}
+
 model RentControl {
   id            String     @id @default(cuid())
   zoneTendueId  String
@@ -489,6 +560,11 @@ model Bail {
   updatedBy   User?    @relation("BailUpdatedBy", fields: [updatedById], references: [id])
 
   stripePaymentIntentId String?   @db.Text
+
+  // Complément de loyer justifié (loyer au-dessus du loyer de référence majoré)
+  rentSupplementReason String?   @db.Text
+  rentSupplementAt     DateTime?
+  rentSupplementByName String?
   paidAt                DateTime?
 
   documents Document[]

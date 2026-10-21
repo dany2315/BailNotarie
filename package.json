@@ -13,7 +13,8 @@
     "update-images": "node update-articles-images.js",
     "migrate:deploy": "npx prisma migrate deploy",
     "prisma:generate": "npx prisma generate",
-    "vercel-build": "npm run migrate:deploy && npm run prisma:generate && npm run build"
+    "vercel-build": "npm run migrate:deploy && npm run prisma:generate && npm run build",
+    "rent-cap:import": "tsx scripts/import-rent-caps.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.986.0",

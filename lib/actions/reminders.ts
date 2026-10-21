@@ -10,6 +10,7 @@ import MailRelance from "@/emails/mail-relance";
 import { getBailMissingData, transitionLease } from "@/lib/actions/leases";
 import { getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 import { describeMissingItems } from "@/lib/utils/missing-items";
+import { assessRentCap, rentCapOverLines } from "@/lib/rent-cap";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import {
   computeReminderNeeds,
@@ -243,6 +244,7 @@ export async function sendBailReminders(
   const { owner, tenant } = contextOf(bail);
   const address = bail.property?.fullAddress || bail.property?.label || "votre logement";
   const missing = sends.some((s) => s.reason === "MISSING_ITEMS") ? await missingByTarget(bailId) : null;
+  const rentCapItems = sends.some((s) => s.reason === "RENT_CAP") ? await rentCapLines(bailId) : null;
 
   const sent: Array<{ target: string; email: string }> = [];
   const failed: Array<{ target: string; error: string }> = [];
@@ -256,6 +258,7 @@ export async function sendBailReminders(
       (reason === "TENANT_TO_ADD" && target === "OWNER") ||
       (reason === "TENANT_FORM" && target === "TENANT") ||
       (reason === "TENANT_VIA_OWNER" && target === "OWNER") ||
+      (reason === "RENT_CAP" && target === "OWNER") ||
       reason === "MISSING_ITEMS";
     if (!coherent) {
       failed.push({ target: label, error: "Relance non prévue" });
@@ -279,10 +282,17 @@ export async function sendBailReminders(
         actionUrl = intake.url;
         intakeId = intake.id;
       }
-    } else if (reason === "TENANT_TO_ADD" || reason === "TENANT_VIA_OWNER" || (reason === "MISSING_ITEMS" && target === "OWNER")) {
+    } else if (reason === "TENANT_TO_ADD" || reason === "TENANT_VIA_OWNER" || reason === "RENT_CAP" || (reason === "MISSING_ITEMS" && target === "OWNER")) {
       actionUrl = `${BASE_URL()}/client/proprietaire/baux/${bailId}`;
     } else if (reason === "MISSING_ITEMS") {
       actionUrl = `${BASE_URL()}/client/locataire/baux/${bailId}`;
+    }
+    if (reason === "RENT_CAP") {
+      if (!rentCapItems) {
+        failed.push({ target: label, error: "Le loyer ne dépasse pas le plafond" });
+        continue;
+      }
+      items = rentCapItems;
     }
     if (reason === "MISSING_ITEMS") {
       items = missing?.[target] || [];
@@ -414,6 +424,33 @@ export async function classifyBailWithoutFollowUp(data: unknown): Promise<{ succ
   await transitionLease({ id: parsed.data.bailId, nextStatus: "CLASSE_SANS_SUITE" });
   revalidateBail(parsed.data.bailId);
   return { success: true };
+}
+
+/** Le détail du dépassement, pour l'e-mail au propriétaire (null si le loyer est conforme). */
+async function rentCapLines(bailId: string): Promise<string[] | null> {
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    select: {
+      rentAmount: true,
+      bailType: true,
+      effectiveDate: true,
+      rentSupplementReason: true,
+      property: {
+        select: {
+          inseeCode: true,
+          latitude: true,
+          longitude: true,
+          surfaceM2: true,
+          type: true,
+          mainRooms: true,
+          constructionPeriod: true,
+          rentCapZone: true,
+        },
+      },
+    },
+  });
+  if (!bail?.property) return null;
+  return rentCapOverLines(await assessRentCap({ property: bail.property, bail }));
 }
 
 function revalidateBail(bailId: string) {

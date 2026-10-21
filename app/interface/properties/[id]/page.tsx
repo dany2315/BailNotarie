@@ -25,6 +25,9 @@ import { documentKindLabels } from "@/lib/utils/document-labels";
 import { assessDpe } from "@/lib/utils/dpe";
 import { DpeEditor } from "@/components/admin/dpe-editor";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
+import { assessRentCap } from "@/lib/rent-cap";
+import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
+import { RentCapEditor } from "@/components/admin/rent-cap-editor";
 
 export default async function PropertyDetailPage({
   params,
@@ -45,6 +48,11 @@ export default async function PropertyDetailPage({
   ]);
 
   const dpe = assessDpe(property.dpeClass, property.dpeDate);
+  // Encadrement des loyers : territoire et zone du bien (le loyer se contrôle dans chaque dossier).
+  const rentCap = await assessRentCap({
+    property,
+    bail: { rentAmount: 0, bailType: "BAIL_NU_3_ANS", effectiveDate: null, rentSupplementReason: null },
+  });
 
   // Fonction helper pour sérialiser les Decimal
   const serializeDecimal = (value: any): any => {
@@ -253,6 +261,55 @@ export default async function PropertyDetailPage({
               gesClass={property.gesClass}
               dpeDate={dpeDateValue(property.dpeDate)}
             />
+          </div>
+
+          <Separator />
+
+          {/* Encadrement des loyers : catégorie du logement au sens de l'arrêté */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-col gap-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Encadrement des loyers</p>
+              {rentCap.territory ? (
+                <div className="flex flex-col gap-1 text-sm">
+                  <span>
+                    {rentCap.territory.label}
+                    {rentCap.zone
+                      ? ` · ${rentCap.zone.label}${rentCap.zone.source === "map" && rentCap.zone.area ? ` (${rentCap.zone.area})` : ""}${rentCap.zone.source === "manual" ? " (choisie par l'équipe)" : ""}`
+                      : " · zone à déterminer"}
+                  </span>
+                  {rentCap.status === "no_data" ? (
+                    <span className="text-muted-foreground">Barème officiel pas encore intégré : le loyer se vérifie avec le simulateur officiel.</span>
+                  ) : (
+                  <span className="text-muted-foreground">
+                    {property.mainRooms ? ROOMS_LABELS[Math.min(4, property.mainRooms)] : "Pièces principales à saisir"} ·{" "}
+                    {property.constructionPeriod ? PERIOD_LABELS[property.constructionPeriod] || property.constructionPeriod : "époque de construction à saisir"}
+                  </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    Arrêté en vigueur jusqu&apos;au {formatDate(rentCap.territory.validTo)} ·{" "}
+                    <a href={rentCap.territory.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                      texte officiel
+                    </a>
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {property.inseeCode
+                    ? "Commune non soumise à l'encadrement des loyers."
+                    : "Adresse non localisée : impossible de savoir si la commune est encadrée."}
+                </p>
+              )}
+            </div>
+            {rentCap.territory && rentCap.status !== "no_data" && (
+              <RentCapEditor
+                propertyId={property.id}
+                periods={rentCap.territory.periods}
+                zones={rentCap.territory.zones}
+                zoneMode={rentCap.territory.zoneMode}
+                detectedZone={rentCap.zone?.source === "map" ? rentCap.zone.label : null}
+                values={{ mainRooms: property.mainRooms, constructionPeriod: property.constructionPeriod, rentCapZone: property.rentCapZone }}
+              />
+            )}
           </div>
 
           <Separator />
