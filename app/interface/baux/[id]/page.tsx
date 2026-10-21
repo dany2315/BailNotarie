@@ -11,10 +11,9 @@ import { TenantCreateButton } from "@/components/leases/tenant-create-button";
 import { BailAuditTimeline } from "@/components/leases/bail-audit-timeline";
 import { BailMoreMenu } from "@/components/leases/bail-more-menu";
 import { SendToNotaryButton } from "@/components/leases/send-to-notary-dialog";
-import { RequestMissingButton, type MissingRequestRecipient } from "@/components/leases/request-missing-button";
-import { describeMissingItems } from "@/lib/utils/missing-items";
+import { RemindButton, ReminderCard } from "@/components/reminders/remind-button";
+import { getReminderPanel } from "@/lib/actions/reminders";
 import { intakeSummary } from "@/lib/utils/intake-summary";
-import { documentKindLabels } from "@/lib/utils/document-labels";
 import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, withVerified } from "@/components/admin/party-check-section";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
 import { ValidateAllButton, VerifyToggle } from "@/components/admin/verify-buttons";
@@ -142,6 +141,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     getBailFollowUp(lease.id),
     prisma.bailVerificationCheck.findMany({ where: { bailId: lease.id }, select: { pointKey: true } }),
   ]);
+  const reminderPanel = await getReminderPanel(lease.id);
   const verifiedKeys = new Set(verificationChecks.map((c) => c.pointKey));
 
   // Pièces du client hors personnes et société (déjà affichées dans leur bloc).
@@ -179,32 +179,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const ownerIntake = followUp.intakes.find((i) => i.target === "OWNER");
   const tenantIntake = followUp.intakes.find((i) => i.target === "TENANT");
 
-  // « Demander les pièces manquantes » : ce qui manque, par destinataire.
-  const partyEmail = (party: any): string =>
-    party?.type === "PERSONNE_MORALE"
-      ? party.entreprise?.email || ""
-      : (party?.persons?.find((p: any) => p.isPrimary) || party?.persons?.[0])?.email || "";
-  const ownerExtraItems = [
-    ...(missingData?.bail.missingFields || [])
-      .filter((f) => !["tenant", "owner", "property"].includes(f))
-      .map((f) => BAIL_FIELD_LABELS[f] || f),
-    ...(missingData?.property?.missingFields || []).map((f) => (f === "fullAddress" ? "Adresse du bien" : f)),
-    ...(missingData?.property?.missingDocuments || []).map((k) => documentKindLabels[k] || k),
-  ];
-  const missingRecipients: MissingRequestRecipient[] = [
-    owner && {
-      role: "Propriétaire",
-      name: ownerName,
-      email: partyEmail(owner),
-      items: [...describeMissingItems(missingData?.owner || null), ...ownerExtraItems],
-    },
-    tenant && {
-      role: "Locataire",
-      name: tenantName,
-      email: partyEmail(tenant),
-      items: describeMissingItems(missingData?.tenant || null),
-    },
-  ].filter(Boolean) as MissingRequestRecipient[];
 
   // ---- Fiche de vérification : un point par donnée, comme la maquette ----
   // Une fois le dossier envoyé au notaire, ses points sont considérés comme
@@ -337,20 +311,27 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     bailLocked,
   );
 
+  // Paiement des frais de dossier : contrôlé automatiquement (Stripe), bloquant s'il manque.
+  const paid = !!lease.paidAt;
+  const paymentStates = withVerified([{ key: "payment:paid", missing: !paid }], verifiedKeys, true);
+
   const isVerified = (key: string, locked: boolean) => locked || verifiedKeys.has(key);
   const sections = [
     { id: "bloc-bail", title: "Le bail", summary: summarize(bailStates) },
+    { id: "bloc-paiement", title: "Paiement", summary: summarize(paymentStates) },
     { id: "bloc-proprietaire", title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire", summary: summarize(ownerStates) },
     { id: "bloc-locataire", title: "Locataire", summary: summarize(tenantStates) },
     { id: "bloc-bien", title: "Le bien", summary: summarize(propertyStates) },
     { id: "bloc-controles", title: "Contrôles réglementaires", summary: summarize(rulesStates) },
   ];
-  const overall = summarize([...bailStates, ...ownerStates, ...tenantStates, ...propertyStates, ...rulesStates]);
+  const overall = summarize([...bailStates, ...paymentStates, ...ownerStates, ...tenantStates, ...propertyStates, ...rulesStates]);
   const totalMissing = Math.max(missingData?.totalMissing ?? 0, overall.missing);
 
   const sendDisabledReason = !tenant
     ? "Ajoutez d'abord le locataire."
-    : totalMissing > 0
+    : !paid
+      ? "Les frais de dossier ne sont pas payés."
+      : totalMissing > 0
       ? `${totalMissing} élément${totalMissing > 1 ? "s" : ""} manquant${totalMissing > 1 ? "s" : ""}.`
       : overall.remaining > 0
         ? `Encore ${overall.remaining} point${overall.remaining > 1 ? "s" : ""} à valider.`
@@ -362,7 +343,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     ? "Dossier validé et transmis au notaire."
     : !tenant
       ? "Bouton bloqué : ajoutez d'abord le locataire."
-      : totalMissing > 0
+      : !paid
+        ? "Bouton bloqué : les frais de dossier ne sont pas payés (ils se règlent à la fin du formulaire propriétaire)."
+        : totalMissing > 0
         ? `Bouton bloqué : ${totalMissing} élément${totalMissing > 1 ? "s" : ""} manquant${totalMissing > 1 ? "s" : ""}. Demandez-${totalMissing > 1 ? "les" : "le"} au client ou saisissez-${totalMissing > 1 ? "les" : "le"} si vous ${totalMissing > 1 ? "les" : "l'"}avez obtenu${totalMissing > 1 ? "s" : ""} par téléphone.`
         : overall.remaining > 0
           ? `Encore ${overall.remaining} point${overall.remaining > 1 ? "s" : ""} à valider avant l'envoi au notaire.`
@@ -429,9 +412,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 />
               </div>
             )}
-            <RequestMissingButton
-              recipients={missingRecipients}
-              address={property?.fullAddress || property?.label || "votre logement"}
+            <RemindButton
+              bailId={lease.id}
+              label="Demander les pièces manquantes"
+              focus="missing"
+              size="default"
+              initialPanel={reminderPanel.success ? reminderPanel.data : undefined}
               className="h-11 min-w-0 flex-1 px-3 sm:flex-none sm:px-4"
             />
             {lease.status === BailStatus.AWAITING_TENANT && !tenant && <TenantCreateButton bailId={lease.id} />}
@@ -520,6 +506,30 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               {bailExtraMissing.map((f) => (
                 <CheckPoint key={f} state="missing" label={BAIL_FIELD_LABELS[f]} note={`Manquant : ${BAIL_FIELD_LABELS[f].toLowerCase()}`} />
               ))}
+            </CheckList>
+          </CheckSection>
+
+          <CheckSection
+            id="bloc-paiement"
+            title="Paiement"
+            subtitle="Frais de dossier réglés à la fin du formulaire propriétaire"
+            headerRight={<StateChip tone={paid ? "ok" : "missing"}>{paid ? "Payé" : "Non payé"}</StateChip>}
+          >
+            <CheckList>
+              <CheckPoint
+                state={paid ? "ok" : "missing"}
+                label="Frais de dossier"
+                note={paid ? null : "Non payés : le dossier ne peut pas partir chez le notaire."}
+              >
+                {paid
+                  ? [
+                      `39,90 € payés le ${formatDateTime(lease.paidAt as Date)}`,
+                      lease.stripePaymentIntentId ? `Paiement Stripe ${lease.stripePaymentIntentId.slice(0, 8)}…${lease.stripePaymentIntentId.slice(-6)}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join("\n")
+                  : "Aucun paiement enregistré pour ce dossier."}
+              </CheckPoint>
             </CheckList>
           </CheckSection>
 
@@ -820,6 +830,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             </ul>
             <p className="text-[13px] leading-relaxed text-muted-foreground">{ctaHelp}</p>
           </section>
+
+          {reminderPanel.success && <ReminderCard panel={reminderPanel.data} />}
 
           <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
             <h2 className="text-base font-semibold">Déjà contrôlé automatiquement</h2>

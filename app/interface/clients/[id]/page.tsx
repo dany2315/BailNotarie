@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { PropertyBailsViewer } from "@/components/clients/property-bails-viewer";
 import { ClientMoreMenu } from "@/components/clients/client-more-menu";
 import { ClientDocumentsCard, ClientIdentityCard } from "@/components/admin/party-verification-card";
-import { RequestMissingButton } from "@/components/leases/request-missing-button";
+import { RemindButton } from "@/components/reminders/remind-button";
 import { InternalNotes } from "@/components/comments/internal-notes";
 import { StateChip } from "@/components/admin/check-list";
 import { describeMissingItems } from "@/lib/utils/missing-items";
@@ -160,12 +160,17 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {missingItems.length > 0 && clientEmail && (
+          {/* Demande tracée, rattachée au dossier en cours du client. */}
+          {missingItems.length > 0 && clientEmail && activeBails[0] && (client.profilType === "PROPRIETAIRE" || client.profilType === "LOCATAIRE") && (
             <div className="w-full sm:order-last sm:w-auto">
-              <RequestMissingButton
-                recipients={[{ role: PROFIL_LABELS[client.profilType] || "Client", name: clientName, email: clientEmail, items: missingItems }]}
-                address={bails[0]?.property?.fullAddress || bails[0]?.property?.label || "votre logement"}
-                className="h-11 w-full border-primary bg-primary px-5 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground sm:w-auto"
+              <RemindButton
+                bailId={activeBails[0].id}
+                label="Demander les pièces manquantes"
+                focus="missing"
+                only={client.profilType === "PROPRIETAIRE" ? "OWNER" : "TENANT"}
+                variant="default"
+                size="default"
+                className="h-11 w-full px-5 sm:w-auto"
               />
             </div>
           )}

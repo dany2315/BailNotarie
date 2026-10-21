@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { RemindButton } from "@/components/reminders/remind-button";
 import { STALE_AFTER_DAYS, STATUS_LABELS, getStage, type BailStatusValue } from "@/lib/utils/bail-stage";
 import type { QueueItem } from "@/lib/actions/admin-dashboard";
 
@@ -14,13 +15,13 @@ const TABS: Array<{ key: TabKey; label: string; short: string; hint: string }> =
     key: "nous",
     label: "À faire par nous",
     short: "À faire",
-    hint: "Dossiers où BailNotarie doit agir. Les plus anciens en premier ; point rouge : plus de 7 jours sans activité.",
+    hint: "Dossiers où BailNotarie doit agir, dont les relances dues (24 h après le début de l'attente, puis toutes les 48 h). Les plus anciens en premier.",
   },
   {
     key: "client",
     label: "En attente du client",
     short: "Client",
-    hint: "Rien à vérifier : le propriétaire ou le locataire doit agir. Une relance suffit.",
+    hint: "Le propriétaire ou le locataire doit agir ; la prochaine relance est indiquée. Dès qu'elle est due, le dossier passe dans « À faire par nous ».",
   },
   {
     key: "notaire",
@@ -73,7 +74,25 @@ export function WorkQueue({ items }: { items: QueueItem[] }) {
           );
         })}
       </div>
-      <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">{current.hint}</p>
+      <div className="flex flex-col gap-1.5 border-b bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
+        <p>{current.hint}</p>
+        {/* Légende des points : temps écoulé depuis la dernière activité du dossier. */}
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <span>Dernière activité :</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-2 rounded-full bg-green-600" />
+            moins de 3 j
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-2 rounded-full bg-amber-500" />
+            3 à 7 j
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-2 rounded-full bg-red-600" />
+            plus de {STALE_AFTER_DAYS} j
+          </span>
+        </p>
+      </div>
 
       {visible.length === 0 ? (
         <p className="px-4 py-10 text-center text-sm text-muted-foreground">Rien à traiter ici pour le moment.</p>
@@ -127,9 +146,13 @@ export function WorkQueue({ items }: { items: QueueItem[] }) {
                   >
                     {item.days === 0 ? "aujourd'hui" : `depuis ${item.days} j`}
                   </span>
-                  <Button asChild size="sm" variant={item.primary ? "default" : "outline"} className="sm:min-w-36">
-                    <Link href={`/interface/baux/${item.id}`}>{item.primary ? item.action : "Ouvrir le dossier"}</Link>
-                  </Button>
+                  {item.remind ? (
+                    <RemindButton bailId={item.id} label={item.action} variant="default" className="sm:min-w-36" />
+                  ) : (
+                    <Button asChild size="sm" variant={item.primary ? "default" : "outline"} className="sm:min-w-36">
+                      <Link href={`/interface/baux/${item.id}`}>{item.primary ? item.action : "Ouvrir le dossier"}</Link>
+                    </Button>
+                  )}
                 </div>
               </li>
             );

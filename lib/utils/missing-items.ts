@@ -18,7 +18,11 @@ export const MISSING_FIELD_LABELS: Record<string, string> = {
   registration: "n° d'immatriculation",
 };
 
-const docLabel = (kind: string) => (documentKindLabels[kind] || kind).toLowerCase();
+/** Libellé en minuscule, sauf les sigles (« RIB », « DPE »). */
+const docLabel = (kind: string) => {
+  const label = documentKindLabels[kind] || kind;
+  return /^[A-Z0-9]{2,}/.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+};
 
 /**
  * Liste lisible de ce qui manque pour un client du dossier (une ligne par

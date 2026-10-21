@@ -504,6 +504,9 @@ model Bail {
   // Points de la fiche de vérification validés par l'équipe
   verificationChecks BailVerificationCheck[]
 
+  // Relances (e-mails, appels, reports) faites depuis l'interface
+  reminders BailReminder[]
+
   @@index([status])
   @@index([propertyId])
   @@index([effectiveDate])
@@ -512,6 +515,52 @@ model Bail {
 /// Point de contrôle validé sur la fiche de vérification d'un dossier.
 /// La clé contient une empreinte des données vérifiées : si elles changent,
 /// le point redevient « à valider » (l'ancienne ligne reste sans effet).
+/// Qui l'on relance pour un dossier.
+enum ReminderTarget {
+  OWNER
+  TENANT
+}
+
+/// Pourquoi on relance.
+enum ReminderReason {
+  OWNER_FORM // Le propriétaire n'a pas terminé son formulaire (dont le paiement)
+  TENANT_TO_ADD // Le propriétaire doit indiquer son locataire
+  TENANT_FORM // Le locataire doit remplir son formulaire
+  TENANT_VIA_OWNER // Le propriétaire est relancé au sujet de son locataire
+  MISSING_ITEMS // Éléments encore manquants après soumission (relance manuelle)
+  RENT_CAP // Loyer au-dessus du loyer de référence majoré
+}
+
+/// Comment on a relancé.
+enum ReminderChannel {
+  EMAIL // E-mail envoyé par l'application
+  CALL // Appel noté par l'équipe
+  SNOOZE // Relances reportées (ex. le propriétaire cherche encore son locataire)
+}
+
+/// Trace de chaque relance faite depuis l'interface.
+model BailReminder {
+  id             String          @id @default(cuid())
+  bailId         String
+  bail           Bail            @relation(fields: [bailId], references: [id], onDelete: Cascade)
+  /// Client relancé (fiche conservée même si le client est retiré du dossier)
+  clientId       String?
+  target         ReminderTarget
+  reason         ReminderReason
+  channel        ReminderChannel
+  recipientEmail String?
+  /// Éléments listés dans l'e-mail (libellés)
+  items          Json?
+  note           String?
+  /// Pour un report : date jusqu'à laquelle on ne propose plus de relance
+  snoozeUntil    DateTime?
+  createdById    String?
+  createdByName  String?
+  createdAt      DateTime        @default(now())
+
+  @@index([bailId, createdAt])
+}
+
 model BailVerificationCheck {
   id           String   @id @default(cuid())
   bailId       String

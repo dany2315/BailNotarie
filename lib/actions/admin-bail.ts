@@ -155,6 +155,7 @@ export async function validateAndSendToNotary(
       select: {
         id: true,
         status: true,
+        paidAt: true,
         propertyId: true,
         property: { select: { completionStatus: true } },
         parties: { select: { id: true, profilType: true, completionStatus: true } },
@@ -169,6 +170,7 @@ export async function validateAndSendToNotary(
     const owner = bail.parties.find((p) => p.profilType === "PROPRIETAIRE");
     const tenant = bail.parties.find((p) => p.profilType === "LOCATAIRE");
     if (!owner || !tenant) return { success: false, error: "Le dossier doit avoir un propriétaire et un locataire" };
+    if (!bail.paidAt) return { success: false, error: "Les frais de dossier ne sont pas payés : le dossier ne peut pas partir chez le notaire." };
 
     const missing = await getBailMissingData(bailId);
     if (!missing) return { success: false, error: "Impossible de contrôler le dossier" };

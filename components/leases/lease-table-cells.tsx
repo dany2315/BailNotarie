@@ -5,6 +5,7 @@ import { formatDate, formatCurrency } from "@/lib/utils/formatters";
 import { ArrowRight, Building2, User, GraduationCap, CheckCircle2, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { LeaseActions } from "@/components/leases/lease-actions";
+import { RemindButton } from "@/components/reminders/remind-button";
 import { cn } from "@/lib/utils";
 import {
   ACTOR_LABELS,
@@ -393,6 +394,17 @@ export function LeaseRowActionCell({ row }: LeaseCellProps) {
 function LeaseRowActionButton({ row, className }: LeaseCellProps & { className?: string }) {
   const action = rowNextAction(row);
   const verb = ACTION_VERBS[action.label] || "Ouvrir";
+  // Relancer / envoyer le formulaire : la fenêtre dit qui sera relancé, sans quitter la liste.
+  if (verb === "Relancer" || verb === "Envoyer") {
+    return (
+      <RemindButton
+        bailId={row.id}
+        label={verb}
+        variant={action.primary ? "default" : "outline"}
+        className={cn("h-9 px-3.5 font-semibold", className)}
+      />
+    );
+  }
   return (
     <Link
       href={`/interface/baux/${row.id}`}

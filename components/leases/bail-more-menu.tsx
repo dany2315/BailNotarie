@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Copy, Edit, GraduationCap, ListChecks, Trash2, UserCog } from "lucide-react";
+import { ChevronDown, Copy, GraduationCap, ListChecks, Trash2, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import type { BailStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
@@ -76,12 +75,6 @@ export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerC
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          <DropdownMenuItem asChild className="min-h-10 cursor-pointer">
-            <Link href={`/interface/baux/${bailId}/edit`}>
-              <Edit className="size-4" />
-              Modifier les informations du bail
-            </Link>
-          </DropdownMenuItem>
           {canChangeTenant && (
             <DropdownMenuItem className="min-h-10 cursor-pointer" onSelect={() => setTenantOpen(true)}>
               <UserCog className="size-4" />

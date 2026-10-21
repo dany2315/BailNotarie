@@ -4,6 +4,7 @@ import { BailStatus, NotaireRequestStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { daysSince, getLastActivity, getNextAction, type Actor } from "@/lib/utils/bail-stage";
+import { computeReminderNeeds, reminderActionLabel, reminderRank, statusSinceFrom, type ReminderNeed } from "@/lib/utils/reminders";
 
 /** Statuts où un dossier est encore en cours (ni signé, ni clos). */
 const ACTIVE_STATUSES: BailStatus[] = [
@@ -22,17 +23,49 @@ const partySelect = {
   persons: {
     orderBy: { isPrimary: "desc" as const },
     take: 1,
-    select: { firstName: true, lastName: true, email: true },
+    select: { firstName: true, lastName: true, email: true, phone: true },
   },
-  entreprise: { select: { legalName: true, name: true, email: true } },
+  entreprise: { select: { legalName: true, name: true, email: true, phone: true } },
 };
 
 type PartyLite = {
+  id?: string;
   type: string;
   profilType: string;
-  persons: Array<{ firstName: string | null; lastName: string | null; email: string | null }>;
-  entreprise: { legalName: string | null; name: string | null; email: string | null } | null;
+  persons: Array<{ firstName: string | null; lastName: string | null; email: string | null; phone?: string | null }>;
+  entreprise: { legalName: string | null; name: string | null; email: string | null; phone?: string | null } | null;
 };
+
+/** La personne à relancer, au format attendu par la logique des relances. */
+function reminderParty(party: PartyLite | undefined) {
+  if (!party?.id) return null;
+  const company = party.type === "PERSONNE_MORALE";
+  return {
+    id: party.id,
+    name: partyName(party) || (party.profilType === "LOCATAIRE" ? "Locataire" : "Propriétaire"),
+    email: (company ? party.entreprise?.email : party.persons[0]?.email) || null,
+    phone: (company ? party.entreprise?.phone : party.persons[0]?.phone) || party.persons[0]?.phone || null,
+  };
+}
+
+/** « Propriétaire : 1re relance · Locataire : relancé 2 fois, à appeler ». */
+function reminderDetail(needs: ReminderNeed[]): string | null {
+  const due = needs.filter((n) => n.due);
+  if (due.length > 0) {
+    return due
+      .map((n) => {
+        const who = n.target === "OWNER" ? "propriétaire" : "locataire";
+        const extra = n.escalated ? (n.canCall ? ", à appeler" : n.suggestClassify ? ", sans réponse" : ", via le propriétaire") : "";
+        return `${who} : ${reminderRank(n.contacts)}${extra}`;
+      })
+      .join(" · ");
+  }
+  const next = needs
+    .filter((n) => !n.due)
+    .map((n) => new Date(n.dueAt))
+    .sort((a, b) => +a - +b)[0];
+  return next ? `prochaine relance le ${fmt(next)}` : null;
+}
 
 function partyName(party: PartyLite | undefined | null): string | null {
   if (!party) return null;
@@ -58,6 +91,8 @@ export interface QueueItem {
   /** Précision affichée après l'action (formulaire envoyé, relancé, ouvert…). */
   detail: string | null;
   days: number;
+  /** Le bouton ouvre la fenêtre de relance (au lieu du dossier). */
+  remind: boolean;
 }
 
 export interface AdminDashboardData {
@@ -118,17 +153,18 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         status: true,
         bailType: true,
         paidAt: true,
+        createdAt: true,
         updatedAt: true,
         property: { select: { label: true, fullAddress: true } },
         parties: { select: partySelect },
         dossierAssignments: { select: { id: true }, take: 1 },
         auditLogs: { select: { createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
         intakes: {
-          where: { target: "TENANT", status: "PENDING" },
+          where: { target: "TENANT" },
           orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { formEmailSentAt: true, formEmailCount: true, lastFormEmailSentAt: true, firstOpenedAt: true },
+          select: { clientId: true, status: true, formEmailSentAt: true, formEmailCount: true, lastFormEmailSentAt: true, firstOpenedAt: true },
         },
+        reminders: { select: { target: true, reason: true, channel: true, createdAt: true, snoozeUntil: true } },
       },
       orderBy: { updatedAt: "asc" },
       take: 200,
@@ -189,16 +225,45 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     if (bailId) pendingRequestsByBail.set(bailId, (pendingRequestsByBail.get(bailId) || 0) + 1);
   }
 
+  // Début du statut actuel de chaque dossier, pour le rythme des relances.
+  const statusLogs = await prisma.bailAuditLog.findMany({
+    where: { bailId: { in: activeBails.map((b) => b.id) }, eventType: "STATUS_CHANGED" },
+    select: { bailId: true, eventType: true, toStatus: true, createdAt: true },
+  });
+  const logsByBail = new Map<string, typeof statusLogs>();
+  for (const log of statusLogs) logsByBail.set(log.bailId, [...(logsByBail.get(log.bailId) || []), log]);
+
   const queue: QueueItem[] = activeBails.map((bail) => {
     const owner = bail.parties.find((p) => p.profilType === "PROPRIETAIRE");
     const tenant = bail.parties.find((p) => p.profilType === "LOCATAIRE");
-    const next = getNextAction({
+    let next = getNextAction({
       status: bail.status,
       hasTenant: !!tenant,
       hasNotaire: bail.dossierAssignments.length > 0,
       pendingNotaireRequests: pendingRequestsByBail.get(bail.id) || 0,
     });
-    const detail = bail.status === BailStatus.AWAITING_TENANT_FORM ? formTrackingDetail(bail.intakes[0]) : null;
+    const pendingTenantForm = bail.intakes.find((i) => i.clientId === tenant?.id && i.status === "PENDING");
+    let detail = bail.status === BailStatus.AWAITING_TENANT_FORM ? formTrackingDetail(pendingTenantForm) : null;
+
+    // Attente du client : 24 h après le début du statut, puis toutes les 48 h, la relance
+    // revient « à faire par nous ». Sinon le dossier reste en attente du client.
+    const needs = computeReminderNeeds({
+      status: bail.status,
+      statusSince: statusSinceFrom(bail.status, bail.createdAt, logsByBail.get(bail.id) || []),
+      owner: reminderParty(owner as PartyLite | undefined),
+      tenant: reminderParty(tenant as PartyLite | undefined),
+      tenantFormSubmitted: bail.intakes.some((i) => i.clientId === tenant?.id && i.status === "SUBMITTED"),
+      reminders: bail.reminders,
+    });
+    const remindLabel = reminderActionLabel(needs);
+    const remindDetail = reminderDetail(needs);
+    if (remindLabel) {
+      next = { label: remindLabel, actor: "nous", primary: true };
+      detail = remindDetail;
+    } else if (remindDetail && next.actor !== "nous") {
+      detail = [detail, remindDetail].filter(Boolean).join(" · ");
+    }
+    const remind = !!remindLabel || next.label === "Envoyer le formulaire au locataire";
     return {
       id: bail.id,
       address: bail.property?.label || bail.property?.fullAddress || "Bien sans adresse",
@@ -212,6 +277,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       primary: next.primary,
       detail,
       days: daysSince(getLastActivity(bail.updatedAt, bail.auditLogs[0]?.createdAt)),
+      remind,
     };
   });
   // Les plus anciens d'abord : ce sont ceux qui attendent depuis le plus longtemps.
