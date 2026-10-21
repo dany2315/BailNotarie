@@ -63,6 +63,11 @@ export const blogCategories = [
         name: "Loyer et charges",
         slug: "loyer-et-charges",
     },
+    {
+        id: "4",
+        name: "Mise en location",
+        slug: "mise-en-location",
+    },
 ]
 
 
@@ -498,5 +503,49 @@ export const blogData = [
         createdAt: new Date("2026-10-12"),
         updatedAt: new Date("2026-10-12"),
         categoryId: "2",
+      },
+      {
+        id: "blog-21",
+        title: "Récupérer son logement loué : quelles démarches pour le propriétaire ?",
+        slug: "conge-pour-reprise-recuperer-son-logement",
+        description:
+          "Congé pour reprise, congé pour vente, délais de 6 ou 3 mois, notice à joindre et locataires protégés : récupérer son logement loué dans les règles, avec un calculateur de date limite.",
+        content: "",
+        readTime: 8,
+        metaTitle: "Congé pour reprise : récupérer son logement",
+        metaDescription: "Récupérer son logement loué : congé pour reprise ou vente, préavis de 6 ou 3 mois, documents à joindre et locataire protégé. Calculez votre date limite.",
+        metaKeywords:
+          "congé pour reprise, congé pour reprise logement, récupérer son logement loué, récupérer son appartement en location pour y vivre, congé pour vente, congé propriétaire, lettre congé pour reprise, faire partir un locataire fin de bail, préavis congé bailleur, locataire protégé 65 ans, notice congé reprise vente",
+        imageUrl: "https://images.unsplash.com/photo-1746682975155-ae1cce0853a3?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1746682975155-ae1cce0853a3?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Jakub Żerdzicki",
+            profileUrl: "https://unsplash.com/@jakubzerdzicki",
+        },
+        createdAt: new Date("2026-10-21"),
+        updatedAt: new Date("2026-10-21"),
+        categoryId: "2",
+      },
+      {
+        id: "blog-22",
+        title: "Comment choisir un locataire fiable ? Les vérifications à faire avant de signer",
+        slug: "choisir-un-locataire-dossier-verifications",
+        description:
+          "Choisir un bon locataire : justificatifs autorisés du dossier, règle des 3 fois le loyer, vérification de l'avis d'impôt, documents interdits et garanties, avec un calculateur de taux d'effort.",
+        content: "",
+        readTime: 8,
+        metaTitle: "Choisir un locataire : dossier, justificatifs",
+        metaDescription: "Choisir un locataire fiable : documents autorisés, règle des 3 fois le loyer, vérification de l'avis d'impôt et pièces interdites. Calculateur inclus.",
+        metaKeywords:
+          "choisir un locataire, choisir un bon locataire, dossier locataire, dossier locataire documents, pièces justificatives location, documents locataire à fournir, vérifier dossier locataire, faux dossier locataire, 3 fois le loyer, solvabilité locataire, taux d'effort locataire, DossierFacile propriétaire",
+        imageUrl: "https://images.unsplash.com/photo-1562564055-71e051d33c19?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1562564055-71e051d33c19?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Gabrielle Henderson",
+            profileUrl: "https://unsplash.com/@gabriellefaithhenderson",
+        },
+        createdAt: new Date("2026-10-21"),
+        updatedAt: new Date("2026-10-21"),
+        categoryId: "4",
       },
 ]

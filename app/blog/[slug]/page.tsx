@@ -433,6 +433,71 @@ function getFaqForSlug(slug: string) {
     ];
   }
 
+  if (slug === "conge-pour-reprise-recuperer-son-logement") {
+    return [
+      {
+        question: "Comment récupérer son logement loué pour y habiter ?",
+        answer:
+          "Le propriétaire doit délivrer un congé pour reprise à l'échéance du bail. Le congé indique le bénéficiaire (le propriétaire ou un proche autorisé), son adresse et son lien avec le bailleur, et le projet doit être réel et sérieux. Le locataire doit le recevoir au moins 6 mois avant l'échéance en location vide, 3 mois en meublé.",
+      },
+      {
+        question: "Quel est le délai d'un congé pour reprise ?",
+        answer:
+          "Le congé doit être reçu par le locataire au moins 6 mois avant l'échéance du bail pour une location vide, et au moins 3 mois avant pour une location meublée classique. C'est la date de réception qui compte, pas celle de l'envoi.",
+      },
+      {
+        question: "Pour qui peut-on donner un congé pour reprise ?",
+        answer:
+          "Pour le propriétaire lui-même, son conjoint, son partenaire de Pacs, son concubin notoire depuis au moins un an, ses ascendants et descendants ou ceux de son conjoint, partenaire ou concubin.",
+      },
+      {
+        question: "Le locataire est-il prioritaire en cas de congé pour vente ?",
+        answer:
+          "En location vide, oui : le congé pour vente vaut offre de vente au locataire, qui bénéficie d'un droit de préemption, sauf exceptions légales. En location meublée classique, le congé pour vendre ne donne pas ce droit de priorité.",
+      },
+      {
+        question: "Peut-on donner congé à un locataire de plus de 65 ans ?",
+        answer:
+          "Si le locataire a plus de 65 ans et des ressources inférieures à un plafond, le bailleur doit lui proposer un relogement adapté, sauf s'il est lui-même âgé de plus de 65 ans ou dispose de ressources modestes.",
+      },
+      {
+        question: "Que faire si le locataire ne part pas à l'échéance ?",
+        answer:
+          "Le propriétaire ne peut pas changer les serrures ni le contraindre lui-même à partir, sous peine de sanctions pénales. Il doit saisir le juge pour obtenir une décision d'expulsion, qui ne peut pas être exécutée pendant la trêve hivernale, du 1er novembre au 31 mars.",
+      },
+    ];
+  }
+
+  if (slug === "choisir-un-locataire-dossier-verifications") {
+    return [
+      {
+        question: "Quels documents peut-on demander à un locataire ?",
+        answer:
+          "La liste est fixée par le décret du 5 novembre 2015 : une pièce d'identité, un justificatif de domicile, un justificatif d'activité professionnelle et des justificatifs de ressources (avis d'imposition, bulletins de salaire, bilans pour un indépendant, pension ou bourse).",
+      },
+      {
+        question: "Quels documents un propriétaire n'a-t-il pas le droit de demander ?",
+        answer:
+          "Notamment un relevé de compte bancaire, une attestation de bonne tenue de compte, un extrait de casier judiciaire, un dossier médical, la carte Vitale, un contrat de mariage ou un chèque de réservation. Le bailleur s'expose à une amende jusqu'à 3 000 €, 15 000 € pour une société.",
+      },
+      {
+        question: "La règle des 3 fois le loyer est-elle obligatoire ?",
+        answer:
+          "Non, aucun texte ne l'impose. C'est un repère courant qui rapporte les revenus nets du foyer au loyer charges comprises. Les assurances loyers impayés fixent en revanche leurs propres critères, à vérifier avant de retenir un candidat.",
+      },
+      {
+        question: "Comment vérifier un dossier de locataire ?",
+        answer:
+          "Croisez les pièces entre elles (identité, employeur, montants, dates), vérifiez l'avis d'impôt avec le service officiel de l'administration fiscale et posez une question précise en cas d'incohérence. Le service public DossierFacile permet aussi aux candidats de présenter un dossier vérifié.",
+      },
+      {
+        question: "Peut-on demander une caution et une assurance loyers impayés ?",
+        answer:
+          "En principe non : un bailleur qui a souscrit une assurance loyers impayés ne peut pas exiger en plus une caution, sauf si le locataire est étudiant ou apprenti.",
+      },
+    ];
+  }
+
   return [];
 }
 

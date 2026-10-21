@@ -14,7 +14,7 @@ import { getRelatedLinksWithMedia } from '@/lib/blog-links';
 import { blogData } from '@/lib/blog-data';
 import { ArticleImage } from '@/components/blog/article-image';
 import { RelatedThumbnail } from '@/components/blog/related-thumbnail';
-import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content, Blog17Content, Blog18Content, Blog19Content, Blog20Content } from '@/components/blog-content';
+import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content, Blog17Content, Blog18Content, Blog19Content, Blog20Content, Blog21Content, Blog22Content } from '@/components/blog-content';
 
 type TocItem = {
   id: string;
@@ -50,6 +50,8 @@ const contentComponents: Record<string, React.ComponentType> = {
   'blog-18': Blog18Content,
   'blog-19': Blog19Content,
   'blog-20': Blog20Content,
+  'blog-21': Blog21Content,
+  'blog-22': Blog22Content,
 };
 
 const articleExperiences: Record<string, ArticleExperience> = {
@@ -370,6 +372,45 @@ const articleExperiences: Record<string, ArticleExperience> = {
     ],
     ctaLabel: 'Préparer mon bail notarié',
     ctaDescription: "Le dépôt couvre un ou deux mois : le bail notarié protège vos loyers au-delà.",
+  },
+  'blog-21': {
+    quickAnswer: "Un propriétaire ne peut récupérer son logement loué qu'à l'échéance du bail et pour l'un de trois motifs : reprise pour y habiter ou y loger un proche, vente, ou motif légitime et sérieux. Le locataire doit recevoir le congé au moins 6 mois avant l'échéance en location vide, 3 mois en meublé, avec la notice d'information en location vide.",
+    keyPoints: [
+      "Congé à l'échéance du bail, pour reprise, vente ou motif sérieux",
+      "6 mois de préavis en vide, 3 mois en meublé : calculez votre date limite",
+      "Locataire âgé, achat récent : des protections à vérifier",
+    ],
+    toc: [
+      { id: 'recuperer-son-logement', label: 'Le principe' },
+      { id: 'calculateur-conge-bailleur', label: 'Calculer ma date limite' },
+      { id: 'conge-pour-reprise', label: 'Congé pour reprise' },
+      { id: 'conge-pour-vente', label: 'Congé pour vente' },
+      { id: 'delai-conge', label: 'Délais' },
+      { id: 'lettre-conge-reprise', label: 'Documents à joindre' },
+      { id: 'locataire-protege', label: 'Cas particuliers' },
+      { id: 'locataire-reste', label: 'Si le locataire reste' },
+    ],
+    ctaLabel: 'Préparer mon bail notarié',
+    ctaDescription: "Préparez votre prochain bail notarié en ligne, avec un dossier complet dès la signature.",
+  },
+  'blog-22': {
+    quickAnswer: "Pour choisir un locataire fiable, comparez chaque dossier avec les mêmes critères objectifs : ressources justifiées et régulières, cohérence des pièces, rapport entre revenus et loyer, garanties. Les justificatifs exigibles sont limités par décret (identité, domicile, activité, ressources) : réclamer un relevé bancaire ou un casier judiciaire est interdit.",
+    keyPoints: [
+      "Liste fermée des justificatifs : identité, domicile, activité, ressources",
+      "Calculateur de taux d'effort et règle des 3 fois le loyer",
+      "Vérifier un avis d'impôt et repérer les incohérences",
+    ],
+    toc: [
+      { id: 'criteres-objectifs', label: 'Critères objectifs' },
+      { id: 'dossier-locataire-documents', label: 'Documents autorisés' },
+      { id: 'regle-3-fois-loyer', label: 'Règle des 3 fois le loyer' },
+      { id: 'calculateur-solvabilite', label: 'Calculer le taux d’effort' },
+      { id: 'verifier-dossier-locataire', label: 'Vérifier un dossier' },
+      { id: 'garanties', label: 'Garanties' },
+      { id: 'avant-signature', label: 'Avant la signature' },
+    ],
+    ctaLabel: 'Préparer mon bail notarié',
+    ctaDescription: "Locataire trouvé ? Signez un bail notarié, titre exécutoire en cas d'impayé.",
   },
 };
 
