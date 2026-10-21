@@ -145,6 +145,18 @@ const DEPOT_GARANTIE: BlogLink = {
   hint: "Plafonds, délai de restitution et pénalité de retard.",
 };
 
+const RECUPERER_LOGEMENT: BlogLink = {
+  href: "/blog/conge-pour-reprise-recuperer-son-logement",
+  label: "Congé pour reprise : récupérer son logement",
+  hint: "Motifs, préavis de 6 ou 3 mois et documents à joindre.",
+};
+
+const CHOISIR_LOCATAIRE: BlogLink = {
+  href: "/blog/choisir-un-locataire-dossier-verifications",
+  label: "Choisir un locataire : dossier et justificatifs",
+  hint: "Pièces autorisées, règle des 3 fois le loyer et vérifications.",
+};
+
 /**
  * Liens contextuels par article, indexes sur le slug.
  * Trois a quatre destinations par article, choisies pour leur proximite de sujet.
@@ -186,10 +198,12 @@ export const BLOG_RELATED_LINKS: Record<string, BlogLink[]> = {
   "bail-derogatoire-article-l145-5-code-commerce": [COMMERCIAL, COMMERCIAL_NOTAIRE, FORCE_EXEC, SIMULATEUR],
   "bail-commercial": [COMMERCIAL_NOTAIRE, DEROGATOIRE, FORCE_EXEC, COUT],
   "location-meublee-ou-location-nue-quelles-differences": [DIAGNOSTICS, PREAVIS, ETAT_DES_LIEUX, SIMULATEUR],
-  "preavis-location-1-mois-ou-3-mois": [ETAT_DES_LIEUX, DEPOT_GARANTIE, MEUBLE, SIMULATEUR],
+  "preavis-location-1-mois-ou-3-mois": [ETAT_DES_LIEUX, DEPOT_GARANTIE, RECUPERER_LOGEMENT, SIMULATEUR],
   "etat-des-lieux-de-sortie": [DEPOT_GARANTIE, PREAVIS, FORCE_EXEC, SIMULATEUR],
   "revision-loyer-calcul-irl": [DIAGNOSTICS, DEPOT_GARANTIE, OBLIGATIONS, COUT],
-  "depot-de-garantie-location": [ETAT_DES_LIEUX, REVISION_LOYER, SAISIE, SIMULATEUR],
+  "depot-de-garantie-location": [ETAT_DES_LIEUX, CHOISIR_LOCATAIRE, SAISIE, SIMULATEUR],
+  "conge-pour-reprise-recuperer-son-logement": [PREAVIS, EXPULSION, CHOISIR_LOCATAIRE, SIMULATEUR],
+  "choisir-un-locataire-dossier-verifications": [DEPOT_GARANTIE, FORCE_EXEC, RECUPERER_LOGEMENT, SIMULATEUR],
 };
 
 /** Liens contextuels d'un article, en excluant un eventuel auto-lien. */
