@@ -292,6 +292,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
     register,
     handleSubmit,
     setValue,
+    setError,
     watch,
     control,
     formState: { errors },
@@ -369,6 +370,11 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
   );
 
   const onSubmit = async (data: any) => {
+    // Adresse choisie dans la liste : le bien est localisé (commune, zone d'encadrement des loyers).
+    if (!String(data.inseeCode || "").trim()) {
+      setError("fullAddress" as any, { type: "manual", message: "Choisissez l'adresse dans la liste proposée pour que le bien soit localisé." });
+      return;
+    }
     try {
       setIsLoading(true);
       const property = await createProperty(data);
@@ -436,14 +442,17 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
             <AddressAutocomplete
               value={watch("fullAddress" as any) || ""}
               onAddressSelect={handleAddressSelect}
-              onChange={(value: string) => setValue("fullAddress" as any, value)}
+              onChange={(value: string) => {
+                // Texte modifié à la main : l'ancienne localisation ne correspond plus (une suggestion la redonne).
+                setValue("fullAddress" as any, value);
+                setValue("inseeCode" as any, "");
+                setValue("latitude" as any, "");
+                setValue("longitude" as any, "");
+              }}
               disabled={isLoading}
               placeholder="Rechercher une adresse..."
               error={(errors as any).fullAddress?.message}
             />
-                {(errors as any).fullAddress && (
-                  <p className="text-sm text-destructive">{(errors as any).fullAddress.message}</p>
-            )}
           </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

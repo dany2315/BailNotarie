@@ -2026,6 +2026,12 @@ useEffect(() => {
         const valid = await trigger(fields as any);
         if (!valid) return;
 
+        // Adresse choisie dans la liste : le bien est localisé (commune, zone d'encadrement des loyers).
+        if (stepId === "propertyAddress" && !String(form.getValues("propertyInseeCode") || "").trim()) {
+          form.setError("propertyFullAddress", { type: "manual", message: "Choisissez l'adresse dans la liste proposée pour que le bien soit localisé." });
+          return;
+        }
+
         // Validation spéciale pour le step bailFurniture : vérifier le mobilier si bail meublé
         if (stepId === "bailFurniture") {
           const bailType = form.getValues("bailType");
@@ -3834,15 +3840,16 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
               form.setValue("propertyLatitude", addressData.latitude ? addressData.latitude.toString() : "" as any);
               form.setValue("propertyLongitude", addressData.longitude ? addressData.longitude.toString() : "" as any);
             }}
-            onChange={(value) => form.setValue("propertyFullAddress", value)}
+            onChange={(value) => {
+              // Texte modifié à la main : l'ancienne localisation ne correspond plus (une suggestion la redonne).
+              form.setValue("propertyFullAddress", value);
+              form.setValue("propertyInseeCode", "");
+              form.setValue("propertyLatitude", "" as any);
+              form.setValue("propertyLongitude", "" as any);
+            }}
             placeholder="Rechercher une adresse..."
             error={form.formState.errors.propertyFullAddress?.message}
           />
-          {form.formState.errors.propertyFullAddress && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.propertyFullAddress.message}
-            </p>
-          )}
         </div>
         <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
         <div className="space-y-2">

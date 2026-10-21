@@ -10,6 +10,7 @@ import { updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus } fr
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
+import { ensurePropertyGeocoded } from "@/lib/geocode";
 
 /**
  * Fonction helper récursive pour sérialiser les Decimal de Prisma
@@ -72,6 +73,13 @@ function serializeDecimal(obj: any): any {
   return obj;
 }
 
+/** Bien enregistré sans localisation : localisé à partir de son adresse, puis zone tendue mise à jour. */
+async function locateProperty(propertyId: string) {
+  await ensurePropertyGeocoded(propertyId);
+  const located = await prisma.property.findUnique({ where: { id: propertyId }, select: { inseeCode: true, type: true } });
+  if (located?.inseeCode && located.type) await updatePropertyZoneStatus(propertyId, located.inseeCode, located.type);
+}
+
 export async function createProperty(data: unknown) {
   const user = await requireAuth();
   const validated = createPropertySchema.parse(data);
@@ -116,6 +124,8 @@ export async function createProperty(data: unknown) {
   // Vérifier et mettre à jour les indicateurs de zone tendue
   if (validated.inseeCode && validated.type) {
     await updatePropertyZoneStatus(property.id, validated.inseeCode, validated.type);
+  } else {
+    await locateProperty(property.id);
   }
 
   // Mettre à jour le statut de complétion
@@ -230,6 +240,8 @@ export async function updateProperty(data: unknown) {
       });
     }
   }
+
+  if (!property.inseeCode) await locateProperty(id);
 
   // Mettre à jour le statut de complétion
   await calculateAndUpdatePropertyStatus(id);

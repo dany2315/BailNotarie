@@ -39,10 +39,10 @@ meublé = vide + majoration unitaire.
 | Plaine Commune | IDF-2026-04-28-00033 du 28/04/2026 | 01/06 → 24/11/2026 | cartes KML officielles de la DRIHL (referenceloyer) | communes et Saint-Denis infra 1/2 (DRIHL) |
 | Est Ensemble | IDF-2026-04-28-00032 du 28/04/2026 | 01/06 → 24/11/2026 | cartes KML officielles de la DRIHL | communes et Montreuil infra 1/2 (DRIHL) |
 | Lyon, Villeurbanne | arrêté en vigueur depuis le 01/11/2025 | 01/11/2025 → 31/10/2026 (fin à confirmer) | couche officielle Métropole de Lyon `carencadrmtloyer_2025_2026` | îlots IRIS de la même couche |
-| Lille, Hellemmes, Lomme | 2026-02-10-00006 du 10/02/2026 (RAA Nord 2026-059) | 01/04 → 24/11/2026 | annexe 1 (tableaux relevés page par page) | choix manuel (cartes de l'annexe 2) |
-| Montpellier | DDTM34-2026-06-17135 du 09/06/2026 | 01/07 → 23/11/2026 | annexe 1 (tableaux relevés page par page) | choix manuel (annexe 2) |
+| Lille, Hellemmes, Lomme | 2026-02-10-00006 du 10/02/2026 (RAA Nord 2026-059) | 01/04 → 24/11/2026 | annexe 1 (tableaux relevés page par page) | îlots IRIS (IGN) : couche des secteurs de l'annexe 2 calée sur les IRIS (108 IRIS entiers, 2 découpés selon la carte) |
+| Montpellier | DDTM34-2026-06-17135 du 09/06/2026 | 01/07 → 23/11/2026 | annexe 1 (tableaux relevés page par page) | îlots IRIS (IGN) : carte vectorielle de l'annexe 2 calée sur les IRIS (93 IRIS, chacun entièrement dans une zone) |
 | Bordeaux | arrêté du 06/07/2026 | 15/07 → 24/11/2026 | simulateur officiel de Bordeaux Métropole (« à partir du 15 juillet 2026 », 256 catégories, chaque réponse contrôlée) | îlots IRIS, couche DDTM 33 `l_zonage_oll_bordeaux`, recoupée avec le simulateur (88/88) |
-| Grenoble-Alpes Métropole | 38-2026-01-06-00018 du 06/01/2026 | 20/01 → 24/11/2026 | tableau ANIL diffusé par la préfecture (336 valeurs, identiques au texte du PDF) | 13 communes entières par code INSEE ; 8 communes partielles : carte officielle du périmètre calée sur les communes (≈ 7 m par pixel, marge 25 m) |
+| Grenoble-Alpes Métropole | 38-2026-01-06-00018 du 06/01/2026 | 20/01 → 24/11/2026 | tableau ANIL diffusé par la préfecture (336 valeurs, identiques au texte du PDF) | 13 communes entières par code INSEE ; 8 communes partielles : îlots IRIS (IGN), la carte officielle du périmètre suivant exactement ces îlots |
 | Pays basque | arrêté publié le 28/10/2025 | 25/11/2025 → 24/11/2026 | simulateur officiel de l'Agglomération (192 catégories) | îlots IRIS de la carte Géobasque (24 communes couvertes) |
 
 L'expérimentation de l'encadrement (article 140 de la loi ELAN) se termine le
@@ -50,4 +50,4 @@ L'expérimentation de l'encadrement (article 140 de la loi ELAN) se termine le
 Un bail qui prend effet avant ou après la période de l'arrêté intégré n'est ni
 contrôlé automatiquement ni bloqué : la fiche dossier demande une vérification à la main.
 Lyon : l'arrêté intégré se termine le 31/10/2026 ; à remplacer dès la publication du suivant.
-Lille et Montpellier : pas de zonage officiel à jour en données ouvertes, zone choisie à la main.
+Toutes les zones sont trouvées à partir de l'adresse ; l'équipe ne choisit une zone qu'en cas d'erreur.

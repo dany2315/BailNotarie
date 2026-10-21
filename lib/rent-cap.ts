@@ -125,9 +125,6 @@ const empty = (rent: number, furnished: boolean, surface: number | null, notConc
   supplement: null,
 });
 
-/** Tolérance (m) autour d'un périmètre aux contours officiels : imprécision du géocodage de l'adresse. */
-const GEOCODE_TOLERANCE_M = 15;
-
 /** Contrôle du loyer d'un bail au regard de l'arrêté d'encadrement en vigueur. */
 export async function assessRentCap({ property, bail }: RentCapInput): Promise<RentCapAssessment> {
   const furnished = isFurnishedBail(bail.bailType);
@@ -208,8 +205,9 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
         .filter((a) => inBbox(point, [a.bbox[0] - margin, a.bbox[1] - margin, a.bbox[2] + margin, a.bbox[3] + margin]))
         .map((a) => ({ area: a, distance: distanceToBoundaryM(point, geometry(a)) }))
         .sort((a, b) => a.distance - b.distance)[0];
-      // Se tromper ici supprimerait un plafond : marge doublée par rapport aux limites entre zones.
-      const tolerance = territory.precisionM ? territory.precisionM * 2 : GEOCODE_TOLERANCE_M;
+      // Contours exacts : la carte tranche. Contours relevés sur une carte (precisionM) : près du
+      // périmètre, la zone se confirme (marge doublée, se tromper supprimerait un plafond).
+      const tolerance = territory.precisionM ? territory.precisionM * 2 : 0;
       if (!nearest || nearest.distance >= tolerance) {
         return {
           ...result,

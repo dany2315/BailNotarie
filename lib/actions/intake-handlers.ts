@@ -6,6 +6,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { handleDocumentsInTransaction } from "./intakes";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
+import { ensurePropertyGeocoded } from "@/lib/geocode";
 import { randomBytes } from "crypto";
 
 // ============================================================================
@@ -254,8 +255,13 @@ export async function handleOwnerPropertyStep(
 
   // Vérifier et mettre à jour les indicateurs de zone tendue APRÈS la transaction
   // (updatePropertyZoneStatus utilise prisma directement, pas tx, donc le record doit être committé)
-  if (finalPropertyId && payload.propertyInseeCode && payload.propertyType) {
-    await updatePropertyZoneStatus(finalPropertyId, payload.propertyInseeCode, payload.propertyType);
+  if (finalPropertyId) {
+    // Adresse enregistrée sans localisation (ancien brouillon) : localisée à partir du texte.
+    await ensurePropertyGeocoded(finalPropertyId);
+    const located = await prisma.property.findUnique({ where: { id: finalPropertyId }, select: { inseeCode: true, type: true } });
+    if (located?.inseeCode && located.type) {
+      await updatePropertyZoneStatus(finalPropertyId, located.inseeCode, located.type);
+    }
   }
 
   return { success: true };
