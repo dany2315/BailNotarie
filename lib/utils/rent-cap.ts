@@ -17,6 +17,21 @@ export const PERIOD_LABELS: Record<string, string> = {
 
 export const ROOMS_LABELS: Record<number, string> = { 1: "1 pièce", 2: "2 pièces", 3: "3 pièces", 4: "4 pièces et plus" };
 
+/**
+ * Époques demandées au propriétaire : les plus fines de tous les arrêtés (Lyon et Montpellier
+ * distinguent 1991-2005 et après 2005). Elles sont ramenées à celles de l'arrêté de la commune.
+ */
+export const OWNER_PERIODS = ["BEFORE_1946", "FROM_1946_TO_1970", "FROM_1971_TO_1990", "FROM_1991_TO_2005", "AFTER_2005"] as const;
+
+/** Époque de construction du bien exprimée dans les époques d'un arrêté, ou null si on ne peut pas trancher. */
+export function periodForTerritory(code: string | null | undefined, periods: string[]): string | null {
+  if (!code) return null;
+  if (periods.includes(code)) return code;
+  if ((code === "FROM_1991_TO_2005" || code === "AFTER_2005") && periods.includes("AFTER_1990")) return "AFTER_1990";
+  // « Après 1990 » ne suffit pas là où l'arrêté coupe en 2005.
+  return null;
+}
+
 type Ring = number[][];
 export type CapGeometry = { type: "Polygon"; coordinates: Ring[] } | { type: "MultiPolygon"; coordinates: Ring[][] };
 

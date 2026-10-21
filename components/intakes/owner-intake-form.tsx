@@ -107,6 +107,7 @@ import {
 } from "@prisma/client";
 import useIsMobile from "@/hooks/useIsMobile";
 import { ownerFormSchema } from "@/lib/zod/client";
+import { OWNER_PERIODS, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import {
   submitIntake,
   savePartialIntake,
@@ -148,7 +149,7 @@ const STEPS = [
   { id: "clientType", title: "Type de client" },
   { id: "clientInfo", title: "Informations client" },
   { id: "summary", title: "Récapitulatif" },
-  { id: "propertyAddress", title: "Adresse du bien" },
+  { id: "propertyAddress", title: "Le bien" },
   { id: "propertyDetails", title: "Caractéristiques du bien" },
   { id: "bailType", title: "Type de contrat" },
   { id: "bailRent", title: "Loyer & charges" },
@@ -317,6 +318,8 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   const propertySurfaceM2 = property?.surfaceM2?.toString() ?? "";
   const propertyType = property?.type ?? undefined;
   const propertyLegalStatus = property?.legalStatus ?? undefined;
+  const propertyMainRooms = property?.mainRooms ?? undefined;
+  const propertyConstructionPeriod = property?.constructionPeriod ?? undefined;
   const propertyStatus = property?.status ?? PropertyStatus.NON_LOUER;
 
   // Mobilier obligatoire pour location meublée
@@ -401,6 +404,8 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       persons: [],
       entreprise: entrepriseForm,
       // Bien
+      propertyMainRooms,
+      propertyConstructionPeriod,
       propertyLabel,
       propertyFullAddress,
       propertyHousenumber,
@@ -472,6 +477,8 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
     persons: persons as any,
     entreprise: undefined,
       // Bien
+      propertyMainRooms,
+      propertyConstructionPeriod,
       propertyLabel,
       propertyFullAddress,
       propertyHousenumber,
@@ -545,11 +552,11 @@ const getRequiredFields = (
       return [
         "propertyFullAddress",
         "propertyInseeCode",
+        "propertySurfaceM2",
+        "propertyType",
       ];
     case "propertyDetails":
       return [
-        "propertySurfaceM2",
-        "propertyType",
         "propertyLegalStatus",
       ];
     case "bailType":
@@ -721,13 +728,14 @@ const findFirstIncompleteStep = (
   const idxTenant = STEPS.findIndex((s) => s.id === "tenant");
   const idxDocuments = STEPS.findIndex((s) => s.id === "documents");
 
-  if (isEmpty(values.propertyFullAddress)) {
+  if (isEmpty(values.propertyFullAddress) || isEmpty(values.propertySurfaceM2) || isEmpty(values.propertyType)) {
     return idxPropertyAddress;
   }
   if (
-    isEmpty(values.propertySurfaceM2) ||
-    isEmpty(values.propertyType) ||
-    isEmpty(values.propertyLegalStatus)
+    isEmpty(values.propertyLegalStatus) ||
+    // Bail d'habitation : catégorie du logement pour le plafond de loyer
+    (values.bailFamily !== BailFamille.COMMERCIAL &&
+      (isEmpty(values.propertyMainRooms) || isEmpty(values.propertyConstructionPeriod)))
   ) {
     return idxPropertyDetails;
   }
@@ -1501,12 +1509,14 @@ useEffect(() => {
           "propertyRegion",
           "propertyLatitude",
           "propertyLongitude",
+          "propertySurfaceM2",
+          "propertyType",
         ];
       case "propertyDetails":
         return [
-          "propertySurfaceM2",
-          "propertyType",
           "propertyLegalStatus",
+          "propertyMainRooms",
+          "propertyConstructionPeriod",
           "propertyStatus",
         ];
       case "bailType":
@@ -2024,7 +2034,21 @@ useEffect(() => {
       } else {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
-        if (!valid) return;
+
+        // Bail d'habitation : pièces principales et époque, pour calculer le plafond de loyer
+        // (signalées en même temps que les autres erreurs de l'étape).
+        let missingCategory = false;
+        if (stepId === "propertyDetails" && form.getValues("bailFamily") !== BailFamille.COMMERCIAL) {
+          if (!form.getValues("propertyMainRooms")) {
+            form.setError("propertyMainRooms", { type: "manual", message: "Indiquez le nombre de pièces principales" });
+            missingCategory = true;
+          }
+          if (!form.getValues("propertyConstructionPeriod")) {
+            form.setError("propertyConstructionPeriod", { type: "manual", message: "Indiquez l'époque de construction" });
+            missingCategory = true;
+          }
+        }
+        if (!valid || missingCategory) return;
 
         // Adresse choisie dans la liste : le bien est localisé (commune, zone d'encadrement des loyers).
         if (stepId === "propertyAddress" && !String(form.getValues("propertyInseeCode") || "").trim()) {
@@ -2282,6 +2306,14 @@ useEffect(() => {
   const onSubmit = async (data: FormWithPersons) => {
     setIsSubmitting(true);
     try {
+      // Dossier commencé avant l'ajout des questions : on y renvoie avant le paiement.
+      if (data.bailFamily !== BailFamille.COMMERCIAL && (!data.propertyMainRooms || !data.propertyConstructionPeriod)) {
+        toast.error("Indiquez le nombre de pièces principales et l'époque de construction du bien");
+        const detailsIndex = STEPS.findIndex((s) => s.id === "propertyDetails");
+        if (detailsIndex !== -1) setCurrentStep(detailsIndex);
+        setIsSubmitting(false);
+        return;
+      }
       const hasTenantEmailInPayload =
         typeof data.tenantEmail === "string" && data.tenantEmail.trim() !== "";
       if (!hasTenantInCurrentBail && !hasTenantEmailInPayload) {
@@ -3801,6 +3833,7 @@ type PropertyStepProps = {
 
 const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
   const propertyInseeCode = useWatch({ control: form.control, name: "propertyInseeCode" });
+  const bailFamily = useWatch({ control: form.control, name: "bailFamily" });
   const showAddress = !slice || slice === "address";
   const showDetails = !slice || slice === "details";
   
@@ -3808,12 +3841,12 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
     <div className="space-y-5">
       <div>
         <p className="text-xl font-semibold">
-          {slice === "details" ? "Caractéristiques du bien" : "Adresse du bien"}
+          {slice === "details" ? "Caractéristiques du bien" : "Le bien"}
         </p>
         <p className="text-sm text-muted-foreground mt-1">
           {slice === "details"
-            ? "Type d'habitat, surface et régime juridique."
-            : "Adresse complète du bien à louer."}
+            ? "Pièces principales, époque de construction et régime juridique."
+            : "Adresse, type d'habitat et surface du bien à louer."}
         </p>
       </div>
       <div className="space-y-4">
@@ -3851,40 +3884,6 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
             error={form.formState.errors.propertyFullAddress?.message}
           />
         </div>
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="propertyPostalCode">Code postal *</Label>
-          <Input
-            id="propertyPostalCode"
-            className="h-11"
-            {...form.register("propertyPostalCode")}
-            placeholder="75001"
-            value={form.watch("propertyPostalCode") || ""}
-          />
-          {form.formState.errors.propertyPostalCode && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.propertyPostalCode.message}
-            </p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="propertyCity">Ville *</Label>
-          <Input
-            id="propertyCity"
-            className="h-11"
-            {...form.register("propertyCity")}
-            placeholder="Paris"
-            value={form.watch("propertyCity") || ""}
-          />
-          {form.formState.errors.propertyCity && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.propertyCity.message}
-            </p>
-          )}
-        </div>
-      </div>
-        </>)}
-        {showDetails && (<>
       <div className="grid gap-3 sm:gap-4 grid-cols-1">
         <div className="space-y-2">
           <div className="flex items-center gap-2 pb-2">
@@ -3958,12 +3957,11 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
           )}
         </div>
       </div>
-      <div className="space-y-4">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Label htmlFor="propertySurfaceM2">Surface *</Label>
             <InfoTooltip
-              content={<p>Surface privative selon diagnostic Loi Carrez</p>}
+              content={<p>Surface habitable du logement (loi Boutin), indiquée dans les diagnostics. Elle peut être un peu inférieure à la surface loi Carrez.</p>}
               className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
             >
               <button type="button" className="inline-flex items-center">
@@ -3985,6 +3983,92 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
             </p>
           )}
         </div>
+        </>)}
+        {showDetails && (<>
+        {bailFamily !== BailFamille.COMMERCIAL && (
+          <>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="propertyMainRooms">Nombre de pièces principales *</Label>
+                <InfoTooltip
+                  content={<p><strong>Pièce principale</strong> : pièce où l'on vit ou dort (séjour, salon, chambre). Ne comptent pas : cuisine, salle de bains, WC, entrée, couloir. Ex. : un T2 = séjour + 1 chambre = 2 pièces.</p>}
+                  className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+                >
+                  <button type="button" className="inline-flex items-center" aria-label="Où trouver le nombre de pièces principales">
+                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </InfoTooltip>
+              </div>
+              <Controller
+                name="propertyMainRooms"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value ? String(field.value) : undefined}
+                    onValueChange={(value) => {
+                      field.onChange(Number(value));
+                      form.clearErrors("propertyMainRooms");
+                    }}
+                  >
+                    <SelectTrigger id="propertyMainRooms" className="w-full h-11">
+                      <SelectValue placeholder="Choisir le nombre de pièces" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {ROOMS_LABELS[n]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {form.formState.errors.propertyMainRooms && (
+                <p className="text-sm text-destructive">{form.formState.errors.propertyMainRooms.message as string}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="propertyConstructionPeriod">Époque de construction *</Label>
+                <InfoTooltip
+                  content={<p>Indiquée dans votre titre de propriété ou l'acte de vente, et dans le diagnostic de performance énergétique (DPE, « année de construction »). Le syndic ou le règlement de copropriété peuvent aussi vous la donner.</p>}
+                  className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+                >
+                  <button type="button" className="inline-flex items-center" aria-label="Où trouver l'époque de construction">
+                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </InfoTooltip>
+              </div>
+              <Controller
+                name="propertyConstructionPeriod"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    value={typeof field.value === "string" && field.value ? field.value : undefined}
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      form.clearErrors("propertyConstructionPeriod");
+                    }}
+                  >
+                    <SelectTrigger id="propertyConstructionPeriod" className="w-full h-11">
+                      <SelectValue placeholder="Choisir l'époque de construction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OWNER_PERIODS.map((code) => (
+                        <SelectItem key={code} value={code}>
+                          {PERIOD_LABELS[code]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {form.formState.errors.propertyConstructionPeriod && (
+                <p className="text-sm text-destructive">{form.formState.errors.propertyConstructionPeriod.message as string}</p>
+              )}
+            </div>
+          </>
+        )}
         <div className="space-y-2">
           <Label htmlFor="propertyLegalStatus">Régime juridique *</Label>
           <Controller
@@ -4018,7 +4102,6 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
             </p>
           )}
         </div>
-      </div>
         </>)}
     </div>
   </div>

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { updatePropertyRentCapAdmin } from "@/lib/actions/admin-property";
 import { setRentCapExemptionAdmin, setRentSupplementAdmin } from "@/lib/actions/admin-bail-edit";
 import { sendBailReminders } from "@/lib/actions/reminders";
-import { EXEMPTION_LABELS, OUTSIDE_PERIMETER, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
+import { EXEMPTION_LABELS, OUTSIDE_PERIMETER, PERIOD_LABELS, ROOMS_LABELS, periodForTerritory } from "@/lib/utils/rent-cap";
 
 const AUTO = "auto";
 const NONE = "none";
@@ -51,21 +51,24 @@ export function RentCapEditor({
   const [zone, setZone] = React.useState(AUTO);
   const [saving, setSaving] = React.useState(false);
   const filled = !!values.mainRooms && !!values.constructionPeriod && (zoneMode === "polygon" || !!values.rentCapZone);
+  // Époque saisie par le propriétaire (plus fine) : affichée dans les époques de l'arrêté.
+  const shownPeriod = periodForTerritory(values.constructionPeriod, periods);
   const zoneRequired = zoneMode === "manual";
 
   React.useEffect(() => {
     if (!open) return;
     setRooms(values.mainRooms ? String(values.mainRooms) : NONE);
-    setPeriod(values.constructionPeriod && periods.includes(values.constructionPeriod) ? values.constructionPeriod : NONE);
+    setPeriod(shownPeriod ?? NONE);
     setZone(values.rentCapZone || AUTO);
-  }, [open, values, periods]);
+  }, [open, values, shownPeriod]);
 
   const save = async () => {
     setSaving(true);
     const result = await updatePropertyRentCapAdmin({
       propertyId,
       mainRooms: rooms === NONE ? null : Number(rooms),
-      constructionPeriod: period === NONE ? null : period,
+      // Époque inchangée : on garde la précision donnée par le propriétaire.
+      constructionPeriod: period === NONE ? null : period === shownPeriod ? values.constructionPeriod : period,
       rentCapZone: zone === AUTO ? null : zone,
       revalidate: pathname,
     });

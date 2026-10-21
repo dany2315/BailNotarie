@@ -7,6 +7,18 @@ import { handleDocumentsInTransaction } from "./intakes";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
 import { ensurePropertyGeocoded } from "@/lib/geocode";
+import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
+
+/** Pièces principales (1 à 4, 4 = « 4 et plus ») et époque de construction, ou undefined si absentes ou invalides. */
+function rentCategory(payload: any): { mainRooms?: number; constructionPeriod?: string } {
+  const out: { mainRooms?: number; constructionPeriod?: string } = {};
+  const rooms = Number(payload.propertyMainRooms);
+  if (Number.isInteger(rooms) && rooms >= 1 && rooms <= 4) out.mainRooms = rooms;
+  if ((OWNER_PERIODS as readonly string[]).includes(payload.propertyConstructionPeriod)) {
+    out.constructionPeriod = payload.propertyConstructionPeriod;
+  }
+  return out;
+}
 import { randomBytes } from "crypto";
 
 // ============================================================================
@@ -186,6 +198,8 @@ export async function handleOwnerPropertyStep(
       if (payload.propertySurfaceM2) updateData.surfaceM2 = new Decimal(payload.propertySurfaceM2);
       if (payload.propertyType) updateData.type = payload.propertyType;
       if (payload.propertyLegalStatus) updateData.legalStatus = payload.propertyLegalStatus;
+      // Jamais d'effacement : une valeur absente laisse celle déjà connue (saisie par l'équipe).
+      Object.assign(updateData, rentCategory(payload));
       if (payload.propertyStatus) updateData.status = payload.propertyStatus;
       // Données géographiques enrichies - normaliser les chaînes vides en null
       if (payload.propertyHousenumber !== undefined) {
@@ -228,6 +242,7 @@ export async function handleOwnerPropertyStep(
           type: payload.propertyType || null,
           legalStatus: payload.propertyLegalStatus || null,
           status: payload.propertyStatus || PropertyStatus.NON_LOUER,
+          ...rentCategory(payload),
           ownerId: clientId,
           // Données géographiques enrichies - normaliser les chaînes vides en null
           housenumber: payload.propertyHousenumber && payload.propertyHousenumber.trim() ? payload.propertyHousenumber.trim() : null,

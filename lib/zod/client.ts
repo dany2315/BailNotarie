@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
+import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
 import { 
   ClientType, 
   ProfilType, 
@@ -212,6 +213,16 @@ const legalPersonFieldsSchema = {
 
 // Schéma pour les données du bien
 const propertyFieldsSchema = {
+  // Catégorie du logement pour l'encadrement des loyers. Facultatives ici (anciens dossiers) :
+  // le formulaire les exige pour un bail d'habitation.
+  propertyMainRooms: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+    z.number().int().min(1, "Nombre de pièces invalide").max(4, "Nombre de pièces invalide").optional()
+  ),
+  propertyConstructionPeriod: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(OWNER_PERIODS, { message: "Époque de construction invalide" }).optional()
+  ),
   propertyLabel: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.string()

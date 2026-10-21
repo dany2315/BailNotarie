@@ -4,6 +4,7 @@ import {
   distanceToBoundaryM,
   inBbox,
   isFurnishedBail,
+  periodForTerritory,
   pointInGeometry,
   toCents,
   type CapGeometry,
@@ -226,6 +227,7 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
   }
 
   const houseType = territory.houseTypes ? property.type : "ALL";
+  const period = periodForTerritory(property.constructionPeriod, territory.periods);
   if (result.zoneHint) {
     result.missing.push(
       result.zoneHint.kind === "limit"
@@ -236,7 +238,7 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
     result.missing.push("zone");
   }
   if (!property.mainRooms) result.missing.push("pièces principales");
-  if (!property.constructionPeriod || !territory.periods.includes(property.constructionPeriod)) result.missing.push("époque de construction");
+  if (!period) result.missing.push("époque de construction");
   if (territory.houseTypes && houseType !== "APPARTEMENT" && houseType !== "MAISON") result.missing.push("type de logement (maison ou appartement)");
   if (!surface) result.missing.push("surface habitable");
   if (!bail.rentAmount) result.missing.push("loyer");
@@ -249,7 +251,7 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
         zoneCode: result.zone!.code,
         houseType: houseType as string,
         rooms: Math.min(4, property.mainRooms!),
-        period: property.constructionPeriod!,
+        period: period!,
         furnished,
       },
     },

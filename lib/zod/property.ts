@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
 import { BienType, BienLegalStatus, PropertyStatus } from "@prisma/client";
 
 // Schéma pour les champs de mobilier
@@ -52,6 +53,15 @@ export const createPropertySchema = z.object({
     if (isNaN(num)) return null;
     return num;
   }),
+  // Catégorie du logement pour l'encadrement des loyers (facultative : anciens biens, saisie par l'équipe)
+  mainRooms: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+    z.number().int().min(1).max(4).optional()
+  ),
+  constructionPeriod: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(OWNER_PERIODS).optional()
+  ),
   isTightZone: z.boolean().optional(),
   hasRentControl: z.boolean().optional(),
   // Mobilier obligatoire pour location meublée
@@ -94,6 +104,15 @@ export const updatePropertySchema = z.object({
     if (isNaN(num)) return null;
     return num;
   }),
+  // Catégorie du logement pour l'encadrement des loyers (facultative : anciens biens, saisie par l'équipe)
+  mainRooms: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+    z.number().int().min(1).max(4).optional()
+  ),
+  constructionPeriod: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(OWNER_PERIODS).optional()
+  ),
   isTightZone: z.boolean().optional(),
   hasRentControl: z.boolean().optional(),
   // Mobilier obligatoire pour location meublée (tous optionnels pour mise à jour)

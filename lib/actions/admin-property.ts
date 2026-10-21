@@ -5,7 +5,7 @@ import { z } from "zod";
 import { EnergyClass, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
-import { OUTSIDE_PERIMETER } from "@/lib/utils/rent-cap";
+import { OUTSIDE_PERIMETER, periodForTerritory } from "@/lib/utils/rent-cap";
 
 const schema = z.object({
   propertyId: z.string().min(1),
@@ -87,7 +87,7 @@ export async function updatePropertyRentCapAdmin(
       select: { periods: true, partialInseeCodes: true, zones: { select: { code: true } } },
     });
     if (territory) {
-      if (constructionPeriod && !territory.periods.includes(constructionPeriod)) {
+      if (constructionPeriod && !periodForTerritory(constructionPeriod, territory.periods)) {
         return { success: false, error: "Époque de construction absente de l'arrêté de cette commune" };
       }
       if (rentCapZone === OUTSIDE_PERIMETER) {
