@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser, requireProprietaireAuth } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { PropertyPage } from "@/components/client-v2/property-page";
+import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function ProprietaireBienDetailPage({
         orderBy: { createdAt: "desc" },
       },
       bails: {
-        select: { id: true, status: true, rentAmount: true, effectiveDate: true, paidAt: true },
+        select: { id: true, status: true, rentAmount: true, effectiveDate: true, endDate: true, bailType: true, paidAt: true },
         orderBy: { createdAt: "desc" },
       },
     },
@@ -60,6 +61,7 @@ export default async function ProprietaireBienDetailPage({
         createdAt: property.createdAt,
         updatedAt: property.updatedAt,
         documents: property.documents,
+        newBailBlockedMessage: newBailBlockedMessage(newBailAvailability(property.bails)),
         // Même filtre que « Mes dossiers » : un brouillon impayé ne compte pas.
         bails: property.bails
           .filter((bail) => !(bail.status === "DRAFT" && !bail.paidAt))

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Building2, ChevronRight, FileText, Home, Plus } from "lucide-react";
+import { Building2, ChevronRight, FileText, Home, Lock, Plus } from "lucide-react";
 
 import { formatDate } from "@/lib/utils/formatters";
 import { BailDocumentPreview } from "@/components/client/bail-document-preview";
@@ -66,6 +66,8 @@ export type PropertyPageData = {
     rentAmount: number | null;
     effectiveDate: Date | string | null;
   }>;
+  /** Bail en cours : pourquoi un nouveau bail n'est pas encore possible (null sinon). */
+  newBailBlockedMessage: string | null;
 };
 
 export function PropertyPage({ property }: { property: PropertyPageData }) {
@@ -99,7 +101,12 @@ export function PropertyPage({ property }: { property: PropertyPageData }) {
         ? { label: "Pièces", value: String(property.documents.length) }
         : null,
     ].filter(Boolean) as DetailModel["stats"],
-    actions: (
+    actions: property.newBailBlockedMessage ? (
+      <p className="flex max-w-sm items-start gap-1.5 text-[12.5px] text-slate-500">
+        <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        {property.newBailBlockedMessage}
+      </p>
+    ) : (
       <Link href={`/client/proprietaire/baux/new?propertyId=${property.id}`}>
         <PrimaryAction className="py-2.5">
           <Plus className="h-4 w-4" />

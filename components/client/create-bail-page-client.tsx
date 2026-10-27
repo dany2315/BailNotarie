@@ -91,6 +91,8 @@ interface CreateBailPageClientProps {
     id: string;
     label: string | null;
     fullAddress: string | null;
+    /** Bail en cours sur ce bien : pourquoi un nouveau bail n'est pas encore possible. */
+    blockedMessage?: string | null;
   }>;
   locataires: Array<{
     id: string;
@@ -165,7 +167,9 @@ export function CreateBailPageClient({
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      propertyId: draftBail?.propertyId || initialPropertyId || "",
+      propertyId:
+        draftBail?.propertyId ||
+        (initialPropertyId && !biens.find((b) => b.id === initialPropertyId)?.blockedMessage ? initialPropertyId : ""),
       tenantId: draftBail?.tenantId || "",
       bailType: (draftBail?.bailType as BailType) || BailType.BAIL_NU_3_ANS,
       rentAmount: draftBail?.rentAmount ? String(draftBail.rentAmount) : "",
@@ -369,7 +373,7 @@ export function CreateBailPageClient({
   const handlePropertyCreated = (newProp: any) => {
     setLocalBiens((prev) => [
       ...prev,
-      { id: newProp.id, label: newProp.label, fullAddress: newProp.fullAddress },
+      { id: newProp.id, label: newProp.label, fullAddress: newProp.fullAddress, blockedMessage: null },
     ]);
     setValue("propertyId", newProp.id);
     setIsPropertyDrawerOpen(false);
@@ -414,15 +418,20 @@ export function CreateBailPageClient({
                 <button
                   key={bien.id}
                   type="button"
+                  disabled={!!bien.blockedMessage}
+                  aria-disabled={!!bien.blockedMessage}
                   onClick={() => {
+                    if (bien.blockedMessage) return;
                     setValue("propertyId", bien.id);
                     trigger("propertyId");
                   }}
                   className={cn(
                     "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
-                    propertyId === bien.id
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/30 hover:bg-muted/40"
+                    bien.blockedMessage
+                      ? "cursor-not-allowed border-border bg-muted/30 opacity-70"
+                      : propertyId === bien.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/30 hover:bg-muted/40"
                   )}
                 >
                   <div
@@ -445,6 +454,9 @@ export function CreateBailPageClient({
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       {bien.fullAddress || "Adresse non renseignée"}
                     </p>
+                    {bien.blockedMessage && (
+                      <p className="mt-1.5 text-xs font-medium text-amber-700">{bien.blockedMessage}</p>
+                    )}
                   </div>
                   {propertyId === bien.id && (
                     <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />

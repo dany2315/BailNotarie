@@ -12,6 +12,7 @@ import {
   Plus,
   ScanSearch,
   Sparkles,
+  UserPlus,
 } from "lucide-react";
 import { IntakeTarget } from "@prisma/client";
 import { toast } from "sonner";
@@ -200,8 +201,12 @@ export function OwnerDashboard({
   };
 
   // ── Chiffres (identiques à l'ancien tableau de bord) ───────────────────────
+  // Dossier payé dont le propriétaire doit encore indiquer le locataire : c'est à lui d'agir.
+  const missingTenantBails = baux.filter(
+    (bail) => bail.status === "AWAITING_TENANT" && !bail.parties.some((party) => party.profilType === "LOCATAIRE"),
+  );
   const enCours = baux.filter((bail) => ACTIVE_STATUSES.includes(bail.status)).length;
-  const aTraiter = pendingRequests.length + activeIntakes.length + bailDrafts.length;
+  const aTraiter = pendingRequests.length + activeIntakes.length + bailDrafts.length + missingTenantBails.length;
   const signes = baux.filter((bail) => bail.status === "SIGNED").length;
 
   const recentBails = React.useMemo(
@@ -226,6 +231,18 @@ export function OwnerDashboard({
       href: request.bail
         ? `/client/proprietaire/demandes?open=bail-${request.bail.id}&chat=1`
         : undefined,
+    })),
+    // Le dossier attend le locataire : le propriétaire l'ajoute dès qu'il l'a trouvé.
+    ...missingTenantBails.map((bail) => ({
+      key: `tenant-${bail.id}`,
+      icon: UserPlus,
+      tone: "amber" as Tone,
+      kicker: "À faire · Locataire à ajouter",
+      title: bail.property.label || bail.property.fullAddress?.split(",")[0] || "Bien",
+      subtitle: bail.bailType ? BAIL_TYPE_LABELS[bail.bailType] || bail.bailType : null,
+      message: "Indiquez votre locataire dès que vous l'avez trouvé : il recevra son formulaire et le dossier pourra avancer.",
+      actionLabel: "Ajouter le locataire",
+      href: `/client/proprietaire/baux/${bail.id}`,
     })),
     // Un formulaire commencé ailleurs (lien d'intake).
     ...activeIntakes.map((intake) => ({

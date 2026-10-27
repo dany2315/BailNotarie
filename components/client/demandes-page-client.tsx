@@ -12,7 +12,7 @@ import { CompletionStatus, BailType, ProfilType } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { BailDetailDrawer } from "./bail-detail-drawer";
 import { PropertyDetailDrawer } from "./property-detail-drawer";
-import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
+import { newBailAvailability } from "@/lib/utils/bail-availability";
 import { CreatePropertyForm, CreatePropertyFormRef } from "./create-property-form";
 import {
   Dialog,
@@ -119,23 +119,8 @@ const bailTypeLabels: Record<BailType, string> = {
   BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
 };
 
-const TERMINAL_STATUSES = ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"];
-
 function canCreateNewBail(bails: PropertyWithBails["bails"]): boolean {
-  const activeBails = bails.filter((b) => !TERMINAL_STATUSES.includes(b.status));
-  if (activeBails.length === 0) return true;
-
-  return activeBails.every((b) => {
-    const endDate = b.endDate
-      ? new Date(b.endDate)
-      : b.effectiveDate && b.bailType
-      ? calculateBailEndDate(new Date(b.effectiveDate), b.bailType as BailType)
-      : null;
-    if (!endDate) return false;
-    const oneMonthBefore = new Date(endDate);
-    oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
-    return new Date() >= oneMonthBefore;
-  });
+  return newBailAvailability(bails as any).allowed;
 }
 
 export function DemandesPageClient({ biens, locataires, ownerId }: DemandesPageClientProps) {

@@ -11,6 +11,17 @@ import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { validateRentForProperty } from "@/lib/utils/rent-validation";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
+import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
+
+/** Bail en cours sur le bien : le propriétaire ne peut pas en préparer un autre (erreur explicite sinon). */
+async function assertNewBailAllowed(propertyId: string, excludeBailId?: string | null) {
+  const bails = await prisma.bail.findMany({
+    where: { propertyId },
+    select: { id: true, status: true, paidAt: true, endDate: true, effectiveDate: true, bailType: true },
+  });
+  const message = newBailBlockedMessage(newBailAvailability(bails, { excludeBailId }));
+  if (message) throw new Error(message);
+}
 
 export async function createLease(data: unknown, paymentIntentId?: string, draftBailId?: string) {
   const user = await requireAuth();
@@ -37,6 +48,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         client.completionStatus !== CompletionStatus.COMPLETED) {
       throw new Error("Vous devez compléter vos informations personnelles et les soumettre à vérification avant de pouvoir créer un bail");
     }
+    await assertNewBailAllowed(property.id, draftBailId);
   }
 
   // Vérifier que le locataire existe (optionnel)
@@ -1470,6 +1482,8 @@ export async function saveBailDraft(data: {
     revalidatePath("/client/proprietaire");
     return { bailId: data.draftBailId };
   }
+
+  await assertNewBailAllowed(data.propertyId);
 
   // Créer un nouveau brouillon
   const bail = await prisma.bail.create({

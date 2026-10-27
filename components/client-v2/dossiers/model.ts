@@ -1,6 +1,7 @@
 import { BailType, CompletionStatus } from "@prisma/client";
 import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
 import { TERMINAL_STATUSES } from "../owner-bail-card";
+import { newBailAvailability as sharedNewBailAvailability } from "@/lib/utils/bail-availability";
 import type { Tone } from "../owner-ui";
 
 /* =========================================================================
@@ -60,35 +61,14 @@ export const COMPLETION_VIEW: Record<string, { label: string; tone: Tone }> = {
 };
 
 /**
- * Un bien n'accepte un nouveau bail que si aucun bail actif ne court encore,
- * ou si tous arrivent à échéance dans moins d'un mois. Règle d'origine ; on
- * renvoie en plus la date à partir de laquelle ce sera possible, pour la dire
- * au propriétaire au lieu de le laisser deviner.
+ * Un nouveau bail est-il possible sur ce bien ? Règle commune à tout l'espace propriétaire et au
+ * serveur (lib/utils/bail-availability) ; on renvoie en plus la date à partir de laquelle ce
+ * sera possible, pour la dire au propriétaire au lieu de le laisser deviner.
  */
 export function newBailAvailability(bails: BailOfProperty[]): { allowed: boolean; from: Date | null } {
-  const activeBails = bails.filter((bail) => !TERMINAL_STATUSES.includes(bail.status));
-  if (activeBails.length === 0) return { allowed: true, from: null };
-
-  let latestUnlock: Date | null = null;
-  let allowed = true;
-
-  for (const bail of activeBails) {
-    const endDate = bail.endDate
-      ? new Date(bail.endDate)
-      : bail.effectiveDate && bail.bailType
-        ? calculateBailEndDate(new Date(bail.effectiveDate), bail.bailType as BailType)
-        : null;
-
-    // Sans date de fin connue, on ne peut pas ouvrir : règle d'origine.
-    if (!endDate) return { allowed: false, from: null };
-
-    const oneMonthBefore = new Date(endDate);
-    oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
-    if (new Date() < oneMonthBefore) allowed = false;
-    if (!latestUnlock || oneMonthBefore > latestUnlock) latestUnlock = oneMonthBefore;
-  }
-
-  return { allowed, from: allowed ? null : latestUnlock };
+  const availability = sharedNewBailAvailability(bails);
+  if (availability.allowed) return { allowed: true, from: null };
+  return { allowed: false, from: availability.reason === "signed" ? availability.availableFrom : null };
 }
 
 export function propertyTitle(bien: PropertyWithBails) {

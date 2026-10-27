@@ -98,7 +98,7 @@ function PropertyIdentity({
               <Lock className="h-3 w-3 shrink-0" />
               {lockFrom
                 ? `Nouveau bail dès le ${formatDate(lockFrom)}`
-                : "Un bail est déjà actif sur ce bien"}
+                : "Un dossier est déjà en cours sur ce bien"}
             </p>
           )}
         </div>
