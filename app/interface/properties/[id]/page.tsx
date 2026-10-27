@@ -104,7 +104,7 @@ export default async function PropertyDetailPage({
       {/* En-tête */}
       <div className="flex flex-col gap-4">
         <div className="flex items-start gap-3 sm:gap-4">
-          <Link href="/interface/properties">
+          <Link href={`/interface/clients/${property.owner.id}`} aria-label="Retour à la fiche du propriétaire">
             <Button variant="ghost" size="icon" className="shrink-0">
               <ArrowLeft className="size-4" />
             </Button>
@@ -137,6 +137,7 @@ export default async function PropertyDetailPage({
             <DeletePropertyButton 
               propertyId={property.id} 
               propertyAddress={property.fullAddress || property.label || "Bien"}
+              redirectTo={`/interface/clients/${property.owner.id}`}
             />
           </ButtonGroup>
         </div>

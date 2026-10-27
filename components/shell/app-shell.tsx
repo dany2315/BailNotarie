@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
-  Building2,
   FileText,
   Link as LinkIcon,
   Settings,
@@ -55,11 +54,11 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 // « Paramètres » retiré : la page /interface/settings n'existe pas.
+// « Biens » retiré : un bien se consulte depuis son dossier ou la fiche de son propriétaire.
 const navigation = [
   { name: "À traiter", href: "/interface", icon: LayoutDashboard, exact: true },
   { name: "Dossiers", href: "/interface/baux", icon: FileText },
   { name: "Clients", href: "/interface/clients", icon: Users },
-  { name: "Biens", href: "/interface/properties", icon: Building2 },
   { name: "Notaires", href: "/interface/notaires", icon: GraduationCap },
   { name: "Formulaires envoyés", href: "/interface/intakes", icon: LinkIcon },
   { name: "Notifications", href: "/interface/notifications", icon: Bell },
