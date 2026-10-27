@@ -140,7 +140,7 @@ export function LpHero() {
             leur dossier de <strong className="font-semibold text-slate-900">bail notarié en France</strong>.
             Constitution du dossier <strong className="font-semibold text-slate-900">100% en ligne</strong>,
             transmission au <strong className="font-semibold text-slate-900">notaire</strong> et{" "}
-            <strong className="font-semibold text-slate-900">signature à distance</strong>. Simple, rapide et{" "}
+            <strong className="font-semibold text-slate-900">signature à distance par procuration</strong>. Simple, rapide et{" "}
             <strong className="font-semibold text-slate-900">force exécutoire</strong>.
           </p>
 

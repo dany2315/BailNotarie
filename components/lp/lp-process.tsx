@@ -34,10 +34,10 @@ const STEPS = [
   },
   {
     icon: PenTool,
-    title: "Signature en ligne avec le notaire",
+    title: "Signature en ligne par procuration",
     description:
-      "Vous signez votre bail notarié en visioconférence avec le notaire. L'acte authentique vous est remis avec force exécutoire immédiate.",
-    bullets: ["Visioconférence sécurisée", "Acte authentique signé", "Force exécutoire immédiate"],
+      "Vous signez en visioconférence avec le notaire une procuration authentique : il signe ensuite votre bail notarié en votre nom. L'acte authentique vous est remis avec force exécutoire immédiate.",
+    bullets: ["Procuration en visioconférence", "Acte authentique signé", "Force exécutoire immédiate"],
     accent: "#10b981",
     preview: <SignatureMockup compact />,
     url: "bailnotarie.fr/client/signature",
@@ -61,8 +61,8 @@ export function LpProcess() {
             Votre bail notarié en <span className="lp-gradient-text">3 étapes simples</span>
           </h2>
           <p className="lp-balance mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">
-            Un processus 100% en ligne, rapide et sécurisé. De la constitution de votre dossier à la signature, tout se
-            fait en ligne.
+            Un processus 100% en ligne, rapide et sécurisé. De la constitution de votre dossier à la signature par
+            procuration, tout se fait en ligne.
           </p>
         </Reveal>
 

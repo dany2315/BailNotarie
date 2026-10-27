@@ -62,6 +62,7 @@ import {
 } from "@/components/chat-v2/chat-ui";
 import { toTimeline } from "@/components/chat-v2/adapters";
 import type { Channel } from "pusher-js";
+import { useSendLock } from "@/hooks/use-send-lock";
 
 const messageSchema = z.object({
   content: z.string().optional(),
@@ -190,6 +191,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
+  const sendLock = useSendLock();
   const [uploading, setUploading] = useState(false);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -1034,7 +1036,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
             onSubmit: () => {
               if (sending || uploading) return;
               if (!watchMessage("content")?.trim() && selectedFiles.length === 0) return;
-              handleSubmitMessage(onSubmitMessage)();
+              handleSubmitMessage((data) => sendLock(() => onSubmitMessage(data)))();
             },
             actions: [
               {
@@ -1155,7 +1157,7 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleSubmitRequest(onSubmitRequest)} className="space-y-4">
+              <form onSubmit={handleSubmitRequest((data) => sendLock(() => onSubmitRequest(data)))} className="space-y-4">
                 <div className="space-y-1.5">
                   <label
                     htmlFor="title"

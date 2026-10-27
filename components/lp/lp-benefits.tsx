@@ -165,7 +165,7 @@ export function LpBenefits() {
                   <h3 className="lp-title mt-6 text-2xl font-bold">100% en ligne</h3>
                   <p className="mt-3 text-[14.5px] leading-relaxed text-blue-50/85">
                     Aucun déplacement. Tout se fait depuis chez vous, en quelques minutes : dossier, pièces,
-                    signature.
+                    signature par procuration.
                   </p>
                   <div className="mt-7 flex items-center gap-2 text-[13px] font-medium text-blue-50/80">
                     <ScanLine className="h-4 w-4" />
@@ -185,8 +185,8 @@ export function LpBenefits() {
                 </span>
                 <h3 className="lp-title mt-6 text-2xl font-bold text-slate-900">Prêt en 1 semaine</h3>
                 <p className="mt-3 text-[14.5px] leading-relaxed text-slate-600">
-                  Transmission automatique au notaire dès la validation de votre dossier, puis signature en
-                  visioconférence.
+                  Transmission automatique au notaire dès la validation de votre dossier, puis signature par
+                  procuration en visioconférence.
                 </p>
                 <DelayChart />
                 <div className="mt-2 flex justify-between text-[11px] text-slate-400">

@@ -285,7 +285,7 @@ const TIMELINE = [
   { title: "Pièces vérifiées", meta: "Aujourd'hui, 09:22", state: "done" as const },
   { title: "Transmis à l'étude notariale", meta: "Aujourd'hui, 09:23", state: "done" as const },
   { title: "Rédaction de l'acte authentique", meta: "En cours — Me Laurent", state: "active" as const },
-  { title: "Signature en visioconférence", meta: "Créneau proposé : jeudi 14h", state: "todo" as const },
+  { title: "Procuration en visioconférence", meta: "Créneau proposé : jeudi 14h", state: "todo" as const },
 ];
 
 export function SuiviMockup({ compact = false }: { compact?: boolean }) {
@@ -405,7 +405,7 @@ export function SignatureMockup({ compact = false }: { compact?: boolean }) {
   return (
     <div className={cn("relative", compact ? "p-4" : "p-5 sm:p-6")}>
       <div className="mb-3 flex items-center justify-between">
-        <div className="text-[12px] font-semibold text-slate-800">Signature de l&apos;acte authentique</div>
+        <div className="text-[12px] font-semibold text-slate-800">Signature par procuration</div>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-500">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> En direct
         </span>

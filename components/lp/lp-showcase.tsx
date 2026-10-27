@@ -81,9 +81,9 @@ const SCREENS = [
   {
     id: "signature",
     icon: PenTool,
-    label: "Signature à distance",
-    title: "La signature authentique, en visioconférence",
-    text: "Vous signez avec le notaire partenaire depuis chez vous. L'acte authentique est délivré avec force exécutoire immédiate.",
+    label: "Signature à distance par procuration",
+    title: "La signature authentique, par procuration en visioconférence",
+    text: "Depuis chez vous, vous signez une procuration avec le notaire partenaire, qui signe ensuite l'acte en votre nom. L'acte authentique est délivré avec force exécutoire immédiate.",
     url: "bailnotarie.fr/client/signature",
     render: () => <SignatureMockup />,
   },

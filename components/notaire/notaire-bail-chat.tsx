@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useSendLock } from "@/hooks/use-send-lock";
 
 const messageSchema = z.object({
   content: z.string().min(1, "Le message ne peut pas être vide"),
@@ -82,6 +83,7 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
+  const sendLock = useSendLock();
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<Role | null>(null);
   const [internalSelectedPartyId, setInternalSelectedPartyId] = useState<string | null>(null);
@@ -458,7 +460,7 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
                   Demander des pièces ou des données aux parties du dossier
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmitRequest(onSubmitRequest)} className="space-y-4">
+              <form onSubmit={handleSubmitRequest((data) => sendLock(() => onSubmitRequest(data)))} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="type">Type de demande *</Label>
                   <Select
@@ -611,7 +613,7 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
       )}
 
       {/* Formulaire d'envoi de message */}
-      <form onSubmit={handleSubmitMessage(onSubmitMessage)} className="space-y-2">
+      <form onSubmit={handleSubmitMessage((data) => sendLock(() => onSubmitMessage(data)))} className="space-y-2">
         {/* Sélecteur de destinataire pour le notaire - seulement si aucune partie n'est sélectionnée */}
         {isNotaire && !selectedPartyId && (
           <div className="space-y-2">

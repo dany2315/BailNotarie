@@ -15,6 +15,7 @@ import { formatDateTime } from "@/lib/utils/formatters";
 import { Role, BailMessageType, NotaireRequestStatus } from "@prisma/client";
 import { useSession } from "@/lib/auth-client";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
+import { useSendLock } from "@/hooks/use-send-lock";
 
 const messageSchema = z.object({
   content: z.string().min(1, "Le message ne peut pas être vide"),
@@ -32,6 +33,7 @@ export function BailChat({ bailId }: BailChatProps) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const sendLock = useSendLock();
   const [userRole, setUserRole] = useState<Role | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -232,7 +234,7 @@ export function BailChat({ bailId }: BailChatProps) {
       </div>
 
       {/* Formulaire d'envoi */}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-2">
+      <form onSubmit={handleSubmit((data) => sendLock(() => onSubmit(data)))} className="space-y-2">
         <Textarea
           placeholder="Tapez votre message..."
           {...register("content")}

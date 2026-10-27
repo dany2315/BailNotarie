@@ -44,6 +44,7 @@ import { ChatPanel } from "@/components/chat-v2/chat-panel";
 import { ChatDock } from "@/components/chat-v2/chat-dock";
 import { ConfirmDialog, RequestRespondForm } from "@/components/chat-v2/chat-ui";
 import { toTimeline } from "@/components/chat-v2/adapters";
+import { useSendLock } from "@/hooks/use-send-lock";
 
 const messageSchema = z.object({
   content: z.string().optional(),
@@ -167,10 +168,12 @@ async function handleDownloadDocument(
 // Défini en dehors du composant principal pour éviter les problèmes de recréation d'état
 function RequestResponseForm({ requestId, bailId, onSuccess }: { requestId: string; bailId: string; onSuccess?: () => void }) {
   const [isResponding, setIsResponding] = useState(false);
+  const responseLock = useSendLock();
   const [uploadProgress, setUploadProgress] = useState(0);
   const [responseFiles, setResponseFiles] = useState<File[]>([]);
 
-  const handleResponseSubmit = async () => {
+  const handleResponseSubmit = () => responseLock(submitResponse);
+  const submitResponse = async () => {
     if (responseFiles.length === 0) {
       toast.error("Erreur", {
         description: "Veuillez sélectionner au moins un fichier",
@@ -277,6 +280,7 @@ export function BailChatSheet({ bailId, trigger, defaultOpen = false }: BailChat
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
+  const sendLock = useSendLock();
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
@@ -1021,7 +1025,7 @@ export function BailChatSheet({ bailId, trigger, defaultOpen = false }: BailChat
                   // Ignorer les erreurs
                 }
               }
-              handleSubmit(onSubmit)();
+              handleSubmit((data) => sendLock(() => onSubmit(data)))();
             },
             onAttach: () => fileInputRef.current?.click(),
             files: selectedFiles.map((file) => ({ name: file.name, size: file.size })),

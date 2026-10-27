@@ -355,7 +355,7 @@ export function LeaseWaitingCell({ row }: LeaseCellProps) {
       className={cn("whitespace-nowrap font-medium", days > STALE_AFTER_DAYS ? "font-semibold text-red-700" : "text-foreground")}
       title="Jours depuis la dernière activité sur le dossier"
     >
-      {days === 0 ? "< 1 j" : `${days} j`}
+      {days === 0 ? "moins d'1 j" : `${days} j`}
     </span>
   );
 }
@@ -447,7 +447,7 @@ export function LeaseMobileCard({ row }: LeaseCellProps) {
         <span className="ml-auto flex items-center gap-1">
           {days !== null && (
             <span className={cn("text-[13px] font-medium", stale ? "text-red-700" : "text-muted-foreground")}>
-              {days === 0 ? "< 1 j" : `${days} j`}
+              {days === 0 ? "moins d'1 j" : `${days} j`}
             </span>
           )}
           <LeaseActions row={row} />
