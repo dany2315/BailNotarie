@@ -44,6 +44,7 @@ import { format } from "date-fns";
 import { BailTermsEditor, type BailTermInput } from "@/components/admin/bail-terms-editor";
 import { assessDpe } from "@/lib/utils/dpe";
 import { DpeEditor } from "@/components/admin/dpe-editor";
+import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/admin/property-editors";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
 
 export const dynamic = "force-dynamic";
@@ -617,9 +618,17 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 <div className="flex flex-col gap-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-semibold">Équipements du meublé</span>
-                    <StateChip tone={isMeuble ? (furniturePresent === FURNITURE.length ? "ok" : "missing") : "neutral"}>
-                      {isMeuble ? `${furniturePresent} / ${FURNITURE.length} présents` : "Non concerné · bail nu"}
-                    </StateChip>
+                    <span className="flex items-center gap-2">
+                      <StateChip tone={isMeuble ? (furniturePresent === FURNITURE.length ? "ok" : "missing") : "neutral"}>
+                        {isMeuble ? `${furniturePresent} / ${FURNITURE.length} présents` : "Non concerné · bail nu"}
+                      </StateChip>
+                      {!propertyLocked && (
+                        <PropertyFurnitureEditor
+                          propertyId={property.id}
+                          items={FURNITURE.map((item) => ({ key: item.key, label: item.label, present: !!property[item.key] }))}
+                        />
+                      )}
+                    </span>
                   </div>
                   <ul className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-3.5 gap-y-1.5">
                     {FURNITURE.map((item) => {
@@ -656,14 +665,29 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         : null
                     }
                     actions={
-                      !propertyDescMissing && (
-                        <VerifyToggle
-                          bailId={lease.id}
-                          pointKey={propertyDescKey}
-                          verified={isVerified(propertyDescKey, propertyLocked)}
-                          locked={propertyLocked}
-                        />
-                      )
+                      <>
+                        {!propertyLocked && (
+                          <PropertyDetailsEditor
+                            propertyId={property.id}
+                            missing={propertyDescMissing}
+                            values={{
+                              label: property.label,
+                              fullAddress: property.fullAddress,
+                              type: property.type,
+                              surfaceM2: surface,
+                              legalStatus: property.legalStatus,
+                            }}
+                          />
+                        )}
+                        {!propertyDescMissing && (
+                          <VerifyToggle
+                            bailId={lease.id}
+                            pointKey={propertyDescKey}
+                            verified={isVerified(propertyDescKey, propertyLocked)}
+                            locked={propertyLocked}
+                          />
+                        )}
+                      </>
                     }
                   >
                     {[

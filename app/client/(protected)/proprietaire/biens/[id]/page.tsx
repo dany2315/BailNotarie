@@ -54,7 +54,8 @@ export default async function ProprietaireBienDetailPage({
         id: property.id,
         label: property.label,
         fullAddress: property.fullAddress,
-        surfaceM2: property.surfaceM2,
+        // Un Decimal Prisma ne passe pas vers un composant client : on envoie un nombre.
+        surfaceM2: property.surfaceM2 === null ? null : Number(property.surfaceM2),
         type: property.type,
         legalStatus: property.legalStatus,
         completionStatus: property.completionStatus,
