@@ -84,6 +84,7 @@ export async function updatePropertyRentCapAdmin(
     const candidates = [insee, ...(/^751\d\d$/.test(insee) ? ["75056"] : []), ...(/^6938\d$/.test(insee) ? ["69123"] : [])];
     const territory = await prisma.rentCapTerritory.findFirst({
       where: { inseeCodes: { hasSome: candidates } },
+      orderBy: { validFrom: "desc" }, // arrêté le plus récent
       select: { periods: true, partialInseeCodes: true, zones: { select: { code: true } } },
     });
     if (territory) {

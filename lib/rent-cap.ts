@@ -18,6 +18,12 @@ function inseeCandidates(insee: string): string[] {
   return list;
 }
 
+/** Jour « AAAA-MM-JJ » d'une date d'arrêté (enregistrée en UTC). */
+const isoDay = (date: Date) => date.toISOString().slice(0, 10);
+
+/** Jour « AAAA-MM-JJ » en France d'une prise d'effet (minuit UTC ou minuit à Paris). */
+const parisDay = (date: Date) => date.toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" });
+
 export interface RentCapInput {
   property: {
     inseeCode: string | null;
@@ -134,11 +140,18 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
   if (!property.inseeCode) return empty(bail.rentAmount, furnished, surface, "no_address");
 
   const candidates = inseeCandidates(property.inseeCode);
-  const territory = await prisma.rentCapTerritory.findFirst({
+  // Un territoire peut avoir plusieurs arrêtés intégrés : on prend celui de la prise d'effet du bail.
+  const territories = await prisma.rentCapTerritory.findMany({
     where: { inseeCodes: { hasSome: candidates } },
     include: { zones: { orderBy: { code: "asc" } } },
+    orderBy: { validFrom: "desc" },
   });
-  if (!territory) return empty(bail.rentAmount, furnished, surface, "not_regulated");
+  if (!territories.length) return empty(bail.rentAmount, furnished, surface, "not_regulated");
+  const effective = parisDay(bail.effectiveDate ? new Date(bail.effectiveDate) : new Date());
+  const territory =
+    territories.find((t) => effective >= isoDay(t.validFrom) && effective <= isoDay(t.validTo)) ??
+    territories.find((t) => effective > isoDay(t.validTo)) ??
+    territories[territories.length - 1];
 
   const partialCommune = candidates.some((code) => territory.partialInseeCodes.includes(code));
   const result: RentCapAssessment = {
@@ -162,8 +175,7 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
       partialCommune,
     },
   };
-  const effective = bail.effectiveDate ? new Date(bail.effectiveDate) : new Date();
-  result.validity = effective < territory.validFrom ? "before" : effective > territory.validTo ? "after" : "in";
+  result.validity = effective < isoDay(territory.validFrom) ? "before" : effective > isoDay(territory.validTo) ? "after" : "in";
 
   if (bail.rentCapExemption) {
     return {

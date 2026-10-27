@@ -1,7 +1,7 @@
 /**
  * Import des données d'encadrement des loyers (data/rent-cap/*.json) en base.
  *
- * Chaque fichier décrit un territoire et l'arrêté préfectoral en vigueur : zones,
+ * Chaque fichier décrit un arrêté préfectoral d'un territoire (l'actuel ou un précédent) : zones,
  * contours (quartiers, îlots ou communes) et loyers de référence par catégorie.
  * L'import remplace un territoire à la fois, dans une transaction : il peut être
  * rejoué sans risque à chaque nouvel arrêté. Il ne touche à aucune autre donnée.
