@@ -14,7 +14,7 @@ import { getRelatedLinksWithMedia } from '@/lib/blog-links';
 import { blogData } from '@/lib/blog-data';
 import { ArticleImage } from '@/components/blog/article-image';
 import { RelatedThumbnail } from '@/components/blog/related-thumbnail';
-import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content, Blog17Content, Blog18Content, Blog19Content, Blog20Content, Blog21Content, Blog22Content } from '@/components/blog-content';
+import { Blog1Content, Blog2Content, Blog3Content, Blog4Content, Blog5Content, Blog6Content, Blog7Content, Blog8Content, Blog9Content, Blog10Content, Blog11Content, Blog12Content, Blog13Content, Blog14Content, Blog15Content, Blog16Content, Blog17Content, Blog18Content, Blog19Content, Blog20Content, Blog21Content, Blog22Content, Blog23Content, Blog24Content } from '@/components/blog-content';
 
 type TocItem = {
   id: string;
@@ -52,6 +52,8 @@ const contentComponents: Record<string, React.ComponentType> = {
   'blog-20': Blog20Content,
   'blog-21': Blog21Content,
   'blog-22': Blog22Content,
+  'blog-23': Blog23Content,
+  'blog-24': Blog24Content,
 };
 
 const articleExperiences: Record<string, ArticleExperience> = {
@@ -411,6 +413,46 @@ const articleExperiences: Record<string, ArticleExperience> = {
     ],
     ctaLabel: 'Préparer mon bail notarié',
     ctaDescription: "Locataire trouvé ? Signez un bail notarié, titre exécutoire en cas d'impayé.",
+  },
+  'blog-23': {
+    quickAnswer: "Un locataire ne peut sous-louer qu'avec l'accord écrit du bailleur, qui porte aussi sur le montant du sous-loyer, plafonné au loyer au m² du bail principal. Face à une sous-location illégale, conservez les preuves, demandez des explications par écrit et faites examiner le dossier : résiliation du bail, restitution des sous-loyers et dommages et intérêts peuvent être demandés en justice.",
+    keyPoints: [
+      "Sous-location : accord écrit du bailleur sur le principe et le prix",
+      "Calculateur du sous-loyer maximum au m²",
+      "Preuves, courrier, sanctions : réagir sans se mettre en faute",
+    ],
+    toc: [
+      { id: 'sous-location-autorisation', label: 'Le principe' },
+      { id: 'calculateur-sous-loyer', label: 'Calculer le sous-loyer maximum' },
+      { id: 'comment-savoir-locataire-sous-loue', label: 'Repérer une sous-location' },
+      { id: 'prouver-sous-location', label: 'Réunir des preuves' },
+      { id: 'que-faire-locataire-sous-loue', label: 'Première démarche' },
+      { id: 'sanctions-sous-location-illegale', label: 'Sanctions' },
+      { id: 'sous-location-airbnb', label: 'Sous-location Airbnb' },
+      { id: 'erreurs-proprietaire', label: 'Erreurs à éviter' },
+    ],
+    ctaLabel: 'Préparer mon bail notarié',
+    ctaDescription: "Préparez votre prochain bail avec des clauses claires, relues par un notaire.",
+  },
+  'blog-24': {
+    quickAnswer: "Depuis le 1er octobre 2026, les baux de résidence principale (vide, meublé, colocation à bail unique) conclus ou renouvelés suivent les nouveaux contrats types du décret du 6 juillet 2026 : clause résolutoire intégrée, mention d'une éventuelle obligation de résidence principale, téléphone facultatif. Depuis le 18 octobre 2026, une nouvelle notice d'information doit être jointe. Les baux en cours n'ont pas à être réécrits.",
+    keyPoints: [
+      "Nouveaux contrats types pour les baux signés depuis le 1er octobre 2026",
+      "Clause résolutoire : commandement de payer et délai de 6 semaines",
+      "Nouvelle notice d'information depuis le 18 octobre 2026",
+    ],
+    toc: [
+      { id: 'contrats-concernes', label: 'Contrats concernés' },
+      { id: 'verifier-modele-bail', label: 'Vérifier mon modèle' },
+      { id: 'clause-resolutoire-bail', label: 'Clause résolutoire' },
+      { id: 'commandement-de-payer-6-semaines', label: 'Délai de 6 semaines' },
+      { id: 'obligation-residence-principale', label: 'Résidence principale' },
+      { id: 'numero-telephone-bail', label: 'Téléphone' },
+      { id: 'notice-information-2026', label: 'Nouvelle notice' },
+      { id: 'verifier-avant-signature', label: 'Checklist' },
+    ],
+    ctaLabel: 'Préparer mon bail notarié',
+    ctaDescription: "Un bail à jour des textes de 2026, rédigé et authentifié par un notaire.",
   },
 };
 

@@ -548,4 +548,48 @@ export const blogData = [
         updatedAt: new Date("2026-10-21"),
         categoryId: "4",
       },
+      {
+        id: "blog-23",
+        title: "Sous-location illégale : que faire si votre locataire sous-loue sans autorisation ?",
+        slug: "sous-location-illegale-locataire-sous-loue",
+        description:
+          "Votre locataire sous-loue votre appartement sans votre accord, sur Airbnb ou ailleurs ? Règles de la sous-location, preuves, courrier, sanctions et erreurs à éviter, avec un calculateur du sous-loyer maximum.",
+        content: "",
+        readTime: 7,
+        metaTitle: "Sous-location illégale : que faire ?",
+        metaDescription: "Locataire qui sous-loue sans autorisation : règles de la sous-location, preuves, courrier, sanctions et sous-location Airbnb. Calculateur de sous-loyer inclus.",
+        metaKeywords:
+          "sous-location, sous location, sous-location illégale, sous location interdite, sous location sans accord du bailleur, mon locataire sous-loue mon appartement, locataire sous-loue sans autorisation, sous-location airbnb, sous louer son appartement, sous-location loi 1989, sanction sous-location, prouver sous-location, sous-loyers restitution",
+        imageUrl: "https://images.unsplash.com/photo-1781249144083-6264548df901?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1781249144083-6264548df901?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Irena Oze",
+            profileUrl: "https://unsplash.com/@iistyle",
+        },
+        createdAt: new Date("2026-10-28"),
+        updatedAt: new Date("2026-10-28"),
+        categoryId: "2",
+      },
+      {
+        id: "blog-24",
+        title: "Nouveau bail de location 2026 : ce qui change depuis le 1er octobre",
+        slug: "nouveau-bail-location-2026",
+        description:
+          "Nouveaux contrats types du décret du 6 juillet 2026, clause résolutoire et délai de 6 semaines, obligation de résidence principale, téléphone facultatif et nouvelle notice d'information du 18 octobre 2026 : ce que les propriétaires doivent vérifier.",
+        content: "",
+        readTime: 7,
+        metaTitle: "Nouveau bail de location 2026 : ce qui change",
+        metaDescription: "Nouveau bail de location 2026 : contrats types du 1er octobre, clause résolutoire et commandement de payer à 6 semaines, nouvelle notice du 18 octobre.",
+        metaKeywords:
+          "nouveau bail de location 2026, nouveau bail 2026, nouveau bail octobre 2026, nouveau bail 1er octobre 2026, nouveau bail de location, bail location 2026, modèle bail location 2026, contrat de location 2026, clause résolutoire bail, clause résolutoire, commandement de payer 6 semaines, notice d'information locataire 2026, décret 2026-596, contrat type location",
+        imageUrl: "https://images.unsplash.com/photo-1643224781823-5a6ed8e0835c?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        ogImage: "https://images.unsplash.com/photo-1643224781823-5a6ed8e0835c?crop=entropy&cs=tinysrgb&fit=crop&w=1200&h=630&q=80",
+        imageCredit: {
+            name: "Colynary Media",
+            profileUrl: "https://unsplash.com/@colynarymedia",
+        },
+        createdAt: new Date("2026-10-28"),
+        updatedAt: new Date("2026-10-28"),
+        categoryId: "4",
+      },
 ]

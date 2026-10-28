@@ -157,6 +157,18 @@ const CHOISIR_LOCATAIRE: BlogLink = {
   hint: "Pièces autorisées, règle des 3 fois le loyer et vérifications.",
 };
 
+const SOUS_LOCATION: BlogLink = {
+  href: "/blog/sous-location-illegale-locataire-sous-loue",
+  label: "Sous-location illégale : que faire ?",
+  hint: "Règles, preuves, sanctions et sous-location Airbnb.",
+};
+
+const NOUVEAU_BAIL: BlogLink = {
+  href: "/blog/nouveau-bail-location-2026",
+  label: "Nouveau bail de location 2026",
+  hint: "Contrats types, clause résolutoire et nouvelle notice.",
+};
+
 /**
  * Liens contextuels par article, indexes sur le slug.
  * Trois a quatre destinations par article, choisies pour leur proximite de sujet.
@@ -166,7 +178,7 @@ export const BLOG_RELATED_LINKS: Record<string, BlogLink[]> = {
   "les-etapes-pour-etablir-un-bail-notarie-guide-complet": [COUT, SIMULATEUR, DISTANCE, OBLIGATIONS],
   "force-executoire-lavantage-majeur-du-bail-notarie": [EXPULSION, SAISIE, COMPARATIF, COUT],
   "bail-notarie-vs-bail-classique-analyse-comparative": [COUT, SIMULATEUR, FORCE_EXEC, DEFINITION],
-  "les-obligations-legales-dans-un-bail-notarie": [DEFINITION, DIAGNOSTICS, REVISION_LOYER, DEPOT_GARANTIE],
+  "les-obligations-legales-dans-un-bail-notarie": [NOUVEAU_BAIL, DIAGNOSTICS, REVISION_LOYER, DEPOT_GARANTIE],
   "cout-dun-bail-de-location-notarie-tarifs-partage-des-frais-et-exemples-concrets": [
     SIMULATEUR,
     AUTHENTIQUE,
@@ -202,8 +214,10 @@ export const BLOG_RELATED_LINKS: Record<string, BlogLink[]> = {
   "etat-des-lieux-de-sortie": [DEPOT_GARANTIE, PREAVIS, FORCE_EXEC, SIMULATEUR],
   "revision-loyer-calcul-irl": [DIAGNOSTICS, DEPOT_GARANTIE, OBLIGATIONS, COUT],
   "depot-de-garantie-location": [ETAT_DES_LIEUX, CHOISIR_LOCATAIRE, SAISIE, SIMULATEUR],
-  "conge-pour-reprise-recuperer-son-logement": [PREAVIS, EXPULSION, CHOISIR_LOCATAIRE, SIMULATEUR],
-  "choisir-un-locataire-dossier-verifications": [DEPOT_GARANTIE, FORCE_EXEC, RECUPERER_LOGEMENT, SIMULATEUR],
+  "conge-pour-reprise-recuperer-son-logement": [PREAVIS, EXPULSION, SOUS_LOCATION, SIMULATEUR],
+  "choisir-un-locataire-dossier-verifications": [DEPOT_GARANTIE, NOUVEAU_BAIL, RECUPERER_LOGEMENT, SIMULATEUR],
+  "sous-location-illegale-locataire-sous-loue": [RECUPERER_LOGEMENT, EXPULSION, NOUVEAU_BAIL, SIMULATEUR],
+  "nouveau-bail-location-2026": [FORCE_EXEC, OBLIGATIONS, CHOISIR_LOCATAIRE, SIMULATEUR],
 };
 
 /** Liens contextuels d'un article, en excluant un eventuel auto-lien. */
