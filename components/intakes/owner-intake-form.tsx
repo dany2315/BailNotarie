@@ -60,7 +60,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { RentFollowUpFields, RentHistoryFields, RentLimitHint, useRentRules } from "@/components/rent/rent-rules-fields";
+import { RentGuide, useRentRules } from "@/components/rent/rent-rules-fields";
 import type { RentRulesAssessment } from "@/lib/rent-rules";
 import { EMPTY_RENT_RULES, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { PROOF_LABELS, relocationProofKinds } from "@/lib/utils/rent-relocation";
@@ -153,7 +153,8 @@ const STEPS = [
   { id: "propertyAddress", title: "Le bien" },
   { id: "propertyDetails", title: "Caractéristiques du bien" },
   { id: "bailType", title: "Type de contrat" },
-  { id: "bailRent", title: "Loyer & charges" },
+  { id: "bailRent", title: "Le loyer" },
+  { id: "bailCharges", title: "Charges & dépôt" },
   { id: "bailFurniture", title: "Mobilier" },
   { id: "bailDates", title: "Dates du bail" },
   { id: "tenant", title: "Locataire" },
@@ -579,8 +580,9 @@ const getRequiredFields = (
     case "bailType":
       return ["bailType"];
     case "bailRent":
+      return ["bailRentAmount"];
+    case "bailCharges":
       return [
-        "bailRentAmount",
         "bailMonthlyCharges",
         "bailSecurityDeposit",
       ];
@@ -740,6 +742,7 @@ const findFirstIncompleteStep = (
   const idxPropertyDetails = STEPS.findIndex((s) => s.id === "propertyDetails");
   const idxBailType = STEPS.findIndex((s) => s.id === "bailType");
   const idxBailRent = STEPS.findIndex((s) => s.id === "bailRent");
+  const idxBailCharges = STEPS.findIndex((s) => s.id === "bailCharges");
   const idxBailFurniture = STEPS.findIndex((s) => s.id === "bailFurniture");
   const idxBailDates = STEPS.findIndex((s) => s.id === "bailDates");
   const idxTenant = STEPS.findIndex((s) => s.id === "tenant");
@@ -762,11 +765,7 @@ const findFirstIncompleteStep = (
   if (isEmpty(values.bailType)) {
     return idxBailType;
   }
-  if (
-    isEmpty(values.bailRentAmount) ||
-    isEmpty(values.bailMonthlyCharges) ||
-    isEmpty(values.bailSecurityDeposit)
-  ) {
+  if (isEmpty(values.bailRentAmount)) {
     return idxBailRent;
   }
   // Zone tendue : la question sur la relocation doit avoir une réponse.
@@ -776,6 +775,9 @@ const findFirstIncompleteStep = (
     isEmpty((values as any).rentRules?.relocationLetBefore)
   ) {
     return idxBailRent;
+  }
+  if (isEmpty(values.bailMonthlyCharges) || isEmpty(values.bailSecurityDeposit)) {
+    return idxBailCharges;
   }
   // Si bail meublé, vérifier que tous les équipements sont cochés
   const isMeubleBailCheck =
@@ -1553,12 +1555,9 @@ useEffect(() => {
       case "bailType":
         return ["bailType", "bailFamily"];
       case "bailRent":
-        return [
-          "bailRentAmount",
-          "bailMonthlyCharges",
-          "bailSecurityDeposit",
-          "rentRules" as keyof FormWithPersons,
-        ];
+        return ["bailRentAmount", "rentRules" as keyof FormWithPersons];
+      case "bailCharges":
+        return ["bailMonthlyCharges", "bailSecurityDeposit"];
       case "bailFurniture":
         return [
           "hasLiterie",
@@ -1946,6 +1945,7 @@ useEffect(() => {
           ? "property"
           : stepId === "bailType" ||
             stepId === "bailRent" ||
+            stepId === "bailCharges" ||
             stepId === "bailFurniture" ||
             stepId === "bailDates"
           ? "bail"
@@ -2180,7 +2180,7 @@ useEffect(() => {
     let nextStep: number;
     if (stepId === "clientInfo" && summaryIndex !== -1) {
       nextStep = summaryIndex;
-    } else if (stepId === "bailRent" && !isMeubleBail && bailDatesIndex !== -1) {
+    } else if (stepId === "bailCharges" && !isMeubleBail && bailDatesIndex !== -1) {
       // Skip "bailFurniture" lorsque le bail n'est pas meublé
       nextStep = bailDatesIndex;
     } else {
@@ -2794,6 +2794,9 @@ useEffect(() => {
                 rentRulesResultRef.current = result;
               }}
             />
+          )}
+          {STEPS[currentStep].id === "bailCharges" && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="charges" />
           )}
           {STEPS[currentStep].id === "bailFurniture" && (
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="furniture" />
@@ -4310,7 +4313,7 @@ const RentProofUploads = ({
 type BailStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
   propertyId?: string | null;
-  slice?: "type" | "rent" | "furniture" | "dates";
+  slice?: "type" | "rent" | "charges" | "furniture" | "dates";
   /** Étape loyer : lien d'intake pour le contrôle du loyer, et son résultat. */
   token?: string;
   showRentErrors?: boolean;
@@ -4381,6 +4384,7 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
 const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesResult }: BailStepProps) => {
   const showType = !slice || slice === "type";
   const showRent = !slice || slice === "rent";
+  const showCharges = !slice || slice === "charges";
   const showFurniture = !slice || slice === "furniture";
   const showDates = !slice || slice === "dates";
   
@@ -4420,7 +4424,7 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
   const bailFamily = useWatch({ control: form.control, name: "bailFamily" });
   const dpeClass = useWatch({ control: form.control, name: "propertyDpeClass" as any }) as string | undefined;
   const rentRules = (useWatch({ control: form.control, name: "rentRules" as any }) as RentRulesFormValues | undefined) ?? EMPTY_RENT_RULES;
-  // Les questions sur le loyer sont des champs de l'étape : avant le loyer, sous le loyer, après le loyer.
+  // Étape « Le loyer » : parcours guidé dans les communes qui encadrent les loyers, sinon un simple champ.
   const rentCheck = useRentRules({
     enabled: showRent && !!token && !!propertyId,
     token,
@@ -4434,6 +4438,8 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
     onResult: onRentRulesResult,
     showErrors: showRentErrors,
     onApplyRent: (value) => form.setValue("bailRentAmount", String(value) as any, { shouldDirty: true, shouldValidate: true }),
+    onRentChange: (value) => form.setValue("bailRentAmount", value as any, { shouldDirty: true, shouldValidate: !!form.formState.errors.bailRentAmount }),
+    rentError: form.formState.errors.bailRentAmount?.message as string | undefined,
   });
   
   // Nettoyer les erreurs de mobilier si on passe à un bail nue
@@ -4451,7 +4457,8 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
   
   const titles: Record<NonNullable<typeof slice>, { title: string; subtitle: string }> = {
     type: { title: "Type de contrat", subtitle: "Choisissez le type de bail à mettre en place." },
-    rent: { title: "Loyer & charges", subtitle: "Montant du loyer, charges et dépôt de garantie." },
+    rent: { title: "Le loyer", subtitle: "Nous vous accompagnons pour fixer le bon loyer pour votre logement." },
+    charges: { title: "Charges et dépôt de garantie", subtitle: "Les charges mensuelles et le dépôt de garantie demandé au locataire." },
     furniture: { title: "Mobilier du logement", subtitle: "Cochez tous les équipements obligatoires pour un bail meublé." },
     dates: { title: "Dates du bail", subtitle: "Date de prise d'effet, fin éventuelle et jour de paiement." },
   };
@@ -4512,40 +4519,8 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
         )}
       </div>
       </>)}
-      {showRent && (<>
-      <RentHistoryFields rules={rentCheck} />
-      <div className="space-y-2">
-        <div className="flex flex-row items-center gap-2">
-          <Label>Loyer mensuel *</Label>
-          <InfoTooltip
-            content={
-              <div className="max-w-xs">
-                <p className="mb-2">LOYER HORS CHARGES</p>
-                <p>Sans les charges. Nous indiquons juste en dessous le maximum autorisé pour ce logement.</p>
-              </div>
-            }
-            className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
-          >
-            <button type="button" className="inline-flex items-center">
-              <InfoIcon className="h-4 w-4 text-muted-foreground" />
-            </button>
-          </InfoTooltip>
-        </div>
-        <NumberInputGroup
-          field={form.register("bailRentAmount")}
-          min={0}
-          step={1}
-          unit="€"
-          className="h-11"
-        />
-        {form.formState.errors.bailRentAmount && (
-          <p className="text-sm text-destructive">
-            {form.formState.errors.bailRentAmount.message}
-          </p>
-        )}
-        <RentLimitHint rules={rentCheck} />
-      </div>
-      <RentFollowUpFields rules={rentCheck} />
+      {showRent && <RentGuide rules={rentCheck} />}
+      {showCharges && (<>
       <div className="space-y-2">
         <Label>Charges mensuelles *</Label>
         <NumberInputGroup

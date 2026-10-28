@@ -27,7 +27,7 @@ import {
 import { CreatePropertyForm, CreatePropertyFormRef } from "./create-property-form";
 import { BailPaymentStep } from "./bail-payment-step";
 import { LoadingScreen } from "@/components/ui/loading-screen";
-import { RentFollowUpFields, RentHistoryFields, RentLimitHint, useRentRules } from "@/components/rent/rent-rules-fields";
+import { RentGuide, useRentRules } from "@/components/rent/rent-rules-fields";
 import type { RentRulesAssessment } from "@/lib/rent-rules";
 import { EMPTY_RENT_RULES, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createLease, createTenantFromEmail, saveBailDraft } from "@/lib/actions/leases";
@@ -67,7 +67,7 @@ const STEP_LABELS = ["Bien", "Locataire", "Bail", "Dates", "Paiement"];
 const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
   0: ["propertyId"],
   1: [], // tenantId est optionnel
-  2: ["bailType", "rentAmount", "monthlyCharges"],
+  2: ["bailType", "rentAmount"],
   3: ["effectiveDate", "paymentDay"],
 };
 
@@ -131,6 +131,8 @@ export function CreateBailPageClient({
   };
 
   const [step, setStep] = useState(getInitialStep);
+  // Étape « Bail » : d'abord le loyer, puis les charges et le dépôt de garantie.
+  const [bailPart, setBailPart] = useState<"rent" | "charges">("rent");
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -263,9 +265,9 @@ export function CreateBailPageClient({
 
   // Classe DPE : celle du bien, sinon celle saisie dans le contrôle du loyer.
   const dpeClass = selectedProperty?.dpeClass || dpeInput || null;
-  // Les questions sur le loyer sont des champs de l'étape : avant le loyer, sous le loyer, après le loyer.
+  // Le loyer : parcours guidé dans les communes qui encadrent les loyers, sinon un simple champ.
   const rentCheck = useRentRules({
-    enabled: step === 2 && !!propertyId,
+    enabled: step === 2 && bailPart === "rent" && !!propertyId,
     propertyId,
     rentAmount,
     bailType,
@@ -279,17 +281,21 @@ export function CreateBailPageClient({
     },
     showErrors: showRentErrors,
     onApplyRent: (value) => setValue("rentAmount", String(value), { shouldDirty: true, shouldValidate: true }),
+    onRentChange: (value) => setValue("rentAmount", value, { shouldDirty: true, shouldValidate: !!errors.rentAmount }),
+    rentError: errors.rentAmount?.message,
   });
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
   const handleBack = useCallback(() => {
-    if (step > 0) {
+    if (step === 2 && bailPart === "charges") {
+      setBailPart("rent");
+    } else if (step > 0) {
       setStep((s) => s - 1);
     } else {
       router.back();
     }
-  }, [step, router]);
+  }, [step, router, bailPart]);
 
   const handleNext = useCallback(async () => {
     const fields = STEP_FIELDS[step];
@@ -297,14 +303,18 @@ export function CreateBailPageClient({
       const valid = await trigger(fields);
       if (!valid) return;
     }
-    if (step === 2 && isSecurityDepositExceeded) {
+    if (step === 2 && bailPart === "charges") {
+      const valid = await trigger(["monthlyCharges"]);
+      if (!valid) return;
+    }
+    if (step === 2 && bailPart === "charges" && isSecurityDepositExceeded) {
       toast.error(
         `Le dépôt de garantie ne peut pas dépasser ${isMeubleBailType ? "2" : "1"} mois de loyer.`
       );
       return;
     }
     // Loyer : plafond de l'arrêté et relocation en zone tendue, contrôlés côté serveur avant le paiement.
-    if (step === 2) {
+    if (step === 2 && bailPart === "rent") {
       const check = rentRulesResultRef.current;
       if (!check) {
         toast.info("Vérification du loyer en cours, réessayez dans un instant.");
@@ -324,6 +334,8 @@ export function CreateBailPageClient({
         });
         return;
       }
+      setBailPart("charges");
+      return;
     }
     if (step === 3) {
       handleSubmit((data) => {
@@ -333,7 +345,7 @@ export function CreateBailPageClient({
       return;
     }
     setStep((s) => s + 1);
-  }, [step, trigger, handleSubmit, isSecurityDepositExceeded, isMeubleBailType]);
+  }, [step, bailPart, trigger, handleSubmit, isSecurityDepositExceeded, isMeubleBailType]);
 
   const handleSaveDraft = useCallback(async () => {
     const currentPropertyId = watch("propertyId");
@@ -607,60 +619,14 @@ export function CreateBailPageClient({
 
       case 2:
         return (
+          bailPart === "charges" ? (
           <div className="space-y-5">
             <div>
-              <p className="text-xl font-semibold">Détails du bail</p>
+              <p className="text-xl font-semibold">Charges et dépôt de garantie</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Type, loyer et charges mensuelles
+                Les charges mensuelles et le dépôt de garantie demandé au locataire.
               </p>
             </div>
-
-
-            <div className="space-y-2">
-              <Label>Type de bail *</Label>
-              <Select
-                value={bailType}
-                onValueChange={(v) => setValue("bailType", v as BailType)}
-              >
-                <SelectTrigger className="w-full h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
-                  <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nu 6 ans</SelectItem>
-                  <SelectItem value={BailType.BAIL_MEUBLE_1_ANS} disabled={!canMeuble}>
-                    Bail meublé 1 an
-                  </SelectItem>
-                  <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS} disabled={!canMeuble}>
-                    Bail meublé 9 mois
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              {!canMeuble && propertyId && (
-                <p className="text-xs text-muted-foreground">
-                  Location meublée indisponible — le bien ne possède pas tous les équipements obligatoires.
-                </p>
-              )}
-            </div>
-
-            {propertyId && <RentHistoryFields rules={rentCheck} />}
-
-            <div className="space-y-2">
-              <Label>Loyer mensuel hors charges (€) *</Label>
-              <Input
-                type="number"
-                placeholder="800"
-                inputMode="decimal"
-                className="w-full h-11"
-                {...register("rentAmount")}
-              />
-              {errors.rentAmount && (
-                <p className="text-sm text-destructive">{errors.rentAmount.message}</p>
-              )}
-              {propertyId && <RentLimitHint rules={rentCheck} />}
-            </div>
-
-            {propertyId && <RentFollowUpFields rules={rentCheck} />}
 
             <div className="space-y-2">
               <Label>Charges mensuelles (€) *</Label>
@@ -705,8 +671,55 @@ export function CreateBailPageClient({
                 </>
               )}
             </div>
-
           </div>
+          ) : (
+          <div className="space-y-5">
+            <div>
+              <p className="text-xl font-semibold">Le loyer</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Nous vous accompagnons pour fixer le bon loyer pour votre logement.
+              </p>
+            </div>
+
+
+            <div className="space-y-2">
+              <Label>Type de bail *</Label>
+              <Select
+                value={bailType}
+                onValueChange={(v) => setValue("bailType", v as BailType)}
+              >
+                <SelectTrigger className="w-full h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
+                  <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nu 6 ans</SelectItem>
+                  <SelectItem value={BailType.BAIL_MEUBLE_1_ANS} disabled={!canMeuble}>
+                    Bail meublé 1 an
+                  </SelectItem>
+                  <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS} disabled={!canMeuble}>
+                    Bail meublé 9 mois
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {!canMeuble && propertyId && (
+                <p className="text-xs text-muted-foreground">
+                  Location meublée indisponible — le bien ne possède pas tous les équipements obligatoires.
+                </p>
+              )}
+            </div>
+
+            {propertyId ? (
+              <RentGuide rules={rentCheck} />
+            ) : (
+              <div className="space-y-2">
+                <Label>Loyer mensuel hors charges (€) *</Label>
+                <Input type="number" placeholder="800" inputMode="decimal" className="w-full h-11" {...register("rentAmount")} />
+                {errors.rentAmount && <p className="text-sm text-destructive">{errors.rentAmount.message}</p>}
+              </div>
+            )}
+          </div>
+          )
         );
 
       case 3:
@@ -816,7 +829,7 @@ export function CreateBailPageClient({
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm leading-tight">Nouveau bail</p>
             <p className="text-xs text-muted-foreground">
-              {STEP_LABELS[step]} · Étape {step + 1}/{STEP_LABELS.length}
+              {step === 2 ? (bailPart === "rent" ? "Le loyer" : "Charges & dépôt") : STEP_LABELS[step]} · Étape {step + 1}/{STEP_LABELS.length}
             </p>
           </div>
           {step > 0 && step < 4 && (
