@@ -22,6 +22,8 @@ import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { validateRentForProperty } from "@/lib/utils/rent-validation";
 import { getStageKey } from "@/lib/utils/bail-stage";
 import { EXEMPTION_LABELS } from "@/lib/utils/rent-cap";
+import { assessRentCap } from "@/lib/rent-cap";
+import { rentRulesFromForm } from "@/lib/utils/rent-draft";
 
 type Result<T = undefined> = ({ success: true } & (T extends undefined ? unknown : { data: T })) | { success: false; error: string };
 
@@ -356,19 +358,50 @@ export async function setRentSupplementAdmin(data: unknown): Promise<Result> {
   const parsed = supplementSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
   const { bailId, reason, revalidate } = parsed.data;
-  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { status: true } });
+  const bail = await prisma.bail.findUnique({ where: { id: bailId }, include: { property: true } });
   if (!bail) return { success: false, error: "Dossier introuvable" };
   if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+  // Complément chiffré : loyer de base au plafond (à l'euro), le reste en complément.
+  const cap = reason ? await assessRentCap({ property: bail.property, bail }) : null;
+  const amount = cap?.status === "over" && cap.maxRent != null ? bail.rentAmount - Math.floor(cap.maxRent) : null;
 
   await prisma.bail.update({
     where: { id: bailId },
     data: {
       rentSupplementReason: reason,
+      rentSupplementAmount: amount,
       rentSupplementAt: reason ? new Date() : null,
       rentSupplementByName: reason ? getActorName(user) : null,
       updatedById: user.id,
     },
   });
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  return { success: true };
+}
+
+const rentRulesSchema = z.object({
+  bailId: z.string().min(1),
+  values: z.record(z.string(), z.any()),
+  revalidate: revalidateField,
+});
+
+/**
+ * Relocation en zone tendue : l'équipe complète ou corrige les réponses du propriétaire
+ * (logement déjà loué, départ du locataire précédent, dernier loyer, révision, hausse).
+ * Le complément de loyer garde son propre réglage.
+ */
+export async function setRentRulesAdmin(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = rentRulesSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: "Données invalides" };
+  const { bailId, values, revalidate } = parsed.data;
+  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { status: true } });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+  const { rentSupplementReason: _ignored, ...relocation } = rentRulesFromForm(values);
+
+  await prisma.bail.update({ where: { id: bailId }, data: { ...relocation, updatedById: user.id } });
   if (revalidate) revalidatePath(revalidate);
   revalidatePath(`/interface/baux/${bailId}`);
   return { success: true };

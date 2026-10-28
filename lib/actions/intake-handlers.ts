@@ -1,23 +1,70 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { ClientType, ProfilType, CompletionStatus, BailType, BailFamille, BailStatus, PropertyStatus } from "@prisma/client";
+import { ClientType, ProfilType, CompletionStatus, BailType, BailFamille, BailStatus, PropertyStatus, EnergyClass } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { handleDocumentsInTransaction } from "./intakes";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
 import { ensurePropertyGeocoded } from "@/lib/geocode";
 import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
+import { assessRentRules } from "@/lib/rent-rules";
+import { rentRulesFromForm } from "@/lib/utils/rent-draft";
+import { euros } from "@/lib/utils/rent-relocation";
 
-/** Pièces principales (1 à 4, 4 = « 4 et plus ») et époque de construction, ou undefined si absentes ou invalides. */
-function rentCategory(payload: any): { mainRooms?: number; constructionPeriod?: string } {
-  const out: { mainRooms?: number; constructionPeriod?: string } = {};
+/**
+ * Pièces principales (1 à 4, 4 = « 4 et plus »), époque de construction et classe énergétique,
+ * ou undefined si absentes ou invalides.
+ */
+function rentCategory(payload: any): { mainRooms?: number; constructionPeriod?: string; dpeClass?: EnergyClass } {
+  const out: { mainRooms?: number; constructionPeriod?: string; dpeClass?: EnergyClass } = {};
   const rooms = Number(payload.propertyMainRooms);
   if (Number.isInteger(rooms) && rooms >= 1 && rooms <= 4) out.mainRooms = rooms;
   if ((OWNER_PERIODS as readonly string[]).includes(payload.propertyConstructionPeriod)) {
     out.constructionPeriod = payload.propertyConstructionPeriod;
   }
+  if ((Object.values(EnergyClass) as string[]).includes(payload.propertyDpeClass)) {
+    out.dpeClass = payload.propertyDpeClass as EnergyClass;
+  }
   return out;
+}
+
+/**
+ * Réponses du contrôle du loyer (étape « Loyer & charges ») : relocation en zone tendue et
+ * complément de loyer. Le loyer est contrôlé avec le même moteur que la fiche admin ; au-dessus
+ * du maximum, l'enregistrement est refusé. Retourne les colonnes du bail à écrire.
+ */
+async function rentRulesUpdate(intakeLink: any, payload: any, rentAmount: number | undefined) {
+  if (payload.rentRules === undefined || !intakeLink.propertyId) return {};
+  const answers = rentRulesFromForm(payload.rentRules ?? {});
+  const rent = rentAmount ?? intakeLink.bail?.rentAmount ?? 0;
+  const property = await prisma.property.findUnique({ where: { id: intakeLink.propertyId } });
+  if (!property || !rent) return { ...answers, rentSupplementAmount: null };
+  const check = await assessRentRules({
+    property,
+    bail: {
+      rentAmount: rent,
+      bailType: payload.bailType || intakeLink.bail?.bailType || BailType.BAIL_NU_3_ANS,
+      bailFamily: payload.bailFamily || intakeLink.bail?.bailFamily || BailFamille.HABITATION,
+      effectiveDate: intakeLink.bail?.paymentDay != null ? intakeLink.bail?.effectiveDate ?? null : null,
+      rentCapExemption: intakeLink.bail?.rentCapExemption ?? null,
+      ...answers,
+    },
+  });
+  // Au-dessus du maximum (hors complément justifié) : refusé, même par « Enregistrer ».
+  const tooHigh = check.overBy !== null && check.overBy > 0 && check.maxRent !== null;
+  const supplementPossible = check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over";
+  if (tooHigh && !supplementPossible) {
+    throw new Error(`Le loyer dépasse le maximum autorisé de ${euros(check.maxRent!)} hors charges : baissez-le pour continuer.`);
+  }
+  return {
+    ...answers,
+    // Loyer sous le plafond : pas de complément, l'ancien motif est retiré.
+    rentSupplementReason: check.supplement.needed ? answers.rentSupplementReason : null,
+    rentSupplementAmount: check.supplement.accepted ? check.supplement.amount : null,
+    rentSupplementAt: check.supplement.accepted && answers.rentSupplementReason ? new Date() : null,
+    rentSupplementByName: check.supplement.accepted && answers.rentSupplementReason ? "Propriétaire (formulaire)" : null,
+  };
 }
 import { randomBytes } from "crypto";
 
@@ -288,6 +335,11 @@ export async function handleOwnerBailStep(
   payload: any,
   clientId: string,
 ) {
+  const rentAmountInput = Number.isFinite(parseInt(String(payload.bailRentAmount ?? ""), 10))
+    ? parseInt(String(payload.bailRentAmount), 10)
+    : undefined;
+  const rentRulesData = await rentRulesUpdate(intakeLink, payload, rentAmountInput);
+
   await prisma.$transaction(async (tx) => {
     let bailId = intakeLink.bailId;
     const bailParties = [{ id: clientId }];
@@ -343,6 +395,7 @@ export async function handleOwnerBailStep(
           ? parseInt(payload.bailPaymentDay, 10) || null
           : payload.bailPaymentDay || null;
       }
+      Object.assign(updateData, rentRulesData);
 
       await tx.bail.update({
         where: { id: bailId },
@@ -372,6 +425,7 @@ export async function handleOwnerBailStep(
           paymentDay: typeof payload.bailPaymentDay === 'string'
             ? parseInt(payload.bailPaymentDay, 10) || null
             : payload.bailPaymentDay || null,
+          ...rentRulesData,
           propertyId,
           parties: {
             connect: bailParties,

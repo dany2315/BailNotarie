@@ -735,6 +735,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                   <DataField label="Type de bail" value={getBailTypeLabel(dossier.bail.bailType)} />
                 )}
                 <DataField label="Loyer mensuel" value={formatCurrency(dossier.bail.rentAmount)} />
+                {(dossier as any).rentMentions && <RentMentions mentions={(dossier as any).rentMentions} />}
                 <DataField label="Charges mensuelles" value={formatCurrency(dossier.bail.monthlyCharges)} />
                 <DataField label="Dépôt de garantie" value={formatCurrency(dossier.bail.securityDeposit)} />
                 <Separator />
@@ -913,4 +914,58 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
   );
 }
 
-
+/** Mentions du loyer que le bail doit reprendre (loi du 6 juillet 1989 et décret n° 2017-1198). */
+function RentMentions({
+  mentions,
+}: {
+  mentions: {
+    territory: string | null;
+    zone: string | null;
+    reference: { min: number; ref: number; max: number } | null;
+    surface: number | null;
+    supplementAmount: number | null;
+    supplementBase: number | null;
+    supplementReason: string | null;
+    tightZone: boolean;
+    situation: "first" | "vacant" | "relet" | null;
+    previousRentAmount: number | null;
+    previousTenantLeftAt: string | null;
+  };
+}) {
+  const perM2 = (value: number) => `${value.toFixed(2).replace(".", ",")} €/m²`;
+  return (
+    <>
+      {mentions.reference && mentions.surface && (
+        <>
+          <DataField
+            label={`Loyer de référence (${[mentions.territory, mentions.zone].filter(Boolean).join(", ")})`}
+            value={`${perM2(mentions.reference.ref)}, soit ${formatCurrency(Math.round(mentions.reference.ref * mentions.surface * 100) / 100)}`}
+          />
+          <DataField
+            label="Loyer de référence majoré"
+            value={`${perM2(mentions.reference.max)}, soit ${formatCurrency(Math.round(mentions.reference.max * mentions.surface * 100) / 100)}`}
+          />
+        </>
+      )}
+      {mentions.supplementAmount != null && mentions.supplementBase != null && (
+        <>
+          <DataField label="Loyer de base" value={formatCurrency(mentions.supplementBase)} />
+          <DataField
+            label="Complément de loyer"
+            value={`${formatCurrency(mentions.supplementAmount)}${mentions.supplementReason ? ` : ${mentions.supplementReason}` : ""}`}
+          />
+        </>
+      )}
+      {mentions.tightZone && mentions.situation === "relet" && mentions.previousRentAmount != null && (
+        <DataField
+          label="Dernier loyer du locataire précédent"
+          value={`${formatCurrency(mentions.previousRentAmount)}${mentions.previousTenantLeftAt ? ` (départ le ${formatDate(mentions.previousTenantLeftAt)})` : ""}`}
+        />
+      )}
+      {mentions.tightZone && mentions.situation === "first" && <DataField label="Relocation" value="Première mise en location" />}
+      {mentions.tightZone && mentions.situation === "vacant" && (
+        <DataField label="Relocation" value="Logement vide depuis 18 mois ou plus" />
+      )}
+    </>
+  );
+}

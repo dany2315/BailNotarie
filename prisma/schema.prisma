@@ -178,6 +178,12 @@ enum DocumentKind {
 
   RIB
 
+  // Justificatifs du loyer (relocation en zone tendue)
+  PREVIOUS_RENT_PROOF // Dernière quittance ou ancien bail : loyer du locataire précédent
+  PREVIOUS_TENANT_EXIT_PROOF // État des lieux de sortie : date de départ du locataire précédent
+  WORKS_INVOICES // Factures des travaux qui justifient une hausse
+  RENT_REFERENCES // Loyers de logements comparables du voisinage
+
   OTHER
 }
 
@@ -447,6 +453,18 @@ model ZoneTendue {
 }
 
 /// Territoire soumis à l'encadrement des loyers (un arrêté préfectoral en vigueur).
+/// Indice de référence des loyers (INSEE, série 001515333), mis à jour chaque jour depuis l'INSEE.
+model IrlIndex {
+  quarter     String   @id // « 2026-T3 »
+  year        Int
+  quarterNum  Int
+  value       Decimal  @db.Decimal(8, 2)
+  publishedAt DateTime // Publication au Journal officiel
+  updatedAt   DateTime @updatedAt
+
+  @@index([publishedAt])
+}
+
 model RentCapTerritory {
   id                String             @id // ex. « paris », « lyon »
   label             String
@@ -571,6 +589,19 @@ model Bail {
   rentSupplementReason String?   @db.Text
   rentSupplementAt     DateTime?
   rentSupplementByName String?
+  // Montant du complément, compris dans rentAmount (loyer de base = rentAmount - complément)
+  rentSupplementAmount Int?
+
+  // Relocation en zone tendue (évolution du loyer entre deux locataires, décret n° 2017-1198).
+  // null partout = non renseigné (baux créés avant ces questions).
+  relocationLetBefore         Boolean? // Logement déjà loué : false = première mise en location
+  previousTenantLeftAt        DateTime? // Départ du locataire précédent (vacance de moins ou de plus de 18 mois)
+  previousRentAmount          Int? // Dernier loyer hors charges du locataire précédent
+  previousRentRevisedRecently Boolean? // Loyer révisé au cours des 12 derniers mois (pas de nouvelle révision IRL)
+  rentIncreaseReason          String? // NONE | WORKS | UNDERVALUED
+  worksAmount                 Int? // Coût TTC des travaux d'amélioration ou de mise en conformité
+  worksCompletedAt            DateTime? // Fin des travaux
+  neighborhoodRent            Int? // Loyer mensuel du voisinage pour un logement comparable (hors villes encadrées)
 
   // Logement exclu de l'encadrement (logement social, conventionné, loi de 1948…)
   rentCapExemption       String?

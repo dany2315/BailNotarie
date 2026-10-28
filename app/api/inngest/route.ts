@@ -14,6 +14,7 @@ import {
   calculateCompletionStatuses 
 } from "@/lib/inngest/functions/completion-status";
 import { sendCompletionStatusEmail } from "@/lib/inngest/functions/completion-status-email";
+import { syncIrl } from "@/lib/inngest/functions/irl";
 import { NextRequest } from "next/server";
 
 const handler = serve({
@@ -37,6 +38,7 @@ const handler = serve({
     calculatePropertyCompletionStatus,
     calculateCompletionStatuses,
     sendCompletionStatusEmail,
+    syncIrl,
   ],
 });
 

@@ -81,6 +81,10 @@ const createLeaseBaseSchema = z.object({
     }),
   propertyId: z.string().cuid("ID bien invalide").min(1, "Le bien est requis"),
   tenantId: z.string().cuid("ID locataire invalide").optional().or(z.literal("")),
+  // Contrôle du loyer (espace client) : réponses sur la relocation et le complément de loyer,
+  // et classe DPE saisie quand le bien n'en avait pas.
+  rentRules: z.record(z.string(), z.any()).optional(),
+  dpeClass: z.enum(["A", "B", "C", "D", "E", "F", "G"]).optional(),
 });
 
 // Schéma de création avec validation du dépôt de garantie

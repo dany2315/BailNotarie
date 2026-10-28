@@ -15,6 +15,10 @@ export const documentKindLabels: Record<string, string> = {
   CAHIER_DE_CHARGE_LOTISSEMENT: "Cahier des charges lotissement",
   STATUT_DE_LASSOCIATION_SYNDICALE: "Statut de l'association syndicale",
   RIB: "RIB",
+  PREVIOUS_RENT_PROOF: "Dernier loyer du locataire précédent",
+  PREVIOUS_TENANT_EXIT_PROOF: "Départ du locataire précédent",
+  WORKS_INVOICES: "Factures des travaux",
+  RENT_REFERENCES: "Loyers de logements comparables",
 };
 
 /**

@@ -4,14 +4,50 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole, requireProprietaireAuth } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
 import { revalidatePath } from "next/cache";
-import { BailAuditEventType, BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus } from "@prisma/client";
+import { BailAuditEventType, BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus, EnergyClass } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { validateRentForProperty } from "@/lib/utils/rent-validation";
+import { assessRentRules } from "@/lib/rent-rules";
+import { rentRulesFromForm, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
+
+/**
+ * Réponses du contrôle du loyer à enregistrer sur le bail (espace client), avec le complément de
+ * loyer chiffré par le moteur. Le blocage se fait avant le paiement (formulaire) : ici, on enregistre.
+ */
+async function rentRulesColumns(
+  propertyId: string,
+  bail: { rentAmount: number; bailType: string; effectiveDate: Date | null },
+  rentRules: Record<string, unknown> | undefined,
+  dpeClass: string | undefined,
+) {
+  if (!rentRules) return {};
+  const answers = rentRulesFromForm(rentRules as Partial<RentRulesFormValues>);
+  const property = await prisma.property.findUnique({ where: { id: propertyId } });
+  if (!property || !bail.rentAmount) return { ...answers, rentSupplementAmount: null };
+  const check = await assessRentRules({
+    property: { ...property, dpeClass: property.dpeClass ?? dpeClass ?? null },
+    bail: { ...bail, bailFamily: BailFamille.HABITATION, rentCapExemption: null, ...answers },
+  });
+  return {
+    ...answers,
+    // Loyer sous le plafond : pas de complément, l'ancien motif est retiré.
+    rentSupplementReason: check.supplement.needed ? answers.rentSupplementReason : null,
+    rentSupplementAmount: check.supplement.accepted ? check.supplement.amount : null,
+    rentSupplementAt: check.supplement.accepted ? new Date() : null,
+    rentSupplementByName: check.supplement.accepted ? "Propriétaire (espace client)" : null,
+  };
+}
+
+/** Classe DPE saisie par le propriétaire pour un bien qui n'en avait pas (jamais écrasée). */
+async function fillPropertyDpe(propertyId: string, dpeClass: string | undefined) {
+  if (!dpeClass) return;
+  await prisma.property.updateMany({ where: { id: propertyId, dpeClass: null }, data: { dpeClass: dpeClass as EnergyClass } });
+}
 
 /** Bail en cours sur le bien : le propriétaire ne peut pas en préparer un autre (erreur explicite sinon). */
 async function assertNewBailAllowed(propertyId: string, excludeBailId?: string | null) {
@@ -66,15 +102,16 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
     throw new Error("Locataire introuvable");
   }
 
-  // Valider le loyer selon les limitations de zone tendue
-  const rentValidation = await validateRentForProperty(validated.propertyId, validated.rentAmount);
-  if (!rentValidation.isValid && rentValidation.maxAllowed !== null) {
-    throw new Error(
-      `Le loyer de ${validated.rentAmount} € dépasse la limite autorisée de ${rentValidation.maxAllowed.toFixed(2)} € ` +
-      `(${rentValidation.maxRentPerM2?.toFixed(2)} €/m²). ` +
-      `Veuillez ajuster le loyer pour respecter la réglementation.`
-    );
-  }
+  // Contrôle du loyer (plafond de l'arrêté, relocation en zone tendue) : vérifié avant le paiement
+  // dans le formulaire ; ici, les réponses sont enregistrées et la fiche admin bloque l'envoi au
+  // notaire si le loyer ne respecte pas les règles.
+  if (user.role === Role.UTILISATEUR) await fillPropertyDpe(property.id, validated.dpeClass);
+  const rentRulesData = await rentRulesColumns(
+    validated.propertyId,
+    { rentAmount: validated.rentAmount, bailType: validated.bailType, effectiveDate: validated.effectiveDate },
+    validated.rentRules,
+    validated.dpeClass,
+  );
 
   // Mapper leaseType vers bailFamily
   const bailFamilyMap: Record<string, BailFamille> = {
@@ -117,6 +154,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
           effectiveDate: validated.effectiveDate,
           endDate: validated.endDate || null,
           paymentDay: validated.paymentDay || null,
+          ...rentRulesData,
           stripePaymentIntentId: paymentIntentId || null,
           paidAt: paymentIntentId ? new Date() : null,
           parties: { set: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
@@ -169,6 +207,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
           effectiveDate: validated.effectiveDate,
           endDate: validated.endDate || null,
           paymentDay: validated.paymentDay || null,
+          ...rentRulesData,
           propertyId: validated.propertyId,
           stripePaymentIntentId: paymentIntentId || null,
           paidAt: paymentIntentId ? new Date() : null,
@@ -1432,6 +1471,8 @@ export async function saveBailDraft(data: {
   effectiveDate?: string;
   endDate?: string;
   paymentDay?: string;
+  rentRules?: Partial<RentRulesFormValues>;
+  dpeClass?: string;
 }) {
   const { client } = await requireProprietaireAuth();
 
@@ -1450,6 +1491,11 @@ export async function saveBailDraft(data: {
   const endDate = data.endDate ? new Date(data.endDate) : null;
   const paymentDay = data.paymentDay ? (parseInt(data.paymentDay, 10) || null) : null;
   const bailType = (data.bailType as BailType) || BailType.BAIL_NU_3_ANS;
+  if (data.dpeClass && (Object.values(EnergyClass) as string[]).includes(data.dpeClass)) {
+    await fillPropertyDpe(data.propertyId, data.dpeClass);
+  }
+  // Réponses du contrôle du loyer, enregistrées telles quelles (le complément se chiffre à la création).
+  const rentRulesData = data.rentRules ? rentRulesFromForm(data.rentRules) : {};
 
   if (data.draftBailId) {
     // Vérifier que le brouillon appartient bien au client et n'est pas payé
@@ -1475,6 +1521,7 @@ export async function saveBailDraft(data: {
         effectiveDate,
         endDate,
         paymentDay,
+        ...rentRulesData,
         parties: { set: tenantConnects },
       },
     });
@@ -1497,6 +1544,7 @@ export async function saveBailDraft(data: {
       effectiveDate,
       endDate,
       paymentDay,
+      ...rentRulesData,
       propertyId: data.propertyId,
       parties: {
         connect: data.tenantId
@@ -1610,5 +1658,6 @@ export async function getDraftBailForClient(bailId: string, clientId: string) {
     paymentDay: bail.paymentDay,
     propertyId: bail.property.id,
     tenantId: tenant?.id ?? null,
+    rentRules: rentRulesToForm(bail),
   };
 }

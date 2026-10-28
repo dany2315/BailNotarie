@@ -253,8 +253,10 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
   if (!period) result.missing.push("époque de construction");
   if (territory.houseTypes && houseType !== "APPARTEMENT" && houseType !== "MAISON") result.missing.push("type de logement (maison ou appartement)");
   if (!surface) result.missing.push("surface habitable");
-  if (!bail.rentAmount) result.missing.push("loyer");
-  if (result.missing.length) return result;
+  if (result.missing.length) {
+    if (!bail.rentAmount) result.missing.push("loyer");
+    return result;
+  }
 
   const row = await prisma.rentCapReference.findUnique({
     where: {
@@ -273,8 +275,13 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
     return result;
   }
   result.reference = { min: Number(row.refMin), ref: Number(row.ref), max: Number(row.refMax) };
-  result.rentPerM2 = toCents(bail.rentAmount / surface!);
   result.maxRent = toCents(result.reference.max * surface!);
+  // Plafond connu avant le loyer (formulaire du propriétaire) : le contrôle attend le montant.
+  if (!bail.rentAmount) {
+    result.missing.push("loyer");
+    return result;
+  }
+  result.rentPerM2 = toCents(bail.rentAmount / surface!);
   result.overBy = toCents(bail.rentAmount - result.maxRent);
   result.status = result.overBy > 0 ? "over" : "ok";
   return result;

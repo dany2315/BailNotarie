@@ -223,6 +223,13 @@ const propertyFieldsSchema = {
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.enum(OWNER_PERIODS, { message: "Époque de construction invalide" }).optional()
   ),
+  // Classe énergétique (facultative ici, exigée par le formulaire pour un bail d'habitation).
+  propertyDpeClass: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(["A", "B", "C", "D", "E", "F", "G"], { message: "Classe énergétique invalide" }).optional()
+  ),
+  // Relocation en zone tendue et complément de loyer (réponses du contrôle du loyer).
+  rentRules: z.record(z.string(), z.any()).optional(),
   propertyLabel: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.string()

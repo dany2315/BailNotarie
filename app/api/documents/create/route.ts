@@ -174,6 +174,13 @@ export async function POST(request: NextRequest) {
         targetClientId = finalClientId;
       }
     }
+    // Justificatifs du loyer (relocation en zone tendue) : rattachés au bail
+    else if (["PREVIOUS_RENT_PROOF", "PREVIOUS_TENANT_EXIT_PROOF", "WORKS_INVOICES", "RENT_REFERENCES"].includes(documentKind)) {
+      targetBailId = finalBailId || null;
+      if (!targetBailId && finalClientId) {
+        targetClientId = finalClientId;
+      }
+    }
     // Documents client (livret de famille, PACS)
     else {
       targetClientId = finalClientId;

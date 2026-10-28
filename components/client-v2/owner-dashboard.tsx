@@ -21,6 +21,7 @@ import { deleteBailDraft } from "@/lib/actions/leases";
 import { OwnerBailRow } from "./owner-bail-card";
 import { useOwnerRuntime } from "./owner-runtime";
 import { TodoRow } from "./owner-todo";
+import { PROOF_LABELS } from "@/lib/utils/rent-relocation";
 import {
   EmptyState,
   IconTile,
@@ -99,9 +100,17 @@ type BailDraft = {
   }>;
 };
 
+type RentProofTodo = {
+  bailId: string;
+  property: { label: string | null; fullAddress: string | null };
+  kinds: string[];
+};
+
 export interface OwnerDashboardProps {
   baux: Bail[];
   pendingRequests: PendingRequest[];
+  /** Justificatifs du loyer attendus (relocation en zone tendue), par bail. */
+  rentProofs?: RentProofTodo[];
   activeIntakes: ActiveIntake[];
   bailDrafts: BailDraft[];
   userName: string | null;
@@ -180,6 +189,7 @@ export function OwnerDashboard({
   activeIntakes,
   bailDrafts: initialBailDrafts,
   userName,
+  rentProofs = [],
 }: OwnerDashboardProps) {
   const { demo } = useOwnerRuntime();
   const [bailDrafts, setBailDrafts] = React.useState(initialBailDrafts);
@@ -206,7 +216,7 @@ export function OwnerDashboard({
     (bail) => bail.status === "AWAITING_TENANT" && !bail.parties.some((party) => party.profilType === "LOCATAIRE"),
   );
   const enCours = baux.filter((bail) => ACTIVE_STATUSES.includes(bail.status)).length;
-  const aTraiter = pendingRequests.length + activeIntakes.length + bailDrafts.length + missingTenantBails.length;
+  const aTraiter = pendingRequests.length + activeIntakes.length + bailDrafts.length + missingTenantBails.length + rentProofs.length;
   const signes = baux.filter((bail) => bail.status === "SIGNED").length;
 
   const recentBails = React.useMemo(
@@ -243,6 +253,18 @@ export function OwnerDashboard({
       message: "Indiquez votre locataire dès que vous l'avez trouvé : il recevra son formulaire et le dossier pourra avancer.",
       actionLabel: "Ajouter le locataire",
       href: `/client/proprietaire/baux/${bail.id}`,
+    })),
+    // Justificatifs du loyer (zone tendue) : l'équipe en a besoin avant l'envoi au notaire.
+    ...rentProofs.map((item) => ({
+      key: `rent-proofs-${item.bailId}`,
+      icon: FileText,
+      tone: "amber" as Tone,
+      kicker: "À faire · Justificatif du loyer",
+      title: item.property.label || item.property.fullAddress?.split(",")[0] || "Bien",
+      subtitle: null,
+      message: `À envoyer : ${item.kinds.map((kind) => PROOF_LABELS[kind]?.label.toLowerCase() ?? kind).join(", ")}.`,
+      actionLabel: "Envoyer",
+      href: `/client/proprietaire/baux/${item.bailId}`,
     })),
     // Un formulaire commencé ailleurs (lien d'intake).
     ...activeIntakes.map((intake) => ({

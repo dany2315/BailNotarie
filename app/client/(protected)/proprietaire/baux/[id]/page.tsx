@@ -4,6 +4,7 @@ import { ProfilType } from "@prisma/client";
 import { getClientFromUser, getCurrentUser } from "@/lib/auth-helpers";
 import { getClientBailDetails } from "@/lib/actions/client-space";
 import { BailPage } from "@/components/client-v2/bail-page";
+import { missingRentProofs } from "@/lib/rent-proofs";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,8 @@ export default async function ProprietaireBailDetailPage({
   if (!bail) notFound();
 
   const { chat } = await searchParams;
+  // Justificatifs du loyer attendus, seulement pour le propriétaire du bien.
+  const rentProofs = bail.property?.ownerId === client.id ? await missingRentProofs(client.id, bail.id) : [];
 
   // Le locataire, nommé comme le tiroir le faisait.
   const locataire = bail.parties?.find((party: any) => party.profilType === ProfilType.LOCATAIRE);
@@ -67,6 +70,7 @@ export default async function ProprietaireBailDetailPage({
       hasNotaire={!!bail.dossierAssignments?.[0]?.notaire}
       notaireName={bail.dossierAssignments?.[0]?.notaire?.name ?? null}
       openChat={chat === "1"}
+      missingRentProofs={rentProofs[0]?.kinds ?? []}
     />
   );
 }

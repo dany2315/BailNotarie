@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
+import { assessRentRules } from "@/lib/rent-rules";
 
 // Helper pour sérialiser les Decimal
 function serializeDecimal(value: any): any {
@@ -183,6 +184,26 @@ export async function GET(
     // Sérialiser les données pour convertir les Decimal en nombres
     const serializedAssignment = JSON.parse(JSON.stringify(assignment, (key, value) => serializeDecimal(value)));
     
+    // Mentions du loyer à reporter dans le bail : loyers de référence (ville encadrée), loyer de
+    // base et complément, dernier loyer du locataire précédent (relocation en zone tendue).
+    const bail = (assignment as any).bail;
+    if (bail?.property && bail.bailFamily !== "COMMERCIAL") {
+      const rules = await assessRentRules({ property: bail.property, bail });
+      serializedAssignment.rentMentions = {
+        territory: rules.cap.territory?.label ?? null,
+        zone: rules.cap.zone?.label ?? null,
+        reference: rules.cap.reference,
+        surface: rules.cap.surface,
+        supplementAmount: bail.rentSupplementReason && rules.supplement.amount != null ? rules.supplement.amount : null,
+        supplementBase: bail.rentSupplementReason && rules.supplement.base != null ? rules.supplement.base : null,
+        supplementReason: bail.rentSupplementReason ?? null,
+        tightZone: rules.relocation.notConcerned === null,
+        situation: rules.relocation.situation,
+        previousRentAmount: rules.relocation.situation === "relet" ? bail.previousRentAmount ?? null : null,
+        previousTenantLeftAt: bail.previousTenantLeftAt ?? null,
+      };
+    }
+
     // Ajouter les requests si disponibles
     if (requests.length > 0) {
       serializedAssignment.requests = JSON.parse(JSON.stringify(requests, (key, value) => serializeDecimal(value)));

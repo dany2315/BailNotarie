@@ -13,7 +13,11 @@ import { BailMoreMenu } from "@/components/leases/bail-more-menu";
 import { SendToNotaryButton } from "@/components/leases/send-to-notary-dialog";
 import { RemindButton, ReminderCard } from "@/components/reminders/remind-button";
 import { getReminderPanel } from "@/lib/actions/reminders";
-import { assessRentCap, describeRentCapZone, rentCapBlocking, rentCapOverLines } from "@/lib/rent-cap";
+import { describeRentCapZone, rentCapBlocking, rentCapOverLines } from "@/lib/rent-cap";
+import { assessRentRules } from "@/lib/rent-rules";
+import { PROOF_LABELS, VACANCY_MONTHS, relocationSummaryLines } from "@/lib/utils/rent-relocation";
+import { rentRulesToForm } from "@/lib/utils/rent-draft";
+import { RentRulesEditor } from "@/components/admin/rent-rules-editor";
 import { EXEMPTION_LABELS, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { RentCapEditor, RentCapExemptionButton, RentCapNotifyButton, RentSupplementButton } from "@/components/admin/rent-cap-editor";
 import { intakeSummary } from "@/lib/utils/intake-summary";
@@ -301,7 +305,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   // Contrôles réglementaires (manuels)
   const diagnosticsIds = (propertyDocuments as any[]).filter((d) => d.kind === DocumentKind.DIAGNOSTICS).map((d) => d.id).sort();
   // Plafond de loyer : calculé selon l'arrêté d'encadrement en vigueur dans la commune du bien.
-  const rentCap = property ? await assessRentCap({ property, bail: lease }) : null;
+  // Avec la relocation en zone tendue (dernier loyer, IRL, travaux, loyer sous-évalué) et le complément de loyer.
+  const rentRules = property ? await assessRentRules({ property, bail: lease }) : null;
+  const rentCap = rentRules?.cap ?? null;
   const rentCapLines = rentCap ? rentCapOverLines(rentCap) : null;
   // Contrôlé automatiquement : loyer conforme à l'arrêté applicable, ou pas de plafond (commune non encadrée,
   // hors périmètre, bail commercial, logement exclu). Adresse non localisée ou bail hors période : à la main.
@@ -309,7 +315,17 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     !!rentCap &&
     ((rentCap.status === "ok" && rentCap.validity === "in") ||
       (rentCap.status === "not_concerned" && rentCap.notConcerned !== "no_address"));
-  const capMissing = !property || (!!rentCap && rentCapBlocking(rentCap));
+  // Complément de loyer interdit pour un logement classé F ou G : bloquant comme un dépassement.
+  const capMissing = !property || (!!rentCap && rentCapBlocking(rentCap)) || !!rentRules?.supplement.forbidden;
+  // Relocation en zone tendue : maximum calculé, justificatifs reçus ou à demander.
+  const relocation = rentRules?.relocation ?? null;
+  const bailDocKinds = new Set((bailDocuments as any[]).map((doc) => doc.kind as string));
+  const proofIds = (bailDocuments as any[]).filter((doc) => relocation?.proofs.includes(doc.kind)).map((doc) => doc.id).sort();
+  const missingProofs = (relocation?.proofs ?? []).filter((kind) => !bailDocKinds.has(kind));
+  const relocAuto = !relocation || relocation.status === "not_concerned";
+  const relocMissing =
+    !!relocation &&
+    (relocation.status === "over" || (relocation.status === "missing" && !relocation.undeclared) || missingProofs.length > 0);
   const rulesPoints = [
     {
       key: pointKey("rules:plafond", [
@@ -330,12 +346,29 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       key: pointKey("rules:dpe", [...diagnosticsIds, property?.dpeClass || null, property?.gesClass || null, dpeDateValue(property?.dpeDate)]),
       label: "Classe DPE",
     },
+    {
+      key: pointKey("rules:relocation", [
+        lease.rentAmount,
+        property?.inseeCode || null,
+        property?.dpeClass || null,
+        lease.relocationLetBefore ?? null,
+        lease.previousTenantLeftAt ? new Date(lease.previousTenantLeftAt).toISOString().slice(0, 10) : null,
+        lease.previousRentAmount ?? null,
+        lease.previousRentRevisedRecently ?? null,
+        lease.rentIncreaseReason || null,
+        lease.worksAmount ?? null,
+        lease.neighborhoodRent ?? null,
+        ...proofIds,
+      ]),
+      label: "Évolution du loyer",
+    },
   ];
   // DPE saisi à la main : à saisir, expiré ou classe interdite à la location = bloquant.
   const dpe = assessDpe(property?.dpeClass, property?.dpeDate);
   const rulesStates = [
     ...withVerified([{ key: rulesPoints[0].key, missing: capMissing }], verifiedKeys, bailLocked || capAuto),
     ...withVerified([{ key: rulesPoints[1].key, missing: dpe.blocking }], verifiedKeys, bailLocked),
+    ...withVerified([{ key: rulesPoints[2].key, missing: relocMissing }], verifiedKeys, bailLocked || relocAuto),
   ];
 
   // Paiement des frais de dossier : contrôlé automatiquement (Stripe), bloquant s'il manque.
@@ -729,7 +762,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           <CheckSection
             id="bloc-controles"
             title="Contrôles réglementaires"
-            subtitle="Plafond calculé selon l'arrêté d'encadrement en vigueur ; DPE saisi depuis le diagnostic"
+            subtitle="Plafond selon l'arrêté d'encadrement en vigueur, évolution du loyer en zone tendue ; DPE saisi depuis le diagnostic"
             headerRight={
               <>
                 <StateChip tone={summaryChip(sectionSummary("bloc-controles")).tone}>{summaryChip(sectionSummary("bloc-controles")).label}</StateChip>
@@ -745,6 +778,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 note={
                   !rentCap
                     ? null
+                    : rentRules?.supplement.forbidden
+                      ? `Complément de loyer interdit (logement classé F ou G) : loyer à ramener à ${formatCurrency(rentRules.supplement.base ?? 0)} au plus`
                     : rentCap.status === "missing"
                       ? `À saisir : ${rentCap.missing.join(", ")}`
                       : rentCap.status === "over" && !rentCap.supplement
@@ -873,6 +908,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           Complément de loyer justifié
                           {lease.rentSupplementAt ? ` le ${formatDate(lease.rentSupplementAt)}` : ""}
                           {lease.rentSupplementByName ? ` par ${lease.rentSupplementByName}` : ""} : {lease.rentSupplementReason}
+                          {rentRules?.supplement.amount != null && rentRules.supplement.base != null
+                            ? ` (loyer de base ${formatCurrency(rentRules.supplement.base)} + complément ${formatCurrency(rentRules.supplement.amount)})`
+                            : ""}
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground">
@@ -908,6 +946,86 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         <span className="text-[13px] font-semibold text-amber-800">
                           Le bail prend effet le {formatDate(lease.effectiveDate)}, avant cet arrêté : c&apos;est l&apos;arrêté précédent qui
                           s&apos;applique. Vérifiez avec le simulateur officiel, puis validez à la main.
+                        </span>
+                      )}
+                    </>
+                  )}
+                </span>
+              </CheckPoint>
+              <CheckPoint
+                state={relocMissing ? "missing" : isVerified(rulesPoints[2].key, bailLocked || relocAuto) ? "ok" : "todo"}
+                label="Évolution du loyer (zone tendue)"
+                actionsBelow
+                note={
+                  !relocation
+                    ? null
+                    : relocation.status === "over"
+                      ? `Au-dessus du maximum à la relocation de ${formatCurrency(relocation.overBy ?? 0)} par mois : loyer à corriger`
+                      : relocation.status === "missing" && !relocation.undeclared
+                        ? `À compléter : ${relocation.missing.join(", ")}`
+                        : missingProofs.length
+                          ? `Justificatif${missingProofs.length > 1 ? "s" : ""} à demander : ${missingProofs.map((kind) => PROOF_LABELS[kind]?.label.toLowerCase()).join(", ")}`
+                          : null
+                }
+                actions={
+                  <>
+                    {relocation && relocation.notConcerned === null && !bailLocked && (
+                      <RentRulesEditor bailId={lease.id} values={rentRulesToForm(lease)} missing={relocation.undeclared} />
+                    )}
+                    {!relocMissing && (
+                      <VerifyToggle
+                        bailId={lease.id}
+                        pointKey={rulesPoints[2].key}
+                        verified={isVerified(rulesPoints[2].key, bailLocked || relocAuto)}
+                        locked={bailLocked || relocAuto}
+                      />
+                    )}
+                  </>
+                }
+              >
+                <span className="flex flex-col gap-1">
+                  {!relocation ? (
+                    <span className="text-muted-foreground">Bien non renseigné.</span>
+                  ) : relocation.notConcerned ? (
+                    <span className="text-muted-foreground">
+                      {relocation.notConcerned === "commercial"
+                        ? "Bail commercial : non concerné."
+                        : relocation.notConcerned === "no_address"
+                          ? "Adresse non localisée : vérifiez si la commune est en zone tendue."
+                          : "Commune hors zone tendue : le loyer est libre à la relocation."}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-muted-foreground">
+                        Commune en zone tendue : à la relocation, le loyer ne peut pas dépasser celui du locataire précédent, sauf exceptions
+                        (décret n° 2017-1198).
+                      </span>
+                      {relocation.undeclared && (
+                        <span className="font-semibold text-amber-800">
+                          Questions non renseignées (dossier créé avant ces questions) : complétez-les avec le propriétaire.
+                        </span>
+                      )}
+                      {relocation.situation === "first" && <span>Première mise en location, déclarée par le propriétaire.</span>}
+                      {(relocation.situation === "relet" || relocation.situation === "vacant") && lease.previousTenantLeftAt && (
+                        <span>
+                          Départ du locataire précédent le {formatDate(lease.previousTenantLeftAt)}
+                          {relocation.situation === "vacant" ? ` : logement vide depuis ${VACANCY_MONTHS} mois ou plus.` : "."}
+                        </span>
+                      )}
+                      {relocationSummaryLines(relocation).map((line) => (
+                        <span key={line}>{line}</span>
+                      ))}
+                      {relocation.status === "ok" && (
+                        <span className="font-semibold text-green-700">
+                          Conforme : {formatCurrency(Math.abs(relocation.overBy ?? 0))} sous le maximum
+                        </span>
+                      )}
+                      {relocation.proofs.length > 0 && (
+                        <span className="text-[13px]">
+                          Justificatifs :{" "}
+                          {relocation.proofs
+                            .map((kind) => `${PROOF_LABELS[kind]?.label.toLowerCase()} (${bailDocKinds.has(kind) ? "reçu" : "à demander"})`)
+                            .join(", ")}
                         </span>
                       )}
                     </>

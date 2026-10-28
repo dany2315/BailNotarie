@@ -60,9 +60,10 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { RentControlAlert } from "@/components/ui/rent-control-alert";
-import { validateRentAmount } from "@/lib/utils/rent-validation";
-import type { RentValidationResult } from "@/lib/utils/rent-validation";
+import { RentRulesPanel } from "@/components/rent/rent-rules-panel";
+import type { RentRulesAssessment } from "@/lib/rent-rules";
+import { EMPTY_RENT_RULES, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
+import { PROOF_LABELS, relocationProofKinds } from "@/lib/utils/rent-relocation";
 import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
 import {
   ArrowLeftIcon,
@@ -320,6 +321,9 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   const propertyLegalStatus = property?.legalStatus ?? undefined;
   const propertyMainRooms = property?.mainRooms ?? undefined;
   const propertyConstructionPeriod = property?.constructionPeriod ?? undefined;
+  const propertyDpeClass = property?.dpeClass ?? "";
+  // Relocation en zone tendue et complément de loyer (étape « Loyer & charges »).
+  const rentRules = rentRulesToForm(bail);
   const propertyStatus = property?.status ?? PropertyStatus.NON_LOUER;
 
   // Mobilier obligatoire pour location meublée
@@ -415,6 +419,8 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       // Bien
       propertyMainRooms,
       propertyConstructionPeriod,
+      propertyDpeClass,
+      rentRules,
       propertyLabel,
       propertyFullAddress,
       propertyHousenumber,
@@ -488,6 +494,8 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       // Bien
       propertyMainRooms,
       propertyConstructionPeriod,
+      propertyDpeClass,
+      rentRules,
       propertyLabel,
       propertyFullAddress,
       propertyHousenumber,
@@ -744,7 +752,9 @@ const findFirstIncompleteStep = (
     isEmpty(values.propertyLegalStatus) ||
     // Bail d'habitation : catégorie du logement pour le plafond de loyer
     (values.bailFamily !== BailFamille.COMMERCIAL &&
-      (isEmpty(values.propertyMainRooms) || isEmpty(values.propertyConstructionPeriod)))
+      (isEmpty(values.propertyMainRooms) ||
+        isEmpty(values.propertyConstructionPeriod) ||
+        isEmpty((values as any).propertyDpeClass)))
   ) {
     return idxPropertyDetails;
   }
@@ -756,6 +766,14 @@ const findFirstIncompleteStep = (
     isEmpty(values.bailRentAmount) ||
     isEmpty(values.bailMonthlyCharges) ||
     isEmpty(values.bailSecurityDeposit)
+  ) {
+    return idxBailRent;
+  }
+  // Zone tendue : la question sur la relocation doit avoir une réponse.
+  if (
+    values.bailFamily !== BailFamille.COMMERCIAL &&
+    (intakeLink as any).property?.isTightZone &&
+    isEmpty((values as any).rentRules?.relocationLetBefore)
   ) {
     return idxBailRent;
   }
@@ -1179,6 +1197,9 @@ useEffect(() => {
 
     // On garde une photo des dernières valeurs sauvegardées
     const lastSavedValues = useRef<FormWithPersons>(defaultValues);
+    // Dernier contrôle du loyer (null pendant le calcul) : bloque l'étape « Loyer & charges ».
+    const rentRulesResultRef = useRef<RentRulesAssessment | null>(null);
+    const [showRentErrors, setShowRentErrors] = useState(false);
 
     // Initialisation du step UNIQUEMENT au chargement du formulaire
     useEffect(() => {
@@ -1526,6 +1547,7 @@ useEffect(() => {
           "propertyLegalStatus",
           "propertyMainRooms",
           "propertyConstructionPeriod",
+          "propertyDpeClass",
           "propertyStatus",
         ];
       case "bailType":
@@ -1535,6 +1557,7 @@ useEffect(() => {
           "bailRentAmount",
           "bailMonthlyCharges",
           "bailSecurityDeposit",
+          "rentRules" as keyof FormWithPersons,
         ];
       case "bailFurniture":
         return [
@@ -2056,8 +2079,35 @@ useEffect(() => {
             form.setError("propertyConstructionPeriod", { type: "manual", message: "Indiquez l'époque de construction" });
             missingCategory = true;
           }
+          if (!form.getValues("propertyDpeClass" as any)) {
+            form.setError("propertyDpeClass" as any, { type: "manual", message: "Indiquez la classe énergétique du logement" });
+            missingCategory = true;
+          }
         }
         if (!valid || missingCategory) return;
+
+        // Loyer : plafond de l'arrêté et relocation en zone tendue, contrôlés côté serveur.
+        if (stepId === "bailRent" && form.getValues("bailFamily") !== BailFamille.COMMERCIAL) {
+          const check = rentRulesResultRef.current;
+          if (!check) {
+            toast.info("Vérification du loyer en cours, réessayez dans un instant.");
+            return;
+          }
+          if (check.ownerBlocking) {
+            setShowRentErrors(true);
+            toast.error("Le loyer ne peut pas être enregistré en l'état", {
+              description:
+                check.relocation.status === "missing"
+                  ? "Répondez aux questions du contrôle du loyer."
+                  : check.supplement.needed && check.supplement.dpeUnknown
+                    ? "Indiquez la classe énergétique du logement."
+                    : check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over"
+                      ? "Justifiez le complément de loyer ou baissez le loyer."
+                      : "Le loyer dépasse le maximum autorisé : baissez-le.",
+            });
+            return;
+          }
+        }
 
         // Adresse choisie dans la liste : le bien est localisé (commune, zone d'encadrement des loyers).
         if (stepId === "propertyAddress" && !String(form.getValues("propertyInseeCode") || "").trim()) {
@@ -2234,6 +2284,17 @@ useEffect(() => {
 
   const handleManualSave = async () => {
     const stepId = STEPS[currentStep].id;
+
+    // Loyer au-dessus du maximum (sans complément possible) : le serveur le refuserait.
+    if (stepId === "bailRent") {
+      const check = rentRulesResultRef.current;
+      const supplementPossible = !!check && check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over";
+      if (check && check.overBy !== null && check.overBy > 0 && !supplementPossible) {
+        setShowRentErrors(true);
+        toast.error("Le loyer dépasse le maximum autorisé", { description: "Baissez-le avant d'enregistrer." });
+        return;
+      }
+    }
     
     // Validation spéciale pour le step bailFurniture : vérifier le mobilier si bail meublé
     if (stepId === "bailFurniture") {
@@ -2316,8 +2377,11 @@ useEffect(() => {
     setIsSubmitting(true);
     try {
       // Dossier commencé avant l'ajout des questions : on y renvoie avant le paiement.
-      if (data.bailFamily !== BailFamille.COMMERCIAL && (!data.propertyMainRooms || !data.propertyConstructionPeriod)) {
-        toast.error("Indiquez le nombre de pièces principales et l'époque de construction du bien");
+      if (
+        data.bailFamily !== BailFamille.COMMERCIAL &&
+        (!data.propertyMainRooms || !data.propertyConstructionPeriod || !(data as any).propertyDpeClass)
+      ) {
+        toast.error("Indiquez le nombre de pièces principales, l'époque de construction et la classe énergétique du bien");
         const detailsIndex = STEPS.findIndex((s) => s.id === "propertyDetails");
         if (detailsIndex !== -1) setCurrentStep(detailsIndex);
         setIsSubmitting(false);
@@ -2720,7 +2784,16 @@ useEffect(() => {
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="type" />
           )}
           {STEPS[currentStep].id === "bailRent" && (
-            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="rent" />
+            <BailStep
+              form={form as any}
+              propertyId={intakeLink.propertyId || intakeLink.property?.id}
+              slice="rent"
+              token={intakeLink.token}
+              showRentErrors={showRentErrors}
+              onRentRulesResult={(result) => {
+                rentRulesResultRef.current = result;
+              }}
+            />
           )}
           {STEPS[currentStep].id === "bailFurniture" && (
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="furniture" />
@@ -4076,6 +4149,7 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
                 <p className="text-sm text-destructive">{form.formState.errors.propertyConstructionPeriod.message as string}</p>
               )}
             </div>
+            <DpeClassField form={form} isMobile={isMobile} />
           </>
         )}
         <div className="space-y-2">
@@ -4117,10 +4191,130 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
   );
 };
 
+const DPE_CLASSES = ["A", "B", "C", "D", "E", "F", "G"] as const;
+
+/** Classe énergétique (DPE) : sert au contrôle du loyer (gel du loyer et pas de complément en F ou G). */
+const DpeClassField = ({ form, isMobile }: { form: any; isMobile: boolean }) => {
+  const value = useWatch({ control: form.control, name: "propertyDpeClass" }) as string | undefined;
+  const error = form.formState.errors.propertyDpeClass;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label htmlFor="propertyDpeClass">Classe énergétique (DPE) *</Label>
+        <InfoTooltip
+          content={<p>Lettre de A à G indiquée en première page de votre diagnostic de performance énergétique (DPE). Elle compte pour le loyer : un logement classé F ou G a un loyer gelé.</p>}
+          className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+        >
+          <button type="button" className="inline-flex items-center" aria-label="Où trouver la classe énergétique">
+            <InfoIcon className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </InfoTooltip>
+      </div>
+      <Controller
+        name="propertyDpeClass"
+        control={form.control}
+        render={({ field }) => (
+          <Select
+            value={typeof field.value === "string" && field.value ? field.value : undefined}
+            onValueChange={(next) => {
+              field.onChange(next);
+              form.clearErrors("propertyDpeClass");
+            }}
+          >
+            <SelectTrigger id="propertyDpeClass" className="w-full h-11">
+              <SelectValue placeholder="Choisir la classe énergétique" />
+            </SelectTrigger>
+            <SelectContent>
+              {DPE_CLASSES.map((cls) => (
+                <SelectItem key={cls} value={cls}>
+                  Classe {cls}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      />
+      {error && <p className="text-sm text-destructive">{error.message as string}</p>}
+      {value === "G" && (
+        <p className="text-sm text-amber-700 dark:text-amber-300">
+          Depuis le 1er janvier 2025, un logement classé G ne peut plus être loué : notre équipe vous contactera.
+        </p>
+      )}
+      {value === "F" && (
+        <p className="text-sm text-amber-700 dark:text-amber-300">
+          Logement classé F : loyer gelé, et location interdite à partir du 1er janvier 2028.
+        </p>
+      )}
+    </div>
+  );
+};
+
+/** Justificatifs du loyer demandés selon les réponses (facultatifs : l'équipe les réclame s'ils manquent). */
+const RentProofUploads = ({
+  form,
+  intakeLink,
+  onUploadStateChange,
+}: {
+  form: any;
+  intakeLink: IntakeLink;
+  onUploadStateChange?: (isUploading: boolean) => void;
+}) => {
+  const rentRules = (useWatch({ control: form.control, name: "rentRules" }) as RentRulesFormValues | undefined) ?? EMPTY_RENT_RULES;
+  const dpeClass = useWatch({ control: form.control, name: "propertyDpeClass" }) as string | undefined;
+  const [files, setFiles] = useState<Record<string, File | null>>({});
+  const kinds = relocationProofKinds(
+    {
+      relocationLetBefore: rentRules.relocationLetBefore === "yes" ? true : rentRules.relocationLetBefore === "no" ? false : null,
+      previousTenantLeftAt: rentRules.previousTenantLeftAt || null,
+      previousRentAmount: null,
+      previousRentRevisedRecently: null,
+      rentIncreaseReason: rentRules.rentIncreaseReason || null,
+      worksAmount: null,
+      worksCompletedAt: null,
+      neighborhoodRent: null,
+    },
+    dpeClass,
+  );
+  if (!kinds.length) return null;
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Justificatifs du loyer</h3>
+        <p className="text-sm text-muted-foreground">
+          Ils prouvent que le loyer respecte les règles de la zone tendue. Si vous ne les avez pas sous la main, vous pourrez les envoyer plus tard.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+        {kinds.map((kind) => (
+          <div key={kind} className="min-w-0 w-full overflow-visible space-y-1">
+            <DocumentUploaded token={intakeLink.token} documentKind={kind}>
+              <FileUpload
+                label={PROOF_LABELS[kind].label}
+                multiple
+                value={files[kind] ?? null}
+                onChange={(file) => setFiles((prev) => ({ ...prev, [kind]: file }))}
+                uploadToken={intakeLink.token}
+                documentKind={kind as any}
+                documentClientId={intakeLink.clientId}
+                onUploadStateChange={onUploadStateChange}
+              />
+            </DocumentUploaded>
+            <p className="text-xs text-muted-foreground">{PROOF_LABELS[kind].hint}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 type BailStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
   propertyId?: string | null;
   slice?: "type" | "rent" | "furniture" | "dates";
+  /** Étape loyer : lien d'intake pour le contrôle du loyer, et son résultat. */
+  token?: string;
+  showRentErrors?: boolean;
+  onRentRulesResult?: (result: RentRulesAssessment | null) => void;
 };
 
 // Composant séparé pour afficher la validation du dépôt de garantie
@@ -4184,7 +4378,7 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
   );
 };
 
-const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
+const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesResult }: BailStepProps) => {
   const showType = !slice || slice === "type";
   const showRent = !slice || slice === "rent";
   const showFurniture = !slice || slice === "furniture";
@@ -4221,44 +4415,11 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [computedBailEndDate]);
 
-  // Surveillance du loyer et de la surface pour validation zone tendue
+  // Contrôle du loyer (plafond de l'arrêté, relocation en zone tendue, complément de loyer)
   const rentAmount = useWatch({ control: form.control, name: "bailRentAmount" });
-  const surfaceM2 = useWatch({ control: form.control, name: "propertySurfaceM2" });
-  const propertyInseeCode = useWatch({ control: form.control, name: "propertyInseeCode" }) as string | null | undefined;
-  const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
-  const [propertySurface, setPropertySurface] = useState<number | null>(null);
-
-  // Récupérer la surface du bien si propertyId existe
-  useEffect(() => {
-    if (propertyId) {
-      fetch(`/api/properties/${propertyId}`)
-        .then(res => res.json())
-        .then(data => {
-          setPropertySurface(data.surfaceM2 ? Number(data.surfaceM2) : null);
-        })
-        .catch(() => {
-          setPropertySurface(null);
-        });
-    } else {
-      setPropertySurface(surfaceM2 ? Number(surfaceM2) : null);
-    }
-  }, [propertyId, surfaceM2]);
-
-  // Valider le loyer quand il change
-  useEffect(() => {
-    if (propertyId && rentAmount) {
-      const rent = typeof rentAmount === 'number' ? rentAmount : parseFloat(String(rentAmount) || '0');
-      if (!isNaN(rent) && rent > 0) {
-        validateRentAmount(propertyId, rent, propertySurface)
-          .then(result => setRentValidationResult(result))
-          .catch(() => setRentValidationResult(null));
-      } else {
-        setRentValidationResult(null);
-      }
-    } else {
-      setRentValidationResult(null);
-    }
-  }, [propertyId, rentAmount, propertySurface]);
+  const bailFamily = useWatch({ control: form.control, name: "bailFamily" });
+  const dpeClass = useWatch({ control: form.control, name: "propertyDpeClass" as any }) as string | undefined;
+  const rentRules = (useWatch({ control: form.control, name: "rentRules" as any }) as RentRulesFormValues | undefined) ?? EMPTY_RENT_RULES;
   
   // Nettoyer les erreurs de mobilier si on passe à un bail nue
   useEffect(() => {
@@ -4343,16 +4504,8 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
           <InfoTooltip
             content={
               <div className="max-w-xs">
-                <p className="mb-2">LIMITATIONS DES LOYERS</p>
-                <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
-                <a
-                  href="https://www.service-public.fr/simulateur/calcul/zones-tendues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline hover:text-primary/80"
-                >
-                  https://www.service-public.fr/simulateur/calcul/zones-tendues
-                </a>
+                <p className="mb-2">LOYER HORS CHARGES</p>
+                <p>Le loyer est contrôlé automatiquement selon l&apos;adresse du bien : plafond des villes encadrées et règles de relocation en zone tendue.</p>
               </div>
             }
             className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
@@ -4391,14 +4544,20 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
         )}
       </div>
 
-      {/* Avertissement zone tendue - affiché dès l'entrée dans l'étape si le bien est en zone tendue */}
-      {(propertyId || (propertyInseeCode && typeof propertyInseeCode === 'string' && propertyInseeCode.trim() !== "")) && (
-        <RentControlAlert
-          propertyId={propertyId !== null ? propertyId : undefined}
-          inseeCode={propertyInseeCode && typeof propertyInseeCode === 'string' && propertyInseeCode.trim() !== "" ? propertyInseeCode : null}
-          rentAmount={rentAmount ? (typeof rentAmount === 'number' ? rentAmount : parseFloat(String(rentAmount) || '0')) : undefined}
-          surfaceM2={propertySurface}
-          validationResult={rentValidationResult}
+      {/* Contrôle du loyer : plafond de l'arrêté et relocation en zone tendue, calculés côté serveur */}
+      {token && propertyId && (
+        <RentRulesPanel
+          token={token}
+          rentAmount={rentAmount as any}
+          bailType={currentBailType as any}
+          bailFamily={bailFamily as any}
+          dpeClass={dpeClass || null}
+          values={rentRules}
+          onChange={(patch) =>
+            form.setValue("rentRules" as any, { ...rentRules, ...patch } as any, { shouldDirty: true })
+          }
+          onResult={onRentRulesResult}
+          showErrors={showRentErrors}
         />
       )}
 
@@ -4818,6 +4977,8 @@ const DocumentsStep = ({
             </>
           )}
         </div>
+
+      <RentProofUploads form={form} intakeLink={intakeLink} onUploadStateChange={onUploadStateChange} />
 
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Documents du bien et du bail</h3>

@@ -27,10 +27,10 @@ import {
 import { CreatePropertyForm, CreatePropertyFormRef } from "./create-property-form";
 import { BailPaymentStep } from "./bail-payment-step";
 import { LoadingScreen } from "@/components/ui/loading-screen";
-import { RentControlAlert } from "@/components/ui/rent-control-alert";
+import { RentRulesPanel } from "@/components/rent/rent-rules-panel";
+import type { RentRulesAssessment } from "@/lib/rent-rules";
+import { EMPTY_RENT_RULES, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createLease, createTenantFromEmail, saveBailDraft } from "@/lib/actions/leases";
-import { validateRentAmount } from "@/lib/utils/rent-validation";
-import type { RentValidationResult } from "@/lib/utils/rent-validation";
 import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
 import { BailType, BailStatus } from "@prisma/client";
 import { toast } from "sonner";
@@ -84,6 +84,8 @@ interface DraftBailData {
   paymentDay: number | null;
   propertyId: string;
   tenantId: string | null;
+  /** Réponses du contrôle du loyer (relocation en zone tendue, complément de loyer). */
+  rentRules?: RentRulesFormValues;
 }
 
 interface CreateBailPageClientProps {
@@ -148,9 +150,13 @@ export function CreateBailPageClient({
     id: string;
     surfaceM2: number | null;
     isMeuble: boolean;
+    dpeClass: string | null;
   } | null>(null);
-  const [rentValidationResult, setRentValidationResult] =
-    useState<RentValidationResult | null>(null);
+  // Contrôle du loyer : réponses, classe DPE saisie si le bien n'en a pas, dernier résultat.
+  const [rentRules, setRentRules] = useState<RentRulesFormValues>(draftBail?.rentRules ?? EMPTY_RENT_RULES);
+  const [dpeInput, setDpeInput] = useState("");
+  const [showRentErrors, setShowRentErrors] = useState(false);
+  const rentRulesResultRef = useRef<RentRulesAssessment | null>(null);
 
   const propertyFormRef = useRef<CreatePropertyFormRef>(null);
 
@@ -240,6 +246,7 @@ export function CreateBailPageClient({
             id: propertyId,
             surfaceM2: data.surfaceM2 ? Number(data.surfaceM2) : null,
             isMeuble,
+            dpeClass: data.dpeClass ?? null,
           });
           // Si le bien n'est pas meublé et que le type sélectionné est meublé, repasser sur nu 3 ans
           const currentBailType = watch("bailType");
@@ -251,24 +258,11 @@ export function CreateBailPageClient({
           }
         }
       })
-      .catch(() => setSelectedProperty({ id: propertyId, surfaceM2: null, isMeuble: false }));
+      .catch(() => setSelectedProperty({ id: propertyId, surfaceM2: null, isMeuble: false, dpeClass: null }));
   }, [propertyId]);
 
-  // Validation du loyer (zone tendue)
-  useEffect(() => {
-    if (propertyId && rentAmount && selectedProperty) {
-      const rent = parseFloat(rentAmount);
-      if (!isNaN(rent) && rent > 0) {
-        validateRentAmount(propertyId, rent, selectedProperty.surfaceM2)
-          .then((r) => setRentValidationResult(r))
-          .catch(() => setRentValidationResult(null));
-      } else {
-        setRentValidationResult(null);
-      }
-    } else {
-      setRentValidationResult(null);
-    }
-  }, [propertyId, rentAmount, selectedProperty]);
+  // Classe DPE : celle du bien, sinon celle saisie dans le contrôle du loyer.
+  const dpeClass = selectedProperty?.dpeClass || dpeInput || null;
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -291,6 +285,28 @@ export function CreateBailPageClient({
         `Le dépôt de garantie ne peut pas dépasser ${isMeubleBailType ? "2" : "1"} mois de loyer.`
       );
       return;
+    }
+    // Loyer : plafond de l'arrêté et relocation en zone tendue, contrôlés côté serveur avant le paiement.
+    if (step === 2) {
+      const check = rentRulesResultRef.current;
+      if (!check) {
+        toast.info("Vérification du loyer en cours, réessayez dans un instant.");
+        return;
+      }
+      if (check.ownerBlocking) {
+        setShowRentErrors(true);
+        toast.error("Le loyer ne peut pas être retenu en l'état", {
+          description:
+            check.relocation.status === "missing"
+              ? "Répondez aux questions du contrôle du loyer."
+              : check.supplement.needed && check.supplement.dpeUnknown
+                ? "Indiquez la classe énergétique du logement."
+                : check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over"
+                  ? "Justifiez le complément de loyer ou baissez le loyer."
+                  : "Le loyer dépasse le maximum autorisé : baissez-le.",
+        });
+        return;
+      }
     }
     if (step === 3) {
       handleSubmit((data) => {
@@ -321,6 +337,8 @@ export function CreateBailPageClient({
         effectiveDate: watch("effectiveDate") || undefined,
         endDate: watch("endDate") || undefined,
         paymentDay: watch("paymentDay") || undefined,
+        rentRules,
+        dpeClass: selectedProperty?.dpeClass ? undefined : dpeInput || undefined,
       });
       setCurrentDraftId(result.bailId);
       toast.success("Brouillon sauvegardé");
@@ -329,7 +347,7 @@ export function CreateBailPageClient({
     } finally {
       setIsSavingDraft(false);
     }
-  }, [currentDraftId, watch]);
+  }, [currentDraftId, watch, rentRules, dpeInput, selectedProperty]);
 
   const handlePaymentSuccess = useCallback(
     async (paymentIntentId: string) => {
@@ -342,6 +360,8 @@ export function CreateBailPageClient({
             securityDeposit: pendingFormData.securityDeposit || "0",
             leaseType: "HABITATION",
             status: BailStatus.DRAFT,
+            rentRules,
+            dpeClass: selectedProperty?.dpeClass ? undefined : dpeInput || undefined,
           },
           paymentIntentId,
           currentDraftId ?? undefined
@@ -356,7 +376,7 @@ export function CreateBailPageClient({
         setIsSubmitting(false);
       }
     },
-    [pendingFormData, router, currentDraftId]
+    [pendingFormData, router, currentDraftId, rentRules, dpeInput, selectedProperty]
   );
 
   const getLocataireName = (loc: (typeof locataires)[0]) => {
@@ -578,14 +598,6 @@ export function CreateBailPageClient({
               </p>
             </div>
 
-            {propertyId && (
-              <RentControlAlert
-                propertyId={propertyId}
-                rentAmount={rentAmount ? parseFloat(rentAmount) : undefined}
-                surfaceM2={selectedProperty?.surfaceM2}
-                validationResult={rentValidationResult}
-              />
-            )}
 
             <div className="space-y-2">
               <Label>Type de bail *</Label>
@@ -671,6 +683,24 @@ export function CreateBailPageClient({
                 </>
               )}
             </div>
+
+            {/* Contrôle du loyer : plafond de l'arrêté et relocation en zone tendue */}
+            {propertyId && (
+              <RentRulesPanel
+                propertyId={propertyId}
+                rentAmount={rentAmount}
+                bailType={bailType}
+                bailFamily="HABITATION"
+                dpeClass={dpeClass}
+                onDpeChange={selectedProperty?.dpeClass ? undefined : setDpeInput}
+                values={rentRules}
+                onChange={(patch) => setRentRules((prev) => ({ ...prev, ...patch }))}
+                onResult={(result) => {
+                  rentRulesResultRef.current = result;
+                }}
+                showErrors={showRentErrors}
+              />
+            )}
           </div>
         );
 

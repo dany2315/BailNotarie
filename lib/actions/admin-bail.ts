@@ -18,7 +18,8 @@ import { assignDossierToNotaire } from "@/lib/actions/notaires";
 import { getBailMissingData, transitionLease } from "@/lib/actions/leases";
 import { updateClientCompletionStatus } from "@/lib/actions/clients";
 import { updatePropertyCompletionStatus } from "@/lib/actions/properties";
-import { assessRentCap, rentCapBlocking } from "@/lib/rent-cap";
+import { assessRentRules } from "@/lib/rent-rules";
+import { PROOF_LABELS } from "@/lib/utils/rent-relocation";
 
 /* ------------------------------------------------------------------ */
 /* Suivi du dossier : notaire, demandes en cours, formulaires          */
@@ -163,6 +164,15 @@ export async function validateAndSendToNotary(
         rentSupplementReason: true,
         bailFamily: true,
         rentCapExemption: true,
+        relocationLetBefore: true,
+        previousTenantLeftAt: true,
+        previousRentAmount: true,
+        previousRentRevisedRecently: true,
+        rentIncreaseReason: true,
+        worksAmount: true,
+        worksCompletedAt: true,
+        neighborhoodRent: true,
+        documents: { select: { kind: true } },
         propertyId: true,
         property: {
           select: {
@@ -175,6 +185,7 @@ export async function validateAndSendToNotary(
             mainRooms: true,
             constructionPeriod: true,
             rentCapZone: true,
+            dpeClass: true,
           },
         },
         parties: { select: { id: true, profilType: true, completionStatus: true } },
@@ -192,12 +203,32 @@ export async function validateAndSendToNotary(
     if (!bail.paidAt) return { success: false, error: "Les frais de dossier ne sont pas payés : le dossier ne peut pas partir chez le notaire." };
 
     // Encadrement des loyers : catégorie complète, et loyer au plus au plafond (sauf complément justifié).
-    const rentCap = await assessRentCap({ property: bail.property, bail });
+    // Zone tendue : loyer au plus au maximum de relocation, justificatifs reçus.
+    const rentRules = await assessRentRules({ property: bail.property, bail });
+    const rentCap = rentRules.cap;
     if (rentCap.status === "missing") {
       return { success: false, error: `Plafond de loyer : à saisir (${rentCap.missing.join(", ")}).` };
     }
-    if (rentCapBlocking(rentCap)) {
+    if (rentRules.supplement.forbidden) {
+      return { success: false, error: "Complément de loyer interdit pour un logement classé F ou G : ramenez le loyer au plafond." };
+    }
+    if (rentCap.status === "over" && rentCap.validity === "in" && !rentRules.supplement.accepted) {
       return { success: false, error: "Le loyer dépasse le loyer de référence majoré : corrigez-le ou indiquez un complément de loyer justifié." };
+    }
+    const relocation = rentRules.relocation;
+    if (relocation.status === "over") {
+      return { success: false, error: "Le loyer dépasse le maximum autorisé à la relocation en zone tendue : corrigez-le." };
+    }
+    if (relocation.status === "missing" && !relocation.undeclared) {
+      return { success: false, error: `Évolution du loyer : à compléter (${relocation.missing.join(", ")}).` };
+    }
+    const receivedKinds = new Set(bail.documents.map((doc) => doc.kind as string));
+    const missingProofs = relocation.proofs.filter((kind) => !receivedKinds.has(kind));
+    if (missingProofs.length) {
+      return {
+        success: false,
+        error: `Justificatif du loyer à demander au propriétaire : ${missingProofs.map((kind) => PROOF_LABELS[kind]?.label.toLowerCase()).join(", ")}.`,
+      };
     }
 
     const missing = await getBailMissingData(bailId);

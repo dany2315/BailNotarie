@@ -19,6 +19,9 @@ import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
 import { BailChatSheet } from "@/components/client/bail-chat-sheet";
 import { BailDocumentPreview } from "@/components/client/bail-document-preview";
+import { FileUpload } from "@/components/ui/file-upload";
+import { PROOF_LABELS } from "@/lib/utils/rent-relocation";
+import { useRouter } from "next/navigation";
 import { PrimaryAction, QuietAction } from "./owner-ui";
 import { SubPageBar } from "./owner-tabs";
 import { AddTenantDialog } from "./add-tenant-dialog";
@@ -70,8 +73,11 @@ export function BailPage({
   hasNotaire,
   notaireName,
   openChat,
+  missingRentProofs = [],
 }: {
   bail: BailPageData;
+  /** Justificatifs du loyer encore attendus (relocation en zone tendue). */
+  missingRentProofs?: string[];
   tenantName: string | null;
   tenantEmail: string | null;
   hasNotaire: boolean;
@@ -252,6 +258,16 @@ export function BailPage({
             },
           ]
         : []),
+      ...(missingRentProofs.length > 0
+        ? [
+            {
+              id: "justificatifs-loyer",
+              title: `Justificatifs du loyer à fournir · ${missingRentProofs.length}`,
+              icon: Scale,
+              node: <RentProofUploads bailId={bail.id} kinds={missingRentProofs} />,
+            },
+          ]
+        : []),
       ...(bail.documents.length > 0
         ? [
             {
@@ -288,5 +304,33 @@ export function BailPage({
       {/* Le même dialogue que la liste : une seule logique d'ajout. */}
       <AddTenantDialog bailId={bail.id} open={tenantDialog} onOpenChange={setTenantDialog} />
     </>
+  );
+}
+
+/** Dépôt des justificatifs du loyer manquants ; la page se met à jour après chaque envoi. */
+function RentProofUploads({ bailId, kinds }: { bailId: string; kinds: string[] }) {
+  const router = useRouter();
+  const [files, setFiles] = React.useState<Record<string, File | null>>({});
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Le logement est en zone tendue : ces pièces prouvent que le loyer respecte les règles de relocation. Notre équipe en a besoin avant
+        l&apos;envoi au notaire.
+      </p>
+      {kinds.map((kind) => (
+        <div key={kind} className="space-y-1">
+          <FileUpload
+            label={PROOF_LABELS[kind]?.label ?? kind}
+            multiple
+            value={files[kind] ?? null}
+            onChange={(file) => setFiles((prev) => ({ ...prev, [kind]: file }))}
+            documentBailId={bailId}
+            documentKind={kind}
+            onUploadsComplete={() => router.refresh()}
+          />
+          <p className="text-xs text-muted-foreground">{PROOF_LABELS[kind]?.hint}</p>
+        </div>
+      ))}
+    </div>
   );
 }
