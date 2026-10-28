@@ -40,6 +40,7 @@ export function DocumentChecklist({
   inset = false,
   verification,
   editable = false,
+  requestAction,
 }: {
   rows: ChecklistRow[];
   className?: string;
@@ -49,6 +50,8 @@ export function DocumentChecklist({
   verification?: ChecklistVerification;
   /** Fiches admin : « Ajouter » une pièce manquante, « Remplacer » une pièce existante. */
   editable?: boolean;
+  /** Fiche dossier : « Demander » une pièce obligatoire manquante (ouvre la relance). */
+  requestAction?: React.ReactNode;
 }) {
   const { downloadFile, isFileDownloading } = useDownloadFile();
 
@@ -65,7 +68,7 @@ export function DocumentChecklist({
         // Avec la vérification : coche verte seulement une fois la pièce validée.
         const checked = present && (!verification || !!point?.verified);
         const canUpload = editable && !!row.upload;
-        const hasActions = (point && verification) || (canUpload && !present);
+        const hasActions = (point && verification) || (canUpload && !present) || (missing && !!requestAction);
         return (
           <li
             key={row.key}
@@ -139,6 +142,7 @@ export function DocumentChecklist({
                 {point && verification && (
                   <VerifyToggle bailId={verification.bailId} pointKey={point.pointKey} verified={point.verified} locked={verification.locked} />
                 )}
+                {missing && requestAction}
                 {canUpload && !present && <DocumentUploadButton target={row.upload!} kind={row.kind} />}
               </div>
             )}

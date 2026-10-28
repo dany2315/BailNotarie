@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, UserPlus } from "lucide-react";
 import { ClientType, DocumentKind, ProfilType } from "@prisma/client";
 import { DocumentChecklist } from "@/components/documents/document-checklist";
 import { GroupFieldEditor, type GroupField, type InlineFieldKind } from "@/components/admin/inline-field-editor";
@@ -279,6 +279,8 @@ export function PartyCheckSection({
   locked,
   formNote,
   emptyAction,
+  emptyHint,
+  requestAction,
 }: {
   id: string;
   role: keyof typeof ROLE_TITLES;
@@ -289,26 +291,35 @@ export function PartyCheckSection({
   locked: boolean;
   formNote?: string | null;
   emptyAction?: ReactNode;
+  /** Partie absente : ce que l'admin peut faire, sous « Pas encore de … ». */
+  emptyHint?: string;
+  /** « Demander » sur les pièces manquantes (ouvre la relance). */
+  requestAction?: ReactNode;
 }) {
   const roleTitle = ROLE_TITLES[role];
   const party = data.party;
 
   if (!party) {
+    // Partie absente : seul endroit de la fiche où on l'ajoute.
     return (
       <CheckSection
         id={id}
         title={roleTitle}
-        subtitle={`Aucun ${roleTitle.toLowerCase()} pour ce dossier.`}
-        headerRight={
-          <>
-            <StateChip tone="missing">1 manquant</StateChip>
-            {emptyAction}
-          </>
-        }
+        subtitle={`Pas encore de ${roleTitle.toLowerCase()} pour ce dossier`}
+        headerRight={<StateChip tone="missing">À ajouter</StateChip>}
       >
-        <CheckList>
-          <CheckPoint state="missing" label={`${roleTitle} à ajouter`} note={`Manquant : ${roleTitle.toLowerCase()}`} />
-        </CheckList>
+        <div className="flex flex-col items-start gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <UserPlus className="size-5" />
+            </span>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[14.5px] font-semibold">Pas encore de {roleTitle.toLowerCase()}</span>
+              {emptyHint && <span className="text-[13px] leading-snug text-muted-foreground">{emptyHint}</span>}
+            </div>
+          </div>
+          {emptyAction}
+        </div>
       </CheckSection>
     );
   }
@@ -364,6 +375,7 @@ export function PartyCheckSection({
         <div className="border-t">
           <DocumentChecklist
             rows={data.docRows}
+            requestAction={requestAction}
             inset
             editable={!locked}
             verification={{

@@ -54,8 +54,15 @@ export interface RemindDialogProps {
   bailId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** « missing » : ouvre sur la demande des éléments manquants (relance manuelle). */
-  focus?: "due" | "missing";
+  /**
+   * « missing » : ouvre sur la demande des éléments manquants (relance manuelle).
+   * « all » : fiche dossier, tout ce que le dossier attend du client est présélectionné.
+   */
+  focus?: "due" | "missing" | "all";
+  /** Titre de la fenêtre (par défaut selon focus). */
+  title?: string;
+  /** Loyer au-dessus du plafond : détail envoyé au propriétaire avec la relance « RENT_CAP ». */
+  rentCapLines?: string[] | null;
   /** Données déjà chargées (fiche dossier) ; sinon chargées à l'ouverture. */
   initialPanel?: ReminderPanel;
   /** Ne présélectionner que cette personne (fiche client). */
@@ -66,7 +73,7 @@ export interface RemindDialogProps {
  * Relance d'un dossier : chaque ligne dit qui sera relancé, pour quoi et où en
  * est le suivi ; rien n'est envoyé sans confirmation.
  */
-export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initialPanel, only }: RemindDialogProps) {
+export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initialPanel, only, title, rentCapLines }: RemindDialogProps) {
   const [panel, setPanel] = React.useState<ReminderPanel | null>(initialPanel ?? null);
   const [loading, setLoading] = React.useState(false);
   const [selected, setSelected] = React.useState<Set<SendKey>>(new Set());
@@ -79,21 +86,33 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
   const applyDefaults = React.useCallback(
     (data: ReminderPanel) => {
       const next = new Set<SendKey>();
-      if (focus === "missing") {
+      const addMissing = () => {
         const pendingForm = new Set(data.needs.filter((n) => n.reason === "OWNER_FORM" || n.reason === "TENANT_FORM").map((n) => n.target));
         (Object.keys(data.missing) as ReminderTargetValue[]).forEach((t) => {
           if (!pendingForm.has(t) && (!only || only === t) && data.missing[t].length > 0 && (t === "OWNER" ? data.owner : data.tenant)?.email) {
             next.add(keyOf(t, "MISSING_ITEMS"));
           }
         });
-      } else {
+      };
+      const addDue = () => {
         data.needs.filter((n) => n.due && n.party.email && (!only || only === n.target)).forEach((n) => next.add(keyOf(n.target, n.reason)));
         // Locataire sans téléphone, relancé sans réaction : on relance aussi son propriétaire.
         if (data.owner?.email && data.needs.some((n) => n.due && n.suggestViaOwner)) next.add(keyOf("OWNER", "TENANT_VIA_OWNER"));
+      };
+      if (focus === "missing") {
+        addMissing();
+      } else if (focus === "all") {
+        addDue();
+        addMissing();
+        if (rentCapLines?.length && data.owner?.email) next.add(keyOf("OWNER", "RENT_CAP"));
+        // Rien d'urgent : on propose quand même ce que le dossier attend.
+        if (next.size === 0) data.needs.filter((n) => n.party.email).forEach((n) => next.add(keyOf(n.target, n.reason)));
+      } else {
+        addDue();
       }
       setSelected(next);
     },
-    [focus, only],
+    [focus, only, rentCapLines],
   );
 
   React.useEffect(() => {
@@ -210,11 +229,13 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
       )
     : [];
 
+  const showRentCap = !!panel?.owner && !!rentCapLines?.length;
+
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{focus === "missing" ? "Demander les éléments manquants" : "Relancer"}</DialogTitle>
+          <DialogTitle>{title || (focus === "missing" ? "Demander les éléments manquants" : "Relancer")}</DialogTitle>
           <DialogDescription>{panel ? panel.address : "Chargement du dossier…"}</DialogDescription>
         </DialogHeader>
 
@@ -360,13 +381,43 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
               </section>
             )}
 
-            {panel.needs.length === 0 && missingTargets.length === 0 && (
+            {/* Loyer au-dessus du plafond : le propriétaire choisit entre baisser le loyer et justifier un complément */}
+            {showRentCap && (
+              <section className="flex flex-col gap-2.5">
+                <h3 className="text-sm font-semibold">Loyer au-dessus du plafond</h3>
+                <label className="flex items-start gap-3 rounded-lg border p-3.5">
+                  <Checkbox
+                    checked={selected.has(keyOf("OWNER", "RENT_CAP"))}
+                    disabled={!panel.owner!.email}
+                    onCheckedChange={(on) => toggle(keyOf("OWNER", "RENT_CAP"), on === true)}
+                    className="mt-0.5"
+                    aria-label={`Prévenir ${panel.owner!.name} du dépassement du plafond`}
+                  />
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="text-sm font-semibold">
+                      {TARGET_LABELS.OWNER} · {panel.owner!.name}
+                    </span>
+                    <span className="break-all text-[13px] text-muted-foreground">{panel.owner!.email || "Pas d'adresse e-mail"}</span>
+                    <span className="text-[13px] text-foreground/80">
+                      Il pourra ramener le loyer au plafond ou justifier un complément de loyer.
+                    </span>
+                    <ul className="flex list-disc flex-col gap-0.5 pl-4 text-[13px] text-foreground/80">
+                      {rentCapLines!.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </span>
+                </label>
+              </section>
+            )}
+
+            {panel.needs.length === 0 && missingTargets.length === 0 && !showRentCap && (
               <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                 Personne n'est à relancer : le dossier n'attend rien du propriétaire ni du locataire.
               </p>
             )}
 
-            {(panel.needs.length > 0 || missingTargets.length > 0) && (
+            {(panel.needs.length > 0 || missingTargets.length > 0 || showRentCap) && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={`remind-note-${bailId}`}>Message ajouté à l'e-mail (facultatif)</Label>
                 <Textarea

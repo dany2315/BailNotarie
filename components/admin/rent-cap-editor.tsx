@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { Ban, Loader2, Mail, Pencil, ShieldCheck } from "lucide-react";
+import { Ban, Loader2, Pencil, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { updatePropertyRentCapAdmin } from "@/lib/actions/admin-property";
 import { setRentCapExemptionAdmin, setRentSupplementAdmin } from "@/lib/actions/admin-bail-edit";
-import { sendBailReminders } from "@/lib/actions/reminders";
 import { EXEMPTION_LABELS, OUTSIDE_PERIMETER, PERIOD_LABELS, ROOMS_LABELS, periodForTerritory } from "@/lib/utils/rent-cap";
 
 const AUTO = "auto";
@@ -333,64 +332,6 @@ export function RentCapExemptionButton({
             >
               {saving && <Loader2 className="size-4 animate-spin" />}
               Enregistrer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-/** Prévenir le propriétaire du dépassement (e-mail tracé avec le détail du calcul). */
-export function RentCapNotifyButton({
-  bailId,
-  owner,
-  lines,
-}: {
-  bailId: string;
-  owner: { name: string; email: string | null } | null;
-  lines: string[];
-}) {
-  const [open, setOpen] = React.useState(false);
-  const [sending, setSending] = React.useState(false);
-
-  const send = async () => {
-    setSending(true);
-    const result = await sendBailReminders({ bailId, sends: [{ target: "OWNER", reason: "RENT_CAP" }] });
-    setSending(false);
-    if (!result.success) return toast.error(result.error);
-    if (result.data.failed.length) return toast.error(result.data.failed.map((f) => f.error).join(" · "));
-    toast.success(`Propriétaire prévenu (${result.data.sent[0]?.email})`);
-    setOpen(false);
-  };
-
-  return (
-    <>
-      <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setOpen(true)} disabled={!owner?.email}>
-        <Mail className="size-3.5" />
-        Prévenir le propriétaire
-      </Button>
-      <Dialog open={open} onOpenChange={(next) => !sending && setOpen(next)}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Prévenir le propriétaire du dépassement</DialogTitle>
-            <DialogDescription>
-              {owner?.name} ({owner?.email}) recevra un e-mail avec le détail ci-dessous, et le choix entre ramener le loyer au
-              plafond ou justifier un complément de loyer. L'envoi est gardé dans le suivi des relances.
-            </DialogDescription>
-          </DialogHeader>
-          <ul className="flex list-disc flex-col gap-1 rounded-lg bg-muted/60 py-3 pl-8 pr-4 text-sm">
-            {lines.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={sending}>
-              Annuler
-            </Button>
-            <Button type="button" onClick={send} disabled={sending}>
-              {sending && <Loader2 className="size-4 animate-spin" />}
-              Envoyer l'e-mail
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -18,23 +18,39 @@ export function RemindButton({
   variant = "outline",
   size = "sm",
   className,
+  title,
+  rentCapLines,
+  icon = false,
 }: {
   bailId: string;
   label?: string;
-  focus?: "due" | "missing";
+  focus?: "due" | "missing" | "all";
   initialPanel?: ReminderPanel;
   only?: ReminderTargetValue;
   variant?: "default" | "outline";
   size?: "sm" | "default";
   className?: string;
+  title?: string;
+  rentCapLines?: string[] | null;
+  icon?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
       <Button type="button" variant={variant} size={size} className={className} onClick={() => setOpen(true)}>
-        {label}
+        {icon && <BellRing className="size-4" />}
+        <span className="truncate">{label}</span>
       </Button>
-      <RemindDialog bailId={bailId} open={open} onOpenChange={setOpen} focus={focus} initialPanel={initialPanel} only={only} />
+      <RemindDialog
+        bailId={bailId}
+        open={open}
+        onOpenChange={setOpen}
+        focus={focus}
+        initialPanel={initialPanel}
+        only={only}
+        title={title}
+        rentCapLines={rentCapLines}
+      />
     </>
   );
 }
@@ -42,24 +58,32 @@ export function RemindButton({
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: "Europe/Paris" });
 
-/** Carte « Relances » de la fiche dossier : attentes en cours et dernières relances. */
-export function ReminderCard({ panel }: { panel: ReminderPanel }) {
-  const [open, setOpen] = React.useState(false);
+/**
+ * Relances de la fiche dossier, dans la carte « Suivi » : ce que le dossier
+ * attend et les dernières relances. En lecture seule : on relance depuis le
+ * bouton de l'en-tête.
+ */
+export function ReminderSummary({ panel }: { panel: ReminderPanel }) {
   const due = panel.needs.filter((n) => n.due);
+  const missingCount = panel.missing.OWNER.length + panel.missing.TENANT.length;
   return (
-    <section className="flex flex-col gap-3 rounded-xl border bg-card p-5">
+    <div className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
           <BellRing className="size-4 text-muted-foreground" />
           Relances
-        </h2>
+        </h3>
         {due.length > 0 && (
           <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{due.length} à faire</span>
         )}
       </div>
 
       {panel.needs.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">Le dossier n'attend rien du client pour l'instant.</p>
+        <p className="text-[13px] text-muted-foreground">
+          {missingCount > 0
+            ? `Pas de relance automatique en cours. ${missingCount} élément${missingCount > 1 ? "s" : ""} manquant${missingCount > 1 ? "s" : ""} à demander avec le bouton en haut de la fiche.`
+            : "Le dossier n'attend rien du client pour l'instant."}
+        </p>
       ) : (
         <ul className="flex flex-col gap-2">
           {panel.needs.map((need) => (
@@ -80,11 +104,6 @@ export function ReminderCard({ panel }: { panel: ReminderPanel }) {
       )}
 
       {panel.history.length > 0 && <ReminderHistoryList history={panel.history} limit={3} />}
-
-      <Button type="button" variant={due.length > 0 ? "default" : "outline"} className="h-10" onClick={() => setOpen(true)}>
-        Relancer…
-      </Button>
-      <RemindDialog bailId={panel.bailId} open={open} onOpenChange={setOpen} initialPanel={panel} />
-    </section>
+    </div>
   );
 }

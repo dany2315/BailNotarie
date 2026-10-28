@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Check, CreditCard, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, CreditCard, Lock, ShieldCheck, X } from "lucide-react";
 import { BailStatus, CompletionStatus, DocumentKind } from "@prisma/client";
 import { getLease, getBailMissingData } from "@/lib/actions/leases";
 import { getDocuments } from "@/lib/actions/documents";
@@ -11,15 +11,15 @@ import { TenantCreateButton } from "@/components/leases/tenant-create-button";
 import { BailAuditTimeline } from "@/components/leases/bail-audit-timeline";
 import { BailMoreMenu } from "@/components/leases/bail-more-menu";
 import { SendToNotaryButton } from "@/components/leases/send-to-notary-dialog";
-import { RemindButton, ReminderCard } from "@/components/reminders/remind-button";
-import { getReminderPanel } from "@/lib/actions/reminders";
+import { RemindButton, ReminderSummary } from "@/components/reminders/remind-button";
+import { getReminderPanel, type ReminderPanel } from "@/lib/actions/reminders";
 import { describeRentCapZone, rentCapBlocking, rentCapOverLines } from "@/lib/rent-cap";
 import { assessRentRules } from "@/lib/rent-rules";
 import { PROOF_LABELS, VACANCY_MONTHS, relocationSummaryLines } from "@/lib/utils/rent-relocation";
 import { rentRulesToForm } from "@/lib/utils/rent-draft";
 import { RentRulesEditor } from "@/components/admin/rent-rules-editor";
 import { EXEMPTION_LABELS, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
-import { RentCapEditor, RentCapExemptionButton, RentCapNotifyButton, RentSupplementButton } from "@/components/admin/rent-cap-editor";
+import { RentCapEditor, RentCapExemptionButton, RentSupplementButton } from "@/components/admin/rent-cap-editor";
 import { intakeSummary } from "@/lib/utils/intake-summary";
 import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, withVerified } from "@/components/admin/party-check-section";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
@@ -123,6 +123,65 @@ function KV({ label, children }: { label: string; children: ReactNode }) {
       <dd className="min-w-0 break-words">{children}</dd>
     </>
   );
+}
+
+/** Règle de « Conformité légale » contrôlée par le logiciel, sans clic de l'équipe. */
+function AutoLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      {children}
+      <span className="inline-flex h-5 items-center gap-1 rounded bg-slate-100 px-1.5 text-[11.5px] font-semibold text-slate-600">
+        <ShieldCheck className="size-3" />
+        Automatique
+      </span>
+    </span>
+  );
+}
+
+/** À la place de « Valider » quand le logiciel a déjà vérifié la règle. */
+function AutoVerified() {
+  return (
+    <span className="inline-flex h-9 min-w-[6.5rem] items-center justify-center gap-1.5 rounded-md bg-slate-100 px-3 text-[13px] font-medium text-slate-600">
+      <Lock className="size-3.5" />
+      Vérifié automatiquement
+    </span>
+  );
+}
+
+const RELANCE_LABELS: Record<string, string> = {
+  OWNER_FORM: "Relancer le propriétaire · formulaire à terminer",
+  TENANT_TO_ADD: "Relancer le propriétaire · locataire à indiquer",
+  TENANT_FORM: "Relancer le locataire · formulaire à remplir",
+  TENANT_VIA_OWNER: "Relancer le propriétaire · formulaire du locataire",
+};
+
+/**
+ * Bouton unique de relance de l'en-tête, nommé d'après ce que le dossier attend :
+ * relance due, puis éléments manquants, puis plafond de loyer, puis relance à venir.
+ * Rien d'attendu du client : pas de bouton.
+ */
+function remindAction(panel: ReminderPanel, rentCapOver: boolean): { label: string; title: string } | null {
+  const formPending = new Set(panel.needs.filter((n) => n.reason === "OWNER_FORM" || n.reason === "TENANT_FORM").map((n) => n.target));
+  const missingTargets = (["OWNER", "TENANT"] as const).filter(
+    (t) => !formPending.has(t) && panel.missing[t].length > 0 && (t === "OWNER" ? panel.owner : panel.tenant),
+  );
+  const missingCount = missingTargets.reduce((total, t) => total + panel.missing[t].length, 0);
+  const dueNeed = panel.needs.find((n) => n.due);
+  if (dueNeed) return { label: RELANCE_LABELS[dueNeed.reason] || "Relancer le client", title: "Relancer le client" };
+  if (missingCount > 0) {
+    const plural = missingCount > 1 ? "s" : "";
+    return {
+      label:
+        missingTargets.length > 1
+          ? `Demander ${missingCount} éléments manquants`
+          : `Demander ${missingCount} élément${plural} au ${missingTargets[0] === "OWNER" ? "propriétaire" : "locataire"}`,
+      title: "Demander les éléments manquants",
+    };
+  }
+  if (rentCapOver) return { label: "Prévenir le propriétaire · loyer au-dessus du plafond", title: "Prévenir le propriétaire" };
+  const nextNeed = panel.needs[0];
+  if (nextNeed) return { label: RELANCE_LABELS[nextNeed.reason] || "Relancer le client", title: "Relancer le client" };
+  return null;
 }
 
 /** « formulaire rempli le 01/10 » pour le sous-titre d'un bloc. */
@@ -240,7 +299,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     {
       key: pointKey("bail:depot", [lease.securityDeposit, lease.rentAmount, lease.bailType]),
       label: "Dépôt de garantie",
-      missing: [...["securityDeposit"].filter((f) => bailMissing.has(f)), ...(depositOk ? [] : ["depositLimit"])],
+      missing: ["securityDeposit"].filter((f) => bailMissing.has(f)),
       fields: [
         {
           field: "securityDeposit",
@@ -250,20 +309,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           help: lease.rentAmount > 0 ? `Maximum ${formatCurrency(maxDeposit)} (${isMeuble ? "2 mois de loyer, meublé" : "1 mois de loyer, bail nu"})` : undefined,
         },
       ] as BailTermInput[],
-      text: [
-        `${formatCurrency(lease.securityDeposit)}${months !== null ? ` · ${String(months).replace(".", ",")} mois de loyer hors charges` : ""}`,
-        depositOk
-          ? `Limite de ${isMeuble ? "2 mois (meublé)" : "1 mois (bail nu)"} respectée`
-          : `Au-dessus de la limite de ${isMeuble ? "2 mois" : "1 mois"}`,
-      ],
+      text: [`${formatCurrency(lease.securityDeposit)}${months !== null ? ` · ${String(months).replace(".", ",")} mois de loyer hors charges` : ""}`],
     },
   ];
-  const bailExtraMissing = ["tenant", "owner", "property"].filter((f) => bailMissing.has(f));
+  // Locataire, propriétaire ou bien absents : comptés une seule fois, dans leur propre section.
   const bailStates = withVerified(
-    [
-      ...bailPoints.map((p) => ({ key: p.key, missing: p.missing.length > 0 })),
-      ...bailExtraMissing.map((f) => ({ key: `bail:${f}:absent`, missing: true })),
-    ],
+    bailPoints.map((p) => ({ key: p.key, missing: p.missing.length > 0 })),
     verifiedKeys,
     bailLocked,
   );
@@ -369,7 +420,16 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     ...withVerified([{ key: rulesPoints[0].key, missing: capMissing }], verifiedKeys, bailLocked || capAuto),
     ...withVerified([{ key: rulesPoints[1].key, missing: dpe.blocking }], verifiedKeys, bailLocked),
     ...withVerified([{ key: rulesPoints[2].key, missing: relocMissing }], verifiedKeys, bailLocked || relocAuto),
+    // Dépôt de garantie : limite légale contrôlée par le logiciel.
+    ...withVerified([{ key: "rules:depot", missing: !depositOk }], verifiedKeys, true),
   ];
+  // Pièces obligatoires : rappel dans cette section, mais comptées une seule fois (dans leur section) pour l'avancement.
+  const piecesState = withVerified([{ key: "rules:pieces", missing: docsMissing > 0 }], verifiedKeys, true);
+  const missingDocGroups = [
+    { href: "#bloc-proprietaire", label: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire", count: missingData?.owner?.totalMissingDocuments || 0 },
+    { href: "#bloc-locataire", label: "Locataire", count: missingData?.tenant?.totalMissingDocuments || 0 },
+    { href: "#bloc-bien", label: "Le bien", count: missingData?.property?.missingDocuments.length || 0 },
+  ].filter((group) => group.count > 0);
 
   // Paiement des frais de dossier : contrôlé automatiquement (Stripe), bloquant s'il manque.
   const paid = !!lease.paidAt;
@@ -382,7 +442,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     { id: "bloc-proprietaire", title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire", summary: summarize(ownerStates) },
     { id: "bloc-locataire", title: "Locataire", summary: summarize(tenantStates) },
     { id: "bloc-bien", title: "Le bien", summary: summarize(propertyStates) },
-    { id: "bloc-controles", title: "Contrôles réglementaires", summary: summarize(rulesStates) },
+    { id: "bloc-controles", title: "Conformité légale", summary: summarize([...rulesStates, ...piecesState]) },
   ];
   // Résumé d'une section par son identifiant (l'ordre des sections peut changer).
   const sectionSummary = (id: string) => sections.find((section) => section.id === id)!.summary;
@@ -399,6 +459,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         ? `Encore ${overall.remaining} point${overall.remaining > 1 ? "s" : ""} à valider.`
         : null;
 
+  const reminderData = reminderPanel.success ? reminderPanel.data : null;
+  const rentCapNotify = rentCap?.status === "over" && !bailLocked && rentCapLines?.length ? rentCapLines : null;
+  const remind = reminderData && stage.key !== "clos" ? remindAction(reminderData, !!rentCapNotify) : null;
+  // « Demander » sur une pièce manquante : même fenêtre, ouverte sur les éléments manquants de cette personne.
+  const requestButton = (only: "OWNER" | "TENANT") =>
+    reminderData && !pastVerification ? (
+      <RemindButton bailId={lease.id} label="Demander" focus="missing" only={only} initialPanel={reminderData} className="h-9" />
+    ) : undefined;
+
   const stepItems = STAGE_ORDER.filter((key) => key !== "clos" || stage.key === "clos");
   const progress = overall.total > 0 ? Math.round((overall.verified / overall.total) * 100) : 0;
   const ctaHelp = pastVerification
@@ -408,7 +477,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       : !paid
         ? "Bouton bloqué : les frais de dossier ne sont pas payés (ils se règlent à la fin du formulaire propriétaire)."
         : totalMissing > 0
-        ? `Bouton bloqué : ${totalMissing} élément${totalMissing > 1 ? "s" : ""} manquant${totalMissing > 1 ? "s" : ""}. Demandez-${totalMissing > 1 ? "les" : "le"} au client ou saisissez-${totalMissing > 1 ? "les" : "le"} si vous ${totalMissing > 1 ? "les" : "l'"}avez obtenu${totalMissing > 1 ? "s" : ""} par téléphone.`
+        ? `Bouton bloqué : ${totalMissing} élément${totalMissing > 1 ? "s" : ""} manquant${totalMissing > 1 ? "s" : ""}. Demandez-${totalMissing > 1 ? "les" : "le"} au client ou saisissez-${totalMissing > 1 ? "les" : "le"} si vous ${totalMissing > 1 ? "les " : "l'"}avez obtenu${totalMissing > 1 ? "s" : ""} par téléphone.`
         : overall.remaining > 0
           ? `Encore ${overall.remaining} point${overall.remaining > 1 ? "s" : ""} à valider avant l'envoi au notaire.`
           : "Tout est vérifié : le dossier peut partir chez le notaire.";
@@ -474,15 +543,19 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 />
               </div>
             )}
-            <RemindButton
-              bailId={lease.id}
-              label="Demander les pièces manquantes"
-              focus="missing"
-              size="default"
-              initialPanel={reminderPanel.success ? reminderPanel.data : undefined}
-              className="h-11 min-w-0 flex-1 px-3 sm:flex-none sm:px-4"
-            />
-            {lease.status === BailStatus.AWAITING_TENANT && !tenant && <TenantCreateButton bailId={lease.id} />}
+            {remind && reminderData && (
+              <RemindButton
+                bailId={lease.id}
+                label={remind.label}
+                title={remind.title}
+                focus="all"
+                size="default"
+                icon
+                initialPanel={reminderData}
+                rentCapLines={rentCapNotify}
+                className="h-11 min-w-0 flex-1 px-3 sm:flex-none sm:px-4"
+              />
+            )}
             <BailMoreMenu
               bailId={lease.id}
               status={lease.status}
@@ -545,13 +618,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     key={point.key}
                     state={missing ? "missing" : verified ? "ok" : "todo"}
                     label={point.label}
-                    note={
-                      point.missing.includes("depositLimit")
-                        ? "Dépôt au-dessus de la limite légale"
-                        : missing
-                          ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}`
-                          : null
-                    }
+                    note={missing ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}` : null}
                     actions={
                       (!bailLocked || !missing) && (
                         <>
@@ -565,9 +632,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   </CheckPoint>
                 );
               })}
-              {bailExtraMissing.map((f) => (
-                <CheckPoint key={f} state="missing" label={BAIL_FIELD_LABELS[f]} note={`Manquant : ${BAIL_FIELD_LABELS[f].toLowerCase()}`} />
-              ))}
             </CheckList>
           </CheckSection>
 
@@ -603,6 +667,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             verifiedKeys={verifiedKeys}
             locked={ownerLocked}
             formNote={formNote(ownerIntake)}
+            requestAction={requestButton("OWNER")}
           />
           <PartyCheckSection
             id="bloc-locataire"
@@ -612,7 +677,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             verifiedKeys={verifiedKeys}
             locked={tenantLocked}
             formNote={formNote(tenantIntake)}
-            emptyAction={<TenantCreateButton bailId={lease.id} />}
+            requestAction={requestButton("TENANT")}
+            emptyAction={pastVerification ? undefined : <TenantCreateButton bailId={lease.id} variant="default" className="h-10" />}
+            emptyHint="Ajoutez-le si le propriétaire vous l'a communiqué : il recevra son formulaire par e-mail. Sinon, relancez le propriétaire avec le bouton en haut de la fiche."
           />
 
           {/* Le bien */}
@@ -743,6 +810,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     inset
                     editable={!propertyLocked}
                     rows={propertyDocRows}
+                    requestAction={requestButton("OWNER")}
                     verification={{
                       bailId: lease.id,
                       locked: propertyLocked,
@@ -758,11 +826,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             )}
           </CheckSection>
 
-          {/* Contrôles réglementaires : manuels pour l'instant */}
+          {/* Conformité légale : règles contrôlées par le logiciel et règles à valider par l'équipe */}
           <CheckSection
             id="bloc-controles"
-            title="Contrôles réglementaires"
-            subtitle="Plafond selon l'arrêté d'encadrement en vigueur, évolution du loyer en zone tendue ; DPE saisi depuis le diagnostic"
+            title="Conformité légale"
+            subtitle="Ce que la loi impose à ce bail. Les règles marquées « Automatique » sont vérifiées par le logiciel."
             headerRight={
               <>
                 <StateChip tone={summaryChip(sectionSummary("bloc-controles")).tone}>{summaryChip(sectionSummary("bloc-controles")).label}</StateChip>
@@ -773,7 +841,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             <CheckList>
               <CheckPoint
                 state={capMissing ? "missing" : isVerified(rulesPoints[0].key, bailLocked || capAuto) ? "ok" : "todo"}
-                label="Plafond de loyer"
+                label={capAuto && !bailLocked ? <AutoLabel>Plafond de loyer</AutoLabel> : "Plafond de loyer"}
                 actionsBelow
                 note={
                   !rentCap
@@ -807,24 +875,20 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     {rentCap?.territory && !bailLocked && (
                       <RentCapExemptionButton bailId={lease.id} exemption={lease.rentCapExemption} note={lease.rentCapExemptionNote} />
                     )}
-                    {rentCap?.status === "over" && !bailLocked && rentCapLines && (
-                      <RentCapNotifyButton
-                        bailId={lease.id}
-                        owner={reminderPanel.success ? reminderPanel.data.owner : null}
-                        lines={rentCapLines}
-                      />
-                    )}
                     {(rentCap?.status === "over" || lease.rentSupplementReason) && !bailLocked && (
                       <RentSupplementButton bailId={lease.id} reason={lease.rentSupplementReason} />
                     )}
-                    {!capMissing && (
-                      <VerifyToggle
-                        bailId={lease.id}
-                        pointKey={rulesPoints[0].key}
-                        verified={isVerified(rulesPoints[0].key, bailLocked || capAuto)}
-                        locked={bailLocked || capAuto}
-                      />
-                    )}
+                    {!capMissing &&
+                      (capAuto && !bailLocked ? (
+                        <AutoVerified />
+                      ) : (
+                        <VerifyToggle
+                          bailId={lease.id}
+                          pointKey={rulesPoints[0].key}
+                          verified={isVerified(rulesPoints[0].key, bailLocked || capAuto)}
+                          locked={bailLocked || capAuto}
+                        />
+                      ))}
                   </>
                 }
               >
@@ -954,7 +1018,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               </CheckPoint>
               <CheckPoint
                 state={relocMissing ? "missing" : isVerified(rulesPoints[2].key, bailLocked || relocAuto) ? "ok" : "todo"}
-                label="Évolution du loyer (zone tendue)"
+                label={relocAuto && !bailLocked ? <AutoLabel>Évolution du loyer (zone tendue)</AutoLabel> : "Évolution du loyer (zone tendue)"}
                 actionsBelow
                 note={
                   !relocation
@@ -972,14 +1036,17 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     {relocation && relocation.notConcerned === null && !bailLocked && (
                       <RentRulesEditor bailId={lease.id} values={rentRulesToForm(lease)} missing={relocation.undeclared} />
                     )}
-                    {!relocMissing && (
-                      <VerifyToggle
-                        bailId={lease.id}
-                        pointKey={rulesPoints[2].key}
-                        verified={isVerified(rulesPoints[2].key, bailLocked || relocAuto)}
-                        locked={bailLocked || relocAuto}
-                      />
-                    )}
+                    {!relocMissing &&
+                      (relocAuto && !bailLocked ? (
+                        <AutoVerified />
+                      ) : (
+                        <VerifyToggle
+                          bailId={lease.id}
+                          pointKey={rulesPoints[2].key}
+                          verified={isVerified(rulesPoints[2].key, bailLocked || relocAuto)}
+                          locked={bailLocked || relocAuto}
+                        />
+                      ))}
                   </>
                 }
               >
@@ -1061,6 +1128,47 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               >
                 <DpeSummary dpeClass={property?.dpeClass || null} gesClass={property?.gesClass || null} dpeDate={property?.dpeDate || null} assessment={dpe} />
               </CheckPoint>
+              <CheckPoint
+                state={depositOk ? "ok" : "missing"}
+                label={<AutoLabel>Dépôt de garantie</AutoLabel>}
+                note={depositOk ? null : `Au-dessus de la limite légale de ${formatCurrency(maxDeposit)} : à corriger dans « Le bail »`}
+                actions={depositOk && !bailLocked ? <AutoVerified /> : null}
+              >
+                {`${formatCurrency(lease.securityDeposit)}${months !== null ? `, soit ${String(months).replace(".", ",")} mois de loyer` : ""} · limite légale de ${isMeuble ? "2 mois pour un meublé" : "1 mois pour un bail nu"}`}
+              </CheckPoint>
+              <CheckPoint
+                state={docsMissing > 0 ? "missing" : "ok"}
+                label={<AutoLabel>Pièces obligatoires</AutoLabel>}
+                note={docsMissing > 0 ? `${docsMissing} pièce${docsMissing > 1 ? "s" : ""} manquante${docsMissing > 1 ? "s" : ""}` : null}
+                actions={
+                  docsMissing > 0 ? (
+                    reminderData && !pastVerification ? (
+                      <RemindButton
+                        bailId={lease.id}
+                        label={docsMissing > 1 ? `Demander les ${docsMissing} pièces` : "Demander la pièce"}
+                        title="Demander les éléments manquants"
+                        focus="missing"
+                        initialPanel={reminderData}
+                        className="h-9"
+                      />
+                    ) : null
+                  ) : !bailLocked ? (
+                    <AutoVerified />
+                  ) : null
+                }
+              >
+                {docsMissing > 0 ? (
+                  <span className="flex flex-col gap-1">
+                    {missingDocGroups.map((group) => (
+                      <a key={group.href} href={group.href} className="w-fit font-medium text-primary hover:underline">
+                        {group.label} · {group.count} pièce{group.count > 1 ? "s" : ""} à fournir
+                      </a>
+                    ))}
+                  </span>
+                ) : (
+                  "Toutes les pièces exigées pour ce dossier sont présentes, selon la situation familiale et la copropriété."
+                )}
+              </CheckPoint>
             </CheckList>
           </CheckSection>
 
@@ -1081,7 +1189,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           <details className="group overflow-hidden rounded-xl border bg-card">
             <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-[15px] font-semibold">
               Détails techniques et historique
-              <span className="text-[13px] font-medium text-muted-foreground group-open:hidden">Référence, paiement, adresse normalisée, historique</span>
+              <span className="text-[13px] font-medium text-muted-foreground group-open:hidden">Référence, adresse normalisée, historique</span>
               <span className="hidden text-[13px] font-medium text-muted-foreground group-open:inline">Masquer</span>
             </summary>
             <div className="flex flex-col gap-5 px-5 pb-5">
@@ -1099,10 +1207,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 <KV label="Modifié le">
                   {formatDateTime(lease.updatedAt)}
                   {lease.updatedBy ? ` par ${lease.updatedBy.name || lease.updatedBy.email}` : ""}
-                </KV>
-                <KV label="Paiement">
-                  {lease.paidAt ? `Payé le ${formatDate(lease.paidAt)}` : "Non payé"}
-                  {lease.stripePaymentIntentId && <span className="break-all font-mono text-xs"> · Stripe {lease.stripePaymentIntentId}</span>}
                 </KV>
                 <KV label="Adresse normalisée">
                   {property
@@ -1127,7 +1231,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         <aside className="order-first flex min-w-0 flex-col gap-4 lg:order-none">
           <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
             <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-base font-semibold">Vérification</h2>
+              <h2 className="text-base font-semibold">Avancement</h2>
               <span className="text-sm font-bold">
                 {overall.verified} / {overall.total}
               </span>
@@ -1158,54 +1262,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             <p className="text-[13px] leading-relaxed text-muted-foreground">{ctaHelp}</p>
           </section>
 
-          {reminderPanel.success && <ReminderCard panel={reminderPanel.data} />}
-
-          <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
-            <h2 className="text-base font-semibold">Déjà contrôlé automatiquement</h2>
-            {[
-              {
-                ok: depositOk,
-                title: depositOk ? "Dépôt de garantie conforme" : "Dépôt de garantie trop élevé",
-                detail: "Limite de 1 mois (nu) ou 2 mois (meublé) imposée à la saisie",
-              },
-              {
-                ok: docsMissing === 0,
-                title:
-                  docsMissing === 0
-                    ? "Pièces obligatoires présentes"
-                    : `${docsMissing} pièce${docsMissing > 1 ? "s" : ""} obligatoire${docsMissing > 1 ? "s" : ""} manquante${docsMissing > 1 ? "s" : ""}`,
-                detail: "Calcul selon la situation familiale et la copropriété",
-              },
-            ].map((check) => (
-              <div key={check.detail} className="grid grid-cols-[22px_minmax(0,1fr)] gap-2.5">
-                <span
-                  aria-hidden
-                  className={cn(
-                    "flex size-[22px] items-center justify-center rounded-full",
-                    check.ok ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
-                  )}
-                >
-                  {check.ok ? <Check className="size-3.5" strokeWidth={3} /> : <X className="size-3.5" strokeWidth={3} />}
-                </span>
-                <span className="flex flex-col gap-0.5">
-                  <strong className="text-sm font-semibold">{check.title}</strong>
-                  <span className="text-[13px] leading-snug text-muted-foreground">{check.detail}</span>
-                </span>
-              </div>
-            ))}
-            <p className="text-[12.5px] leading-snug text-muted-foreground">
-              Plafond de loyer et DPE figurent dans « Contrôles réglementaires » : le plafond se calcule avec les pièces et l'époque de construction ; le DPE se saisit depuis le diagnostic.
-            </p>
-          </section>
-
           <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
             <h2 className="text-base font-semibold">Suivi</h2>
             <dl className="grid grid-cols-[130px_minmax(0,1fr)] gap-x-3 gap-y-2 text-[13.5px]">
-              <KV label="Frais de dossier">
-                <StateChip tone={lease.paidAt ? "ok" : "missing"} className="h-6">
-                  {lease.paidAt ? `Payés le ${formatDate(lease.paidAt)}` : "Non payés"}
-                </StateChip>
-              </KV>
               <KV label="Notaire">
                 {followUp.notaire ? (
                   <>
@@ -1220,7 +1279,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               </KV>
               <KV label="Formulaire propriétaire">{intakeSummary(ownerIntake)}</KV>
               <KV label="Formulaire locataire">{intakeSummary(tenantIntake)}</KV>
-              <KV label="Demandes en cours du notaire">
+              <KV label="Demandes du notaire">
                 {followUp.pendingRequests.length === 0 ? (
                   "Aucune"
                 ) : (
@@ -1240,6 +1299,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             <p className="text-[12.5px] text-muted-foreground">
               Seules les demandes ouvertes du notaire apparaissent ici ; ses discussions avec les parties ne sont pas affichées.
             </p>
+            {reminderData && (
+              <div className="border-t pt-3">
+                <ReminderSummary panel={reminderData} />
+              </div>
+            )}
           </section>
 
           <section className="flex flex-col gap-2.5 rounded-xl border bg-card p-[18px]">
