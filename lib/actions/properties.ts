@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireProprietaireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireProprietaireAuth, requireStaff, requireClientAccess, STAFF_ROLES } from "@/lib/auth-helpers";
 import { createPropertySchema, updatePropertySchema } from "@/lib/zod/property";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -165,7 +165,7 @@ export async function createProperty(data: unknown) {
 }
 
 export async function updateProperty(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = updatePropertySchema.parse(data);
   const { id, ...updateData } = validated;
 
@@ -254,7 +254,7 @@ export async function updateProperty(data: unknown) {
 }
 
 export async function deleteProperty(id: string): Promise<{ success: true } | { success: false; error: string; blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }> }> {
-  const user = await requireAuth();
+  const user = await requireStaff();
   
   // Récupérer le bien avec toutes ses relations
   const property = await prisma.property.findUnique({ 
@@ -325,12 +325,12 @@ export async function deleteProperty(id: string): Promise<{ success: true } | { 
   // Supprimer les documents et leurs fichiers blob
   const documentFileKeys = property.documents.map(doc => doc.fileKey);
   if (documentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    const { deleteBlobFiles } = await import("@/lib/document-storage");
     await deleteBlobFiles(documentFileKeys);
   }
 
   // Supprimer les documents du bien
-  const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+  const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
   await deleteDocumentsFromDB({ propertyId: id });
 
   // Remettre l'IntakeLink du propriétaire en PENDING s'il était en SUBMITTED
@@ -379,7 +379,7 @@ export async function deleteProperty(id: string): Promise<{ success: true } | { 
 }
 
 export async function getAllProperties() {
-  await requireAuth();
+  await requireStaff();
   return prisma.property.findMany({
     include: {
       owner: {
@@ -396,7 +396,13 @@ export async function getAllProperties() {
 }
 
 export async function getProperty(id: string) {
-  await requireAuth();
+  const user = await requireAuth();
+  // Hors équipe : seulement le propriétaire du bien.
+  if (!STAFF_ROLES.includes(user.role)) {
+    const owner = await prisma.property.findUnique({ where: { id }, select: { ownerId: true } });
+    if (!owner) return null;
+    await requireClientAccess(owner.ownerId);
+  }
   return prisma.property.findUnique({
     where: { id },
     include: {
@@ -434,7 +440,7 @@ export async function getProperties(params: {
   status?: string;
   ownerId?: string;
 }) {
-  await requireAuth();
+  await requireStaff();
 
   const where: any = {};
 
@@ -487,7 +493,7 @@ export async function getProperties(params: {
 
 // Mettre à jour le statut de complétion d'un bien
 export async function updatePropertyCompletionStatus(data: { id: string; completionStatus: CompletionStatus }) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const { id, completionStatus } = data;
 
   // Récupérer l'ancien statut et le propriétaire

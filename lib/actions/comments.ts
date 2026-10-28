@@ -1,14 +1,14 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { createCommentSchema } from "@/lib/zod/comment";
 import { revalidatePath } from "next/cache";
 import { CommentTarget, Role, NotificationType } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 
 export async function createComment(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = createCommentSchema.parse(data);
 
   const comment = await prisma.commentInterface.create({
@@ -171,7 +171,7 @@ export async function createComment(data: unknown) {
 }
 
 export async function getComments(target: string, targetId: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   const comments = await prisma.commentInterface.findMany({
     where: {
@@ -240,7 +240,7 @@ export async function deleteComment(id: string) {
  * pour ce commentaire et cet utilisateur (sauf si l'utilisateur est l'auteur)
  */
 export async function getUnreadCommentsCount(target: string, targetId: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   // Récupérer tous les commentaires pour ce target/targetId
   const allComments = await prisma.commentInterface.findMany({
@@ -277,7 +277,7 @@ export async function getUnreadCommentsCount(target: string, targetId: string) {
  * Marque un commentaire comme lu pour l'utilisateur connecté
  */
 export async function markCommentAsRead(commentId: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   // Vérifier que le commentaire existe
   const comment = await prisma.commentInterface.findUnique({
@@ -325,7 +325,7 @@ export async function markCommentAsRead(commentId: string) {
  * Marque tous les commentaires d'un target/targetId comme lus pour l'utilisateur connecté
  */
 export async function markAllCommentsAsReadForTarget(target: string, targetId: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   // Récupérer tous les commentaires pour ce target/targetId
   const comments = await prisma.commentInterface.findMany({

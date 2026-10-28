@@ -108,7 +108,7 @@ export async function startAsOwner(data: StartOwnerInput) {
 
 
     // L'email OTP sera envoyé côté client via Better Auth
-    console.log(`[startAsOwner] Nouveau client créé. token=${intakeLink.token}, isExistingClient=false`);
+    console.log(`[startAsOwner] Nouveau client créé, isExistingClient=false`);
     return { success: true, token: intakeLink.token, isExistingClient: false };
   } else {
     // Client existant : s'assurer qu'un User existe pour l'OTP
@@ -153,10 +153,11 @@ export async function startAsOwner(data: StartOwnerInput) {
 
     if (pendingIntakeLink && client) {
       // Client existant avec formulaire en cours → redirige vers l'espace client
-      console.log(`[startAsOwner] Client existant avec IntakeLink PENDING. token=${pendingIntakeLink.token}, isExistingClient=true`);
+      // Le lien n'est jamais renvoyé ici : saisir l'e-mail d'un autre ne doit pas ouvrir son dossier.
+      // Après le code reçu par e-mail, le propriétaire le retrouve dans son espace client.
+      console.log(`[startAsOwner] Client existant avec IntakeLink PENDING. isExistingClient=true`);
       return {
         success: true,
-        token: pendingIntakeLink.token,
         isExistingClient: true,
       };
     }
@@ -413,10 +414,10 @@ export async function startAsTenant(data: StartTenantInput) {
     // On continue même si l'email échoue
   }
 
-  return { 
-    success: true, 
+  // Le lien du propriétaire part par e-mail au propriétaire : il n'est pas renvoyé au locataire.
+  return {
+    success: true,
     tenantToken: tenantIntakeLink.token,
-    ownerToken: ownerIntakeLink.token,
   };
 }
 }

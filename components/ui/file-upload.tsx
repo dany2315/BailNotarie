@@ -149,7 +149,7 @@ export function FileUpload({
       const response = await fetch("/api/blob/get-signed-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey }),
+        body: JSON.stringify({ fileKey, ...(uploadToken && { token: uploadToken }) }),
       });
 
       if (!response.ok) {
@@ -615,7 +615,7 @@ export function FileUpload({
         if (item.documentId) {
           updateUploadItem(item.id, { isRemoving: true });
           try {
-            await deleteDocument(item.documentId);
+            await deleteDocument(item.documentId, uploadToken);
             toast.success("Document supprimé avec succès");
             dispatchRefreshEvents();
           } catch (deleteError: any) {

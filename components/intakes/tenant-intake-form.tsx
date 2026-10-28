@@ -1708,7 +1708,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, token: intakeLink.token }),
       });
 
       const data = await response.json();

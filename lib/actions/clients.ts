@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { 
   createBasicClientSchema, 
   createFullClientSchema,
@@ -23,7 +23,7 @@ import {
   triggerIntakeConfirmationEmail,
   triggerTenantSubmittedNotificationEmail
 } from "@/lib/inngest/helpers";
-import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actions/documents";
+import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/document-storage";
 import { randomBytes } from "crypto";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { NotificationType } from "@prisma/client";
@@ -37,7 +37,7 @@ import { createBailAuditLog, getClientDisplayName } from "@/lib/actions/bail-aud
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = createBasicClientSchema.parse(data);
 
   const email = validated.email.toLowerCase().trim();
@@ -134,7 +134,7 @@ export async function createBasicClient(data: unknown) {
 
 // Créer un client complet (toutes les données)
 export async function createFullClient(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   
   // Essayer d'abord avec le schéma complet (avec bien, bail, locataire)
   try {
@@ -1883,7 +1883,7 @@ export async function submitTenantForm(data: unknown) {
 
 // Mettre à jour un client
 export async function updateClient(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = updateClientSchema.parse(data);
   const { id, ...updateData } = validated;
 
@@ -2085,7 +2085,7 @@ function getClientName(client: {
 
 // Obtenir le nom d'un client par son ID (pour le dialog de confirmation)
 export async function getClientNameById(id: string): Promise<string> {
-  await requireAuth();
+  await requireStaff();
   const client = await prisma.client.findUnique({
     where: { id },
     select: {
@@ -2118,7 +2118,7 @@ export async function getClientNameById(id: string): Promise<string> {
 
 // Supprimer un client
 export async function deleteClient(id: string): Promise<{ success: true } | { success: false; error: string; blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }> }> {
-  const user = await requireAuth();
+  const user = await requireStaff();
   
   // Récupérer le client avec toutes ses relations
   const client = await prisma.client.findUnique({
@@ -2254,7 +2254,7 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Supprimer les documents et leurs fichiers blob
     if (allDocumentFileKeys.length > 0) {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
       await deleteBlobFiles(allDocumentFileKeys);
     }
 
@@ -2286,7 +2286,7 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Supprimer les documents et leurs fichiers blob
     if (allDocumentFileKeys.length > 0) {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
       await deleteBlobFiles(allDocumentFileKeys);
     }
 
@@ -2405,13 +2405,13 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Supprimer tous les fichiers blob
     if (allDocumentFileKeys.length > 0) {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
       await deleteBlobFiles(allDocumentFileKeys);
     }
 
     // Supprimer tous les documents (biens)
     // Les documents du client seront supprimés automatiquement via cascade quand Person/Entreprise seront supprimés
-    const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+    const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
     await deleteDocumentsFromDB({
       propertyId: { in: client.ownedProperties.map(p => p.id) },
     });
@@ -2537,7 +2537,7 @@ function serializeDecimal(obj: any): any {
 
 // Obtenir un client
 export async function getClient(id: string) {
-  await requireAuth();
+  await requireStaff();
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
@@ -2649,7 +2649,7 @@ export interface ClientMissingData {
 
 // Obtenir les données manquantes d'un client (version détaillée)
 export async function getClientMissingData(clientId: string): Promise<ClientMissingData | null> {
-  await requireAuth();
+  await requireStaff();
   
   const { checkClientCompletionDetailed } = await import("@/lib/utils/completion-status");
   
@@ -2701,7 +2701,7 @@ export async function getClients(params: {
   type?: ClientType;
   profilType?: ProfilType;
 }) {
-  await requireAuth();
+  await requireStaff();
 
   const where: any = {};
 
@@ -2784,7 +2784,7 @@ export async function getClients(params: {
 
 // Obtenir tous les clients (pour filtrage côté client)
 export async function getAllClients() {
-  await requireAuth();
+  await requireStaff();
 
   const data = await prisma.client.findMany({
     include: {
@@ -2837,7 +2837,7 @@ export async function getAllClients() {
 
 // Envoyer le lien du formulaire à un client existant
 export async function sendIntakeLinkToClient(clientId: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   // Récupérer le client avec persons et entreprise
   const client = await prisma.client.findUnique({
@@ -3056,7 +3056,7 @@ export async function sendIntakeLinkToClient(clientId: string) {
 
 // Régénérer l'intakeLink d'un client (remet en PENDING et génère un nouveau token)
 export async function regenerateClientIntakeLink(clientId: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
@@ -3109,7 +3109,7 @@ export async function regenerateClientIntakeLink(clientId: string) {
 
 // Vérifier si un client a un lien de formulaire disponible
 export async function hasIntakeLink(clientId: string): Promise<{ hasLink: boolean; isSubmitted: boolean }> {
-  await requireAuth();
+  await requireStaff();
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
@@ -3162,7 +3162,7 @@ export async function hasIntakeLink(clientId: string): Promise<{ hasLink: boolea
 
 // Obtenir le lien du formulaire pour un client (sans envoyer d'email)
 export async function getIntakeLinkUrl(clientId: string): Promise<string> {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   // Récupérer le client
   const client = await prisma.client.findUnique({
@@ -3279,7 +3279,7 @@ export async function getIntakeLinkUrl(clientId: string): Promise<string> {
 
 // Mettre à jour le statut de complétion d'un client
 export async function updateClientCompletionStatus(data: { id: string; completionStatus: CompletionStatus }) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const { id, completionStatus } = data;
 
   // Récupérer l'ancien statut

@@ -8,7 +8,8 @@ import { toast } from "sonner";
  * Utilise des URLs signées pour la sécurité et la cohérence avec le système de preview
  * Supporte le suivi individuel par fileKey pour éviter que tous les boutons ne passent en loading
  */
-export function useDownloadFile() {
+export function useDownloadFile(token?: string) {
+  // token : lien d'intake (formulaire sans compte), exigé pour obtenir l'URL d'un fichier.
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
 
   // Rétrocompatibilité : true si un téléchargement est en cours (peu importe lequel)
@@ -35,7 +36,7 @@ export function useDownloadFile() {
         const response = await fetch("/api/blob/get-signed-url", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileKey }),
+          body: JSON.stringify({ fileKey, ...(token && { token }) }),
         });
 
         if (response.ok) {

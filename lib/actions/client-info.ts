@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { requireClientAccess } from "@/lib/auth-helpers";
 import { getClientType } from "@/lib/utils/client-type";
 import { ProfilType } from "@prisma/client";
 
@@ -8,6 +9,8 @@ import { ProfilType } from "@prisma/client";
  * Récupère les informations d'un client pour l'affichage dans le header
  */
 export async function getClientInfoForHeader(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const client = await prisma.client.findUnique({
     where: { id: clientId },
     include: {

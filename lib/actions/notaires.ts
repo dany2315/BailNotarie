@@ -442,14 +442,14 @@ export async function revokeAssignment(data: unknown) {
 
   // Supprimer tous les fichiers AWS S3
   if (allDocumentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    const { deleteBlobFiles } = await import("@/lib/document-storage");
     await deleteBlobFiles(allDocumentFileKeys);
   }
 
   // Supprimer les documents directs des demandes (les documents des messages seront supprimés en cascade)
   const requestIds = assignment.requests.map(r => r.id);
   if (requestIds.length > 0) {
-    const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+    const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
     await deleteDocumentsFromDB({ notaireRequestId: { in: requestIds } });
   }
 
@@ -1028,7 +1028,7 @@ export async function deleteNotaireRequest(requestId: string) {
 
   // Supprimer tous les fichiers AWS S3
   if (allDocumentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    const { deleteBlobFiles } = await import("@/lib/document-storage");
     await deleteBlobFiles(allDocumentFileKeys);
   }
 
@@ -1038,7 +1038,7 @@ export async function deleteNotaireRequest(requestId: string) {
     if (message.document) {
       try {
         // Supprimer le document de la base de données
-        const { deleteDocumentFromDB } = await import("@/lib/actions/documents");
+        const { deleteDocumentFromDB } = await import("@/lib/document-storage");
         await deleteDocumentFromDB(message.document.id);
       } catch (error) {
         // Ne pas faire échouer la suppression si un document ne peut pas être supprimé
@@ -1049,7 +1049,7 @@ export async function deleteNotaireRequest(requestId: string) {
 
   // Supprimer les documents directs de la demande
   if (request.documents && request.documents.length > 0) {
-    const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+    const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
     await deleteDocumentsFromDB({ notaireRequestId: requestId });
   }
 

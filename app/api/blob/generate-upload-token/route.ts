@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { generateSignedUploadUrl, generateS3FileKey } from "@/lib/utils/s3-client";
+import { authorizeUploadTarget } from "@/lib/upload-access";
 
 /**
  * Route API pour générer une URL signée S3 pour upload direct côté client
  * Permet des uploads rapides directement vers S3 sans passer par le serveur
  * 
- * PAS D'AUTHENTIFICATION REQUISE - Tous les fichiers sont stockés dans "documents"
+ * Accès contrôlé par authorizeUploadTarget (lien d'intake en cours ou session autorisée sur la
+ * cible). Tous les fichiers sont stockés dans "documents".
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -31,102 +32,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Validation : vérifier que l'entité existe avant de générer l'URL signée
-    // Cas 1: Upload pour intake (avec token)
-    if (intakeToken) {
-      // Vérifier que l'intakeLink existe et est valide
-      const intakeLink = await prisma.intakeLink.findUnique({
-        where: { token: intakeToken },
-        select: { 
-          id: true,
-          status: true,
-        },
-      });
-
-      if (!intakeLink) {
-        return NextResponse.json(
-          { error: "Lien d'intake introuvable" },
-          { status: 404 }
-        );
-      }
-
-      // Vérifier que le lien n'est pas révoqué
-      if (intakeLink.status === "REVOKED") {
-        return NextResponse.json(
-          { error: "Ce lien a été révoqué" },
-          { status: 403 }
-        );
-      }
-    }
-    // Cas 2: Upload pour documents clients/propriétés
-    else {
-      // Déterminer le contexte et valider l'entité
-      if (personId) {
-        // Vérifier que la personne existe
-        const person = await prisma.person.findUnique({
-          where: { id: personId },
-          select: { id: true, clientId: true },
-        });
-        if (!person) {
-          return NextResponse.json(
-            { error: "Personne introuvable" },
-            { status: 404 }
-          );
-        }
-      } else if (entrepriseId) {
-        // Vérifier que l'entreprise existe
-        const entreprise = await prisma.entreprise.findUnique({
-          where: { id: entrepriseId },
-          select: { id: true, clientId: true },
-        });
-        if (!entreprise) {
-          return NextResponse.json(
-            { error: "Entreprise introuvable" },
-            { status: 404 }
-          );
-        }
-      } else if (clientId) {
-        // Vérifier que le client existe
-        const client = await prisma.client.findUnique({
-          where: { id: clientId },
-          select: { id: true },
-        });
-        if (!client) {
-          return NextResponse.json(
-            { error: "Client introuvable" },
-            { status: 404 }
-          );
-        }
-      } else if (propertyId) {
-        // Vérifier que la propriété existe
-        const property = await prisma.property.findUnique({
-          where: { id: propertyId },
-          select: { id: true },
-        });
-        if (!property) {
-          return NextResponse.json(
-            { error: "Propriété introuvable" },
-            { status: 404 }
-          );
-        }
-      } else if (bailId) {
-        // Vérifier que le bail existe
-        const bail = await prisma.bail.findUnique({
-          where: { id: bailId },
-          select: { id: true },
-        });
-        if (!bail) {
-          return NextResponse.json(
-            { error: "Bail introuvable" },
-            { status: 404 }
-          );
-        }
-      } else {
-        return NextResponse.json(
-          { error: "Token, clientId, personId, entrepriseId, propertyId ou bailId requis" },
-          { status: 400 }
-        );
-      }
+    // Accès : lien d'intake en cours (identifiants limités à ce lien) ou utilisateur connecté
+    // autorisé sur la cible (équipe, notaire attribué, client propriétaire de ses données).
+    const access = await authorizeUploadTarget({ token: intakeToken, clientId, personId, entrepriseId, propertyId, bailId });
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
     // Générer la clé S3 pour le fichier (toujours dans "documents")

@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ProfilType } from "@prisma/client";
+import { getCurrentUser } from "@/lib/auth-helpers";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email } = body;
+    const { email, token } = body;
+
+    // Pas d'annuaire public des e-mails : formulaire d'intake en cours ou utilisateur connecté.
+    const link = typeof token === "string" && token
+      ? await prisma.intakeLink.findUnique({ where: { token }, select: { status: true } })
+      : null;
+    if (link?.status !== "PENDING" && !(await getCurrentUser())) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
 
     if (!email || typeof email !== "string") {
       return NextResponse.json(

@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
 import { randomBytes } from "crypto";
@@ -100,7 +100,7 @@ const createLeadSchema = z.object({
 // Créer un lead et envoyer un email avec lien de conversion (si email fourni)
 export async function createLead(data: unknown) {
   try {
-    const user = await requireAuth();
+    const user = await requireStaff();
     const validated = createLeadSchema.parse(data);
 
     // Vérifier si un client avec cet email ou téléphone existe déjà

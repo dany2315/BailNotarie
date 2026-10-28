@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireRole, requireProprietaireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireRole, requireProprietaireAuth, requireStaff, requireClientAccess, STAFF_ROLES } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
 import { revalidatePath } from "next/cache";
 import { BailAuditEventType, BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus, EnergyClass } from "@prisma/client";
@@ -13,6 +13,7 @@ import { validateRentForProperty } from "@/lib/utils/rent-validation";
 import { assessRentRules } from "@/lib/rent-rules";
 import { rentRulesFromForm, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
+import { stripe } from "@/lib/stripe";
 import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
 
 /**
@@ -43,6 +44,22 @@ async function rentRulesColumns(
   };
 }
 
+/**
+ * Paiement des frais de dossier (espace client) : vérifié auprès de Stripe avant de marquer le bail
+ * payé. Réglé, du bon montant, créé pour cet utilisateur, et pas déjà utilisé pour un autre bail.
+ */
+async function assertBailPayment(paymentIntentId: string, userId: string, draftBailId?: string) {
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+  if (paymentIntent.status !== "succeeded") throw new Error("Le paiement n'a pas été confirmé. Veuillez réessayer.");
+  if (paymentIntent.amount !== 3990) throw new Error("Montant de paiement incorrect.");
+  if (paymentIntent.metadata?.userId !== userId) throw new Error("Ce paiement ne correspond pas à votre compte.");
+  const used = await prisma.bail.findFirst({
+    where: { stripePaymentIntentId: paymentIntentId, ...(draftBailId ? { NOT: { id: draftBailId } } : {}) },
+    select: { id: true },
+  });
+  if (used) throw new Error("Ce paiement a déjà été utilisé.");
+}
+
 /** Classe DPE saisie par le propriétaire pour un bien qui n'en avait pas (jamais écrasée). */
 async function fillPropertyDpe(propertyId: string, dpeClass: string | undefined) {
   if (!dpeClass) return;
@@ -62,6 +79,9 @@ async function assertNewBailAllowed(propertyId: string, excludeBailId?: string |
 export async function createLease(data: unknown, paymentIntentId?: string, draftBailId?: string) {
   const user = await requireAuth();
   const validated = createLeaseSchema.parse(data);
+  // Seuls l'équipe et les propriétaires créent un bail.
+  if (!STAFF_ROLES.includes(user.role)) await requireProprietaireAuth();
+  if (paymentIntentId) await assertBailPayment(paymentIntentId, user.id, draftBailId);
 
   // Récupérer le propriétaire du bien
   const property = await prisma.property.findUnique({
@@ -99,6 +119,10 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
     : null;
 
   if (validated.tenantId && !tenant) {
+    throw new Error("Locataire introuvable");
+  }
+  // Le locataire choisi doit être un client locataire (pas le dossier d'un autre propriétaire).
+  if (tenant && tenant.profilType !== ProfilType.LOCATAIRE) {
     throw new Error("Locataire introuvable");
   }
 
@@ -313,7 +337,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
 }
 
 export async function updateLease(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = updateLeaseSchema.parse(data);
   const { id, tenantId, leaseType, bailType: validatedBailType, ...updateData } = validated;
   // bailType est géré séparément car il n'est pas dans updateData spread
@@ -493,7 +517,7 @@ export async function transitionLease(data: unknown) {
 }
 
 export async function deleteLease(id: string): Promise<{ success: true } | { success: false; error: string; blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }> }> {
-  const user = await requireAuth();
+  const user = await requireStaff();
   
   // Récupérer le bail avec toutes ses relations
   const bail = await prisma.bail.findUnique({ 
@@ -581,12 +605,12 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
 
   // Supprimer tous les fichiers AWS S3
   if (allDocumentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    const { deleteBlobFiles } = await import("@/lib/document-storage");
     await deleteBlobFiles(allDocumentFileKeys);
   }
 
   // Supprimer les documents du bail et des messages
-  const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+  const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
   await deleteDocumentsFromDB({ bailId: id });
 
   // Supprimer les messages du bail (les documents associés sont déjà supprimés)
@@ -638,7 +662,7 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
 }
 
 export async function getLease(id: string) {
-  await requireAuth();
+  await requireStaff();
   return prisma.bail.findUnique({
     where: { id },
     include: {
@@ -701,7 +725,7 @@ export async function getLeases(params: {
   sort?: "recent" | "attente";
   notaire?: string;
 }) {
-  await requireAuth();
+  await requireStaff();
 
   const where: any = { ...notaireWhere(params.notaire) };
 
@@ -825,7 +849,7 @@ export async function getLeaseStatusCounts(params: {
   payment?: "paid" | "unpaid";
   notaire?: string;
 }): Promise<Record<string, number>> {
-  await requireAuth();
+  await requireStaff();
 
   const where: any = { ...notaireWhere(params.notaire) };
   if (params.payment === "paid") where.paidAt = { not: null };
@@ -855,7 +879,7 @@ export async function getLeasePaymentCounts(params: {
   tenantId?: string;
   notaire?: string;
 }) {
-  await requireAuth();
+  await requireStaff();
 
   const baseWhere: any = { ...notaireWhere(params.notaire) };
 
@@ -904,7 +928,7 @@ export async function getLeasePaymentCounts(params: {
 
 // Obtenir tous les baux (pour filtrage côté client)
 export async function getAllBails() {
-  await requireAuth();
+  await requireStaff();
 
   const data = await prisma.bail.findMany({
     include: {
@@ -974,6 +998,8 @@ export async function createTenantForLease(data: unknown) {
   if (!bail) {
     throw new Error("Bail introuvable");
   }
+  // Seulement le propriétaire du bien (ou l'équipe).
+  await requireClientAccess(bail.property.ownerId);
 
   // Vérifier s'il y a déjà un locataire connecté au bail
   const existingTenant = bail.parties.find(
@@ -1107,6 +1133,8 @@ export async function createTenantForLease(data: unknown) {
 // Créer un locataire depuis un email (sans bailId) - pour utilisation lors de la création de bail
 export async function createTenantFromEmail(data: unknown) {
   const user = await requireAuth();
+  // Réservé à l'équipe et aux propriétaires (un locataire ou un notaire ne crée pas de locataire).
+  if (!STAFF_ROLES.includes(user.role)) await requireProprietaireAuth();
   const validated = createTenantFromEmailSchema.parse(data);
 
   // Chercher un locataire existant avec cet email dans ses persons
@@ -1162,6 +1190,8 @@ export async function createTenantFromEmail(data: unknown) {
 
 // Récupérer les locataires qui étaient en commun dans un bail avec un propriétaire
 export async function getCommonTenantsForOwner(ownerId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(ownerId);
   await requireAuth();
 
   // Récupérer tous les baux où ce propriétaire est partie
@@ -1253,7 +1283,7 @@ export interface BailCompleteMissingData {
 
 // Fonction pour récupérer toutes les données manquantes d'un bail
 export async function getBailMissingData(bailId: string): Promise<BailCompleteMissingData | null> {
-  await requireAuth();
+  await requireStaff();
   
   const { checkClientCompletionDetailed, checkPropertyCompletion } = await import("@/lib/utils/completion-status");
   
@@ -1483,6 +1513,11 @@ export async function saveBailDraft(data: {
   if (!property || property.ownerId !== client.id) {
     throw new Error("Bien introuvable ou accès refusé");
   }
+  // Le locataire choisi doit être un client locataire (pas le dossier d'un autre propriétaire).
+  if (data.tenantId) {
+    const tenant = await prisma.client.findUnique({ where: { id: data.tenantId }, select: { profilType: true } });
+    if (!tenant || tenant.profilType !== ProfilType.LOCATAIRE) throw new Error("Locataire introuvable");
+  }
 
   const rentAmount = data.rentAmount ? (parseInt(data.rentAmount, 10) || 0) : 0;
   const monthlyCharges = data.monthlyCharges ? (parseInt(data.monthlyCharges, 10) || 0) : 0;
@@ -1575,6 +1610,8 @@ export async function deleteBailDraft(bailId: string) {
 }
 
 export async function getClientBailDrafts(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const drafts = await prisma.bail.findMany({
     where: {
       status: BailStatus.DRAFT,
@@ -1618,6 +1655,8 @@ export async function getClientBailDrafts(clientId: string) {
 }
 
 export async function getDraftBailForClient(bailId: string, clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
     include: {

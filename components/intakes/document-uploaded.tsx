@@ -158,7 +158,7 @@ export function DocumentUploaded({
           personIndex: document.personIndex,
         });
       } else {
-        await deleteDocument(document.id);
+        await deleteDocument(document.id, token);
       }
 
       toast.success("Document supprimé avec succès");
@@ -207,6 +207,7 @@ export function DocumentUploaded({
       ) : null}
       <div className="min-w-0 overflow-visible">
         <DocumentStackList
+          token={token}
           documents={documents}
           deletingId={deletingId}
           onDelete={(documentId) => {

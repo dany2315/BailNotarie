@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { assertFreshFileKeys } from "@/lib/document-access";
 import { requireAuth, canAccessBail } from "@/lib/auth-helpers";
 import { Role, BailMessageType, NotaireRequestStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -648,6 +649,8 @@ export async function sendBailMessageWithS3Urls(
   if (!files || files.length === 0) {
     throw new Error("Au moins un fichier est requis");
   }
+  // Fichiers tout juste envoyés seulement (jamais celui d'une autre pièce).
+  await assertFreshFileKeys(files.map((file) => file.fileKey));
 
   // Créer les documents dans la base de données avec les clés S3
   const documents = await Promise.all(
@@ -1083,6 +1086,9 @@ export async function addDocumentToNotaireRequestWithS3Urls(
     throw new Error("Demande introuvable ou non liée à un bail");
   }
 
+  // Fichiers tout juste envoyés seulement (jamais celui d'une autre pièce).
+  await assertFreshFileKeys(files.map((file) => file.fileKey));
+
   // Créer les documents : liés uniquement à la demande et au client, pas au bail (kind OTHER)
   const documents = await Promise.all(
     files.map(async (file) => {
@@ -1508,7 +1514,7 @@ export async function deleteBailMessage(messageId: string) {
       }
       
       // Supprimer le document de la base de données
-      const { deleteDocumentFromDB } = await import("@/lib/actions/documents");
+      const { deleteDocumentFromDB } = await import("@/lib/document-storage");
       await deleteDocumentFromDB(message.document.id);
     } catch (error) {
       // Ne pas faire échouer la suppression du message si le document ne peut pas être supprimé

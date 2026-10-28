@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireClientAuth, requireProprietaireAuth, requireLocataireAuth, getClientFromUser } from "@/lib/auth-helpers";
+import { requireClientAuth, requireProprietaireAuth, requireLocataireAuth, getClientFromUser, requireClientAccess, requireAuth, STAFF_ROLES } from "@/lib/auth-helpers";
 import { ProfilType, BailStatus, IntakeTarget } from "@prisma/client";
 
 // Types pour les données sérialisées
@@ -134,6 +134,9 @@ function serializeDecimal(obj: any): any {
  * Récupère les données du client lié à l'utilisateur avec profilType
  */
 export async function getClientUserData(userId: string) {
+  // Seulement ses propres données (ou l'équipe).
+  const current = await requireAuth();
+  if (current.id !== userId && !STAFF_ROLES.includes(current.role)) throw new Error("Forbidden");
   const client = await getClientFromUser(userId);
   
   if (!client) {
@@ -154,6 +157,8 @@ export async function getClientUserData(userId: string) {
  * LOCATAIRE : tous les baux où le client est locataire
  */
 export async function getClientBails(clientId: string, profilType: ProfilType) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const bails = await prisma.bail.findMany({
     where: {
       parties: {
@@ -262,6 +267,8 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
  * Récupère tous les biens du client (UNIQUEMENT pour propriétaires)
  */
 export async function getClientProperties(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const properties = await prisma.property.findMany({
     where: {
       ownerId: clientId,
@@ -348,6 +355,8 @@ export async function getClientProperties(clientId: string) {
  * Statistiques pour propriétaires
  */
 export async function getProprietaireStats(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const properties = await getClientProperties(clientId);
   const bails = await getClientBails(clientId, ProfilType.PROPRIETAIRE);
 
@@ -374,6 +383,8 @@ export async function getProprietaireStats(clientId: string) {
  * Statistiques pour locataires
  */
 export async function getLocataireStats(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const bails = await getClientBails(clientId, ProfilType.LOCATAIRE);
 
   const stats = {
@@ -394,6 +405,8 @@ export async function getLocataireStats(clientId: string) {
  * Récupère les demandes du notaire non traitées pour un client
  */
 export async function getPendingNotaireRequests(clientId: string, profilType: ProfilType) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   // Récupérer tous les dossiers assignés à ce client
   const dossiers = await prisma.dossierNotaireAssignment.findMany({
     where: {
@@ -469,6 +482,8 @@ export async function getActiveIntakeLinksForClient(clientId: string): Promise<A
   bailType: string | null;
   bailId: string | null;
 }>> {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const links = await prisma.intakeLink.findMany({
     where: { clientId, status: "PENDING" },
     orderBy: { updatedAt: "desc" },
@@ -590,6 +605,8 @@ export async function getActiveIntakeLinksForClient(clientId: string): Promise<A
  * Récupère les détails complets d'un bail pour un client
  */
 export async function getClientBailDetails(bailId: string, clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   // Vérifier que le client a accès à ce bail
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
@@ -648,6 +665,24 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
     return null;
   }
 
+  // Un locataire ne voit du propriétaire que son nom et ses coordonnées (pas sa date de naissance,
+  // sa situation familiale, etc.).
+  if (!isOwner && bail.property.owner) {
+    const owner: any = bail.property.owner;
+    owner.persons = (owner.persons || []).map((person: any) => ({
+      id: person.id,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      email: person.email,
+      phone: person.phone,
+      isPrimary: person.isPrimary,
+    }));
+    if (owner.entreprise) {
+      const e = owner.entreprise;
+      owner.entreprise = { id: e.id, legalName: e.legalName, name: e.name, email: e.email, phone: e.phone };
+    }
+  }
+
   return serializeDecimal(bail);
 }
 
@@ -655,6 +690,8 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
  * Récupère toutes les informations du client pour l'affichage dans l'espace client
  */
 export async function getClientFullInfo(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const client = await prisma.client.findUnique({
     where: { id: clientId },
     include: {

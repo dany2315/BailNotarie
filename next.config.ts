@@ -11,6 +11,18 @@ const nextConfig: NextConfig = {
 
   async headers() {
     return [
+      // En-têtes de sécurité sur tout le site : pas d'intégration dans un cadre d'un autre site
+      // (clickjacking), pas de détection de type de contenu, référent limité, HTTPS imposé.
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+        ],
+      },
       {
         source: "/login",
         headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],

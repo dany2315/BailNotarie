@@ -26,6 +26,8 @@ interface DocumentStackListProps {
   deletingId?: string | null;
   className?: string;
   compact?: boolean;
+  /** Lien d'intake (formulaire sans compte) : transmis pour l'aperçu et le téléchargement. */
+  token?: string;
 }
 
 function formatSize(size?: number | null) {
@@ -74,8 +76,9 @@ export function DocumentStackList({
   deletingId,
   className,
   compact = false,
+  token,
 }: DocumentStackListProps) {
-  const { downloadFile, isDownloading } = useDownloadFile();
+  const { downloadFile, isDownloading } = useDownloadFile(token);
   const [isStackExpanded, setIsStackExpanded] = useState(false);
 
   if (documents.length === 0) {
@@ -169,6 +172,7 @@ export function DocumentStackList({
                     <DocumentViewer
                       document={document}
                       documentKindLabels={documentKindLabels}
+                      token={token}
                     >
                       <Button
                         type="button"

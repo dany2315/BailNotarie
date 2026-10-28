@@ -109,7 +109,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
       const response = await fetch("/api/blob/get-signed-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey }),
+        body: JSON.stringify({ fileKey, token }),
       });
 
       if (!response.ok) {

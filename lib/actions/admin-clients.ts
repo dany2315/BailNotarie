@@ -2,7 +2,7 @@
 
 import { ClientType, ProfilType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { computeClientMissingData } from "@/lib/utils/completion-status";
 import { describeMissingItems } from "@/lib/utils/missing-items";
 import { formatPhone } from "@/lib/utils/phone-format";
@@ -36,7 +36,7 @@ const fmt = (date: Date) => date.toLocaleDateString("fr-FR", { day: "2-digit", m
 
 /** Liste des clients de la page « Clients » (maquette) : état, manques, dossiers, activité. */
 export async function getClientsList(): Promise<ClientListRow[]> {
-  await requireAuth();
+  await requireStaff();
 
   const clients = await prisma.client.findMany({
     orderBy: { updatedAt: "desc" },

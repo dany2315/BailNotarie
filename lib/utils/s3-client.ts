@@ -155,8 +155,9 @@ export function generateS3FileKey(
   fileName: string
 ): string {
   const timestamp = Date.now();
-  const randomSuffix = Math.random().toString(36).substring(2, 9);
-  const sanitizedName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+  // Identifiant aléatoire cryptographique : la clé d'un fichier ne doit pas pouvoir être devinée.
+  const randomSuffix = crypto.randomUUID();
+  const sanitizedName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_").slice(-120);
   
   return `documents/${timestamp}-${randomSuffix}-${sanitizedName}`;
 }

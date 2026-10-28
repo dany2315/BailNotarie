@@ -5,7 +5,7 @@ import { z } from "zod";
 import { DocumentKind, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
-import { deleteDocumentFromDB } from "@/lib/actions/documents";
+import { deleteDocumentFromDB } from "@/lib/document-storage";
 import {
   updateClientCompletionStatus as recalculateClientStatus,
   updatePropertyCompletionStatus as recalculatePropertyStatus,

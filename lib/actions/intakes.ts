@@ -2,11 +2,11 @@
 
 import { prisma  } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { createIntakeLinkSchema, submitIntakeSchema } from "@/lib/zod/intake";
 import { ownerFormSchema, tenantFormSchema } from "@/lib/zod/client";
 import { submitOwnerForm, submitTenantForm } from "@/lib/actions/clients";
-import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actions/documents";
+import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/document-storage";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
 import { randomBytes } from "crypto";
@@ -33,7 +33,7 @@ import {
 } from "./intake-handlers";
 
 export async function createIntakeLink(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = createIntakeLinkSchema.parse(data);
 
   const token = randomBytes(32).toString("hex");
@@ -58,7 +58,7 @@ export async function createIntakeLink(data: unknown) {
 }
 
 export async function revokeIntakeLink(id: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const intakeLink = await prisma.intakeLink.update({
     where: { id },
     data: { status: "REVOKED" },
@@ -78,7 +78,7 @@ export async function revokeIntakeLink(id: string) {
 }
 
 export async function regenerateToken(id: string) {
-  await requireAuth();
+  await requireStaff();
   const newToken = randomBytes(32).toString("hex");
   const intakeLink = await prisma.intakeLink.update({
     where: { id },
@@ -312,7 +312,7 @@ export async function getIntakeLinks(params: {
   status?: string;
   target?: string;
 }) {
-  await requireAuth();
+  await requireStaff();
 
   const where: any = {};
 
@@ -410,6 +410,11 @@ export async function savePartialIntake(data: unknown) {
 
   if (intakeLink.status === "EXPIRED") {
     throw new Error("Ce lien a expiré");
+  }
+
+  // Formulaire déjà soumis : plus de modification par le lien (le dossier est entre les mains de l'équipe).
+  if (intakeLink.status !== "PENDING") {
+    throw new Error("Ce formulaire a déjà été soumis");
   }
 
   const clientId = intakeLink.clientId;
@@ -804,17 +809,21 @@ export async function deleteDocumentFromRawPayload(data: {
     },
   });
 
-  if (!intakeLink) {
+  if (!intakeLink || intakeLink.status !== "PENDING") {
     throw new Error("Lien d'intake introuvable");
   }
 
-  // Supprimer le fichier du blob si il existe
-  try {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
-    await deleteBlobFiles([fileKey]);
-  } catch (error) {
-    // Ne pas faire échouer la suppression si le fichier blob n'existe pas
-    console.error(`Erreur lors de la suppression du fichier blob ${fileKey}:`, error);
+  // Fichier du brouillon seulement : un fichier rattaché à une pièce n'est supprimé que si cette
+  // pièce appartient au lien (plus bas). Sinon, n'importe quel lien pourrait effacer le fichier d'autrui.
+  const referenced = await prisma.document.count({ where: { fileKey } });
+  if (referenced === 0 && typeof fileKey === "string" && fileKey.startsWith("documents/") && !fileKey.includes("..")) {
+    try {
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
+      await deleteBlobFiles([fileKey]);
+    } catch (error) {
+      // Ne pas faire échouer la suppression si le fichier blob n'existe pas
+      console.error(`Erreur lors de la suppression du fichier blob ${fileKey}:`, error);
+    }
   }
 
   let deleted = false;
@@ -878,7 +887,7 @@ export async function deleteDocumentFromRawPayload(data: {
   if (documentToDelete) {
     // Supprimer le fichier du blob si il existe
     try {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
       await deleteBlobFiles([documentToDelete.fileKey]);
     } catch (error) {
       // Ne pas faire échouer la suppression si le fichier blob n'existe pas
@@ -886,7 +895,7 @@ export async function deleteDocumentFromRawPayload(data: {
     }
 
     // Supprimer le document de la base de données
-    const { deleteDocumentFromDB } = await import("@/lib/actions/documents");
+    const { deleteDocumentFromDB } = await import("@/lib/document-storage");
     await deleteDocumentFromDB(documentToDelete.id);
     
     deleted = true;
@@ -897,13 +906,19 @@ export async function deleteDocumentFromRawPayload(data: {
 
 // Supprimer une personne supplémentaire d'un client
 export async function deletePersonFromClient(data: {
+  token: string;
   clientId: string;
   personEmail: string;
 }) {
-  const { clientId, personEmail } = data;
+  const { token, clientId, personEmail } = data;
 
-  if (!clientId || !personEmail) {
-    throw new Error("clientId et personEmail sont requis");
+  if (!token || !clientId || !personEmail) {
+    throw new Error("token, clientId et personEmail sont requis");
+  }
+  // Appelable sans compte : seulement par le lien d'intake en cours de ce client.
+  const link = await prisma.intakeLink.findUnique({ where: { token }, select: { status: true, clientId: true } });
+  if (!link || link.status !== "PENDING" || link.clientId !== clientId) {
+    throw new Error("Lien d'intake introuvable");
   }
 
   // Trouver la personne par email et clientId

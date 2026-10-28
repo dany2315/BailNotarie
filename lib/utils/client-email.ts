@@ -1,4 +1,4 @@
-"use server";
+// Module serveur interne (pas une action appelable depuis le navigateur).
 
 import { prisma } from "@/lib/prisma";
 import { ClientType, ProfilType } from "@prisma/client";

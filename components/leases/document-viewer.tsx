@@ -22,12 +22,15 @@ interface DocumentViewerProps {
   };
   documentKindLabels: Record<string, string>;
   children: React.ReactNode;
+  /** Lien d'intake (formulaire sans compte), exigé pour obtenir l'URL du fichier. */
+  token?: string;
 }
 
 export function DocumentViewer({
   document,
   documentKindLabels,
   children,
+  token,
 }: DocumentViewerProps) {
   const [open, setOpen] = useState(false);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export function DocumentViewer({
       const response = await fetch("/api/blob/get-signed-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey }),
+        body: JSON.stringify({ fileKey, ...(token && { token }) }),
       });
 
       if (!response.ok) {

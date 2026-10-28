@@ -1,0 +1,442 @@
+/**
+ * Stockage des pièces (suppression des fichiers S3, enregistrement des pièces des formulaires).
+ * Module serveur interne : sans « use server », ces fonctions ne sont pas appelables depuis le
+ * navigateur. Les actions et routes vérifient l'accès avant de les utiliser.
+ */
+
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+import { DocumentKind } from "@prisma/client";
+import { 
+  updateClientCompletionStatus as calculateAndUpdateClientStatus, 
+  updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
+} from "@/lib/utils/completion-status";
+import { uploadFileToS3, generateS3FileKey, deleteFileFromS3, extractS3KeyFromUrl } from "@/lib/utils/s3-client";
+
+
+// Helper pour supprimer un fichier S3
+async function deleteBlobFile(fileKey: string) {
+  try {
+    if (!fileKey) return;
+    
+    // fileKey peut être soit une clé S3 (nouveau format) soit une URL complète (ancien format pour compatibilité)
+    // extractS3KeyFromUrl gère les deux cas
+    const s3Key = extractS3KeyFromUrl(fileKey) || fileKey;
+    
+    if (s3Key) {
+      await deleteFileFromS3(s3Key);
+    }
+  } catch (error) {
+    // Ne pas faire échouer la suppression si le fichier n'existe pas
+    console.error(`Erreur lors de la suppression du fichier S3 ${fileKey}:`, error);
+  }
+}
+
+// Helper pour supprimer plusieurs fichiers blob
+export async function deleteBlobFiles(fileKeys: string[]) {
+  await Promise.all(fileKeys.map(key => deleteBlobFile(key)));
+}
+
+/**
+ * Supprime un document de la DB et son fichier AWS S3 associé
+ * À utiliser à la place de prisma.document.delete() pour garantir la suppression des fichiers
+ */
+export async function deleteDocumentFromDB(id: string) {
+  const document = await prisma.document.findUnique({
+    where: { id },
+    select: { fileKey: true },
+  });
+
+  if (!document) {
+    throw new Error("Document introuvable");
+  }
+
+  // Supprimer le fichier AWS S3
+  if (document.fileKey) {
+    await deleteBlobFile(document.fileKey);
+  }
+
+  // Supprimer le document de la DB
+  await prisma.document.delete({ where: { id } });
+}
+
+/**
+ * Supprime plusieurs documents de la DB et leurs fichiers AWS S3 associés
+ * À utiliser à la place de prisma.document.deleteMany() pour garantir la suppression des fichiers
+ */
+export async function deleteDocumentsFromDB(where: {
+  id?: string | { in: string[] };
+  clientId?: string | { in: string[] } | null;
+  propertyId?: string | { in: string[] } | null;
+  bailId?: string | { in: string[] } | null;
+  personId?: string | { in: string[] } | null;
+  entrepriseId?: string | { in: string[] } | null;
+  notaireRequestId?: string | { in: string[] } | null;
+}) {
+  // Récupérer les documents avant suppression pour obtenir les fileKeys
+  const documents = await prisma.document.findMany({
+    where,
+    select: { fileKey: true },
+  });
+
+  // Supprimer tous les fichiers AWS S3
+  if (documents.length > 0) {
+    const fileKeys = documents.map(doc => doc.fileKey).filter(Boolean);
+    if (fileKeys.length > 0) {
+      await deleteBlobFiles(fileKeys);
+    }
+  }
+
+  // Supprimer les documents de la DB
+  await prisma.document.deleteMany({ where });
+}
+
+// Helper pour uploader un fichier et créer un document
+async function uploadFileAndCreateDocument(
+  file: File | null | undefined,
+  kind: DocumentKind,
+  options: {
+    clientId?: string;
+    personId?: string;
+    entrepriseId?: string;
+    propertyId?: string;
+    bailId?: string;
+    label?: string;
+  }
+) {
+  if (!file) return null;
+  
+  // Générer la clé S3 pour le fichier
+  const fileKey = generateS3FileKey(file.name);
+
+  // Uploader le fichier vers S3
+  const s3Result = await uploadFileToS3(
+    file,
+    fileKey,
+    file.type || "application/octet-stream"
+  );
+
+  // Créer le document dans la base de données
+  const document = await prisma.document.create({
+    data: {
+      kind,
+      label: options.label || file.name,
+      fileKey: s3Result.fileKey, // Clé S3 (pas l'URL complète)
+      mimeType: file.type,
+      size: file.size,
+      clientId: options.clientId,
+      personId: options.personId,
+      entrepriseId: options.entrepriseId,
+      propertyId: options.propertyId,
+      bailId: options.bailId,
+      uploadedById: null,
+    },
+  });
+
+  // Mettre à jour les statuts de complétion
+  if (options.clientId) {
+    await calculateAndUpdateClientStatus(options.clientId);
+  }
+  if (options.propertyId) {
+    await calculateAndUpdatePropertyStatus(options.propertyId);
+  }
+
+  return document;
+}
+
+/**
+ * @deprecated Cette fonction est obsolète. Les uploads se font maintenant directement
+ * via FileUpload avec upload direct client → S3. Conservée pour compatibilité.
+ * 
+ * Utilisez FileUpload avec les props documentKind, documentClientId, etc.
+ */
+// Fonction pour gérer les pièces jointes d'un formulaire propriétaire
+export async function handleOwnerFormDocuments(
+  formData: FormData,
+  clientId: string,
+  propertyId: string,
+  bailId: string,
+  type: string,
+  familyStatus?: string
+) {
+  const documents: any[] = [];
+
+  // Récupérer le client avec ses personnes et entreprise
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      persons: true,
+      entreprise: true,
+    },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  // Pièces jointes - Entreprise (personne morale)
+  if (type === "PERSONNE_MORALE") {
+    if (!client.entreprise) {
+      throw new Error("Entreprise introuvable pour ce client");
+    }
+
+    const kbis = formData.get("kbis") as File | null;
+    if (kbis && kbis.size > 0) {
+      const doc = await uploadFileAndCreateDocument(kbis, DocumentKind.KBIS, {
+        entrepriseId: client.entreprise.id,
+        label: "KBIS",
+      });
+      if (doc) documents.push(doc);
+    }
+
+    const statutes = formData.get("statutes") as File | null;
+    if (statutes && statutes.size > 0) {
+      const doc = await uploadFileAndCreateDocument(statutes, DocumentKind.STATUTES, {
+        entrepriseId: client.entreprise.id,
+        label: "Statuts",
+      });
+      if (doc) documents.push(doc);
+    }
+  }
+
+  // Pièces jointes - Personnes (personne physique)
+  if (type === "PERSONNE_PHYSIQUE") {
+    const persons = client.persons || [];
+    
+    // Pour chaque personne, uploader ID_IDENTITY
+    for (let i = 0; i < persons.length; i++) {
+      const person = persons[i];
+      const idIdentityKey = i === 0 ? "idIdentity" : `idIdentity_${i}`;
+
+      const idIdentity = formData.get(idIdentityKey) as File | null;
+      if (idIdentity && idIdentity.size > 0) {
+        const doc = await uploadFileAndCreateDocument(idIdentity, DocumentKind.ID_IDENTITY, {
+          personId: person.id,
+          label: `Pièce d'identité - ${person.firstName || ''} ${person.lastName || ''}`.trim(),
+        });
+        if (doc) documents.push(doc);
+      }
+    }
+
+    // Livret de famille si marié (document client commun)
+    if (familyStatus === "MARIE") {
+      const livretDeFamille = formData.get("livretDeFamille") as File | null;
+      if (livretDeFamille && livretDeFamille.size > 0) {
+        const doc = await uploadFileAndCreateDocument(livretDeFamille, DocumentKind.LIVRET_DE_FAMILLE, {
+          clientId,
+          label: "Livret de famille",
+        });
+        if (doc) documents.push(doc);
+      }
+    }
+
+    // Contrat de PACS si pacsé (document client commun)
+    if (familyStatus === "PACS") {
+      const contratDePacs = formData.get("contratDePacs") as File | null;
+      if (contratDePacs && contratDePacs.size > 0) {
+        const doc = await uploadFileAndCreateDocument(contratDePacs, DocumentKind.CONTRAT_DE_PACS, {
+          clientId,
+          label: "Contrat de PACS",
+        });
+        if (doc) documents.push(doc);
+      }
+    }
+  }
+
+  // Pièces jointes - Bien (propriétaire) - Assurance et RIB
+  const insuranceOwner = formData.get("insuranceOwner") as File | null;
+  if (insuranceOwner && insuranceOwner.size > 0) {
+    const doc = await uploadFileAndCreateDocument(insuranceOwner, DocumentKind.INSURANCE, {
+      propertyId,  // ← Changer de clientId à propertyId
+      label: "Assurance propriétaire",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  const ribOwner = formData.get("ribOwner") as File | null;
+  if (ribOwner && ribOwner.size > 0) {
+    const doc = await uploadFileAndCreateDocument(ribOwner, DocumentKind.RIB, {
+      propertyId,  // ← Changer de clientId à propertyId
+      label: "RIB propriétaire",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  // Pièces jointes - Bien (propriétaire uniquement)
+  const diagnostics = formData.get("diagnostics") as File | null;
+  if (diagnostics && diagnostics.size > 0) {
+    const doc = await uploadFileAndCreateDocument(diagnostics, DocumentKind.DIAGNOSTICS, {
+      propertyId,
+      label: "Diagnostics",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  const reglementCopropriete = formData.get("reglementCopropriete") as File | null;
+  if (reglementCopropriete && reglementCopropriete.size > 0) {
+    const doc = await uploadFileAndCreateDocument(reglementCopropriete, DocumentKind.REGLEMENT_COPROPRIETE, {
+      propertyId,
+      label: "Règlement de copropriété",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  const cahierChargeLotissement = formData.get("cahierChargeLotissement") as File | null;
+  if (cahierChargeLotissement && cahierChargeLotissement.size > 0) {
+    const doc = await uploadFileAndCreateDocument(cahierChargeLotissement, DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT, {
+      propertyId,
+      label: "Cahier des charges lotissement",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  const statutAssociationSyndicale = formData.get("statutAssociationSyndicale") as File | null;
+  if (statutAssociationSyndicale && statutAssociationSyndicale.size > 0) {
+    const doc = await uploadFileAndCreateDocument(statutAssociationSyndicale, DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE, {
+      propertyId,
+      label: "Statut de l'association syndicale",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  // Pièces jointes - Bail (propriétaire)
+  const insuranceTenant = formData.get("insuranceTenant") as File | null;
+  if (insuranceTenant && insuranceTenant.size > 0) {
+    const doc = await uploadFileAndCreateDocument(insuranceTenant, DocumentKind.INSURANCE, {
+      clientId,
+      label: "Assurance locataire",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  const ribTenant = formData.get("ribTenant") as File | null;
+  if (ribTenant && ribTenant.size > 0) {
+    const doc = await uploadFileAndCreateDocument(ribTenant, DocumentKind.RIB, {
+      clientId,
+      label: "RIB locataire",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  return documents;
+}
+
+/**
+ * @deprecated Cette fonction est obsolète. Les uploads se font maintenant directement
+ * via FileUpload avec upload direct client → S3. Conservée pour compatibilité.
+ * 
+ * Utilisez FileUpload avec les props documentKind, documentClientId, etc.
+ */
+// Fonction pour gérer les pièces jointes d'un formulaire locataire
+export async function handleTenantFormDocuments(
+  formData: FormData,
+  clientId: string,
+  bailId: string,
+  type: string,
+  familyStatus?: string
+) {
+  const documents: any[] = [];
+
+  // Récupérer le client avec ses personnes et entreprise
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      persons: true,
+      entreprise: true,
+    },
+  });
+
+  if (!client) {
+    throw new Error("Client introuvable");
+  }
+
+  // Pièces jointes - Entreprise (personne morale)
+  if (type === "PERSONNE_MORALE") {
+    if (!client.entreprise) {
+      throw new Error("Entreprise introuvable pour ce client");
+    }
+
+    const kbis = formData.get("kbis") as File | null;
+    if (kbis && kbis.size > 0) {
+      const doc = await uploadFileAndCreateDocument(kbis, DocumentKind.KBIS, {
+        entrepriseId: client.entreprise.id,
+        label: "KBIS",
+      });
+      if (doc) documents.push(doc);
+    }
+
+    const statutes = formData.get("statutes") as File | null;
+    if (statutes && statutes.size > 0) {
+      const doc = await uploadFileAndCreateDocument(statutes, DocumentKind.STATUTES, {
+        entrepriseId: client.entreprise.id,
+        label: "Statuts",
+      });
+      if (doc) documents.push(doc);
+    }
+  }
+
+  // Pièces jointes - Personnes (personne physique)
+  if (type === "PERSONNE_PHYSIQUE") {
+    const persons = client.persons || [];
+    
+    // Pour chaque personne, uploader ID_IDENTITY
+    for (let i = 0; i < persons.length; i++) {
+      const person = persons[i];
+      const idIdentityKey = i === 0 ? "idIdentity" : `idIdentity_${i}`;
+
+      const idIdentity = formData.get(idIdentityKey) as File | null;
+      if (idIdentity && idIdentity.size > 0) {
+        const doc = await uploadFileAndCreateDocument(idIdentity, DocumentKind.ID_IDENTITY, {
+          personId: person.id,
+          label: `Pièce d'identité - ${person.firstName || ''} ${person.lastName || ''}`.trim(),
+        });
+        if (doc) documents.push(doc);
+      }
+    }
+
+    // Livret de famille si marié (document client commun)
+    if (familyStatus === "MARIE") {
+      const livretDeFamille = formData.get("livretDeFamille") as File | null;
+      if (livretDeFamille && livretDeFamille.size > 0) {
+        const doc = await uploadFileAndCreateDocument(livretDeFamille, DocumentKind.LIVRET_DE_FAMILLE, {
+          clientId,
+          label: "Livret de famille",
+        });
+        if (doc) documents.push(doc);
+      }
+    }
+
+    // Contrat de PACS si pacsé (document client commun)
+    if (familyStatus === "PACS") {
+      const contratDePacs = formData.get("contratDePacs") as File | null;
+      if (contratDePacs && contratDePacs.size > 0) {
+        const doc = await uploadFileAndCreateDocument(contratDePacs, DocumentKind.CONTRAT_DE_PACS, {
+          clientId,
+          label: "Contrat de PACS",
+        });
+        if (doc) documents.push(doc);
+      }
+    }
+  }
+
+  // Pièces jointes - Bail (locataire)
+  const insuranceTenant = formData.get("insuranceTenant") as File | null;
+  if (insuranceTenant && insuranceTenant.size > 0) {
+    const doc = await uploadFileAndCreateDocument(insuranceTenant, DocumentKind.INSURANCE, {
+      clientId,
+      label: "Assurance locataire",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  const ribTenant = formData.get("ribTenant") as File | null;
+  if (ribTenant && ribTenant.size > 0) {
+    const doc = await uploadFileAndCreateDocument(ribTenant, DocumentKind.RIB, {
+      clientId,
+      label: "RIB locataire",
+    });
+    if (doc) documents.push(doc);
+  }
+
+  return documents;
+}
