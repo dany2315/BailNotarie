@@ -21,6 +21,8 @@ export { Blog19Content } from './blog-19-content';
 export { Blog20Content } from './blog-20-content';
 export { Blog21Content } from './blog-21-content';
 export { Blog22Content } from './blog-22-content';
+export { Blog23Content } from './blog-23-content';
+export { Blog24Content } from './blog-24-content';
 
 
 

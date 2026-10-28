@@ -498,6 +498,66 @@ function getFaqForSlug(slug: string) {
     ];
   }
 
+  if (slug === "sous-location-illegale-locataire-sous-loue") {
+    return [
+      {
+        question: "Un locataire peut-il sous-louer sans l'accord du propriétaire ?",
+        answer:
+          "Non. Pour une location privée soumise à la loi du 6 juillet 1989, la sous-location exige l'accord écrit du bailleur, sur le principe comme sur le montant du sous-loyer. Le locataire doit remettre au sous-locataire cette autorisation et une copie du bail en cours.",
+      },
+      {
+        question: "Quel est le montant maximum d'un sous-loyer ?",
+        answer:
+          "Le loyer au mètre carré de surface habitable demandé au sous-locataire ne peut pas dépasser celui payé par le locataire principal. Pour une pièce de 12 m² dans un logement de 45 m² loué 900 €, le sous-loyer est plafonné à 240 € par mois.",
+      },
+      {
+        question: "Comment savoir si mon locataire sous-loue mon appartement ?",
+        answer:
+          "Recherchez une annonce présentant votre logement sur les plateformes de location, conservez son adresse, des captures datées et le calendrier de disponibilités. Le simple passage de plusieurs personnes ne suffit pas : le locataire peut héberger gratuitement des proches.",
+      },
+      {
+        question: "Quelles sanctions en cas de sous-location illégale ?",
+        answer:
+          "Le juge peut prononcer la résiliation du bail, condamner le locataire à restituer les sous-loyers perçus et, si un préjudice est établi, à verser des dommages et intérêts. Ces conséquences ne sont pas automatiques et supposent des preuves.",
+      },
+      {
+        question: "Le propriétaire peut-il récupérer les sommes perçues sur Airbnb ?",
+        answer:
+          "La Cour de cassation a jugé en 2019 que les sous-loyers tirés d'une sous-location non autorisée reviennent en principe au propriétaire. Leur restitution doit être demandée en justice, sur la base des preuves réunies.",
+      },
+    ];
+  }
+
+  if (slug === "nouveau-bail-location-2026") {
+    return [
+      {
+        question: "Qu'est-ce qui change dans le bail de location au 1er octobre 2026 ?",
+        answer:
+          "Le décret du 6 juillet 2026 modifie les contrats types des locations de résidence principale : la clause résolutoire figure dans le modèle, une mention est prévue pour les logements soumis à une obligation de résidence principale et le numéro de téléphone portable des parties peut être indiqué, à titre facultatif.",
+      },
+      {
+        question: "Faut-il refaire un bail signé avant le 1er octobre 2026 ?",
+        answer:
+          "Non. Les nouveaux contrats types s'appliquent aux baux conclus ou renouvelés à compter du 1er octobre 2026. Un bail en cours n'a pas à être réécrit uniquement parce que le modèle réglementaire a changé.",
+      },
+      {
+        question: "La clause résolutoire est-elle obligatoire dans un bail ?",
+        answer:
+          "Oui, depuis la loi du 27 juillet 2023 : le bail doit prévoir sa résiliation de plein droit en cas de défaut de paiement du loyer, des charges ou du dépôt de garantie. Le nouveau contrat type l'intègre désormais.",
+      },
+      {
+        question: "Que signifie le délai de 6 semaines du commandement de payer ?",
+        answer:
+          "La clause résolutoire ne joue qu'après un commandement de payer, délivré par un commissaire de justice et resté sans effet pendant six semaines. Ce délai ne permet pas de récupérer le logement : le juge peut accorder des délais, et l'expulsion suppose une décision de justice.",
+      },
+      {
+        question: "Quelle notice d'information joindre au bail en 2026 ?",
+        answer:
+          "Pour les contrats conclus ou renouvelés depuis le 18 octobre 2026, la nouvelle notice issue de l'arrêté du 9 octobre 2026 doit être annexée au bail. Elle présente les droits et obligations des parties, le loyer, les garanties, les impayés et le règlement des litiges.",
+      },
+    ];
+  }
+
   return [];
 }
 
