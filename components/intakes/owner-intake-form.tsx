@@ -340,13 +340,22 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   // Bail
   const bailFamily = bail?.bailFamily ?? intakeLink.bailFamilyPreference ?? BailFamille.HABITATION;
   const bailType = bail?.bailType ?? BailType.BAIL_NU_3_ANS;
-  const bailRentAmount = bail?.rentAmount?.toString() ?? "";
-  const bailMonthlyCharges = bail?.monthlyCharges?.toString() ?? "";
-  const bailSecurityDeposit = bail?.securityDeposit?.toString() ?? "";
+  // Le bail est créé dès l'étape « Type de contrat », avec loyer, charges et dépôt à 0 et une
+  // date d'effet au jour même (colonnes obligatoires en base). Ces valeurs ne sont pas des
+  // saisies : un loyer à 0 veut dire que l'étape « Loyer & charges » n'a jamais été validée,
+  // une date d'effet restée au jour de création du bail, sans jour de paiement, que l'étape
+  // « Dates du bail » ne l'a pas été non plus.
+  const rentStepSaved = Number(bail?.rentAmount ?? 0) > 0;
+  const datesStepSaved =
+    (bail?.paymentDay != null && String(bail.paymentDay) !== "") ||
+    (!!bail?.effectiveDate && String(bail.effectiveDate).slice(0, 10) !== String(bail.createdAt ?? "").slice(0, 10));
+  const bailRentAmount = rentStepSaved ? bail.rentAmount.toString() : "";
+  const bailMonthlyCharges = rentStepSaved ? bail?.monthlyCharges?.toString() ?? "" : "";
+  const bailSecurityDeposit = rentStepSaved ? bail?.securityDeposit?.toString() ?? "" : "";
   const bailPaymentDay = bail?.paymentDay?.toString() ?? "";
 
   const bailEffectiveDate =
-    (bail?.effectiveDate
+    (datesStepSaved && bail?.effectiveDate
       ? toDateValue(bail.effectiveDate)
       : EMPTY_STRING_DATE) as any;
 

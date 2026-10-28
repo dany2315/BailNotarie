@@ -1590,14 +1590,22 @@ export async function getDraftBailForClient(bailId: string, clientId: string) {
   }
 
   const tenant = bail.parties.find((p) => p.profilType === "LOCATAIRE");
+  // Le brouillon est enregistré avec des valeurs par défaut (loyer et charges à 0, date d'effet
+  // au jour même) : sans loyer, l'étape « Détails du bail » n'a pas été remplie, sans jour de
+  // paiement et avec la date du jour de création, l'étape des dates non plus. On ne les
+  // présente pas comme des saisies.
+  const rentSaved = bail.rentAmount > 0;
+  const datesSaved =
+    bail.paymentDay != null ||
+    bail.effectiveDate.toISOString().slice(0, 10) !== bail.createdAt.toISOString().slice(0, 10);
 
   return {
     id: bail.id,
     bailType: bail.bailType,
     rentAmount: bail.rentAmount,
-    monthlyCharges: bail.monthlyCharges,
-    securityDeposit: bail.securityDeposit,
-    effectiveDate: bail.effectiveDate.toISOString().split("T")[0],
+    monthlyCharges: rentSaved ? bail.monthlyCharges : null,
+    securityDeposit: rentSaved ? bail.securityDeposit : null,
+    effectiveDate: datesSaved ? bail.effectiveDate.toISOString().split("T")[0] : null,
     endDate: null,
     paymentDay: bail.paymentDay,
     propertyId: bail.property.id,

@@ -352,9 +352,9 @@ const bailFieldsSchema = {
       .min(1, "Le montant du loyer est requis")
       .refine((val) => {
         const num = parseInt(val, 10);
-        return !isNaN(num) && num >= 0;
+        return !isNaN(num) && num > 0;
       }, {
-        message: "Le montant du loyer doit être un nombre entier positif",
+        message: "Le montant du loyer doit être un nombre entier supérieur à 0",
       })
       .transform((val) => parseInt(val, 10))
   ),

@@ -325,21 +325,17 @@ export async function handleOwnerBailStep(
       const updateData: any = {};
       if (payload.bailType) updateData.bailType = payload.bailType;
       if (payload.bailFamily) updateData.bailFamily = payload.bailFamily;
-      if (payload.bailRentAmount !== undefined) {
-        updateData.rentAmount = typeof payload.bailRentAmount === 'string'
-          ? parseInt(payload.bailRentAmount, 10)
-          : payload.bailRentAmount;
-      }
-      if (payload.bailMonthlyCharges !== undefined) {
-        updateData.monthlyCharges = typeof payload.bailMonthlyCharges === 'string'
-          ? parseInt(payload.bailMonthlyCharges, 10) || 0
-          : payload.bailMonthlyCharges || 0;
-      }
-      if (payload.bailSecurityDeposit !== undefined) {
-        updateData.securityDeposit = typeof payload.bailSecurityDeposit === 'string'
-          ? parseInt(payload.bailSecurityDeposit, 10) || 0
-          : payload.bailSecurityDeposit || 0;
-      }
+      // Un champ laissé vide (enregistrement d'une étape incomplète) ne remplace pas la valeur.
+      const toInt = (value: unknown) => {
+        const num = typeof value === "string" ? parseInt(value, 10) : Number(value);
+        return Number.isFinite(num) ? num : undefined;
+      };
+      const rentAmount = toInt(payload.bailRentAmount);
+      if (rentAmount !== undefined) updateData.rentAmount = rentAmount;
+      const monthlyCharges = toInt(payload.bailMonthlyCharges);
+      if (monthlyCharges !== undefined) updateData.monthlyCharges = monthlyCharges;
+      const securityDeposit = toInt(payload.bailSecurityDeposit);
+      if (securityDeposit !== undefined) updateData.securityDeposit = securityDeposit;
       if (payload.bailEffectiveDate) updateData.effectiveDate = new Date(payload.bailEffectiveDate);
       if (payload.bailEndDate) updateData.endDate = new Date(payload.bailEndDate);
       if (payload.bailPaymentDay !== undefined) {

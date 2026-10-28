@@ -555,7 +555,7 @@ export async function getActiveIntakeLinksForClient(clientId: string): Promise<A
       } else {
         const bail = link.bail;
         const hasTenant = bail?.parties?.some((p: any) => p.profilType === "LOCATAIRE");
-        const bailDone = !!(bail && bail.rentAmount != null && bail.effectiveDate && bail.paymentDay != null && hasTenant);
+        const bailDone = !!(bail && bail.rentAmount > 0 && bail.effectiveDate && bail.paymentDay != null && hasTenant);
         if (!link.bailId || !bailDone) {
           stage = "bail";
           description = "Complétez les informations du bail (loyer, dates, locataire…).";

@@ -77,8 +77,8 @@ interface DraftBailData {
   id: string;
   bailType: string | null;
   rentAmount: number;
-  monthlyCharges: number;
-  securityDeposit: number;
+  monthlyCharges: number | null;
+  securityDeposit: number | null;
   effectiveDate: string | null;
   endDate: string | null;
   paymentDay: number | null;
@@ -173,8 +173,9 @@ export function CreateBailPageClient({
       tenantId: draftBail?.tenantId || "",
       bailType: (draftBail?.bailType as BailType) || BailType.BAIL_NU_3_ANS,
       rentAmount: draftBail?.rentAmount ? String(draftBail.rentAmount) : "",
-      monthlyCharges: draftBail?.monthlyCharges ? String(draftBail.monthlyCharges) : "",
-      securityDeposit: draftBail?.securityDeposit ? String(draftBail.securityDeposit) : "0",
+      // Des charges saisies à 0 restent 0 ; null = étape jamais remplie.
+      monthlyCharges: draftBail?.monthlyCharges != null ? String(draftBail.monthlyCharges) : "",
+      securityDeposit: draftBail?.securityDeposit != null ? String(draftBail.securityDeposit) : "0",
       effectiveDate: draftBail?.effectiveDate || "",
       endDate: draftBail?.endDate || "",
       paymentDay: draftBail?.paymentDay ? String(draftBail.paymentDay) : "",
