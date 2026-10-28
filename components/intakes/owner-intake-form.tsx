@@ -60,7 +60,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { RentRulesPanel } from "@/components/rent/rent-rules-panel";
+import { RentFollowUpFields, RentHistoryFields, RentLimitHint, useRentRules } from "@/components/rent/rent-rules-fields";
 import type { RentRulesAssessment } from "@/lib/rent-rules";
 import { EMPTY_RENT_RULES, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { PROOF_LABELS, relocationProofKinds } from "@/lib/utils/rent-relocation";
@@ -2098,11 +2098,11 @@ useEffect(() => {
             toast.error("Le loyer ne peut pas être enregistré en l'état", {
               description:
                 check.relocation.status === "missing"
-                  ? "Répondez aux questions du contrôle du loyer."
+                  ? "Répondez aux questions sur le loyer."
                   : check.supplement.needed && check.supplement.dpeUnknown
                     ? "Indiquez la classe énergétique du logement."
                     : check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over"
-                      ? "Justifiez le complément de loyer ou baissez le loyer."
+                      ? "Décrivez les atouts du logement ou baissez le loyer."
                       : "Le loyer dépasse le maximum autorisé : baissez-le.",
             });
             return;
@@ -4420,6 +4420,21 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
   const bailFamily = useWatch({ control: form.control, name: "bailFamily" });
   const dpeClass = useWatch({ control: form.control, name: "propertyDpeClass" as any }) as string | undefined;
   const rentRules = (useWatch({ control: form.control, name: "rentRules" as any }) as RentRulesFormValues | undefined) ?? EMPTY_RENT_RULES;
+  // Les questions sur le loyer sont des champs de l'étape : avant le loyer, sous le loyer, après le loyer.
+  const rentCheck = useRentRules({
+    enabled: showRent && !!token && !!propertyId,
+    token,
+    rentAmount: rentAmount as any,
+    bailType: currentBailType as any,
+    bailFamily: bailFamily as any,
+    dpeClass: dpeClass || null,
+    values: rentRules,
+    onChange: (patch) =>
+      form.setValue("rentRules" as any, { ...(form.getValues("rentRules" as any) ?? EMPTY_RENT_RULES), ...patch } as any, { shouldDirty: true }),
+    onResult: onRentRulesResult,
+    showErrors: showRentErrors,
+    onApplyRent: (value) => form.setValue("bailRentAmount", String(value) as any, { shouldDirty: true, shouldValidate: true }),
+  });
   
   // Nettoyer les erreurs de mobilier si on passe à un bail nue
   useEffect(() => {
@@ -4498,6 +4513,7 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
       </div>
       </>)}
       {showRent && (<>
+      <RentHistoryFields rules={rentCheck} />
       <div className="space-y-2">
         <div className="flex flex-row items-center gap-2">
           <Label>Loyer mensuel *</Label>
@@ -4505,7 +4521,7 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
             content={
               <div className="max-w-xs">
                 <p className="mb-2">LOYER HORS CHARGES</p>
-                <p>Sans les charges. Nous vérifions automatiquement qu&apos;il respecte la loi de votre commune.</p>
+                <p>Sans les charges. Nous indiquons juste en dessous le maximum autorisé pour ce logement.</p>
               </div>
             }
             className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
@@ -4527,24 +4543,9 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
             {form.formState.errors.bailRentAmount.message}
           </p>
         )}
+        <RentLimitHint rules={rentCheck} />
       </div>
-      {/* Contrôle du loyer, juste sous le loyer : la réponse et les seules questions utiles (calcul côté serveur) */}
-      {token && propertyId && (
-        <RentRulesPanel
-          token={token}
-          rentAmount={rentAmount as any}
-          bailType={currentBailType as any}
-          bailFamily={bailFamily as any}
-          dpeClass={dpeClass || null}
-          values={rentRules}
-          onChange={(patch) =>
-            form.setValue("rentRules" as any, { ...rentRules, ...patch } as any, { shouldDirty: true })
-          }
-          onResult={onRentRulesResult}
-          showErrors={showRentErrors}
-          onApplyRent={(value) => form.setValue("bailRentAmount", String(value) as any, { shouldDirty: true, shouldValidate: true })}
-        />
-      )}
+      <RentFollowUpFields rules={rentCheck} />
       <div className="space-y-2">
         <Label>Charges mensuelles *</Label>
         <NumberInputGroup

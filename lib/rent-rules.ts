@@ -3,6 +3,7 @@ import { checkTightZone } from "@/lib/services/zone-tendue";
 import { irlVariationAt } from "@/lib/irl-index";
 import { toCents } from "@/lib/utils/rent-cap";
 import {
+  RELOCATION_MISSING,
   isFrozenDpe,
   relocationProofKinds,
   relocationSituation,
@@ -42,6 +43,11 @@ export interface RelocationAssessment {
   /** Pourquoi le loyer est libre. */
   freeReason: "first" | "vacant" | "works" | null;
   missing: string[];
+  /**
+   * Maximum déduit sans toutes les réponses : le loyer ne dépasse pas le dernier loyer, donc la
+   * date de départ ou la révision ne changent rien. Ce n'est pas le vrai maximum (il peut être plus haut).
+   */
+  provisional: boolean;
   dpeClass: string | null;
   frozen: boolean;
   previousRent: number | null;
@@ -114,6 +120,7 @@ export async function assessRelocation(input: RentRulesInput, cap: RentCapAssess
     situation: null,
     freeReason: null,
     missing: [],
+    provisional: false,
     dpeClass,
     frozen,
     previousRent: answers.previousRentAmount,
@@ -133,17 +140,17 @@ export async function assessRelocation(input: RentRulesInput, cap: RentCapAssess
   result.status = "missing";
   if (answers.relocationLetBefore === null) {
     result.undeclared = true;
-    result.missing.push("logement déjà loué ou non");
+    result.missing.push(RELOCATION_MISSING.letBefore);
     return result;
   }
-  if (answers.relocationLetBefore && !toDate(answers.previousTenantLeftAt)) result.missing.push("date de départ du locataire précédent");
-  if (answers.relocationLetBefore && !dpeClass) result.missing.push("classe énergétique (DPE)");
-  if (result.missing.length) return result;
+  if (answers.relocationLetBefore && !dpeClass) {
+    result.missing.push(RELOCATION_MISSING.dpe);
+    return result;
+  }
 
-  const situation = relocationSituation(answers, now)!;
-  result.situation = situation;
-  result.proofs = relocationProofKinds(answers, dpeClass, now);
   const rent = bail.rentAmount;
+  const previous = answers.previousRentAmount;
+  const hasPrevious = !!previous && previous > 0;
   const finish = (max: number | null) => {
     if (max === null) return result;
     result.maxRent = toCents(max);
@@ -151,6 +158,32 @@ export async function assessRelocation(input: RentRulesInput, cap: RentCapAssess
     result.status = result.overBy > 0 ? "over" : "ok";
     return result;
   };
+
+  // Déjà loué, sans date de départ : elle ne sert à rien quand le loyer ne dépasse pas le dernier
+  // loyer, ni pour un logement F ou G (le dernier loyer est le maximum, reloué ou vide depuis longtemps).
+  // On retient la situation la plus stricte (reloué) pour les mentions du bail et les justificatifs.
+  if (answers.relocationLetBefore && !toDate(answers.previousTenantLeftAt)) {
+    if (!hasPrevious) {
+      result.missing.push(RELOCATION_MISSING.previousRent);
+      return result;
+    }
+    if (rent <= previous! || frozen) {
+      result.situation = "relet";
+      result.proofs = relocationProofKinds(answers, dpeClass, now);
+      result.revisedRent = previous;
+      result.provisional = !frozen;
+      result.irl.note = frozen
+        ? "Logement classé F ou G : loyer gelé au dernier loyer, sans révision."
+        : "Loyer égal ou inférieur au dernier loyer : conforme sans autre calcul.";
+      return finish(previous);
+    }
+    result.missing.push(RELOCATION_MISSING.leftAt);
+    return result;
+  }
+
+  const situation = relocationSituation(answers, now)!;
+  result.situation = situation;
+  result.proofs = relocationProofKinds(answers, dpeClass, now);
 
   if (situation === "first") {
     result.status = "free";
@@ -164,9 +197,8 @@ export async function assessRelocation(input: RentRulesInput, cap: RentCapAssess
   }
 
   // Reloué (ou vide depuis 18 mois ou plus avec un DPE F ou G) : le dernier loyer est le maximum.
-  const previous = answers.previousRentAmount;
-  if (!previous || previous <= 0) {
-    result.missing.push("dernier loyer du locataire précédent");
+  if (!hasPrevious) {
+    result.missing.push(RELOCATION_MISSING.previousRent);
     return result;
   }
   if (situation === "vacant") {
@@ -176,18 +208,23 @@ export async function assessRelocation(input: RentRulesInput, cap: RentCapAssess
   }
 
   // Révision IRL : seulement si le loyer n'a pas été révisé depuis un an, et jamais pour un F ou G.
-  let revised = previous;
+  let revised = previous!;
   if (frozen) {
     result.irl.note = "Logement classé F ou G : pas de révision selon l'IRL.";
   } else if (answers.previousRentRevisedRecently === null) {
-    result.missing.push("révision du loyer au cours des 12 derniers mois");
-    return result;
+    // Loyer pas plus haut que le dernier loyer : la révision ne change rien, inutile de la demander.
+    if (rent > previous!) {
+      result.missing.push(RELOCATION_MISSING.revised);
+      return result;
+    }
+    result.provisional = true;
+    result.irl.note = "Loyer égal ou inférieur au dernier loyer : conforme sans autre calcul.";
   } else if (answers.previousRentRevisedRecently) {
     result.irl.note = "Loyer déjà révisé au cours des 12 derniers mois : pas de nouvelle révision.";
   } else {
     const irl = await irlVariationAt(now);
     if (irl) {
-      revised = toCents(previous * (1 + irl.rate));
+      revised = toCents(previous! * (1 + irl.rate));
       result.irl = { applied: true, rate: irl.rate, quarter: irl.quarter, previousQuarter: irl.previousQuarter, note: null };
     } else {
       result.irl.note = "Indice de référence des loyers indisponible : pas de révision appliquée.";
@@ -195,35 +232,41 @@ export async function assessRelocation(input: RentRulesInput, cap: RentCapAssess
   }
   result.revisedRent = revised;
 
+  // Une réponse incomplète sur la hausse ne bloque pas quand le loyer reste sous le dernier loyer révisé.
+  const withinRevised = rent <= revised;
   const reason = answers.rentIncreaseReason || "NONE";
   if (reason === "WORKS") {
-    const annualRent = previous * 12;
+    const annualRent = previous! * 12;
     const works = answers.worksAmount;
     if (frozen) {
       result.increase = { kind: "works_partial", accepted: false, amount: null, note: "Logement classé F ou G : pas de hausse après travaux." };
       return finish(revised);
     }
     if (!works || works <= 0) {
-      result.missing.push("coût des travaux");
-      return result;
-    }
-    const completedAt = toDate(answers.worksCompletedAt);
-    if (!completedAt) {
-      result.missing.push("date de fin des travaux");
-      return result;
-    }
-    // Travaux d'au moins une année de loyer, finis depuis moins de 6 mois : loyer libre.
-    if (works >= annualRent && completedAt > monthsBefore(now, 6) && completedAt <= now) {
-      result.status = "free";
-      result.freeReason = "works";
-      result.increase = { kind: "works_full", accepted: true, amount: null, note: "Travaux d'au moins une année de loyer, finis depuis moins de 6 mois : loyer libre." };
+      if (withinRevised) return finish(revised);
+      result.missing.push(RELOCATION_MISSING.worksAmount);
       return result;
     }
     // Travaux d'au moins la moitié d'une année de loyer : hausse annuelle de 15 % du coût TTC au plus.
-    if (works >= annualRent / 2) {
-      const amount = toCents((works * 0.15) / 12);
-      result.increase = { kind: "works_partial", accepted: true, amount, note: "Hausse de 15 % du coût TTC des travaux par an au plus." };
-      return finish(revised + amount);
+    const partial = works >= annualRent / 2 ? toCents((works * 0.15) / 12) : null;
+    // Travaux d'au moins une année de loyer, finis depuis moins de 6 mois : loyer libre. La date ne
+    // sert que dans ce cas, et seulement si le loyer dépasse ce que permet déjà la hausse de 15 %.
+    if (works >= annualRent) {
+      const completedAt = toDate(answers.worksCompletedAt);
+      if (!completedAt && rent > revised + (partial ?? 0)) {
+        result.missing.push(RELOCATION_MISSING.worksDate);
+        return result;
+      }
+      if (completedAt && completedAt > monthsBefore(now, 6) && completedAt <= now) {
+        result.status = "free";
+        result.freeReason = "works";
+        result.increase = { kind: "works_full", accepted: true, amount: null, note: "Travaux d'au moins une année de loyer, finis depuis moins de 6 mois : loyer libre." };
+        return result;
+      }
+    }
+    if (partial !== null) {
+      result.increase = { kind: "works_partial", accepted: true, amount: partial, note: "Hausse de 15 % du coût TTC des travaux par an au plus." };
+      return finish(revised + partial);
     }
     result.increase = {
       kind: "works_partial",
@@ -244,11 +287,12 @@ export async function assessRelocation(input: RentRulesInput, cap: RentCapAssess
     const fromArrete = cap.reference && cap.surface ? toCents(cap.reference.ref * cap.surface) : null;
     const neighborhood = fromArrete ?? answers.neighborhoodRent;
     if (!neighborhood || neighborhood <= 0) {
-      result.missing.push("loyer du voisinage pour un logement comparable");
+      if (withinRevised) return finish(revised);
+      result.missing.push(RELOCATION_MISSING.neighborhood);
       return result;
     }
     const source = fromArrete !== null ? "arrete" : "owner";
-    if (cap.maxRent != null && previous > cap.maxRent) {
+    if (cap.maxRent != null && previous! > cap.maxRent) {
       result.increase = {
         kind: "undervalued",
         accepted: false,

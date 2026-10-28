@@ -27,7 +27,7 @@ import {
 import { CreatePropertyForm, CreatePropertyFormRef } from "./create-property-form";
 import { BailPaymentStep } from "./bail-payment-step";
 import { LoadingScreen } from "@/components/ui/loading-screen";
-import { RentRulesPanel } from "@/components/rent/rent-rules-panel";
+import { RentFollowUpFields, RentHistoryFields, RentLimitHint, useRentRules } from "@/components/rent/rent-rules-fields";
 import type { RentRulesAssessment } from "@/lib/rent-rules";
 import { EMPTY_RENT_RULES, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createLease, createTenantFromEmail, saveBailDraft } from "@/lib/actions/leases";
@@ -263,6 +263,23 @@ export function CreateBailPageClient({
 
   // Classe DPE : celle du bien, sinon celle saisie dans le contrôle du loyer.
   const dpeClass = selectedProperty?.dpeClass || dpeInput || null;
+  // Les questions sur le loyer sont des champs de l'étape : avant le loyer, sous le loyer, après le loyer.
+  const rentCheck = useRentRules({
+    enabled: step === 2 && !!propertyId,
+    propertyId,
+    rentAmount,
+    bailType,
+    bailFamily: "HABITATION",
+    dpeClass,
+    onDpeChange: selectedProperty?.dpeClass ? undefined : setDpeInput,
+    values: rentRules,
+    onChange: (patch) => setRentRules((prev) => ({ ...prev, ...patch })),
+    onResult: (result) => {
+      rentRulesResultRef.current = result;
+    },
+    showErrors: showRentErrors,
+    onApplyRent: (value) => setValue("rentAmount", String(value), { shouldDirty: true, shouldValidate: true }),
+  });
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -298,11 +315,11 @@ export function CreateBailPageClient({
         toast.error("Le loyer ne peut pas être retenu en l'état", {
           description:
             check.relocation.status === "missing"
-              ? "Répondez aux questions du contrôle du loyer."
+              ? "Répondez aux questions sur le loyer."
               : check.supplement.needed && check.supplement.dpeUnknown
                 ? "Indiquez la classe énergétique du logement."
                 : check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over"
-                  ? "Justifiez le complément de loyer ou baissez le loyer."
+                  ? "Décrivez les atouts du logement ou baissez le loyer."
                   : "Le loyer dépasse le maximum autorisé : baissez-le.",
         });
         return;
@@ -626,8 +643,10 @@ export function CreateBailPageClient({
               )}
             </div>
 
+            {propertyId && <RentHistoryFields rules={rentCheck} />}
+
             <div className="space-y-2">
-              <Label>Loyer mensuel (€) *</Label>
+              <Label>Loyer mensuel hors charges (€) *</Label>
               <Input
                 type="number"
                 placeholder="800"
@@ -638,26 +657,10 @@ export function CreateBailPageClient({
               {errors.rentAmount && (
                 <p className="text-sm text-destructive">{errors.rentAmount.message}</p>
               )}
+              {propertyId && <RentLimitHint rules={rentCheck} />}
             </div>
 
-            {/* Contrôle du loyer, juste sous le loyer : la réponse et les seules questions utiles */}
-            {propertyId && (
-              <RentRulesPanel
-                propertyId={propertyId}
-                rentAmount={rentAmount}
-                bailType={bailType}
-                bailFamily="HABITATION"
-                dpeClass={dpeClass}
-                onDpeChange={selectedProperty?.dpeClass ? undefined : setDpeInput}
-                values={rentRules}
-                onChange={(patch) => setRentRules((prev) => ({ ...prev, ...patch }))}
-                onResult={(result) => {
-                  rentRulesResultRef.current = result;
-                }}
-                showErrors={showRentErrors}
-                onApplyRent={(value) => setValue("rentAmount", String(value), { shouldDirty: true, shouldValidate: true })}
-              />
-            )}
+            {propertyId && <RentFollowUpFields rules={rentCheck} />}
 
             <div className="space-y-2">
               <Label>Charges mensuelles (€) *</Label>

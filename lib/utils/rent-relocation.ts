@@ -29,6 +29,18 @@ export const isFrozenDpe = (dpeClass: string | null | undefined) => !!dpeClass &
 /** Vacance au-delà de laquelle le loyer redevient libre (logement A à E). */
 export const VACANCY_MONTHS = 18;
 
+/** Réponses qui manquent pour calculer le maximum (affichées à l'équipe, et repères du formulaire). */
+export const RELOCATION_MISSING = {
+  letBefore: "logement déjà loué ou non",
+  dpe: "classe énergétique (DPE)",
+  previousRent: "dernier loyer du locataire précédent",
+  leftAt: "date de départ du locataire précédent",
+  revised: "révision du loyer au cours des 12 derniers mois",
+  worksAmount: "coût des travaux",
+  worksDate: "date de fin des travaux",
+  neighborhood: "loyer du voisinage pour un logement comparable",
+} as const;
+
 /** Données saisies par le propriétaire sur la relocation (toutes facultatives : null = non répondu). */
 export interface RelocationAnswers {
   relocationLetBefore: boolean | null;
@@ -87,7 +99,8 @@ export const PROOF_LABELS: Record<string, { label: string; hint: string }> = {
  * l'équipe les réclame avant l'envoi au notaire.
  */
 export function relocationProofKinds(answers: RelocationAnswers, dpeClass: string | null | undefined, now = new Date()): string[] {
-  const situation = relocationSituation(answers, now);
+  // Déjà loué sans date de départ (inutile au calcul) : on demande les pièces d'une relocation.
+  const situation = relocationSituation(answers, now) ?? (answers.relocationLetBefore === true ? ("relet" as const) : null);
   const frozen = isFrozenDpe(dpeClass);
   if (situation === "vacant") return frozen ? ["PREVIOUS_TENANT_EXIT_PROOF", "PREVIOUS_RENT_PROOF"] : ["PREVIOUS_TENANT_EXIT_PROOF"];
   if (situation !== "relet") return [];
@@ -119,6 +132,6 @@ export function relocationSummaryLines(relocation: RelocationAssessment): string
         : relocation.increase.note,
     );
   }
-  if (relocation.maxRent != null) lines.push(`Loyer maximum à la relocation : ${euros(relocation.maxRent)} hors charges.`);
+  if (relocation.maxRent != null && !relocation.provisional) lines.push(`Loyer maximum à la relocation : ${euros(relocation.maxRent)} hors charges.`);
   return lines;
 }
