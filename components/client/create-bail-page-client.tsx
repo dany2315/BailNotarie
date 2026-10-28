@@ -640,6 +640,25 @@ export function CreateBailPageClient({
               )}
             </div>
 
+            {/* Contrôle du loyer, juste sous le loyer : la réponse et les seules questions utiles */}
+            {propertyId && (
+              <RentRulesPanel
+                propertyId={propertyId}
+                rentAmount={rentAmount}
+                bailType={bailType}
+                bailFamily="HABITATION"
+                dpeClass={dpeClass}
+                onDpeChange={selectedProperty?.dpeClass ? undefined : setDpeInput}
+                values={rentRules}
+                onChange={(patch) => setRentRules((prev) => ({ ...prev, ...patch }))}
+                onResult={(result) => {
+                  rentRulesResultRef.current = result;
+                }}
+                showErrors={showRentErrors}
+                onApplyRent={(value) => setValue("rentAmount", String(value), { shouldDirty: true, shouldValidate: true })}
+              />
+            )}
+
             <div className="space-y-2">
               <Label>Charges mensuelles (€) *</Label>
               <Input
@@ -684,23 +703,6 @@ export function CreateBailPageClient({
               )}
             </div>
 
-            {/* Contrôle du loyer : plafond de l'arrêté et relocation en zone tendue */}
-            {propertyId && (
-              <RentRulesPanel
-                propertyId={propertyId}
-                rentAmount={rentAmount}
-                bailType={bailType}
-                bailFamily="HABITATION"
-                dpeClass={dpeClass}
-                onDpeChange={selectedProperty?.dpeClass ? undefined : setDpeInput}
-                values={rentRules}
-                onChange={(patch) => setRentRules((prev) => ({ ...prev, ...patch }))}
-                onResult={(result) => {
-                  rentRulesResultRef.current = result;
-                }}
-                showErrors={showRentErrors}
-              />
-            )}
           </div>
         );
 

@@ -4505,7 +4505,7 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
             content={
               <div className="max-w-xs">
                 <p className="mb-2">LOYER HORS CHARGES</p>
-                <p>Le loyer est contrôlé automatiquement selon l&apos;adresse du bien : plafond des villes encadrées et règles de relocation en zone tendue.</p>
+                <p>Sans les charges. Nous vérifions automatiquement qu&apos;il respecte la loi de votre commune.</p>
               </div>
             }
             className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
@@ -4528,6 +4528,23 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
           </p>
         )}
       </div>
+      {/* Contrôle du loyer, juste sous le loyer : la réponse et les seules questions utiles (calcul côté serveur) */}
+      {token && propertyId && (
+        <RentRulesPanel
+          token={token}
+          rentAmount={rentAmount as any}
+          bailType={currentBailType as any}
+          bailFamily={bailFamily as any}
+          dpeClass={dpeClass || null}
+          values={rentRules}
+          onChange={(patch) =>
+            form.setValue("rentRules" as any, { ...rentRules, ...patch } as any, { shouldDirty: true })
+          }
+          onResult={onRentRulesResult}
+          showErrors={showRentErrors}
+          onApplyRent={(value) => form.setValue("bailRentAmount", String(value) as any, { shouldDirty: true, shouldValidate: true })}
+        />
+      )}
       <div className="space-y-2">
         <Label>Charges mensuelles *</Label>
         <NumberInputGroup
@@ -4544,22 +4561,6 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
         )}
       </div>
 
-      {/* Contrôle du loyer : plafond de l'arrêté et relocation en zone tendue, calculés côté serveur */}
-      {token && propertyId && (
-        <RentRulesPanel
-          token={token}
-          rentAmount={rentAmount as any}
-          bailType={currentBailType as any}
-          bailFamily={bailFamily as any}
-          dpeClass={dpeClass || null}
-          values={rentRules}
-          onChange={(patch) =>
-            form.setValue("rentRules" as any, { ...rentRules, ...patch } as any, { shouldDirty: true })
-          }
-          onResult={onRentRulesResult}
-          showErrors={showRentErrors}
-        />
-      )}
 
       <div className="space-y-2">
         <div className="flex flex-row items-center gap-2">
