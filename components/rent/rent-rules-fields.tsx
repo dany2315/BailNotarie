@@ -50,6 +50,11 @@ export interface RentRulesOptions {
   /** Saisie du loyer dans le parcours guidé, et son erreur de validation. */
   onRentChange?: (value: string) => void;
   rentError?: string;
+  /**
+   * Bouton « Continuer » du formulaire : tant qu'une question sur le loyer est ouverte, il y répond
+   * (question suivante) au lieu de changer d'étape. Renvoie vrai quand il a servi au parcours.
+   */
+  advanceRef?: React.MutableRefObject<(() => boolean) | null>;
 }
 
 export interface RentRules extends RentRulesOptions {
@@ -179,7 +184,10 @@ interface QuestionDef {
   answer: string | null;
   /** Champ texte ou nombre : il faut valider pour passer à la suite (une liste passe toute seule). */
   typed?: boolean;
-  render: (next?: () => void) => React.ReactNode;
+  /** Réponse donnée mais pas acceptable en l'état (loyer au-dessus du maximum). */
+  blocked?: boolean;
+  /** next : réponse validée. cancel (modification d'une réponse) : retour à la réponse d'avant. */
+  render: (next?: () => void, cancel?: () => void) => React.ReactNode;
 }
 
 /** Les questions dans l'ordre où elles se posent, avec la réponse déjà donnée. */
@@ -197,7 +205,7 @@ function questionList(rules: RentRules): QuestionDef[] {
       key: "letBefore",
       short: "Déjà loué",
       answer: values.relocationLetBefore === "yes" ? "Oui" : values.relocationLetBefore === "no" ? "Non, première location" : null,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-let-before"
           label="Le logement a-t-il déjà été loué ?"
@@ -223,7 +231,7 @@ function questionList(rules: RentRules): QuestionDef[] {
       key: ask.dpeBefore ? "dpeBefore" : "dpeAfter",
       short: "Classe énergétique",
       answer: dpeClass ? `Classe ${dpeClass}` : null,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-dpe"
           label="Quelle est la classe énergétique (DPE) du logement ?"
@@ -248,14 +256,14 @@ function questionList(rules: RentRules): QuestionDef[] {
       short: "Loyer du dernier locataire",
       answer: amount(values.previousRentAmount),
       typed: true,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-previous"
           label="Combien payait le dernier locataire ?"
           help="Son dernier loyer mensuel, sans les charges."
           error={showErrors && !(Number(values.previousRentAmount) > 0) ? "Indiquez son loyer" : undefined}
         >
-          <Typed onNext={next} ready={Number(values.previousRentAmount) > 0}>
+          <Typed onNext={next} onCancel={cancel}>
             <NumberInputGroup
               value={values.previousRentAmount}
               onChange={(value) => onChange({ previousRentAmount: value ? String(value) : "" })}
@@ -273,14 +281,15 @@ function questionList(rules: RentRules): QuestionDef[] {
       short: "Loyer demandé",
       answer: rules.rent > 0 ? euros(rules.rent) : null,
       typed: true,
-      render: (next) => (
+      blocked: !!rentAdvice(rules)?.blocking,
+      render: (next, cancel) => (
         <Field
           id="rent-amount"
           label="Quel loyer souhaitez-vous demander ?"
           help="Le loyer mensuel, sans les charges. Les charges se renseignent à l'étape suivante."
           error={rules.rentError || (showErrors && !(rules.rent > 0) ? "Indiquez le loyer" : undefined)}
         >
-          <Typed onNext={next} ready={rules.rent > 0 && !rentAdvice(rules)?.blocking}>
+          <Typed onNext={next} onCancel={cancel}>
             <NumberInputGroup
               value={rules.rentAmount ?? ""}
               onChange={(value) => rules.onRentChange?.(value ? String(value) : "")}
@@ -299,14 +308,14 @@ function questionList(rules: RentRules): QuestionDef[] {
       short: "Départ du dernier locataire",
       answer: values.previousTenantLeftAt ? frenchDay(values.previousTenantLeftAt) : null,
       typed: true,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-left-at"
           label="Quand le dernier locataire est-il parti ?"
           help={`Si le logement est vide depuis plus de ${VACANCY_MONTHS} mois, vous fixez le loyer librement.`}
           error={showErrors && !values.previousTenantLeftAt ? "Indiquez la date de départ" : undefined}
         >
-          <Typed onNext={next} ready={!!values.previousTenantLeftAt}>
+          <Typed onNext={next} onCancel={cancel}>
             <DateInput
               id="rent-left-at"
               value={values.previousTenantLeftAt || undefined}
@@ -320,7 +329,7 @@ function questionList(rules: RentRules): QuestionDef[] {
       key: "revised",
       short: "Hausse ces 12 derniers mois",
       answer: values.previousRentRevisedRecently === "yes" ? "Oui" : values.previousRentRevisedRecently === "no" ? "Non" : null,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-revised"
           label="Son loyer a-t-il été augmenté dans les 12 derniers mois ?"
@@ -346,7 +355,7 @@ function questionList(rules: RentRules): QuestionDef[] {
       key: "reason",
       short: "Raison de la hausse",
       answer: values.rentIncreaseReason ? REASON_LABELS[values.rentIncreaseReason] : null,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-increase-reason"
           label="Pourquoi augmenter le loyer par rapport à l'ancien ?"
@@ -375,14 +384,14 @@ function questionList(rules: RentRules): QuestionDef[] {
       short: "Coût des travaux",
       answer: amount(values.worksAmount),
       typed: true,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-works-amount"
           label="Combien ont coûté les travaux ?"
           help="Le montant total TTC des travaux d'amélioration ou de mise aux normes de décence faits depuis l'arrivée du dernier locataire, dans le logement ou les parties communes."
           error={showErrors && !(Number(values.worksAmount) > 0) ? "Indiquez le coût des travaux" : undefined}
         >
-          <Typed onNext={next} ready={Number(values.worksAmount) > 0}>
+          <Typed onNext={next} onCancel={cancel}>
             <NumberInputGroup
               value={values.worksAmount}
               onChange={(value) => onChange({ worksAmount: value ? String(value) : "" })}
@@ -400,14 +409,14 @@ function questionList(rules: RentRules): QuestionDef[] {
       short: "Fin des travaux",
       answer: values.worksCompletedAt ? frenchDay(values.worksCompletedAt) : null,
       typed: true,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-works-date"
           label="Quand les travaux se sont-ils terminés ?"
           help="Des travaux récents (moins de 6 mois) qui coûtent au moins une année de loyer permettent de fixer le loyer librement."
           error={showErrors && !values.worksCompletedAt ? "Indiquez la date de fin des travaux" : undefined}
         >
-          <Typed onNext={next} ready={!!values.worksCompletedAt}>
+          <Typed onNext={next} onCancel={cancel}>
             <DateInput
               id="rent-works-date"
               value={values.worksCompletedAt || undefined}
@@ -422,14 +431,14 @@ function questionList(rules: RentRules): QuestionDef[] {
       short: "Loyer comparable du quartier",
       answer: amount(values.neighborhoodRent),
       typed: true,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-neighborhood"
           label="Quel est le loyer d'un logement comparable du quartier ?"
           help="Le loyer hors charges réellement payé pour un logement comparable du même immeuble ou d'un immeuble semblable du secteur. Vous fournirez ces références : elles seront jointes au bail."
           error={showErrors && !(Number(values.neighborhoodRent) > 0) ? "Indiquez un loyer" : undefined}
         >
-          <Typed onNext={next} ready={Number(values.neighborhoodRent) > 0}>
+          <Typed onNext={next} onCancel={cancel}>
             <NumberInputGroup
               value={values.neighborhoodRent}
               onChange={(value) => onChange({ neighborhoodRent: value ? String(value) : "" })}
@@ -446,7 +455,7 @@ function questionList(rules: RentRules): QuestionDef[] {
       key: "supplement",
       short: "Atouts exceptionnels",
       answer: supplementChoice === "yes" ? "Oui" : supplementChoice === "no" ? "Non" : null,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-supplement"
           label="Le logement a-t-il des atouts exceptionnels ?"
@@ -474,14 +483,14 @@ function questionList(rules: RentRules): QuestionDef[] {
       short: "Atouts du logement",
       answer: values.rentSupplementReason.trim() || null,
       typed: true,
-      render: (next) => (
+      render: (next, cancel) => (
         <Field
           id="rent-supplement-reason"
           label="Décrivez ces atouts"
           help={`Le bail indiquera un loyer de ${euros(result?.supplement.base ?? 0)} et ${euros(result?.supplement.amount ?? 0)} pour ces atouts.`}
           error={showErrors && !values.rentSupplementReason.trim() ? "Décrivez les atouts du logement" : undefined}
         >
-          <Typed onNext={next} ready={!!values.rentSupplementReason.trim()} multiline>
+          <Typed onNext={next} onCancel={cancel} multiline>
             <Textarea
               id="rent-supplement-reason"
               value={values.rentSupplementReason}
@@ -498,22 +507,73 @@ function questionList(rules: RentRules): QuestionDef[] {
   return list.filter((item): item is QuestionDef => !!item);
 }
 
+/** Réponses au moment où l'on clique « Modifier » : « Annuler » les remet telles quelles. */
+interface EditSnapshot {
+  key: StepKey;
+  values: RentRulesFormValues;
+  rentAmount: string;
+  dpeClass: string;
+  supplementChoice: "" | "yes" | "no";
+}
+
 /**
- * Étape « Le loyer ». Commune qui encadre les loyers : les réponses données (modifiables), la seule
- * question en cours, puis le mot de la fin. Ailleurs : le champ du loyer, tout simplement.
+ * Étape « Le loyer ». Commune qui encadre les loyers : les réponses données, dans l'ordre des
+ * questions, la seule question en cours, puis le mot de la fin. « Modifier » rouvre la question à sa
+ * place, avec « Annuler » pour revenir à la réponse d'avant. Ailleurs : le champ du loyer, tout simplement.
  */
 export function RentGuide({ rules }: { rules: RentRules }) {
-  const list = questionList(rules);
+  // « Continuer » sur une question sans réponse : son message d'erreur s'affiche.
+  const [attempted, setAttempted] = React.useState(false);
+  const list = questionList(attempted ? { ...rules, showErrors: true } : rules);
   const [activeKey, setActiveKey] = React.useState<StepKey | null>(null);
+  const [editing, setEditing] = React.useState<EditSnapshot | null>(null);
+  const zoneRef = React.useRef<HTMLDivElement>(null);
+  const interacted = React.useRef(false);
+  // Moment où la question en cours s'est affichée : un « Continuer » reçu juste avant (double-clic
+  // sur l'étape précédente) ne doit pas compter comme une réponse vide.
+  const shownAt = React.useRef(0);
+  const advance = React.useRef<() => boolean>(() => false);
+  const { advanceRef } = rules;
+  React.useEffect(() => {
+    if (!advanceRef) return;
+    advanceRef.current = () => advance.current();
+    return () => {
+      advanceRef.current = null;
+    };
+  }, [advanceRef]);
   const firstOpen = list.find((item) => !item.answer)?.key ?? null;
-  const current = list.find((item) => item.key === activeKey) ? activeKey : firstOpen;
-  // La question en cours reste ouverte pendant la saisie, jusqu'à « Suivant ».
+  const activeInList = list.some((item) => item.key === activeKey);
+  const current = activeInList ? activeKey : firstOpen;
+  // La question en cours reste ouverte pendant la saisie, jusqu'à « Continuer » (ou Entrée). Si une réponse
+  // modifiée la rend inutile, on passe à la prochaine question ouverte.
   // On attend le premier calcul : il dit s'il faut d'abord parler de l'ancien locataire.
   const ready = !!rules.result;
   React.useEffect(() => {
-    if (ready && !activeKey && firstOpen) setActiveKey(firstOpen);
-  }, [ready, activeKey, firstOpen]);
+    if (ready && !activeInList && activeKey !== firstOpen) setActiveKey(firstOpen);
+  }, [ready, activeInList, activeKey, firstOpen]);
+  const isEditing = !!editing && editing.key === current;
 
+  const active = list.find((item) => item.key === current);
+  const waiting = !active && rules.loading;
+  const zone = active ? active.key : waiting ? "waiting" : "result";
+  // Après chaque réponse : la question suivante (ou le résultat) reste à l'écran, prête à la saisie.
+  React.useEffect(() => {
+    setAttempted(false);
+    shownAt.current = Date.now();
+    if (!interacted.current || !zoneRef.current) return;
+    const node = zoneRef.current;
+    const frame = requestAnimationFrame(() => {
+      node.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      const control = node.querySelector<HTMLElement>("input, textarea, [role='combobox']");
+      control?.focus({ preventScroll: true });
+      if (control instanceof HTMLInputElement && isEditing) control.select();
+    });
+    return () => cancelAnimationFrame(frame);
+    // Seulement quand la question affichée change, pas à chaque frappe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zone]);
+
+  advance.current = () => false;
   // Premier calcul pas encore revenu : on ne sait pas encore s'il faut guider.
   if (!rules.result && !rules.error && rules.enabled !== false) {
     return (
@@ -529,38 +589,96 @@ export function RentGuide({ rules }: { rules: RentRules }) {
     return <>{rentQuestion.render()}</>;
   }
 
-  const next = () => setActiveKey(null);
-  const done = list.filter((item) => item.answer && item.key !== current);
-  const active = list.find((item) => item.key === current);
-  const waiting = !active && rules.loading;
+  const next = () => {
+    interacted.current = true;
+    setEditing(null);
+    setActiveKey(null);
+  };
+  const edit = (key: StepKey) => {
+    interacted.current = true;
+    setEditing({
+      key,
+      values: { ...rules.values },
+      rentAmount: rules.rentAmount == null ? "" : String(rules.rentAmount),
+      dpeClass: rules.dpeClass ?? "",
+      supplementChoice: rules.supplementChoice,
+    });
+    setActiveKey(key);
+  };
+  // Champ saisi : on passe à la suite seulement avec une réponse acceptable.
+  const submit = () => {
+    if (!active) return;
+    interacted.current = true;
+    if (active.answer && !active.blocked) next();
+    else setAttempted(true);
+  };
+  advance.current = () => {
+    if (active) {
+      if (Date.now() - shownAt.current > 500) submit();
+      return true;
+    }
+    // Calcul en cours après la dernière réponse : le résultat arrive.
+    return waiting;
+  };
+  const cancel = () => {
+    if (editing) {
+      rules.onChange(editing.values);
+      if (editing.rentAmount !== (rules.rentAmount == null ? "" : String(rules.rentAmount))) rules.onRentChange?.(editing.rentAmount);
+      if (editing.dpeClass && editing.dpeClass !== (rules.dpeClass ?? "")) rules.onDpeChange?.(editing.dpeClass);
+      rules.setSupplementChoice(editing.supplementChoice);
+    }
+    next();
+  };
+
+  // Réponses données (dans l'ordre des questions) et question en cours à sa place ; les questions
+  // suivantes restent cachées tant qu'on n'y est pas.
+  const blocks: Array<{ rows: QuestionDef[] } | { active: QuestionDef }> = [];
+  for (const item of list) {
+    if (item.key === current) blocks.push({ active: item });
+    else if (item.answer) {
+      const last = blocks[blocks.length - 1];
+      if (last && "rows" in last) last.rows.push(item);
+      else blocks.push({ rows: [item] });
+    }
+  }
 
   return (
     <div className="space-y-5">
-      {done.length > 0 && (
-        <ul className="divide-y rounded-lg border">
-          {done.map((item) => (
-            <li key={item.key} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-              <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
-              <span className="min-w-0 flex-1">
-                <span className="text-muted-foreground">{item.short} : </span>
-                <span className="font-medium break-words">{item.answer}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setActiveKey(item.key)}
-                className="shrink-0 text-[13px] font-medium text-primary hover:underline"
-              >
-                Modifier
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {active && (
-        <div key={active.key} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-          {active.render(next)}
-        </div>
+      {blocks.map((block) =>
+        "rows" in block ? (
+          <ul key={`rows-${block.rows[0].key}`} className="divide-y rounded-lg border">
+            {block.rows.map((item) => (
+              <li key={item.key} className="flex items-center gap-3 py-1.5 pl-4 pr-2 text-sm">
+                <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
+                <span className="min-w-0 flex-1 py-1">
+                  <span className="text-muted-foreground">{item.short} : </span>
+                  <span className="font-medium break-words">{item.answer}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => edit(item.key)}
+                  aria-label={`Modifier : ${item.short}`}
+                  className="shrink-0 rounded-md px-2 py-1.5 text-[13px] font-medium text-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Modifier
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div
+            key={block.active.key}
+            ref={zoneRef}
+            className="scroll-mt-24 scroll-mb-28 animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
+            {block.active.render(block.active.typed ? submit : next, isEditing ? cancel : undefined)}
+            {isEditing && (
+              <Button type="button" size="sm" variant="ghost" className="mt-2 -ml-3" onClick={cancel}>
+                Annuler
+              </Button>
+            )}
+          </div>
+        ),
       )}
 
       {waiting && (
@@ -570,7 +688,11 @@ export function RentGuide({ rules }: { rules: RentRules }) {
         </p>
       )}
 
-      {!active && !waiting && <RentResult rules={rules} />}
+      {!active && !waiting && (
+        <div ref={zoneRef} className="scroll-mb-28">
+          <RentResult rules={rules} />
+        </div>
+      )}
     </div>
   );
 }
@@ -786,30 +908,41 @@ function ResultBox({
   );
 }
 
-/** Champ texte, nombre ou date. Dans le parcours guidé, « Suivant » (ou Entrée) passe à la question suivante. */
-function Typed({ onNext, ready, multiline, children }: { onNext?: () => void; ready: boolean; multiline?: boolean; children: React.ReactNode }) {
-  const ref = React.useRef<HTMLDivElement>(null);
-  const guided = !!onNext;
-  React.useEffect(() => {
-    if (guided) ref.current?.querySelector<HTMLElement>("input, textarea")?.focus();
-  }, [guided]);
-  if (!guided) return <div className="space-y-2">{children}</div>;
+/**
+ * Champ texte, nombre ou date. Dans le parcours guidé, Entrée répond à la question, comme le bouton
+ * « Continuer » du formulaire ; Échap annule la modification d'une réponse.
+ */
+function Typed({
+  onNext,
+  onCancel,
+  multiline,
+  children,
+}: {
+  onNext?: () => void;
+  onCancel?: () => void;
+  multiline?: boolean;
+  children: React.ReactNode;
+}) {
+  if (!onNext) return <div className="space-y-2">{children}</div>;
   return (
     <div
-      ref={ref}
-      className="space-y-3"
+      className="space-y-2"
       onKeyDown={(event) => {
+        const inField = (event.target as HTMLElement).matches("input, textarea");
+        if (!inField) return;
+        if (event.key === "Escape" && onCancel) {
+          event.preventDefault();
+          onCancel();
+          return;
+        }
         if (event.key !== "Enter" || (multiline && !event.metaKey && !event.ctrlKey)) return;
-        // Entrée valide la réponse sans passer l'étape du formulaire.
+        // Entrée répond à la question sans passer l'étape du formulaire.
         event.preventDefault();
         event.stopPropagation();
-        if (ready) onNext();
+        onNext();
       }}
     >
       {children}
-      <Button type="button" size="sm" variant="outline" disabled={!ready} onClick={onNext}>
-        Suivant
-      </Button>
     </div>
   );
 }

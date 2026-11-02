@@ -159,6 +159,8 @@ export function CreateBailPageClient({
   const [dpeInput, setDpeInput] = useState("");
   const [showRentErrors, setShowRentErrors] = useState(false);
   const rentRulesResultRef = useRef<RentRulesAssessment | null>(null);
+  // « Continuer » sur l'étape du loyer : passe d'abord d'une question à l'autre.
+  const rentAdvanceRef = useRef<(() => boolean) | null>(null);
 
   const propertyFormRef = useRef<CreatePropertyFormRef>(null);
 
@@ -280,6 +282,7 @@ export function CreateBailPageClient({
       rentRulesResultRef.current = result;
     },
     showErrors: showRentErrors,
+    advanceRef: rentAdvanceRef,
     onApplyRent: (value) => setValue("rentAmount", String(value), { shouldDirty: true, shouldValidate: true }),
     onRentChange: (value) => setValue("rentAmount", value, { shouldDirty: true, shouldValidate: !!errors.rentAmount }),
     rentError: errors.rentAmount?.message,
@@ -298,6 +301,8 @@ export function CreateBailPageClient({
   }, [step, router, bailPart]);
 
   const handleNext = useCallback(async () => {
+    // Étape « Le loyer » : tant qu'une question est ouverte, « Continuer » y répond.
+    if (step === 2 && bailPart === "rent" && rentAdvanceRef.current?.()) return;
     const fields = STEP_FIELDS[step];
     if (fields) {
       const valid = await trigger(fields);

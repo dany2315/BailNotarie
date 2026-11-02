@@ -1201,6 +1201,8 @@ useEffect(() => {
     const lastSavedValues = useRef<FormWithPersons>(defaultValues);
     // Dernier contrôle du loyer (null pendant le calcul) : bloque l'étape « Loyer & charges ».
     const rentRulesResultRef = useRef<RentRulesAssessment | null>(null);
+    // « Continuer » sur l'étape du loyer : passe d'abord d'une question à l'autre.
+    const rentAdvanceRef = useRef<(() => boolean) | null>(null);
     const [showRentErrors, setShowRentErrors] = useState(false);
 
     // Initialisation du step UNIQUEMENT au chargement du formulaire
@@ -1996,6 +1998,9 @@ useEffect(() => {
 
   const handleNext = async () => {
     const stepId = STEPS[currentStep].id;
+
+    // Étape « Le loyer » : tant qu'une question est ouverte, « Continuer » y répond.
+    if (stepId === "bailRent" && rentAdvanceRef.current?.()) return;
   
     // Si on est sur l'étape "summary", pas besoin de sauvegarder, c'est juste une étape de visionnage
     if (stepId === "summary") {
@@ -2790,6 +2795,7 @@ useEffect(() => {
               slice="rent"
               token={intakeLink.token}
               showRentErrors={showRentErrors}
+              rentAdvanceRef={rentAdvanceRef}
               onRentRulesResult={(result) => {
                 rentRulesResultRef.current = result;
               }}
@@ -4317,6 +4323,7 @@ type BailStepProps = {
   /** Étape loyer : lien d'intake pour le contrôle du loyer, et son résultat. */
   token?: string;
   showRentErrors?: boolean;
+  rentAdvanceRef?: React.MutableRefObject<(() => boolean) | null>;
   onRentRulesResult?: (result: RentRulesAssessment | null) => void;
 };
 
@@ -4381,7 +4388,7 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
   );
 };
 
-const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesResult }: BailStepProps) => {
+const BailStep = ({ form, propertyId, slice, token, showRentErrors, rentAdvanceRef, onRentRulesResult }: BailStepProps) => {
   const showType = !slice || slice === "type";
   const showRent = !slice || slice === "rent";
   const showCharges = !slice || slice === "charges";
@@ -4437,6 +4444,7 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, onRentRulesR
       form.setValue("rentRules" as any, { ...(form.getValues("rentRules" as any) ?? EMPTY_RENT_RULES), ...patch } as any, { shouldDirty: true }),
     onResult: onRentRulesResult,
     showErrors: showRentErrors,
+    advanceRef: rentAdvanceRef,
     onApplyRent: (value) => form.setValue("bailRentAmount", String(value) as any, { shouldDirty: true, shouldValidate: true }),
     onRentChange: (value) => form.setValue("bailRentAmount", value as any, { shouldDirty: true, shouldValidate: !!form.formState.errors.bailRentAmount }),
     rentError: form.formState.errors.bailRentAmount?.message as string | undefined,
