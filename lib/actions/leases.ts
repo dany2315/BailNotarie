@@ -18,22 +18,37 @@ import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-ava
 
 /**
  * Réponses du contrôle du loyer à enregistrer sur le bail (espace client), avec le complément de
- * loyer chiffré par le moteur. Le blocage se fait avant le paiement (formulaire) : ici, on enregistre.
+ * loyer chiffré par le moteur. Le formulaire bloque avant le paiement ; pour un propriétaire
+ * (enforce), le serveur refuse aussi un loyer au-dessus du maximum ou des réponses manquantes,
+ * comme le formulaire propriétaire (lien d'intake).
  */
 async function rentRulesColumns(
   propertyId: string,
   bail: { rentAmount: number; bailType: string; effectiveDate: Date | null },
   rentRules: Record<string, unknown> | undefined,
   dpeClass: string | undefined,
+  enforce = false,
 ) {
-  if (!rentRules) return {};
-  const answers = rentRulesFromForm(rentRules as Partial<RentRulesFormValues>);
+  if (!rentRules && !enforce) return {};
+  const answers = rentRulesFromForm((rentRules ?? {}) as Partial<RentRulesFormValues>);
   const property = await prisma.property.findUnique({ where: { id: propertyId } });
   if (!property || !bail.rentAmount) return { ...answers, rentSupplementAmount: null };
   const check = await assessRentRules({
     property: { ...property, dpeClass: property.dpeClass ?? dpeClass ?? null },
     bail: { ...bail, bailFamily: BailFamille.HABITATION, rentCapExemption: null, ...answers },
   });
+  if (enforce && check.ownerBlocking) {
+    const over = check.overBy !== null && check.overBy > 0 && check.maxRent !== null;
+    const supplementPossible = check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over";
+    throw new Error(
+      over && !supplementPossible
+        ? `Le loyer dépasse le maximum autorisé de ${check.maxRent!.toLocaleString("fr-FR")} € hors charges : baissez-le pour continuer.`
+        : supplementPossible
+          ? "Le loyer dépasse le plafond de la ville : décrivez les atouts du logement ou baissez le loyer."
+          : "Répondez aux questions sur le loyer avant de continuer.",
+    );
+  }
+  if (!rentRules) return {};
   return {
     ...answers,
     // Loyer sous le plafond : pas de complément, l'ancien motif est retiré.
@@ -135,6 +150,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
     { rentAmount: validated.rentAmount, bailType: validated.bailType, effectiveDate: validated.effectiveDate },
     validated.rentRules,
     validated.dpeClass,
+    user.role === Role.UTILISATEUR,
   );
 
   // Mapper leaseType vers bailFamily

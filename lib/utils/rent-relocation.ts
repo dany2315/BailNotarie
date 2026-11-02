@@ -86,11 +86,13 @@ export const PROOF_LABELS: Record<string, { label: string; hint: string }> = {
   },
   WORKS_INVOICES: {
     label: "Factures des travaux",
-    hint: "Factures TTC des travaux d'amélioration ou de mise en conformité.",
+    hint: "Factures TTC des travaux d'amélioration ou de mise aux normes de décence faits depuis l'arrivée du dernier locataire (logement ou parties communes).",
   },
   RENT_REFERENCES: {
     label: "Loyers de logements comparables",
-    hint: "Au moins 3 loyers de logements comparables du voisinage (annonces, observatoire des loyers, agence).",
+    // Décret n° 90-780 du 31 août 1990, art. 1 et 1-1, auquel renvoie l'art. 6 du décret n° 2017-1198.
+    hint:
+      "Loyers réellement payés pour des logements comparables du même immeuble ou d'immeubles semblables du secteur, baux récents et baux de plus de 3 ans. Pour chacun : rue, type et époque de l'immeuble, étage et ascenseur, surface et pièces, annexes, équipements, locataire en place depuis plus ou moins de 3 ans, loyer hors charges et année. Ces références seront jointes au bail.",
   },
 };
 

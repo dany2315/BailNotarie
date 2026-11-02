@@ -379,7 +379,7 @@ function questionList(rules: RentRules): QuestionDef[] {
         <Field
           id="rent-works-amount"
           label="Combien ont coûté les travaux ?"
-          help="Le montant total payé, toutes taxes comprises."
+          help="Le montant total TTC des travaux d'amélioration ou de mise aux normes de décence faits depuis l'arrivée du dernier locataire, dans le logement ou les parties communes."
           error={showErrors && !(Number(values.worksAmount) > 0) ? "Indiquez le coût des travaux" : undefined}
         >
           <Typed onNext={next} ready={Number(values.worksAmount) > 0}>
@@ -426,7 +426,7 @@ function questionList(rules: RentRules): QuestionDef[] {
         <Field
           id="rent-neighborhood"
           label="Quel est le loyer d'un logement comparable du quartier ?"
-          help="Même surface et même nombre de pièces, dans le même quartier, sans les charges."
+          help="Le loyer hors charges réellement payé pour un logement comparable du même immeuble ou d'un immeuble semblable du secteur. Vous fournirez ces références : elles seront jointes au bail."
           error={showErrors && !(Number(values.neighborhoodRent) > 0) ? "Indiquez un loyer" : undefined}
         >
           <Typed onNext={next} ready={Number(values.neighborhoodRent) > 0}>
