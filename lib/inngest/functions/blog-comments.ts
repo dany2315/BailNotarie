@@ -9,7 +9,7 @@ export const sendBlogCommentNotificationEmail = inngest.createFunction(
     await step.run("send-blog-comment-notification-email", async () => {
       await resendSendEmail({
         from: "Support BailNotarie <support@bailnotarie.fr>",
-        to: ["david@bailnotarie.fr", "shlomi@bailnotarie.fr"],
+        to: ["david@bailnotarie.fr", "laetitia@bailnotarie.fr"],
         subject: `Nouveau commentaire sur l'article : ${event.data.articleTitle}`,
         react: MailBlogComment({
           commenterName: event.data.commenterName,
