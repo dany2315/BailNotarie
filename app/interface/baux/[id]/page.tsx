@@ -829,7 +829,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       property.legalStatus === "LOTISSEMENT" && property.subdivisionOver10Years
                         ? SUBDIVISION_AGE_LABELS[property.subdivisionOver10Years] ?? null
                         : null,
-                      property.inShoppingCenter ? "Dans un centre commercial ou un ensemble immobilier" : null,
+                      property.inShoppingCenter
+                        ? property.complexType === "ESTATE_COMPLEX"
+                          ? "Dans un ensemble immobilier (parc d'activités, association syndicale…)"
+                          : "Dans un centre commercial"
+                        : null,
                       property.outbuildings ? `Dépendances : ${property.outbuildings}` : null,
                     ]
                       .filter(Boolean)

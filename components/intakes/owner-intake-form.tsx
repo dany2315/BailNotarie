@@ -411,7 +411,10 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   const propertySyndicPhone = property?.syndicPhone ?? "";
   const propertySubdivisionOver10Years = property?.subdivisionOver10Years ?? "";
   // Bail commercial : centre commercial, dépendances et conditions du bail
-  const propertyInShoppingCenter = property?.inShoppingCenter === true ? "yes" : property?.inShoppingCenter === false ? "no" : "";
+  const propertyInShoppingCenter =
+    property?.inShoppingCenter === true
+      ? property?.complexType === "ESTATE_COMPLEX" ? "estate_complex" : "shopping_center"
+      : property?.inShoppingCenter === false ? "no" : "";
   const propertyOutbuildings = property?.outbuildings ?? "";
   const commercial = commercialTermsToForm(bail?.commercialTerms);
   // Relocation en zone tendue et complément de loyer (étape « Loyer & charges »).
@@ -1551,10 +1554,15 @@ useEffect(() => {
     // Bail commercial : règlement du centre commercial ou de l'ensemble immobilier
     if (
       values.bailFamily === BailFamille.COMMERCIAL &&
-      (values as any).propertyInShoppingCenter === "yes" &&
+      !!(values as any).propertyInShoppingCenter &&
+      (values as any).propertyInShoppingCenter !== "no" &&
       !uploadedDocuments.some((d: any) => d.kind === "SHOPPING_CENTER_RULES")
     ) {
-      errors.push("Règlement du centre commercial requis");
+      errors.push(
+        (values as any).propertyInShoppingCenter === "estate_complex"
+          ? "Cahier des charges de l'ensemble immobilier requis"
+          : "Règlement du centre commercial requis"
+      );
     }
 
     return { isValid: errors.length === 0, errors };
@@ -2299,7 +2307,7 @@ useEffect(() => {
           }
         }
         if (stepId === "propertyDetails" && commercialFlow && !form.getValues("propertyInShoppingCenter" as any)) {
-          form.setError("propertyInShoppingCenter" as any, { type: "manual", message: "Répondez à la question sur le centre commercial" });
+          form.setError("propertyInShoppingCenter" as any, { type: "manual", message: "Indiquez où se trouve le local" });
           missingCategory = true;
         }
         if (stepId === "propertyDetails") {

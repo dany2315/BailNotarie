@@ -373,13 +373,29 @@ export function commercialDocuments(input: {
   previouslyLet?: YesNo;
   legalStatus?: string | null;
   inShoppingCenter?: boolean | null;
+  /** SHOPPING_CENTER | ESTATE_COMPLEX */
+  complexType?: string | null;
   surfaceM2?: number | null;
   premisesType?: string | null;
   isCompany?: boolean;
 }): CommercialDocumentRule[] {
   const rules: CommercialDocumentRule[] = [];
   if (input.inShoppingCenter) {
-    rules.push({ kind: "SHOPPING_CENTER_RULES", label: "Règlement du centre commercial ou de l'ensemble immobilier", required: true });
+    rules.push(
+      input.complexType === "ESTATE_COMPLEX"
+        ? {
+            kind: "SHOPPING_CENTER_RULES",
+            label: "Cahier des charges et statuts de l'association syndicale (ASL, AFUL)",
+            required: true,
+            hint: "Remis par le gestionnaire de l'ensemble immobilier.",
+          }
+        : {
+            kind: "SHOPPING_CENTER_RULES",
+            label: "Règlement intérieur ou d'exploitation du centre commercial",
+            required: true,
+            hint: "Remis par le gestionnaire du centre ou de la galerie marchande.",
+          },
+    );
   }
   if (input.legalStatus === "CO_PROPRIETE") {
     rules.push({ kind: "GENERAL_ASSEMBLY_MINUTES", label: "Derniers procès-verbaux d'assemblée générale", required: false, hint: "Disponibles sur l'espace en ligne de votre syndic." });

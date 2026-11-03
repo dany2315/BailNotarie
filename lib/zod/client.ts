@@ -243,7 +243,8 @@ const propertyFieldsSchema = {
   // du bail (réponses du formulaire, nettoyées par commercialTermsFromForm avant l'enregistrement).
   propertyInShoppingCenter: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val === true ? "yes" : val === false ? "no" : val),
-    z.enum(["yes", "no"]).optional()
+    // no | shopping_center | estate_complex (yes : ancienne réponse, centre commercial)
+    z.enum(["yes", "no", "shopping_center", "estate_complex"]).optional()
   ).optional(),
   propertyOutbuildings: z.string().max(1000).trim().optional(),
   commercial: z.record(z.string(), z.any()).optional(),

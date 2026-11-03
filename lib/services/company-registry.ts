@@ -34,7 +34,23 @@ function visible(value: unknown): string | null {
 const REPRESENTATIVE_ROLE = /pr[ée]sident|g[ée]rant|directeur g[ée]n[ée]ral/i;
 const NON_REPRESENTATIVE_ROLE = /surveillance|commissaire/i;
 
-function pickRepresentatives(dirigeants: any[]): RegistryRepresentative[] {
+/**
+ * Le registre liste les dirigeants avec leur qualité, sans dire lequel représente la société :
+ * on le déduit de la forme juridique. SA à conseil d'administration : le directeur général (ou PDG),
+ * pas le président du conseil ; SA à directoire : le président du directoire ; SAS : le président ;
+ * SARL, SCI, SNC… : le ou les gérants.
+ */
+function isLegalRepresentative(role: string, legalFormCode: string | null): boolean {
+  const r = role.toLowerCase();
+  if (/d[ée]l[ée]gu[ée]/.test(r)) return false;
+  if (legalFormCode?.startsWith("55")) return /directeur g[ée]n[ée]ral/.test(r);
+  if (legalFormCode?.startsWith("56")) return /directoire/.test(r) && /pr[ée]sident/.test(r);
+  if (/conseil/.test(r)) return false;
+  if (legalFormCode?.startsWith("57")) return /pr[ée]sident/.test(r);
+  return /g[ée]rant/.test(r) || /^pr[ée]sident$/.test(r.trim());
+}
+
+function pickRepresentatives(dirigeants: any[], legalFormCode: string | null): RegistryRepresentative[] {
   return dirigeants
     .filter((d) => {
       const role = typeof d?.qualite === "string" ? d.qualite : "";
@@ -45,9 +61,18 @@ function pickRepresentatives(dirigeants: any[]): RegistryRepresentative[] {
       const name = isCompany
         ? visible(d.denomination)
         : [visible(d.prenoms)?.split(" ")[0], visible(d.nom)].filter(Boolean).join(" ") || null;
-      return name ? { name: titleCase(name, isCompany), role: d.qualite ?? null, isCompany } : null;
+      return name
+        ? {
+            name: titleCase(name, isCompany),
+            role: d.qualite ?? null,
+            isCompany,
+            isLegalRepresentative: isLegalRepresentative(d.qualite ?? "", legalFormCode),
+          }
+        : null;
     })
-    .filter((r): r is RegistryRepresentative => r !== null);
+    .filter((r): r is RegistryRepresentative => r !== null)
+    // Représentants légaux en premier
+    .sort((a, b) => Number(b.isLegalRepresentative) - Number(a.isLegalRepresentative));
 }
 
 /** « SEBASTIEN CHOLLET (CHOLLET) » → « Sebastien Chollet » ; les dénominations restent telles quelles. */
@@ -75,7 +100,7 @@ function toCompany(result: any): RegistryCompany {
     partialDiffusion: result.statut_diffusion === "P" || siege.statut_diffusion_etablissement === "P",
     isIndividual: legalFormCode === "1000" || result.complements?.est_entrepreneur_individuel === true,
     inLiquidation: dirigeants.some((d) => /liquidateur/i.test(d?.qualite ?? "")),
-    representatives: pickRepresentatives(dirigeants),
+    representatives: pickRepresentatives(dirigeants, legalFormCode),
   };
 }
 
@@ -111,7 +136,8 @@ async function fetchCompany(siren: string): Promise<RegistryCompany> {
 
 // Seules les sociétés trouvées sont gardées en cache (24 h, le RNE est mis à jour chaque jour) :
 // une erreur n'est pas mise en cache, une société en cours d'immatriculation sera retrouvée dès sa parution.
-const cachedFetchCompany = unstable_cache(fetchCompany, ["company-registry"], { revalidate: 86400 });
+// v2 : représentant légal désigné (le cache survit aux déploiements, la clé change avec la forme des données)
+const cachedFetchCompany = unstable_cache(fetchCompany, ["company-registry-v2"], { revalidate: 86400 });
 
 /** Recherche une société par SIREN ou SIRET (le SIRET ramène à sa société). */
 export async function lookupCompany(registration: string): Promise<CompanyLookupResult> {

@@ -9,6 +9,8 @@ export type RegistryRepresentative = {
   role: string | null;
   /** Représentant personne morale (ex. holding présidente d'une SAS). */
   isCompany: boolean;
+  /** Représentant légal selon la forme juridique (gérant, président de SAS, directeur général de SA…). */
+  isLegalRepresentative: boolean;
 };
 
 /** Société telle que renvoyée par le registre, réduite à ce qui sert au dossier. */

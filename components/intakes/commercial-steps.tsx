@@ -102,6 +102,12 @@ const YES_NO = [
   { value: "no", label: "Non" },
 ];
 
+const COMPLEX_OPTIONS = [
+  { value: "no", label: "Dans un immeuble ou une rue", hint: "Local indépendant, hors de tout ensemble géré en commun" },
+  { value: "shopping_center", label: "Dans un centre commercial", hint: "Centre commercial ou galerie marchande, avec un règlement intérieur" },
+  { value: "estate_complex", label: "Dans un autre ensemble immobilier", hint: "Parc d'activités, zone ou ensemble géré par une association syndicale (ASL, AFUL)" },
+];
+
 /** Question oui / non sur un champ « commercial.* ». */
 function YesNoQuestion({ form, name, label, hint }: { form: FormLike; name: string; label: string; hint?: string }) {
   const path = `commercial.${name}`;
@@ -194,18 +200,14 @@ export function CommercialPropertyDetails({ form }: { form: FormLike }) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Le local fait-il partie d&apos;un centre commercial ou d&apos;un ensemble immobilier ? *</Label>
-        <p className="text-xs text-muted-foreground">
-          Galerie marchande, parc d&apos;activités, ensemble géré par une association syndicale…
-        </p>
+        <Label>Où se trouve le local ? *</Label>
         <Controller
           name="propertyInShoppingCenter"
           control={form.control}
           render={({ field }) => (
             <ChoiceCards
-              value={field.value}
-              options={YES_NO}
-              columns={2}
+              value={field.value === "yes" ? "shopping_center" : field.value}
+              options={COMPLEX_OPTIONS}
               onChange={(value) => {
                 field.onChange(value);
                 form.clearErrors("propertyInShoppingCenter");
@@ -729,7 +731,8 @@ export function CommercialDocumentUploads({
   const rules = commercialDocuments({
     previouslyLet,
     legalStatus,
-    inShoppingCenter: inShoppingCenter === "yes" || inShoppingCenter === true,
+    inShoppingCenter: !!inShoppingCenter && inShoppingCenter !== "no",
+    complexType: inShoppingCenter === "estate_complex" ? "ESTATE_COMPLEX" : "SHOPPING_CENTER",
     surfaceM2: parseFloat(String(surface ?? "")) || null,
     premisesType,
     isCompany,

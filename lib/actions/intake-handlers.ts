@@ -42,6 +42,7 @@ function legalStatusDetails(payload: any): {
   syndicPhone?: string | null;
   subdivisionOver10Years?: string | null;
   inShoppingCenter?: boolean | null;
+  complexType?: string | null;
   outbuildings?: string | null;
 } {
   const out: ReturnType<typeof legalStatusDetails> = {};
@@ -58,7 +59,10 @@ function legalStatusDetails(payload: any): {
   // Bail commercial : centre commercial ou ensemble immobilier, dépendances
   if (payload.propertyInShoppingCenter !== undefined) {
     const value = payload.propertyInShoppingCenter;
-    out.inShoppingCenter = value === true || value === "yes" ? true : value === false || value === "no" ? false : null;
+    const complexType =
+      value === "estate_complex" ? "ESTATE_COMPLEX" : value === "shopping_center" || value === "yes" || value === true ? "SHOPPING_CENTER" : null;
+    out.inShoppingCenter = complexType ? true : value === false || value === "no" ? false : null;
+    out.complexType = complexType;
   }
   if (payload.propertyOutbuildings !== undefined) out.outbuildings = text(payload.propertyOutbuildings, 1000);
   return out;

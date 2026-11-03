@@ -702,7 +702,14 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                   <DataField label="Type de bien" value={PROPERTY_TYPE_NAMES[dossier.property.type] ?? dossier.property.type} />
                 )}
                 {(dossier.property as any).inShoppingCenter && (
-                  <DataField label="Centre commercial" value="Le local fait partie d'un centre commercial ou d'un ensemble immobilier" />
+                  <DataField
+                    label="Situation du local"
+                    value={
+                      (dossier.property as any).complexType === "ESTATE_COMPLEX"
+                        ? "Dans un ensemble immobilier (parc d'activités, association syndicale…)"
+                        : "Dans un centre commercial"
+                    }
+                  />
                 )}
                 {(dossier.property as any).outbuildings && (
                   <DataField label="Dépendances" value={(dossier.property as any).outbuildings} />

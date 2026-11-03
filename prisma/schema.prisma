@@ -440,6 +440,8 @@ model Property {
 
   // Bail commercial : local dans un centre commercial ou un ensemble immobilier, dépendances
   inShoppingCenter Boolean?
+  // Type d'ensemble quand inShoppingCenter : SHOPPING_CENTER (centre commercial, galerie) | ESTATE_COMPLEX (parc d'activités, ASL…)
+  complexType      String?
   outbuildings     String?
 
   // Mobilier obligatoire pour location meublée

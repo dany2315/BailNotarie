@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
-import { AlertCircle, Building2, CheckCircle2, Loader2, Search } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, Loader2, Search, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,9 +111,12 @@ export function CompanyRegistryLookup({
     if (found.headOfficeAddress) set("fullAddress", found.headOfficeAddress);
     if (syncTradeName) set("name", found.tradeName ?? found.legalName);
     if (allowUnregistered) set("isRegistered", "yes");
-    if (showRepresentative && found.representatives.length === 1) {
-      set("representativeName", found.representatives[0].name);
-      set("representativeRole", found.representatives[0].role ?? "");
+    // Un seul représentant légal (ou un seul dirigeant) : il est choisi d'office, le client peut changer
+    const legal = found.representatives.filter((r) => r.isLegalRepresentative);
+    const preselected = legal.length === 1 ? legal[0] : found.representatives.length === 1 ? found.representatives[0] : null;
+    if (showRepresentative && preselected) {
+      set("representativeName", preselected.name);
+      set("representativeRole", preselected.role ?? "");
     }
     form.clearErrors("entreprise");
     setMode("details");
@@ -191,12 +194,27 @@ export function CompanyRegistryLookup({
                     form.clearErrors("entreprise.representativeName");
                   }}
                   className={cn(
-                    "w-full p-3 rounded-xl border-2 text-left text-sm transition-all",
+                    "w-full flex items-start gap-3 p-3 rounded-xl border-2 text-left text-sm transition-all",
                     selected ? "border-primary bg-primary/5" : "border-border hover:border-primary/30 hover:bg-muted/40",
                   )}
                 >
-                  <span className="font-medium">{candidate.name}</span>
-                  {candidate.role && <span className="block text-xs text-muted-foreground">{candidate.role}</span>}
+                  <span className={cn("mt-0.5 rounded-lg p-1.5 shrink-0", selected ? "bg-primary/10" : "bg-muted")}>
+                    {candidate.isCompany ? (
+                      <Building2 className={cn("h-4 w-4", selected ? "text-primary" : "text-muted-foreground")} />
+                    ) : (
+                      <UserRound className={cn("h-4 w-4", selected ? "text-primary" : "text-muted-foreground")} />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium block">{candidate.name}</span>
+                    {candidate.role && <span className="block text-xs text-muted-foreground">{candidate.role}</span>}
+                    {candidate.isLegalRepresentative && (
+                      <span className="mt-1 inline-block rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                        Représentant légal
+                      </span>
+                    )}
+                  </span>
+                  {selected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />}
                 </button>
               );
             })}
