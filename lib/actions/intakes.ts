@@ -704,7 +704,6 @@ export async function handleDocumentsInTransaction(
 // Récupérer les documents déjà uploadés pour un intake (sans authentification, accessible via token)
 // Les documents sont maintenant stockés directement en base de données
 export async function getIntakeDocuments(token: string) {
-  console.log("[getIntakeDocuments] Récupération des documents pour token:", token);
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     include: {
@@ -719,7 +718,9 @@ export async function getIntakeDocuments(token: string) {
     },
   });
 
-  if (!intakeLink) {
+  // Comme pour l'URL de lecture (lib/document-access.ts) : un lien soumis, expiré ou révoqué ne
+  // donne plus accès aux pièces du dossier.
+  if (!intakeLink || intakeLink.status !== "PENDING") {
     throw new Error("Lien d'intake introuvable");
   }
 

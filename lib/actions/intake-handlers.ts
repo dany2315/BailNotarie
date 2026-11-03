@@ -1,4 +1,6 @@
-"use server";
+// Pas de "use server" : ces fonctions reçoivent un clientId sans vérifier de lien d'intake. Elles
+// ne sont appelées que depuis savePartialIntake (lib/actions/intakes.ts), qui a déjà validé le
+// lien ; exposées en server actions, elles seraient appelables depuis le navigateur.
 
 import { prisma } from "@/lib/prisma";
 import { ClientType, ProfilType, CompletionStatus, BailType, BailFamille, BailStatus, PropertyStatus, EnergyClass } from "@prisma/client";
