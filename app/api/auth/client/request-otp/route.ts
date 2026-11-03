@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailClientOTP from "@/emails/mail-client-otp";
+import { getOtpEmailSubject } from "@/emails/_shared/otp";
 import { Role } from "@prisma/client";
 
 // Rate limiting simple : 3 demandes par heure par email
@@ -164,7 +165,7 @@ export async function POST(request: NextRequest) {
       await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: normalizedEmail,
-        subject: "Code de connexion - BailNotarie",
+        subject: getOtpEmailSubject(code),
         react: MailClientOTP({
           userName: clientName || user.name || "Client",
           code,

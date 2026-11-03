@@ -8,10 +8,12 @@ import {
   Text, 
   Hr,
   Img,
-  Link
+  Link,
+  Preview
 } from "@react-email/components";
 import * as React from "react";
 import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
+import { getOtpEmailPreview } from "./_shared/otp";
 
 interface MailNotaireOTPProps {
   userName?: string | null;
@@ -25,6 +27,7 @@ export default function MailNotaireOTP({
   return (
     <Html>
       <Head />
+      <Preview>{getOtpEmailPreview(code)}</Preview>
       <Body style={{ 
         backgroundColor: "#f8fafc", 
         fontFamily: "Arial, sans-serif",
@@ -220,10 +223,7 @@ export default function MailNotaireOTP({
   );
 }
 
-
-
-
-
-
-
-
+MailNotaireOTP.PreviewProps = {
+  userName: "Maître Durand",
+  code: "482913",
+} satisfies MailNotaireOTPProps;

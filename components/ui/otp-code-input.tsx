@@ -1,7 +1,17 @@
 "use client";
 
+import type { ClipboardEvent } from "react";
+import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+
+const OTP_LENGTH = 6;
+
+// Garde seulement les chiffres : « 482 913 » ou « Code : 482913 » collés
+// depuis un e-mail donnent bien 482913.
+function keepDigits(text: string): string {
+  return text.replace(/\D/g, "");
+}
 
 interface OtpCodeInputProps {
   value: string;
@@ -24,6 +34,16 @@ export function OtpCodeInput({
 }: OtpCodeInputProps) {
   const errorId = `${id}-error`;
 
+  // input-otp insère le texte collé à la position du curseur : un code complet
+  // collé dans un champ déjà entamé garderait les anciens chiffres. Il remplace
+  // donc toute la saisie.
+  const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const digits = keepDigits(event.clipboardData.getData("text/plain"));
+    if (digits.length >= OTP_LENGTH) {
+      onChange(digits.slice(0, OTP_LENGTH));
+    }
+  };
+
   return (
     <div className="space-y-3">
       {label ? (
@@ -34,7 +54,14 @@ export function OtpCodeInput({
       <div className="flex justify-center">
         <InputOTP
           id={id}
-          maxLength={6}
+          name="otp"
+          // Le navigateur et le clavier peuvent proposer le code reçu
+          autoComplete="one-time-code"
+          inputMode="numeric"
+          maxLength={OTP_LENGTH}
+          pattern={REGEXP_ONLY_DIGITS}
+          pasteTransformer={keepDigits}
+          onPaste={handlePaste}
           value={value}
           onChange={onChange}
           disabled={disabled}
