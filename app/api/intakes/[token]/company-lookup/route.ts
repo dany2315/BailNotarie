@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasIntakeSession, INTAKE_SESSION_REQUIRED } from "@/lib/intake-session";
 import { prisma } from "@/lib/prisma";
 import { lookupCompany } from "@/lib/services/company-registry";
 
@@ -24,9 +25,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { token } = await params;
   const query = request.nextUrl.searchParams.get("q") ?? "";
 
-  const intakeLink = await prisma.intakeLink.findUnique({ where: { token }, select: { status: true } });
+  const intakeLink = await prisma.intakeLink.findUnique({ where: { token }, select: { status: true, clientId: true } });
   if (!intakeLink || intakeLink.status !== "PENDING") {
     return NextResponse.json({ error: "Lien invalide" }, { status: 404 });
+  }
+  if (!(await hasIntakeSession(intakeLink.clientId))) {
+    return NextResponse.json({ error: INTAKE_SESSION_REQUIRED }, { status: 401 });
   }
 
   if (isRateLimited(token)) {

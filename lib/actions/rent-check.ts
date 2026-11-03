@@ -4,6 +4,7 @@ import { z } from "zod";
 import { EnergyClass, IntakeStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
+import { hasIntakeSession, INTAKE_SESSION_REQUIRED } from "@/lib/intake-session";
 import { assessRentRules, type RentRulesAssessment } from "@/lib/rent-rules";
 import { assessRentCap, requiresOccupancyDeclaration } from "@/lib/rent-cap";
 import { rentRulesFromForm } from "@/lib/utils/rent-draft";
@@ -51,9 +52,10 @@ export async function checkRentRules(raw: z.input<typeof inputSchema>): Promise<
   if (input.token) {
     const link = await prisma.intakeLink.findUnique({
       where: { token: input.token },
-      select: { status: true, propertyId: true },
+      select: { status: true, propertyId: true, clientId: true },
     });
     if (!link || link.status !== IntakeStatus.PENDING || !link.propertyId) return { success: false, error: "Formulaire introuvable" };
+    if (!(await hasIntakeSession(link.clientId))) return { success: false, error: INTAKE_SESSION_REQUIRED };
     property = await findProperty(link.propertyId);
   } else if (input.propertyId) {
     const { client } = await requireProprietaireAuth();
@@ -93,9 +95,10 @@ export async function checkOccupancyDeclaration(raw: z.input<typeof occupancyInp
   const input = parsed.data;
   const link = await prisma.intakeLink.findUnique({
     where: { token: input.token },
-    select: { status: true, propertyId: true },
+    select: { status: true, propertyId: true, clientId: true },
   });
   if (!link || link.status !== IntakeStatus.PENDING || !link.propertyId) return { required: false };
+  if (!(await hasIntakeSession(link.clientId))) return { required: false };
   const property = await findProperty(link.propertyId);
   if (!property) return { required: false };
   const cap = await assessRentCap({

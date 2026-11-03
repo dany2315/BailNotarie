@@ -3,6 +3,7 @@
 import { prisma  } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { requireAuth, requireStaff } from "@/lib/auth-helpers";
+import { hasIntakeSession, requireIntakeSession } from "@/lib/intake-session";
 import { createIntakeLinkSchema, submitIntakeSchema } from "@/lib/zod/intake";
 import { ownerFormSchema, tenantFormSchema } from "@/lib/zod/client";
 import { submitOwnerForm, submitTenantForm } from "@/lib/actions/clients";
@@ -186,6 +187,12 @@ export async function getIntakeLinkByToken(token: string) {
     } : null,
   };  
 
+  // Sans session du client du lien (code non saisi) : statut et cible seulement, pour l'écran de
+  // code et les pages de suivi. Les données du dossier restent fermées.
+  if (!(await hasIntakeSession(intakeLink.clientId))) {
+    return { ...serialized, property: null, bail: null, client: null };
+  }
+
   return serialized;
 }
 
@@ -221,6 +228,8 @@ export async function submitIntake(data: unknown) {
   if (intakeLink.status !== "PENDING") {
     throw new Error("Ce lien a déjà été utilisé");
   }
+
+  await requireIntakeSession(intakeLink.clientId);
 
   // Si c'est un formulaire propriétaire avec clientId, utiliser submitOwnerForm
   if (intakeLink.target === "OWNER" && intakeLink.clientId) {
@@ -416,6 +425,8 @@ export async function savePartialIntake(data: unknown) {
   if (intakeLink.status !== "PENDING") {
     throw new Error("Ce formulaire a déjà été soumis");
   }
+
+  await requireIntakeSession(intakeLink.clientId);
 
   const clientId = intakeLink.clientId;
   if (!clientId) {
@@ -701,7 +712,7 @@ export async function handleDocumentsInTransaction(
 }
 
 
-// Récupérer les documents déjà uploadés pour un intake (sans authentification, accessible via token)
+// Récupérer les documents déjà uploadés pour un intake (lien en cours et session de son client)
 // Les documents sont maintenant stockés directement en base de données
 export async function getIntakeDocuments(token: string) {
   const intakeLink = await prisma.intakeLink.findUnique({
@@ -723,6 +734,7 @@ export async function getIntakeDocuments(token: string) {
   if (!intakeLink || intakeLink.status !== "PENDING") {
     throw new Error("Lien d'intake introuvable");
   }
+  await requireIntakeSession(intakeLink.clientId);
 
   const documents: any[] = [];
 
@@ -813,6 +825,7 @@ export async function deleteDocumentFromRawPayload(data: {
   if (!intakeLink || intakeLink.status !== "PENDING") {
     throw new Error("Lien d'intake introuvable");
   }
+  await requireIntakeSession(intakeLink.clientId);
 
   // Fichier du brouillon seulement : un fichier rattaché à une pièce n'est supprimé que si cette
   // pièce appartient au lien (plus bas). Sinon, n'importe quel lien pourrait effacer le fichier d'autrui.
@@ -916,11 +929,12 @@ export async function deletePersonFromClient(data: {
   if (!token || !clientId || !personEmail) {
     throw new Error("token, clientId et personEmail sont requis");
   }
-  // Appelable sans compte : seulement par le lien d'intake en cours de ce client.
+  // Par le lien d'intake en cours de ce client, avec la session ouverte par son code.
   const link = await prisma.intakeLink.findUnique({ where: { token }, select: { status: true, clientId: true } });
   if (!link || link.status !== "PENDING" || link.clientId !== clientId) {
     throw new Error("Lien d'intake introuvable");
   }
+  await requireIntakeSession(link.clientId);
 
   // Trouver la personne par email et clientId
   const person = await prisma.person.findFirst({

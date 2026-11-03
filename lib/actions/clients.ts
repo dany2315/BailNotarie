@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireStaff } from "@/lib/auth-helpers";
+import { requireIntakeSession } from "@/lib/intake-session";
 import { 
   createBasicClientSchema, 
   createFullClientSchema,
@@ -596,7 +597,9 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     throw error;
   }
 
-  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité)
+  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité), et que la session est celle
+  // de ce client (code reçu par e-mail) ou de l'équipe.
+  await requireIntakeSession(validated.clientId);
   const intakeLink = await prisma.intakeLink.findFirst({
     where: {
       clientId: validated.clientId,
@@ -1380,7 +1383,9 @@ export async function submitTenantForm(data: unknown) {
     throw error;
   }
 
-  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité)
+  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité), et que la session est celle
+  // de ce client (code reçu par e-mail) ou de l'équipe.
+  await requireIntakeSession(validated.clientId);
   // Inclure les informations du bail et du propriétaire pour l'envoi de notification
   const intakeLink = await prisma.intakeLink.findFirst({
     where: {

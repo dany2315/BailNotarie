@@ -1,11 +1,12 @@
 import { IntakeStatus, IntakeTarget, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, STAFF_ROLES } from "@/lib/auth-helpers";
+import { hasIntakeSession } from "@/lib/intake-session";
 
 /**
  * Accès à une pièce (lecture : URL de téléchargement ; suppression).
  *
- * - Lien d'intake en cours : pièces de son client (personnes, entreprise), de son bien et de son
+ * - Lien d'intake en cours, avec la session de son client (code reçu par e-mail) : pièces de son client (personnes, entreprise), de son bien et de son
  *   bail. Un locataire ne supprime que ses propres pièces, pas celles du bien ou du bail.
  * - Équipe : tout.
  * - Notaire : pièces des dossiers qui lui sont attribués ; il ne supprime que ce qu'il a envoyé.
@@ -48,6 +49,7 @@ export async function canAccessDocument(doc: AccessDocument, mode: DocumentMode,
       select: { status: true, target: true, clientId: true, propertyId: true, bailId: true },
     });
     if (!link || link.status !== IntakeStatus.PENDING) return false;
+    if (!(await hasIntakeSession(link.clientId))) return false;
     if (clientId && clientId === link.clientId) return true;
     // Le bien et le bail du lien : lecture pour tous, suppression pour le propriétaire seulement.
     const ownerLink = link.target === IntakeTarget.OWNER;

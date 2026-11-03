@@ -1,11 +1,13 @@
 import { IntakeStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { hasIntakeSession, INTAKE_SESSION_REQUIRED } from "@/lib/intake-session";
 
 /**
  * Contrôle d'accès des envois de pièces (URL d'upload signée, puis enregistrement du document).
  *
- * - Avec un lien d'intake : le lien doit être en cours (PENDING) et chaque identifiant fourni
+ * - Avec un lien d'intake : le lien doit être en cours (PENDING), la session celle de son client
+ *   (code reçu par e-mail) ou de l'équipe, et chaque identifiant fourni
  *   doit appartenir à ce lien (son client, ses personnes ou son entreprise, son bien, son bail).
  * - Sans lien : une session est exigée. L'équipe accède à tout ; un notaire, aux dossiers qui lui
  *   sont attribués ; un client, à ses propres données (son client, ses biens, ses baux).
@@ -41,7 +43,7 @@ async function ownerClientOf(target: UploadTarget): Promise<{ personClientId: st
 export async function authorizeUploadTarget(target: UploadTarget): Promise<UploadAccess> {
   const hasEntity = !!(target.clientId || target.personId || target.entrepriseId || target.propertyId || target.bailId);
 
-  // 1. Formulaire d'intake (sans compte) : le lien fait foi, rien en dehors de lui.
+  // 1. Formulaire d'intake : le lien et la session de son client, rien en dehors de lui.
   if (target.token) {
     const link = await prisma.intakeLink.findUnique({
       where: { token: target.token },
@@ -49,6 +51,7 @@ export async function authorizeUploadTarget(target: UploadTarget): Promise<Uploa
     });
     if (!link) return deny(404, "Lien d'intake introuvable");
     if (link.status !== IntakeStatus.PENDING) return deny(403, "Ce lien n'est plus actif");
+    if (!(await hasIntakeSession(link.clientId))) return deny(401, INTAKE_SESSION_REQUIRED);
     if (target.clientId && target.clientId !== link.clientId) return deny(403, "Accès refusé");
     if (target.propertyId && target.propertyId !== link.propertyId) return deny(403, "Accès refusé");
     if (target.bailId && target.bailId !== link.bailId) return deny(403, "Accès refusé");

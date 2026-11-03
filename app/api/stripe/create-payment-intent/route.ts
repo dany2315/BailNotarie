@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasIntakeSession, INTAKE_SESSION_REQUIRED } from "@/lib/intake-session";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 
@@ -15,6 +16,7 @@ export async function POST(req: NextRequest) {
       select: {
         id: true,
         status: true,
+        clientId: true,
         stripePaymentIntentId: true,
         client: {
           select: {
@@ -34,6 +36,10 @@ export async function POST(req: NextRequest) {
         { error: "Ce dossier a déjà été soumis" },
         { status: 400 }
       );
+    }
+
+    if (!(await hasIntakeSession(intakeLink.clientId))) {
+      return NextResponse.json({ error: INTAKE_SESSION_REQUIRED }, { status: 401 });
     }
 
     const firstPerson = intakeLink.client?.persons?.[0];

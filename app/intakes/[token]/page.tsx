@@ -2,6 +2,8 @@ import { getIntakeLinkByToken, submitIntake } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
 import { IntakeForm } from "@/components/intakes/intake-form";
 import { IntakeOpenTracker } from "@/components/intakes/intake-open-tracker";
+import { IntakeOtpGate } from "@/components/intakes/intake-otp-gate";
+import { intakeGate } from "@/lib/intake-session";
 import Image from "next/image";
 import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
@@ -79,6 +81,17 @@ export default async function IntakePage({
           </Empty>
         </div>
         <Footer />
+      </>
+    );
+  }
+
+  // Le lien ne suffit pas : sans session de ce client, le code reçu par e-mail d'abord.
+  const gate = await intakeGate(intakeLink.clientId);
+  if (gate) {
+    return (
+      <>
+        <IntakeOpenTracker token={resolvedParams.token} />
+        <IntakeOtpGate token={resolvedParams.token} {...gate} />
       </>
     );
   }

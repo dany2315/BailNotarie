@@ -52,8 +52,9 @@ export function StartCard({
   description,
   children,
 }: {
-  current: number;
-  total: number;
+  /** Repère d'avancement ; absent pour un écran hors parcours (code d'accès d'un formulaire). */
+  current?: number;
+  total?: number;
   title?: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
@@ -66,7 +67,7 @@ export function StartCard({
         className="pointer-events-none absolute -inset-x-6 -bottom-6 h-24 rounded-[50%] bg-[#4373f5]/20 blur-[60px]"
       />
       <div className="lp-ring-gradient relative overflow-hidden rounded-[26px] bg-white/95 p-5 shadow-[0_40px_100px_-50px_rgba(30,58,138,0.6)] backdrop-blur-xl sm:p-7">
-        <Progress current={current} total={total} />
+        {current && total ? <Progress current={current} total={total} /> : null}
         {(title || description) && (
           <div className="mb-5">
             {title && <h2 className="text-[19px] font-semibold leading-snug text-slate-900">{title}</h2>}

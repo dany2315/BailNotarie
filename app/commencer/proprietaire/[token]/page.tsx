@@ -2,6 +2,8 @@ import { getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
 import { OwnerIntakeForm } from "@/components/intakes/owner-intake-form";
 import { IntakeOpenTracker } from "@/components/intakes/intake-open-tracker";
+import { IntakeOtpGate } from "@/components/intakes/intake-otp-gate";
+import { intakeGate } from "@/lib/intake-session";
 import Image from "next/image";
 import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
@@ -85,6 +87,17 @@ export default async function OwnerFormPage({
 
   if (intakeLink.target !== "OWNER") {
     notFound();
+  }
+
+  // Le lien ne suffit pas : sans session de ce client, le code reçu par e-mail d'abord.
+  const gate = await intakeGate(intakeLink.clientId);
+  if (gate) {
+    return (
+      <>
+        <IntakeOpenTracker token={resolvedParams.token} />
+        <IntakeOtpGate token={resolvedParams.token} {...gate} />
+      </>
+    );
   }
 
   return (
