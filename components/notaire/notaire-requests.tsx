@@ -31,6 +31,7 @@ import { Loader2, FileText, Plus, User, Building2, Download, Clock, CheckCircle2
 import { Separator } from "@/components/ui/separator";
 import { createNotaireRequest } from "@/lib/actions/notaires";
 import { formatDateTime } from "@/lib/utils/formatters";
+import { fetchSignedFileUrl } from "@/lib/utils/signed-file-url";
 
 const requestSchema = z.object({
   title: z.string().min(1, "Le titre est requis"),
@@ -228,10 +229,12 @@ export function NotaireRequests({
     }
 
     try {
-      const downloadUrl = await getSignedUrlForDownload(fileKey);
+      // URL d'un autre domaine : le navigateur ignore link.download, le nom vient de S3
+      // (Content-Disposition fixé par le serveur).
+      const signed = await fetchSignedFileUrl(fileKey, { download: true });
       const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = fileName;
+      link.href = signed.signedUrl;
+      link.download = signed.fileName ?? fileName;
       link.target = "_blank";
       document.body.appendChild(link);
       link.click();

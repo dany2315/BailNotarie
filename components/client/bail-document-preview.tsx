@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
+import { fetchSignedFileUrl } from "@/lib/utils/signed-file-url";
 
 interface BailDocumentPreviewProps {
   document: {
@@ -58,9 +59,12 @@ async function handleDownloadDocument(
   try {
     // Toujours essayer d'obtenir une URL signée (fonctionne avec clé S3 ou URL complète)
     let downloadUrl = fileKey;
-    
+    let downloadName = fileName;
+
     try {
-      downloadUrl = await getSignedUrlForPreview(fileKey);
+      const signed = await fetchSignedFileUrl(fileKey, { download: true });
+      downloadUrl = signed.signedUrl;
+      downloadName = signed.fileName ?? fileName;
     } catch (error) {
       // Fallback : si c'est une URL complète (ancien format), utiliser directement
       if (fileKey?.startsWith("http")) {
@@ -82,7 +86,7 @@ async function handleDownloadDocument(
     const url = window.URL.createObjectURL(blob);
     const link = window.document.createElement("a");
     link.href = url;
-    link.download = fileName;
+    link.download = downloadName;
     window.document.body.appendChild(link);
     link.click();
     window.document.body.removeChild(link);

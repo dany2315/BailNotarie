@@ -89,14 +89,18 @@ export async function uploadFileToS3(
 
 /**
  * Génère une URL signée pour téléchargement (lecture)
+ * contentDisposition : en-tête renvoyé par S3 (nom de fichier proposé au navigateur), sans
+ * toucher à l'objet stocké.
  */
 export async function generateSignedDownloadUrl(
   fileKey: string,
-  expiresIn: number = 3600
+  expiresIn: number = 3600,
+  contentDisposition?: string
 ): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,
     Key: fileKey,
+    ...(contentDisposition && { ResponseContentDisposition: contentDisposition }),
   });
 
   const signedUrl = await getSignedUrl(s3Client, command, { expiresIn });

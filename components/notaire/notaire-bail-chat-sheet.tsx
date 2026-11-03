@@ -21,6 +21,7 @@ import { Send, FileText, MessageSquare, User, Scale, Plus, Upload, X, Download, 
 import { getBailMessagesAndRequests, sendBailMessage, sendBailMessageWithFile, addChatDocumentToBail, addDocumentToNotaireRequest, updateNotaireRequestStatus, deleteBailMessage, getChatOtherUser, getChatOtherUserByParty } from "@/lib/actions/bail-messages";
 import { createNotaireRequest, deleteNotaireRequest } from "@/lib/actions/notaires";
 import { formatDateTime } from "@/lib/utils/formatters";
+import { fetchSignedFileUrl } from "@/lib/utils/signed-file-url";
 import { Role, BailMessageType, NotaireRequestStatus } from "@prisma/client";
 import { useSession } from "@/lib/auth-client";
 import {
@@ -121,9 +122,12 @@ async function handleDownloadDocument(
   try {
     // Toujours essayer d'obtenir une URL signée (fonctionne avec clé S3 ou URL complète)
     let downloadUrl = fileKey;
+    let downloadName = fileName;
     
     try {
-      downloadUrl = await getSignedUrlForDownload(fileKey);
+      const signed = await fetchSignedFileUrl(fileKey, { download: true });
+      downloadUrl = signed.signedUrl;
+      downloadName = signed.fileName ?? fileName;
     } catch (error) {
       // Fallback : si c'est une URL complète (ancien format), utiliser directement
       if (fileKey?.startsWith("http")) {
@@ -146,7 +150,7 @@ async function handleDownloadDocument(
     const url = window.URL.createObjectURL(blob);
     const link = window.document.createElement("a");
     link.href = url;
-    link.download = fileName;
+    link.download = downloadName;
     window.document.body.appendChild(link);
     link.click();
     window.document.body.removeChild(link);

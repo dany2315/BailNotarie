@@ -31,17 +31,20 @@ export function useDownloadFile(token?: string) {
     try {
       // Toujours essayer d'obtenir une URL signée (fonctionne avec clé S3 ou URL complète)
       let downloadUrl = fileKey;
-      
+      // Nom lisible calculé par le serveur (type de pièce, personne ou bien, identifiant court).
+      let downloadName = fileName;
+
       try {
         const response = await fetch("/api/blob/get-signed-url", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileKey, ...(token && { token }) }),
+          body: JSON.stringify({ fileKey, download: true, ...(token && { token }) }),
         });
 
         if (response.ok) {
-          const { signedUrl } = await response.json();
+          const { signedUrl, fileName: serverFileName } = await response.json();
           downloadUrl = signedUrl;
+          if (serverFileName) downloadName = serverFileName;
         }
       } catch (error) {
         // Fallback : si c'est une URL complète (ancien format), utiliser directement
@@ -65,7 +68,7 @@ export function useDownloadFile(token?: string) {
       const url = window.URL.createObjectURL(blob);
       const link = window.document.createElement("a");
       link.href = url;
-      link.download = fileName;
+      link.download = downloadName;
       window.document.body.appendChild(link);
       link.click();
       window.document.body.removeChild(link);

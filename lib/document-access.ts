@@ -111,13 +111,18 @@ export async function accessibleDocument(id: string, mode: DocumentMode, token?:
   return (await canAccessDocument(doc, mode, token)) ? doc : null;
 }
 
-/** Un fichier peut être lu si au moins une pièce qui le référence est accessible à l'appelant. */
-export async function canReadFileKey(fileKeys: string[], token?: string | null): Promise<boolean> {
+/** Première pièce référençant ce fichier qui soit accessible en lecture à l'appelant (sinon null). */
+export async function readableDocumentForFileKey(fileKeys: string[], token?: string | null) {
   const docs = await prisma.document.findMany({ where: { fileKey: { in: fileKeys } }, select: DOCUMENT_SELECT });
   for (const doc of docs) {
-    if (await canAccessDocument(doc, "read", token)) return true;
+    if (await canAccessDocument(doc, "read", token)) return doc;
   }
-  return false;
+  return null;
+}
+
+/** Un fichier peut être lu si au moins une pièce qui le référence est accessible à l'appelant. */
+export async function canReadFileKey(fileKeys: string[], token?: string | null): Promise<boolean> {
+  return (await readableDocumentForFileKey(fileKeys, token)) !== null;
 }
 
 /**

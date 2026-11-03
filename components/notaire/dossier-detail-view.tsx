@@ -24,7 +24,7 @@ import { useState, useEffect } from "react";
 import { Download, File } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
+import { useDownloadFile } from "@/hooks/use-download-file";
 
 interface Dossier {
   id: string;
@@ -508,6 +508,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
     }>;
   }>>([]);
   const [isLoadingAnnexDocuments, setIsLoadingAnnexDocuments] = useState(false);
+  const { downloadFile, isFileDownloading } = useDownloadFile();
 
   const getClientName = () => {
     if (dossier.client.entreprise) {
@@ -877,13 +878,15 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                const url = getS3PublicUrl(doc.fileKey) || doc.fileKey;
-                                window.open(url, "_blank");
-                              }}
+                              onClick={() => downloadFile(doc.fileKey, doc.label || `document-${doc.id}`)}
+                              disabled={isFileDownloading(doc.fileKey)}
                               className="shrink-0"
                             >
-                              <Download className="h-4 w-4 mr-2" />
+                              {isFileDownloading(doc.fileKey) ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Download className="h-4 w-4 mr-2" />
+                              )}
                               Télécharger
                             </Button>
                           </div>
