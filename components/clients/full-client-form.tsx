@@ -99,14 +99,11 @@ const FILE_REFS_CONFIG = [
   { name: "kbis" },
   { name: "statutes" },
   { name: "idIdentity" },
-  { name: "livretDeFamille" },
+  { name: "contratDeMariage" },
   { name: "contratDePacs" },
   { name: "diagnostics" },
   { name: "reglementCopropriete" },
   { name: "cahierChargeLotissement" },
-  { name: "statutAssociationSyndicale" },
-  { name: "insuranceOwner" },
-  { name: "ribOwner" },
 ] as const;
 
 export function FullClientForm({ onSubmit }: FullClientFormProps) {

@@ -132,6 +132,14 @@ const empty = (rent: number, furnished: boolean, surface: number | null, notConc
   supplement: null,
 });
 
+/**
+ * Logement situé dans le périmètre d'un arrêté d'encadrement : le notaire demande alors
+ * la déclaration d'occupation faite sur impots.gouv (« Gérer mes biens immobiliers »).
+ */
+export function requiresOccupancyDeclaration(cap: RentCapAssessment): boolean {
+  return !!cap.territory && cap.notConcerned !== "outside_perimeter" && cap.notConcerned !== "exempt";
+}
+
 /** Contrôle du loyer d'un bail au regard de l'arrêté d'encadrement en vigueur. */
 export async function assessRentCap({ property, bail }: RentCapInput): Promise<RentCapAssessment> {
   const furnished = isFurnishedBail(bail.bailType);

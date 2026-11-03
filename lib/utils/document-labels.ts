@@ -9,16 +9,18 @@ export const documentKindLabels: Record<string, string> = {
   TITLE_DEED: "Titre de propriété",
   ID_IDENTITY: "Pièce d'identité",
   LIVRET_DE_FAMILLE: "Livret de famille",
-  CONTRAT_DE_PACS: "Contrat de PACS",
+  CONTRAT_DE_PACS: "Convention de PACS",
+  CONTRAT_DE_MARIAGE: "Contrat de mariage",
   DIAGNOSTICS: "Diagnostics",
   REGLEMENT_COPROPRIETE: "Règlement de copropriété",
-  CAHIER_DE_CHARGE_LOTISSEMENT: "Cahier des charges lotissement",
+  CAHIER_DE_CHARGE_LOTISSEMENT: "Règlement du lotissement",
   STATUT_DE_LASSOCIATION_SYNDICALE: "Statut de l'association syndicale",
   RIB: "RIB",
   PREVIOUS_RENT_PROOF: "Dernier loyer du locataire précédent",
   PREVIOUS_TENANT_EXIT_PROOF: "Départ du locataire précédent",
   WORKS_INVOICES: "Factures des travaux",
   RENT_REFERENCES: "Loyers de logements comparables",
+  OCCUPANCY_DECLARATION: "Déclaration d'occupation (impots.gouv)",
 };
 
 /**

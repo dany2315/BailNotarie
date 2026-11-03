@@ -218,25 +218,25 @@ export async function handleOwnerFormDocuments(
       }
     }
 
-    // Livret de famille si marié (document client commun)
+    // Contrat de mariage si marié avec contrat (document client commun)
     if (familyStatus === "MARIE") {
-      const livretDeFamille = formData.get("livretDeFamille") as File | null;
-      if (livretDeFamille && livretDeFamille.size > 0) {
-        const doc = await uploadFileAndCreateDocument(livretDeFamille, DocumentKind.LIVRET_DE_FAMILLE, {
+      const contratDeMariage = formData.get("contratDeMariage") as File | null;
+      if (contratDeMariage && contratDeMariage.size > 0) {
+        const doc = await uploadFileAndCreateDocument(contratDeMariage, DocumentKind.CONTRAT_DE_MARIAGE, {
           clientId,
-          label: "Livret de famille",
+          label: "Contrat de mariage",
         });
         if (doc) documents.push(doc);
       }
     }
 
-    // Contrat de PACS si pacsé (document client commun)
+    // Convention de PACS si pacsé (document client commun)
     if (familyStatus === "PACS") {
       const contratDePacs = formData.get("contratDePacs") as File | null;
       if (contratDePacs && contratDePacs.size > 0) {
         const doc = await uploadFileAndCreateDocument(contratDePacs, DocumentKind.CONTRAT_DE_PACS, {
           clientId,
-          label: "Contrat de PACS",
+          label: "Convention de PACS",
         });
         if (doc) documents.push(doc);
       }
@@ -394,25 +394,25 @@ export async function handleTenantFormDocuments(
       }
     }
 
-    // Livret de famille si marié (document client commun)
+    // Contrat de mariage si marié avec contrat (document client commun)
     if (familyStatus === "MARIE") {
-      const livretDeFamille = formData.get("livretDeFamille") as File | null;
-      if (livretDeFamille && livretDeFamille.size > 0) {
-        const doc = await uploadFileAndCreateDocument(livretDeFamille, DocumentKind.LIVRET_DE_FAMILLE, {
+      const contratDeMariage = formData.get("contratDeMariage") as File | null;
+      if (contratDeMariage && contratDeMariage.size > 0) {
+        const doc = await uploadFileAndCreateDocument(contratDeMariage, DocumentKind.CONTRAT_DE_MARIAGE, {
           clientId,
-          label: "Livret de famille",
+          label: "Contrat de mariage",
         });
         if (doc) documents.push(doc);
       }
     }
 
-    // Contrat de PACS si pacsé (document client commun)
+    // Convention de PACS si pacsé (document client commun)
     if (familyStatus === "PACS") {
       const contratDePacs = formData.get("contratDePacs") as File | null;
       if (contratDePacs && contratDePacs.size > 0) {
         const doc = await uploadFileAndCreateDocument(contratDePacs, DocumentKind.CONTRAT_DE_PACS, {
           clientId,
-          label: "Contrat de PACS",
+          label: "Convention de PACS",
         });
         if (doc) documents.push(doc);
       }

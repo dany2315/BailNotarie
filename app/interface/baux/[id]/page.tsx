@@ -61,6 +61,11 @@ const BAIL_TYPE_LABELS: Record<string, string> = {
 };
 const BAIL_FAMILY_LABELS: Record<string, string> = { HABITATION: "Habitation", COMMERCIAL: "Commercial" };
 const PROPERTY_TYPE_LABELS: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison" };
+const SUBDIVISION_AGE_LABELS: Record<string, string> = {
+  YES: "Lotissement autorisé il y a plus de 10 ans (règlement non demandé)",
+  NO: "Lotissement autorisé il y a moins de 10 ans",
+  UNKNOWN: "Ancienneté du lotissement inconnue",
+};
 const LEGAL_STATUS_LABELS: Record<string, string> = {
   PLEIN_PROPRIETE: "Pleine propriété",
   CO_PROPRIETE: "Copropriété",
@@ -328,7 +333,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   // Le bien
   const furniturePresent = property ? FURNITURE.filter((item) => !!property[item.key]).length : 0;
   const propertyDocRows = property
-    ? buildChecklistRows(getRequiredPropertyFields(property.legalStatus).requiredDocuments, (propertyDocuments as any[]).map(toChecklistDocument), {
+    ? buildChecklistRows(getRequiredPropertyFields(property.legalStatus, property.subdivisionOver10Years).requiredDocuments, (propertyDocuments as any[]).map(toChecklistDocument), {
         keyPrefix: `property-${property.id}`,
         target: { propertyId: property.id },
         labels: { [DocumentKind.INSURANCE]: "Assurance du propriétaire", [DocumentKind.RIB]: "RIB du propriétaire" },
@@ -800,6 +805,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       ]
                         .filter(Boolean)
                         .join(" · "),
+                      property.legalStatus === "CO_PROPRIETE" && property.syndicName
+                        ? `Syndic : ${[property.syndicName, property.syndicEmail, property.syndicPhone].filter(Boolean).join(" · ")}`
+                        : null,
+                      property.legalStatus === "LOTISSEMENT" && property.subdivisionOver10Years
+                        ? SUBDIVISION_AGE_LABELS[property.subdivisionOver10Years] ?? null
+                        : null,
                     ]
                       .filter(Boolean)
                       .join("\n")}

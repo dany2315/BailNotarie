@@ -5,6 +5,7 @@ import { EnergyClass, IntakeStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
 import { assessRentRules, type RentRulesAssessment } from "@/lib/rent-rules";
+import { assessRentCap, requiresOccupancyDeclaration } from "@/lib/rent-cap";
 import { rentRulesFromForm } from "@/lib/utils/rent-draft";
 
 const PROPERTY_SELECT = {
@@ -73,6 +74,41 @@ export async function checkRentRules(raw: z.input<typeof inputSchema>): Promise<
     },
   });
   return { success: true, data: JSON.parse(JSON.stringify(data)) };
+}
+
+const occupancyInputSchema = z.object({
+  token: z.string().min(1),
+  bailType: z.string().min(1),
+  bailFamily: z.string().optional().nullable(),
+  effectiveDate: z.string().optional().nullable(),
+});
+
+/**
+ * Formulaire propriétaire : le bien du lien est-il dans une ville à loyers encadrés ?
+ * Si oui, on lui demande sa déclaration d'occupation (impots.gouv).
+ */
+export async function checkOccupancyDeclaration(raw: z.input<typeof occupancyInputSchema>): Promise<{ required: boolean }> {
+  const parsed = occupancyInputSchema.safeParse(raw);
+  if (!parsed.success) return { required: false };
+  const input = parsed.data;
+  const link = await prisma.intakeLink.findUnique({
+    where: { token: input.token },
+    select: { status: true, propertyId: true },
+  });
+  if (!link || link.status !== IntakeStatus.PENDING || !link.propertyId) return { required: false };
+  const property = await findProperty(link.propertyId);
+  if (!property) return { required: false };
+  const cap = await assessRentCap({
+    property,
+    bail: {
+      rentAmount: 0,
+      bailType: input.bailType,
+      bailFamily: input.bailFamily ?? null,
+      effectiveDate: input.effectiveDate || null,
+      rentSupplementReason: null,
+    },
+  });
+  return { required: requiresOccupancyDeclaration(cap) };
 }
 
 async function findProperty(id: string) {

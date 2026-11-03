@@ -116,6 +116,9 @@ import {
   getIntakeDocuments,
   deletePersonFromClient,
 } from "@/lib/actions/intakes";
+import { checkOccupancyDeclaration } from "@/lib/actions/rent-check";
+import { getMaritalDocumentKind, needsSubdivisionRules } from "@/lib/utils/required-fields";
+import { MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import { Separator } from "../ui/separator";
 import { PaymentStep } from "./payment-step";
 
@@ -323,6 +326,11 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   const propertyMainRooms = property?.mainRooms ?? undefined;
   const propertyConstructionPeriod = property?.constructionPeriod ?? undefined;
   const propertyDpeClass = property?.dpeClass ?? "";
+  // Copropriété (syndic) et lotissement (ancienneté)
+  const propertySyndicName = property?.syndicName ?? "";
+  const propertySyndicEmail = property?.syndicEmail ?? "";
+  const propertySyndicPhone = property?.syndicPhone ?? "";
+  const propertySubdivisionOver10Years = property?.subdivisionOver10Years ?? "";
   // Relocation en zone tendue et complément de loyer (étape « Loyer & charges »).
   const rentRules = rentRulesToForm(bail);
   const propertyStatus = property?.status ?? PropertyStatus.NON_LOUER;
@@ -421,6 +429,10 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       propertyMainRooms,
       propertyConstructionPeriod,
       propertyDpeClass,
+      propertySyndicName,
+      propertySyndicEmail,
+      propertySyndicPhone,
+      propertySubdivisionOver10Years,
       rentRules,
       propertyLabel,
       propertyFullAddress,
@@ -496,6 +508,10 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       propertyMainRooms,
       propertyConstructionPeriod,
       propertyDpeClass,
+      propertySyndicName,
+      propertySyndicEmail,
+      propertySyndicPhone,
+      propertySubdivisionOver10Years,
       rentRules,
       propertyLabel,
       propertyFullAddress,
@@ -829,9 +845,9 @@ const findFirstIncompleteStep = (
   } else if (clientType === ClientType.PERSONNE_PHYSIQUE) {
     const hasId = clientDocs.some((d: any) => d.kind === "ID_IDENTITY");
     if (!hasId) return idxDocuments;
-    const hasLivret = clientDocs.some((d: any) => d.kind === "LIVRET_DE_FAMILLE");
-    const hasPacs = clientDocs.some((d: any) => d.kind === "CONTRAT_DE_PACS");
-    if (!hasLivret || !hasPacs) return idxDocuments;
+    const primary = (values as any).persons?.[0];
+    const maritalKind = getMaritalDocumentKind(primary?.familyStatus, primary?.matrimonialRegime);
+    if (maritalKind && !clientDocs.some((d: any) => d.kind === maritalKind)) return idxDocuments;
   }
 
   const hasDiagnostics = propertyDocs.some((d: any) => d.kind === "DIAGNOSTICS");
@@ -844,19 +860,13 @@ const findFirstIncompleteStep = (
   ) {
     return idxDocuments;
   }
-  if (values.propertyLegalStatus === BienLegalStatus.LOTISSEMENT) {
-    const hasCahier = propertyDocs.some(
-      (d: any) => d.kind === "CAHIER_DE_CHARGE_LOTISSEMENT"
-    );
-    const hasStatut = propertyDocs.some(
-      (d: any) => d.kind === "STATUT_DE_LASSOCIATION_SYNDICALE"
-    );
-    if (!hasCahier || !hasStatut) return idxDocuments;
+  if (
+    values.propertyLegalStatus === BienLegalStatus.LOTISSEMENT &&
+    needsSubdivisionRules((values as any).propertySubdivisionOver10Years) &&
+    !propertyDocs.some((d: any) => d.kind === "CAHIER_DE_CHARGE_LOTISSEMENT")
+  ) {
+    return idxDocuments;
   }
-
-  const hasInsurance = bailDocs.some((d: any) => d.kind === "INSURANCE");
-  const hasRib = bailDocs.some((d: any) => d.kind === "RIB");
-  if (!hasInsurance || !hasRib) return 7;
 
   return STEPS.length - 1;
 };
@@ -928,15 +938,12 @@ useEffect(() => {
   // File refs
   const kbisRef = useRef<HTMLInputElement>(null);
   const statutesRef = useRef<HTMLInputElement>(null);
-  const livretDeFamilleRef = useRef<HTMLInputElement>(null);
+  const contratDeMariageRef = useRef<HTMLInputElement>(null);
   const contratDePacsRef = useRef<HTMLInputElement>(null);
   const diagnosticsRef = useRef<HTMLInputElement>(null);
   const titleDeedRef = useRef<HTMLInputElement>(null);
   const reglementCoproprieteRef = useRef<HTMLInputElement>(null);
   const cahierChargeLotissementRef = useRef<HTMLInputElement>(null);
-  const statutAssociationSyndicaleRef = useRef<HTMLInputElement>(null);
-  const insuranceOwnerRef = useRef<HTMLInputElement>(null);
-  const ribOwnerRef = useRef<HTMLInputElement>(null);
 
   // Refs dynamiques pour les documents de chaque personne
   const personDocumentRefs = useRef<Record<number, { idIdentity: React.RefObject<HTMLInputElement> }>>({});
@@ -944,7 +951,7 @@ useEffect(() => {
   // File states
   const [kbisFile, setKbisFile] = useState<File | null>(null);
   const [statutesFile, setStatutesFile] = useState<File | null>(null);
-  const [livretDeFamilleFile, setLivretDeFamilleFile] =
+  const [contratDeMariageFile, setContratDeMariageFile] =
     useState<File | null>(null);
   const [contratDePacsFile, setContratDePacsFile] =
     useState<File | null>(null);
@@ -954,11 +961,6 @@ useEffect(() => {
     useState<File | null>(null);
   const [cahierChargeLotissementFile, setCahierChargeLotissementFile] =
     useState<File | null>(null);
-  const [statutAssociationSyndicaleFile, setStatutAssociationSyndicaleFile] =
-    useState<File | null>(null);
-  const [insuranceOwnerFile, setInsuranceOwnerFile] =
-    useState<File | null>(null);
-  const [ribOwnerFile, setRibOwnerFile] = useState<File | null>(null);
 
   // États dynamiques pour les documents de chaque personne
   const [personDocumentFiles, setPersonDocumentFiles] = useState<Record<number, { idIdentity: File | null }>>({});
@@ -1367,17 +1369,18 @@ useEffect(() => {
         }
       });
       
-      // Documents communs au client (livret de famille, PACS)
+      // Documents communs au client (contrat de mariage, convention de PACS)
       // Utiliser le statut familial de la première personne
       const primaryPerson = persons[0];
-      if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
-        if (!hasDocument(livretDeFamilleRef, livretDeFamilleFile, "LIVRET_DE_FAMILLE", undefined, uploadedDocuments)) {
-          errors.push("Livret de famille requis");
+      const maritalKind = getMaritalDocumentKind(primaryPerson?.familyStatus, primaryPerson?.matrimonialRegime);
+      if (maritalKind === "CONTRAT_DE_MARIAGE") {
+        if (!hasDocument(contratDeMariageRef, contratDeMariageFile, "CONTRAT_DE_MARIAGE", undefined, uploadedDocuments)) {
+          errors.push("Contrat de mariage requis");
         }
       }
-      if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
+      if (maritalKind === "CONTRAT_DE_PACS") {
         if (!hasDocument(contratDePacsRef, contratDePacsFile, "CONTRAT_DE_PACS", undefined, uploadedDocuments)) {
-          errors.push("Contrat de PACS requis");
+          errors.push("Convention de PACS requise");
         }
       }
     }
@@ -1400,36 +1403,18 @@ useEffect(() => {
     ) {
       errors.push("Règlement de copropriété requis");
     }
-    if (propertyLegalStatus === BienLegalStatus.LOTISSEMENT) {
-      if (
-        !hasDocument(
-          cahierChargeLotissementRef,
-          cahierChargeLotissementFile,
-          "CAHIER_DE_CHARGE_LOTISSEMENT",
-          undefined,
-          uploadedDocuments
-        )
-      ) {
-        errors.push("Cahier des charges du lotissement requis");
-      }
-      if (
-        !hasDocument(
-          statutAssociationSyndicaleRef,
-          statutAssociationSyndicaleFile,
-          "STATUT_DE_LASSOCIATION_SYNDICALE",
-          undefined,
-          uploadedDocuments
-        )
-      ) {
-        errors.push("Statut de l'association syndicale requis");
-      }
-    }
-
-    if (!hasDocument(insuranceOwnerRef, insuranceOwnerFile, "INSURANCE", undefined, uploadedDocuments)) {
-      errors.push("Assurance propriétaire requise");
-    }
-    if (!hasDocument(ribOwnerRef, ribOwnerFile, "RIB", undefined, uploadedDocuments)) {
-      errors.push("RIB requis");
+    if (
+      propertyLegalStatus === BienLegalStatus.LOTISSEMENT &&
+      needsSubdivisionRules((values as any).propertySubdivisionOver10Years) &&
+      !hasDocument(
+        cahierChargeLotissementRef,
+        cahierChargeLotissementFile,
+        "CAHIER_DE_CHARGE_LOTISSEMENT",
+        undefined,
+        uploadedDocuments
+      )
+    ) {
+      errors.push("Règlement du lotissement requis");
     }
 
     return { isValid: errors.length === 0, errors };
@@ -1552,6 +1537,10 @@ useEffect(() => {
           "propertyMainRooms",
           "propertyConstructionPeriod",
           "propertyDpeClass",
+          "propertySyndicName",
+          "propertySyndicEmail",
+          "propertySyndicPhone",
+          "propertySubdivisionOver10Years",
           "propertyStatus",
         ];
       case "bailType":
@@ -1802,15 +1791,12 @@ useEffect(() => {
       const fileRefs = [
         { ref: kbisRef, stateFile: kbisFile },
         { ref: statutesRef, stateFile: statutesFile },
-        { ref: livretDeFamilleRef, stateFile: livretDeFamilleFile },
+        { ref: contratDeMariageRef, stateFile: contratDeMariageFile },
         { ref: contratDePacsRef, stateFile: contratDePacsFile },
         { ref: diagnosticsRef, stateFile: diagnosticsFile },
         { ref: titleDeedRef, stateFile: titleDeedFile },
         { ref: reglementCoproprieteRef, stateFile: reglementCoproprieteFile },
         { ref: cahierChargeLotissementRef, stateFile: cahierChargeLotissementFile },
-        { ref: statutAssociationSyndicaleRef, stateFile: statutAssociationSyndicaleFile },
-        { ref: insuranceOwnerRef, stateFile: insuranceOwnerFile },
-        { ref: ribOwnerRef, stateFile: ribOwnerFile },
       ];
 
       // Vérifier s'il y a de nouveaux fichiers (dans les refs ou les états)
@@ -2086,6 +2072,26 @@ useEffect(() => {
           }
           if (!form.getValues("propertyDpeClass" as any)) {
             form.setError("propertyDpeClass" as any, { type: "manual", message: "Indiquez la classe énergétique du logement" });
+            missingCategory = true;
+          }
+        }
+        if (stepId === "propertyDetails") {
+          const legalStatus = form.getValues("propertyLegalStatus");
+          if (legalStatus === BienLegalStatus.CO_PROPRIETE) {
+            if (!String(form.getValues("propertySyndicName" as any) ?? "").trim()) {
+              form.setError("propertySyndicName" as any, { type: "manual", message: "Indiquez le nom du syndic" });
+              missingCategory = true;
+            }
+            if (
+              !String(form.getValues("propertySyndicEmail" as any) ?? "").trim() &&
+              !String(form.getValues("propertySyndicPhone" as any) ?? "").trim()
+            ) {
+              form.setError("propertySyndicEmail" as any, { type: "manual", message: "Indiquez l'e-mail ou le téléphone du syndic" });
+              missingCategory = true;
+            }
+          }
+          if (legalStatus === BienLegalStatus.LOTISSEMENT && !form.getValues("propertySubdivisionOver10Years" as any)) {
+            form.setError("propertySubdivisionOver10Years" as any, { type: "manual", message: "Répondez à la question sur le lotissement" });
             missingCategory = true;
           }
         }
@@ -2841,41 +2847,32 @@ useEffect(() => {
               fileRefs={{
                 kbisRef: kbisRef as any,
                 statutesRef: statutesRef as any,
-                livretDeFamilleRef: livretDeFamilleRef as any,
+                contratDeMariageRef: contratDeMariageRef as any,
                 contratDePacsRef: contratDePacsRef as any,
                 diagnosticsRef: diagnosticsRef as any,
                 titleDeedRef: titleDeedRef as any,
                 reglementCoproprieteRef: reglementCoproprieteRef as any,
                 cahierChargeLotissementRef: cahierChargeLotissementRef as any,
-                statutAssociationSyndicaleRef: statutAssociationSyndicaleRef as any,
-                insuranceOwnerRef: insuranceOwnerRef as any,
-                ribOwnerRef: ribOwnerRef as any,
               }}
               fileStates={{
                 kbisFile,
                 statutesFile,
-                livretDeFamilleFile,
+                contratDeMariageFile,
                 contratDePacsFile,
                 diagnosticsFile,
                 titleDeedFile,
                 reglementCoproprieteFile,
                 cahierChargeLotissementFile,
-                statutAssociationSyndicaleFile,
-                insuranceOwnerFile,
-                ribOwnerFile,
               }}
               setFileStates={{
                 setKbisFile,
                 setStatutesFile,
-                setLivretDeFamilleFile,
+                setContratDeMariageFile,
                 setContratDePacsFile,
                 setDiagnosticsFile,
                 setTitleDeedFile,
                 setReglementCoproprieteFile,
                 setCahierChargeLotissementFile,
-                setStatutAssociationSyndicaleFile,
-                setInsuranceOwnerFile,
-                setRibOwnerFile,
               }}
               personDocumentRefs={personDocumentRefs.current}
               personDocumentFiles={personDocumentFiles}
@@ -2891,8 +2888,8 @@ useEffect(() => {
         <input type="file" ref={statutesRef} name="statutes" className="hidden" />
         <input
           type="file"
-          ref={livretDeFamilleRef}
-          name="livretDeFamille"
+          ref={contratDeMariageRef}
+          name="contratDeMariage"
           className="hidden"
         />
         <input
@@ -2925,19 +2922,6 @@ useEffect(() => {
           name="cahierChargeLotissement"
           className="hidden"
         />
-        <input
-          type="file"
-          ref={statutAssociationSyndicaleRef}
-          name="statutAssociationSyndicale"
-          className="hidden"
-        />
-        <input
-          type="file"
-          ref={insuranceOwnerRef}
-          name="insuranceOwner"
-          className="hidden"
-        />
-        <input type="file" ref={ribOwnerRef} name="ribOwner" className="hidden" />
         {/* Hidden file inputs for persons */}
         {(personsWatch || []).map((_, index) => {
           const refs = personDocumentRefs.current[index];
@@ -3599,13 +3583,17 @@ const ClientInfoStep = ({
                             <SelectContent>
                               {Object.values(MatrimonialRegime).map((regime) => (
                                 <SelectItem key={regime} value={regime}>
-                                  {regime.replace(/_/g, " ")}
+                                  {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         )}
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Sans contrat signé chez un notaire, choisissez « Communauté réduite aux acquêts ». En cas de
+                        doute, la page « Mariage » de votre livret de famille l&apos;indique.
+                      </p>
                       {form.formState.errors.persons?.[index]?.matrimonialRegime && (
                         <p className="text-sm text-destructive">
                           {form.formState.errors.persons[index]?.matrimonialRegime?.message}
@@ -4194,6 +4182,7 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
             </p>
           )}
         </div>
+        <LegalStatusDetails form={form} />
         </>)}
     </div>
   </div>
@@ -4258,6 +4247,100 @@ const DpeClassField = ({ form, isMobile }: { form: any; isMobile: boolean }) => 
   );
 };
 
+const SUBDIVISION_AGE_OPTIONS = [
+  { value: "YES", label: "Oui, il y a plus de 10 ans" },
+  { value: "NO", label: "Non, il y a moins de 10 ans" },
+  { value: "UNKNOWN", label: "Je ne sais pas" },
+] as const;
+
+/** Copropriété : coordonnées du syndic. Lotissement : ancienneté (au-delà de 10 ans, pas de règlement à fournir). */
+const LegalStatusDetails = ({ form }: { form: any }) => {
+  const legalStatus = useWatch({ control: form.control, name: "propertyLegalStatus" });
+  const errors = form.formState.errors as Record<string, { message?: string } | undefined>;
+  if (legalStatus === BienLegalStatus.CO_PROPRIETE) {
+    return (
+      <div className="space-y-3 rounded-xl border p-4">
+        <div>
+          <p className="font-medium text-sm">Syndic de copropriété</p>
+          <p className="text-xs text-muted-foreground">Le notaire peut lui demander directement certains documents de l&apos;immeuble.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="propertySyndicName">Nom du syndic *</Label>
+          <Input
+            id="propertySyndicName"
+            className="h-11"
+            placeholder="Ex. : Foncia Paris 15, ou nom du syndic bénévole"
+            {...form.register("propertySyndicName", { onChange: () => form.clearErrors("propertySyndicName") })}
+          />
+          {errors.propertySyndicName && <p className="text-sm text-destructive">{errors.propertySyndicName.message}</p>}
+        </div>
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="propertySyndicEmail">E-mail du syndic</Label>
+            <Input
+              id="propertySyndicEmail"
+              type="email"
+              className="h-11"
+              {...form.register("propertySyndicEmail", { onChange: () => form.clearErrors("propertySyndicEmail") })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="propertySyndicPhone">Téléphone du syndic</Label>
+            <Input
+              id="propertySyndicPhone"
+              type="tel"
+              className="h-11"
+              {...form.register("propertySyndicPhone", { onChange: () => form.clearErrors("propertySyndicEmail") })}
+            />
+          </div>
+        </div>
+        {errors.propertySyndicEmail && <p className="text-sm text-destructive">{errors.propertySyndicEmail.message}</p>}
+      </div>
+    );
+  }
+  if (legalStatus === BienLegalStatus.LOTISSEMENT) {
+    return (
+      <div className="space-y-2">
+        <Label>Le lotissement a-t-il été créé il y a plus de 10 ans ? *</Label>
+        <p className="text-xs text-muted-foreground">
+          La date figure dans votre acte d&apos;achat (arrêté de lotissement ou permis d&apos;aménager).
+        </p>
+        <Controller
+          name="propertySubdivisionOver10Years"
+          control={form.control}
+          render={({ field }) => (
+            <div className="grid gap-2">
+              {SUBDIVISION_AGE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    field.onChange(option.value);
+                    form.clearErrors("propertySubdivisionOver10Years");
+                  }}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-3 p-3 rounded-xl border-2 text-left text-sm transition-all",
+                    field.value === option.value
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/30 hover:bg-muted/40"
+                  )}
+                >
+                  {option.label}
+                  {field.value === option.value && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
+                </button>
+              ))}
+            </div>
+          )}
+        />
+        {errors.propertySubdivisionOver10Years && (
+          <p className="text-sm text-destructive">{errors.propertySubdivisionOver10Years.message}</p>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
+
 /** Justificatifs du loyer demandés selon les réponses (facultatifs : l'équipe les réclame s'ils manquent). */
 const RentProofUploads = ({
   form,
@@ -4311,6 +4394,75 @@ const RentProofUploads = ({
             <p className="text-xs text-muted-foreground">{PROOF_LABELS[kind].hint}</p>
           </div>
         ))}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Ville à loyers encadrés : le notaire demande la déclaration d'occupation faite sur
+ * impots.gouv. Facultative ici (l'équipe la réclame si elle manque).
+ */
+const OccupancyDeclarationUpload = ({
+  form,
+  intakeLink,
+  onUploadStateChange,
+}: {
+  form: any;
+  intakeLink: IntakeLink;
+  onUploadStateChange?: (isUploading: boolean) => void;
+}) => {
+  const bailType = useWatch({ control: form.control, name: "bailType" }) as string | undefined;
+  const bailFamily = useWatch({ control: form.control, name: "bailFamily" }) as string | undefined;
+  const effectiveDate = useWatch({ control: form.control, name: "bailEffectiveDate" }) as unknown;
+  const [required, setRequired] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const effectiveDay = toDateValue(effectiveDate as string | Date | null | undefined) ?? null;
+
+  useEffect(() => {
+    if (!bailType) return;
+    let cancelled = false;
+    checkOccupancyDeclaration({ token: intakeLink.token, bailType, bailFamily: bailFamily ?? null, effectiveDate: effectiveDay })
+      .then((result) => {
+        if (!cancelled) setRequired(result.required);
+      })
+      .catch(() => {
+        if (!cancelled) setRequired(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [intakeLink.token, bailType, bailFamily, effectiveDay]);
+
+  if (!required) return null;
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Déclaration d&apos;occupation du logement</h3>
+        <p className="text-sm text-muted-foreground">
+          Votre logement est dans une ville où les loyers sont encadrés : le notaire vérifie l&apos;historique
+          d&apos;occupation. Si vous ne l&apos;avez pas sous la main, vous pourrez l&apos;envoyer plus tard.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+        <div className="min-w-0 w-full overflow-visible space-y-1">
+          <DocumentUploaded token={intakeLink.token} documentKind="OCCUPANCY_DECLARATION">
+            <FileUpload
+              label="Déclaration d'occupation"
+              multiple
+              value={file}
+              onChange={setFile}
+              uploadToken={intakeLink.token}
+              documentKind="OCCUPANCY_DECLARATION"
+              documentClientId={intakeLink.clientId}
+              onUploadStateChange={onUploadStateChange}
+            />
+          </DocumentUploaded>
+          <p className="text-xs text-muted-foreground">
+            Sur impots.gouv.fr, espace particulier › « Biens immobiliers » (Gérer mes biens immobiliers) : la
+            déclaration faite en 2023 et la dernière en vigueur. Une capture d&apos;écran suffit.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -4734,41 +4886,32 @@ type DocumentsStepProps = {
   fileRefs: {
     kbisRef: RefObject<HTMLInputElement>;
     statutesRef: RefObject<HTMLInputElement>;
-    livretDeFamilleRef: RefObject<HTMLInputElement>;
+    contratDeMariageRef: RefObject<HTMLInputElement>;
     contratDePacsRef: RefObject<HTMLInputElement>;
     diagnosticsRef: RefObject<HTMLInputElement>;
     titleDeedRef: RefObject<HTMLInputElement>;
     reglementCoproprieteRef: RefObject<HTMLInputElement>;
     cahierChargeLotissementRef: RefObject<HTMLInputElement>;
-    statutAssociationSyndicaleRef: RefObject<HTMLInputElement>;
-    insuranceOwnerRef: RefObject<HTMLInputElement>;
-    ribOwnerRef: RefObject<HTMLInputElement>;
   };
   fileStates: {
     kbisFile: File | null;
     statutesFile: File | null;
-    livretDeFamilleFile: File | null;
+    contratDeMariageFile: File | null;
     contratDePacsFile: File | null;
     diagnosticsFile: File | null;
     titleDeedFile: File | null;
     reglementCoproprieteFile: File | null;
     cahierChargeLotissementFile: File | null;
-    statutAssociationSyndicaleFile: File | null;
-    insuranceOwnerFile: File | null;
-    ribOwnerFile: File | null;
   };
   setFileStates: {
     setKbisFile: (file: File | null) => void;
     setStatutesFile: (file: File | null) => void;
-    setLivretDeFamilleFile: (file: File | null) => void;
+    setContratDeMariageFile: (file: File | null) => void;
     setContratDePacsFile: (file: File | null) => void;
     setDiagnosticsFile: (file: File | null) => void;
     setTitleDeedFile: (file: File | null) => void;
     setReglementCoproprieteFile: (file: File | null) => void;
     setCahierChargeLotissementFile: (file: File | null) => void;
-    setStatutAssociationSyndicaleFile: (file: File | null) => void;
-    setInsuranceOwnerFile: (file: File | null) => void;
-    setRibOwnerFile: (file: File | null) => void;
   };
   personDocumentRefs: Record<number, { idIdentity: RefObject<HTMLInputElement | null> }>;
   personDocumentFiles: Record<number, { idIdentity: File | null }>;
@@ -4790,6 +4933,11 @@ const DocumentsStep = ({
   persons,
   onUploadStateChange,
 }: DocumentsStepProps) => {
+  // Contrat de mariage (hors communauté légale) ou convention de PACS, selon la première personne
+  const maritalKind = getMaritalDocumentKind(
+    form.watch(`persons.0.familyStatus` as any) as FamilyStatus | undefined,
+    form.watch(`persons.0.matrimonialRegime` as any) as MatrimonialRegime | undefined
+  );
   // Fonction helper pour vérifier si une personne a un document
   const hasPersonDocument = (personIndex: number, kind: string): boolean => {
     const person = intakeLink.client?.persons?.[personIndex];
@@ -4902,43 +5050,43 @@ const DocumentsStep = ({
                 );
               })}
               
-              {/* Documents communs au client (livret de famille, PACS) */}
+              {/* Documents communs au client (contrat de mariage, convention de PACS) */}
               {persons.length > 0 && (
                 <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                  {form.watch(`persons.0.familyStatus`) === FamilyStatus.MARIE && (
+                  {maritalKind === "CONTRAT_DE_MARIAGE" && (
                     <div className="min-w-0 w-full overflow-visible">
                       <DocumentUploaded
                         token={intakeLink.token}
-                        documentKind="LIVRET_DE_FAMILLE"
+                        documentKind="CONTRAT_DE_MARIAGE"
                       >
                         <FileUpload
-                          label="Livret de famille *"
+                          label="Contrat de mariage *"
                           multiple
-                          value={fileStates.livretDeFamilleFile}
+                          value={fileStates.contratDeMariageFile}
                           onChange={(file) => {
-                            setFileStates.setLivretDeFamilleFile(file);
-                            if (fileRefs.livretDeFamilleRef.current) {
+                            setFileStates.setContratDeMariageFile(file);
+                            if (fileRefs.contratDeMariageRef.current) {
                               const dt = new DataTransfer();
                               if (file) dt.items.add(file);
-                              fileRefs.livretDeFamilleRef.current.files = dt.files;
+                              fileRefs.contratDeMariageRef.current.files = dt.files;
                             }
                           }}
                           uploadToken={intakeLink.token}
-                          documentKind="LIVRET_DE_FAMILLE"
+                          documentKind="CONTRAT_DE_MARIAGE"
                           documentClientId={intakeLink.clientId}
                           onUploadStateChange={onUploadStateChange}
                         />
                       </DocumentUploaded>
                     </div>
                   )}
-                  {form.watch(`persons.0.familyStatus`) === FamilyStatus.PACS && (
+                  {maritalKind === "CONTRAT_DE_PACS" && (
                     <div className="min-w-0 w-full overflow-visible">
                       <DocumentUploaded
                         token={intakeLink.token}
                         documentKind="CONTRAT_DE_PACS"
                       >
                         <FileUpload
-                          label="Contrat de PACS *"
+                          label="Convention de PACS *"
                           multiple
                           value={fileStates.contratDePacsFile}
                           onChange={(file) => {
@@ -4964,52 +5112,11 @@ const DocumentsStep = ({
         </div>
 
       <RentProofUploads form={form} intakeLink={intakeLink} onUploadStateChange={onUploadStateChange} />
+      <OccupancyDeclarationUpload form={form} intakeLink={intakeLink} onUploadStateChange={onUploadStateChange} />
 
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Documents du bien et du bail</h3>
         <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-          <div className="min-w-0 w-full overflow-visible">
-            <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE">
-              <FileUpload
-                label="Assurance propriétaire *"
-                multiple
-                value={fileStates.insuranceOwnerFile}
-                onChange={(file) => {
-                  setFileStates.setInsuranceOwnerFile(file);
-                  if (fileRefs.insuranceOwnerRef.current) {
-                    const dt = new DataTransfer();
-                    if (file) dt.items.add(file);
-                    fileRefs.insuranceOwnerRef.current.files = dt.files;
-                  }
-                }}
-                uploadToken={intakeLink.token}
-                documentKind="INSURANCE"
-                documentClientId={intakeLink.clientId}
-                onUploadStateChange={onUploadStateChange}
-              />
-            </DocumentUploaded>
-          </div>
-          <div className="min-w-0 w-full overflow-visible">
-            <DocumentUploaded token={intakeLink.token} documentKind="RIB">
-              <FileUpload
-                label="RIB signé propriétaire *"
-                multiple
-                value={fileStates.ribOwnerFile}
-                onChange={(file) => {
-                  setFileStates.setRibOwnerFile(file);
-                  if (fileRefs.ribOwnerRef.current) {
-                    const dt = new DataTransfer();
-                    if (file) dt.items.add(file);
-                    fileRefs.ribOwnerRef.current.files = dt.files;
-                  }
-                }}
-                uploadToken={intakeLink.token}
-                documentKind="RIB"
-                documentClientId={intakeLink.clientId}
-                onUploadStateChange={onUploadStateChange}
-              />
-            </DocumentUploaded>
-          </div>
           <div className="min-w-0 w-full overflow-visible">
             <DocumentUploaded token={intakeLink.token} documentKind="DIAGNOSTICS">
               <FileUpload
@@ -5076,9 +5183,14 @@ const DocumentsStep = ({
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Souvent intitulé « État descriptif de division – Règlement de copropriété ». Ajoutez aussi les
+                modificatifs s&apos;il y en a. La version à jour est en général sur l&apos;espace en ligne de votre syndic.
+              </p>
             </div>
           )}
-          {form.watch("propertyLegalStatus") === BienLegalStatus.LOTISSEMENT && (
+          {form.watch("propertyLegalStatus") === BienLegalStatus.LOTISSEMENT &&
+            needsSubdivisionRules(form.watch("propertySubdivisionOver10Years" as any) as string | undefined) && (
             <>
               <div className="min-w-0 w-full overflow-visible">
                 <DocumentUploaded
@@ -5086,7 +5198,7 @@ const DocumentsStep = ({
                   documentKind="CAHIER_DE_CHARGE_LOTISSEMENT"
                 >
                   <FileUpload
-                    label="Cahier des charges lotissement *"
+                    label="Règlement du lotissement *"
                     multiple
                     value={fileStates.cahierChargeLotissementFile}
                     onChange={(file) => {
@@ -5099,30 +5211,6 @@ const DocumentsStep = ({
                     }}
                     uploadToken={intakeLink.token}
                     documentKind="CAHIER_DE_CHARGE_LOTISSEMENT"
-                    documentClientId={intakeLink.clientId}
-                    onUploadStateChange={onUploadStateChange}
-                  />
-                </DocumentUploaded>
-              </div>
-              <div className="min-w-0 w-full overflow-visible">
-                <DocumentUploaded
-                  token={intakeLink.token}
-                  documentKind="STATUT_DE_LASSOCIATION_SYNDICALE"
-                >
-                  <FileUpload
-                    label="Statut de l'association syndicale *"
-                    multiple
-                    value={fileStates.statutAssociationSyndicaleFile}
-                    onChange={(file) => {
-                      setFileStates.setStatutAssociationSyndicaleFile(file);
-                      if (fileRefs.statutAssociationSyndicaleRef.current) {
-                        const dt = new DataTransfer();
-                        if (file) dt.items.add(file);
-                        fileRefs.statutAssociationSyndicaleRef.current.files = dt.files;
-                      }
-                    }}
-                    uploadToken={intakeLink.token}
-                    documentKind="STATUT_DE_LASSOCIATION_SYNDICALE"
                     documentClientId={intakeLink.clientId}
                     onUploadStateChange={onUploadStateChange}
                   />

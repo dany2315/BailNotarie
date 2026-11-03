@@ -30,7 +30,7 @@ import { deleteDocument, getDocuments } from "@/lib/actions/documents";
 import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentViewer } from "@/components/leases/document-viewer";
 import { ClientDocumentUploaded } from "@/components/documents/client-document-uploaded";
-import { getRequiredClientFields } from "@/lib/utils/required-fields";
+import { getMaritalDocumentKind, getRequiredClientFields } from "@/lib/utils/required-fields";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { useDownloadFile } from "@/hooks/use-download-file";
 
@@ -205,19 +205,15 @@ export function EditClientForm({ client }: EditClientFormProps) {
   // Documents requis pour l'entreprise (KBIS, STATUTES)
   const entrepriseRequiredDocuments = [DocumentKind.KBIS, DocumentKind.STATUTES];
   
-  // Documents requis pour le client (selon statut familial)
+  // Documents requis pour le client : contrat de mariage (hors communauté légale) ou convention de PACS
   const clientRequiredDocuments: DocumentKind[] = [];
-  if (watchedFamilyStatus === FamilyStatus.MARIE) {
-    clientRequiredDocuments.push(DocumentKind.LIVRET_DE_FAMILLE);
-  } else if (watchedFamilyStatus === FamilyStatus.PACS) {
-    clientRequiredDocuments.push(DocumentKind.CONTRAT_DE_PACS);
+  const maritalDocument = getMaritalDocumentKind(watchedFamilyStatus, watchedMatrimonialRegime);
+  if (maritalDocument) {
+    clientRequiredDocuments.push(maritalDocument);
   }
   
-  // Documents requis selon le profil (assurance, RIB pour locataire)
+  // Plus de pièce propre au profil (l'assurance et le RIB ne sont plus demandés)
   const profilRequiredDocuments: DocumentKind[] = [];
-  if (watchedProfilType === ProfilType.LOCATAIRE) {
-    profilRequiredDocuments.push(DocumentKind.INSURANCE, DocumentKind.RIB);
-  }
 
   // Fonction pour déterminer quels documents doivent être affichés (uniquement pour l'affichage, ne bloque pas la soumission)
   const hasRequiredDocument = (kind: DocumentKind) => {

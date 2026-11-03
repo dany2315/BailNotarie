@@ -30,6 +30,29 @@ function rentCategory(payload: any): { mainRooms?: number; constructionPeriod?: 
 }
 
 /**
+ * Copropriété (syndic) et lotissement (ancienneté) : écrits seulement quand le formulaire les envoie.
+ */
+function legalStatusDetails(payload: any): {
+  syndicName?: string | null;
+  syndicEmail?: string | null;
+  syndicPhone?: string | null;
+  subdivisionOver10Years?: string | null;
+} {
+  const out: ReturnType<typeof legalStatusDetails> = {};
+  const text = (value: unknown, max: number) =>
+    typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
+  if (payload.propertySyndicName !== undefined) out.syndicName = text(payload.propertySyndicName, 200);
+  if (payload.propertySyndicEmail !== undefined) out.syndicEmail = text(payload.propertySyndicEmail, 200);
+  if (payload.propertySyndicPhone !== undefined) out.syndicPhone = text(payload.propertySyndicPhone, 30);
+  if (payload.propertySubdivisionOver10Years !== undefined) {
+    out.subdivisionOver10Years = ["YES", "NO", "UNKNOWN"].includes(payload.propertySubdivisionOver10Years)
+      ? payload.propertySubdivisionOver10Years
+      : null;
+  }
+  return out;
+}
+
+/**
  * Réponses du contrôle du loyer (étape « Loyer & charges ») : relocation en zone tendue et
  * complément de loyer. Le loyer est contrôlé avec le même moteur que la fiche admin ; au-dessus
  * du maximum, l'enregistrement est refusé. Retourne les colonnes du bail à écrire.
@@ -247,6 +270,7 @@ export async function handleOwnerPropertyStep(
       if (payload.propertyLegalStatus) updateData.legalStatus = payload.propertyLegalStatus;
       // Jamais d'effacement : une valeur absente laisse celle déjà connue (saisie par l'équipe).
       Object.assign(updateData, rentCategory(payload));
+      Object.assign(updateData, legalStatusDetails(payload));
       if (payload.propertyStatus) updateData.status = payload.propertyStatus;
       // Données géographiques enrichies - normaliser les chaînes vides en null
       if (payload.propertyHousenumber !== undefined) {
@@ -290,6 +314,7 @@ export async function handleOwnerPropertyStep(
           legalStatus: payload.propertyLegalStatus || null,
           status: payload.propertyStatus || PropertyStatus.NON_LOUER,
           ...rentCategory(payload),
+          ...legalStatusDetails(payload),
           ownerId: clientId,
           // Données géographiques enrichies - normaliser les chaînes vides en null
           housenumber: payload.propertyHousenumber && payload.propertyHousenumber.trim() ? payload.propertyHousenumber.trim() : null,

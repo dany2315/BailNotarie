@@ -29,6 +29,8 @@ import { ArrowLeftIcon, Loader2, Building2, User2, MapPin, Calendar, Euro, Home,
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
+import { getMaritalDocumentKind } from "@/lib/utils/required-fields";
+import { MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
@@ -296,10 +298,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   // Refs pour les fichiers
   const kbisRef = useRef<HTMLInputElement>(null);
   const statutesRef = useRef<HTMLInputElement>(null);
-  const livretDeFamilleRef = useRef<HTMLInputElement>(null);
+  const contratDeMariageRef = useRef<HTMLInputElement>(null);
   const contratDePacsRef = useRef<HTMLInputElement>(null);
-  const insuranceTenantRef = useRef<HTMLInputElement>(null);
-  const ribTenantRef = useRef<HTMLInputElement>(null);
 
   // Refs dynamiques pour les documents de chaque personne
   const personDocumentRefs = useRef<Record<number, { idIdentity: React.RefObject<HTMLInputElement | null> }>>({});
@@ -308,10 +308,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const [kbisFile, setKbisFile] = useState<File | null>(null);
   const [statutesFile, setStatutesFile] = useState<File | null>(null);
   const [idIdentityFile, setIdIdentityFile] = useState<File | null>(null);
-  const [livretDeFamilleFile, setLivretDeFamilleFile] = useState<File | null>(null);
+  const [contratDeMariageFile, setContratDeMariageFile] = useState<File | null>(null);
   const [contratDePacsFile, setContratDePacsFile] = useState<File | null>(null);
-  const [insuranceTenantFile, setInsuranceTenantFile] = useState<File | null>(null);
-  const [ribTenantFile, setRibTenantFile] = useState<File | null>(null);
 
   // États dynamiques pour les documents de chaque personne
   const [personDocumentFiles, setPersonDocumentFiles] = useState<Record<number, { idIdentity: File | null }>>({});
@@ -494,7 +492,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       if (!values.entreprise ||
           isEmpty(values.entreprise.legalName) || isEmpty(values.entreprise.email) || 
           isEmpty(values.entreprise.phone) || isEmpty(values.entreprise.fullAddress) ||
-          isEmpty(values.entreprise.registration) || isEmpty(values.entreprise.nationality)) {
+          isEmpty(values.entreprise.registration)) {
         return clientInfoIndex !== -1 ? clientInfoIndex : 1;
       }
     }
@@ -515,20 +513,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         }
       }
       
-      // Vérifier les documents communs (livret de famille, PACS)
+      // Vérifier les documents communs (contrat de mariage, convention de PACS)
       const primaryPerson = values.persons?.[0];
       const clientDocs = intakeLink.client?.documents || [];
-      if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
-        const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE");
-        if (!hasLivret) {
-          return documentsIndex !== -1 ? documentsIndex : 2;
-        }
-      }
-      if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
-        const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS");
-        if (!hasPacs) {
-          return documentsIndex !== -1 ? documentsIndex : 2;
-        }
+      const maritalKind = getMaritalDocumentKind(primaryPerson?.familyStatus, primaryPerson?.matrimonialRegime);
+      if (maritalKind && !clientDocs.some((doc: any) => doc.kind === maritalKind)) {
+        return documentsIndex !== -1 ? documentsIndex : 2;
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
       const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
@@ -538,15 +528,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       if (!hasKbis || !hasStatutes) {
         return documentsIndex !== -1 ? documentsIndex : 2;
       }
-    }
-
-    // Vérifier les documents du locataire (client) - assurance et RIB
-    const clientDocs = intakeLink.client?.documents || [];
-    const hasInsurance = clientDocs.some((doc: any) => doc.kind === "INSURANCE");
-    const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB");
-    
-    if (!hasInsurance || !hasRib) {
-      return documentsIndex !== -1 ? documentsIndex : 2;
     }
 
     // Toutes les étapes sont complètes, retourner la dernière étape
@@ -756,19 +737,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const fileToDocumentKind: Record<string, string> = {
         kbis: "KBIS",
         statutes: "STATUTES",
-        livretDeFamille: "LIVRET_DE_FAMILLE",
+        contratDeMariage: "CONTRAT_DE_MARIAGE",
         contratDePacs: "CONTRAT_DE_PACS",
-        insuranceTenant: "INSURANCE",
-        ribTenant: "RIB",
       };
 
       const fileRefs = [
         { ref: kbisRef, name: "kbis" },
         { ref: statutesRef, name: "statutes" },
-        { ref: livretDeFamilleRef, name: "livretDeFamille" },
+        { ref: contratDeMariageRef, name: "contratDeMariage" },
         { ref: contratDePacsRef, name: "contratDePacs" },
-        { ref: insuranceTenantRef, name: "insuranceTenant" },
-        { ref: ribTenantRef, name: "ribTenant" },
       ];
 
       // Récupérer tous les documents existants
@@ -867,37 +844,31 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     const fileRefs = [
       { ref: kbisRef, name: "kbis" },
       { ref: statutesRef, name: "statutes" },
-      { ref: livretDeFamilleRef, name: "livretDeFamille" },
+      { ref: contratDeMariageRef, name: "contratDeMariage" },
       { ref: contratDePacsRef, name: "contratDePacs" },
-      { ref: insuranceTenantRef, name: "insuranceTenant" },
-      { ref: ribTenantRef, name: "ribTenant" },
     ];
 
     // Mapper les noms de fichiers aux types de documents
     const fileToDocumentKind: Record<string, string> = {
       kbis: "KBIS",
       statutes: "STATUTES",
-      livretDeFamille: "LIVRET_DE_FAMILLE",
+      contratDeMariage: "CONTRAT_DE_MARIAGE",
       contratDePacs: "CONTRAT_DE_PACS",
-      insuranceTenant: "INSURANCE",
-      ribTenant: "RIB",
     };
 
     // Mapping des noms de fichiers aux états correspondants
     const fileStateMap: Record<string, File | null> = {
       kbis: kbisFile,
       statutes: statutesFile,
-      livretDeFamille: livretDeFamilleFile,
+      contratDeMariage: contratDeMariageFile,
       contratDePacs: contratDePacsFile,
-      insuranceTenant: insuranceTenantFile,
-      ribTenant: ribTenantFile,
     };
 
     // Récupérer les valeurs actuelles du formulaire pour vérifier les documents existants
     const currentValues = getValues() as FormWithPersons;
     
     // Récupérer tous les documents du client (locataire)
-    // Documents client (livret de famille, PACS, assurance, RIB)
+    // Documents client (contrat de mariage, convention de PACS)
     const clientDocs = intakeLink.client?.documents || [];
     // Documents de l'entreprise (KBIS, STATUTES)
     const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
@@ -937,10 +908,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         const stateSetter = {
           kbis: setKbisFile,
           statutes: setStatutesFile,
-          livretDeFamille: setLivretDeFamilleFile,
+          contratDeMariage: setContratDeMariageFile,
           contratDePacs: setContratDePacsFile,
-          insuranceTenant: setInsuranceTenantFile,
-          ribTenant: setRibTenantFile,
         }[name];
         if (stateSetter) {
           stateSetter(null);
@@ -962,10 +931,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         const stateSetter = {
           kbis: setKbisFile,
           statutes: setStatutesFile,
-          livretDeFamille: setLivretDeFamilleFile,
+          contratDeMariage: setContratDeMariageFile,
           contratDePacs: setContratDePacsFile,
-          insuranceTenant: setInsuranceTenantFile,
-          ribTenant: setRibTenantFile,
         }[name];
         
         if (stateSetter) {
@@ -1153,7 +1120,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             currentPayload.entreprise.documents.push(documentMeta);
           }
         } else if (doc.target === 'client') {
-          // Document client (livret de famille, PACS, assurance, RIB)
+          // Document client (contrat de mariage, convention de PACS)
           if (!currentPayload.clientDocuments) {
             currentPayload.clientDocuments = [];
           }
@@ -1547,26 +1514,26 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         }
       });
 
-      // Vérifier les documents communs (livret de famille, PACS)
+      // Vérifier les documents communs (contrat de mariage, convention de PACS)
       const primaryPerson = persons[0];
-      const familyStatus = primaryPerson?.familyStatus;
+      const maritalKind = getMaritalDocumentKind(primaryPerson?.familyStatus, primaryPerson?.matrimonialRegime);
       const clientDocs = intakeLink.client?.documents || [];
       const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.source === 'client');
 
-      if (familyStatus === FamilyStatus.MARIE) {
-        const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
-          uploadedClientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
-          livretDeFamilleRef.current?.files?.[0] || livretDeFamilleFile;
-        if (!hasLivret) {
-          errors.push("Le livret de famille est requis");
+      if (maritalKind === "CONTRAT_DE_MARIAGE") {
+        const hasContract = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_MARIAGE") ||
+          uploadedClientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_MARIAGE") ||
+          contratDeMariageRef.current?.files?.[0] || contratDeMariageFile;
+        if (!hasContract) {
+          errors.push("Le contrat de mariage est requis");
         }
       }
-      if (familyStatus === FamilyStatus.PACS) {
+      if (maritalKind === "CONTRAT_DE_PACS") {
         const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
           uploadedClientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
           contratDePacsRef.current?.files?.[0] || contratDePacsFile;
         if (!hasPacs) {
-          errors.push("Le contrat de PACS est requis");
+          errors.push("La convention de PACS est requise");
         }
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
@@ -1587,28 +1554,14 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
     }
 
-    // Validation des documents du client (assurance et RIB - toujours requis)
-    const clientDocs = intakeLink.client?.documents || [];
-    const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.source === 'client');
-    const hasInsurance = clientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
-      uploadedClientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
-      insuranceTenantRef.current?.files?.[0] || insuranceTenantFile;
-    const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB") ||
-      uploadedClientDocs.some((doc: any) => doc.kind === "RIB") ||
-      ribTenantRef.current?.files?.[0] || ribTenantFile;
-    
-    if (!hasInsurance) {
-      errors.push("L'assurance locataire est requise");
-    }
-    if (!hasRib) {
-      errors.push("Le RIB signé locataire est requis");
-    }
-
     return {
       isValid: errors.length === 0,
       errors,
     };
   };
+
+  // Le locataire confirme le loyer, les charges et la date d'entrée saisis par le propriétaire
+  const [termsConfirmed, setTermsConfirmed] = useState(false);
 
   const onSubmit = async (data: FormWithPersons) => {
     setIsSubmitting(true);
@@ -1621,7 +1574,14 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       });
       
       await refreshIntakeLinkData();
-      
+
+      if (intakeLink.bail && !termsConfirmed) {
+        toast.error("Confirmez le loyer, les charges et la date d'entrée avant d'envoyer le formulaire");
+        setSubmissionProgress({ step: 0, totalSteps: 3, currentStepName: "" });
+        setIsSubmitting(false);
+        return;
+      }
+
       // Étape 2: Validation des documents
       const fileValidation = await validateRequiredFiles();
       if (!fileValidation.isValid) {
@@ -1643,7 +1603,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       // Soumettre les données (les documents sont déjà uploadés via file-upload.tsx)
       await submitIntake({
         token: intakeLink.token,
-        payload: data,
+        payload: { ...data, tenantConfirmedTerms: !!intakeLink.bail && termsConfirmed },
       });
       
       // Étape 4: Redirection
@@ -2210,26 +2170,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 )}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="entreprise.nationality">Nationalité *</Label>
-              <Controller
-                name="entreprise.nationality"
-                control={form.control}
-                render={({ field }) => (
-                  <NationalitySelect
-                    value={field.value || ""}
-                    onValueChange={field.onChange}
-                    disabled={form.formState.isSubmitting}
-                    placeholder="Sélectionner la nationalité"
-                  />
-                )}
-              />
-              {form.formState.errors.entreprise?.nationality && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.entreprise.nationality.message}
-                </p>
-              )}
-            </div>
           </div>
         </div>
       );
@@ -2513,13 +2453,17 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                                 <SelectContent>
                                   {Object.values(MatrimonialRegime).map((regime) => (
                                     <SelectItem key={regime} value={regime}>
-                                      {regime.replace(/_/g, " ")}
+                                      {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             )}
                           />
+                          <p className="text-xs text-muted-foreground">
+                            Sans contrat signé chez un notaire, choisissez « Communauté réduite aux acquêts ». En cas de
+                            doute, la page « Mariage » de votre livret de famille l&apos;indique.
+                          </p>
                           {form.formState.errors.persons?.[index]?.matrimonialRegime && (
                             <p className="text-sm text-destructive">
                               {form.formState.errors.persons[index]?.matrimonialRegime?.message}
@@ -2644,6 +2588,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
   const renderDocuments = () => {
     const persons = personsWatch || [];
+    // Contrat de mariage (hors communauté légale) ou convention de PACS, selon la première personne
+    const maritalKind = getMaritalDocumentKind(
+      form.watch(`persons.0.familyStatus` as any) as FamilyStatus | undefined,
+      form.watch(`persons.0.matrimonialRegime` as any) as MatrimonialRegime | undefined
+    );
     
     return (
       <Card>
@@ -2752,44 +2701,44 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   );
                 })}
                 
-                {/* Documents communs au client (livret de famille, PACS) */}
+                {/* Documents communs au client (contrat de mariage, convention de PACS) */}
                 {persons.length > 0 && (
                   <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                    {form.watch(`persons.0.familyStatus`) === FamilyStatus.MARIE && (
+                    {maritalKind === "CONTRAT_DE_MARIAGE" && (
                       <div className="min-w-0 w-full overflow-visible">
                         <DocumentUploaded
                           token={intakeLink.token}
-                          documentKind="LIVRET_DE_FAMILLE"
+                          documentKind="CONTRAT_DE_MARIAGE"
                         >
                           <FileUpload
-                            label="Livret de famille *"
+                            label="Contrat de mariage *"
                             multiple
-                            value={livretDeFamilleFile}
+                            value={contratDeMariageFile}
                             onChange={(file) => {
-                              setLivretDeFamilleFile(file);
-                              if (livretDeFamilleRef.current) {
+                              setContratDeMariageFile(file);
+                              if (contratDeMariageRef.current) {
                                 const dt = new DataTransfer();
                                 if (file) dt.items.add(file);
-                                livretDeFamilleRef.current.files = dt.files;
+                                contratDeMariageRef.current.files = dt.files;
                               }
                             }}
                             disabled={isSubmitting}
                             uploadToken={intakeLink.token}
-                            documentKind="LIVRET_DE_FAMILLE"
+                            documentKind="CONTRAT_DE_MARIAGE"
                             documentClientId={client?.id}
                             onUploadStateChange={handleUploadStateChange}
                           />
                         </DocumentUploaded>
                       </div>
                     )}
-                    {form.watch(`persons.0.familyStatus`) === FamilyStatus.PACS && (
+                    {maritalKind === "CONTRAT_DE_PACS" && (
                       <div className="min-w-0 w-full overflow-visible">
                         <DocumentUploaded
                           token={intakeLink.token}
                           documentKind="CONTRAT_DE_PACS"
                         >
                           <FileUpload
-                            label="Contrat de PACS *"
+                            label="Convention de PACS *"
                             multiple
                             value={contratDePacsFile}
                             onChange={(file) => {
@@ -2814,56 +2763,28 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               </>
             )}
             
-            {/* Documents du locataire (assurance et RIB) — même rendu que intake propriétaire */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Documents du bail (assurance et RIB)</h3>
-              <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                <div className="min-w-0 w-full overflow-visible">
-                  <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE" clientId={client?.id}>
-                    <FileUpload
-                      label="Assurance locataire *"
-                      multiple
-                      value={insuranceTenantFile}
-                      onChange={(file) => {
-                        setInsuranceTenantFile(file);
-                        if (insuranceTenantRef.current) {
-                          const dt = new DataTransfer();
-                          if (file) dt.items.add(file);
-                          insuranceTenantRef.current.files = dt.files;
-                        }
-                      }}
-                      disabled={isSubmitting}
-                      uploadToken={intakeLink.token}
-                      documentKind="INSURANCE"
-                      documentClientId={client?.id}
-                      onUploadStateChange={handleUploadStateChange}
-                    />
-                  </DocumentUploaded>
-                </div>
-                <div className="min-w-0 w-full overflow-visible">
-                  <DocumentUploaded token={intakeLink.token} documentKind="RIB" clientId={client?.id}>
-                    <FileUpload
-                      label="RIB signé locataire *"
-                      multiple
-                      value={ribTenantFile}
-                      onChange={(file) => {
-                        setRibTenantFile(file);
-                        if (ribTenantRef.current) {
-                          const dt = new DataTransfer();
-                          if (file) dt.items.add(file);
-                          ribTenantRef.current.files = dt.files;
-                        }
-                      }}
-                      disabled={isSubmitting}
-                      uploadToken={intakeLink.token}
-                      documentKind="RIB"
-                      documentClientId={client?.id}
-                      onUploadStateChange={handleUploadStateChange}
-                    />
-                  </DocumentUploaded>
-                </div>
-              </div>
-            </div>
+            {intakeLink.bail && (
+              <label className="flex items-start gap-3 rounded-xl border p-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 shrink-0 accent-primary"
+                  checked={termsConfirmed}
+                  onChange={(event) => setTermsConfirmed(event.target.checked)}
+                  disabled={isSubmitting}
+                />
+                <span className="text-sm">
+                  Je confirme le loyer de{" "}
+                  <strong>{formatCurrency(Number(intakeLink.bail.rentAmount ?? 0))}</strong> hors charges, les charges de{" "}
+                  <strong>{formatCurrency(Number(intakeLink.bail.monthlyCharges ?? 0))}</strong> par mois
+                  {intakeLink.bail.effectiveDate ? (
+                    <>
+                      {" "}et l&apos;entrée dans le logement le <strong>{formatDate(intakeLink.bail.effectiveDate)}</strong>
+                    </>
+                  ) : null}
+                  , convenus avec le propriétaire.
+                </span>
+              </label>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -3028,10 +2949,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         {/* Inputs file cachés pour les refs */}
         <input type="file" ref={kbisRef} name="kbis" className="hidden" />
         <input type="file" ref={statutesRef} name="statutes" className="hidden" />
-        <input type="file" ref={livretDeFamilleRef} name="livretDeFamille" className="hidden" />
+        <input type="file" ref={contratDeMariageRef} name="contratDeMariage" className="hidden" />
         <input type="file" ref={contratDePacsRef} name="contratDePacs" className="hidden" />
-        <input type="file" ref={insuranceTenantRef} name="insuranceTenant" className="hidden" />
-        <input type="file" ref={ribTenantRef} name="ribTenant" className="hidden" />
         {/* Inputs file cachés pour les documents par personne */}
         {personsWatch?.map((_, index) => {
           const personRefs = personDocumentRefs.current[index];

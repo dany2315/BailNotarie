@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
       }
     }
     // Documents bien (PROPERTY) — en intake la propriété peut ne pas exister encore : rattacher au client pour que getIntakeDocuments les retourne
-    else if (["DIAGNOSTICS", "TITLE_DEED", "REGLEMENT_COPROPRIETE", "CAHIER_DE_CHARGE_LOTISSEMENT", "STATUT_DE_LASSOCIATION_SYNDICALE"].includes(documentKind)) {
+    else if (["DIAGNOSTICS", "TITLE_DEED", "REGLEMENT_COPROPRIETE", "CAHIER_DE_CHARGE_LOTISSEMENT", "STATUT_DE_LASSOCIATION_SYNDICALE", "OCCUPANCY_DECLARATION"].includes(documentKind)) {
       targetPropertyId = finalPropertyId || null;
       if (!targetPropertyId && finalClientId) {
         targetClientId = finalClientId;
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
         targetClientId = finalClientId;
       }
     }
-    // Documents client (livret de famille, PACS)
+    // Documents client (contrat de mariage, convention de PACS)
     else {
       targetClientId = finalClientId;
     }

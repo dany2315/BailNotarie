@@ -13,9 +13,9 @@ import {
 
 /**
  * Cible d'une pièce, selon les conventions en base : pièce d'identité → la
- * personne ; Kbis / statuts → la société ; pièces du bien (dont assurance et
- * RIB du propriétaire) → le bien ; assurance / RIB du locataire, livret de
- * famille… → le client ; pièces du bail → le bail. Une seule cible à la fois.
+ * personne ; Kbis / statuts → la société ; pièces du bien → le bien ; contrat
+ * de mariage, convention de PACS… → le client ; pièces du bail → le bail.
+ * Une seule cible à la fois.
  */
 const targetSchema = z
   .object({

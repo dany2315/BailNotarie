@@ -73,6 +73,10 @@ interface Dossier {
     type?: string | null;
     legalStatus?: string | null;
     status: string;
+    syndicName?: string | null;
+    syndicEmail?: string | null;
+    syndicPhone?: string | null;
+    subdivisionOver10Years?: string | null;
     hasLiterie?: boolean;
     hasRideaux?: boolean;
     hasPlaquesCuisson?: boolean;
@@ -107,6 +111,7 @@ interface Dossier {
     effectiveDate: Date;
     endDate?: Date | null;
     paymentDay?: number | null;
+    tenantConfirmedTermsAt?: Date | string | null;
     property?: {
       id: string;
       fullAddress: string;
@@ -683,6 +688,18 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                 {dossier.property.legalStatus && (
                   <DataField label="Statut légal" value={getPropertyLegalStatusLabel(dossier.property.legalStatus as BienLegalStatus)} />
                 )}
+                {dossier.property.legalStatus === "CO_PROPRIETE" && dossier.property.syndicName && (
+                  <DataField
+                    label="Syndic de copropriété"
+                    value={[dossier.property.syndicName, dossier.property.syndicEmail, dossier.property.syndicPhone].filter(Boolean).join(" · ")}
+                  />
+                )}
+                {dossier.property.legalStatus === "LOTISSEMENT" && dossier.property.subdivisionOver10Years && (
+                  <DataField
+                    label="Lotissement autorisé il y a plus de 10 ans"
+                    value={{ YES: "Oui", NO: "Non", UNKNOWN: "Ne sait pas" }[dossier.property.subdivisionOver10Years] ?? dossier.property.subdivisionOver10Years}
+                  />
+                )}
                 {/* Mobilier présent */}
                 <div className="pt-4 mt-4 border-t">
                   <p className="text-sm font-medium mb-3">Mobilier présent</p>
@@ -745,6 +762,12 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                 )}
                 {dossier.bail.paymentDay && (
                   <DataField label="Jour de paiement du loyer" value={`Le ${dossier.bail.paymentDay} de chaque mois`} />
+                )}
+                {dossier.bail.tenantConfirmedTermsAt && (
+                  <DataField
+                    label="Confirmé par le locataire"
+                    value={`Loyer, charges et date d'entrée confirmés le ${formatDate(dossier.bail.tenantConfirmedTermsAt as Date)}`}
+                  />
                 )}
                 {dossier.bail.documents && dossier.bail.documents.length > 0 && (
                   <div className="pt-4 mt-4 border-t">

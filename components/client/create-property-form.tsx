@@ -744,18 +744,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                       <PropertyDocumentUploaded
                         propertyId={createdPropertyId}
                         documentKind={DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT}
-                        label="Cahier des charges lotissement *"
-                        ownerId={ownerId}
-                        onUploadStateChange={handleUploadStateChange}
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <div className="min-w-0 w-full overflow-visible">
-                      <PropertyDocumentUploaded
-                        propertyId={createdPropertyId}
-                        documentKind={DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE}
-                        label="Statut de l'association syndicale *"
+                        label="Règlement du lotissement *"
                         ownerId={ownerId}
                         onUploadStateChange={handleUploadStateChange}
                         required

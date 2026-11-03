@@ -138,6 +138,7 @@ export async function createProperty(data: unknown) {
     DocumentKind.REGLEMENT_COPROPRIETE,
     DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT,
     DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE,
+    DocumentKind.OCCUPANCY_DECLARATION,
   ];
   await prisma.document.updateMany({
     where: {

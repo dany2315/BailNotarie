@@ -167,8 +167,9 @@ enum DocumentKind {
   TITLE_DEED
 
   ID_IDENTITY
-  LIVRET_DE_FAMILLE
+  LIVRET_DE_FAMILLE // N'est plus demandé : gardé pour les pièces déjà envoyées
   CONTRAT_DE_PACS
+  CONTRAT_DE_MARIAGE // Demandé seulement si le régime n'est pas la communauté légale
 
   //biens
   DIAGNOSTICS
@@ -183,6 +184,9 @@ enum DocumentKind {
   PREVIOUS_TENANT_EXIT_PROOF // État des lieux de sortie : date de départ du locataire précédent
   WORKS_INVOICES // Factures des travaux qui justifient une hausse
   RENT_REFERENCES // Loyers de logements comparables du voisinage
+
+  // Ville à loyers encadrés : déclaration d'occupation (impots.gouv, « Gérer mes biens immobiliers »)
+  OCCUPANCY_DECLARATION
 
   OTHER
 }
@@ -390,6 +394,14 @@ model Property {
   mainRooms          Int? // Nombre de pièces principales (4 = 4 et plus)
   constructionPeriod String? // Époque de construction (codes de RentCapReference.period)
   rentCapZone        String? // Zone choisie à la main quand la carte ne suffit pas
+
+  // Copropriété : syndic, que le notaire contacte directement (rapport amiante des parties communes…)
+  syndicName  String?
+  syndicEmail String?
+  syndicPhone String?
+
+  // Lotissement autorisé il y a plus de 10 ans (YES | NO | UNKNOWN) : au-delà, son règlement ne s'applique plus
+  subdivisionOver10Years String?
 
   // Mobilier obligatoire pour location meublée
   hasLiterie           Boolean @default(false) // Literie avec couette ou couverture
@@ -609,6 +621,9 @@ model Bail {
   rentCapExemptionAt     DateTime?
   rentCapExemptionByName String?
   paidAt                 DateTime?
+
+  // Le locataire a confirmé le loyer, les charges et la date d'entrée en envoyant son formulaire
+  tenantConfirmedTermsAt DateTime?
 
   documents Document[]
   intakes   IntakeLink[] @relation("BailIntakes")

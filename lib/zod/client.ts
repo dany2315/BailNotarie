@@ -230,6 +230,15 @@ const propertyFieldsSchema = {
   ),
   // Relocation en zone tendue et complément de loyer (réponses du contrôle du loyer).
   rentRules: z.record(z.string(), z.any()).optional(),
+  // Copropriété : syndic. Lotissement : créé il y a plus de 10 ans (YES | NO | UNKNOWN).
+  // Facultatifs ici (anciens dossiers) : le formulaire les exige selon le régime juridique.
+  propertySyndicName: z.string().max(200).trim().optional(),
+  propertySyndicEmail: z.string().max(200).trim().optional(),
+  propertySyndicPhone: z.string().max(30).trim().optional(),
+  propertySubdivisionOver10Years: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(["YES", "NO", "UNKNOWN"]).optional()
+  ),
   propertyLabel: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.string()
@@ -456,18 +465,13 @@ const documentFieldsSchema = {
   
   // Pièces jointes - Client (personne physique)
   idIdentity: z.any().optional(),
-  livretDeFamille: z.any().optional(),
+  contratDeMariage: z.any().optional(),
   contratDePacs: z.any().optional(),
   
   // Pièces jointes - Bien (propriétaire uniquement)
   diagnostics: z.any().optional(),
   reglementCopropriete: z.any().optional(),
   cahierChargeLotissement: z.any().optional(),
-  statutAssociationSyndicale: z.any().optional(),
-  
-  // Pièces jointes - Bail (propriétaire et locataire)
-  insuranceOwner: z.any().optional(),
-  ribOwner: z.any().optional(),
 
   // Pièces jointes - Titre de propriété
   titleDeed: z.any().optional(),
@@ -908,14 +912,17 @@ export const tenantFormSchema = z
           .min(1, "L'adresse est requise")
           .max(500, "L'adresse est trop longue")
           .trim(),
+        // Plus demandée à une société (gardée facultative pour les anciens formulaires)
         nationality: z
           .string()
-          .min(1, "La nationalité est requise")
           .max(100, "La nationalité est trop longue")
-          .trim(),
+          .trim()
+          .optional(),
       })
       .optional(),
     documents: z.array(documentMetaSchema).optional(),
+    // Le locataire a confirmé le loyer, les charges et la date d'entrée
+    tenantConfirmedTerms: z.boolean().optional(),
 
     // Personnes (personne principale + autres)
     // 👉 Contient TOUTES les infos perso (nom, prénom, naissance, etc.)

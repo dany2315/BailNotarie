@@ -8,6 +8,33 @@ import {
 } from "@prisma/client";
 
 /**
+ * Pièce d'état civil attendue par le notaire : la convention de PACS, ou le
+ * contrat de mariage quand le régime n'est pas la communauté légale (mariage
+ * sans contrat : rien à fournir, l'étude demande l'extrait d'acte de mariage).
+ */
+export function getMaritalDocumentKind(
+  familyStatus?: FamilyStatus | null,
+  matrimonialRegime?: MatrimonialRegime | null
+): DocumentKind | null {
+  if (familyStatus === FamilyStatus.PACS) return DocumentKind.CONTRAT_DE_PACS;
+  if (
+    familyStatus === FamilyStatus.MARIE &&
+    matrimonialRegime &&
+    matrimonialRegime !== MatrimonialRegime.COMMUNAUTE_REDUITE
+  ) {
+    return DocumentKind.CONTRAT_DE_MARIAGE;
+  }
+  return null;
+}
+
+/** Pièces d'état civil rattachées au client (et non à une personne). */
+export const MARITAL_DOCUMENT_KINDS: DocumentKind[] = [
+  DocumentKind.LIVRET_DE_FAMILLE,
+  DocumentKind.CONTRAT_DE_PACS,
+  DocumentKind.CONTRAT_DE_MARIAGE,
+];
+
+/**
  * Détermine les champs de données requis pour un client selon son type et profil
  * Fonction pure utilisable côté client
  */
@@ -33,18 +60,13 @@ export function getRequiredClientFields(
     // Documents requis pour personne physique
     requiredDocuments.push(DocumentKind.ID_IDENTITY);
     
-    // Documents conditionnels selon le statut familial
-    if (familyStatus === FamilyStatus.MARIE) {
-      requiredDocuments.push(DocumentKind.LIVRET_DE_FAMILLE);
-      // Si marié, le régime matrimonial est requis
-      if (!matrimonialRegime) {
-        requiredFields.push("matrimonialRegime");
-      }
-    } else if (familyStatus === FamilyStatus.PACS) {
-      requiredDocuments.push(DocumentKind.CONTRAT_DE_PACS);
+    // Contrat de mariage (hors communauté légale) ou convention de PACS
+    const maritalDocument = getMaritalDocumentKind(familyStatus, matrimonialRegime);
+    if (maritalDocument) {
+      requiredDocuments.push(maritalDocument);
     }
-    
-    // Si le statut familial nécessite un régime matrimonial
+
+    // Si marié, le régime matrimonial est requis
     if (familyStatus === FamilyStatus.MARIE && !matrimonialRegime) {
       requiredFields.push("matrimonialRegime");
     }
@@ -55,14 +77,9 @@ export function getRequiredClientFields(
     requiredDocuments.push(DocumentKind.KBIS, DocumentKind.STATUTES);
   }
 
-  // Champs communs selon le profil
-  if (profilType === ProfilType.PROPRIETAIRE) {
+  // Champs communs selon le profil (l'assurance et le RIB ne sont plus demandés)
+  if (profilType === ProfilType.PROPRIETAIRE || profilType === ProfilType.LOCATAIRE) {
     requiredFields.push("phone", "fullAddress");
-    // Ne pas ajouter INSURANCE et RIB ici car ils sont attachés au Property (bien)
-  } else if (profilType === ProfilType.LOCATAIRE) {
-    requiredFields.push("phone", "fullAddress");
-    // Pour les locataires, INSURANCE et RIB sont attachés au Client
-    requiredDocuments.push(DocumentKind.INSURANCE, DocumentKind.RIB);
   } else if (profilType === ProfilType.LEAD) {
     requiredFields = [];
     requiredDocuments = [];
@@ -74,11 +91,21 @@ export function getRequiredClientFields(
 }
 
 /**
+ * Le règlement d'un lotissement ne s'applique plus 10 ans après son
+ * autorisation : il n'est demandé que si le lotissement est plus récent,
+ * ou par prudence quand le propriétaire ne sait pas (ou n'a pas répondu).
+ */
+export function needsSubdivisionRules(subdivisionOver10Years?: string | null): boolean {
+  return subdivisionOver10Years !== "YES";
+}
+
+/**
  * Détermine les champs de données requis pour un bien selon son statut légal
  * Fonction pure utilisable côté client
  */
 export function getRequiredPropertyFields(
-  legalStatus?: BienLegalStatus | null
+  legalStatus?: BienLegalStatus | null,
+  subdivisionOver10Years?: string | null
 ): {
   requiredFields: string[];
   requiredDocuments: DocumentKind[];
@@ -87,29 +114,15 @@ export function getRequiredPropertyFields(
   const requiredDocuments: DocumentKind[] = [
     DocumentKind.DIAGNOSTICS,
     DocumentKind.TITLE_DEED,
-    // Documents du propriétaire attachés au Property (bien)
-    DocumentKind.INSURANCE,
-    DocumentKind.RIB,
   ];
 
   // Documents conditionnels selon le statut légal
   if (legalStatus === BienLegalStatus.CO_PROPRIETE) {
     requiredDocuments.push(DocumentKind.REGLEMENT_COPROPRIETE);
-  } else if (legalStatus === BienLegalStatus.LOTISSEMENT) {
+  } else if (legalStatus === BienLegalStatus.LOTISSEMENT && needsSubdivisionRules(subdivisionOver10Years)) {
+    // Règlement du lotissement (type historique « cahier des charges »)
     requiredDocuments.push(DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT);
-    requiredDocuments.push(DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE);
   }
 
   return { requiredFields, requiredDocuments };
 }
-
-
-
-
-
-
-
-
-
-
-
