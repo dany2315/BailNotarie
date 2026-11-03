@@ -31,7 +31,9 @@ import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { getMaritalDocumentKind } from "@/lib/utils/required-fields";
 import { MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
+import { RENT_PERIODICITY_LABELS } from "@/lib/utils/commercial-terms";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { CompanyRegistryLookup } from "@/components/intakes/company-registry-lookup";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
 import useIsMobile from "@/hooks/useIsMobile";
@@ -77,6 +79,12 @@ type EntrepriseForm = {
   phone: string;
   fullAddress: string;
   nationality: string;
+  // Bail commercial : représentant légal et immatriculation (yes | no)
+  representativeName?: string;
+  representativeRole?: string;
+  isRegistered?: "" | "yes" | "no";
+  // Société confirmée par le client au registre (recherche SIREN/SIRET)
+  registryConfirmed?: boolean;
   documents: RawDocumentMeta[];
 };
 
@@ -183,6 +191,10 @@ const buildDefaultValues = (intakeLink: any): FormWithPersons => {
       phone: rootPhone,
       fullAddress: entreprise.fullAddress ?? "",
       nationality: entreprise.nationality ?? "",
+      representativeName: entreprise.representativeName ?? "",
+      representativeRole: entreprise.representativeRole ?? "",
+      isRegistered: entreprise.isRegistered === true ? "yes" : entreprise.isRegistered === false ? "no" : "",
+      registryConfirmed: entreprise.registryConfirmedByClient === true,
       documents: (entreprise.documents || []).map((doc: any) => ({
         kind: doc.kind,
         fileKey: doc.fileKey,
@@ -492,7 +504,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       if (!values.entreprise ||
           isEmpty(values.entreprise.legalName) || isEmpty(values.entreprise.email) || 
           isEmpty(values.entreprise.phone) || isEmpty(values.entreprise.fullAddress) ||
-          isEmpty(values.entreprise.registration)) {
+          (isEmpty(values.entreprise.registration) && values.entreprise.isRegistered !== "no")) {
         return clientInfoIndex !== -1 ? clientInfoIndex : 1;
       }
     }
@@ -522,7 +534,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
     } else if (currentClientType === ClientType.PERSONNE_MORALE) {
       const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
-      const hasKbis = entrepriseDocs.some((doc: any) => doc.kind === "KBIS");
+      const hasKbis =
+        intakeLink.client?.entreprise?.isRegistered === false || entrepriseDocs.some((doc: any) => doc.kind === "KBIS");
       const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES");
       
       if (!hasKbis || !hasStatutes) {
@@ -1309,6 +1322,19 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
         if (!valid) return;
+        // Bail commercial : représentant légal et immatriculation de la société locataire
+        if (stepId === "clientInfo" && clientType === ClientType.PERSONNE_MORALE && intakeLink.bail?.bailFamily === "COMMERCIAL") {
+          let missing = false;
+          if (!String(form.getValues("entreprise.representativeName" as any) ?? "").trim()) {
+            form.setError("entreprise.representativeName" as any, { type: "manual", message: "Indiquez le représentant légal" });
+            missing = true;
+          }
+          if (!form.getValues("entreprise.isRegistered" as any)) {
+            form.setError("entreprise.isRegistered" as any, { type: "manual", message: "Indiquez si la société est déjà immatriculée" });
+            missing = true;
+          }
+          if (missing) return;
+        }
       }
     }
   
@@ -1546,7 +1572,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         uploadedEntrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
         statutesRef.current?.files?.[0] || statutesFile;
 
-      if (!hasKbis) {
+      if (!hasKbis && form.getValues("entreprise.isRegistered" as any) !== "no") {
         errors.push("Le KBIS est requis");
       }
       if (!hasStatutes) {
@@ -2079,48 +2105,17 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
           <div>
             <p className="text-xl font-semibold">Informations de l&apos;entreprise</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Renseignez les informations concernant votre société.
+              Indiquez le numéro de votre société, nous retrouvons ses informations.
             </p>
           </div>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="entreprise.legalName">Raison sociale *</Label>
-              <Input
-                id="entreprise.legalName"
-                className="h-11"
-                {...form.register("entreprise.legalName")}
-              />
-              {form.formState.errors.entreprise?.legalName && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.entreprise.legalName.message}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="entreprise.registration">SIREN/SIRET *</Label>
-              <Input
-                id="entreprise.registration"
-                className="h-11"
-                {...form.register("entreprise.registration")}
-              />
-              {form.formState.errors.entreprise?.registration && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.entreprise.registration.message}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="entreprise.fullAddress">Adresse complète *</Label>
-              <Textarea 
-                id="entreprise.fullAddress" 
-                {...form.register("entreprise.fullAddress")} 
-              />
-              {form.formState.errors.entreprise?.fullAddress && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.entreprise.fullAddress.message}
-                </p>
-              )}
-            </div>
+            <CompanyRegistryLookup
+              form={form as any}
+              token={intakeLink.token}
+              showRepresentative={intakeLink.bail?.bailFamily === "COMMERCIAL"}
+              allowUnregistered={intakeLink.bail?.bailFamily === "COMMERCIAL"}
+              syncTradeName={false}
+            />
             <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="entreprise.phone">Téléphone *</Label>
@@ -2605,6 +2600,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             <h3 className="text-lg font-semibold">Documents Locataire *</h3>
             {clientType === ClientType.PERSONNE_MORALE ? (
               <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                {form.watch("entreprise.isRegistered" as any) !== "no" && (
                 <div className="min-w-0 w-full overflow-visible">
                   <DocumentUploaded token={intakeLink.token} documentKind="KBIS">
                     <FileUpload
@@ -2627,6 +2623,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     />
                   </DocumentUploaded>
                 </div>
+                )}
                 <div className="min-w-0 w-full overflow-visible">
                   <DocumentUploaded token={intakeLink.token} documentKind="STATUTES">
                     <FileUpload
@@ -2772,6 +2769,25 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   onChange={(event) => setTermsConfirmed(event.target.checked)}
                   disabled={isSubmitting}
                 />
+                {intakeLink.bail.bailFamily === "COMMERCIAL" ? (
+                <span className="text-sm">
+                  Je confirme le loyer de <strong>{formatCurrency(Number(intakeLink.bail.rentAmount ?? 0))}</strong> hors taxes par mois
+                  {intakeLink.bail.commercialTerms?.rentPeriodicity ? (
+                    <> (paiement {RENT_PERIODICITY_LABELS[intakeLink.bail.commercialTerms.rentPeriodicity]?.toLowerCase()})</>
+                  ) : null}
+                  {intakeLink.bail.effectiveDate ? (
+                    <>
+                      , la prise d&apos;effet du bail le <strong>{formatDate(intakeLink.bail.effectiveDate)}</strong>
+                    </>
+                  ) : null}
+                  {intakeLink.bail.commercialTerms?.activity ? (
+                    <>
+                      {" "}et l&apos;activité « <strong>{intakeLink.bail.commercialTerms.activity}</strong> »
+                    </>
+                  ) : null}
+                  , convenus avec le propriétaire.
+                </span>
+                ) : (
                 <span className="text-sm">
                   Je confirme le loyer de{" "}
                   <strong>{formatCurrency(Number(intakeLink.bail.rentAmount ?? 0))}</strong> hors charges, les charges de{" "}
@@ -2783,6 +2799,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   ) : null}
                   , convenus avec le propriétaire.
                 </span>
+                )}
               </label>
             )}
           </div>

@@ -34,6 +34,8 @@ import {
 } from "@/lib/utils/completion-status";
 import { createUserForClient } from "@/lib/utils/user-creation";
 import { getMaritalDocumentKind } from "@/lib/utils/required-fields";
+import { entrepriseCommercialFields, requiresKbis } from "@/lib/utils/commercial-terms";
+import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { createBailAuditLog, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
@@ -818,6 +820,9 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     if (validated.entreprise?.email) entrepriseData.email = validated.entreprise.email.trim().toLowerCase();
     if (validated.entreprise?.fullAddress) entrepriseData.fullAddress = validated.entreprise.fullAddress;
     if (validated.entreprise?.name) entrepriseData.name = validated.entreprise.name; // Utiliser legalName comme name
+    Object.assign(entrepriseData, entrepriseCommercialFields(validated.entreprise));
+    // Registre des entreprises : relu côté serveur à partir du SIREN/SIRET confirmé
+    Object.assign(entrepriseData, await entrepriseRegistryFields(validated.entreprise));
 
     if (existingEntreprise) {
       // Mettre à jour l'entreprise existante
@@ -1599,7 +1604,10 @@ export async function submitTenantForm(data: unknown) {
     if (validated.entreprise?.email) entrepriseData.email = validated.entreprise.email.trim().toLowerCase();
     if (validated.entreprise?.fullAddress) entrepriseData.fullAddress = validated.entreprise.fullAddress;
     if (validated.entreprise?.name) entrepriseData.name = validated.entreprise.name;
-    if (validated.entreprise?.nationality) entrepriseData.nationality = validated.entreprise.nationality;
+    // Bail commercial : représentant légal et immatriculation (la société n'a pas de nationalité en base)
+    Object.assign(entrepriseData, entrepriseCommercialFields(validated.entreprise));
+    // Registre des entreprises : relu côté serveur à partir du SIREN/SIRET confirmé
+    Object.assign(entrepriseData, await entrepriseRegistryFields(validated.entreprise));
 
     if (existingEntreprise) {
       // Mettre à jour l'entreprise existante
@@ -1662,7 +1670,7 @@ export async function submitTenantForm(data: unknown) {
     }
   } else if (clientForDocValidation.type === ClientType.PERSONNE_MORALE) {
     const entrepriseDocs = clientForDocValidation.entreprise?.documents ?? [];
-    if (!entrepriseDocs.some(d => d.kind === DocumentKind.KBIS)) {
+    if (requiresKbis(clientForDocValidation.entreprise) && !entrepriseDocs.some(d => d.kind === DocumentKind.KBIS)) {
       throw new Error("Le KBIS est requis avant de soumettre le formulaire.");
     }
     if (!entrepriseDocs.some(d => d.kind === DocumentKind.STATUTES)) {

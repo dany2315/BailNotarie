@@ -112,7 +112,7 @@ export async function getIntakeLinkByToken(token: string) {
             },
           },
           documents: true,
-          
+          commercialTerms: true,
         },
       },
       client: {

@@ -716,6 +716,7 @@ export async function getLease(id: string) {
           },
         },
       },
+      commercialTerms: true,
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
       documents: true,

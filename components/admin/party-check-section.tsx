@@ -11,6 +11,7 @@ import { buildChecklistRows, toChecklistDocument, type ChecklistDocument, type C
 import { getRequiredClientFields } from "@/lib/utils/required-fields";
 import { MISSING_FIELD_LABELS } from "@/lib/utils/missing-items";
 import { formatPhone } from "@/lib/utils/phone-format";
+import { registryNotes } from "@/lib/utils/company-registry";
 import { pointKey, summarize, summaryChip, type VerificationPointState } from "@/lib/utils/verification";
 
 const isoDay = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : null);
@@ -113,6 +114,7 @@ export function buildPartyPoints(
     party.profilType as ProfilType,
     primary?.familyStatus,
     primary?.matrimonialRegime,
+    party.entreprise,
   );
   const missingByPerson = new Map<string, Set<string>>();
   for (const p of missing?.persons || []) missingByPerson.set(p.personId, new Set(p.missingFields));
@@ -142,7 +144,11 @@ export function buildPartyPoints(
         label: "Société",
         fields: ["legalName", "name", "registration"],
         keyFields: ["legalName", "name", "registration"],
-        lines: [join([ent.legalName, ent.name && ent.name !== ent.legalName && `« ${ent.name} »`]), ent.registration && `Immatriculation : ${ent.registration}`],
+        lines: [
+          join([ent.legalName, ent.name && ent.name !== ent.legalName && `« ${ent.name} »`]),
+          join([ent.legalFormLabel, ent.registration && `Immatriculation : ${ent.registration}`]),
+          ...registryNotes(ent),
+        ],
         extra: [] as string[],
       },
       {

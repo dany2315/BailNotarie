@@ -20,6 +20,13 @@ export function calculateBailEndDate(effectiveDate: Date, bailType: BailType): D
       case BailType.BAIL_MEUBLE_9_MOIS:
         endDate.setMonth(startDate.getMonth() + 9);
         break;
+      case BailType.COMMERCIAL_3_6_9:
+        endDate.setFullYear(startDate.getFullYear() + 9);
+        break;
+      case BailType.COMMERCIAL_DEROGATOIRE:
+        // Durée choisie au formulaire (enregistrée dans endDate) : à défaut, le maximum légal de 36 mois
+        endDate.setMonth(startDate.getMonth() + 36);
+        break;
       default:
         // Par défaut, 3 ans
         endDate.setFullYear(startDate.getFullYear() + 3);

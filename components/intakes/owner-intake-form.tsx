@@ -57,6 +57,7 @@ import { Stepper } from "@/components/ui/stepper";
 import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentUploaded } from "./document-uploaded";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { CompanyRegistryLookup } from "@/components/intakes/company-registry-lookup";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -119,6 +120,27 @@ import {
 import { checkOccupancyDeclaration } from "@/lib/actions/rent-check";
 import { getMaritalDocumentKind, needsSubdivisionRules } from "@/lib/utils/required-fields";
 import { MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
+import {
+  asksBoughtDuringMarriage,
+  commercialTermsToForm,
+  isCommercialBailType,
+  isPremisesType,
+  spouseMustSign,
+  validateCommercialStep,
+  type CommercialStep,
+} from "@/lib/utils/commercial-terms";
+import {
+  BoughtDuringMarriageQuestion,
+  CommercialActivityStep,
+  CommercialChargesStep,
+  CommercialClausesStep,
+  CommercialDepositStep,
+  CommercialDocumentUploads,
+  CommercialDurationStep,
+  CommercialPropertyDetails,
+  CommercialRentStep,
+  PremisesTypeField,
+} from "./commercial-steps";
 import { Separator } from "../ui/separator";
 import { PaymentStep } from "./payment-step";
 
@@ -155,9 +177,12 @@ const STEPS = [
   { id: "summary", title: "Récapitulatif" },
   { id: "propertyAddress", title: "Le bien" },
   { id: "propertyDetails", title: "Caractéristiques du bien" },
+  { id: "commercialActivity", title: "L'activité" },
   { id: "bailType", title: "Type de contrat" },
   { id: "bailRent", title: "Le loyer" },
   { id: "bailCharges", title: "Charges & dépôt" },
+  { id: "commercialCharges", title: "Charges et travaux" },
+  { id: "commercialClauses", title: "Garanties et clauses" },
   { id: "bailFurniture", title: "Mobilier" },
   { id: "bailDates", title: "Dates du bail" },
   { id: "tenant", title: "Locataire" },
@@ -166,6 +191,56 @@ const STEPS = [
 ] as const;
 
 type StepId = (typeof STEPS)[number]["id"];
+
+// Bail commercial : certaines étapes changent de nom, d'autres n'existent que pour lui.
+const COMMERCIAL_STEP_TITLES: Partial<Record<StepId, string>> = {
+  propertyAddress: "Le local",
+  propertyDetails: "Caractéristiques du local",
+  bailType: "Durée et dates",
+  bailCharges: "Dépôt et frais",
+};
+
+const isCommercialFamily = (family: unknown) => family === BailFamille.COMMERCIAL;
+
+const stepTitle = (id: StepId, family: unknown) =>
+  (isCommercialFamily(family) && COMMERCIAL_STEP_TITLES[id]) || STEPS.find((s) => s.id === id)?.title || "";
+
+/** Étape affichée pour ce bail ? (mobilier : meublé ; dates : dans « Durée et dates » en commercial) */
+const isStepVisible = (id: StepId, values: { bailFamily?: unknown; bailType?: unknown }) => {
+  const commercial = isCommercialFamily(values.bailFamily);
+  switch (id) {
+    case "commercialActivity":
+    case "commercialCharges":
+    case "commercialClauses":
+      return commercial;
+    case "bailDates":
+      return !commercial;
+    case "bailFurniture":
+      return !commercial && (values.bailType === BailType.BAIL_MEUBLE_1_ANS || values.bailType === BailType.BAIL_MEUBLE_9_MOIS);
+    default:
+      return true;
+  }
+};
+
+const nextVisibleStep = (from: number, values: { bailFamily?: unknown; bailType?: unknown }) => {
+  for (let i = from + 1; i < STEPS.length; i++) if (isStepVisible(STEPS[i].id, values)) return i;
+  return STEPS.length - 1;
+};
+
+const previousVisibleStep = (from: number, values: { bailFamily?: unknown; bailType?: unknown }) => {
+  for (let i = from - 1; i >= 0; i--) if (isStepVisible(STEPS[i].id, values)) return i;
+  return 0;
+};
+
+/** Contrôles du parcours commercial, par étape du formulaire. */
+const COMMERCIAL_STEP_CHECKS: Partial<Record<StepId, CommercialStep>> = {
+  commercialActivity: "activity",
+  bailType: "duration",
+  bailRent: "rent",
+  bailCharges: "deposit",
+  commercialCharges: "charges",
+  commercialClauses: "clauses",
+};
 
 type IntakeLink = {
   token: string;
@@ -199,6 +274,10 @@ type EntrepriseForm = {
   email: string;
   phone: string;
   fullAddress: string;
+  representativeName?: string;
+  representativeRole?: string;
+  // Société confirmée par le client au registre (recherche SIREN/SIRET)
+  registryConfirmed?: boolean;
   documents: RawDocumentMeta[];
 };
 
@@ -331,6 +410,10 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   const propertySyndicEmail = property?.syndicEmail ?? "";
   const propertySyndicPhone = property?.syndicPhone ?? "";
   const propertySubdivisionOver10Years = property?.subdivisionOver10Years ?? "";
+  // Bail commercial : centre commercial, dépendances et conditions du bail
+  const propertyInShoppingCenter = property?.inShoppingCenter === true ? "yes" : property?.inShoppingCenter === false ? "no" : "";
+  const propertyOutbuildings = property?.outbuildings ?? "";
+  const commercial = commercialTermsToForm(bail?.commercialTerms);
   // Relocation en zone tendue et complément de loyer (étape « Loyer & charges »).
   const rentRules = rentRulesToForm(bail);
   const propertyStatus = property?.status ?? PropertyStatus.NON_LOUER;
@@ -352,7 +435,10 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
 
   // Bail
   const bailFamily = bail?.bailFamily ?? intakeLink.bailFamilyPreference ?? BailFamille.HABITATION;
-  const bailType = bail?.bailType ?? BailType.BAIL_NU_3_ANS;
+  // Le type de contrat suit la famille de bail (commercial : 3-6-9 par défaut)
+  const bailType = isCommercialFamily(bailFamily)
+    ? isCommercialBailType(bail?.bailType) ? bail.bailType : BailType.COMMERCIAL_3_6_9
+    : bail?.bailType && !isCommercialBailType(bail.bailType) ? bail.bailType : BailType.BAIL_NU_3_ANS;
   // Le bail est créé dès l'étape « Type de contrat », avec loyer, charges et dépôt à 0 et une
   // date d'effet au jour même (colonnes obligatoires en base). Ces valeurs ne sont pas des
   // saisies : un loyer à 0 veut dire que l'étape « Loyer & charges » n'a jamais été validée,
@@ -408,6 +494,9 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       email: rootEmail,
       phone: rootPhone,
       fullAddress: entreprise.fullAddress ?? "",
+      representativeName: entreprise.representativeName ?? "",
+      representativeRole: entreprise.representativeRole ?? "",
+      registryConfirmed: entreprise.registryConfirmedByClient === true,
       documents: (entreprise.documents || []).map((doc: any) => ({
         kind: doc.kind,
         fileKey: doc.fileKey,
@@ -433,6 +522,9 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       propertySyndicEmail,
       propertySyndicPhone,
       propertySubdivisionOver10Years,
+      propertyInShoppingCenter,
+      propertyOutbuildings,
+      commercial,
       rentRules,
       propertyLabel,
       propertyFullAddress,
@@ -512,6 +604,9 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       propertySyndicEmail,
       propertySyndicPhone,
       propertySubdivisionOver10Years,
+      propertyInShoppingCenter,
+      propertyOutbuildings,
+      commercial,
       rentRules,
       propertyLabel,
       propertyFullAddress,
@@ -773,15 +868,27 @@ const findFirstIncompleteStep = (
     (values.bailFamily !== BailFamille.COMMERCIAL &&
       (isEmpty(values.propertyMainRooms) ||
         isEmpty(values.propertyConstructionPeriod) ||
-        isEmpty((values as any).propertyDpeClass)))
+        isEmpty((values as any).propertyDpeClass))) ||
+    // Bail commercial : centre commercial ou ensemble immobilier
+    (values.bailFamily === BailFamille.COMMERCIAL && isEmpty((values as any).propertyInShoppingCenter))
   ) {
     return idxPropertyDetails;
   }
 
-  if (isEmpty(values.bailType)) {
+  // Bail commercial : chaque étape propre doit avoir ses réponses
+  const commercialFlow = values.bailFamily === BailFamille.COMMERCIAL;
+  const commercialIncomplete = (step: CommercialStep) =>
+    commercialFlow &&
+    Object.keys(validateCommercialStep(step, (values as any).commercial, { bailType: values.bailType })).length > 0;
+  const idxStep = (id: StepId) => STEPS.findIndex((s) => s.id === id);
+  if (commercialIncomplete("activity")) {
+    return idxStep("commercialActivity");
+  }
+
+  if (isEmpty(values.bailType) || (commercialFlow && !isCommercialBailType(values.bailType)) || commercialIncomplete("duration")) {
     return idxBailType;
   }
-  if (isEmpty(values.bailRentAmount)) {
+  if (isEmpty(values.bailRentAmount) || commercialIncomplete("rent")) {
     return idxBailRent;
   }
   // Zone tendue : la question sur la relocation doit avoir une réponse.
@@ -792,8 +899,14 @@ const findFirstIncompleteStep = (
   ) {
     return idxBailRent;
   }
-  if (isEmpty(values.bailMonthlyCharges) || isEmpty(values.bailSecurityDeposit)) {
+  if (isEmpty(values.bailMonthlyCharges) || isEmpty(values.bailSecurityDeposit) || commercialIncomplete("deposit")) {
     return idxBailCharges;
+  }
+  if (commercialIncomplete("charges")) {
+    return idxStep("commercialCharges");
+  }
+  if (commercialIncomplete("clauses")) {
+    return idxStep("commercialClauses");
   }
   // Si bail meublé, vérifier que tous les équipements sont cochés
   const isMeubleBailCheck =
@@ -823,7 +936,8 @@ const findFirstIncompleteStep = (
     }
   }
   if (isEmpty(values.bailEffectiveDate) || isEmpty(values.bailPaymentDay)) {
-    return idxBailDates;
+    // Bail commercial : les dates sont dans « Durée et dates »
+    return commercialFlow ? idxBailType : idxBailDates;
   }
 
   const hasTenant =
@@ -984,6 +1098,19 @@ useEffect(() => {
   });
 
   const personsWatch = watch("persons");
+  // Le type de contrat suit la famille de bail ; la numérotation ne compte que les étapes affichées
+  const watchedBailFamily = watch("bailFamily");
+  const watchedBailType = watch("bailType");
+  useEffect(() => {
+    const current = getValues("bailType");
+    if (isCommercialFamily(watchedBailFamily) && !isCommercialBailType(current)) {
+      setValue("bailType", BailType.COMMERCIAL_3_6_9, { shouldDirty: true });
+    } else if (!isCommercialFamily(watchedBailFamily) && isCommercialBailType(current)) {
+      setValue("bailType", BailType.BAIL_NU_3_ANS, { shouldDirty: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedBailFamily]);
+  const visibleSteps = STEPS.filter((s) => isStepVisible(s.id, { bailFamily: watchedBailFamily, bailType: watchedBailType }));
   const tenantEmailWatch = watch("tenantEmail");
   const hasTenantInCurrentBail =
     intakeLink?.bail?.parties?.some(
@@ -1211,13 +1338,17 @@ useEffect(() => {
     useEffect(() => {
       lastSavedValues.current = defaultValues as FormWithPersons;
 
-      const initialStep = findFirstIncompleteStep(
+      const foundStep = findFirstIncompleteStep(
         defaultValues,
         intakeLink,
         (defaultValues.type as ClientType | "") ||
           (initialIntakeLink.client?.type as ClientType | "") ||
           ""
       );
+      // Une étape masquée pour ce bail (mobilier, dates en commercial…) renvoie à la suivante
+      const initialStep = isStepVisible(STEPS[foundStep]?.id, defaultValues)
+        ? foundStep
+        : nextVisibleStep(foundStep, defaultValues);
       setCurrentStep(initialStep);
 
       // Si on atterrit sur clientInfo en mode particulier, positionner sur la 1re personne incomplète
@@ -1417,6 +1548,15 @@ useEffect(() => {
       errors.push("Règlement du lotissement requis");
     }
 
+    // Bail commercial : règlement du centre commercial ou de l'ensemble immobilier
+    if (
+      values.bailFamily === BailFamille.COMMERCIAL &&
+      (values as any).propertyInShoppingCenter === "yes" &&
+      !uploadedDocuments.some((d: any) => d.kind === "SHOPPING_CENTER_RULES")
+    ) {
+      errors.push("Règlement du centre commercial requis");
+    }
+
     return { isValid: errors.length === 0, errors };
   };
 
@@ -1541,14 +1681,27 @@ useEffect(() => {
           "propertySyndicEmail",
           "propertySyndicPhone",
           "propertySubdivisionOver10Years",
+          "propertyInShoppingCenter",
+          "propertyOutbuildings",
           "propertyStatus",
         ];
+      case "commercialActivity":
+      case "commercialCharges":
+      case "commercialClauses":
+        return ["commercial", "bailFamily", "bailType"] as (keyof FormWithPersons)[];
       case "bailType":
-        return ["bailType", "bailFamily"];
+        // Bail commercial : « Durée et dates » porte aussi les dates et les conditions
+        return isCommercialFamily(getValues("bailFamily"))
+          ? (["bailType", "bailFamily", "bailEffectiveDate", "bailEndDate", "bailPaymentDay", "commercial"] as (keyof FormWithPersons)[])
+          : ["bailType", "bailFamily"];
       case "bailRent":
-        return ["bailRentAmount", "rentRules" as keyof FormWithPersons];
+        return isCommercialFamily(getValues("bailFamily"))
+          ? (["bailRentAmount", "bailFamily", "commercial"] as (keyof FormWithPersons)[])
+          : ["bailRentAmount", "rentRules" as keyof FormWithPersons];
       case "bailCharges":
-        return ["bailMonthlyCharges", "bailSecurityDeposit"];
+        return isCommercialFamily(getValues("bailFamily"))
+          ? (["bailMonthlyCharges", "bailSecurityDeposit", "bailFamily", "commercial"] as (keyof FormWithPersons)[])
+          : ["bailMonthlyCharges", "bailSecurityDeposit"];
       case "bailFurniture":
         return [
           "hasLiterie",
@@ -1932,6 +2085,9 @@ useEffect(() => {
         stepId === "propertyAddress" || stepId === "propertyDetails"
           ? "property"
           : stepId === "bailType" ||
+            stepId === "commercialActivity" ||
+            stepId === "commercialCharges" ||
+            stepId === "commercialClauses" ||
             stepId === "bailRent" ||
             stepId === "bailCharges" ||
             stepId === "bailFurniture" ||
@@ -1990,9 +2146,33 @@ useEffect(() => {
   
     // Si on est sur l'étape "summary", pas besoin de sauvegarder, c'est juste une étape de visionnage
     if (stepId === "summary") {
-      const nextStep = Math.min(currentStep + 1, STEPS.length - 1);
-      setCurrentStep(nextStep);
+      setCurrentStep(nextVisibleStep(currentStep, form.getValues()));
       return;
+    }
+
+    // Bail commercial : contrôles propres à l'étape (activité, durée, loyer HT, frais, travaux, garant)
+    const commercialFlow = isCommercialFamily(form.getValues("bailFamily"));
+    const commercialCheck = commercialFlow ? COMMERCIAL_STEP_CHECKS[stepId] : undefined;
+    if (commercialCheck) {
+      const commercialErrors = validateCommercialStep(commercialCheck, form.getValues("commercial" as any), {
+        bailType: form.getValues("bailType"),
+      });
+      let blocked = Object.keys(commercialErrors).length > 0;
+      for (const [path, message] of Object.entries(commercialErrors)) {
+        form.setError(path as any, { type: "manual", message });
+      }
+      if (stepId === "bailType") {
+        if (!isCommercialBailType(form.getValues("bailType"))) {
+          form.setError("bailType", { type: "manual", message: "Choisissez la durée du bail" });
+          blocked = true;
+        }
+        const datesValid = await trigger(["bailEffectiveDate", "bailPaymentDay"] as any);
+        if (!datesValid) blocked = true;
+      }
+      if (blocked) {
+        toast.error("Complétez les informations de l'étape");
+        return;
+      }
     }
 
     // Cas documents → valider les pièces et aller au paiement
@@ -2024,6 +2204,32 @@ useEffect(() => {
         if (!valid) {
           setOpenAccordionValue(`person-${clientInfoPersonIdx}`);
           return;
+        }
+
+        // Bail commercial d'un bien commun : le conjoint doit aussi signer (article 1425 du Code civil)
+        if (commercialFlow) {
+          const first = persons[0] as any;
+          if (
+            clientInfoPersonIdx === 0 &&
+            asksBoughtDuringMarriage(first?.familyStatus, first?.matrimonialRegime) &&
+            !form.getValues("commercial.boughtDuringMarriage" as any)
+          ) {
+            form.setError("commercial.boughtDuringMarriage" as any, {
+              type: "manual",
+              message: "Indiquez si le local a été acheté pendant votre mariage",
+            });
+            return;
+          }
+          if (
+            clientInfoPersonIdx === persons.length - 1 &&
+            persons.length < 2 &&
+            spouseMustSign(first?.familyStatus, first?.matrimonialRegime, form.getValues("commercial.boughtDuringMarriage" as any))
+          ) {
+            toast.error("Votre conjoint doit aussi signer le bail commercial", {
+              description: "Ajoutez-le avec « Une autre personne est propriétaire ».",
+            });
+            return;
+          }
         }
 
         // S'il reste des personnes à éditer, avancer la sous-étape sans changer de step principal
@@ -2074,6 +2280,27 @@ useEffect(() => {
             form.setError("propertyDpeClass" as any, { type: "manual", message: "Indiquez la classe énergétique du logement" });
             missingCategory = true;
           }
+        }
+        if (stepId === "propertyAddress") {
+          // Le type de bien suit la famille de bail : local en commercial, habitat sinon
+          const type = form.getValues("propertyType");
+          if (commercialFlow ? !isPremisesType(type) : isPremisesType(type)) {
+            form.setError("propertyType", {
+              type: "manual",
+              message: commercialFlow ? "Choisissez le type de local" : "Choisissez le type d'habitat",
+            });
+            missingCategory = true;
+          }
+        }
+        if (stepId === "clientInfo" && clientType === ClientType.PERSONNE_MORALE && commercialFlow) {
+          if (!String(form.getValues("entreprise.representativeName" as any) ?? "").trim()) {
+            form.setError("entreprise.representativeName" as any, { type: "manual", message: "Indiquez le représentant légal" });
+            missingCategory = true;
+          }
+        }
+        if (stepId === "propertyDetails" && commercialFlow && !form.getValues("propertyInShoppingCenter" as any)) {
+          form.setError("propertyInShoppingCenter" as any, { type: "manual", message: "Répondez à la question sur le centre commercial" });
+          missingCategory = true;
         }
         if (stepId === "propertyDetails") {
           const legalStatus = form.getValues("propertyLegalStatus");
@@ -2191,11 +2418,9 @@ useEffect(() => {
     let nextStep: number;
     if (stepId === "clientInfo" && summaryIndex !== -1) {
       nextStep = summaryIndex;
-    } else if (stepId === "bailCharges" && !isMeubleBail && bailDatesIndex !== -1) {
-      // Skip "bailFurniture" lorsque le bail n'est pas meublé
-      nextStep = bailDatesIndex;
     } else {
-      nextStep = Math.min(currentStep + 1, STEPS.length - 1);
+      // Étapes masquées pour ce bail (mobilier hors meublé, étapes commerciales…) sautées
+      nextStep = nextVisibleStep(currentStep, { bailFamily: form.getValues("bailFamily"), bailType: computedBailType });
     }
   
     // 3. Sauvegarde
@@ -2271,17 +2496,8 @@ useEffect(() => {
     }
 
     setCurrentStep((prev) => {
-      const target = Math.max(prev - 1, 0);
-      // Skip bailFurniture en arrière si le bail n'est pas meublé
-      if (STEPS[target]?.id === "bailFurniture") {
-        const bailType = form.getValues("bailType");
-        const isMeubleBail =
-          bailType === BailType.BAIL_MEUBLE_1_ANS ||
-          bailType === BailType.BAIL_MEUBLE_9_MOIS;
-        if (!isMeubleBail) {
-          return Math.max(target - 1, 0);
-        }
-      }
+      // Étapes masquées pour ce bail (mobilier hors meublé, étapes commerciales…) sautées
+      const target = previousVisibleStep(prev, { bailFamily: form.getValues("bailFamily"), bailType: form.getValues("bailType") });
       // Quand on entre dans clientInfo en reculant depuis summary, montrer la dernière personne
       if (STEPS[target]?.id === "clientInfo" && clientType === ClientType.PERSONNE_PHYSIQUE) {
         const persons = form.getValues("persons") || [];
@@ -2700,7 +2916,8 @@ useEffect(() => {
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm leading-tight">Formulaire bail notarié</p>
           <p className="text-xs text-muted-foreground">
-            {STEPS[currentStep].title} · Étape {currentStep + 1}/{STEPS.length}
+            {stepTitle(STEPS[currentStep].id, watchedBailFamily)} · Étape{" "}
+            {Math.max(1, visibleSteps.findIndex((s) => s.id === STEPS[currentStep].id) + 1)}/{visibleSteps.length}
           </p>
         </div>
         {!isPaymentStepCurrent && (
@@ -2718,7 +2935,7 @@ useEffect(() => {
       <div className="shrink-0 h-0.5 bg-muted">
         <div
           className="h-full bg-primary transition-all duration-300 ease-out"
-          style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
+          style={{ width: `${(Math.max(1, visibleSteps.findIndex((s) => s.id === STEPS[currentStep].id) + 1) / visibleSteps.length) * 100}%` }}
         />
       </div>
 
@@ -2791,10 +3008,13 @@ useEffect(() => {
           {STEPS[currentStep].id === "propertyDetails" && (
             <PropertyStep form={form as any} isMobile={isMobile} slice="details" />
           )}
-          {STEPS[currentStep].id === "bailType" && (
+          {STEPS[currentStep].id === "commercialActivity" && <CommercialActivityStep form={form} />}
+          {STEPS[currentStep].id === "bailType" && isCommercialFamily(watchedBailFamily) && <CommercialDurationStep form={form} />}
+          {STEPS[currentStep].id === "bailType" && !isCommercialFamily(watchedBailFamily) && (
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="type" />
           )}
-          {STEPS[currentStep].id === "bailRent" && (
+          {STEPS[currentStep].id === "bailRent" && isCommercialFamily(watchedBailFamily) && <CommercialRentStep form={form} />}
+          {STEPS[currentStep].id === "bailRent" && !isCommercialFamily(watchedBailFamily) && (
             <BailStep
               form={form as any}
               propertyId={intakeLink.propertyId || intakeLink.property?.id}
@@ -2807,9 +3027,12 @@ useEffect(() => {
               }}
             />
           )}
-          {STEPS[currentStep].id === "bailCharges" && (
+          {STEPS[currentStep].id === "bailCharges" && isCommercialFamily(watchedBailFamily) && <CommercialDepositStep form={form} />}
+          {STEPS[currentStep].id === "bailCharges" && !isCommercialFamily(watchedBailFamily) && (
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="charges" />
           )}
+          {STEPS[currentStep].id === "commercialCharges" && <CommercialChargesStep form={form} />}
+          {STEPS[currentStep].id === "commercialClauses" && <CommercialClausesStep form={form} />}
           {STEPS[currentStep].id === "bailFurniture" && (
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="furniture" />
           )}
@@ -3207,49 +3430,17 @@ const ClientInfoStep = ({
         <div>
           <p className="text-xl font-semibold">Informations de l&apos;entreprise</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Renseignez les informations concernant votre société.
+            Indiquez le numéro de votre société, nous retrouvons ses informations.
           </p>
         </div>
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="entreprise.legalName">Raison sociale *</Label>
-            <Input
-              id="entreprise.legalName"
-              className="h-11"
-              {...form.register("entreprise.legalName" as any)}
-            />
-            {form.formState.errors.entreprise?.legalName && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.entreprise.legalName.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="entreprise.registration">SIREN/SIRET *</Label>
-            <Input
-              id="entreprise.registration"
-              className="h-11"
-              {...form.register("entreprise.registration" as any)}
-            />
-            {form.formState.errors.entreprise?.registration && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.entreprise.registration.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="entreprise.name">Nom commercial *</Label>
-            <Input
-              id="entreprise.name"
-              className="h-11"
-              {...form.register("entreprise.name" as any)}
-            />
-            {form.formState.errors.entreprise?.name && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.entreprise.name.message}
-              </p>
-            )}
-          </div>
+          <CompanyRegistryLookup
+            form={form as any}
+            token={intakeLink.token}
+            showRepresentative={form.watch("bailFamily") === BailFamille.COMMERCIAL}
+            allowUnregistered={false}
+            syncTradeName
+          />
           <div className="space-y-2">
             <Label htmlFor="entreprise.email">Email *</Label>
             <Input
@@ -3284,18 +3475,6 @@ const ClientInfoStep = ({
             {form.formState.errors.entreprise?.phone && (
               <p className="text-sm text-destructive">
                 {form.formState.errors.entreprise.phone.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="entreprise.fullAddress">Adresse complète *</Label>
-            <Textarea 
-              id="entreprise.fullAddress" 
-              {...form.register("entreprise.fullAddress" as any)} 
-            />
-            {form.formState.errors.entreprise?.fullAddress && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.entreprise.fullAddress.message}
               </p>
             )}
           </div>
@@ -3594,6 +3773,11 @@ const ClientInfoStep = ({
                         Sans contrat signé chez un notaire, choisissez « Communauté réduite aux acquêts ». En cas de
                         doute, la page « Mariage » de votre livret de famille l&apos;indique.
                       </p>
+                      {index === 0 &&
+                        form.watch("bailFamily") === BailFamille.COMMERCIAL &&
+                        asksBoughtDuringMarriage(watchedFamilyStatuses[index], form.watch(`persons.${index}.matrimonialRegime` as any)) && (
+                          <BoughtDuringMarriageQuestion form={form} />
+                        )}
                       {form.formState.errors.persons?.[index]?.matrimonialRegime && (
                         <p className="text-sm text-destructive">
                           {form.formState.errors.persons[index]?.matrimonialRegime?.message}
@@ -3650,6 +3834,17 @@ const ClientInfoStep = ({
             );
           })}
         </Accordion>
+        {form.watch("bailFamily") === BailFamille.COMMERCIAL &&
+          personFields.length < 2 &&
+          spouseMustSign(
+            form.watch("persons.0.familyStatus" as any),
+            form.watch("persons.0.matrimonialRegime" as any),
+            form.watch("commercial.boughtDuringMarriage" as any)
+          ) && (
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              Le local appartient aussi à votre conjoint : il doit signer le bail commercial. Ajoutez-le ci-dessous.
+            </p>
+          )}
         {isLastPerson && personFields.length < 2 && (
           <Button
             type="button"
@@ -3920,12 +4115,18 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
     <div className="space-y-5">
       <div>
         <p className="text-xl font-semibold">
-          {slice === "details" ? "Caractéristiques du bien" : "Le bien"}
+          {bailFamily === BailFamille.COMMERCIAL
+            ? slice === "details" ? "Caractéristiques du local" : "Le local"
+            : slice === "details" ? "Caractéristiques du bien" : "Le bien"}
         </p>
         <p className="text-sm text-muted-foreground mt-1">
-          {slice === "details"
-            ? "Pièces principales, époque de construction et régime juridique."
-            : "Adresse, type d'habitat et surface du bien à louer."}
+          {bailFamily === BailFamille.COMMERCIAL
+            ? slice === "details"
+              ? "Régime juridique, centre commercial et dépendances."
+              : "Adresse, type de local et surface à louer."
+            : slice === "details"
+              ? "Pièces principales, époque de construction et régime juridique."
+              : "Adresse, type d'habitat et surface du bien à louer."}
         </p>
       </div>
       <div className="space-y-4">
@@ -3963,7 +4164,8 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
             error={form.formState.errors.propertyFullAddress?.message}
           />
         </div>
-      <div className="grid gap-3 sm:gap-4 grid-cols-1">
+      {bailFamily === BailFamille.COMMERCIAL && <PremisesTypeField form={form} />}
+      <div className={cn("grid gap-3 sm:gap-4 grid-cols-1", bailFamily === BailFamille.COMMERCIAL && "hidden")}>
         <div className="space-y-2">
           <div className="flex items-center gap-2 pb-2">
             <Label htmlFor="propertyType">Type d'habitat *</Label>
@@ -4183,6 +4385,7 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
           )}
         </div>
         <LegalStatusDetails form={form} />
+        {bailFamily === BailFamille.COMMERCIAL && <CommercialPropertyDetails form={form} />}
         </>)}
     </div>
   </div>
@@ -5113,6 +5316,14 @@ const DocumentsStep = ({
 
       <RentProofUploads form={form} intakeLink={intakeLink} onUploadStateChange={onUploadStateChange} />
       <OccupancyDeclarationUpload form={form} intakeLink={intakeLink} onUploadStateChange={onUploadStateChange} />
+      {form.watch("bailFamily") === BailFamille.COMMERCIAL && (
+        <CommercialDocumentUploads
+          form={form}
+          intakeLink={intakeLink}
+          isCompany={clientType === ClientType.PERSONNE_MORALE}
+          onUploadStateChange={onUploadStateChange}
+        />
+      )}
 
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Documents du bien et du bail</h3>

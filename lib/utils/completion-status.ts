@@ -173,7 +173,7 @@ export function computeClientMissingData(client: {
     
     // Vérifier les documents entreprise (KBIS, Statuts)
     const entrepriseDocKinds = (entreprise.documents || []).map((d: any) => d.kind);
-    if (!entrepriseDocKinds.includes(DocumentKind.KBIS)) {
+    if (entreprise.isRegistered !== false && !entrepriseDocKinds.includes(DocumentKind.KBIS)) {
       entrepriseMissingDocs.push(DocumentKind.KBIS);
     }
     if (!entrepriseDocKinds.includes(DocumentKind.STATUTES)) {
@@ -365,7 +365,7 @@ export async function checkClientCompletion(clientId: string): Promise<{
   } else if (client.type === ClientType.PERSONNE_MORALE && entreprise) {
     // Vérifier les documents entreprise
     const entrepriseDocKinds = (entreprise.documents || []).map((d: any) => d.kind);
-    if (!entrepriseDocKinds.includes(DocumentKind.KBIS)) {
+    if (entreprise.isRegistered !== false && !entrepriseDocKinds.includes(DocumentKind.KBIS)) {
       missingDocuments.push(DocumentKind.KBIS);
     }
     if (!entrepriseDocKinds.includes(DocumentKind.STATUTES)) {

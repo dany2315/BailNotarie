@@ -21,6 +21,15 @@ export const documentKindLabels: Record<string, string> = {
   WORKS_INVOICES: "Factures des travaux",
   RENT_REFERENCES: "Loyers de logements comparables",
   OCCUPANCY_DECLARATION: "Déclaration d'occupation (impots.gouv)",
+  PREVIOUS_LEASE: "Bail précédent",
+  LEASE_TERMINATION: "Congé ou fin du bail précédent",
+  GENERAL_ASSEMBLY_MINUTES: "Procès-verbaux d'assemblée générale",
+  SHOPPING_CENTER_RULES: "Règlement du centre commercial",
+  PREMISES_PLANS: "Plans du local",
+  OPERAT_CERTIFICATE: "Attestation OPERAT",
+  ENVIRONMENTAL_APPENDIX: "Annexe environnementale",
+  SIGNING_AUTHORITY: "Autorisation de signer ou délégation de pouvoirs",
+  OTHER: "Autre document",
 };
 
 /**

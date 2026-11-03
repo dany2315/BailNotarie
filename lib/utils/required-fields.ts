@@ -42,7 +42,8 @@ export function getRequiredClientFields(
   type: ClientType,
   profilType: ProfilType,
   familyStatus?: FamilyStatus | null,
-  matrimonialRegime?: MatrimonialRegime | null
+  matrimonialRegime?: MatrimonialRegime | null,
+  entreprise?: { isRegistered?: boolean | null } | null
 ): {
   requiredFields: string[];
   requiredDocuments: DocumentKind[];
@@ -74,7 +75,9 @@ export function getRequiredClientFields(
     requiredFields.push("legalName", "registration");
     
     // Documents requis pour personne morale
-    requiredDocuments.push(DocumentKind.KBIS, DocumentKind.STATUTES);
+    // Société pas encore immatriculée : pas de Kbis, les statuts suffisent
+    if (entreprise?.isRegistered !== false) requiredDocuments.push(DocumentKind.KBIS);
+    requiredDocuments.push(DocumentKind.STATUTES);
   }
 
   // Champs communs selon le profil (l'assurance et le RIB ne sont plus demandés)

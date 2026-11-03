@@ -201,7 +201,12 @@ export function PropertyTypeBadge({ type, className }: { type: string; className
       label: "Maison",
       icon: <Home className="size-4" />,
       variant: "secondary"
-    }
+    },
+    BOUTIQUE: { label: "Boutique", icon: <Building className="size-4" />, variant: "outline" },
+    BUREAU: { label: "Bureau", icon: <Building className="size-4" />, variant: "outline" },
+    LOCAL_ACTIVITE: { label: "Local d'activité", icon: <Building className="size-4" />, variant: "outline" },
+    ENTREPOT: { label: "Entrepôt", icon: <Building className="size-4" />, variant: "outline" },
+    AUTRE_LOCAL: { label: "Autre local", icon: <Building className="size-4" />, variant: "outline" },
   };
 
   const config = configs[type] || { label: type, icon: null, variant: "outline" as const };

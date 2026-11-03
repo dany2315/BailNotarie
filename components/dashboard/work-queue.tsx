@@ -42,6 +42,8 @@ const BAIL_TYPE_LABELS: Record<string, string> = {
   BAIL_NU_6_ANS: "Bail nu 6 ans",
   BAIL_MEUBLE_1_ANS: "Meublé 1 an",
   BAIL_MEUBLE_9_MOIS: "Meublé 9 mois",
+  COMMERCIAL_3_6_9: "Commercial 3-6-9",
+  COMMERCIAL_DEROGATOIRE: "Commercial dérogatoire",
 };
 
 export function WorkQueue({ items }: { items: QueueItem[] }) {

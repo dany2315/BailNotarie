@@ -13,6 +13,8 @@ import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
 import { assessRentRules } from "@/lib/rent-rules";
 import { rentRulesFromForm } from "@/lib/utils/rent-draft";
 import { euros } from "@/lib/utils/rent-relocation";
+import { commercialTermsFromForm, entrepriseCommercialFields } from "@/lib/utils/commercial-terms";
+import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 
 /**
  * Pièces principales (1 à 4, 4 = « 4 et plus »), époque de construction et classe énergétique,
@@ -39,6 +41,8 @@ function legalStatusDetails(payload: any): {
   syndicEmail?: string | null;
   syndicPhone?: string | null;
   subdivisionOver10Years?: string | null;
+  inShoppingCenter?: boolean | null;
+  outbuildings?: string | null;
 } {
   const out: ReturnType<typeof legalStatusDetails> = {};
   const text = (value: unknown, max: number) =>
@@ -51,6 +55,12 @@ function legalStatusDetails(payload: any): {
       ? payload.propertySubdivisionOver10Years
       : null;
   }
+  // Bail commercial : centre commercial ou ensemble immobilier, dépendances
+  if (payload.propertyInShoppingCenter !== undefined) {
+    const value = payload.propertyInShoppingCenter;
+    out.inShoppingCenter = value === true || value === "yes" ? true : value === false || value === "no" ? false : null;
+  }
+  if (payload.propertyOutbuildings !== undefined) out.outbuildings = text(payload.propertyOutbuildings, 1000);
   return out;
 }
 
@@ -129,6 +139,8 @@ export async function handleTenantClientInfoStep(
 
   // Vérifications d'email avant la transaction
   await validateTenantEmails(intakeLink, effectivePayload, clientId);
+  // Registre des entreprises : relu ici, hors transaction (appel réseau)
+  const registry = effectivePayload.type === ClientType.PERSONNE_MORALE ? await entrepriseRegistryFields(effectivePayload.entreprise) : {};
 
   await prisma.$transaction(async (tx) => {
     const clientType = effectivePayload.type as ClientType;
@@ -145,7 +157,7 @@ export async function handleTenantClientInfoStep(
     if (clientType === ClientType.PERSONNE_PHYSIQUE) {
       await handleTenantPersons(tx, intakeLink, effectivePayload, clientId);
     } else if (clientType === ClientType.PERSONNE_MORALE) {
-      await handleTenantEntreprise(tx, intakeLink, effectivePayload, clientId);
+      await handleTenantEntreprise(tx, intakeLink, effectivePayload, clientId, registry);
     }
   });
 
@@ -173,6 +185,8 @@ export async function handleTenantLegacySave(
 ) {
   // Utiliser la logique complète de l'ancienne fonction
   await validateTenantEmails(intakeLink, payload, clientId);
+  // Registre des entreprises : relu ici, hors transaction (appel réseau)
+  const registry = payload.type === ClientType.PERSONNE_MORALE ? await entrepriseRegistryFields(payload.entreprise) : {};
 
   await prisma.$transaction(async (tx) => {
     const clientType = payload.type as ClientType;
@@ -187,7 +201,7 @@ export async function handleTenantLegacySave(
     if (clientType === ClientType.PERSONNE_PHYSIQUE) {
       await handleTenantPersons(tx, intakeLink, payload, clientId);
     } else if (clientType === ClientType.PERSONNE_MORALE) {
-      await handleTenantEntreprise(tx, intakeLink, payload, clientId);
+      await handleTenantEntreprise(tx, intakeLink, payload, clientId, registry);
     }
 
     await handleDocumentsInTransaction(tx, payload, clientId, intakeLink);
@@ -230,6 +244,8 @@ export async function handleOwnerClientInfoStep(
 
   // Vérifications d'email avant la transaction
   await validateOwnerEmails(intakeLink, effectivePayload, clientId);
+  // Registre des entreprises : relu ici, hors transaction (appel réseau)
+  const registry = effectivePayload.type === ClientType.PERSONNE_MORALE ? await entrepriseRegistryFields(effectivePayload.entreprise) : {};
 
   await prisma.$transaction(async (tx) => {
     const clientType = effectivePayload.type as ClientType;
@@ -244,7 +260,7 @@ export async function handleOwnerClientInfoStep(
     if (clientType === ClientType.PERSONNE_PHYSIQUE) {
       await handleOwnerPersons(tx, intakeLink, effectivePayload, clientId);
     } else if (clientType === ClientType.PERSONNE_MORALE) {
-      await handleOwnerEntreprise(tx, intakeLink, effectivePayload, clientId);
+      await handleOwnerEntreprise(tx, intakeLink, effectivePayload, clientId, registry);
     }
   });
 
@@ -464,6 +480,18 @@ export async function handleOwnerBailStep(
         where: { id: intakeLink.id },
         data: { bailId: newBail.id },
       });
+      bailId = newBail.id;
+    }
+
+    // Bail commercial : conditions propres (activité, loyer HT, charges, travaux…), jamais pour un bail d'habitation
+    const family = payload.bailFamily || intakeLink.bail?.bailFamily || intakeLink.bailFamilyPreference;
+    const commercialData = family === BailFamille.COMMERCIAL ? commercialTermsFromForm(payload.commercial) : {};
+    if (bailId && Object.keys(commercialData).length > 0) {
+      await tx.bailCommercialTerms.upsert({
+        where: { bailId },
+        create: { bailId, ...commercialData },
+        update: commercialData,
+      });
     }
   });
 
@@ -658,6 +686,8 @@ export async function handleOwnerLegacySave(
 ) {
   // Utiliser la logique complète de l'ancienne fonction
   await validateOwnerEmails(intakeLink, payload, clientId);
+  // Registre des entreprises : relu ici, hors transaction (appel réseau)
+  const registry = payload.type === ClientType.PERSONNE_MORALE ? await entrepriseRegistryFields(payload.entreprise) : {};
 
   await prisma.$transaction(async (tx) => {
     const clientType = payload.type as ClientType;
@@ -672,7 +702,7 @@ export async function handleOwnerLegacySave(
     if (clientType === ClientType.PERSONNE_PHYSIQUE) {
       await handleOwnerPersons(tx, intakeLink, payload, clientId);
     } else if (clientType === ClientType.PERSONNE_MORALE) {
-      await handleOwnerEntreprise(tx, intakeLink, payload, clientId);
+      await handleOwnerEntreprise(tx, intakeLink, payload, clientId, registry);
     }
 
     await handleDocumentsInTransaction(tx, payload, clientId, intakeLink);
@@ -856,7 +886,7 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
   );
 }
 
-async function handleTenantEntreprise(tx: any, intakeLink: any, payload: any, clientId: string) {
+async function handleTenantEntreprise(tx: any, intakeLink: any, payload: any, clientId: string, registry: object = {}) {
   const entrepriseData: any = {};
   if (payload.entreprise?.legalName) entrepriseData.legalName = payload.entreprise.legalName;
   if (payload.entreprise?.registration) entrepriseData.registration = payload.entreprise.registration;
@@ -864,7 +894,9 @@ async function handleTenantEntreprise(tx: any, intakeLink: any, payload: any, cl
   if (payload.entreprise?.email) entrepriseData.email = payload.entreprise.email.trim().toLowerCase();
   if (payload.entreprise?.fullAddress) entrepriseData.fullAddress = payload.entreprise.fullAddress;
   if (payload.entreprise?.name) entrepriseData.name = payload.entreprise.name;
-  if (payload.entreprise?.nationality) entrepriseData.nationality = payload.entreprise.nationality;
+  // Bail commercial : représentant légal et immatriculation (la société n'a pas de nationalité en base)
+  Object.assign(entrepriseData, entrepriseCommercialFields(payload.entreprise));
+  Object.assign(entrepriseData, registry);
 
   const existingEntreprise = intakeLink.client?.entreprise;
   if (existingEntreprise) {
@@ -1078,8 +1110,8 @@ async function handleOwnerPersons(tx: any, intakeLink: any, payload: any, client
   await handleTenantPersons(tx, intakeLink, payload, clientId);
 }
 
-async function handleOwnerEntreprise(tx: any, intakeLink: any, payload: any, clientId: string) {
+async function handleOwnerEntreprise(tx: any, intakeLink: any, payload: any, clientId: string, registry: object = {}) {
   // Même logique que handleTenantEntreprise
-  await handleTenantEntreprise(tx, intakeLink, payload, clientId);
+  await handleTenantEntreprise(tx, intakeLink, payload, clientId, registry);
 }
 

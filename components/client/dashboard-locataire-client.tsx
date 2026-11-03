@@ -126,6 +126,8 @@ const BAIL_TYPE_LABELS: Record<string, string> = {
   BAIL_NU_6_ANS: "Bail nu 6 ans",
   BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
   BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
+  COMMERCIAL_3_6_9: "Bail commercial 3-6-9",
+  COMMERCIAL_DEROGATOIRE: "Bail commercial dérogatoire",
 };
 
 const BAIL_FAMILY_LABELS: Record<string, string> = {

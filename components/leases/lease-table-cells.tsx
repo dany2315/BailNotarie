@@ -24,6 +24,8 @@ const BAIL_TYPE_LABELS: Record<string, string> = {
   BAIL_NU_6_ANS: "Bail nu 6 ans",
   BAIL_MEUBLE_1_ANS: "Meublé 1 an",
   BAIL_MEUBLE_9_MOIS: "Meublé 9 mois",
+  COMMERCIAL_3_6_9: "Commercial 3-6-9",
+  COMMERCIAL_DEROGATOIRE: "Commercial dérogatoire",
 };
 
 interface LeaseCellProps {
@@ -232,7 +234,7 @@ export function LeaseDepositCell({ row }: LeaseCellProps) {
   return <>{formatCurrency(Number(row.securityDeposit))}</>;
 }
 
-const PROPERTY_TYPE_LABELS: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison" };
+const PROPERTY_TYPE_LABELS: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison", BOUTIQUE: "Boutique", BUREAU: "Bureau", LOCAL_ACTIVITE: "Local d'activité", ENTREPOT: "Entrepôt", AUTRE_LOCAL: "Autre local" };
 
 /** Frais de dossier : pastille et date (ou « à régler »). */
 export function LeasePaymentCell({ row }: LeaseCellProps) {

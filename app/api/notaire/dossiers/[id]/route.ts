@@ -80,6 +80,7 @@ export async function GET(
           include: {
             property: true,
             documents: true,
+            commercialTerms: true,
             parties: {
               include: {
                 persons: {

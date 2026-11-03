@@ -118,7 +118,7 @@ function requirements(party: any) {
   return {
     persons,
     primary,
-    ...getRequiredClientFields(party.type, party.profilType as ProfilType, primary?.familyStatus, primary?.matrimonialRegime),
+    ...getRequiredClientFields(party.type, party.profilType as ProfilType, primary?.familyStatus, primary?.matrimonialRegime, party.entreprise),
   };
 }
 

@@ -49,6 +49,7 @@ import { BailTermsEditor, type BailTermInput } from "@/components/admin/bail-ter
 import { assessDpe } from "@/lib/utils/dpe";
 import { DpeEditor } from "@/components/admin/dpe-editor";
 import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/admin/property-editors";
+import { CommercialTermsList, companyRepresentativeRows } from "@/components/shared/commercial-terms-list";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
 
 export const dynamic = "force-dynamic";
@@ -58,9 +59,11 @@ const BAIL_TYPE_LABELS: Record<string, string> = {
   BAIL_NU_6_ANS: "Bail nu 6 ans",
   BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
   BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
+  COMMERCIAL_3_6_9: "Bail commercial 3-6-9",
+  COMMERCIAL_DEROGATOIRE: "Bail commercial dérogatoire",
 };
 const BAIL_FAMILY_LABELS: Record<string, string> = { HABITATION: "Habitation", COMMERCIAL: "Commercial" };
-const PROPERTY_TYPE_LABELS: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison" };
+const PROPERTY_TYPE_LABELS: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison", BOUTIQUE: "Boutique", BUREAU: "Bureau", LOCAL_ACTIVITE: "Local d'activité", ENTREPOT: "Entrepôt", AUTRE_LOCAL: "Autre local" };
 const SUBDIVISION_AGE_LABELS: Record<string, string> = {
   YES: "Lotissement autorisé il y a plus de 10 ans (règlement non demandé)",
   NO: "Lotissement autorisé il y a moins de 10 ans",
@@ -240,8 +243,10 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     (lease.status === BailStatus.READY_FOR_NOTARY && !followUp.notaire);
 
   // Contrôles automatiques réellement en place.
+  // Bail commercial : pas de plafond légal du dépôt de garantie
+  const isCommercial = lease.bailFamily === "COMMERCIAL";
   const maxDeposit = isMeuble ? lease.rentAmount * 2 : lease.rentAmount;
-  const depositOk = lease.securityDeposit <= maxDeposit;
+  const depositOk = isCommercial || lease.securityDeposit <= maxDeposit;
   const docsMissing =
     (missingData?.owner?.totalMissingDocuments || 0) +
     (missingData?.tenant?.totalMissingDocuments || 0) +
@@ -311,7 +316,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           label: "Dépôt de garantie",
           value: String(lease.securityDeposit ?? 0),
           missing: bailMissing.has("securityDeposit"),
-          help: lease.rentAmount > 0 ? `Maximum ${formatCurrency(maxDeposit)} (${isMeuble ? "2 mois de loyer, meublé" : "1 mois de loyer, bail nu"})` : undefined,
+          help: lease.rentAmount > 0 && !isCommercial ? `Maximum ${formatCurrency(maxDeposit)} (${isMeuble ? "2 mois de loyer, meublé" : "1 mois de loyer, bail nu"})` : undefined,
         },
       ] as BailTermInput[],
       text: [`${formatCurrency(lease.securityDeposit)}${months !== null ? ` · ${String(months).replace(".", ",")} mois de loyer hors charges` : ""}`],
@@ -640,6 +645,19 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             </CheckList>
           </CheckSection>
 
+          {isCommercial && (
+            <CheckSection id="bloc-commercial" title="Conditions commerciales" subtitle="Réponses du propriétaire, transmises au notaire">
+              <CommercialTermsList
+                terms={(lease as any).commercialTerms}
+                bail={{ bailType: lease.bailType, rentAmount: lease.rentAmount }}
+                extraRows={companyRepresentativeRows([
+                  { label: "propriétaire", entreprise: owner?.entreprise },
+                  { label: "locataire", entreprise: tenant?.entreprise },
+                ])}
+              />
+            </CheckSection>
+          )}
+
           <CheckSection
             id="bloc-paiement"
             title="Paiement"
@@ -811,6 +829,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       property.legalStatus === "LOTISSEMENT" && property.subdivisionOver10Years
                         ? SUBDIVISION_AGE_LABELS[property.subdivisionOver10Years] ?? null
                         : null,
+                      property.inShoppingCenter ? "Dans un centre commercial ou un ensemble immobilier" : null,
+                      property.outbuildings ? `Dépendances : ${property.outbuildings}` : null,
                     ]
                       .filter(Boolean)
                       .join("\n")}
@@ -1145,7 +1165,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 note={depositOk ? null : `Au-dessus de la limite légale de ${formatCurrency(maxDeposit)} : à corriger dans « Le bail »`}
                 actions={depositOk && !bailLocked ? <AutoVerified /> : null}
               >
-                {`${formatCurrency(lease.securityDeposit)}${months !== null ? `, soit ${String(months).replace(".", ",")} mois de loyer` : ""} · limite légale de ${isMeuble ? "2 mois pour un meublé" : "1 mois pour un bail nu"}`}
+                {`${formatCurrency(lease.securityDeposit)}${months !== null ? `, soit ${String(months).replace(".", ",")} mois de loyer` : ""} · ${isCommercial ? "pas de limite légale pour un bail commercial" : `limite légale de ${isMeuble ? "2 mois pour un meublé" : "1 mois pour un bail nu"}`}`}
               </CheckPoint>
               <CheckPoint
                 state={docsMissing > 0 ? "missing" : "ok"}

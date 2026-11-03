@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
       }
     }
     // Documents bien (PROPERTY) — en intake la propriété peut ne pas exister encore : rattacher au client pour que getIntakeDocuments les retourne
-    else if (["DIAGNOSTICS", "TITLE_DEED", "REGLEMENT_COPROPRIETE", "CAHIER_DE_CHARGE_LOTISSEMENT", "STATUT_DE_LASSOCIATION_SYNDICALE", "OCCUPANCY_DECLARATION"].includes(documentKind)) {
+    else if (["DIAGNOSTICS", "TITLE_DEED", "REGLEMENT_COPROPRIETE", "CAHIER_DE_CHARGE_LOTISSEMENT", "STATUT_DE_LASSOCIATION_SYNDICALE", "OCCUPANCY_DECLARATION", "GENERAL_ASSEMBLY_MINUTES", "SHOPPING_CENTER_RULES", "PREMISES_PLANS", "OPERAT_CERTIFICATE", "ENVIRONMENTAL_APPENDIX"].includes(documentKind)) {
       targetPropertyId = finalPropertyId || null;
       if (!targetPropertyId && finalClientId) {
         targetClientId = finalClientId;
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
       }
     }
     // Justificatifs du loyer (relocation en zone tendue) : rattachés au bail
-    else if (["PREVIOUS_RENT_PROOF", "PREVIOUS_TENANT_EXIT_PROOF", "WORKS_INVOICES", "RENT_REFERENCES"].includes(documentKind)) {
+    else if (["PREVIOUS_RENT_PROOF", "PREVIOUS_TENANT_EXIT_PROOF", "WORKS_INVOICES", "RENT_REFERENCES", "PREVIOUS_LEASE", "LEASE_TERMINATION"].includes(documentKind)) {
       targetBailId = finalBailId || null;
       if (!targetBailId && finalClientId) {
         targetClientId = finalClientId;

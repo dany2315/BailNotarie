@@ -239,6 +239,14 @@ const propertyFieldsSchema = {
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.enum(["YES", "NO", "UNKNOWN"]).optional()
   ),
+  // Bail commercial : centre commercial ou ensemble immobilier (yes | no), dépendances, conditions
+  // du bail (réponses du formulaire, nettoyées par commercialTermsFromForm avant l'enregistrement).
+  propertyInShoppingCenter: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val === true ? "yes" : val === false ? "no" : val),
+    z.enum(["yes", "no"]).optional()
+  ).optional(),
+  propertyOutbuildings: z.string().max(1000).trim().optional(),
+  commercial: z.record(z.string(), z.any()).optional(),
   propertyLabel: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.string()
@@ -598,11 +606,20 @@ export const ownerFormSchema = z
           .min(1, "La raison sociale est requise")
           .max(200, "La raison sociale est trop longue")
           .trim(),
+        // Bail commercial : représentant légal et immatriculation (facultatifs ici)
+        representativeName: z.string().max(200).trim().optional(),
+        representativeRole: z.string().max(200).trim().optional(),
+        isRegistered: z.preprocess(
+          (val) => (val === "yes" ? true : val === "no" ? false : val === "" || val === null ? undefined : val),
+          z.boolean().optional()
+        ).optional(),
         registration: z
           .string()
           .min(1, "Le numéro d'enregistrement est requis")
           .max(50, "Le numéro d'enregistrement est trop long")
           .trim(),
+        // Société confirmée au registre : le serveur relit lui-même les données (SIREN/SIRET)
+        registryConfirmed: z.boolean().optional(),
         name: z
           .string()
           .min(1, "Le nom commercial est requis")
@@ -833,7 +850,8 @@ export const ownerFormSchema = z
       ? data.bailSecurityDeposit
       : parseInt(String(data.bailSecurityDeposit) || '0', 10);
     
-    if (rentAmount > 0 && securityDeposit > 0) {
+    // Bail commercial : pas de plafond légal du dépôt de garantie
+    if (rentAmount > 0 && securityDeposit > 0 && data.bailFamily !== BailFamille.COMMERCIAL) {
       const maxDeposit = isMeubleBail ? rentAmount * 2 : rentAmount;
       
       if (securityDeposit > maxDeposit) {
@@ -886,11 +904,19 @@ export const tenantFormSchema = z
           .min(1, "La raison sociale est requise")
           .max(200, "La raison sociale est trop longue")
           .trim(),
+        // Bail commercial : représentant légal et immatriculation (facultatifs ici)
+        representativeName: z.string().max(200).trim().optional(),
+        representativeRole: z.string().max(200).trim().optional(),
+        isRegistered: z.preprocess(
+          (val) => (val === "yes" ? true : val === "no" ? false : val === "" || val === null ? undefined : val),
+          z.boolean().optional()
+        ).optional(),
         registration: z
           .string()
-          .min(1, "Le numéro d'enregistrement est requis")
           .max(50, "Le numéro d'enregistrement est trop long")
           .trim(),
+        // Société confirmée au registre : le serveur relit lui-même les données (SIREN/SIRET)
+        registryConfirmed: z.boolean().optional(),
         name: z
           .string()
           .min(1, "Le nom commercial est requis")
@@ -1067,6 +1093,13 @@ export const tenantFormSchema = z
           code: z.ZodIssueCode.custom,
           path: ["entreprise"],
           message: "Les informations de l'entreprise sont requises",
+        });
+      } else if (data.entreprise.isRegistered !== false && !data.entreprise.registration) {
+        // Société en cours de création (bail commercial) : pas encore de SIREN
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["entreprise", "registration"],
+          message: "Le numéro d'enregistrement est requis",
         });
       }
     }

@@ -61,6 +61,12 @@ enum PropertyStatus {
 enum BienType {
   APPARTEMENT
   MAISON
+  // Locaux du bail commercial
+  BOUTIQUE
+  BUREAU
+  LOCAL_ACTIVITE
+  ENTREPOT
+  AUTRE_LOCAL
 }
 
 enum BienLegalStatus {
@@ -85,6 +91,8 @@ enum BailType {
   BAIL_NU_6_ANS
   BAIL_MEUBLE_1_ANS
   BAIL_MEUBLE_9_MOIS
+  COMMERCIAL_3_6_9 // Bail commercial de 9 ans (résiliable tous les 3 ans)
+  COMMERCIAL_DEROGATOIRE // Bail dérogatoire : 36 mois au plus (durée dans BailCommercialTerms)
 }
 
 enum BailFamille {
@@ -187,6 +195,16 @@ enum DocumentKind {
 
   // Ville à loyers encadrés : déclaration d'occupation (impots.gouv, « Gérer mes biens immobiliers »)
   OCCUPANCY_DECLARATION
+
+  // Bail commercial
+  PREVIOUS_LEASE // Bail du locataire précédent
+  LEASE_TERMINATION // Congé, résiliation ou fin du bail précédent
+  GENERAL_ASSEMBLY_MINUTES // Derniers procès-verbaux d'assemblée de copropriété
+  SHOPPING_CENTER_RULES // Règlement du centre commercial ou de l'ensemble immobilier
+  PREMISES_PLANS // Plans du local
+  OPERAT_CERTIFICATE // Attestation OPERAT (bâtiments tertiaires de 1 000 m² et plus)
+  ENVIRONMENTAL_APPENDIX // Éléments de l'annexe environnementale (plus de 2 000 m²)
+  SIGNING_AUTHORITY // Autorisation de signer ou délégation de pouvoirs
 
   OTHER
 }
@@ -340,6 +358,23 @@ model Entreprise {
   registration String
   legalName    String
 
+  // Bail commercial : représentant légal, et société pas encore immatriculée (Kbis non exigé)
+  representativeName String?
+  representativeRole String?
+  isRegistered       Boolean?
+
+  // Registre des entreprises (recherche par SIREN/SIRET) : null = saisie antérieure ou manuelle
+  siren                     String?
+  siret                     String?
+  legalFormCode             String?
+  legalFormLabel            String?
+  nafCode                   String?
+  registryStatus            String? // A = active, C = cessée, P = diffusion partielle
+  registrySource            String? // RECHERCHE_ENTREPRISES | MANUAL
+  registryCheckedAt         DateTime?
+  registryConfirmedByClient Boolean?
+  registrySnapshot          Json?
+
   name        String
   email       String  @unique
   phone       String?
@@ -402,6 +437,10 @@ model Property {
 
   // Lotissement autorisé il y a plus de 10 ans (YES | NO | UNKNOWN) : au-delà, son règlement ne s'applique plus
   subdivisionOver10Years String?
+
+  // Bail commercial : local dans un centre commercial ou un ensemble immobilier, dépendances
+  inShoppingCenter Boolean?
+  outbuildings     String?
 
   // Mobilier obligatoire pour location meublée
   hasLiterie           Boolean @default(false) // Literie avec couette ou couverture
@@ -625,6 +664,9 @@ model Bail {
   // Le locataire a confirmé le loyer, les charges et la date d'entrée en envoyant son formulaire
   tenantConfirmedTermsAt DateTime?
 
+  // Bail commercial : conditions propres (activité, loyer HT, charges, travaux…)
+  commercialTerms BailCommercialTerms?
+
   documents Document[]
   intakes   IntakeLink[] @relation("BailIntakes")
 
@@ -644,6 +686,54 @@ model Bail {
   @@index([status])
   @@index([propertyId])
   @@index([effectiveDate])
+}
+
+/// Conditions d'un bail commercial, demandées au propriétaire dans le formulaire.
+/// Tout est facultatif en base : le formulaire exige ce qui est utile au notaire.
+model BailCommercialTerms {
+  id     String @id @default(cuid())
+  bailId String @unique
+  bail   Bail   @relation(fields: [bailId], references: [id], onDelete: Cascade)
+
+  // Activité et situation du local
+  activity            String? @db.Text
+  ancillaryActivities String? @db.Text
+  previouslyLet       Boolean?
+  previousActivity    String?
+  currentlyVacant     Boolean?
+
+  // Durée : nombre de mois du bail dérogatoire, remise des clés, franchise de loyer
+  derogatoryMonths Int?
+  keysHandoverDate DateTime?
+  rentFreeMonths   Int?
+
+  // Loyer hors taxes : rythme de paiement (MONTHLY | QUARTERLY), TVA, révision (ILC | ILAT | NONE)
+  rentPeriodicity String?
+  vatApplicable   Boolean?
+  indexation      String?
+  // Pas-de-porte (euros) et frais d'acte (TENANT | OWNER | SHARED)
+  entryFee        Int?
+  feesPaidBy      String?
+
+  // Loi Pinel : répartition des charges { clé: OWNER | TENANT } et travaux [{ label, amount, year }]
+  chargesAllocation Json?
+  hasPastWorks      Boolean?
+  pastWorks         Json?
+  hasPlannedWorks   Boolean?
+  plannedWorks      Json?
+
+  // Garant et clauses particulières
+  hasGuarantor   Boolean?
+  guarantorName  String?
+  guarantorEmail String?
+  clauses        String[] @default([])
+  clausesNote    String?  @db.Text
+
+  // Propriétaire marié en communauté : local acheté pendant le mariage (le conjoint doit signer)
+  premisesBoughtDuringMarriage Boolean?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 /// Point de contrôle validé sur la fiche de vérification d'un dossier.

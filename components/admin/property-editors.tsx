@@ -14,7 +14,7 @@ import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import type { AddressData } from "@/lib/types/address";
 import { updatePropertyDetailsAdmin, updatePropertyFurnitureAdmin } from "@/lib/actions/admin-property";
 
-const TYPE_OPTIONS: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison" };
+const TYPE_OPTIONS: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison", BOUTIQUE: "Boutique", BUREAU: "Bureau", LOCAL_ACTIVITE: "Local d'activité", ENTREPOT: "Entrepôt", AUTRE_LOCAL: "Autre local" };
 const LEGAL_OPTIONS: Record<string, string> = {
   PLEIN_PROPRIETE: "Monopropriété",
   CO_PROPRIETE: "Copropriété",

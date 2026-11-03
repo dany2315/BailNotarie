@@ -25,6 +25,11 @@ import { Download, File } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDownloadFile } from "@/hooks/use-download-file";
+import { CommercialTermsList, companyRepresentativeRows } from "@/components/shared/commercial-terms-list";
+import { PREMISES_TYPE_LABELS } from "@/lib/utils/commercial-terms";
+import { registryNotes } from "@/lib/utils/company-registry";
+
+const PROPERTY_TYPE_NAMES: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison", ...PREMISES_TYPE_LABELS };
 
 interface Dossier {
   id: string;
@@ -54,6 +59,9 @@ interface Dossier {
       phone?: string | null;
       fullAddress?: string | null;
       registration: string;
+      legalFormLabel?: string | null;
+      registrySource?: string | null;
+      registryCheckedAt?: Date | string | null;
     } | null;
     documents?: Array<{
       id: string;
@@ -160,6 +168,9 @@ interface Dossier {
         phone?: string | null;
         fullAddress?: string | null;
         registration: string;
+        legalFormLabel?: string | null;
+        registrySource?: string | null;
+        registryCheckedAt?: Date | string | null;
         documents?: Array<{
           id: string;
           kind: string;
@@ -401,10 +412,14 @@ function PartySection({
                       <>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <DataFieldCard label="Raison sociale" value={party.entreprise.legalName || party.entreprise.name} />
-                          {party.entreprise.registration && <DataFieldCard label="SIRET" value={party.entreprise.registration} />}
+                          {party.entreprise.legalFormLabel && <DataFieldCard label="Forme juridique" value={party.entreprise.legalFormLabel} />}
+                          {party.entreprise.registration && <DataFieldCard label="SIREN / SIRET" value={party.entreprise.registration} />}
                           {party.entreprise.email && <DataFieldCard label="Email" value={party.entreprise.email} />}
                           {party.entreprise.phone && <DataFieldCard label="Téléphone" value={party.entreprise.phone} />}
-                          {party.entreprise.fullAddress && <DataFieldCard label="Adresse" value={party.entreprise.fullAddress} className="md:col-span-2" />}
+                          {party.entreprise.fullAddress && <DataFieldCard label="Siège social" value={party.entreprise.fullAddress} className="md:col-span-2" />}
+                          {party.entreprise.registrySource === "RECHERCHE_ENTREPRISES" && (
+                            <DataFieldCard label="Registre" value={registryNotes(party.entreprise)[0]} className="md:col-span-2" />
+                          )}
                         </div>
 
                         {party.entreprise.documents && party.entreprise.documents.length > 0 && (
@@ -684,7 +699,13 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                   <DataField label="Surface selon diagnostic Loi Carrez" value={`${dossier.property.surfaceM2} m²`} />
                 )}
                 {dossier.property.type && (
-                  <DataField label="Type de bien" value={dossier.property.type} />
+                  <DataField label="Type de bien" value={PROPERTY_TYPE_NAMES[dossier.property.type] ?? dossier.property.type} />
+                )}
+                {(dossier.property as any).inShoppingCenter && (
+                  <DataField label="Centre commercial" value="Le local fait partie d'un centre commercial ou d'un ensemble immobilier" />
+                )}
+                {(dossier.property as any).outbuildings && (
+                  <DataField label="Dépendances" value={(dossier.property as any).outbuildings} />
                 )}
                 {dossier.property.legalStatus && (
                   <DataField label="Statut légal" value={getPropertyLegalStatusLabel(dossier.property.legalStatus as BienLegalStatus)} />
@@ -763,6 +784,22 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                 )}
                 {dossier.bail.paymentDay && (
                   <DataField label="Jour de paiement du loyer" value={`Le ${dossier.bail.paymentDay} de chaque mois`} />
+                )}
+                {dossier.bail.bailFamily === "COMMERCIAL" && (
+                  <div className="pt-4 mt-4 border-t">
+                    <p className="text-sm font-medium mb-1">Conditions commerciales</p>
+                    <CommercialTermsList
+                      inset={false}
+                      terms={(dossier.bail as any).commercialTerms}
+                      bail={{ bailType: dossier.bail.bailType, rentAmount: dossier.bail.rentAmount }}
+                      extraRows={companyRepresentativeRows(
+                        ((dossier.bail as any).parties || []).map((party: any) => ({
+                          label: party.profilType === "LOCATAIRE" ? "locataire" : "propriétaire",
+                          entreprise: party.entreprise,
+                        })),
+                      )}
+                    />
+                  </div>
                 )}
                 {dossier.bail.tenantConfirmedTermsAt && (
                   <DataField

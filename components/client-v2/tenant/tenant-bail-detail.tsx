@@ -89,6 +89,11 @@ export type TenantBailDetailData = {
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   APPARTEMENT: "Appartement",
   MAISON: "Maison",
+  BOUTIQUE: "Boutique",
+  BUREAU: "Bureau",
+  LOCAL_ACTIVITE: "Local d'activité",
+  ENTREPOT: "Entrepôt",
+  AUTRE_LOCAL: "Autre local",
 };
 
 const LEGAL_STATUS_LABELS: Record<string, string> = {
