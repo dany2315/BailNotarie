@@ -1269,6 +1269,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           {line}
                         </span>
                       ))}
+                      {rule.info?.map((line) => (
+                        <span key={line} className="text-[13px] text-muted-foreground">
+                          {line}
+                        </span>
+                      ))}
                       <span className="text-xs text-muted-foreground">{rule.legal}</span>
                     </span>
                   </CheckPoint>

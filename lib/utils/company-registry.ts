@@ -173,6 +173,30 @@ export function registryNotes(entreprise: EntrepriseRegistryView): string[] {
   return notes;
 }
 
+/** Société retrouvée au registre et active (pas une saisie manuelle). */
+export function isRegistryVerifiedActive(entreprise: EntrepriseRegistryView | null | undefined): boolean {
+  if (!entreprise || entreprise.registrySource !== "RECHERCHE_ENTREPRISES" || !entreprise.registryCheckedAt) return false;
+  const snapshot = entreprise.registrySnapshot as Partial<RegistryCompany> | null | undefined;
+  return !!snapshot && snapshot.isActive !== false;
+}
+
+/**
+ * Le représentant saisi au registre : représentant légal (« legal »), dirigeant sans être
+ * représentant légal (« listed »), absent de la liste (« unlisted »), ou pas vérifiable
+ * (« unverified » : saisie manuelle, diffusion partielle, nom manquant).
+ */
+export function registryRepresentativeStatus(
+  entreprise: EntrepriseRegistryView | null | undefined,
+): "legal" | "listed" | "unlisted" | "unverified" {
+  if (!entreprise?.representativeName || !isRegistryVerifiedActive(entreprise)) return "unverified";
+  const snapshot = entreprise.registrySnapshot as Partial<RegistryCompany>;
+  if (snapshot.partialDiffusion || !snapshot.representatives?.length) return "unverified";
+  const name = comparable(entreprise.representativeName);
+  const match = snapshot.representatives.find((r) => comparable(r.name) === name);
+  if (!match) return "unlisted";
+  return match.isLegalRepresentative ? "legal" : "listed";
+}
+
 export function legalFormLabel(code: string | null | undefined): string | null {
   if (!code) return null;
   if (LEGAL_FORM_LABELS[code]) return LEGAL_FORM_LABELS[code];

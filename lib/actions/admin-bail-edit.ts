@@ -24,7 +24,13 @@ import { getStageKey } from "@/lib/utils/bail-stage";
 import { EXEMPTION_LABELS } from "@/lib/utils/rent-cap";
 import { assessRentCap } from "@/lib/rent-cap";
 import { rentRulesFromForm } from "@/lib/utils/rent-draft";
-import { commercialTermsFromForm } from "@/lib/utils/commercial-terms";
+import { commercialTermsFromForm, commercialTermsToForm, validateCommercialStep, type CommercialStep } from "@/lib/utils/commercial-terms";
+
+/** Étapes du questionnaire commercial du formulaire propriétaire : l'équipe suit les mêmes règles. */
+const COMMERCIAL_STEPS: CommercialStep[] = ["activity", "duration", "rent", "deposit", "charges", "clauses"];
+
+/** Types de bail propres à chaque usage, comme dans le formulaire. */
+const COMMERCIAL_TYPES: BailType[] = [BailType.COMMERCIAL_3_6_9, BailType.COMMERCIAL_DEROGATOIRE];
 
 type Result<T = undefined> = ({ success: true } & (T extends undefined ? unknown : { data: T })) | { success: false; error: string };
 
@@ -108,6 +114,17 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
   if (endDate && effectiveDate && endDate <= effectiveDate) {
     return { success: false, error: "La date de fin doit suivre la date de prise d'effet" };
   }
+  // Usage et type vont ensemble, comme dans le formulaire : 3-6-9 ou dérogatoire pour un local
+  // commercial, bail nu ou meublé pour un logement.
+  if (isCommercial !== COMMERCIAL_TYPES.includes(bailType)) {
+    return {
+      success: false,
+      error: isCommercial
+        ? "Un bail commercial est un bail 3-6-9 ou un bail dérogatoire : changez aussi le type de bail"
+        : "Un bail d'habitation est un bail nu ou meublé : changez aussi le type de bail",
+    };
+  }
+  if (rentAmount <= 0) return { success: false, error: "Le loyer doit être supérieur à 0 €" };
   const isMeuble = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
   const maxDeposit = isMeuble ? rentAmount * 2 : rentAmount;
   if (!isCommercial && rentAmount > 0 && securityDeposit > maxDeposit) {
@@ -165,10 +182,20 @@ export async function updateCommercialTermsAdmin(data: unknown): Promise<Result>
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
   const { bailId, values, revalidate } = parsed.data;
 
-  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { id: true, status: true, bailFamily: true } });
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    select: { id: true, status: true, bailFamily: true, bailType: true, commercialTerms: true },
+  });
   if (!bail) return { success: false, error: "Dossier introuvable" };
   if (bail.bailFamily !== BailFamille.COMMERCIAL) return { success: false, error: "Ce dossier n'est pas un bail commercial" };
   if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+
+  // Mêmes contrôles que le questionnaire du formulaire propriétaire, sur l'ensemble des réponses
+  // (celles déjà enregistrées, complétées par la modification).
+  const merged = { ...commercialTermsToForm(bail.commercialTerms), ...values } as any;
+  const errors = COMMERCIAL_STEPS.flatMap((step) => Object.values(validateCommercialStep(step, merged, { bailType: bail.bailType })));
+  // Une ligne par réponse à corriger : la fenêtre de modification les affiche en liste.
+  if (errors.length > 0) return { success: false, error: [...new Set(errors)].join("\n") };
 
   const terms = commercialTermsFromForm(values);
   if (Object.keys(terms).length === 0) return { success: true };

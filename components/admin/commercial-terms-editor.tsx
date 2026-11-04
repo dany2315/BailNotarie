@@ -104,9 +104,14 @@ export function CommercialTermsEditor({
   const [open, setOpen] = React.useState(false);
   const [form, setForm] = React.useState<CommercialFormValues>(values);
   const [saving, setSaving] = React.useState(false);
+  // Réponses à corriger, avec les mêmes règles que le formulaire propriétaire.
+  const [errors, setErrors] = React.useState<string[]>([]);
 
   React.useEffect(() => {
-    if (open) setForm(values);
+    if (open) {
+      setForm(values);
+      setErrors([]);
+    }
   }, [open, values]);
 
   const set = <K extends keyof CommercialFormValues>(key: K, value: CommercialFormValues[K]) => setForm((current) => ({ ...current, [key]: value }));
@@ -120,7 +125,8 @@ export function CommercialTermsEditor({
       toast.success("Conditions commerciales mises à jour");
       setOpen(false);
     } else {
-      toast.error(result.error);
+      setErrors(result.error.split("\n"));
+      toast.error("Des réponses sont à corriger avant d'enregistrer");
     }
   };
 
@@ -271,6 +277,16 @@ export function CommercialTermsEditor({
             />
           </section>
 
+          {errors.length > 0 && (
+            <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+              <p className="font-semibold">À corriger avant d&apos;enregistrer :</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {errors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
               Annuler

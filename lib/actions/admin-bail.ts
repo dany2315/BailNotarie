@@ -20,6 +20,8 @@ import { updateClientCompletionStatus } from "@/lib/actions/clients";
 import { updatePropertyCompletionStatus } from "@/lib/actions/properties";
 import { assessRentRules } from "@/lib/rent-rules";
 import { PROOF_LABELS } from "@/lib/utils/rent-relocation";
+import { normalizeRegistrationNumber, sirenFromRegistration } from "@/lib/utils/company-registry";
+import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 
 /* ------------------------------------------------------------------ */
 /* Suivi du dossier : notaire, demandes en cours, formulaires          */
@@ -307,7 +309,10 @@ const nullableText = (max: number) => optionalText(max).transform((value) => val
 const ENTREPRISE_FIELDS = {
   legalName: text(200),
   name: text(200),
-  registration: text(100),
+  // Même contrôle que la recherche du formulaire : SIREN (9 chiffres) ou SIRET (14 chiffres) valide.
+  registration: text(100)
+    .refine((value) => !!sirenFromRegistration(value), "Numéro SIREN (9 chiffres) ou SIRET (14 chiffres) invalide")
+    .transform((value) => normalizeRegistrationNumber(value)),
   phone: phoneField,
   fullAddress: text(300),
   // Bail commercial : forme juridique, représentant légal, société en cours de création
@@ -348,9 +353,12 @@ export async function updatePartyFieldAdmin(
       });
       clientId = updated.clientId;
     } else {
+      // Numéro changé à la main : comme dans le formulaire, l'ancienne vérification au registre ne
+      // vaut plus (la société redevient « saisie manuelle » jusqu'à une recherche au registre).
+      const registry = field === "registration" ? await entrepriseRegistryFields({ registration: result.data, registryConfirmed: false }) : {};
       const updated = await prisma.entreprise.update({
         where: { id },
-        data: { [field]: result.data },
+        data: { [field]: result.data, ...registry },
         select: { clientId: true },
       });
       clientId = updated.clientId;
