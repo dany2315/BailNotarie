@@ -76,7 +76,7 @@ export function FAQSection() {
     "pratique": [
       {
         question: "Quels documents dois-je fournir ?",
-        answer: "Pour le propriétaire : titre de propriété, diagnostics obligatoires, pièce d'identité, assurance. Pour le locataire : pièce d'identité, assurance habitations. Pour le garant (si applicable): pièce d'identité. Nous vous fournissons une liste détaillée selon votre situation."
+        answer: "Pour le propriétaire : pièce d'identité, titre de propriété, diagnostics obligatoires et, selon la situation, règlement de copropriété, contrat de mariage ou convention de PACS. Pour le locataire : pièce d'identité et, selon la situation, contrat de mariage ou convention de PACS. Pour une société : Kbis et statuts. Pour le garant (si applicable) : pièce d'identité. Nous vous fournissons une liste détaillée selon votre situation."
       },
       {
         question: "Puis-je modifier le bail après signature ?",
