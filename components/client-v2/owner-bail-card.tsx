@@ -236,7 +236,7 @@ export function OwnerBailRow({
   const [tenantDialog, setTenantDialog] = React.useState(false);
   const missingTenant = bail.status === "AWAITING_TENANT" && !facts.tenantName;
 
-  const summary = [facts.rent ? `${facts.rent}/mois` : null, facts.typeLabel, facts.tenantName]
+  const summary = [facts.rent ? `${facts.rent}${facts.isCommercial ? " HT" : ""}/mois` : null, facts.typeLabel, facts.tenantName]
     .filter(Boolean)
     .join(" · ");
 

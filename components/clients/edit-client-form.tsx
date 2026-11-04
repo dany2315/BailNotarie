@@ -805,7 +805,7 @@ export function EditClientForm({ client }: EditClientFormProps) {
                         Documents du client
                       </CardTitle>
                       <CardDescription>
-                        Documents liés au client (livret de famille, contrat PACS, assurance, RIB)
+                        Documents liés au client (contrat de mariage, convention de PACS)
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">

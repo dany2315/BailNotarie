@@ -31,6 +31,7 @@ import { RentGuide, useRentRules } from "@/components/rent/rent-rules-fields";
 import type { RentRulesAssessment } from "@/lib/rent-rules";
 import { EMPTY_RENT_RULES, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createLease, createTenantFromEmail, saveBailDraft } from "@/lib/actions/leases";
+import { startCommercialLeaseFromSpace } from "@/lib/actions/client-space";
 import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
 import { BailType, BailStatus } from "@prisma/client";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Home,
+  Store,
   User,
   Building2,
   Plus,
@@ -136,6 +138,10 @@ export function CreateBailPageClient({
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  // Bail commercial : questionnaire dédié (formulaire propriétaire), sur un local existant ou nouveau.
+  const [family, setFamily] = useState<"HABITATION" | "COMMERCIAL">("HABITATION");
+  const [commercialPropertyId, setCommercialPropertyId] = useState<string>("new");
+  const [isStartingCommercial, setIsStartingCommercial] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftBail?.id ?? null);
 
   const [localBiens, setLocalBiens] = useState(biens);
@@ -300,6 +306,25 @@ export function CreateBailPageClient({
     }
   }, [step, router, bailPart]);
 
+  const startCommercial = async () => {
+    setIsStartingCommercial(true);
+    try {
+      const result = await startCommercialLeaseFromSpace({ propertyId: commercialPropertyId === "new" ? null : commercialPropertyId });
+      if (!result.success) {
+        toast.error(result.error);
+        setIsStartingCommercial(false);
+        return;
+      }
+      if (result.resumed) {
+        toast.info("Un formulaire est déjà en cours : vous le reprenez là où vous l'avez laissé.");
+      }
+      router.push(result.url);
+    } catch {
+      toast.error("Le questionnaire n'a pas pu s'ouvrir. Réessayez.");
+      setIsStartingCommercial(false);
+    }
+  };
+
   const handleNext = useCallback(async () => {
     // Étape « Le loyer » : tant qu'une question est ouverte, « Continuer » y répond.
     if (step === 2 && bailPart === "rent" && rentAdvanceRef.current?.()) return;
@@ -462,6 +487,85 @@ export function CreateBailPageClient({
       case 0:
         return (
           <div className="space-y-4">
+            {/* Un brouillon est toujours un bail d'habitation : pas de choix à la reprise. */}
+            {!draftBail && (
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Type de bail">
+                {([
+                  { value: "HABITATION", label: "Logement", hint: "Bail d'habitation", icon: Home },
+                  { value: "COMMERCIAL", label: "Local commercial", hint: "Bail commercial", icon: Store },
+                ] as const).map((option) => {
+                  const Icon = option.icon;
+                  const selected = family === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setFamily(option.value)}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all",
+                        selected ? "border-primary bg-primary/5" : "border-border hover:border-primary/30 hover:bg-muted/40"
+                      )}
+                    >
+                      <Icon className={cn("h-4 w-4 shrink-0", selected ? "text-primary" : "text-muted-foreground")} />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">{option.label}</span>
+                        <span className="block text-xs text-muted-foreground">{option.hint}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {family === "COMMERCIAL" ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xl font-semibold">Quel local ?</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Le bail commercial se prépare avec un questionnaire dédié : activité, loyer hors taxes, charges,
+                    travaux. Vos informations déjà connues sont reprises.
+                  </p>
+                </div>
+                <div className="space-y-2.5">
+                  {[{ id: "new", label: "Un nouveau local", fullAddress: "Vous le décrirez dans le questionnaire", blockedMessage: null as string | null | undefined }, ...localBiens].map((bien) => {
+                    const selected = commercialPropertyId === bien.id;
+                    return (
+                      <button
+                        key={bien.id}
+                        type="button"
+                        disabled={!!bien.blockedMessage}
+                        aria-disabled={!!bien.blockedMessage}
+                        onClick={() => !bien.blockedMessage && setCommercialPropertyId(bien.id)}
+                        className={cn(
+                          "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+                          bien.blockedMessage
+                            ? "cursor-not-allowed border-border bg-muted/30 opacity-70"
+                            : selected
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/30 hover:bg-muted/40"
+                        )}
+                      >
+                        <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", selected ? "bg-primary/10" : "bg-muted")}>
+                          {bien.id === "new" ? (
+                            <Plus className={cn("h-4 w-4", selected ? "text-primary" : "text-muted-foreground")} />
+                          ) : (
+                            <Store className={cn("h-4 w-4", selected ? "text-primary" : "text-muted-foreground")} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{bien.label || "Bien sans libellé"}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{bien.fullAddress || "Adresse non renseignée"}</p>
+                          {bien.blockedMessage && <p className="mt-1.5 text-xs font-medium text-amber-700">{bien.blockedMessage}</p>}
+                        </div>
+                        {selected && <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+          <div className="space-y-4">
             <div>
               <p className="text-xl font-semibold">Quel bien ?</p>
               <p className="text-sm text-muted-foreground mt-1">
@@ -531,6 +635,8 @@ export function CreateBailPageClient({
             </div>
             {errors.propertyId && (
               <p className="text-sm text-destructive">{errors.propertyId.message}</p>
+            )}
+          </div>
             )}
           </div>
         );
@@ -868,14 +974,22 @@ export function CreateBailPageClient({
             className="shrink-0 border-t bg-background px-4 py-3"
             style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
           >
-            <Button
-              onClick={handleNext}
-              disabled={isSubmitting}
-              className="w-full h-12 text-base"
-            >
-              {step === 3 ? "Continuer vers le paiement" : "Continuer"}
-              {step < 3 && <ChevronRight className="ml-2 h-4 w-4" />}
-            </Button>
+            {step === 0 && family === "COMMERCIAL" ? (
+              <Button onClick={startCommercial} disabled={isStartingCommercial} className="w-full h-12 text-base">
+                {isStartingCommercial && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Ouvrir le questionnaire du bail commercial
+                {!isStartingCommercial && <ChevronRight className="ml-2 h-4 w-4" />}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNext}
+                disabled={isSubmitting}
+                className="w-full h-12 text-base"
+              >
+                {step === 3 ? "Continuer vers le paiement" : "Continuer"}
+                {step < 3 && <ChevronRight className="ml-2 h-4 w-4" />}
+              </Button>
+            )}
           </div>
         )}
       </div>

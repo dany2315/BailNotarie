@@ -77,6 +77,11 @@ export interface Entreprise {
   legalName: string | null;
   name: string | null;
   registration: string | null;
+  /** Forme juridique, représentant légal, société en cours de création (bail commercial). */
+  legalFormLabel?: string | null;
+  representativeName?: string | null;
+  representativeRole?: string | null;
+  isRegistered?: boolean | null;
   email: string | null;
   phone: string | null;
   fullAddress: string | null;
@@ -288,7 +293,18 @@ export function OwnerInformations({
                   <FieldGrid>
                     <ReadField label="Raison sociale" value={entreprise.legalName} />
                     <ReadField label="Nom commercial" value={entreprise.name} />
-                    <ReadField label="SIREN / SIRET" value={entreprise.registration} />
+                    {entreprise.legalFormLabel && <ReadField label="Forme juridique" value={entreprise.legalFormLabel} />}
+                    <ReadField
+                      label="SIREN / SIRET"
+                      value={entreprise.registration || (entreprise.isRegistered === false ? "Société en cours de création" : null)}
+                    />
+                    {entreprise.representativeName && (
+                      <ReadField
+                        label="Représentant légal"
+                        value={[entreprise.representativeName, entreprise.representativeRole].filter(Boolean).join(", ")}
+                        wide
+                      />
+                    )}
                   </FieldGrid>
                 </Block>
 

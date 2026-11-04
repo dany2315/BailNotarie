@@ -27,7 +27,25 @@ export interface PropertyDetailsValues {
   type: string | null;
   surfaceM2: number | null;
   legalStatus: string | null;
+  syndicName?: string | null;
+  syndicEmail?: string | null;
+  syndicPhone?: string | null;
+  subdivisionOver10Years?: string | null;
+  /** NONE (immeuble ou rue) | SHOPPING_CENTER | ESTATE_COMPLEX ; null : pas encore répondu. */
+  complexType?: string | null;
+  outbuildings?: string | null;
 }
+
+const SUBDIVISION_OPTIONS: Record<string, string> = {
+  YES: "Autorisé il y a plus de 10 ans",
+  NO: "Autorisé il y a moins de 10 ans",
+  UNKNOWN: "Ancienneté inconnue",
+};
+const COMPLEX_OPTIONS: Record<string, string> = {
+  NONE: "Dans un immeuble ou une rue",
+  SHOPPING_CENTER: "Dans un centre commercial",
+  ESTATE_COMPLEX: "Dans un autre ensemble immobilier",
+};
 
 /**
  * Modification en place de l'adresse et de la description du bien. L'adresse se choisit dans
@@ -37,10 +55,13 @@ export function PropertyDetailsEditor({
   propertyId,
   values,
   missing,
+  commercial = false,
 }: {
   propertyId: string;
   values: PropertyDetailsValues;
   missing?: boolean;
+  /** Bail commercial : situation du local et dépendances. */
+  commercial?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
@@ -50,6 +71,12 @@ export function PropertyDetailsEditor({
   const [type, setType] = React.useState("");
   const [surface, setSurface] = React.useState("");
   const [legalStatus, setLegalStatus] = React.useState("");
+  const [syndicName, setSyndicName] = React.useState("");
+  const [syndicEmail, setSyndicEmail] = React.useState("");
+  const [syndicPhone, setSyndicPhone] = React.useState("");
+  const [subdivision, setSubdivision] = React.useState("");
+  const [complex, setComplex] = React.useState("");
+  const [outbuildings, setOutbuildings] = React.useState("");
   const [addressError, setAddressError] = React.useState<string | undefined>();
   const [saving, setSaving] = React.useState(false);
 
@@ -61,6 +88,12 @@ export function PropertyDetailsEditor({
     setType(values.type ?? "");
     setSurface(values.surfaceM2 != null ? String(values.surfaceM2).replace(".", ",") : "");
     setLegalStatus(values.legalStatus ?? "");
+    setSyndicName(values.syndicName ?? "");
+    setSyndicEmail(values.syndicEmail ?? "");
+    setSyndicPhone(values.syndicPhone ?? "");
+    setSubdivision(values.subdivisionOver10Years ?? "");
+    setComplex(values.complexType ?? "");
+    setOutbuildings(values.outbuildings ?? "");
     setAddressError(undefined);
   }, [open, values]);
 
@@ -83,6 +116,20 @@ export function PropertyDetailsEditor({
     }
     if (surfaceValue != null && surfaceValue !== values.surfaceM2) next.surfaceM2 = surfaceValue;
     if (legalStatus && legalStatus !== values.legalStatus) next.legalStatus = legalStatus;
+    // Champs propres au régime choisi et au bail commercial : envoyés seulement s'ils changent.
+    const changed = (value: string, before: string | null | undefined) => value.trim() !== (before ?? "");
+    if (legalStatus === "CO_PROPRIETE") {
+      if (changed(syndicName, values.syndicName)) next.syndicName = syndicName.trim() || null;
+      if (changed(syndicEmail, values.syndicEmail)) next.syndicEmail = syndicEmail.trim() || null;
+      if (changed(syndicPhone, values.syndicPhone)) next.syndicPhone = syndicPhone.trim() || null;
+    }
+    if (legalStatus === "LOTISSEMENT" && subdivision && subdivision !== values.subdivisionOver10Years) {
+      next.subdivisionOver10Years = subdivision;
+    }
+    if (commercial) {
+      if (complex && complex !== values.complexType) next.complexType = complex;
+      if (changed(outbuildings, values.outbuildings)) next.outbuildings = outbuildings.trim() || null;
+    }
     if (Object.keys(next).length === 0) return setOpen(false);
 
     setSaving(true);
@@ -155,7 +202,7 @@ export function PropertyDetailsEditor({
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`property-${propertyId}-surface`}>Surface habitable</Label>
+              <Label htmlFor={`property-${propertyId}-surface`}>{commercial ? "Surface" : "Surface habitable"}</Label>
               <div className="relative">
                 <Input
                   id={`property-${propertyId}-surface`}
@@ -184,6 +231,64 @@ export function PropertyDetailsEditor({
               </SelectContent>
             </Select>
           </div>
+          {legalStatus === "CO_PROPRIETE" && (
+            <div className="flex flex-col gap-3 rounded-lg border p-3">
+              <p className="text-[13px] font-semibold">Syndic de copropriété</p>
+              <Input aria-label="Nom du syndic" placeholder="Nom du syndic" className="h-10" value={syndicName} maxLength={200} onChange={(event) => setSyndicName(event.target.value)} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input aria-label="E-mail du syndic" type="email" placeholder="E-mail" className="h-10" value={syndicEmail} maxLength={200} onChange={(event) => setSyndicEmail(event.target.value)} />
+                <Input aria-label="Téléphone du syndic" type="tel" placeholder="Téléphone" className="h-10" value={syndicPhone} maxLength={40} onChange={(event) => setSyndicPhone(event.target.value)} />
+              </div>
+            </div>
+          )}
+          {legalStatus === "LOTISSEMENT" && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`property-${propertyId}-subdivision`}>Ancienneté du lotissement</Label>
+              <Select value={subdivision} onValueChange={setSubdivision}>
+                <SelectTrigger id={`property-${propertyId}-subdivision`} className="h-10 w-full">
+                  <SelectValue placeholder="Choisir" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SUBDIVISION_OPTIONS).map(([key, optionLabel]) => (
+                    <SelectItem key={key} value={key}>
+                      {optionLabel}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">Plus de 10 ans : le règlement du lotissement n&apos;est plus demandé.</span>
+            </div>
+          )}
+          {commercial && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`property-${propertyId}-complex`}>Situation du local</Label>
+                <Select value={complex} onValueChange={setComplex}>
+                  <SelectTrigger id={`property-${propertyId}-complex`} className="h-10 w-full">
+                    <SelectValue placeholder="Choisir" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(COMPLEX_OPTIONS).map(([key, optionLabel]) => (
+                      <SelectItem key={key} value={key}>
+                        {optionLabel}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`property-${propertyId}-outbuildings`}>Dépendances (facultatif)</Label>
+                <Input
+                  id={`property-${propertyId}-outbuildings`}
+                  className="h-10"
+                  placeholder="Cave, parking, réserve…"
+                  value={outbuildings}
+                  maxLength={500}
+                  onChange={(event) => setOutbuildings(event.target.value)}
+                />
+              </div>
+            </>
+          )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={saving}>
               Annuler

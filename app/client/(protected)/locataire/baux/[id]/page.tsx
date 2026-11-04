@@ -47,6 +47,7 @@ export default async function LocataireBailDetailPage({
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
     include: {
+      commercialTerms: true,
       property: {
         include: {
           owner: {

@@ -6,6 +6,7 @@ import {
   BienLegalStatus,
   DocumentKind,
 } from "@prisma/client";
+import { commercialDocuments } from "./commercial-terms";
 
 /**
  * Pièce d'état civil attendue par le notaire : la convention de PACS, ou le
@@ -128,4 +129,52 @@ export function getRequiredPropertyFields(
   }
 
   return { requiredFields, requiredDocuments };
+}
+
+/** Pièce attendue pour un bail donné : où elle se rattache et si elle bloque l'envoi au notaire. */
+export interface BailDocumentRule {
+  kind: string;
+  label?: string;
+  required: boolean;
+  target: "property" | "bail";
+}
+
+/** Pièces du bail commercial rattachées au bail (location précédente) ; les autres vont au bien. */
+const BAIL_TARGET_KINDS = new Set(["PREVIOUS_LEASE", "LEASE_TERMINATION", "PREVIOUS_TENANT_EXIT_PROOF"]);
+
+/**
+ * Pièces qui dépendent du bail et pas seulement du bien : celles du bail commercial (selon les
+ * réponses du propriétaire), et la déclaration d'occupation dans une ville à loyers encadrés.
+ * Les mêmes règles que le formulaire, pour la fiche de l'équipe et le calcul des manques.
+ */
+export function getBailDocumentRules(input: {
+  bailFamily?: string | null;
+  property?: {
+    legalStatus?: string | null;
+    inShoppingCenter?: boolean | null;
+    complexType?: string | null;
+    surfaceM2?: number | string | { toString(): string } | null;
+    type?: string | null;
+  } | null;
+  previouslyLet?: boolean | null;
+  occupancyDeclarationRequired?: boolean;
+}): BailDocumentRule[] {
+  if (input.bailFamily === "COMMERCIAL") {
+    const surface = input.property?.surfaceM2 != null ? Number(input.property.surfaceM2.toString()) : null;
+    return commercialDocuments({
+      previouslyLet: input.previouslyLet === true ? "yes" : input.previouslyLet === false ? "no" : "",
+      legalStatus: input.property?.legalStatus,
+      inShoppingCenter: input.property?.inShoppingCenter,
+      complexType: input.property?.complexType,
+      surfaceM2: Number.isFinite(surface) ? surface : null,
+      premisesType: input.property?.type,
+    })
+      // « Autres documents » n'est pas une pièce attendue ; le pouvoir de signer suit la société.
+      .filter((rule) => rule.kind !== "OTHER" && rule.kind !== "SIGNING_AUTHORITY")
+      .map((rule) => ({ kind: rule.kind, label: rule.label, required: rule.required, target: BAIL_TARGET_KINDS.has(rule.kind) ? "bail" : "property" }));
+  }
+  if (input.occupancyDeclarationRequired) {
+    return [{ kind: DocumentKind.OCCUPANCY_DECLARATION, required: true, target: "property" }];
+  }
+  return [];
 }

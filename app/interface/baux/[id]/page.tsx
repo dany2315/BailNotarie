@@ -29,7 +29,8 @@ import { prisma } from "@/lib/prisma";
 import { DocumentChecklist } from "@/components/documents/document-checklist";
 import { DiagnosticsLegend } from "@/components/documents/diagnostics-legend";
 import { buildChecklistRows, toChecklistDocument } from "@/lib/utils/document-checklist";
-import { getRequiredPropertyFields } from "@/lib/utils/required-fields";
+import { getBailDocumentRules, getRequiredPropertyFields } from "@/lib/utils/required-fields";
+import { requiresOccupancyDeclaration } from "@/lib/rent-cap";
 import { formatCurrency, formatDate, formatDateTime, formatSurface } from "@/lib/utils/formatters";
 import {
   ACTOR_LABELS,
@@ -50,6 +51,8 @@ import { assessDpe } from "@/lib/utils/dpe";
 import { DpeEditor } from "@/components/admin/dpe-editor";
 import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/admin/property-editors";
 import { CommercialTermsList, companyRepresentativeRows } from "@/components/shared/commercial-terms-list";
+import { commercialPaymentText, commercialTermsToForm, commercialVatText, complexTypeValue } from "@/lib/utils/commercial-terms";
+import { CommercialTermsEditor } from "@/components/admin/commercial-terms-editor";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
 
 export const dynamic = "force-dynamic";
@@ -272,6 +275,10 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const bailMissing = new Set(missingData?.bail.missingFields || []);
   const dateValue = (date: Date | string | null | undefined) => (date ? format(new Date(date), "yyyy-MM-dd") : "");
   const months = lease.rentAmount > 0 ? Math.round((lease.securityDeposit / lease.rentAmount) * 10) / 10 : null;
+  // Le locataire confirme le loyer, les charges et la date d'entrée en envoyant son formulaire.
+  const tenantConfirmation = lease.tenantConfirmedTermsAt
+    ? `Loyer, charges et date d'entrée confirmés par le locataire le ${formatDate(lease.tenantConfirmedTermsAt)}`
+    : null;
   const bailPoints = [
     {
       key: pointKey("bail:type", [lease.bailType, lease.bailFamily, lease.effectiveDate, lease.endDate]),
@@ -295,16 +302,28 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       label: "Loyer et charges",
       missing: ["rentAmount", "paymentDay"].filter((f) => bailMissing.has(f)),
       fields: [
-        { field: "rentAmount", label: "Loyer hors charges", value: lease.rentAmount > 0 ? String(lease.rentAmount) : "", missing: bailMissing.has("rentAmount") },
-        { field: "monthlyCharges", label: "Charges mensuelles", value: String(lease.monthlyCharges ?? 0) },
+        { field: "rentAmount", label: isCommercial ? "Loyer mensuel hors taxes et hors charges" : "Loyer hors charges", value: lease.rentAmount > 0 ? String(lease.rentAmount) : "", missing: bailMissing.has("rentAmount") },
+        { field: "monthlyCharges", label: isCommercial ? "Provision mensuelle pour charges" : "Charges mensuelles", value: String(lease.monthlyCharges ?? 0) },
         { field: "paymentDay", label: "Jour de paiement", value: lease.paymentDay ? String(lease.paymentDay) : "", missing: bailMissing.has("paymentDay") },
       ] as BailTermInput[],
-      text: [
-        lease.rentAmount > 0
-          ? `${formatCurrency(lease.rentAmount)} de loyer + ${formatCurrency(lease.monthlyCharges)} de charges par mois`
-          : null,
-        lease.paymentDay ? `Payable le ${lease.paymentDay} de chaque mois` : null,
-      ],
+      text: isCommercial
+        ? [
+            lease.rentAmount > 0
+              ? `${formatCurrency(lease.rentAmount)} HT de loyer + ${formatCurrency(lease.monthlyCharges)} de provision pour charges par mois`
+              : null,
+            lease.rentAmount > 0 ? `Soit ${formatCurrency(lease.rentAmount * 12)} HT de loyer par an` : null,
+            [commercialPaymentText((lease as any).commercialTerms, lease.paymentDay), commercialVatText((lease as any).commercialTerms)]
+              .filter(Boolean)
+              .join(" · ") || null,
+            tenantConfirmation,
+          ]
+        : [
+            lease.rentAmount > 0
+              ? `${formatCurrency(lease.rentAmount)} de loyer + ${formatCurrency(lease.monthlyCharges)} de charges par mois`
+              : null,
+            lease.paymentDay ? `Payable le ${lease.paymentDay} de chaque mois` : null,
+            tenantConfirmation,
+          ],
     },
     {
       key: pointKey("bail:depot", [lease.securityDeposit, lease.rentAmount, lease.bailType]),
@@ -335,16 +354,46 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const ownerStates = withVerified(ownerPoints.points, verifiedKeys, ownerLocked);
   const tenantStates = withVerified(tenantPoints.points, verifiedKeys, tenantLocked);
 
+  // Plafond de loyer : calculé selon l'arrêté d'encadrement en vigueur dans la commune du bien.
+  // Avec la relocation en zone tendue (dernier loyer, IRL, travaux, loyer sous-évalué) et le complément de loyer.
+  const rentRules = property ? await assessRentRules({ property, bail: lease }) : null;
+  const rentCap = rentRules?.cap ?? null;
+
   // Le bien
   const furniturePresent = property ? FURNITURE.filter((item) => !!property[item.key]).length : 0;
+  // Pièces propres à ce bail (bail commercial, déclaration d'occupation) : mêmes règles que le formulaire.
+  const bailDocRules = getBailDocumentRules({
+    bailFamily: lease.bailFamily,
+    property,
+    previouslyLet: (lease as any).commercialTerms?.previouslyLet,
+    occupancyDeclarationRequired: !isCommercial && !!rentCap && requiresOccupancyDeclaration(rentCap),
+  });
+  const ruleLabels = Object.fromEntries(bailDocRules.filter((rule) => rule.label).map((rule) => [rule.kind, rule.label as string]));
+  const propertyRules = bailDocRules.filter((rule) => rule.target === "property");
+  const bailRules = bailDocRules.filter((rule) => rule.target === "bail");
   const propertyDocRows = property
-    ? buildChecklistRows(getRequiredPropertyFields(property.legalStatus, property.subdivisionOver10Years).requiredDocuments, (propertyDocuments as any[]).map(toChecklistDocument), {
-        keyPrefix: `property-${property.id}`,
-        target: { propertyId: property.id },
-        labels: { [DocumentKind.INSURANCE]: "Assurance du propriétaire", [DocumentKind.RIB]: "RIB du propriétaire" },
-        extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
-      })
+    ? buildChecklistRows(
+        [
+          ...getRequiredPropertyFields(property.legalStatus, property.subdivisionOver10Years).requiredDocuments,
+          ...propertyRules.filter((rule) => rule.required).map((rule) => rule.kind),
+        ],
+        (propertyDocuments as any[]).map(toChecklistDocument),
+        {
+          keyPrefix: `property-${property.id}`,
+          target: { propertyId: property.id },
+          labels: ruleLabels,
+          optionalKinds: propertyRules.filter((rule) => !rule.required).map((rule) => rule.kind),
+          extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
+        },
+      )
     : [];
+  const bailDocRows = buildChecklistRows([], (bailDocuments as any[]).map(toChecklistDocument), {
+    keyPrefix: `bail-${lease.id}`,
+    target: { bailId: lease.id },
+    labels: ruleLabels,
+    optionalKinds: bailRules.map((rule) => rule.kind),
+    extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
+  });
   const propertyDocKeys = docRowKeys(propertyDocRows);
   const propertyDescKey = property
     ? pointKey(`property:${property.id}:description`, [
@@ -365,10 +414,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
   // Contrôles réglementaires (manuels)
   const diagnosticsIds = (propertyDocuments as any[]).filter((d) => d.kind === DocumentKind.DIAGNOSTICS).map((d) => d.id).sort();
-  // Plafond de loyer : calculé selon l'arrêté d'encadrement en vigueur dans la commune du bien.
-  // Avec la relocation en zone tendue (dernier loyer, IRL, travaux, loyer sous-évalué) et le complément de loyer.
-  const rentRules = property ? await assessRentRules({ property, bail: lease }) : null;
-  const rentCap = rentRules?.cap ?? null;
   const rentCapLines = rentCap ? rentCapOverLines(rentCap) : null;
   // Contrôlé automatiquement : loyer conforme à l'arrêté applicable, ou pas de plafond (commune non encadrée,
   // hors périmètre, bail commercial, logement exclu). Adresse non localisée ou bail hors période : à la main.
@@ -646,7 +691,20 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           </CheckSection>
 
           {isCommercial && (
-            <CheckSection id="bloc-commercial" title="Conditions commerciales" subtitle="Réponses du propriétaire, transmises au notaire">
+            <CheckSection
+              id="bloc-commercial"
+              title="Conditions commerciales"
+              subtitle="Réponses du propriétaire, transmises au notaire"
+              headerRight={
+                !bailLocked && (
+                  <CommercialTermsEditor
+                    bailId={lease.id}
+                    values={commercialTermsToForm((lease as any).commercialTerms)}
+                    derogatory={lease.bailType === "COMMERCIAL_DEROGATOIRE"}
+                  />
+                )
+              }
+            >
               <CommercialTermsList
                 terms={(lease as any).commercialTerms}
                 bail={{ bailType: lease.bailType, rentAmount: lease.rentAmount }}
@@ -737,7 +795,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               )
             }
             footer={
-              property && (
+              property &&
+              !isCommercial && (
                 <div className="flex flex-col gap-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-semibold">Équipements du meublé</span>
@@ -793,12 +852,19 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           <PropertyDetailsEditor
                             propertyId={property.id}
                             missing={propertyDescMissing}
+                            commercial={isCommercial}
                             values={{
                               label: property.label,
                               fullAddress: property.fullAddress,
                               type: property.type,
                               surfaceM2: surface,
                               legalStatus: property.legalStatus,
+                              syndicName: property.syndicName,
+                              syndicEmail: property.syndicEmail,
+                              syndicPhone: property.syndicPhone,
+                              subdivisionOver10Years: property.subdivisionOver10Years,
+                              complexType: complexTypeValue(property.inShoppingCenter, property.complexType),
+                              outbuildings: property.outbuildings,
                             }}
                           />
                         )}
@@ -1207,17 +1273,13 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             </CheckList>
           </CheckSection>
 
-          {bailDocuments.length > 0 && (
-            <CheckSection id="bloc-documents" title="Documents du bail" subtitle="Pièces rattachées au bail lui-même">
-              <DocumentChecklist
-                inset
-                editable
-                rows={buildChecklistRows([], (bailDocuments as any[]).map(toChecklistDocument), {
-                  keyPrefix: `bail-${lease.id}`,
-                  target: { bailId: lease.id },
-                  extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
-                })}
-              />
+          {bailDocRows.length > 0 && (
+            <CheckSection
+              id="bloc-documents"
+              title="Documents du bail"
+              subtitle={bailRules.length > 0 ? "Location précédente du local et pièces rattachées au bail" : "Pièces rattachées au bail lui-même"}
+            >
+              <DocumentChecklist inset editable rows={bailDocRows} />
             </CheckSection>
           )}
 

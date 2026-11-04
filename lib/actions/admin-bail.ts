@@ -302,12 +302,19 @@ const PERSON_FIELDS = {
   matrimonialRegime: z.nativeEnum(MatrimonialRegime),
 } as const;
 
+const nullableText = (max: number) => optionalText(max).transform((value) => value || null);
+
 const ENTREPRISE_FIELDS = {
   legalName: text(200),
   name: text(200),
   registration: text(100),
   phone: phoneField,
   fullAddress: text(300),
+  // Bail commercial : forme juridique, représentant légal, société en cours de création
+  legalFormLabel: nullableText(200),
+  representativeName: nullableText(200),
+  representativeRole: nullableText(200),
+  isRegistered: z.enum(["yes", "no"]).transform((value) => value === "yes"),
 } as const;
 
 const updateFieldSchema = z.object({

@@ -45,6 +45,8 @@ export function buildChecklistRows(
     extras?: Partial<Record<string, ReactNode>>;
     /** Cible des envois depuis la fiche (personne, société, client, bien ou bail). */
     target?: DocumentTargetLike;
+    /** Pièces facultatives à proposer même absentes (« Non fournie (facultative) »). */
+    optionalKinds?: string[];
   },
 ): ChecklistRow[] {
   const byKind = new Map<string, ChecklistDocument[]>();
@@ -62,8 +64,20 @@ export function buildChecklistRows(
     extra: options.extras?.[kind],
     upload: options.target,
   }));
+  for (const kind of options.optionalKinds || []) {
+    if (requiredKinds.includes(kind) || rows.some((row) => row.kind === kind)) continue;
+    rows.push({
+      key: `${options.keyPrefix}-${kind}`,
+      kind,
+      label: options.labels?.[kind],
+      required: false,
+      documents: byKind.get(kind) || [],
+      extra: options.extras?.[kind],
+      upload: options.target,
+    });
+  }
   for (const [kind, docs] of byKind) {
-    if (requiredKinds.includes(kind)) continue;
+    if (requiredKinds.includes(kind) || options.optionalKinds?.includes(kind)) continue;
     rows.push({
       key: `${options.keyPrefix}-${kind}`,
       kind,

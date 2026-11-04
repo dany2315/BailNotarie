@@ -2,6 +2,7 @@ import { ClientType, DocumentKind, ProfilType } from "@prisma/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentChecklist } from "@/components/documents/document-checklist";
 import { InlineFieldEditor, type InlineFieldKind } from "@/components/admin/inline-field-editor";
+import { REGISTERED_LABELS, registryNotes } from "@/lib/utils/company-registry";
 import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import { buildChecklistRows, toChecklistDocument, type ChecklistDocument } from "@/lib/utils/document-checklist";
 import { getRequiredClientFields } from "@/lib/utils/required-fields";
@@ -24,6 +25,8 @@ interface FieldDef {
   /** Non modifiable en direct (e-mail : sert à la connexion du client). */
   readOnly?: boolean;
   format?: (value: any) => string | null;
+  /** Valeur de départ de l'éditeur, quand elle diffère de la valeur stockée (booléen…). */
+  edit?: (value: any) => string | null;
 }
 
 const PERSON_FIELDS: FieldDef[] = [
@@ -43,7 +46,17 @@ const PERSON_FIELDS: FieldDef[] = [
 const ENTREPRISE_FIELDS: FieldDef[] = [
   { field: "legalName", label: "Raison sociale" },
   { field: "name", label: "Nom commercial" },
+  { field: "legalFormLabel", label: "Forme juridique" },
   { field: "registration", label: "Numéro d'immatriculation" },
+  {
+    field: "isRegistered",
+    label: "Immatriculation",
+    kind: "registered",
+    format: (v) => (v === false ? REGISTERED_LABELS.no : v === true ? REGISTERED_LABELS.yes : null),
+    edit: (v) => (v === false ? "no" : v === true ? "yes" : null),
+  },
+  { field: "representativeName", label: "Représentant légal" },
+  { field: "representativeRole", label: "Qualité du représentant" },
   { field: "email", label: "E-mail", readOnly: true },
   { field: "phone", label: "Téléphone", kind: "phone", format: formatPhone },
   { field: "fullAddress", label: "Adresse du siège" },
@@ -73,7 +86,7 @@ function FieldGrid({
         const raw = values[def.field];
         const display = def.format ? def.format(raw) : raw ? String(raw) : null;
         const isMissing = missing.has(def.field) || (required.has(def.field) && !display);
-        const editValue = def.kind === "date" ? isoDay(raw) : raw ? String(raw) : null;
+        const editValue = def.edit ? def.edit(raw) : def.kind === "date" ? isoDay(raw) : raw ? String(raw) : null;
         return (
           <div key={def.field} className="group flex items-start justify-between gap-3 border-t py-3 first:border-t-0 sm:[&:nth-child(2)]:border-t-0">
             <div className="flex min-w-0 flex-col gap-0.5">
@@ -147,14 +160,26 @@ export function ClientIdentityCard({ party, missing }: { party: any; missing: Pa
       <section className="rounded-xl border bg-card px-5 pb-2 pt-1.5">
         <h2 className="pb-2 pt-3 text-[17px] font-semibold">Société</h2>
         {party.entreprise ? (
-          <FieldGrid
-            entity="entreprise"
-            id={party.entreprise.id}
-            values={party.entreprise}
-            defs={ENTREPRISE_FIELDS}
-            required={new Set(requiredFields)}
-            missing={new Set(missing?.entreprise?.missingFields || [])}
-          />
+          <>
+            <FieldGrid
+              entity="entreprise"
+              id={party.entreprise.id}
+              values={party.entreprise}
+              defs={ENTREPRISE_FIELDS}
+              required={new Set(requiredFields)}
+              missing={new Set(missing?.entreprise?.missingFields || [])}
+            />
+            {/* Recherche au registre (SIREN) : vérification, société fermée, écarts avec la saisie */}
+            {registryNotes(party.entreprise).length > 0 && (
+              <ul className="flex flex-col gap-1 border-t py-3 text-[13px] text-muted-foreground">
+                {registryNotes(party.entreprise).map((note) => (
+                  <li key={note} className={cn(note.startsWith("⚠") && "font-semibold text-amber-800")}>
+                    {note}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         ) : (
           <p className="pb-3 text-sm text-muted-foreground">Société non renseignée.</p>
         )}

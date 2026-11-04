@@ -56,6 +56,7 @@ export default async function ProprietaireBailDetailPage({
         securityDeposit: bail.securityDeposit,
         effectiveDate: bail.effectiveDate,
         paymentDay: bail.paymentDay,
+        commercialTerms: bail.commercialTerms ?? null,
         property: bail.property
           ? {
               id: bail.property.id,

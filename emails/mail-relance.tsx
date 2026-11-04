@@ -14,7 +14,7 @@ export interface MailRelanceProps {
   reason: RelanceReason;
   /** Nom affiché après « Bonjour ». */
   name: string;
-  /** Adresse du logement concerné. */
+  /** Adresse du bien concerné (logement ou local commercial). */
   address: string;
   /** Lien d'action : formulaire, ou espace client. */
   actionUrl: string;
@@ -30,7 +30,7 @@ const CONTENT: Record<RelanceReason, { preview: string; intro: (p: MailRelancePr
   OWNER_FORM: {
     preview: "Votre dossier de bail notarié n'est pas encore terminé",
     intro: (p) => [
-      `Votre dossier de bail notarié pour le logement situé ${p.address} n'est pas encore terminé.`,
+      `Votre dossier de bail notarié pour le bien situé ${p.address} n'est pas encore terminé.`,
       "Il vous reste à compléter votre formulaire et à le valider pour que nous puissions vérifier votre dossier. Vos informations déjà saisies sont conservées.",
     ],
     button: "Reprendre mon dossier",
@@ -38,7 +38,7 @@ const CONTENT: Record<RelanceReason, { preview: string; intro: (p: MailRelancePr
   TENANT_TO_ADD: {
     preview: "Indiquez-nous votre locataire",
     intro: (p) => [
-      `Votre dossier de bail notarié pour le logement situé ${p.address} est bien enregistré.`,
+      `Votre dossier de bail notarié pour le bien situé ${p.address} est bien enregistré.`,
       "Pour continuer, il nous faut les coordonnées de votre locataire : dès que vous l'avez trouvé, indiquez son adresse e-mail depuis votre espace, nous lui enverrons son formulaire.",
       "Si vous n'avez pas encore de locataire, vous pouvez ignorer ce message.",
     ],
@@ -47,7 +47,7 @@ const CONTENT: Record<RelanceReason, { preview: string; intro: (p: MailRelancePr
   TENANT_FORM: {
     preview: "Votre formulaire locataire est en attente",
     intro: (p) => [
-      `Votre propriétaire a lancé un bail notarié pour le logement situé ${p.address}.`,
+      `Votre propriétaire a lancé un bail notarié pour le bien situé ${p.address}.`,
       "Votre formulaire locataire n'a pas encore été envoyé : merci de le compléter pour que le bail puisse avancer. Vos informations déjà saisies sont conservées.",
     ],
     button: "Compléter mon formulaire",

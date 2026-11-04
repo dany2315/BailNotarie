@@ -738,7 +738,7 @@ export async function getIntakeDocuments(token: string) {
 
   const documents: any[] = [];
 
-  // Récupérer les documents du client (livret de famille, PACS)
+  // Récupérer les documents du client (contrat de mariage, convention de PACS)
   // Ce sont les documents qui ont un clientId mais pas de personId ni entrepriseId
   if (intakeLink.clientId) {
     const clientDocs = await prisma.document.findMany({

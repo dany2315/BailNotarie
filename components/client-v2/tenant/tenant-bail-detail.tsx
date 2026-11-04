@@ -19,6 +19,7 @@ import {
 
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils/formatters";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
+import { commercialPaymentText, commercialTermsSummary, commercialVatText } from "@/lib/utils/commercial-terms";
 import { BailChatSheet } from "@/components/client/bail-chat-sheet";
 import {
   FieldGrid,
@@ -54,6 +55,8 @@ export type TenantBailDetailData = {
   effectiveDate: Date | string | null;
   endDate: Date | string | null;
   paymentDay: number | null;
+  /** Conditions du bail commercial (réponses du propriétaire). */
+  commercialTerms?: unknown;
   property: {
     label: string | null;
     fullAddress: string | null;
@@ -145,6 +148,11 @@ export function TenantBailDetail({
   const statusTone = view?.tone ?? "slate";
   const terminal = TERMINAL_STATUSES.includes(bail.status);
   const isCommercial = bail.bailFamily === "COMMERCIAL";
+  const terms = bail.commercialTerms as any;
+  // Ce qui regarde le locataire : activité, durée, charges, travaux… (pas le loyer, affiché plus haut).
+  const commercialRows = isCommercial
+    ? commercialTermsSummary(terms, { bailType: bail.bailType, rentAmount: bail.rentAmount }, { forTenant: true, omitRent: true })
+    : [];
   const propertyTitle = bail.property.label || bail.property.fullAddress || "Mon bail";
   const proprietaire = hasProprietaire;
 
@@ -233,20 +241,46 @@ export function TenantBailDetail({
                 label="Type de bail"
                 value={bail.bailType ? BAIL_TYPE_LABELS[bail.bailType] || bail.bailType : null}
               />
-              <ReadField label="Loyer mensuel" value={formatCurrency(bail.rentAmount)} />
+              <ReadField label={isCommercial ? "Loyer mensuel HT" : "Loyer mensuel"} value={formatCurrency(bail.rentAmount)} />
+              {isCommercial && bail.rentAmount ? (
+                <ReadField label="Loyer annuel HT" value={formatCurrency(bail.rentAmount * 12)} />
+              ) : null}
+              {isCommercial && commercialVatText(terms) && <ReadField label="TVA" value={commercialVatText(terms)} />}
               {bail.monthlyCharges > 0 && (
-                <ReadField label="Charges mensuelles" value={formatCurrency(bail.monthlyCharges)} />
+                <ReadField
+                  label={isCommercial ? "Provision mensuelle pour charges" : "Charges mensuelles"}
+                  value={formatCurrency(bail.monthlyCharges)}
+                />
               )}
               {bail.securityDeposit > 0 && (
                 <ReadField label="Dépôt de garantie" value={formatCurrency(bail.securityDeposit)} />
               )}
               <ReadField label="Date de début" value={formatDate(bail.effectiveDate)} />
               {bail.endDate && <ReadField label="Date de fin" value={formatDate(bail.endDate)} />}
-              {bail.paymentDay && (
-                <ReadField label="Jour de paiement" value={`Le ${bail.paymentDay} de chaque mois`} />
-              )}
+              {isCommercial
+                ? commercialPaymentText(terms, bail.paymentDay) && (
+                    <ReadField label="Paiement du loyer" value={commercialPaymentText(terms, bail.paymentDay)} />
+                  )
+                : bail.paymentDay && (
+                    <ReadField label="Jour de paiement" value={`Le ${bail.paymentDay} de chaque mois`} />
+                  )}
             </FieldGrid>
           </Surface>
+
+          {/* ── Conditions du bail commercial ───────────────────────────── */}
+          {commercialRows.length > 0 && (
+            <Surface tone="raised" className="p-4 sm:p-5">
+              <div className="mb-4 flex items-center gap-2.5">
+                <IconTile icon={Store} tone="blue" size="sm" />
+                <MicroLabel>Conditions du bail commercial</MicroLabel>
+              </div>
+              <FieldGrid>
+                {commercialRows.map(([label, value]) => (
+                  <ReadField key={label} label={label} value={value} wide />
+                ))}
+              </FieldGrid>
+            </Surface>
+          )}
 
           {/* ── Le bien ──────────────────────────────────────────────────── */}
           <Surface tone="raised" className="p-4 sm:p-5">
@@ -259,7 +293,7 @@ export function TenantBailDetail({
               {bail.property.label && <ReadField label="Label" value={bail.property.label} />}
               {bail.property.type && (
                 <ReadField
-                  label="Type de logement"
+                  label={isCommercial ? "Type de local" : "Type de logement"}
                   value={PROPERTY_TYPE_LABELS[bail.property.type] ?? bail.property.type}
                 />
               )}
@@ -276,7 +310,8 @@ export function TenantBailDetail({
 
             {/* Deux mentions qui ne relèvent pas de la description du logement
                 mais des droits du locataire : autant qu'il les lise ici. */}
-            {(bail.property.isTightZone || bail.property.hasRentControl) && (
+            {/* Droits du bail d'habitation : sans objet pour un bail commercial. */}
+            {!isCommercial && (bail.property.isTightZone || bail.property.hasRentControl) && (
               <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
                 {bail.property.isTightZone && (
                   <p className="flex gap-2 text-[12.5px] leading-snug text-slate-500">

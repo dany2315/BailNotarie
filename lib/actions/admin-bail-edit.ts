@@ -24,6 +24,7 @@ import { getStageKey } from "@/lib/utils/bail-stage";
 import { EXEMPTION_LABELS } from "@/lib/utils/rent-cap";
 import { assessRentCap } from "@/lib/rent-cap";
 import { rentRulesFromForm } from "@/lib/utils/rent-draft";
+import { commercialTermsFromForm } from "@/lib/utils/commercial-terms";
 
 type Result<T = undefined> = ({ success: true } & (T extends undefined ? unknown : { data: T })) | { success: false; error: string };
 
@@ -90,9 +91,11 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
 
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
-    select: { id: true, status: true, propertyId: true, bailType: true, rentAmount: true, securityDeposit: true, effectiveDate: true, endDate: true },
+    select: { id: true, status: true, propertyId: true, bailType: true, bailFamily: true, rentAmount: true, securityDeposit: true, effectiveDate: true, endDate: true },
   });
   if (!bail) return { success: false, error: "Dossier introuvable" };
+  // Bail commercial : ni limite légale du dépôt de garantie, ni encadrement des loyers.
+  const isCommercial = (values.bailFamily ?? bail.bailFamily) === BailFamille.COMMERCIAL;
   if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
 
   // Valeurs finales, pour les contrôles qui croisent plusieurs champs.
@@ -107,13 +110,13 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
   }
   const isMeuble = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
   const maxDeposit = isMeuble ? rentAmount * 2 : rentAmount;
-  if (rentAmount > 0 && securityDeposit > maxDeposit) {
+  if (!isCommercial && rentAmount > 0 && securityDeposit > maxDeposit) {
     return {
       success: false,
       error: `Le dépôt de garantie ne peut pas dépasser ${isMeuble ? "2 mois" : "1 mois"} de loyer hors charges (max ${maxDeposit.toLocaleString("fr-FR")} €)${values.securityDeposit === undefined ? " : ajustez aussi le dépôt de garantie" : ""}`,
     };
   }
-  if (values.rentAmount !== undefined && values.rentAmount !== bail.rentAmount) {
+  if (!isCommercial && values.rentAmount !== undefined && values.rentAmount !== bail.rentAmount) {
     const rent = await validateRentForProperty(bail.propertyId, values.rentAmount);
     if (!rent.isValid && rent.maxAllowed !== null) {
       return {
@@ -141,6 +144,41 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
   if (revalidate) revalidatePath(revalidate);
   revalidatePath(`/interface/baux/${bailId}`);
   revalidatePath("/interface/baux");
+  return { success: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Conditions du bail commercial                                       */
+/* ------------------------------------------------------------------ */
+
+const commercialTermsSchema = z.object({
+  bailId: z.string().min(1),
+  // Mêmes réponses que le formulaire propriétaire, nettoyées par commercialTermsFromForm.
+  values: z.record(z.string(), z.unknown()),
+  revalidate: revalidateField,
+});
+
+/** Conditions du bail commercial corrigées par l'équipe (sans renvoyer le formulaire au client). */
+export async function updateCommercialTermsAdmin(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = commercialTermsSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, values, revalidate } = parsed.data;
+
+  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { id: true, status: true, bailFamily: true } });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  if (bail.bailFamily !== BailFamille.COMMERCIAL) return { success: false, error: "Ce dossier n'est pas un bail commercial" };
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+
+  const terms = commercialTermsFromForm(values);
+  if (Object.keys(terms).length === 0) return { success: true };
+  await prisma.$transaction([
+    prisma.bailCommercialTerms.upsert({ where: { bailId }, create: { bailId, ...terms }, update: terms }),
+    prisma.bail.update({ where: { id: bailId }, data: { updatedById: user.id } }),
+  ]);
+
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
   return { success: true };
 }
 

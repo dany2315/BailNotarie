@@ -11,11 +11,13 @@ import {
   MessageSquare,
   RotateCcw,
   Scale,
+  Store,
   UserPlus,
   UserRound,
 } from "lucide-react";
 
 import { formatCurrency, formatDate } from "@/lib/utils/formatters";
+import { commercialPaymentText, commercialTermsSummary, commercialVatText } from "@/lib/utils/commercial-terms";
 import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
 import { BailChatSheet } from "@/components/client/bail-chat-sheet";
 import { BailDocumentPreview } from "@/components/client/bail-document-preview";
@@ -55,6 +57,8 @@ export type BailPageData = {
   securityDeposit: number;
   effectiveDate: Date | string | null;
   paymentDay: number | null;
+  /** Conditions du bail commercial (réponses du formulaire). */
+  commercialTerms?: unknown;
   property: { id: string; label: string | null; fullAddress: string | null } | null;
   documents: Array<{
     id: string;
@@ -97,6 +101,13 @@ export function BailPage({
   const familyLabel = bail.bailFamily
     ? BAIL_FAMILY_LABELS[bail.bailFamily] ?? bail.bailFamily
     : null;
+  // Bail commercial : loyer hors taxes, paiement mensuel ou trimestriel, TVA éventuelle.
+  const isCommercial = bail.bailFamily === "COMMERCIAL";
+  const terms = bail.commercialTerms as any;
+  const ht = isCommercial ? " HT" : "";
+  const commercialRows = isCommercial
+    ? commercialTermsSummary(terms, { bailType: bail.bailType, rentAmount: bail.rentAmount }, { omitRent: true })
+    : [];
 
   const model: DetailModel = {
     kind: "bail",
@@ -120,14 +131,14 @@ export function BailPage({
       { label: "Le bail" },
     ],
     stats: [
-      { label: "Loyer", value: formatCurrency(bail.rentAmount) },
+      { label: `Loyer${ht}`, value: formatCurrency(bail.rentAmount) },
       bail.monthlyCharges > 0
         ? { label: "Charges", value: formatCurrency(bail.monthlyCharges) }
         : null,
       bail.securityDeposit > 0
         ? { label: "Dépôt", value: formatCurrency(bail.securityDeposit) }
         : null,
-      bail.monthlyCharges > 0 ? { label: "Total", value: formatCurrency(totalMonthly) } : null,
+      bail.monthlyCharges > 0 ? { label: `Total${ht}`, value: formatCurrency(totalMonthly) } : null,
     ].filter(Boolean) as DetailModel["stats"],
     actions: (
       <>
@@ -173,8 +184,12 @@ export function BailPage({
           { label: "Date de début", value: formatDate(bail.effectiveDate) },
           { label: "Date de fin", value: endDate ? formatDate(endDate) : null },
           {
-            label: "Jour de paiement",
-            value: bail.paymentDay ? `Le ${bail.paymentDay} de chaque mois` : null,
+            label: "Paiement du loyer",
+            value: isCommercial
+              ? commercialPaymentText(terms, bail.paymentDay)
+              : bail.paymentDay
+                ? `Le ${bail.paymentDay} de chaque mois`
+                : null,
           },
         ],
       },
@@ -183,9 +198,18 @@ export function BailPage({
         title: "Loyer et charges",
         icon: Euro,
         fields: [
-          { label: "Loyer mensuel", value: formatCurrency(bail.rentAmount) },
+          { label: `Loyer mensuel${ht}`, value: formatCurrency(bail.rentAmount) },
+          ...(isCommercial
+            ? [
+                {
+                  label: "Loyer annuel HT",
+                  value: bail.rentAmount ? formatCurrency(bail.rentAmount * 12) : null,
+                },
+                { label: "TVA", value: commercialVatText(terms) },
+              ]
+            : []),
           {
-            label: "Charges mensuelles",
+            label: isCommercial ? "Provision mensuelle pour charges" : "Charges mensuelles",
             value: bail.monthlyCharges > 0 ? formatCurrency(bail.monthlyCharges) : null,
           },
           {
@@ -193,11 +217,22 @@ export function BailPage({
             value: bail.securityDeposit > 0 ? formatCurrency(bail.securityDeposit) : null,
           },
           {
-            label: "Total mensuel",
+            label: `Total mensuel${ht}`,
             value: bail.monthlyCharges > 0 ? formatCurrency(totalMonthly) : null,
           },
         ],
       },
+      // Bail commercial : les réponses du formulaire, telles que transmises au notaire.
+      ...(commercialRows.length > 0
+        ? [
+            {
+              id: "conditions-commerciales",
+              title: "Conditions du bail commercial",
+              icon: Store,
+              fields: commercialRows.map(([label, value]) => ({ label, value, wide: true })),
+            },
+          ]
+        : []),
       // La section paraît même sans locataire : « Non renseigné » dit ce qui
       // manque, là où l'absence de section laissait croire à un oubli.
       ...(tenantName || missingTenant

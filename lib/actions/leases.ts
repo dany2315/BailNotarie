@@ -11,6 +11,8 @@ import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { validateRentForProperty } from "@/lib/utils/rent-validation";
 import { assessRentRules } from "@/lib/rent-rules";
+import { assessRentCap, requiresOccupancyDeclaration } from "@/lib/rent-cap";
+import { getBailDocumentRules } from "@/lib/utils/required-fields";
 import { rentRulesFromForm, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 import { stripe } from "@/lib/stripe";
@@ -1320,6 +1322,7 @@ export async function getBailMissingData(bailId: string): Promise<BailCompleteMi
             entreprise: true,
           },
         },
+        commercialTerms: { select: { previouslyLet: true } },
       },
     });
 
@@ -1463,6 +1466,23 @@ export async function getBailMissingData(bailId: string): Promise<BailCompleteMi
     let propertyMissingData: BailMissingDataProperty | null = null;
     if (bail.property) {
       const propertyCompletion = await checkPropertyCompletion(bail.property.id);
+
+      // Pièces propres à ce bail : bail commercial (règlement du centre…) ou déclaration
+      // d'occupation dans une ville à loyers encadrés.
+      const occupancyDeclarationRequired =
+        bail.bailFamily !== BailFamille.COMMERCIAL &&
+        requiresOccupancyDeclaration(await assessRentCap({ property: bail.property, bail }));
+      const propertyKinds = new Set<string>(bail.property.documents.map((doc) => doc.kind));
+      for (const rule of getBailDocumentRules({
+        bailFamily: bail.bailFamily,
+        property: bail.property,
+        previouslyLet: bail.commercialTerms?.previouslyLet,
+        occupancyDeclarationRequired,
+      })) {
+        if (rule.required && rule.target === "property" && !propertyKinds.has(rule.kind) && !propertyCompletion.missingDocuments.includes(rule.kind as any)) {
+          propertyCompletion.missingDocuments.push(rule.kind as any);
+        }
+      }
       
       propertyMissingData = {
         propertyId: bail.property.id,

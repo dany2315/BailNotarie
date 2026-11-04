@@ -152,7 +152,7 @@ export function MissingDataCard({
           </div>
         )}
 
-        {/* Documents manquants au niveau client (livret de famille, PACS) */}
+        {/* Documents manquants au niveau client (contrat de mariage, PACS) */}
         {missingData.clientDocuments.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300">
@@ -173,7 +173,7 @@ export function MissingDataCard({
           </div>
         )}
 
-        {/* Documents généraux manquants (assurance, RIB pour locataire) */}
+        {/* Documents généraux manquants */}
         {missingData.generalDocuments.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300">

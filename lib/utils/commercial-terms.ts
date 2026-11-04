@@ -446,8 +446,37 @@ function worksText(value: unknown): string {
     .join(" ; ");
 }
 
-/** Résumé lisible des conditions pour l'équipe et le notaire : [libellé, valeur]. */
-export function commercialTermsSummary(terms: any | null | undefined, bail?: { bailType?: string | null; rentAmount?: number | null }): Array<[string, string]> {
+/** Situation du local pour l'éditeur de l'équipe : NONE | SHOPPING_CENTER | ESTATE_COMPLEX, depuis les deux champs du bien. */
+export function complexTypeValue(inShoppingCenter: boolean | null | undefined, complexType: string | null | undefined): string | null {
+  if (inShoppingCenter === false) return "NONE";
+  if (inShoppingCenter) return complexType === "ESTATE_COMPLEX" ? "ESTATE_COMPLEX" : "SHOPPING_CENTER";
+  return null;
+}
+
+/** Paiement du loyer commercial, en clair : « Par trimestre », « Le 5 de chaque mois ». */
+export function commercialPaymentText(terms: any | null | undefined, paymentDay?: number | null): string | null {
+  if (terms?.rentPeriodicity === "QUARTERLY") return "Par trimestre";
+  if (paymentDay) return `Le ${paymentDay} de chaque mois`;
+  return terms?.rentPeriodicity === "MONTHLY" ? "Chaque mois" : null;
+}
+
+/** TVA sur le loyer commercial, en clair (null : pas encore renseignée). */
+export function commercialVatText(terms: any | null | undefined): string | null {
+  if (terms?.vatApplicable === true) return "TVA en sus du loyer";
+  if (terms?.vatApplicable === false) return "Pas de TVA";
+  return null;
+}
+
+/**
+ * Résumé lisible des conditions : [libellé, valeur]. Pour l'équipe et le notaire, tout ; pour le
+ * locataire (forTenant), sans ce qui ne regarde que le propriétaire (location précédente, achat
+ * pendant le mariage). omitRent retire le loyer, affiché à part dans les espaces client.
+ */
+export function commercialTermsSummary(
+  terms: any | null | undefined,
+  bail?: { bailType?: string | null; rentAmount?: number | null },
+  options: { forTenant?: boolean; omitRent?: boolean } = {},
+): Array<[string, string]> {
   if (!terms) return [];
   const rows: Array<[string, string]> = [];
   const push = (label: string, value: string | null | undefined) => {
@@ -455,16 +484,18 @@ export function commercialTermsSummary(terms: any | null | undefined, bail?: { b
   };
   push("Activité autorisée", terms.activity);
   push("Activités annexes ou restrictions", terms.ancillaryActivities);
-  if (terms.previouslyLet === false) push("Location précédente", "Première location");
-  if (terms.previouslyLet === true) {
+  if (terms.previouslyLet === false && !options.forTenant) push("Location précédente", "Première location");
+  if (terms.previouslyLet === true && !options.forTenant) {
     push("Location précédente", [terms.previousActivity, terms.currentlyVacant === true ? "local libre" : terms.currentlyVacant === false ? "local encore occupé" : null].filter(Boolean).join(" · "));
   }
   if (bail?.bailType === "COMMERCIAL_DEROGATOIRE" && terms.derogatoryMonths) push("Durée du bail dérogatoire", `${terms.derogatoryMonths} mois`);
   push("Remise des clés", frDate(terms.keysHandoverDate));
   if (terms.rentFreeMonths != null) push("Franchise de loyer", terms.rentFreeMonths > 0 ? `${terms.rentFreeMonths} mois` : "Aucune");
-  if (bail?.rentAmount) push("Loyer annuel hors taxes", euros(bail.rentAmount * 12));
-  push("Paiement du loyer", terms.rentPeriodicity ? RENT_PERIODICITY_LABELS[terms.rentPeriodicity] : null);
-  if (terms.vatApplicable != null) push("TVA sur le loyer", terms.vatApplicable ? "Oui" : "Non");
+  if (!options.omitRent) {
+    if (bail?.rentAmount) push("Loyer annuel hors taxes", euros(bail.rentAmount * 12));
+    push("Paiement du loyer", terms.rentPeriodicity ? RENT_PERIODICITY_LABELS[terms.rentPeriodicity] : null);
+    if (terms.vatApplicable != null) push("TVA sur le loyer", terms.vatApplicable ? "Oui" : "Non");
+  }
   push("Révision du loyer", terms.indexation ? INDEXATION_LABELS[terms.indexation] : null);
   if (terms.entryFee != null) push("Pas-de-porte", terms.entryFee > 0 ? euros(terms.entryFee) : "Aucun");
   push("Frais d'acte payés par", terms.feesPaidBy ? FEES_PAID_BY_LABELS[terms.feesPaidBy] : null);
@@ -481,7 +512,7 @@ export function commercialTermsSummary(terms: any | null | undefined, bail?: { b
   if (terms.hasGuarantor != null) push("Garant", terms.hasGuarantor ? [terms.guarantorName, terms.guarantorEmail].filter(Boolean).join(" · ") : "Aucun");
   const clauses = Array.isArray(terms.clauses) ? terms.clauses.map((c: string) => CLAUSE_LABELS[c]).filter(Boolean) : [];
   push("Clauses particulières", [clauses.join(", "), terms.clausesNote].filter(Boolean).join(" — "));
-  if (terms.premisesBoughtDuringMarriage != null) {
+  if (terms.premisesBoughtDuringMarriage != null && !options.forTenant) {
     push("Local acheté pendant le mariage", terms.premisesBoughtDuringMarriage ? "Oui (le conjoint signe aussi)" : "Non");
   }
   return rows;

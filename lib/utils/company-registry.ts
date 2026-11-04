@@ -145,6 +145,9 @@ type EntrepriseRegistryView = {
  * Points d'attention pour l'équipe : vérification au registre, société fermée
  * ou en liquidation, et écarts entre la saisie du client et le registre.
  */
+/** Société immatriculée ou en cours de création (bail commercial : Kbis exigé ou non). */
+export const REGISTERED_LABELS: Record<string, string> = { yes: "Immatriculée", no: "En cours de création" };
+
 export function registryNotes(entreprise: EntrepriseRegistryView): string[] {
   if (!entreprise.registrySource) return [];
   if (entreprise.registrySource === "MANUAL" || !entreprise.registryCheckedAt) {

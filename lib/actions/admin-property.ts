@@ -149,6 +149,14 @@ const detailsSchema = z.object({
       type: z.nativeEnum(BienType),
       surfaceM2: z.number().positive("Surface invalide").max(10000, "Surface invalide"),
       legalStatus: z.nativeEnum(BienLegalStatus),
+      // Copropriété : syndic ; lotissement : ancienneté de l'autorisation
+      syndicName: z.string().trim().max(200).nullable(),
+      syndicEmail: z.union([z.literal(""), z.string().trim().email("E-mail du syndic invalide")]).nullable(),
+      syndicPhone: z.string().trim().max(40).nullable(),
+      subdivisionOver10Years: z.enum(["YES", "NO", "UNKNOWN"]).nullable(),
+      // Bail commercial : situation du local (NONE = immeuble ou rue) et dépendances
+      complexType: z.enum(["NONE", "SHOPPING_CENTER", "ESTATE_COMPLEX"]),
+      outbuildings: z.string().trim().max(500).nullable(),
     })
     .partial(),
   revalidate: revalidateField,
@@ -182,6 +190,15 @@ export async function updatePropertyDetailsAdmin(
   if (values.type) update.type = values.type;
   if (values.surfaceM2 !== undefined) update.surfaceM2 = new Prisma.Decimal(values.surfaceM2);
   if (values.legalStatus) update.legalStatus = values.legalStatus;
+  if (values.syndicName !== undefined) update.syndicName = values.syndicName || null;
+  if (values.syndicEmail !== undefined) update.syndicEmail = values.syndicEmail || null;
+  if (values.syndicPhone !== undefined) update.syndicPhone = values.syndicPhone || null;
+  if (values.subdivisionOver10Years !== undefined) update.subdivisionOver10Years = values.subdivisionOver10Years;
+  if (values.complexType !== undefined) {
+    update.inShoppingCenter = values.complexType !== "NONE";
+    update.complexType = values.complexType === "NONE" ? null : values.complexType;
+  }
+  if (values.outbuildings !== undefined) update.outbuildings = values.outbuildings || null;
   if (values.address) {
     const a = values.address;
     Object.assign(update, {

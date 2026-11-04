@@ -13,8 +13,9 @@ import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { updatePartyFieldAdmin } from "@/lib/actions/admin-bail";
 import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
+import { REGISTERED_LABELS } from "@/lib/utils/company-registry";
 
-export type InlineFieldKind = "text" | "date" | "nationality" | "familyStatus" | "matrimonialRegime" | "phone";
+export type InlineFieldKind = "text" | "date" | "nationality" | "familyStatus" | "matrimonialRegime" | "phone" | "registered";
 
 interface InlineFieldEditorProps {
   entity: "person" | "entreprise";
@@ -40,7 +41,14 @@ export function FieldInput({
   onChange: (value: string) => void;
   onEnter?: () => void;
 }) {
-  const options = kind === "familyStatus" ? FAMILY_STATUS_LABELS : kind === "matrimonialRegime" ? MATRIMONIAL_REGIME_LABELS : null;
+  const options =
+    kind === "familyStatus"
+      ? FAMILY_STATUS_LABELS
+      : kind === "matrimonialRegime"
+        ? MATRIMONIAL_REGIME_LABELS
+        : kind === "registered"
+          ? REGISTERED_LABELS
+          : null;
   if (kind === "date") {
     return <DateInput id={id} value={value} onChange={onChange} fromYear={new Date().getFullYear() - 120} toYear={new Date().getFullYear()} />;
   }

@@ -2,7 +2,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireClientAuth, requireProprietaireAuth, requireLocataireAuth, getClientFromUser, requireClientAccess, requireAuth, STAFF_ROLES } from "@/lib/auth-helpers";
-import { ProfilType, BailStatus, IntakeTarget } from "@prisma/client";
+import { ProfilType, BailStatus, IntakeTarget, BailFamille } from "@prisma/client";
+import { randomBytes } from "crypto";
+import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
 
 // Types pour les données sérialisées
 type SerializedProperty = {
@@ -611,6 +613,7 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
     include: {
+      commercialTerms: true,
       property: {
         include: {
           owner: {
@@ -713,3 +716,44 @@ export async function getClientFullInfo(clientId: string) {
   return client;
 }
 
+/**
+ * Bail commercial depuis l'espace propriétaire : ouvre le formulaire propriétaire, qui porte le
+ * questionnaire du bail commercial et le paiement, sur un local existant ou nouveau. Un formulaire
+ * déjà en cours est repris plutôt que doublé : son envoi retient le seul lien en attente du client.
+ */
+export async function startCommercialLeaseFromSpace(data: {
+  propertyId?: string | null;
+}): Promise<{ success: true; url: string; resumed: boolean } | { success: false; error: string }> {
+  const { client } = await requireProprietaireAuth();
+
+  const pending = await prisma.intakeLink.findFirst({
+    where: { clientId: client.id, target: IntakeTarget.OWNER, status: "PENDING" },
+    orderBy: { createdAt: "desc" },
+    select: { token: true },
+  });
+  if (pending) return { success: true, url: `/commencer/proprietaire/${pending.token}`, resumed: true };
+
+  const propertyId = typeof data?.propertyId === "string" && data.propertyId ? data.propertyId : null;
+  if (propertyId) {
+    const property = await prisma.property.findFirst({
+      where: { id: propertyId, ownerId: client.id },
+      select: { bails: { select: { id: true, status: true, paidAt: true, endDate: true, effectiveDate: true, bailType: true } } },
+    });
+    if (!property) return { success: false, error: "Bien introuvable" };
+    const blocked = newBailBlockedMessage(newBailAvailability(property.bails));
+    if (blocked) return { success: false, error: blocked };
+  }
+
+  const link = await prisma.intakeLink.create({
+    data: {
+      token: randomBytes(32).toString("hex"),
+      target: IntakeTarget.OWNER,
+      clientId: client.id,
+      propertyId,
+      bailFamilyPreference: BailFamille.COMMERCIAL,
+      status: "PENDING",
+    },
+    select: { token: true },
+  });
+  return { success: true, url: `/commencer/proprietaire/${link.token}`, resumed: false };
+}
