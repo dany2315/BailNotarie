@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
       : undefined;
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: 3990, // 39,90€ en centimes
+      // Espace client : bail d'habitation (le commercial passe par le formulaire propriétaire)
+      amount: dossierFeeCents("HABITATION"),
       currency: "eur",
       payment_method_types: ["card", "klarna", "link"],
       receipt_email: clientEmail,

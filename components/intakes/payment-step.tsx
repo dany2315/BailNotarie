@@ -23,6 +23,7 @@ import {
   formatBailCurrency,
 } from "@/components/leases/bail-cost-estimate";
 import { cn } from "@/lib/utils";
+import { formatDossierFee } from "@/lib/utils/dossier-fee";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -70,9 +71,11 @@ const STRIPE_APPEARANCE = {
 interface PaymentFormProps {
   onPaymentSuccess: (paymentIntentId: string) => void;
   isSubmitting: boolean;
+  /** « 39,90 € » ou « 59,90 € » selon le type de bail. */
+  feeLabel: string;
 }
 
-function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
+function PaymentForm({ onPaymentSuccess, isSubmitting, feeLabel }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -181,7 +184,7 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
         ) : (
           <>
             <Lock className="mr-2 h-4 w-4" />
-            Payer 39,90€ et finaliser mon dossier
+            Payer {feeLabel} et finaliser mon dossier
           </>
         )}
       </Button>
@@ -197,6 +200,8 @@ interface PaymentStepProps {
   isSubmitting: boolean;
   rentAmount?: number;
   peopleCount?: number;
+  /** Type de bail : les frais de dossier d'un bail commercial sont de 59,90 €. */
+  bailFamily?: string | null;
 }
 
 export function PaymentStep({
@@ -205,7 +210,9 @@ export function PaymentStep({
   isSubmitting,
   rentAmount = 0,
   peopleCount = 2,
+  bailFamily = null,
 }: PaymentStepProps) {
+  const feeLabel = formatDossierFee(bailFamily);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -248,13 +255,16 @@ export function PaymentStep({
     "Suivi jusqu'à la signature de l'acte authentique",
   ];
 
-  const notaryCost = rentAmount > 0 ? computeBailNotaryCost(rentAmount, peopleCount) : 0;
+  // Bail d'habitation : émolument réglementé (demi-mois de loyer). Bail commercial : honoraires
+  // libres, fixés par l'étude, donc pas d'estimation chiffrée.
+  const isCommercial = bailFamily === "COMMERCIAL";
+  const notaryCost = rentAmount > 0 && !isCommercial ? computeBailNotaryCost(rentAmount, peopleCount) : 0;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
       {/* Récapitulatif unifié : maintenant (haut, mis en avant) + plus tard (bas, discret) */}
       <div className="rounded-xl border border-blue-100 overflow-hidden bg-white">
-        {/* Section 1 — À payer maintenant : 39,90 € */}
+        {/* Section 1 — À payer maintenant : frais de dossier */}
         <div className="bg-blue-50/60 px-4 py-3">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -274,14 +284,28 @@ export function PaymentStep({
               </div>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-2xl font-bold text-[#4373f5]">39,90€</p>
+              <p className="text-2xl font-bold text-[#4373f5]">{feeLabel}</p>
               <p className="text-xs text-gray-400">TTC</p>
             </div>
           </div>
         </div>
 
-        {/* Section 2 — À régler à la signature : estimation des honoraires */}
-        {rentAmount > 0 && (
+        {/* Section 2 — À régler à la signature : honoraires du notaire (bail commercial : sans montant) */}
+        {isCommercial && (
+          <div className="border-t border-blue-100 bg-gray-50/60 px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              À régler à la signature
+            </p>
+            <p className="font-medium text-sm text-gray-700 mt-1">
+              Honoraires du notaire
+            </p>
+            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+              Pour un bail commercial, les honoraires sont fixés librement par l&apos;étude notariale. Le notaire vous
+              les communique avant la signature.
+            </p>
+          </div>
+        )}
+        {rentAmount > 0 && !isCommercial && (
           <div className="border-t border-blue-100 bg-gray-50/60 px-4 py-3">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -330,6 +354,7 @@ export function PaymentStep({
           <PaymentForm
             onPaymentSuccess={onPaymentSuccess}
             isSubmitting={isSubmitting}
+            feeLabel={feeLabel}
           />
         </Elements>
       )}

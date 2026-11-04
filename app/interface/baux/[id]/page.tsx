@@ -53,6 +53,7 @@ import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/adm
 import { CommercialTermsList, companyRepresentativeRows } from "@/components/shared/commercial-terms-list";
 import { commercialPaymentText, commercialTermsToForm, commercialVatText, complexTypeValue } from "@/lib/utils/commercial-terms";
 import { CommercialTermsEditor } from "@/components/admin/commercial-terms-editor";
+import { formatDossierFee } from "@/lib/utils/dossier-fee";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
 
 export const dynamic = "force-dynamic";
@@ -553,8 +554,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 <span className="inline-flex h-[30px] items-center gap-1 whitespace-nowrap rounded-lg bg-green-100 px-2.5 text-[13.5px] sm:gap-1.5 sm:px-3 font-semibold text-green-800">
                   <Check className="size-4" strokeWidth={3} />
                   Frais payés le {formatDate(lease.paidAt).slice(0, 5)}
-                  {/* Le paiement Stripe est toujours de 39,90 € (montant contrôlé côté serveur). */}
-                  {lease.stripePaymentIntentId ? " · 39,90 €" : ""}
+                  {/* Montant contrôlé côté serveur : 39,90 €, ou 59,90 € pour un bail commercial. */}
+                  {lease.stripePaymentIntentId ? ` · ${formatDossierFee(lease.bailFamily)}` : ""}
                 </span>
               ) : (
                 <span className="inline-flex h-[30px] items-center gap-1 whitespace-nowrap rounded-lg bg-red-100 px-2.5 text-[13.5px] sm:gap-1.5 sm:px-3 font-semibold text-red-800">
@@ -730,7 +731,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               >
                 {paid
                   ? [
-                      `39,90 € payés le ${formatDateTime(lease.paidAt as Date)}`,
+                      `${formatDossierFee(lease.bailFamily)} payés le ${formatDateTime(lease.paidAt as Date)}`,
                       lease.stripePaymentIntentId ? `Paiement Stripe ${lease.stripePaymentIntentId.slice(0, 8)}…${lease.stripePaymentIntentId.slice(-6)}` : null,
                     ]
                       .filter(Boolean)

@@ -69,8 +69,10 @@ export default function CGVPage() {
                   3. Tarification
                 </h2>
                 <p>
-                  La prestation de constitution, de vérification documentaire et de transmission du dossier est facturée au tarif forfaitaire unique de{" "}
-                  <strong>39,90 € TTC</strong>. Ce montant rémunère exclusivement le service administratif fourni par la plateforme BailNotarie.
+                  La prestation de constitution, de vérification documentaire et de transmission du dossier est facturée au tarif forfaitaire de{" "}
+                  <strong>39,90 € TTC</strong> pour un bail d'habitation et de <strong>59,90 € TTC</strong> pour un bail commercial. Le tarif
+                  applicable est celui du type de bail choisi par le Client dans le formulaire, et il est indiqué avant le paiement. Ce montant
+                  rémunère exclusivement le service administratif fourni par la plateforme BailNotarie.
                 </p>
               </section>
 
@@ -80,7 +82,7 @@ export default function CGVPage() {
                   4. Frais notariés (Indépendants du service)
                 </h2>
                 <p>
-                  Les frais liés à l'établissement du bail notarié (émoluments du notaire, taxes, débours, frais de signature électronique, etc.) sont strictement distincts des frais de la plateforme BailNotarie. Ils sont réglementés par l'État (tarif des notaires) et seront facturés et appelés directement par l'étude notariale en charge du dossier.
+                  Les frais liés à l'établissement du bail notarié (émoluments ou honoraires du notaire, taxes, débours, frais de signature électronique, etc.) sont strictement distincts des frais de la plateforme BailNotarie. Pour un bail d'habitation, les émoluments du notaire sont réglementés par l'État (tarif des notaires). Pour un bail commercial, les honoraires du notaire sont fixés librement par l'étude notariale, qui les communique au Client avant la signature. Dans tous les cas, ces frais sont facturés et appelés directement par l'étude notariale en charge du dossier.
                 </p>
               </section>
 
@@ -90,7 +92,7 @@ export default function CGVPage() {
                   5. Paiement
                 </h2>
                 <p>
-                  Le paiement des frais de plateforme de <strong>39,90 € TTC</strong> est exigible au comptant lors de la validation de la commande par le Client. Le règlement s'effectue en ligne, par carte bancaire, via un système de paiement sécurisé <strong>Stripe</strong>.
+                  Le paiement des frais de plateforme (<strong>39,90 € TTC</strong> pour un bail d'habitation, <strong>59,90 € TTC</strong> pour un bail commercial) est exigible au comptant lors de la validation de la commande par le Client. Le règlement s'effectue en ligne, par carte bancaire, via un système de paiement sécurisé <strong>Stripe</strong>.
                 </p>
               </section>
 
@@ -103,7 +105,7 @@ export default function CGVPage() {
                   BailNotarie étant soumise à une obligation de moyens dans la préparation administrative du dossier, la Société ne garantit pas la signature effective du bail authentique. L'acceptation et la signature de l'acte relèvent du pouvoir exclusif et de la déontologie du notaire partenaire.
                 </p>
                 <p className="mt-4">
-                  Toutefois, dans le cas où le dossier ne pourrait aboutir à la signature de l'acte authentique pour des raisons indépendantes de la volonté du Client (ex : refus du dossier par l'étude notariale, impossibilité technique ou juridique soulevée par le notaire), BailNotarie s'engage à <strong>rembourser intégralement les frais de plateforme de 39,90 € TTC</strong> au Client.
+                  Toutefois, dans le cas où le dossier ne pourrait aboutir à la signature de l'acte authentique pour des raisons indépendantes de la volonté du Client (ex : refus du dossier par l'étude notariale, impossibilité technique ou juridique soulevée par le notaire), BailNotarie s'engage à <strong>rembourser intégralement les frais de plateforme payés</strong> (39,90 € TTC ou 59,90 € TTC selon le type de bail) au Client.
                 </p>
                 <p className="mt-6 font-semibold text-gray-900">
                   Exceptions au remboursement :
@@ -193,7 +195,7 @@ export default function CGVPage() {
               {/* Date */}
               <section className="pt-8 border-t border-gray-200">
                 <p className="text-sm text-gray-500">
-                  Dernière mise à jour : mai 2026
+                  Dernière mise à jour : novembre 2026
                 </p>
               </section>
 

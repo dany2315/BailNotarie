@@ -1,3 +1,4 @@
+import { formatDossierFee } from "@/lib/utils/dossier-fee";
 import { getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
 import { ArrowRight, CheckCircle2, Clock, Download, Mail, Receipt, ShieldCheck } from "lucide-react";
@@ -131,7 +132,7 @@ export default async function IntakeSuccessPage({
             <div className="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-3.5">
               <span className="text-[13.5px] text-slate-600">Frais de dossier BailNotarie</span>
               <span className="text-[16px] font-bold tabular-nums tracking-tight text-slate-900">
-                39,90 € TTC
+                {formatDossierFee((intakeLink as any).bail?.bailFamily)} TTC
               </span>
             </div>
             <div className="mt-1.5 flex items-center justify-between text-[11.5px] tabular-nums text-slate-400">

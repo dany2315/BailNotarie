@@ -13,6 +13,7 @@ import { validateRentForProperty } from "@/lib/utils/rent-validation";
 import { assessRentRules } from "@/lib/rent-rules";
 import { assessRentCap, requiresOccupancyDeclaration } from "@/lib/rent-cap";
 import { getBailDocumentRules } from "@/lib/utils/required-fields";
+import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 import { rentRulesFromForm, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 import { stripe } from "@/lib/stripe";
@@ -68,7 +69,7 @@ async function rentRulesColumns(
 async function assertBailPayment(paymentIntentId: string, userId: string, draftBailId?: string) {
   const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
   if (paymentIntent.status !== "succeeded") throw new Error("Le paiement n'a pas été confirmé. Veuillez réessayer.");
-  if (paymentIntent.amount !== 3990) throw new Error("Montant de paiement incorrect.");
+  if (paymentIntent.amount !== dossierFeeCents("HABITATION")) throw new Error("Montant de paiement incorrect.");
   if (paymentIntent.metadata?.userId !== userId) throw new Error("Ce paiement ne correspond pas à votre compte.");
   const used = await prisma.bail.findFirst({
     where: { stripePaymentIntentId: paymentIntentId, ...(draftBailId ? { NOT: { id: draftBailId } } : {}) },

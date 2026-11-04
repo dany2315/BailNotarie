@@ -3067,6 +3067,7 @@ useEffect(() => {
                 isSubmitting={isSubmitting}
                 rentAmount={parseFloat(String(form.watch("bailRentAmount") ?? "0")) || 0}
                 peopleCount={totalPeopleCount}
+                bailFamily={form.watch("bailFamily")}
               />
             );
           })()}

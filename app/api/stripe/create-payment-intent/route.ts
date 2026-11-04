@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasIntakeSession, INTAKE_SESSION_REQUIRED } from "@/lib/intake-session";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
+import { dossierFeeCents, formatDossierFee } from "@/lib/utils/dossier-fee";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,6 +19,8 @@ export async function POST(req: NextRequest) {
         status: true,
         clientId: true,
         stripePaymentIntentId: true,
+        bailFamilyPreference: true,
+        bail: { select: { bailFamily: true } },
         client: {
           select: {
             persons: { select: { email: true, firstName: true, lastName: true }, take: 1 },
@@ -48,12 +51,23 @@ export async function POST(req: NextRequest) {
       ? `${firstPerson.firstName ?? ""} ${firstPerson.lastName ?? ""}`.trim()
       : undefined;
 
+    // Frais de dossier selon le type de bail choisi dans le formulaire (39,90 € ou 59,90 € pour un commercial)
+    const bailFamily = intakeLink.bail?.bailFamily ?? intakeLink.bailFamilyPreference;
+    const amount = dossierFeeCents(bailFamily);
+
     // Réutiliser un PaymentIntent existant non finalisé
     if (intakeLink.stripePaymentIntentId) {
       try {
         const existing = await stripe.paymentIntents.retrieve(
           intakeLink.stripePaymentIntentId
         );
+        if (existing.status === "succeeded" && existing.amount !== amount) {
+          // Payé pour un autre type de bail : pas de second paiement automatique, l'équipe régularise.
+          return NextResponse.json(
+            { error: `Les frais déjà payés ne correspondent pas à ce type de bail (${formatDossierFee(bailFamily)}). Contactez-nous.` },
+            { status: 409 }
+          );
+        }
         if (existing.status === "succeeded") {
           // Le paiement a déjà réussi — ne PAS créer un nouveau PI
           // Retourner l'ID existant pour que le client puisse poursuivre la soumission
@@ -64,11 +78,13 @@ export async function POST(req: NextRequest) {
           });
         }
         if (existing.status !== "canceled") {
-          // PI en cours (requires_payment_method, requires_confirmation, etc.) — réutiliser
-          if (clientEmail && !existing.receipt_email) {
-            await stripe.paymentIntents.update(intakeLink.stripePaymentIntentId, {
-              receipt_email: clientEmail,
-            });
+          // PI en cours (requires_payment_method, requires_confirmation, etc.) — réutiliser,
+          // au montant du type de bail actuel (le propriétaire a pu passer d'habitation à commercial).
+          const changes: { receipt_email?: string; amount?: number } = {};
+          if (clientEmail && !existing.receipt_email) changes.receipt_email = clientEmail;
+          if (existing.amount !== amount) changes.amount = amount;
+          if (Object.keys(changes).length > 0) {
+            await stripe.paymentIntents.update(intakeLink.stripePaymentIntentId, changes);
           }
           return NextResponse.json({ clientSecret: existing.client_secret });
         }
@@ -79,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // Créer un nouveau PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: 3990, // 39,90€ en centimes
+      amount,
       currency: "eur",
       payment_method_types: ["card", "klarna", "link"],
       receipt_email: clientEmail,

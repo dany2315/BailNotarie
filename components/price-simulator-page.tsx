@@ -3,12 +3,14 @@
 import { LpNav } from "@/components/lp/lp-nav";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Calculator, Euro, FileCheck2, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Calculator, Euro, FileCheck2, Home, Store, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { formatDossierFee } from "@/lib/utils/dossier-fee";
 
 const TVA_RATE = 0.2;
 const PROCURATION_UNIT_HT = 20;
@@ -40,11 +42,74 @@ const SIMULATOR_FAQS = [
       "Pour une location d'habitation, on raisonne souvent a partir d'une base proche d'un demi-loyer hors charges, a laquelle s'ajoutent ici les procurations et la TVA.",
   },
   {
+    question: "Et pour un bail commercial ?",
+    answer:
+      "Le tarif reglemente des notaires ne couvre que le bail d'habitation. Pour un bail commercial, les honoraires sont libres : le notaire les fixe selon le dossier et les communique avant la signature. Les frais de dossier BailNotarie sont de 59,90 EUR TTC.",
+  },
+  {
     question: "Comment est calcule le tarif du bail notarie ?",
     answer:
       "Le simulateur affiche la base d'emoluments, le cout des procurations, la TVA et le total TTC. Il ne rajoute pas de frais de dossier dans ce calcul.",
   },
 ];
+
+type Usage = "HABITATION" | "COMMERCIAL";
+
+/** Logement ou local commercial : le second n'a pas de barème réglementé. */
+function UsageToggle({ usage, onChange }: { usage: Usage; onChange: (usage: Usage) => void }) {
+  const options = [
+    { value: "HABITATION" as const, label: "Logement", hint: "Bail d'habitation", icon: Home },
+    { value: "COMMERCIAL" as const, label: "Local commercial", hint: "Bail commercial", icon: Store },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Type de bail">
+      {options.map((option) => {
+        const Icon = option.icon;
+        const selected = usage === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-colors",
+              selected ? "border-blue-600 bg-blue-50" : "border-slate-200 hover:border-blue-200 hover:bg-slate-50",
+            )}
+          >
+            <Icon className={cn("h-4 w-4 shrink-0", selected ? "text-blue-600" : "text-slate-400")} />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-slate-900">{option.label}</span>
+              <span className="block text-xs text-slate-500">{option.hint}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Bail commercial : honoraires libres, donc pas de montant estimé. */
+function CommercialNotice() {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl bg-slate-900 p-4 text-white sm:p-5">
+        <p className="text-xs uppercase tracking-wide text-blue-100">Honoraires du notaire</p>
+        <p className="mt-1 text-xl font-bold sm:text-2xl">Fixés par l&apos;étude notariale</p>
+      </div>
+      <p className="text-sm text-slate-700">
+        Le tarif réglementé des notaires ne couvre que le bail d&apos;habitation. Pour un bail commercial, les honoraires
+        sont libres : le notaire les fixe selon le dossier et vous les communique avant la signature.
+      </p>
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-xs text-slate-500">Frais de dossier BailNotarie (bail commercial)</p>
+        <p className="mt-1 text-xl font-bold text-slate-900">{formatDossierFee("COMMERCIAL")} TTC</p>
+        <p className="mt-1 text-xs text-slate-500">Payés à la fin du formulaire, remboursés si le dossier n&apos;aboutit pas.</p>
+      </div>
+    </div>
+  );
+}
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("fr-FR", {
@@ -58,6 +123,8 @@ export function PriceSimulatorPage() {
   const [procurations, setProcurations] = useState(1);
   const [peopleOnLease, setPeopleOnLease] = useState(2);
   const [showMobileResult, setShowMobileResult] = useState(false);
+  const [usage, setUsage] = useState<Usage>("HABITATION");
+  const isCommercial = usage === "COMMERCIAL";
 
   const simulation = useMemo(() => {
     const baseEmoluments = rent * 0.5;
@@ -121,8 +188,20 @@ export function PriceSimulatorPage() {
               </CardHeader>
 
               <CardContent className="pt-0">
-                {!showMobileResult ? (
+                {isCommercial ? (
+                  <div className="space-y-4">
+                    <UsageToggle usage={usage} onChange={setUsage} />
+                    <CommercialNotice />
+                    <Button asChild className="h-11 w-full">
+                      <Link href="/commencer">
+                        Constituer mon dossier
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                ) : !showMobileResult ? (
                   <div className="space-y-4 sm:space-y-5">
+                    <UsageToggle usage={usage} onChange={setUsage} />
                     <div className="space-y-2">
                       <Label htmlFor="rent-mobile">Montant du loyer mensuel hors charges (EUR)</Label>
                       <Input
@@ -233,6 +312,9 @@ export function PriceSimulatorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 sm:space-y-5">
+                <UsageToggle usage={usage} onChange={setUsage} />
+                {!isCommercial && (
+                <>
                 <div className="space-y-2">
                   <Label htmlFor="rent">Montant du loyer mensuel hors charges (EUR)</Label>
                   <Input
@@ -277,6 +359,13 @@ export function PriceSimulatorPage() {
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
                   Cette estimation repose sur le loyer, les procurations et la TVA. Le montant final reste confirme au moment du traitement notarial.
                 </div>
+                </>
+                )}
+                {isCommercial && (
+                  <p className="text-sm text-slate-600">
+                    Pas de calcul pour un local commercial : les honoraires du notaire ne suivent pas de barème.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -287,6 +376,10 @@ export function PriceSimulatorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {isCommercial ? (
+                  <CommercialNotice />
+                ) : (
+                <>
                 <div className="rounded-2xl bg-slate-900 p-4 text-white sm:p-5">
                   <p className="text-xs uppercase tracking-wide text-blue-100">Prix estimatif TTC</p>
                   <p className="mt-1 text-3xl font-bold sm:text-4xl">{formatCurrency(simulation.totalTtc)}</p>
@@ -321,6 +414,8 @@ export function PriceSimulatorPage() {
                   <FileCheck2 className="mt-0.5 h-5 w-5 shrink-0" />
                   Estimation indicative calculee automatiquement. Le montant exact est confirme au moment du traitement notarial.
                 </div>
+                </>
+                )}
 
                 <Button asChild className="h-11 w-full">
                   <Link href="/commencer">
@@ -412,7 +507,7 @@ export function PriceSimulatorPage() {
               </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
               {SIMULATOR_FAQS.map((faq) => (
                 <Card key={faq.question} className="border-blue-100 shadow-sm">
                   <CardHeader className="pb-2">

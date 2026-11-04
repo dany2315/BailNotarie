@@ -4,6 +4,7 @@ import { prisma  } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { hasIntakeSession, requireIntakeSession } from "@/lib/intake-session";
+import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 import { createIntakeLinkSchema, submitIntakeSchema } from "@/lib/zod/intake";
 import { ownerFormSchema, tenantFormSchema } from "@/lib/zod/client";
 import { submitOwnerForm, submitTenantForm } from "@/lib/actions/clients";
@@ -200,26 +201,29 @@ export async function submitIntake(data: unknown) {
   const validated = submitIntakeSchema.parse(data);
   const { token, payload, paymentIntentId } = validated;
 
-  // Vérifier le paiement Stripe si un PaymentIntentId est fourni
+  const intakeLink = await prisma.intakeLink.findUnique({
+    where: { token },
+    include: {
+      client: true,
+      bail: { select: { bailFamily: true } },
+    },
+  });
+
+  // Vérifier le paiement Stripe si un PaymentIntentId est fourni : réglé, pour ce dossier, et du
+  // montant du type de bail envoyé (39,90 €, ou 59,90 € pour un bail commercial).
   if (paymentIntentId) {
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
     if (paymentIntent.status !== "succeeded") {
       throw new Error("Le paiement n'a pas été confirmé. Veuillez réessayer.");
     }
-    if (paymentIntent.amount !== 3990) {
-      throw new Error("Montant de paiement incorrect.");
-    }
     if (paymentIntent.metadata?.token !== token) {
       throw new Error("Ce paiement ne correspond pas à ce dossier.");
     }
+    const bailFamily = (payload as any)?.bailFamily ?? intakeLink?.bail?.bailFamily ?? intakeLink?.bailFamilyPreference;
+    if (paymentIntent.amount !== dossierFeeCents(bailFamily)) {
+      throw new Error("Montant de paiement incorrect.");
+    }
   }
-
-  const intakeLink = await prisma.intakeLink.findUnique({
-    where: { token },
-    include: {
-      client: true,
-    },
-  });
 
   if (!intakeLink) {
     throw new Error("Lien d'intake introuvable");

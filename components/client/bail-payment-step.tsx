@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatDossierFee } from "@/lib/utils/dossier-fee";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -178,7 +179,7 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
         ) : (
           <>
             <Lock className="mr-2 h-4 w-4" />
-            Payer 39,90€ et créer mon bail
+            Payer {formatDossierFee("HABITATION")} et créer mon bail
           </>
         )}
       </Button>
@@ -242,7 +243,7 @@ export function BailPaymentStep({
     <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
       {/* Récapitulatif unifié : maintenant (haut, mis en avant) + plus tard (bas, discret) */}
       <div className="rounded-xl border border-blue-100 overflow-hidden bg-white">
-        {/* Section 1 — À payer maintenant : 39,90 € */}
+        {/* Section 1 — À payer maintenant : frais de dossier (bail d'habitation) */}
         <div className="bg-blue-50/60 px-4 py-3">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -262,7 +263,7 @@ export function BailPaymentStep({
               </div>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-2xl font-bold text-[#4373f5]">39,90€</p>
+              <p className="text-2xl font-bold text-[#4373f5]">{formatDossierFee("HABITATION")}</p>
               <p className="text-xs text-gray-400">TTC</p>
             </div>
           </div>
