@@ -99,11 +99,9 @@ function DocumentList({ documents }: { documents: BailPageDocument[] }) {
 function DossierDocuments({
   propertyDocuments,
   bailDocuments,
-  propertyId,
 }: {
   propertyDocuments: BailPageDocument[];
   bailDocuments: BailPageDocument[];
-  propertyId: string | null;
 }) {
   if (propertyDocuments.length === 0 && bailDocuments.length === 0) {
     return (
@@ -121,15 +119,6 @@ function DossierDocuments({
             Le bien · {propertyDocuments.length}
           </p>
           <DocumentList documents={propertyDocuments} />
-          {propertyId && (
-            <Link
-              href={`/client/proprietaire/biens/${propertyId}`}
-              className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#3563e9] transition-colors hover:text-[#2451c7]"
-            >
-              <Home className="h-3.5 w-3.5" />
-              Ajouter ou remplacer une pièce du bien
-            </Link>
-          )}
         </div>
       )}
       {bailDocuments.length > 0 && (
@@ -386,7 +375,6 @@ export function BailPage({
           <DossierDocuments
             propertyDocuments={bail.propertyDocuments ?? []}
             bailDocuments={bail.documents}
-            propertyId={bail.property?.id ?? null}
           />
         ),
       },
