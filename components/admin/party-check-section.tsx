@@ -11,7 +11,8 @@ import { buildChecklistRows, toChecklistDocument, type ChecklistDocument, type C
 import { getRequiredClientFields } from "@/lib/utils/required-fields";
 import { MISSING_FIELD_LABELS } from "@/lib/utils/missing-items";
 import { formatPhone } from "@/lib/utils/phone-format";
-import { registryNotes } from "@/lib/utils/company-registry";
+import { REGISTERED_LABELS, registryNotes } from "@/lib/utils/company-registry";
+import { CompanyRegistryButton } from "@/components/admin/company-registry-button";
 import { pointKey, summarize, summaryChip, type VerificationPointState } from "@/lib/utils/verification";
 
 const isoDay = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : null);
@@ -32,7 +33,19 @@ const FIELD_META: Record<string, { label: string; kind?: InlineFieldKind; date?:
   legalName: { label: "Raison sociale" },
   name: { label: "Nom commercial" },
   registration: { label: "N° d'immatriculation" },
+  legalFormLabel: { label: "Forme juridique" },
+  isRegistered: { label: "Immatriculation", kind: "registered" },
+  representativeName: { label: "Représentant légal" },
+  representativeRole: { label: "Qualité du représentant" },
 };
+
+/** Valeur de l'éditeur : « yes » / « no » pour l'immatriculation, texte sinon. */
+function editValue(values: any, field: string): string | null {
+  const raw = values[field];
+  if (field === "isRegistered") return raw === true ? "yes" : raw === false ? "no" : null;
+  if (FIELD_META[field].date) return isoDay(raw);
+  return raw ? String(raw) : null;
+}
 
 /** Champs de base exigés pour toute personne (pas seulement la principale). */
 const BASE_PERSON_REQUIRED = ["firstName", "lastName", "nationality", "birthDate", "birthPlace", "familyStatus"];
@@ -56,6 +69,8 @@ interface PartyGroup {
   text: string;
   missing: string[];
   editor: { entity: "person" | "entreprise"; id: string; title: string; fields: GroupField[] };
+  /** Société : recherche au registre des entreprises, à côté de « Modifier ». */
+  registry?: { entrepriseId: string; registration: string | null; representativeName: string | null };
 }
 
 export interface PartyPoints {
@@ -101,6 +116,8 @@ export function buildPartyPoints(
   missing: PartyMissing | null,
   clientDocuments: any[],
   role: keyof typeof ROLE_TITLES,
+  /** Bail commercial : la société désigne son représentant légal, et peut être en cours de création. */
+  options: { commercial?: boolean } = {},
 ): PartyPoints {
   if (!party) {
     return { party: null, name: "", kindLabel: "", groups: [], docRows: [], docKeys: {}, points: [{ key: `${role}:absent`, missing: true }] };
@@ -125,7 +142,7 @@ export function buildPartyPoints(
       field,
       label: FIELD_META[field].label,
       kind: FIELD_META[field].kind,
-      value: FIELD_META[field].date ? isoDay(values[field]) : values[field] ? String(values[field]) : null,
+      value: editValue(values, field),
       missing: isMissing(field),
     }));
 
@@ -137,20 +154,40 @@ export function buildPartyPoints(
 
   if (isCompany && party.entreprise) {
     const ent = party.entreprise;
-    const isMissing = (f: string) => missingCompany.has(f) || (requiredFields.includes(f) && !ent[f]);
+    const commercial = !!options.commercial;
+    const isMissing = (f: string) =>
+      missingCompany.has(f) || (requiredFields.includes(f) && !ent[f]) || (commercial && f === "representativeName" && !ent[f]);
+    const unregistered = ent.isRegistered === false;
+    const showRegistered = commercial || ent.isRegistered != null;
+    const showRepresentative = commercial || !!ent.representativeName;
     const defs = [
       {
         key: "societe",
         label: "Société",
-        fields: ["legalName", "name", "registration"],
-        keyFields: ["legalName", "name", "registration"],
+        fields: ["legalName", "name", "legalFormLabel", "registration", ...(showRegistered ? ["isRegistered"] : [])],
+        keyFields: ["legalName", "name", "legalFormLabel", "registration", "isRegistered"],
         lines: [
           join([ent.legalName, ent.name && ent.name !== ent.legalName && `« ${ent.name} »`]),
           join([ent.legalFormLabel, ent.registration && `Immatriculation : ${ent.registration}`]),
+          unregistered ? `${REGISTERED_LABELS.no} : Kbis à fournir plus tard` : null,
           ...registryNotes(ent),
         ],
         extra: [] as string[],
+        registry: true,
       },
+      ...(showRepresentative
+        ? [
+            {
+              key: "representant",
+              label: "Représentant légal",
+              fields: ["representativeName", "representativeRole"],
+              keyFields: ["representativeName", "representativeRole"],
+              lines: [join([ent.representativeName, ent.representativeRole], ", ")],
+              extra: [] as string[],
+              registry: false,
+            },
+          ]
+        : []),
       {
         key: "coordonnees",
         label: "Coordonnées",
@@ -158,6 +195,7 @@ export function buildPartyPoints(
         keyFields: ["email", "phone", "fullAddress"],
         lines: [join([ent.email, formatPhone(ent.phone)]), ent.fullAddress],
         extra: isMissing("email") ? ["email"] : [],
+        registry: false,
       },
     ];
     for (const d of defs) {
@@ -167,6 +205,9 @@ export function buildPartyPoints(
         text: d.lines.filter(Boolean).join("\n"),
         missing: [...d.fields.filter(isMissing), ...d.extra],
         editor: { entity: "entreprise", id: ent.id, title: `${d.label} · ${name}`, fields: fieldsOf(ent, d.fields, isMissing) },
+        registry: d.registry
+          ? { entrepriseId: ent.id, registration: ent.registration ?? null, representativeName: ent.representativeName ?? null }
+          : undefined,
       });
     }
   }
@@ -367,6 +408,13 @@ export function PartyCheckSection({
               note={missing ? `Manquant : ${g.missing.map((f) => MISSING_FIELD_LABELS[f] || f).join(", ")}` : null}
               actions={
                 <>
+                  {g.registry && !locked && (
+                    <CompanyRegistryButton
+                      entrepriseId={g.registry.entrepriseId}
+                      registration={g.registry.registration}
+                      representativeName={g.registry.representativeName}
+                    />
+                  )}
                   <GroupFieldEditor entity={g.editor.entity} id={g.editor.id} title={g.editor.title} fields={g.editor.fields} />
                   {!missing && <VerifyToggle bailId={bailId} pointKey={g.key} verified={verified} locked={locked} />}
                 </>

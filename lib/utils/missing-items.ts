@@ -16,6 +16,7 @@ export const MISSING_FIELD_LABELS: Record<string, string> = {
   matrimonialRegime: "régime matrimonial (obligatoire si marié)",
   legalName: "raison sociale",
   registration: "n° d'immatriculation",
+  representativeName: "représentant légal",
 };
 
 /** Libellé en minuscule, sauf les sigles (« RIB », « DPE »). */

@@ -50,7 +50,8 @@ import { BailTermsEditor, type BailTermInput } from "@/components/admin/bail-ter
 import { assessDpe } from "@/lib/utils/dpe";
 import { DpeEditor } from "@/components/admin/dpe-editor";
 import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/admin/property-editors";
-import { CommercialTermsList, companyRepresentativeRows } from "@/components/shared/commercial-terms-list";
+import { CommercialTermsList } from "@/components/shared/commercial-terms-list";
+import { commercialComplianceRules, commercialDepositWarning } from "@/lib/utils/commercial-compliance";
 import { commercialPaymentText, commercialTermsToForm, commercialVatText, complexTypeValue } from "@/lib/utils/commercial-terms";
 import { CommercialTermsEditor } from "@/components/admin/commercial-terms-editor";
 import { formatDossierFee } from "@/lib/utils/dossier-fee";
@@ -224,7 +225,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const verifiedKeys = new Set(verificationChecks.map((c) => c.pointKey));
 
   // Pièces du client hors personnes et société (déjà affichées dans leur bloc).
-  const commonDocs = (docs: any[]) => docs.filter((doc: any) => !doc.personId && !doc.entrepriseId);
+  // Une pièce du bail ou du bien a sa propre section, même si un client y est aussi rattaché.
+  const commonDocs = (docs: any[]) => docs.filter((doc: any) => !doc.personId && !doc.entrepriseId && !doc.bailId && !doc.propertyId);
 
   const stage = getStage(lease.status);
   const lastActivity = getLastActivity(lease.updatedAt, followUp.lastActivityAt);
@@ -350,8 +352,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   );
 
   // Propriétaire et locataire
-  const ownerPoints = buildPartyPoints(owner, missingData?.owner || null, commonDocs(ownerClientDocs), "PROPRIETAIRE");
-  const tenantPoints = buildPartyPoints(tenant, missingData?.tenant || null, commonDocs(tenantClientDocs), "LOCATAIRE");
+  const ownerPoints = buildPartyPoints(owner, missingData?.owner || null, commonDocs(ownerClientDocs), "PROPRIETAIRE", { commercial: isCommercial });
+  const tenantPoints = buildPartyPoints(tenant, missingData?.tenant || null, commonDocs(tenantClientDocs), "LOCATAIRE", { commercial: isCommercial });
   const ownerStates = withVerified(ownerPoints.points, verifiedKeys, ownerLocked);
   const tenantStates = withVerified(tenantPoints.points, verifiedKeys, tenantLocked);
 
@@ -471,11 +473,24 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     },
   ];
   // DPE saisi à la main : à saisir, expiré ou classe interdite à la location = bloquant.
-  const dpe = assessDpe(property?.dpeClass, property?.dpeDate);
+  // Bail commercial : DPE à annexer, sans interdiction de louer selon la classe (propre au logement).
+  const dpe = assessDpe(property?.dpeClass, property?.dpeDate, undefined, { commercial: isCommercial });
+  // Bail commercial : règles du Code de commerce à la place du plafond et de la relocation en zone tendue.
+  const commercialTerms = (lease as any).commercialTerms ?? null;
+  const commercialRules = isCommercial ? commercialComplianceRules({ bail: lease, terms: commercialTerms, owner, tenant }) : [];
+  const commercialKeys: Record<string, string> = Object.fromEntries(
+    commercialRules.map((rule) => [rule.id, pointKey(`rules:commercial:${rule.id}`, rule.values)]),
+  );
+  const depositWarning = isCommercial
+    ? commercialDepositWarning({ rentAmount: lease.rentAmount, securityDeposit: lease.securityDeposit, rentPeriodicity: commercialTerms?.rentPeriodicity })
+    : null;
   const rulesStates = [
-    ...withVerified([{ key: rulesPoints[0].key, missing: capMissing }], verifiedKeys, bailLocked || capAuto),
+    ...(isCommercial ? [] : withVerified([{ key: rulesPoints[0].key, missing: capMissing }], verifiedKeys, bailLocked || capAuto)),
     ...withVerified([{ key: rulesPoints[1].key, missing: dpe.blocking }], verifiedKeys, bailLocked),
-    ...withVerified([{ key: rulesPoints[2].key, missing: relocMissing }], verifiedKeys, bailLocked || relocAuto),
+    ...(isCommercial ? [] : withVerified([{ key: rulesPoints[2].key, missing: relocMissing }], verifiedKeys, bailLocked || relocAuto)),
+    ...commercialRules.flatMap((rule) =>
+      withVerified([{ key: commercialKeys[rule.id], missing: rule.missing }], verifiedKeys, bailLocked || rule.auto),
+    ),
     // Dépôt de garantie : limite légale contrôlée par le logiciel.
     ...withVerified([{ key: "rules:depot", missing: !depositOk }], verifiedKeys, true),
   ];
@@ -709,10 +724,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               <CommercialTermsList
                 terms={(lease as any).commercialTerms}
                 bail={{ bailType: lease.bailType, rentAmount: lease.rentAmount }}
-                extraRows={companyRepresentativeRows([
-                  { label: "propriétaire", entreprise: owner?.entreprise },
-                  { label: "locataire", entreprise: tenant?.entreprise },
-                ])}
               />
             </CheckSection>
           )}
@@ -928,11 +939,25 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             )}
           </CheckSection>
 
+          {bailDocRows.length > 0 && (
+            <CheckSection
+              id="bloc-documents"
+              title="Documents du bail"
+              subtitle={bailRules.length > 0 ? "Location précédente du local et pièces rattachées au bail" : "Pièces rattachées au bail lui-même"}
+            >
+              <DocumentChecklist inset editable rows={bailDocRows} />
+            </CheckSection>
+          )}
+
           {/* Conformité légale : règles contrôlées par le logiciel et règles à valider par l'équipe */}
           <CheckSection
             id="bloc-controles"
             title="Conformité légale"
-            subtitle="Ce que la loi impose à ce bail. Les règles marquées « Automatique » sont vérifiées par le logiciel."
+            subtitle={
+              isCommercial
+                ? "Ce que le Code de commerce impose à ce bail commercial. Les règles marquées « Automatique » sont vérifiées par le logiciel."
+                : "Ce que la loi impose à ce bail. Les règles marquées « Automatique » sont vérifiées par le logiciel."
+            }
             headerRight={
               <>
                 <StateChip tone={summaryChip(sectionSummary("bloc-controles")).tone}>{summaryChip(sectionSummary("bloc-controles")).label}</StateChip>
@@ -941,6 +966,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             }
           >
             <CheckList>
+              {!isCommercial && (
+              <>
               <CheckPoint
                 state={capMissing ? "missing" : isVerified(rulesPoints[0].key, bailLocked || capAuto) ? "ok" : "todo"}
                 label={capAuto && !bailLocked ? <AutoLabel>Plafond de loyer</AutoLabel> : "Plafond de loyer"}
@@ -1201,9 +1228,55 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   )}
                 </span>
               </CheckPoint>
+              </>
+              )}
+              {commercialRules.map((rule) => {
+                const key = commercialKeys[rule.id];
+                const locked = bailLocked || rule.auto;
+                const verified = !rule.missing && isVerified(key, locked);
+                return (
+                  <CheckPoint
+                    key={rule.id}
+                    state={rule.missing ? "missing" : verified ? "ok" : "todo"}
+                    label={rule.auto && !bailLocked ? <AutoLabel>{rule.label}</AutoLabel> : rule.label}
+                    note={rule.note}
+                    actions={
+                      (rule.editsTerms && !bailLocked) || !rule.missing ? (
+                        <>
+                          {rule.editsTerms && !bailLocked && (
+                            <CommercialTermsEditor
+                              bailId={lease.id}
+                              values={commercialTermsToForm(commercialTerms)}
+                              derogatory={lease.bailType === "COMMERCIAL_DEROGATOIRE"}
+                            />
+                          )}
+                          {!rule.missing &&
+                            (rule.auto && !bailLocked ? (
+                              <AutoVerified />
+                            ) : (
+                              <VerifyToggle bailId={lease.id} pointKey={key} verified={verified} locked={locked} />
+                            ))}
+                        </>
+                      ) : null
+                    }
+                  >
+                    <span className="flex flex-col gap-1">
+                      {rule.lines.map((line) => (
+                        <span key={line}>{line}</span>
+                      ))}
+                      {rule.warnings.map((line) => (
+                        <span key={line} className="text-[13px] text-amber-800">
+                          {line}
+                        </span>
+                      ))}
+                      <span className="text-xs text-muted-foreground">{rule.legal}</span>
+                    </span>
+                  </CheckPoint>
+                );
+              })}
               <CheckPoint
                 state={dpe.blocking ? "missing" : isVerified(rulesPoints[1].key, bailLocked) ? "ok" : "todo"}
-                label="Classe DPE"
+                label={isCommercial ? "Diagnostics (DPE, risques, amiante)" : "Classe DPE"}
                 note={dpe.message}
                 actions={
                   (property && !bailLocked) || !dpe.blocking ? (
@@ -1228,7 +1301,21 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   ) : null
                 }
               >
-                <DpeSummary dpeClass={property?.dpeClass || null} gesClass={property?.gesClass || null} dpeDate={property?.dpeDate || null} assessment={dpe} />
+                <div className="flex flex-col gap-1">
+                  <DpeSummary dpeClass={property?.dpeClass || null} gesClass={property?.gesClass || null} dpeDate={property?.dpeDate || null} assessment={dpe} />
+                  {isCommercial && (
+                    <>
+                      <span className="text-[13px] text-amber-800">
+                        À annexer au bail : DPE, état des risques et pollutions de moins de 6 mois, et diagnostic amiante (DTA) si le permis de
+                        construire date d&apos;avant le 1er juillet 1997. Pas d&apos;interdiction de louer selon la classe énergétique pour un local
+                        commercial.
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Articles L126-29 du Code de la construction, L125-5 du Code de l&apos;environnement et R1334-29-5 du Code de la santé publique
+                      </span>
+                    </>
+                  )}
+                </div>
               </CheckPoint>
               <CheckPoint
                 state={depositOk ? "ok" : "missing"}
@@ -1237,6 +1324,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 actions={depositOk && !bailLocked ? <AutoVerified /> : null}
               >
                 {`${formatCurrency(lease.securityDeposit)}${months !== null ? `, soit ${String(months).replace(".", ",")} mois de loyer` : ""} · ${isCommercial ? "pas de limite légale pour un bail commercial" : `limite légale de ${isMeuble ? "2 mois pour un meublé" : "1 mois pour un bail nu"}`}`}
+                {depositWarning && <span className="mt-1 block text-[13px] text-amber-800">{depositWarning}</span>}
               </CheckPoint>
               <CheckPoint
                 state={docsMissing > 0 ? "missing" : "ok"}
@@ -1273,16 +1361,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               </CheckPoint>
             </CheckList>
           </CheckSection>
-
-          {bailDocRows.length > 0 && (
-            <CheckSection
-              id="bloc-documents"
-              title="Documents du bail"
-              subtitle={bailRules.length > 0 ? "Location précédente du local et pièces rattachées au bail" : "Pièces rattachées au bail lui-même"}
-            >
-              <DocumentChecklist inset editable rows={bailDocRows} />
-            </CheckSection>
-          )}
 
           <details className="group overflow-hidden rounded-xl border bg-card">
             <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-[15px] font-semibold">

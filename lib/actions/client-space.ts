@@ -622,6 +622,11 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
               entreprise: true,
             },
           },
+          // Pièces du bien (diagnostics, titre de propriété…) : montrées au seul propriétaire, plus bas.
+          documents: {
+            select: { id: true, kind: true, label: true, fileKey: true, mimeType: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+          },
         },
       },
       parties: {
@@ -643,12 +648,6 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
         take: 1,
       },
       documents: {
-        where: {
-          OR: [
-            { clientId: clientId },
-            { clientId: null },
-          ],
-        },
         orderBy: {
           createdAt: "desc",
         },
@@ -666,6 +665,13 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
   
   if (!isOwner && !isParty) {
     return null;
+  }
+
+  // Le propriétaire voit toutes les pièces du bail et celles du bien ; une autre partie, seulement
+  // les pièces du bail qui la concernent ou communes, et aucune pièce du bien.
+  if (!isOwner) {
+    (bail as any).documents = bail.documents.filter((doc) => doc.clientId === clientId || doc.clientId === null);
+    (bail.property as any).documents = [];
   }
 
   // Un locataire ne voit du propriétaire que son nom et ses coordonnées (pas sa date de naissance,

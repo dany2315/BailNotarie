@@ -2,6 +2,7 @@ import { ClientType, DocumentKind, ProfilType } from "@prisma/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentChecklist } from "@/components/documents/document-checklist";
 import { InlineFieldEditor, type InlineFieldKind } from "@/components/admin/inline-field-editor";
+import { CompanyRegistryButton } from "@/components/admin/company-registry-button";
 import { REGISTERED_LABELS, registryNotes } from "@/lib/utils/company-registry";
 import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import { buildChecklistRows, toChecklistDocument, type ChecklistDocument } from "@/lib/utils/document-checklist";
@@ -158,7 +159,16 @@ export function ClientIdentityCard({ party, missing }: { party: any; missing: Pa
   if (isCompany) {
     return (
       <section className="rounded-xl border bg-card px-5 pb-2 pt-1.5">
-        <h2 className="pb-2 pt-3 text-[17px] font-semibold">Société</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 pt-3">
+          <h2 className="text-[17px] font-semibold">Société</h2>
+          {party.entreprise && (
+            <CompanyRegistryButton
+              entrepriseId={party.entreprise.id}
+              registration={party.entreprise.registration ?? null}
+              representativeName={party.entreprise.representativeName ?? null}
+            />
+          )}
+        </div>
         {party.entreprise ? (
           <>
             <FieldGrid

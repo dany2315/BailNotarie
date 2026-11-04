@@ -51,6 +51,8 @@ export function assessDpe(
   dpeClass: string | null | undefined,
   dpeDate: Date | string | null | undefined,
   now: Date = new Date(),
+  /** Bail commercial : DPE à annexer, mais pas d'interdiction de louer selon la classe (décence = logement). */
+  options: { commercial?: boolean } = {},
 ): DpeAssessment {
   const validUntil = dpeValidUntil(dpeDate);
   const expired = !!validUntil && validUntil < now;
@@ -63,6 +65,7 @@ export function assessDpe(
   if (expired) {
     return { blocking: true, message: "DPE expiré : un nouveau diagnostic est nécessaire", warning: null, validUntil, expired };
   }
+  if (options.commercial) return { blocking: false, message: null, warning: null, validUntil, expired };
   const year = now.getUTCFullYear();
   if (dpeClass === "G") {
     return { blocking: true, message: "Classe G : logement interdit à la location depuis le 01/01/2025", warning: null, validUntil, expired };

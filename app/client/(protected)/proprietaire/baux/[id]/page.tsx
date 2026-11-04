@@ -65,6 +65,7 @@ export default async function ProprietaireBailDetailPage({
             }
           : null,
         documents: bail.documents ?? [],
+        propertyDocuments: (bail.property as any)?.documents ?? [],
       }}
       tenantName={tenantName || null}
       tenantEmail={tenantEmail}

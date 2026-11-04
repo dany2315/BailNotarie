@@ -60,15 +60,89 @@ export type BailPageData = {
   /** Conditions du bail commercial (réponses du formulaire). */
   commercialTerms?: unknown;
   property: { id: string; label: string | null; fullAddress: string | null } | null;
-  documents: Array<{
-    id: string;
-    kind: string;
-    label: string | null;
-    fileKey: string;
-    mimeType: string | null;
-    createdAt: Date | string;
-  }>;
+  documents: BailPageDocument[];
+  /** Pièces du bien loué (diagnostics, titre de propriété, règlement…). */
+  propertyDocuments?: BailPageDocument[];
 };
+
+type BailPageDocument = {
+  id: string;
+  kind: string;
+  label: string | null;
+  fileKey: string;
+  mimeType: string | null;
+  createdAt: Date | string;
+};
+
+/** Liste de pièces, avec aperçu et téléchargement. */
+function DocumentList({ documents }: { documents: BailPageDocument[] }) {
+  return (
+    <div className="space-y-2">
+      {documents.map((document) => (
+        <BailDocumentPreview
+          key={document.id}
+          document={{
+            id: document.id,
+            label: document.label,
+            kind: document.kind,
+            fileKey: document.fileKey,
+            mimeType: document.mimeType,
+            createdAt: document.createdAt,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Pièces du dossier : celles du bien, puis celles propres au bail. */
+function DossierDocuments({
+  propertyDocuments,
+  bailDocuments,
+  propertyId,
+}: {
+  propertyDocuments: BailPageDocument[];
+  bailDocuments: BailPageDocument[];
+  propertyId: string | null;
+}) {
+  if (propertyDocuments.length === 0 && bailDocuments.length === 0) {
+    return (
+      <p className="text-[13px] leading-relaxed text-[#5b6478]">
+        Aucune pièce pour l&apos;instant. Les documents envoyés dans le formulaire (diagnostics, titre de propriété,
+        règlement…) apparaîtront ici.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-5">
+      {propertyDocuments.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-[#5b6478]">
+            Le bien · {propertyDocuments.length}
+          </p>
+          <DocumentList documents={propertyDocuments} />
+          {propertyId && (
+            <Link
+              href={`/client/proprietaire/biens/${propertyId}`}
+              className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#3563e9] transition-colors hover:text-[#2451c7]"
+            >
+              <Home className="h-3.5 w-3.5" />
+              Ajouter ou remplacer une pièce du bien
+            </Link>
+          )}
+        </div>
+      )}
+      {bailDocuments.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-[#5b6478]">
+            Le bail · {bailDocuments.length}
+          </p>
+          <DocumentList documents={bailDocuments} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function BailPage({
   bail,
@@ -303,32 +377,19 @@ export function BailPage({
             },
           ]
         : []),
-      ...(bail.documents.length > 0
-        ? [
-            {
-              id: "pieces",
-              title: `Pièces du bail · ${bail.documents.length}`,
-              icon: FileText,
-              node: (
-                <div className="space-y-2">
-                  {bail.documents.map((document) => (
-                    <BailDocumentPreview
-                      key={document.id}
-                      document={{
-                        id: document.id,
-                        label: document.label,
-                        kind: document.kind,
-                        fileKey: document.fileKey,
-                        mimeType: document.mimeType,
-                        createdAt: document.createdAt,
-                      }}
-                    />
-                  ))}
-                </div>
-              ),
-            },
-          ]
-        : []),
+      // Toujours présente : le propriétaire retrouve ici les pièces du bien et du bail.
+      {
+        id: "pieces",
+        title: `Pièces du dossier · ${bail.documents.length + (bail.propertyDocuments?.length ?? 0)}`,
+        icon: FileText,
+        node: (
+          <DossierDocuments
+            propertyDocuments={bail.propertyDocuments ?? []}
+            bailDocuments={bail.documents}
+            propertyId={bail.property?.id ?? null}
+          />
+        ),
+      },
     ],
   };
 
