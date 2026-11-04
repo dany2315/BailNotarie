@@ -19,6 +19,9 @@ import {
 
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils/formatters";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
+import { cn } from "@/lib/utils";
+import { FileStack } from "@/components/documents/file-stack";
+import { groupDocumentsByKind } from "@/components/client/grouped-document-previews";
 import { commercialPaymentText, commercialTermsSummary, commercialVatText } from "@/lib/utils/commercial-terms";
 import { BailChatSheet } from "@/components/client/bail-chat-sheet";
 import {
@@ -398,22 +401,35 @@ export function TenantBailDetail({
                 </MicroLabel>
               </div>
               <div className="space-y-2">
-                {bail.documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5"
-                  >
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <FileText className="h-4 w-4 shrink-0 text-slate-400" />
-                      <span className="truncate text-[13px] font-medium text-slate-800">
-                        {doc.label || getDocumentLabel(doc.kind)}
+                {/* Plusieurs fichiers pour une même pièce : empilés, comme dans l'espace notaire. */}
+                {groupDocumentsByKind(bail.documents).map((group) => {
+                  const rows = group.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className={cn(
+                        "flex items-center justify-between gap-3 bg-white px-3 py-2.5",
+                        group.length === 1 && "rounded-xl border border-slate-200/80",
+                      )}
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                        <span className="truncate text-[13px] font-medium text-slate-800">
+                          {doc.label || getDocumentLabel(doc.kind)}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-[11.5px] tabular-nums text-slate-400">
+                        {formatDateTime(doc.createdAt)}
                       </span>
                     </div>
-                    <span className="shrink-0 text-[11.5px] tabular-nums text-slate-400">
-                      {formatDateTime(doc.createdAt)}
-                    </span>
-                  </div>
-                ))}
+                  ));
+                  return group.length > 1 ? (
+                    <FileStack key={group[0].kind} cardClassName="border-slate-200/80 bg-white">
+                      {rows}
+                    </FileStack>
+                  ) : (
+                    rows
+                  );
+                })}
               </div>
             </Surface>
           )}

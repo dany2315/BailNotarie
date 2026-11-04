@@ -20,7 +20,7 @@ import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { commercialPaymentText, commercialTermsSummary, commercialVatText } from "@/lib/utils/commercial-terms";
 import { calculateBailEndDate } from "@/lib/utils/calculateBailEndDate";
 import { BailChatSheet } from "@/components/client/bail-chat-sheet";
-import { BailDocumentPreview } from "@/components/client/bail-document-preview";
+import { GroupedDocumentPreviews } from "@/components/client/grouped-document-previews";
 import { FileUpload } from "@/components/ui/file-upload";
 import { PROOF_LABELS } from "@/lib/utils/rent-relocation";
 import { useRouter } from "next/navigation";
@@ -76,23 +76,7 @@ type BailPageDocument = {
 
 /** Liste de pièces, avec aperçu et téléchargement. */
 function DocumentList({ documents }: { documents: BailPageDocument[] }) {
-  return (
-    <div className="space-y-2">
-      {documents.map((document) => (
-        <BailDocumentPreview
-          key={document.id}
-          document={{
-            id: document.id,
-            label: document.label,
-            kind: document.kind,
-            fileKey: document.fileKey,
-            mimeType: document.mimeType,
-            createdAt: document.createdAt,
-          }}
-        />
-      ))}
-    </div>
-  );
+  return <GroupedDocumentPreviews documents={documents} />;
 }
 
 /** Pièces du dossier : celles du bien, puis celles propres au bail. */

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { ChecklistRow } from "@/lib/utils/document-checklist";
 import { VerifyToggle } from "@/components/admin/verify-buttons";
 import { DocumentUploadButton } from "@/components/documents/document-upload-button";
+import { FileStack } from "@/components/documents/file-stack";
 
 function formatSize(size?: number | null) {
   if (!size || size <= 0) return null;
@@ -97,13 +98,18 @@ export function DocumentChecklist({
               </div>
               {missing && <span className="text-[13px] font-semibold text-red-700">Manquante</span>}
               {!present && !row.required && <span className="text-sm text-muted-foreground">Non fournie (facultative)</span>}
-              {row.documents.map((doc) => {
+              {(() => {
+                // Plusieurs fichiers pour la même pièce : empilés, comme dans l'espace notaire.
+                const stacked = row.documents.length > 1;
+                const files = [...row.documents]
+                  .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
+                  .map((doc) => {
                 const meta = [doc.label, formatSize(doc.size), formatDay(doc.createdAt) && `ajoutée le ${formatDay(doc.createdAt)}`]
                   .filter(Boolean)
                   .join(" · ");
                 const downloading = isFileDownloading(doc.fileKey);
                 return (
-                  <div key={doc.id} className="flex flex-col gap-2">
+                  <div key={doc.id} className={cn("flex flex-col gap-2", stacked && "p-2.5")}>
                     <span className="min-w-0 truncate text-[13px] text-muted-foreground">{meta || "Fichier"}</span>
                     <span className="flex flex-wrap gap-2">
                       <DocumentViewer document={doc} documentKindLabels={documentKindLabels}>
@@ -127,7 +133,9 @@ export function DocumentChecklist({
                     </span>
                   </div>
                 );
-              })}
+                  });
+                return stacked ? <FileStack cardClassName="rounded-lg">{files}</FileStack> : files;
+              })()}
               {canUpload && present && (
                 <DocumentUploadButton
                   target={row.upload!}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Building2, ChevronRight, FileText, Home, Lock, Plus } from "lucide-react";
 
 import { formatDate } from "@/lib/utils/formatters";
-import { BailDocumentPreview } from "@/components/client/bail-document-preview";
+import { GroupedDocumentPreviews } from "@/components/client/grouped-document-previews";
 import { EmptyState, PrimaryAction } from "./owner-ui";
 import { SubPageBar } from "./owner-tabs";
 import type { DetailModel } from "./detail-model";
@@ -195,21 +195,7 @@ export function PropertyPage({ property }: { property: PropertyPageData }) {
               title: `Pièces du bien · ${property.documents.length}`,
               icon: FileText,
               node: (
-                <div className="space-y-2">
-                  {property.documents.map((document) => (
-                    <BailDocumentPreview
-                      key={document.id}
-                      document={{
-                        id: document.id,
-                        label: document.label,
-                        kind: document.kind,
-                        fileKey: document.fileKey,
-                        mimeType: document.mimeType,
-                        createdAt: document.createdAt,
-                      }}
-                    />
-                  ))}
-                </div>
+                <GroupedDocumentPreviews documents={property.documents} />
               ),
             },
           ]

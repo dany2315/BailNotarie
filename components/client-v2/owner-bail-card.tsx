@@ -250,7 +250,10 @@ export function OwnerBailRow({
           {facts.propertyLabel}
         </span>
         {summary && <span className="mt-0.5 block truncate text-[12px] text-slate-500">{summary}</span>}
-        <span className="mt-2 flex items-center gap-2">
+        {/* L'état au-dessus des étapes, chacun sur sa ligne : côte à côte, la pastille
+            et la barre se serraient sur un téléphone. */}
+        <span className="mt-2 flex flex-col items-start gap-1.5">
+          <Pill tone={facts.view.tone}>{facts.view.title}</Pill>
           {!facts.terminal && (
             <StepBar
               stepIndex={facts.stepIndex}
@@ -258,7 +261,6 @@ export function OwnerBailRow({
               className="w-[104px] shrink-0"
             />
           )}
-          <Pill tone={facts.view.tone}>{facts.view.title}</Pill>
         </span>
       </span>
     </>

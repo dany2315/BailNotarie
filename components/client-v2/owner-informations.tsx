@@ -6,7 +6,7 @@ import { ClientType } from "@prisma/client";
 
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/formatters";
-import { BailDocumentPreview } from "@/components/client/bail-document-preview";
+import { GroupedDocumentPreviews } from "@/components/client/grouped-document-previews";
 import {
   EmptyState,
   FieldGrid,
@@ -129,26 +129,12 @@ function Block({
 /** Les documents : on garde le composant existant (URL signée, aperçu,
     téléchargement) et on le reteinte pour qu'il se fonde dans la liste. */
 function DocumentList({ docs }: { docs: Doc[] }) {
+  // Plusieurs fichiers pour une même pièce : empilés, comme dans l'espace notaire.
   return (
-    <div className="space-y-2">
-      {docs.map((doc) => (
-        <div
-          key={doc.id}
-          className="[&>div]:rounded-xl [&>div]:border-slate-200/80 [&>div]:bg-white [&>div]:px-3 [&>div]:py-2.5 [&>div]:transition-colors [&>div:hover]:bg-slate-50"
-        >
-          <BailDocumentPreview
-            document={{
-              id: doc.id,
-              label: doc.label,
-              kind: doc.kind,
-              fileKey: doc.fileKey,
-              mimeType: doc.mimeType,
-              createdAt: doc.createdAt,
-            }}
-          />
-        </div>
-      ))}
-    </div>
+    <GroupedDocumentPreviews
+      documents={docs}
+      itemClassName="[&>div]:rounded-xl [&>div]:border-slate-200/80 [&>div]:bg-white [&>div]:px-3 [&>div]:py-2.5 [&>div]:transition-colors [&>div:hover]:bg-slate-50"
+    />
   );
 }
 
