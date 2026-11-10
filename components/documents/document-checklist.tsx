@@ -8,7 +8,8 @@ import { useDownloadFile } from "@/hooks/use-download-file";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { cn } from "@/lib/utils";
 import type { ChecklistRow } from "@/lib/utils/document-checklist";
-import { VerifyToggle } from "@/components/admin/verify-buttons";
+import { VerifyBullet } from "@/components/admin/verify-buttons";
+import { DocumentDeleteButton } from "@/components/documents/document-delete-button";
 import { DocumentUploadButton } from "@/components/documents/document-upload-button";
 import { FileStack } from "@/components/documents/file-stack";
 
@@ -69,7 +70,7 @@ export function DocumentChecklist({
         // Avec la vérification : coche verte seulement une fois la pièce validée.
         const checked = present && (!verification || !!point?.verified);
         const canUpload = editable && !!row.upload;
-        const hasActions = (point && verification) || (canUpload && !present) || (missing && !!requestAction);
+        const hasActions = (canUpload && !present) || (missing && !!requestAction);
         return (
           <li
             key={row.key}
@@ -79,15 +80,20 @@ export function DocumentChecklist({
               inset ? "px-5 py-3.5" : "py-3",
             )}
           >
-            <span
-              aria-hidden
-              className={cn(
-                "mt-0.5 flex size-[22px] items-center justify-center rounded-full text-xs font-bold",
-                checked ? "bg-green-100 text-green-800" : missing ? "bg-red-100 text-red-800" : "border-2 border-slate-300",
-              )}
-            >
-              {checked ? <Check className="size-3.5" strokeWidth={3} /> : missing ? "!" : ""}
-            </span>
+            {point && verification ? (
+              // Pièce présente : la pastille valide la pièce ou retire la validation.
+              <VerifyBullet bailId={verification.bailId} pointKey={point.pointKey} verified={point.verified} locked={verification.locked} />
+            ) : (
+              <span
+                aria-hidden
+                className={cn(
+                  "mt-0.5 flex size-[22px] items-center justify-center rounded-full text-xs font-bold",
+                  checked ? "bg-green-100 text-green-800" : missing ? "bg-red-100 text-red-800" : "border-2 border-slate-300",
+                )}
+              >
+                {checked ? <Check className="size-3.5" strokeWidth={3} /> : missing ? "!" : ""}
+              </span>
+            )}
             <div className="flex min-w-0 flex-col gap-1.5">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <span className={cn("font-semibold leading-snug", inset ? "text-[14.5px]" : "text-sm")}>
@@ -130,6 +136,7 @@ export function DocumentChecklist({
                         Télécharger
                       </Button>
                       {canUpload && <DocumentUploadButton target={row.upload!} kind={row.kind} replaceIds={[doc.id]} />}
+                      {editable && <DocumentDeleteButton documentId={doc.id} fileName={doc.label || documentKindLabels[doc.kind] || null} />}
                     </span>
                   </div>
                 );
@@ -147,9 +154,6 @@ export function DocumentChecklist({
             </div>
             {hasActions && (
               <div className="col-span-2 flex flex-wrap items-start gap-2 sm:col-span-1 sm:justify-end [&>*]:flex-1 sm:[&>*]:flex-none">
-                {point && verification && (
-                  <VerifyToggle bailId={verification.bailId} pointKey={point.pointKey} verified={point.verified} locked={verification.locked} />
-                )}
                 {missing && requestAction}
                 {canUpload && !present && <DocumentUploadButton target={row.upload!} kind={row.kind} />}
               </div>

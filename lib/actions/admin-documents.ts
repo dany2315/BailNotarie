@@ -132,3 +132,48 @@ export async function attachDocumentAdmin(
 
   return { success: true, documentId: document.id };
 }
+
+const deleteSchema = z.object({
+  documentId: z.string().min(1),
+  /** Page de l'interface à rafraîchir (celle d'où vient la suppression). */
+  revalidate: schema.shape.revalidate,
+});
+
+/**
+ * « Supprimer » une pièce depuis une fiche admin : la pièce et son fichier
+ * sont supprimés définitivement, puis l'état du client ou du bien est recalculé.
+ */
+export async function deleteDocumentAdmin(data: unknown): Promise<{ success: true } | { success: false; error: string }> {
+  await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = deleteSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { documentId, revalidate } = parsed.data;
+
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    select: {
+      id: true,
+      clientId: true,
+      propertyId: true,
+      person: { select: { clientId: true } },
+      entreprise: { select: { clientId: true } },
+    },
+  });
+  if (!document) return { success: false, error: "Document introuvable" };
+
+  try {
+    await deleteDocumentFromDB(document.id);
+  } catch (error: any) {
+    return { success: false, error: error?.message || "La suppression a échoué" };
+  }
+
+  const clientToRecalculate = document.clientId || document.person?.clientId || document.entreprise?.clientId || null;
+  if (clientToRecalculate) await recalculateClientStatus(clientToRecalculate);
+  if (document.propertyId) await recalculatePropertyStatus(document.propertyId);
+
+  if (revalidate) revalidatePath(revalidate);
+  if (clientToRecalculate) revalidatePath(`/interface/clients/${clientToRecalculate}`);
+  if (document.propertyId) revalidatePath(`/interface/properties/${document.propertyId}`);
+
+  return { success: true };
+}

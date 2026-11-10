@@ -78,6 +78,80 @@ export function VerifyToggle({
   );
 }
 
+/**
+ * Pastille à gauche d'un point de contrôle : un clic valide le point, un
+ * second clic retire la validation. Verrouillée une fois le dossier transmis.
+ */
+export function VerifyBullet({
+  bailId,
+  pointKey,
+  verified,
+  locked = false,
+}: {
+  bailId: string;
+  pointKey: string;
+  verified: boolean;
+  locked?: boolean;
+}) {
+  const [optimistic, setOptimistic] = React.useState(verified);
+  const [pending, startTransition] = React.useTransition();
+
+  React.useEffect(() => setOptimistic(verified), [verified]);
+
+  if (locked) {
+    return (
+      <span
+        className="mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full bg-green-100 text-green-800"
+        title="Dossier transmis au notaire : la vérification est close"
+      >
+        <Check className="size-3.5" strokeWidth={3} aria-hidden />
+        <span className="sr-only">Vérifié</span>
+      </span>
+    );
+  }
+
+  const toggle = () => {
+    const next = !optimistic;
+    setOptimistic(next);
+    startTransition(async () => {
+      const result = await setVerificationPoints({ bailId, pointKeys: [pointKey], verified: next });
+      if (!result.success) {
+        setOptimistic(!next);
+        toast.error(result.error);
+      }
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      aria-pressed={optimistic}
+      aria-label={optimistic ? "Vérifié, cliquer pour retirer la validation" : "Cliquer pour valider"}
+      title={optimistic ? "Retirer la validation" : "Valider"}
+      disabled={pending}
+      onClick={toggle}
+      className={cn(
+        // Zone de clic agrandie (≈ 40 px) autour de la pastille de 22 px, pour le tactile.
+        "group relative mt-0.5 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors",
+        "before:absolute before:-inset-[9px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        optimistic
+          ? "bg-green-100 text-green-800 hover:bg-green-200"
+          : "border-2 border-slate-300 bg-background text-green-700 hover:border-green-600 hover:bg-green-50",
+      )}
+    >
+      {pending ? (
+        <Loader2 className="size-3.5 animate-spin" aria-hidden />
+      ) : (
+        <Check
+          className={cn("size-3.5", !optimistic && "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100")}
+          strokeWidth={3}
+          aria-hidden
+        />
+      )}
+    </button>
+  );
+}
+
 /** « Tout valider » d'un bloc : valide d'un coup les points restants (hors manquants). */
 export function ValidateAllButton({ bailId, pointKeys }: { bailId: string; pointKeys: string[] }) {
   const [pending, startTransition] = React.useTransition();

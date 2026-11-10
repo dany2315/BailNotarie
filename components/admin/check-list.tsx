@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VerifyBullet } from "@/components/admin/verify-buttons";
 
 /**
  * Briques de la fiche de vérification : un bloc (« Le bail », « Propriétaire »…)
@@ -34,6 +35,7 @@ export function CheckPoint({
   note,
   actions,
   actionsBelow = false,
+  verify,
 }: {
   state: PointState;
   label: ReactNode;
@@ -44,6 +46,8 @@ export function CheckPoint({
   actions?: ReactNode;
   /** Plusieurs actions : sous le contenu, pour lui laisser toute la largeur. */
   actionsBelow?: boolean;
+  /** Point à valider par l'équipe : la pastille de gauche valide ou retire la validation. */
+  verify?: { bailId: string; pointKey: string; verified: boolean; locked?: boolean };
 }) {
   return (
     <li
@@ -52,7 +56,7 @@ export function CheckPoint({
         !actionsBelow && "sm:grid-cols-[22px_minmax(0,1fr)_auto]",
       )}
     >
-      <PointIcon state={state} />
+      {verify && state !== "missing" ? <VerifyBullet {...verify} /> : <PointIcon state={state} />}
       <div className="flex min-w-0 flex-col gap-1">
         <span className="text-[14.5px] font-semibold leading-snug">{label}</span>
         {children && <div className="whitespace-pre-line break-words text-sm leading-relaxed text-foreground/80">{children}</div>}

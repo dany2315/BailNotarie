@@ -4,7 +4,7 @@ import { ArrowUpRight, UserPlus } from "lucide-react";
 import { ClientType, DocumentKind, ProfilType } from "@prisma/client";
 import { DocumentChecklist } from "@/components/documents/document-checklist";
 import { GroupFieldEditor, type GroupField, type InlineFieldKind } from "@/components/admin/inline-field-editor";
-import { ValidateAllButton, VerifyToggle } from "@/components/admin/verify-buttons";
+import { ValidateAllButton } from "@/components/admin/verify-buttons";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
 import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import { buildChecklistRows, toChecklistDocument, type ChecklistDocument, type ChecklistRow } from "@/lib/utils/document-checklist";
@@ -406,6 +406,7 @@ export function PartyCheckSection({
               state={missing ? "missing" : verified ? "ok" : "todo"}
               label={g.label}
               note={missing ? `Manquant : ${g.missing.map((f) => MISSING_FIELD_LABELS[f] || f).join(", ")}` : null}
+              verify={{ bailId, pointKey: g.key, verified, locked }}
               actions={
                 <>
                   {g.registry && !locked && (
@@ -416,7 +417,6 @@ export function PartyCheckSection({
                     />
                   )}
                   <GroupFieldEditor entity={g.editor.entity} id={g.editor.id} title={g.editor.title} fields={g.editor.fields} />
-                  {!missing && <VerifyToggle bailId={bailId} pointKey={g.key} verified={verified} locked={locked} />}
                 </>
               }
             >
