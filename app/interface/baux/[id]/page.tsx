@@ -499,8 +499,14 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const diagnosticFiles = (propertyDocuments as any[])
     .filter((d) => d.kind === DocumentKind.DIAGNOSTICS)
     .map((d) => ({ id: d.id, kind: d.kind, fileKey: d.fileKey, mimeType: d.mimeType ?? null, label: d.label ?? null }));
+  // Table absente (migration pas encore appliquée sur cette base) : la fiche s'affiche sans l'analyse.
   const latestAnalysis = property
-    ? await prisma.diagnosticAnalysis.findFirst({ where: { propertyId: property.id }, orderBy: { createdAt: "desc" } })
+    ? await prisma.diagnosticAnalysis
+        .findFirst({ where: { propertyId: property.id }, orderBy: { createdAt: "desc" } })
+        .catch((error) => {
+          console.error("[diagnostics] lecture de la dernière analyse", error);
+          return null;
+        })
     : null;
   const analysisExtraction = (latestAnalysis?.status === "SUCCEEDED" ? latestAnalysis.extracted : null) as DiagnosticExtraction | null;
   const diagnosticAnalysis: DiagnosticAnalysisView | null = latestAnalysis
