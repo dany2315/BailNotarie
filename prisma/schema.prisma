@@ -475,6 +475,7 @@ model Property {
   bails     Bail[]       @relation("PropertyBails")
 
   dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
+  diagnosticAnalyses DiagnosticAnalysis[]
 
   @@index([status])
   @@index([ownerId])
@@ -698,8 +699,8 @@ model BailCommercialTerms {
   bail   Bail   @relation(fields: [bailId], references: [id], onDelete: Cascade)
 
   // Activité et situation du local
-  activity            String? @db.Text
-  ancillaryActivities String? @db.Text
+  activity            String?  @db.Text
+  ancillaryActivities String?  @db.Text
   previouslyLet       Boolean?
   previousActivity    String?
   currentlyVacant     Boolean?
@@ -906,6 +907,34 @@ model IntakeLink {
 /**
  * ---------------------- Documents ------------------
  */
+
+/// Lecture automatique des diagnostics d'un bien par un modèle d'IA (OpenAI), demandée par l'équipe
+/// depuis la fiche dossier. Les données extraites sont conservées ; la conformité est recalculée par le code.
+model DiagnosticAnalysis {
+  id            String    @id @default(cuid())
+  propertyId    String
+  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  /// Dossier depuis lequel l'analyse a été lancée
+  bailId        String?
+  /// Pièces « Diagnostics » du bien analysées (pour savoir si elles ont changé depuis)
+  documentIds   String[]
+  /// RUNNING, SUCCEEDED ou FAILED
+  status        String
+  model         String
+  /// Données lues dans les fichiers (schéma de lib/diagnostics/schema.ts)
+  extracted     Json?
+  error         String?
+  inputTokens   Int?
+  outputTokens  Int?
+  costUsd       Float?
+  durationMs    Int?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([propertyId, createdAt])
+}
 
 model Document {
   id       String       @id @default(cuid())

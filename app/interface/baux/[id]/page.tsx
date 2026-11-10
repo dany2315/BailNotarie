@@ -56,8 +56,14 @@ import { commercialPaymentText, commercialTermsToForm, commercialVatText, comple
 import { CommercialTermsEditor } from "@/components/admin/commercial-terms-editor";
 import { formatDossierFee } from "@/lib/utils/dossier-fee";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
+import { DiagnosticsAnalysis, type DiagnosticAnalysisView } from "@/components/admin/diagnostics-analysis";
+import { assessDiagnostics } from "@/lib/diagnostics/assess";
+import { isDiagnosticAnalysisConfigured } from "@/lib/diagnostics/openai";
+import { ANALYSIS_STALE_MS, type DiagnosticExtraction } from "@/lib/diagnostics/schema";
 
 export const dynamic = "force-dynamic";
+// « Analyser les diagnostics » lit les fichiers après la réponse : jusqu'à 2 minutes pour un gros dossier.
+export const maxDuration = 300;
 
 const BAIL_TYPE_LABELS: Record<string, string> = {
   BAIL_NU_3_ANS: "Bail nu 3 ans",
@@ -489,6 +495,46 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
   // Contrôles réglementaires (manuels)
   const diagnosticsIds = (propertyDocuments as any[]).filter((d) => d.kind === DocumentKind.DIAGNOSTICS).map((d) => d.id).sort();
+  // Analyse IA des diagnostics : dernière analyse du bien, avec les règles recalculées à l'affichage.
+  const diagnosticFiles = (propertyDocuments as any[])
+    .filter((d) => d.kind === DocumentKind.DIAGNOSTICS)
+    .map((d) => ({ id: d.id, kind: d.kind, fileKey: d.fileKey, mimeType: d.mimeType ?? null, label: d.label ?? null }));
+  const latestAnalysis = property
+    ? await prisma.diagnosticAnalysis.findFirst({ where: { propertyId: property.id }, orderBy: { createdAt: "desc" } })
+    : null;
+  const analysisExtraction = (latestAnalysis?.status === "SUCCEEDED" ? latestAnalysis.extracted : null) as DiagnosticExtraction | null;
+  const diagnosticAnalysis: DiagnosticAnalysisView | null = latestAnalysis
+    ? {
+        id: latestAnalysis.id,
+        status:
+          latestAnalysis.status === "RUNNING" && Date.now() - latestAnalysis.createdAt.getTime() > ANALYSIS_STALE_MS
+            ? "STALLED"
+            : (latestAnalysis.status as DiagnosticAnalysisView["status"]),
+        model: latestAnalysis.model,
+        createdAt: latestAnalysis.createdAt.toISOString(),
+        createdByName: latestAnalysis.createdByName,
+        costUsd: latestAnalysis.costUsd,
+        durationMs: latestAnalysis.durationMs,
+        error: latestAnalysis.error,
+        stale: [...latestAnalysis.documentIds].sort().join(",") !== diagnosticsIds.join(","),
+        extraction: analysisExtraction,
+        assessment: analysisExtraction
+          ? assessDiagnostics(analysisExtraction, {
+              commercial: isCommercial,
+              property: property
+                ? {
+                    postalCode: property.postalCode,
+                    housenumber: property.housenumber,
+                    surfaceM2: surface,
+                    dpeClass: property.dpeClass,
+                    gesClass: property.gesClass,
+                    dpeDate: property.dpeDate,
+                  }
+                : null,
+            })
+          : null,
+      }
+    : null;
   const rentCapLines = rentCap ? rentCapOverLines(rentCap) : null;
   // Contrôlé automatiquement : loyer conforme à l'arrêté applicable, ou pas de plafond (commune non encadrée,
   // hors périmètre, bail commercial, logement exclu). Adresse non localisée ou bail hors période : à la main.
@@ -1054,6 +1100,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 <CheckPoint
                   state={dpe.blocking ? "missing" : isVerified(rulesPoints[1].key, bailLocked) ? "ok" : "todo"}
                   label={isCommercial ? "Diagnostics (DPE, risques, amiante)" : "Classe DPE"}
+                  // Analyse des diagnostics dans le contenu : toute la largeur, boutons dessous.
+                  actionsBelow
                   note={dpe.message}
                   verify={{ bailId: lease.id, pointKey: rulesPoints[1].key, verified: isVerified(rulesPoints[1].key, bailLocked), locked: bailLocked }}
                   actions={
@@ -1080,6 +1128,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           Articles L126-29 du Code de la construction, L125-5 du Code de l&apos;environnement et R1334-29-5 du Code de la santé publique
                         </span>
                       </>
+                    )}
+                    {property && (
+                      <DiagnosticsAnalysis
+                        bailId={lease.id}
+                        files={diagnosticFiles}
+                        analysis={diagnosticAnalysis}
+                        locked={bailLocked}
+                        configured={isDiagnosticAnalysisConfigured()}
+                      />
                     )}
                   </div>
                 </CheckPoint>
