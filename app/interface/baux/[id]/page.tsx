@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, Check, CreditCard, Lock, ShieldCheck, X } from "lucide-react";
@@ -51,7 +51,7 @@ import { assessDpe } from "@/lib/utils/dpe";
 import { DpeEditor } from "@/components/admin/dpe-editor";
 import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/admin/property-editors";
 import { CommercialTermsList } from "@/components/shared/commercial-terms-list";
-import { commercialComplianceRules, commercialDepositWarning } from "@/lib/utils/commercial-compliance";
+import { commercialComplianceRules, commercialDepositWarning, type RuleTone, type RuleView } from "@/lib/utils/commercial-compliance";
 import { commercialPaymentText, commercialTermsToForm, commercialVatText, complexTypeValue } from "@/lib/utils/commercial-terms";
 import { CommercialTermsEditor } from "@/components/admin/commercial-terms-editor";
 import { formatDossierFee } from "@/lib/utils/dossier-fee";
@@ -157,6 +157,78 @@ function AutoVerified() {
     <span className="inline-flex h-9 min-w-[6.5rem] items-center justify-center gap-1.5 rounded-md bg-slate-100 px-3 text-[13px] font-medium text-slate-600">
       <Lock className="size-3.5" />
       Vérifié automatiquement
+    </span>
+  );
+}
+
+const FACT_TONE: Record<RuleTone, string> = {
+  ok: "text-green-800",
+  warn: "text-amber-800",
+  neutral: "text-foreground",
+};
+
+/** Contenu d'une règle commerciale : tableau « libellé : valeur » ou répartition en pastilles. */
+function RuleViewBlock({ view }: { view: RuleView }) {
+  if (view.kind === "split") {
+    return (
+      <span className="@container block whitespace-normal">
+      <span className="grid grid-cols-1 items-start gap-x-3 gap-y-1 @sm:grid-cols-[92px_minmax(0,1fr)] @sm:gap-y-1.5">
+        {view.groups.map((group) => (
+          <Fragment key={group.label}>
+            <span
+              className={cn(
+                "mt-1 text-[12.5px] font-semibold first:mt-0 @sm:mt-0 @sm:pt-0.5",
+                group.tone === "missing" ? "text-red-700" : group.tone === "tenant" ? "text-sky-800" : "text-slate-700",
+              )}
+            >
+              {group.label}
+            </span>
+            <span className="flex flex-wrap gap-1">
+              {group.items.length === 0 ? (
+                <span className="text-[13px] text-muted-foreground">aucune charge</span>
+              ) : (
+                group.items.map((item) => (
+                  <span
+                    key={item.label}
+                    title={item.fixed ? "Toujours à la charge du propriétaire (article R145-35)" : undefined}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12.5px] leading-tight",
+                      group.tone === "missing"
+                        ? "bg-red-50 text-red-800 ring-1 ring-red-200"
+                        : group.tone === "tenant"
+                          ? "bg-sky-50 text-sky-900"
+                          : "bg-slate-100 text-slate-800",
+                    )}
+                  >
+                    {item.fixed && <Lock className="size-3 shrink-0 opacity-60" aria-label="imposé par la loi" />}
+                    {item.label}
+                  </span>
+                ))
+              )}
+            </span>
+          </Fragment>
+        ))}
+      </span>
+      </span>
+    );
+  }
+  return (
+    // Étroit (téléphone) : libellé au-dessus de la valeur ; sinon deux colonnes.
+    <span className="@container block whitespace-normal">
+    <span className="grid grid-cols-1 gap-x-3 @sm:grid-cols-[160px_minmax(0,1fr)] @sm:gap-y-1">
+      {view.facts.map((fact) => (
+        <Fragment key={fact.label}>
+          <span className="mt-1 text-[12.5px] text-muted-foreground first:mt-0 @sm:mt-0 @sm:text-[13px]">{fact.label}</span>
+          <span className={cn("flex min-w-0 flex-col text-[13.5px] font-medium", FACT_TONE[fact.tone || "neutral"])}>
+            {fact.values.map((value) => (
+              <span key={value} className="break-words">
+                {value}
+              </span>
+            ))}
+          </span>
+        </Fragment>
+      ))}
+    </span>
     </span>
   );
 }
@@ -948,6 +1020,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       key={rule.id}
                       state={rule.missing ? "missing" : verified ? "ok" : "todo"}
                       label={rule.auto && !bailLocked ? <AutoLabel>{rule.label}</AutoLabel> : rule.label}
+                      // Boutons sous le contenu : le tableau garde toute la largeur.
+                      actionsBelow
                       note={rule.note}
                       verify={rule.auto ? undefined : { bailId: lease.id, pointKey: key, verified, locked: bailLocked }}
                       actions={
@@ -965,17 +1039,10 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         ) : null
                       }
                     >
-                      <span className="flex flex-col gap-1">
-                        {rule.lines.map((line) => (
-                          <span key={line}>{line}</span>
-                        ))}
+                      <span className="flex flex-col gap-1.5">
+                        {rule.view && <RuleViewBlock view={rule.view} />}
                         {rule.warnings.map((line) => (
-                          <span key={line} className="text-[13px] text-amber-800">
-                            {line}
-                          </span>
-                        ))}
-                        {rule.info?.map((line) => (
-                          <span key={line} className="text-[13px] text-muted-foreground">
+                          <span key={line} className="text-[13px] leading-snug text-amber-800">
                             {line}
                           </span>
                         ))}

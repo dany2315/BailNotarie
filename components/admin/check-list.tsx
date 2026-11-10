@@ -52,8 +52,9 @@ export function CheckPoint({
   return (
     <li
       className={cn(
+        // Actions à droite seulement si le bloc est assez large (requête de conteneur, pas d'écran).
         "grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-2.5 px-5 py-3.5",
-        !actionsBelow && "sm:grid-cols-[22px_minmax(0,1fr)_auto]",
+        !actionsBelow && "@xl:grid-cols-[22px_minmax(0,1fr)_auto]",
       )}
     >
       {verify && state !== "missing" ? <VerifyBullet {...verify} /> : <PointIcon state={state} />}
@@ -65,8 +66,8 @@ export function CheckPoint({
       {actions && (
         <div
           className={cn(
-            "col-span-2 flex flex-wrap items-start gap-2 [&>*]:flex-1 sm:[&>*]:flex-none",
-            actionsBelow ? "sm:col-start-2 sm:col-span-1" : "sm:col-span-1 sm:justify-end",
+            "col-span-2 flex flex-wrap items-start gap-2 [&>*]:flex-1 @xl:[&>*]:flex-none",
+            actionsBelow ? "@xl:col-start-2 @xl:col-span-1" : "@xl:col-span-1 @xl:justify-end",
           )}
         >
           {actions}
@@ -77,7 +78,7 @@ export function CheckPoint({
 }
 
 export function CheckList({ children }: { children: ReactNode }) {
-  return <ul className="flex flex-col divide-y">{children}</ul>;
+  return <ul className="@container flex flex-col divide-y">{children}</ul>;
 }
 
 export type ChipTone = "ok" | "missing" | "todo" | "neutral";

@@ -5,29 +5,46 @@
  */
 import {
   CHARGE_ITEMS,
-  INDEXATION_LABELS,
   OWNER_ONLY_CHARGES,
   asksBoughtDuringMarriage,
   spouseMustSign,
 } from "./commercial-terms";
 import { isRegistryVerifiedActive, registryRepresentativeStatus } from "./company-registry";
 
+/** Ton d'une ligne de l'affichage : conforme, à vérifier, ou neutre. */
+export type RuleTone = "ok" | "warn" | "neutral";
+
+/** Ligne « libellé : valeur(s) » d'une règle, affichée en tableau compact. */
+export interface RuleFact {
+  label: string;
+  /** Une valeur par ligne (liste de travaux, par exemple). */
+  values: string[];
+  tone?: RuleTone;
+}
+
+/** Répartition des charges : un groupe par payeur, chaque poste en pastille. */
+export interface RuleSplitGroup {
+  label: string;
+  tone: "tenant" | "owner" | "missing";
+  items: Array<{ label: string; /** Imposé par la loi (article R145-35). */ fixed?: boolean }>;
+}
+
+export type RuleView = { kind: "facts"; facts: RuleFact[] } | { kind: "split"; groups: RuleSplitGroup[] };
+
 export interface CommercialRule {
   /** Identifiant stable de la règle (la clé de validation y ajoute les données contrôlées). */
   id: string;
   label: string;
-  /** Contrôlée par le logiciel : pas de clic « Valider ». */
+  /** Contrôlée par le logiciel : pas de validation à la main. */
   auto: boolean;
   /** Donnée absente ou contraire à la loi : bloque l'envoi au notaire. */
   missing: boolean;
   /** Ce qui manque ou ce qui ne va pas (en rouge). */
   note: string | null;
-  /** Ce que l'équipe vérifie, ligne par ligne. */
-  lines: string[];
+  /** Ce que l'équipe lit, en tableau compact. */
+  view: RuleView | null;
   /** Points d'attention (en orange), sans bloquer. */
   warnings: string[];
-  /** Rappels (en gris) : ce que le formulaire garantit déjà, par exemple. */
-  info?: string[];
   /** Texte de loi, affiché en petit. */
   legal: string;
   /** Données dont dépend la validation : la changer redemande une vérification. */
@@ -39,12 +56,35 @@ export interface CommercialRule {
 const euros = (value: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(value);
 
+const day = (date: Date) => date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Paris" });
+
+const toDate = (value: unknown) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value as string);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+/** Fin d'un bail de n mois commençant à start : la veille du même jour, n mois plus tard. */
+function endAfterMonths(start: Date, months: number): Date {
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + months);
+  end.setDate(end.getDate() - 1);
+  return end;
+}
+
+/** « du 01/12/2026 au 30/11/2035 », ou null sans date de prise d'effet. */
+function period(start: Date | null, months: number | null, endDate: Date | null): string | null {
+  if (!start) return null;
+  const end = endDate ?? (months != null ? endAfterMonths(start, months) : null);
+  return end ? `du ${day(start)} au ${day(end)}` : `à partir du ${day(start)}`;
+}
+
 function worksLines(value: unknown): string[] {
   const lines = Array.isArray(value) ? value : [];
   return lines.map((line: any) =>
-    [line?.label, line?.year ? `(${line.year})` : null, line?.amount != null && line.amount !== "" ? euros(Number(line.amount)) : null]
+    [line?.label || "Travaux", line?.year ? String(line.year) : null, line?.amount != null && line.amount !== "" ? euros(Number(line.amount)) : null]
       .filter(Boolean)
-      .join(" "),
+      .join(" · "),
   );
 }
 
@@ -54,8 +94,25 @@ function partyCompany(party: Party) {
   return party?.type === "PERSONNE_MORALE" ? party.entreprise ?? null : null;
 }
 
+const SHORT_OWNER_ONLY: Record<string, string> = {
+  majorRepairs: "Grosses réparations",
+  managementFees: "Honoraires de gestion",
+};
+
+const INDEX_SHORT: Record<string, { value: string; use: string }> = {
+  ILC: { value: "ILC · indice des loyers commerciaux", use: "adapté à un commerce ou un artisan" },
+  ILAT: { value: "ILAT · indice des activités tertiaires", use: "adapté à des bureaux ou une profession libérale" },
+  NONE: { value: "Pas de révision", use: "loyer fixe, sauf révision légale possible tous les 3 ans" },
+};
+
 export function commercialComplianceRules(input: {
-  bail: { bailType?: string | null; rentAmount?: number | null; securityDeposit?: number | null };
+  bail: {
+    bailType?: string | null;
+    rentAmount?: number | null;
+    securityDeposit?: number | null;
+    effectiveDate?: Date | string | null;
+    endDate?: Date | string | null;
+  };
   terms: any | null | undefined;
   owner: Party;
   tenant: Party;
@@ -63,14 +120,17 @@ export function commercialComplianceRules(input: {
   const { bail, terms, owner, tenant } = input;
   const t = terms ?? {};
   const rules: CommercialRule[] = [];
+  const start = toDate(bail.effectiveDate);
+  const endDate = toDate(bail.endDate);
 
-  // 1. Durée : 9 ans au moins (3-6-9), ou 3 ans au plus pour un bail dérogatoire.
+  // 1. Durée : 9 ans (3-6-9), ou 3 ans au plus pour un bail dérogatoire.
   if (bail.bailType === "COMMERCIAL_DEROGATOIRE") {
     const months: number | null = t.derogatoryMonths ?? null;
     const over = months != null && months > 36;
+    const when = period(start, months, endDate);
     rules.push({
       id: "duree",
-      label: "Durée du bail dérogatoire",
+      label: "Bail dérogatoire",
       auto: true,
       missing: months == null || over,
       note:
@@ -79,11 +139,20 @@ export function commercialComplianceRules(input: {
           : over
             ? `${months} mois : un bail dérogatoire ne peut pas dépasser 36 mois, renouvellements compris`
             : null,
-      lines: months != null && !over ? [`${months} mois, soit moins de 3 ans`] : [],
+      view:
+        months != null
+          ? {
+              kind: "facts",
+              facts: [
+                { label: "Durée", values: [`${months} mois`], tone: over ? "warn" : "ok" },
+                ...(when ? [{ label: "Période", values: [when] }] : []),
+              ],
+            }
+          : null,
       warnings: [
-        "Si le locataire reste plus d'un mois après la fin sans que le propriétaire s'y oppose, le bail devient un bail commercial de 9 ans.",
+        "Si le locataire reste plus d'un mois après la fin sans opposition du propriétaire, le bail devient un 3/6/9.",
         ...(t.previouslyLet === true
-          ? ["Local déjà loué : si c'était au même locataire en bail dérogatoire, la durée totale ne doit pas dépasser 3 ans."]
+          ? ["Local déjà loué : si c'était au même locataire en dérogatoire, 3 ans au total au maximum."]
           : []),
       ],
       legal: "Article L145-5 du Code de commerce",
@@ -91,13 +160,21 @@ export function commercialComplianceRules(input: {
       editsTerms: true,
     });
   } else {
+    const when = period(start, 108, endDate);
     rules.push({
       id: "duree",
-      label: "Durée du bail",
+      label: "Bail 3/6/9",
       auto: true,
       missing: false,
       note: null,
-      lines: ["9 ans, résiliable par le locataire à la fin de chaque période de 3 ans"],
+      view: {
+        kind: "facts",
+        facts: [
+          { label: "Durée", values: ["9 ans"], tone: "ok" },
+          ...(when ? [{ label: "Période", values: [when] }] : []),
+          { label: "Sortie", values: ["le locataire peut partir tous les 3 ans"] },
+        ],
+      },
       warnings: [],
       legal: "Article L145-4 du Code de commerce",
       values: [bail.bailType],
@@ -108,7 +185,7 @@ export function commercialComplianceRules(input: {
   // 2. Inventaire des charges, impôts et taxes, avec leur répartition (loi Pinel).
   const allocation = t.chargesAllocation && typeof t.chargesAllocation === "object" ? (t.chargesAllocation as Record<string, string>) : null;
   const unallocated = CHARGE_ITEMS.filter((item) => !allocation?.[item.key]);
-  const byPayer = (payer: string) => CHARGE_ITEMS.filter((item) => allocation?.[item.key] === payer).map((item) => item.label);
+  const byPayer = (payer: string) => CHARGE_ITEMS.filter((item) => allocation?.[item.key] === payer).map((item) => ({ label: item.label }));
   rules.push({
     id: "charges",
     label: "Inventaire des charges, impôts et taxes",
@@ -116,15 +193,20 @@ export function commercialComplianceRules(input: {
     // toujours au propriétaire : rien à vérifier à la main.
     auto: true,
     missing: unallocated.length > 0,
-    note: unallocated.length > 0 ? `Répartition à compléter : ${unallocated.map((item) => item.label.toLowerCase()).join(", ")}` : null,
-    lines: allocation
-      ? [
-          `Locataire : ${byPayer("TENANT").join(", ") || "aucune charge"}`,
-          `Propriétaire : ${[...byPayer("OWNER"), ...OWNER_ONLY_CHARGES.map((item) => item.label)].join(", ")}`,
-        ]
-      : [],
+    note: unallocated.length > 0 ? "Répartition à compléter" : null,
+    view: {
+      kind: "split",
+      groups: [
+        { label: "Locataire", tone: "tenant" as const, items: byPayer("TENANT") },
+        {
+          label: "Propriétaire",
+          tone: "owner" as const,
+          items: [...byPayer("OWNER"), ...OWNER_ONLY_CHARGES.map((item) => ({ label: SHORT_OWNER_ONLY[item.key] || item.label, fixed: true }))],
+        },
+        ...(unallocated.length > 0 ? [{ label: "À répartir", tone: "missing" as const, items: unallocated.map((item) => ({ label: item.label })) }] : []),
+      ],
+    },
     warnings: [],
-    info: ["Les charges interdites au locataire (article R145-35) sont fixées au propriétaire par le formulaire."],
     legal: "Articles L145-40-2 et R145-35 du Code de commerce",
     values: [allocation ? CHARGE_ITEMS.map((item) => allocation[item.key] ?? null) : null],
     editsTerms: true,
@@ -133,9 +215,15 @@ export function commercialComplianceRules(input: {
   // 3. État des travaux : réalisés sur les 3 dernières années, prévus sur les 3 prochaines.
   const pastUnknown = t.hasPastWorks == null;
   const plannedUnknown = t.hasPlannedWorks == null;
+  const worksFact = (label: string, unknown: boolean, has: boolean, list: unknown): RuleFact =>
+    unknown
+      ? { label, values: ["non renseigné"], tone: "warn" }
+      : has
+        ? { label, values: worksLines(list).length ? worksLines(list) : ["oui, à détailler"], tone: worksLines(list).length ? "neutral" : "warn" }
+        : { label, values: ["aucun"], tone: "ok" };
   rules.push({
     id: "travaux",
-    label: "État des travaux (3 ans passés, 3 ans à venir)",
+    label: "État des travaux",
     // Le formulaire exige une réponse et le coût de chaque travail.
     auto: true,
     missing: pastUnknown || plannedUnknown,
@@ -143,18 +231,21 @@ export function commercialComplianceRules(input: {
       pastUnknown || plannedUnknown
         ? `À renseigner : ${[pastUnknown && "travaux des 3 dernières années", plannedUnknown && "travaux prévus dans les 3 ans"].filter(Boolean).join(", ")}`
         : null,
-    lines: [
-      !pastUnknown ? `Réalisés : ${t.hasPastWorks ? worksLines(t.pastWorks).join(" ; ") || "à détailler" : "aucun"}` : null,
-      !plannedUnknown ? `Prévus : ${t.hasPlannedWorks ? worksLines(t.plannedWorks).join(" ; ") || "à détailler" : "aucun"}` : null,
-    ].filter((line): line is string => !!line),
+    view: {
+      kind: "facts",
+      facts: [
+        worksFact("Faits (3 ans passés)", pastUnknown, !!t.hasPastWorks, t.pastWorks),
+        worksFact("Prévus (3 ans à venir)", plannedUnknown, !!t.hasPlannedWorks, t.plannedWorks),
+      ],
+    },
     warnings: [],
-    info: ["Annexé au bail, puis remis au locataire tous les 3 ans."],
-    legal: "Article L145-40-2 du Code de commerce",
+    legal: "Article L145-40-2 du Code de commerce · annexé au bail, remis au locataire tous les 3 ans",
     values: [t.hasPastWorks ?? null, t.hasPlannedWorks ?? null, JSON.stringify(t.pastWorks ?? null), JSON.stringify(t.plannedWorks ?? null)],
     editsTerms: true,
   });
 
   // 4. Révision du loyer : indice adapté à l'activité.
+  const index = t.indexation ? INDEX_SHORT[t.indexation] : null;
   rules.push({
     id: "indexation",
     label: "Révision du loyer",
@@ -162,9 +253,17 @@ export function commercialComplianceRules(input: {
     auto: true,
     missing: !t.indexation,
     note: !t.indexation ? "Indice de révision à choisir" : null,
-    lines: t.indexation ? [INDEXATION_LABELS[t.indexation] || t.indexation] : [],
+    view: t.indexation
+      ? {
+          kind: "facts",
+          facts: [
+            { label: "Indice", values: [index?.value || t.indexation], tone: "ok" },
+            ...(t.activity ? [{ label: "Activité", values: [String(t.activity)] }] : []),
+            ...(index ? [{ label: "Usage", values: [index.use] }] : []),
+          ],
+        }
+      : null,
     warnings: [],
-    info: ["ILC pour une activité commerciale ou artisanale, ILAT pour une activité tertiaire (bureaux, professions libérales)."],
     legal: "Articles L145-34, L145-38 et L145-39 du Code de commerce ; L112-2 du Code monétaire et financier",
     values: [t.indexation ?? null, t.activity ?? null],
     editsTerms: true,
@@ -173,34 +272,28 @@ export function commercialComplianceRules(input: {
   // 5. Locataire immatriculé : condition du statut des baux commerciaux (droit au renouvellement).
   if (tenant) {
     const company = partyCompany(tenant);
-    const lines: string[] = [];
-    const warnings: string[] = [];
+    let fact: RuleFact;
     let auto = false;
     if (company?.isRegistered === false) {
       auto = true;
-      lines.push("Société en cours de création");
-      warnings.push(
-        "Le bail est signé au nom de la société en formation, qui le reprend à son immatriculation. Kbis à demander dès qu'il est disponible.",
-      );
+      fact = { label: "Locataire", values: ["société en création : demander le Kbis dès qu'il existe"], tone: "warn" };
     } else if (company && isRegistryVerifiedActive(company)) {
       auto = true;
-      lines.push(`Société immatriculée et active au registre${company.registration ? ` · n° ${company.registration}` : ""}`);
+      fact = { label: "Locataire", values: [`trouvé au registre, en activité${company.registration ? ` · n° ${company.registration}` : ""}`], tone: "ok" };
     } else if (company) {
-      lines.push(`Société immatriculée${company.registration ? ` · n° ${company.registration}` : ""}`);
-      warnings.push("Saisie manuelle, non retrouvée au registre : vérifiez le Kbis, ou utilisez « Registre » dans le bloc du locataire.");
+      fact = { label: "Locataire", values: ["saisi à la main : vérifier sur le Kbis (ou bouton « Registre »)"], tone: "warn" };
     } else {
-      lines.push("Particulier");
-      warnings.push("Vérifiez qu'il est inscrit au registre du commerce ou au répertoire des métiers pour l'activité exercée dans le local.");
+      fact = { label: "Locataire", values: ["particulier : vérifier qu'il est inscrit au RCS ou au répertoire des métiers"], tone: "warn" };
     }
     rules.push({
       id: "immatriculation",
-      label: "Immatriculation du locataire",
+      label: "Inscription du locataire au registre",
       auto,
       missing: false,
       note: null,
-      lines,
-      warnings,
-      legal: "Article L145-1 du Code de commerce (statut des baux commerciaux) ; L210-6 pour une société en formation",
+      view: { kind: "facts", facts: [fact] },
+      warnings: [],
+      legal: "Article L145-1 du Code de commerce ; L210-6 pour une société en formation",
       values: [tenant.type ?? null, company?.isRegistered ?? null, company?.registration ?? null, company?.registryCheckedAt ?? null],
       editsTerms: false,
     });
@@ -213,19 +306,6 @@ export function commercialComplianceRules(input: {
   ].filter((entry) => entry.entreprise);
   if (companies.length > 0) {
     const checks = companies.map(({ label, entreprise }) => ({ label, entreprise, status: registryRepresentativeStatus(entreprise) }));
-    const warnings: string[] = [];
-    for (const { label, entreprise, status } of checks) {
-      if (!entreprise.representativeName) continue;
-      if (status === "listed") warnings.push(`${label} : dirigeant au registre, mais pas représentant légal. Délégation de pouvoirs à demander.`);
-      if (status === "unlisted") warnings.push(`${label} : absent des dirigeants au registre. Délégation de pouvoirs à demander.`);
-      if (status === "unverified") {
-        warnings.push(
-          entreprise.isRegistered === false
-            ? `${label} : société en cours de création, pouvoirs à vérifier dans les statuts.`
-            : `${label} : pas vérifiable au registre (saisie manuelle ou diffusion partielle). Pouvoirs à vérifier.`,
-        );
-      }
-    }
     rules.push({
       id: "signataires",
       label: "Pouvoirs des signataires",
@@ -233,12 +313,23 @@ export function commercialComplianceRules(input: {
       auto: checks.every((check) => check.status === "legal"),
       missing: false,
       note: null,
-      lines: checks.map(({ label, entreprise, status }) => {
-        const who = [entreprise.representativeName, entreprise.representativeRole].filter(Boolean).join(", ");
-        if (!who) return `${label} : représentant à indiquer dans son bloc`;
-        return `${label} : ${who}${status === "legal" ? " · représentant légal au registre" : ""}`;
-      }),
-      warnings,
+      view: {
+        kind: "facts",
+        facts: checks.map(({ label, entreprise, status }): RuleFact => {
+          const who = [entreprise.representativeName, entreprise.representativeRole].filter(Boolean).join(", ");
+          if (!who) return { label, values: ["signataire à indiquer dans son bloc"], tone: "warn" };
+          if (status === "legal") return { label, values: [`${who} · peut signer (représentant légal au registre)`], tone: "ok" };
+          if (status === "listed" || status === "unlisted") {
+            return { label, values: [`${who} · n'est pas représentant légal : demander une délégation de pouvoir`], tone: "warn" };
+          }
+          return {
+            label,
+            values: [`${who} · ${entreprise.isRegistered === false ? "société en création : vérifier dans les statuts" : "pas vérifiable au registre : vérifier sur le Kbis"}`],
+            tone: "warn",
+          };
+        }),
+      },
+      warnings: [],
       legal: "Pouvoirs du représentant légal (statuts, Kbis)",
       values: checks.map(({ entreprise, status }) => [entreprise.representativeName ?? null, entreprise.representativeRole ?? null, status]),
       editsTerms: false,
@@ -259,7 +350,16 @@ export function commercialComplianceRules(input: {
       auto: true,
       missing: unknown,
       note: unknown ? "À demander au propriétaire : le local a-t-il été acheté pendant le mariage ?" : null,
-      lines: unknown ? [] : [must ? "Bien commun : le conjoint signe aussi le bail" : "Bien propre : l'accord du conjoint n'est pas nécessaire"],
+      view: unknown
+        ? null
+        : {
+            kind: "facts",
+            facts: [
+              must
+                ? { label: "Conjoint", values: ["doit aussi signer le bail (bien acheté pendant le mariage)"], tone: "warn" }
+                : { label: "Conjoint", values: ["n'a pas besoin de signer (bien propre du propriétaire)"], tone: "ok" },
+            ],
+          },
       warnings: [],
       legal: "Article 1425 du Code civil",
       values: [ownerPerson.familyStatus, ownerPerson.matrimonialRegime, answer ?? null],
