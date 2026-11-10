@@ -39,6 +39,7 @@ export function DocumentUploadButton({
   replaceIds,
   label,
   className,
+  disabled = false,
 }: {
   target: DocumentTarget;
   kind: string;
@@ -46,6 +47,8 @@ export function DocumentUploadButton({
   replaceIds?: string[];
   label?: string;
   className?: string;
+  /** Fichier en cours de suppression : pas de remplacement en même temps. */
+  disabled?: boolean;
 }) {
   const pathname = usePathname();
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -111,7 +114,7 @@ export function DocumentUploadButton({
         variant="outline"
         size="sm"
         className={cn("h-9 gap-1.5", className)}
-        disabled={busy}
+        disabled={busy || disabled}
         onClick={() => inputRef.current?.click()}
       >
         {busy ? (

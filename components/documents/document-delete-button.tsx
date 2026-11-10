@@ -17,22 +17,46 @@ import {
 import { deleteDocumentAdmin } from "@/lib/actions/admin-documents";
 import { cn } from "@/lib/utils";
 
-/** « Supprimer » une pièce, après confirmation : la pièce et son fichier sont supprimés définitivement. */
-export function DocumentDeleteButton({ documentId, fileName, className }: { documentId: string; fileName?: string | null; className?: string }) {
+/**
+ * « Supprimer » une pièce, après confirmation : la pièce et son fichier sont supprimés définitivement.
+ * Pendant la suppression, le bouton affiche « Suppression… » et onDeletingChange prévient la liste,
+ * qui bloque les autres actions sur ce fichier.
+ */
+export function DocumentDeleteButton({
+  documentId,
+  fileName,
+  className,
+  disabled = false,
+  onDeletingChange,
+}: {
+  documentId: string;
+  fileName?: string | null;
+  className?: string;
+  disabled?: boolean;
+  onDeletingChange?: (documentId: string, deleting: boolean) => void;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
-  const [pending, startTransition] = React.useTransition();
+  const [deleting, setDeleting] = React.useState(false);
 
-  const confirm = () =>
-    startTransition(async () => {
-      const result = await deleteDocumentAdmin({ documentId, revalidate: pathname });
-      if (!result.success) {
-        toast.error(result.error);
-        return;
-      }
-      setOpen(false);
-      toast.success("Document supprimé");
-    });
+  const confirm = async () => {
+    // La fenêtre se ferme tout de suite : l'avancement se voit sur le fichier lui-même.
+    setOpen(false);
+    setDeleting(true);
+    onDeletingChange?.(documentId, true);
+    const result = await deleteDocumentAdmin({ documentId, revalidate: pathname }).catch(() => ({
+      success: false as const,
+      error: "La suppression a échoué : réessayez.",
+    }));
+    if (!result.success) {
+      setDeleting(false);
+      onDeletingChange?.(documentId, false);
+      toast.error(result.error);
+      return;
+    }
+    // Succès : la page rechargée retire le fichier ; l'état « en cours » reste jusque-là.
+    toast.success("Document supprimé");
+  };
 
   return (
     <>
@@ -41,12 +65,14 @@ export function DocumentDeleteButton({ documentId, fileName, className }: { docu
         variant="outline"
         size="sm"
         className={cn("h-9 gap-1.5 text-red-700 hover:bg-red-50 hover:text-red-800", className)}
+        disabled={disabled || deleting}
+        aria-busy={deleting}
         onClick={() => setOpen(true)}
       >
-        <Trash2 className="size-4" />
-        Supprimer
+        {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+        {deleting ? "Suppression…" : "Supprimer"}
       </Button>
-      <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Êtes-vous sûr de vouloir supprimer ce document ?</DialogTitle>
@@ -57,12 +83,12 @@ export function DocumentDeleteButton({ documentId, fileName, className }: { docu
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" disabled={pending}>
+              <Button type="button" variant="outline">
                 Annuler
               </Button>
             </DialogClose>
-            <Button type="button" variant="destructive" onClick={confirm} disabled={pending} className="gap-1.5">
-              {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            <Button type="button" variant="destructive" onClick={confirm} className="gap-1.5">
+              <Trash2 className="size-4" />
               Supprimer
             </Button>
           </DialogFooter>

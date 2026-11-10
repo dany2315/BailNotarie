@@ -56,6 +56,16 @@ export function DocumentChecklist({
   requestAction?: React.ReactNode;
 }) {
   const { downloadFile, isFileDownloading } = useDownloadFile();
+  // Fichiers en cours de suppression : leurs autres actions sont bloquées jusqu'au rechargement.
+  const [deletingIds, setDeletingIds] = React.useState<Set<string>>(() => new Set());
+  const onDeletingChange = React.useCallback((id: string, deleting: boolean) => {
+    setDeletingIds((current) => {
+      const next = new Set(current);
+      if (deleting) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
 
   if (rows.length === 0) {
     return <p className={cn("text-sm text-muted-foreground", inset && "px-5 py-3.5")}>Aucune pièce attendue.</p>;
@@ -114,12 +124,20 @@ export function DocumentChecklist({
                   .filter(Boolean)
                   .join(" · ");
                 const downloading = isFileDownloading(doc.fileKey);
+                const deleting = deletingIds.has(doc.id);
                 return (
-                  <div key={doc.id} className={cn("flex flex-col gap-2", stacked && "p-2.5")}>
-                    <span className="min-w-0 truncate text-[13px] text-muted-foreground">{meta || "Fichier"}</span>
+                  <div
+                    key={doc.id}
+                    aria-busy={deleting}
+                    className={cn("flex flex-col gap-2 transition-opacity", stacked && "p-2.5", deleting && "opacity-60")}
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5 truncate text-[13px] text-muted-foreground">
+                      {deleting && <Loader2 className="size-3.5 shrink-0 animate-spin text-red-700" />}
+                      {deleting ? <span className="font-medium text-red-700">Suppression en cours…</span> : meta || "Fichier"}
+                    </span>
                     <span className="flex flex-wrap gap-2">
                       <DocumentViewer document={doc} documentKindLabels={documentKindLabels}>
-                        <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
+                        <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" disabled={deleting}>
                           <Eye className="size-4" />
                           Voir
                         </Button>
@@ -129,14 +147,20 @@ export function DocumentChecklist({
                         variant="outline"
                         size="sm"
                         className="h-9 gap-1.5"
-                        disabled={downloading}
+                        disabled={downloading || deleting}
                         onClick={() => downloadFile(doc.fileKey, doc.label || documentKindLabels[doc.kind] || `document-${doc.id}`)}
                       >
                         {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                         Télécharger
                       </Button>
-                      {canUpload && <DocumentUploadButton target={row.upload!} kind={row.kind} replaceIds={[doc.id]} />}
-                      {editable && <DocumentDeleteButton documentId={doc.id} fileName={doc.label || documentKindLabels[doc.kind] || null} />}
+                      {canUpload && <DocumentUploadButton target={row.upload!} kind={row.kind} replaceIds={[doc.id]} disabled={deleting} />}
+                      {editable && (
+                        <DocumentDeleteButton
+                          documentId={doc.id}
+                          fileName={doc.label || documentKindLabels[doc.kind] || null}
+                          onDeletingChange={onDeletingChange}
+                        />
+                      )}
                     </span>
                   </div>
                 );

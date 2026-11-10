@@ -36,6 +36,9 @@ export function FileStack({
   const layers = Math.min(items.length - 1, MAX_VISIBLE_LAYERS);
   const card = cn("rounded-xl border bg-background shadow-sm", cardClassName);
 
+  // Même arbre plié ou déplié : chaque fichier reste monté (seule sa visibilité change). Sinon,
+  // ouvrir « Voir » ou « Supprimer » fait quitter la pile, qui se replie, démonte le bouton et
+  // ferme sa fenêtre avant la fin de l'action.
   return (
     <div
       className={cn("min-w-0", className)}
@@ -49,17 +52,12 @@ export function FileStack({
         if (!expanded) setExpanded(true);
       }}
     >
-      {expanded ? (
-        <div className="flex flex-col gap-2">
-          {items.map((item, index) => (
-            <div key={index} className={cn(card, "transition-all duration-300 ease-out")}>
-              {item}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="relative" style={{ paddingTop: layers * STACK_OFFSET_PX }}>
-          {Array.from({ length: layers }, (_, i) => {
+      <div
+        className={cn("relative", expanded && "flex flex-col gap-2")}
+        style={expanded ? undefined : { paddingTop: layers * STACK_OFFSET_PX }}
+      >
+        {!expanded &&
+          Array.from({ length: layers }, (_, i) => {
             const depth = layers - i;
             return (
               <div
@@ -73,14 +71,20 @@ export function FileStack({
               />
             );
           })}
-          <div className={cn(card, "relative")}>
-            {items[0]}
-            <span className="pointer-events-none absolute -top-2 right-3 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground shadow-sm">
-              {label ?? `${items.length} fichiers`}
-            </span>
+        {items.map((item, index) => (
+          <div
+            key={(item as React.ReactElement).key ?? index}
+            className={cn(card, "relative transition-all duration-300 ease-out", !expanded && index > 0 && "hidden")}
+          >
+            {item}
+            {!expanded && index === 0 && (
+              <span className="pointer-events-none absolute -top-2 right-3 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground shadow-sm">
+                {label ?? `${items.length} fichiers`}
+              </span>
+            )}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
