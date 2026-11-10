@@ -7,6 +7,10 @@ import {
 } from "@/lib/utils/completion-status";
 import { revalidatePath } from "next/cache";
 import { authorizeUploadTarget, isValidUploadKey } from "@/lib/upload-access";
+import { queueDiagnosticReading } from "@/lib/diagnostics/run";
+
+// Diagnostics reçus : leur lecture par l'IA continue après la réponse (jusqu'à 2 minutes pour un gros dossier).
+export const maxDuration = 300;
 
 /**
  * Route API pour créer des documents dans la DB après upload direct côté client
@@ -259,6 +263,11 @@ export async function POST(request: NextRequest) {
       document = await prisma.document.create({
         data: documentData,
       });
+    }
+
+    // Diagnostics reçus : lecture automatique par l'IA (tâche de fond).
+    if (documentKind === "DIAGNOSTICS" && targetPropertyId && !existingDoc) {
+      queueDiagnosticReading(targetPropertyId);
     }
 
     // Mettre à jour les statuts de complétion

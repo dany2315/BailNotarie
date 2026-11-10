@@ -75,6 +75,13 @@ function getNotificationMessageText(
     }
     case "LEAD_CREATED":
       return "Nouveau lead créé";
+    case "DIAGNOSTICS_TO_REVIEW": {
+      const parts = [
+        meta.toFix ? `${meta.toFix} à remplacer` : null,
+        meta.toCheck ? `${meta.toCheck} à vérifier` : null,
+      ].filter(Boolean);
+      return `Diagnostics à régler — ${meta.propertyLabel || "un bien"}${parts.length ? ` : ${parts.join(", ")}` : ""}`;
+    }
     case "LEAD_CONVERTED":
       return `Lead converti en ${meta.newProfilType === "PROPRIETAIRE" ? "propriétaire" : "locataire"}`;
     default:

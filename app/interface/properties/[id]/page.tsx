@@ -29,6 +29,9 @@ import { assessRentCap, describeRentCapZone } from "@/lib/rent-cap";
 import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { RentCapEditor } from "@/components/admin/rent-cap-editor";
 
+// Diagnostics envoyés depuis cette page : leur lecture par l'IA continue après la réponse.
+export const maxDuration = 300;
+
 export default async function PropertyDetailPage({
   params,
 }: {

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireStaff, requireClientAccess, STAFF_ROLES } from "@/lib/auth-helpers";
 import { accessibleDocument } from "@/lib/document-access";
 import { deleteDocumentFromDB } from "@/lib/document-storage";
+import { queueDiagnosticReading } from "@/lib/diagnostics/run";
 import { revalidatePath } from "next/cache";
 import { DocumentKind } from "@prisma/client";
 import { 
@@ -48,6 +49,8 @@ export async function createDocument(data: {
       uploadedById: user.id,
     },
   });
+
+  if (data.kind === "DIAGNOSTICS" && data.propertyId) queueDiagnosticReading(data.propertyId);
 
   // Mettre à jour les statuts de complétion
   if (data.clientId) {

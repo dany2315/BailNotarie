@@ -164,6 +164,7 @@ enum NotificationType {
   COMPLETION_STATUS_CHANGED
   LEAD_CREATED
   LEAD_CONVERTED
+  DIAGNOSTICS_TO_REVIEW
 }
 
 enum DocumentKind {
@@ -476,6 +477,7 @@ model Property {
 
   dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
   diagnosticAnalyses DiagnosticAnalysis[]
+  diagnosticDecisions DiagnosticDecision[]
 
   @@index([status])
   @@index([ownerId])
@@ -919,6 +921,8 @@ model DiagnosticAnalysis {
   bailId        String?
   /// Pièces « Diagnostics » du bien analysées (pour savoir si elles ont changé depuis)
   documentIds   String[]
+  /// null : lecture de tous les fichiers ; sinon lecture du seul nouveau fichier ajouté pour ce diagnostic (erp, plomb…)
+  item          String?
   /// RUNNING, SUCCEEDED ou FAILED
   status        String
   model         String
@@ -935,6 +939,40 @@ model DiagnosticAnalysis {
   completedAt   DateTime?
 
   @@index([propertyId, createdAt])
+}
+
+enum DiagnosticDecisionKind {
+  /// Déclaré conforme par l'équipe (avec ou sans justificatif, motif obligatoire)
+  CONFORME
+  /// Diagnostic non exigé pour ce bien (motif obligatoire)
+  NON_CONCERNE
+  /// Date du nouveau diagnostic saisie à la main (fichier ajouté mais non lu)
+  DATE
+}
+
+/// Décision de l'équipe sur un diagnostic du bien, visible du notaire. Annulée = revokedAt renseigné (historique gardé).
+model DiagnosticDecision {
+  id            String                 @id @default(cuid())
+  propertyId    String
+  property      Property               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  /// Diagnostic concerné : dpe, erp, plomb, electricite, gaz, amiante, adresse, surface…
+  item          String
+  kind          DiagnosticDecisionKind
+  /// Motif saisi par l'équipe
+  note          String?
+  /// Constat au moment de la décision : si le constat change, la décision ne s'applique plus
+  basis         String?
+  /// DATE : date d'établissement du nouveau diagnostic
+  date          DateTime?
+  /// Justificatif ou nouveau diagnostic (pièce du bien)
+  documentId    String?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime               @default(now())
+  revokedAt     DateTime?
+  revokedByName String?
+
+  @@index([propertyId, item])
 }
 
 model Document {

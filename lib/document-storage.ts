@@ -7,6 +7,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { DocumentKind } from "@prisma/client";
+import { queueDiagnosticReading } from "@/lib/diagnostics/run";
 import { 
   updateClientCompletionStatus as calculateAndUpdateClientStatus, 
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
@@ -41,10 +42,10 @@ export async function deleteBlobFiles(fileKeys: string[]) {
  * Supprime un document de la DB et son fichier AWS S3 associé
  * À utiliser à la place de prisma.document.delete() pour garantir la suppression des fichiers
  */
-export async function deleteDocumentFromDB(id: string) {
+export async function deleteDocumentFromDB(id: string, options: { skipDiagnosticReading?: boolean } = {}) {
   const document = await prisma.document.findUnique({
     where: { id },
-    select: { fileKey: true },
+    select: { fileKey: true, kind: true, propertyId: true },
   });
 
   if (!document) {
@@ -58,6 +59,11 @@ export async function deleteDocumentFromDB(id: string) {
 
   // Supprimer le document de la DB
   await prisma.document.delete({ where: { id } });
+
+  // Diagnostics retirés : les fichiers restants sont relus (tâche de fond).
+  if (document.kind === DocumentKind.DIAGNOSTICS && document.propertyId && !options.skipDiagnosticReading) {
+    queueDiagnosticReading(document.propertyId);
+  }
 }
 
 /**
@@ -270,6 +276,7 @@ export async function handleOwnerFormDocuments(
       label: "Diagnostics",
     });
     if (doc) documents.push(doc);
+    if (doc && propertyId) queueDiagnosticReading(propertyId);
   }
 
   const reglementCopropriete = formData.get("reglementCopropriete") as File | null;

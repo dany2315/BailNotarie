@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { attachDocumentAdmin, type DocumentTarget } from "@/lib/actions/admin-documents";
 import { cn } from "@/lib/utils";
 
-const ACCEPT = ".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx";
-const MAX_SIZE = 20 * 1024 * 1024;
+export const ACCEPT = ".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx";
+export const MAX_SIZE = 20 * 1024 * 1024;
 
 /** Envoi direct vers S3 (URL signée), avec la progression. */
 function putToS3(file: File, signedUrl: string, onProgress: (percent: number) => void) {
@@ -28,6 +28,25 @@ function putToS3(file: File, signedUrl: string, onProgress: (percent: number) =>
   });
 }
 
+/** Envoie un fichier sur le stockage (URL signée) et renvoie sa clé, sans créer la pièce. */
+export async function uploadToStorage(
+  file: File,
+  target: DocumentTarget,
+  kind: string,
+  onProgress: (percent: number) => void = () => undefined,
+): Promise<{ fileKey: string }> {
+  if (file.size > MAX_SIZE) throw new Error("Fichier trop lourd (20 Mo maximum)");
+  const tokenResponse = await fetch("/api/blob/generate-upload-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...target, fileName: file.name, contentType: file.type || "application/octet-stream", documentKind: kind }),
+  });
+  const tokenData = await tokenResponse.json().catch(() => ({}));
+  if (!tokenResponse.ok || !tokenData.signedUrl) throw new Error(tokenData.error || "Impossible de préparer l'envoi");
+  await putToS3(file, tokenData.signedUrl, onProgress);
+  return { fileKey: tokenData.fileKey };
+}
+
 /**
  * « Ajouter » une pièce manquante, ou « Remplacer » une pièce existante : la
  * nouvelle pièce est enregistrée, puis l'ancienne est supprimée (fichier
@@ -40,6 +59,11 @@ export function DocumentUploadButton({
   label,
   className,
   disabled = false,
+  diagnosticItem,
+  bailId,
+  variant = "outline",
+  icon,
+  successMessage,
 }: {
   target: DocumentTarget;
   kind: string;
@@ -49,6 +73,12 @@ export function DocumentUploadButton({
   className?: string;
   /** Fichier en cours de suppression : pas de remplacement en même temps. */
   disabled?: boolean;
+  /** Nouveau fichier pour un diagnostic précis (ERP, plomb…) : lu seul par l'IA. */
+  diagnosticItem?: string;
+  bailId?: string;
+  variant?: "outline" | "default";
+  icon?: React.ReactNode;
+  successMessage?: string;
 }) {
   const pathname = usePathname();
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -62,24 +92,18 @@ export function DocumentUploadButton({
     }
     setProgress(0);
     try {
-      const tokenResponse = await fetch("/api/blob/generate-upload-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...target, fileName: file.name, contentType: file.type || "application/octet-stream", documentKind: kind }),
-      });
-      const tokenData = await tokenResponse.json().catch(() => ({}));
-      if (!tokenResponse.ok || !tokenData.signedUrl) throw new Error(tokenData.error || "Impossible de préparer l'envoi");
-
-      await putToS3(file, tokenData.signedUrl, setProgress);
+      const { fileKey } = await uploadToStorage(file, target, kind, setProgress);
 
       const result = await attachDocumentAdmin({
         target,
         kind,
-        fileKey: tokenData.fileKey,
+        fileKey,
         fileName: file.name,
         mimeType: file.type || undefined,
         size: file.size,
         replaceIds: replacing ? replaceIds : undefined,
+        diagnosticItem,
+        bailId,
         revalidate: pathname,
       });
       if (!result.success) throw new Error(result.error);
@@ -87,7 +111,7 @@ export function DocumentUploadButton({
       // Pas de router.refresh() : l'action revalide la page courante et sa réponse
       // la met déjà à jour (un refresh en plus, depuis un bouton qui disparaît avec
       // l'ancienne pièce, provoquait un rechargement complet).
-      toast.success(replacing ? "Pièce remplacée" : "Pièce ajoutée");
+      toast.success(successMessage || (replacing ? "Pièce remplacée" : "Pièce ajoutée"));
     } catch (error: any) {
       toast.error(error?.message || "L'envoi a échoué");
     } finally {
@@ -111,7 +135,7 @@ export function DocumentUploadButton({
       />
       <Button
         type="button"
-        variant="outline"
+        variant={variant}
         size="sm"
         className={cn("h-9 gap-1.5", className)}
         disabled={busy || disabled}
@@ -119,6 +143,8 @@ export function DocumentUploadButton({
       >
         {busy ? (
           <Loader2 className="size-4 animate-spin" />
+        ) : icon ? (
+          icon
         ) : replacing ? (
           <RefreshCw className="size-4" />
         ) : (

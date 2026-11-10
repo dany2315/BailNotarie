@@ -12,6 +12,9 @@ import { CheckCircle2, XCircle, Home, FileCheck, AlertCircle } from "lucide-reac
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
+// Diagnostics envoyés depuis cette page : leur lecture par l'IA continue après la réponse.
+export const maxDuration = 300;
+
 export default async function IntakePage({
   params,
 }: {

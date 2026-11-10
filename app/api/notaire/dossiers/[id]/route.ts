@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { assessRentRules } from "@/lib/rent-rules";
+import { loadDiagnosticState } from "@/lib/diagnostics/state";
 
 // Helper pour sérialiser les Decimal
 function serializeDecimal(value: any): any {
@@ -203,6 +204,29 @@ export async function GET(
         previousRentAmount: rules.relocation.situation === "relet" ? bail.previousRentAmount ?? null : null,
         previousTenantLeftAt: bail.previousTenantLeftAt ?? null,
       };
+    }
+
+    // Diagnostics : une ligne par diagnostic, avec l'origine de l'information et les décisions de l'équipe
+    // (sans le coût de la lecture ni les textes prévus pour le propriétaire).
+    const diagnosticsPropertyId = (assignment as any).property?.id || bail?.propertyId || null;
+    if (diagnosticsPropertyId) {
+      const state = await loadDiagnosticState(diagnosticsPropertyId, bail?.bailFamily === "COMMERCIAL");
+      if (state && state.items.length > 0) {
+        serializedAssignment.diagnostics = {
+          readAt: state.lastRead?.at ?? null,
+          counts: state.counts,
+          documents: state.documents,
+          items: state.items.map((item) => ({
+            id: item.id,
+            label: item.label,
+            status: item.status,
+            text: item.text,
+            finding: item.finding,
+            origin: item.origin,
+            decision: item.decision,
+          })),
+        };
+      }
     }
 
     // Ajouter les requests si disponibles

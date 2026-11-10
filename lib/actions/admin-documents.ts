@@ -6,6 +6,9 @@ import { DocumentKind, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { deleteDocumentFromDB } from "@/lib/document-storage";
+import { getActorName } from "@/lib/actions/bail-audit-log";
+import { queueDiagnosticReading, startItemReading } from "@/lib/diagnostics/run";
+import { DIAGNOSTIC_ITEM_KEYS } from "@/lib/diagnostics/schema";
 import {
   updateClientCompletionStatus as recalculateClientStatus,
   updatePropertyCompletionStatus as recalculatePropertyStatus,
@@ -41,6 +44,10 @@ const schema = z.object({
   size: z.number().int().nonnegative().max(50 * 1024 * 1024).optional(),
   /** Pièces remplacées : supprimées seulement après l'enregistrement de la nouvelle. */
   replaceIds: z.array(z.string().min(1)).max(20).optional(),
+  /** Nouveau fichier ajouté pour un diagnostic précis (ERP, plomb…) : lu seul par l'IA. */
+  diagnosticItem: z.enum(DIAGNOSTIC_ITEM_KEYS as [string, ...string[]]).optional(),
+  /** Dossier d'où vient l'ajout (rattaché à la lecture). */
+  bailId: z.string().min(1).optional(),
   /** Page de l'interface à rafraîchir (celle d'où vient l'envoi). */
   revalidate: z
     .string()
@@ -57,7 +64,7 @@ export async function attachDocumentAdmin(
   const user = await requireRole([Role.ADMINISTRATEUR]);
   const parsed = schema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
-  const { target, kind, fileKey, fileName, mimeType, size, replaceIds = [], revalidate } = parsed.data;
+  const { target, kind, fileKey, fileName, mimeType, size, replaceIds = [], revalidate, diagnosticItem, bailId } = parsed.data;
 
   // La cible doit exister ; on retient le client ou le bien à recalculer.
   let clientToRecalculate: string | null = null;
@@ -120,7 +127,20 @@ export async function attachDocumentAdmin(
 
   // La nouvelle pièce est enregistrée : l'ancienne peut partir (fichier S3 compris).
   for (const id of replaceIds) {
-    await deleteDocumentFromDB(id);
+    await deleteDocumentFromDB(id, { skipDiagnosticReading: true });
+  }
+
+  // Diagnostics : lecture du seul nouveau fichier pour ce diagnostic, sinon relecture de tous les fichiers du bien.
+  if (kind === DocumentKind.DIAGNOSTICS && target.propertyId) {
+    if (diagnosticItem && replaceIds.length === 0) {
+      const reading = await startItemReading(target.propertyId, diagnosticItem as any, document.id, {
+        bailId: bailId ?? null,
+        actor: { id: user.id, name: getActorName(user) },
+      });
+      if (reading.error) console.error("[diagnostics] lecture du nouveau fichier", reading.error);
+    } else {
+      queueDiagnosticReading(target.propertyId);
+    }
   }
 
   if (clientToRecalculate) await recalculateClientStatus(clientToRecalculate);

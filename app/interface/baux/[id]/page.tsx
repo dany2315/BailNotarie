@@ -56,11 +56,9 @@ import { commercialPaymentText, commercialTermsToForm, commercialVatText, comple
 import { CommercialTermsEditor } from "@/components/admin/commercial-terms-editor";
 import { formatDossierFee } from "@/lib/utils/dossier-fee";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
-import { DiagnosticsAnalysis, type DiagnosticAnalysisView } from "@/components/admin/diagnostics-analysis";
-import { assessDiagnostics } from "@/lib/diagnostics/assess";
-import { assessContextFor } from "@/lib/diagnostics/context";
+import { DiagnosticsPanel } from "@/components/admin/diagnostics-analysis";
 import { isDiagnosticAnalysisConfigured } from "@/lib/diagnostics/openai";
-import { ANALYSIS_STALE_MS, type DiagnosticExtraction } from "@/lib/diagnostics/schema";
+import { loadDiagnosticState } from "@/lib/diagnostics/state";
 
 export const dynamic = "force-dynamic";
 // « Analyser les diagnostics » lit les fichiers après la réponse : jusqu'à 2 minutes pour un gros dossier.
@@ -496,40 +494,10 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
   // Contrôles réglementaires (manuels)
   const diagnosticsIds = (propertyDocuments as any[]).filter((d) => d.kind === DocumentKind.DIAGNOSTICS).map((d) => d.id).sort();
-  // Analyse IA des diagnostics : dernière analyse du bien, avec les règles recalculées à l'affichage.
-  const diagnosticFiles = (propertyDocuments as any[])
-    .filter((d) => d.kind === DocumentKind.DIAGNOSTICS)
-    .map((d) => ({ id: d.id, kind: d.kind, fileKey: d.fileKey, mimeType: d.mimeType ?? null, label: d.label ?? null }));
-  // Table absente (migration pas encore appliquée sur cette base) : la fiche s'affiche sans l'analyse.
-  const latestAnalysis = property
-    ? await prisma.diagnosticAnalysis
-        .findFirst({ where: { propertyId: property.id }, orderBy: { createdAt: "desc" } })
-        .catch((error) => {
-          console.error("[diagnostics] lecture de la dernière analyse", error);
-          return null;
-        })
-    : null;
-  const analysisExtraction = (latestAnalysis?.status === "SUCCEEDED" ? latestAnalysis.extracted : null) as DiagnosticExtraction | null;
-  const diagnosticAnalysis: DiagnosticAnalysisView | null = latestAnalysis
-    ? {
-        id: latestAnalysis.id,
-        status:
-          latestAnalysis.status === "RUNNING" && Date.now() - latestAnalysis.createdAt.getTime() > ANALYSIS_STALE_MS
-            ? "STALLED"
-            : (latestAnalysis.status as DiagnosticAnalysisView["status"]),
-        model: latestAnalysis.model,
-        createdAt: latestAnalysis.createdAt.toISOString(),
-        createdByName: latestAnalysis.createdByName,
-        costUsd: latestAnalysis.costUsd,
-        durationMs: latestAnalysis.durationMs,
-        error: latestAnalysis.error,
-        stale: [...latestAnalysis.documentIds].sort().join(",") !== diagnosticsIds.join(","),
-        extraction: analysisExtraction,
-        assessment: analysisExtraction
-          ? assessDiagnostics(analysisExtraction, assessContextFor(property, isCommercial))
-          : null,
-      }
-    : null;
+  // Diagnostics lus par l'IA, une ligne par diagnostic avec les décisions de l'équipe (null si tables absentes).
+  const diagnosticState = property ? await loadDiagnosticState(property.id, isCommercial) : null;
+  // Modifiables jusqu'à la signature : le notaire voit les mises à jour.
+  const diagnosticsLocked = stage.key === "signe" || stage.key === "clos";
   const rentCapLines = rentCap ? rentCapOverLines(rentCap) : null;
   // Contrôlé automatiquement : loyer conforme à l'arrêté applicable, ou pas de plafond (commune non encadrée,
   // hors périmètre, bail commercial, logement exclu). Adresse non localisée ou bail hors période : à la main.
@@ -1094,9 +1062,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 })}
                 <CheckPoint
                   state={dpe.blocking ? "missing" : isVerified(rulesPoints[1].key, bailLocked) ? "ok" : "todo"}
-                  label={isCommercial ? "Diagnostics (DPE, risques, amiante)" : "Classe DPE"}
-                  // Analyse des diagnostics dans le contenu : toute la largeur, boutons dessous.
-                  actionsBelow
+                  label={isCommercial ? "DPE" : "Classe DPE"}
                   note={dpe.message}
                   verify={{ bailId: lease.id, pointKey: rulesPoints[1].key, verified: isVerified(rulesPoints[1].key, bailLocked), locked: bailLocked }}
                   actions={
@@ -1124,17 +1090,24 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         </span>
                       </>
                     )}
-                    {property && (
-                      <DiagnosticsAnalysis
-                        bailId={lease.id}
-                        files={diagnosticFiles}
-                        analysis={diagnosticAnalysis}
-                        locked={bailLocked}
-                        configured={isDiagnosticAnalysisConfigured()}
-                      />
-                    )}
                   </div>
                 </CheckPoint>
+                {property && diagnosticState && (
+                  <CheckPoint
+                    state={diagnosticState.counts.toFix > 0 ? "missing" : diagnosticState.counts.toCheck > 0 || diagnosticState.items.length === 0 ? "todo" : "ok"}
+                    label={<AutoLabel>Diagnostics</AutoLabel>}
+                    // Liste des diagnostics dans le contenu : toute la largeur.
+                    actionsBelow
+                  >
+                    <DiagnosticsPanel
+                      bailId={lease.id}
+                      propertyId={property.id}
+                      state={diagnosticState}
+                      locked={diagnosticsLocked}
+                      configured={isDiagnosticAnalysisConfigured()}
+                    />
+                  </CheckPoint>
+                )}
                 <CheckPoint
                   state={depositOk ? "ok" : "missing"}
                   label={<AutoLabel>Dépôt de garantie</AutoLabel>}
@@ -1524,6 +1497,19 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               })}
             </ul>
             <p className="text-[13px] leading-relaxed text-muted-foreground">{ctaHelp}</p>
+            {/* Diagnostics à régler : l'envoi reste possible, le notaire voit chaque ligne et les décisions de l'équipe. */}
+            {!pastVerification && diagnosticState && diagnosticState.counts.toFix + diagnosticState.counts.toCheck > 0 && (
+              <p className="text-[13px] font-medium leading-relaxed text-amber-800">
+                Diagnostics :{" "}
+                {[
+                  diagnosticState.counts.toFix ? `${diagnosticState.counts.toFix} à remplacer` : null,
+                  diagnosticState.counts.toCheck ? `${diagnosticState.counts.toCheck} à vérifier` : null,
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+                . Le notaire le verra dans le dossier.
+              </p>
+            )}
           </section>
 
           <div className="order-3 flex min-w-0 flex-col gap-4 lg:order-none">

@@ -1,23 +1,17 @@
 "use server";
 
-import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { DocumentKind, EnergyClass, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
-import { generateSignedDownloadUrl } from "@/lib/utils/s3-client";
-import {
-  DiagnosticAnalysisError,
-  diagnosticModel,
-  isDiagnosticAnalysisConfigured,
-  readDiagnostics,
-  type DiagnosticFile,
-} from "@/lib/diagnostics/openai";
-import { ANALYSIS_STALE_MS, ENERGY_LETTERS, QUESTION_KEYS, type DiagnosticExtraction } from "@/lib/diagnostics/schema";
+import { getActorName } from "@/lib/actions/bail-audit-log";
+import { requestFullReading } from "@/lib/diagnostics/run";
+import { loadDiagnosticState } from "@/lib/diagnostics/state";
+import { DATE_ONLY_ITEMS } from "@/lib/diagnostics/items";
+import { ENERGY_LETTERS, isDiagnosticItemKey } from "@/lib/diagnostics/schema";
 
-/** Taille totale envoyée à OpenAI (les fichiers partent encodés en base64). */
-const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
+type Result = { success: true } | { success: false; error: string };
 
 const revalidateSchema = z
   .string()
@@ -25,178 +19,178 @@ const revalidateSchema = z
   .refine((path) => /^\/interface(\/[\w-]+)*$/.test(path), { message: "Page invalide" })
   .optional();
 
+/** Dossier modifiable pour les diagnostics : tant que le bail n'est pas signé (le notaire voit les mises à jour). */
+async function openBail(bailId: string) {
+  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { id: true, status: true, propertyId: true, bailFamily: true } });
+  if (!bail?.propertyId) return { error: "Dossier ou bien introuvable" } as const;
+  if (bail.status === "SIGNED" || bail.status === "TERMINATED") return { error: "Bail signé : les diagnostics ne se modifient plus" } as const;
+  return { bail: { ...bail, propertyId: bail.propertyId } } as const;
+}
+
+function refresh(bailId: string, propertyId: string, revalidate?: string) {
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  revalidatePath(`/interface/properties/${propertyId}`);
+  revalidatePath("/notaire/dossiers");
+}
+
 const requestSchema = z.object({ bailId: z.string().min(1), revalidate: revalidateSchema });
 
-/**
- * « Analyser les diagnostics » : enregistre une analyse « en cours », répond tout de suite,
- * puis lit les fichiers avec OpenAI après la réponse (la fiche se met à jour d'elle-même).
- */
-export async function requestDiagnosticAnalysis(data: unknown): Promise<{ success: true } | { success: false; error: string }> {
+/** « Relire les fichiers » : nouvelle lecture de tous les diagnostics du bien, en tâche de fond. */
+export async function requestDiagnosticAnalysis(data: unknown): Promise<Result> {
   const user = await requireRole([Role.ADMINISTRATEUR]);
   const parsed = requestSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
   const { bailId, revalidate } = parsed.data;
+  const open = await openBail(bailId);
+  if ("error" in open) return { success: false, error: open.error! };
 
-  if (!isDiagnosticAnalysisConfigured()) {
-    return { success: false, error: "Analyse indisponible : la clé OpenAI n'est pas configurée sur ce serveur." };
-  }
-
-  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { id: true, propertyId: true } });
-  if (!bail?.propertyId) return { success: false, error: "Dossier ou bien introuvable" };
-
-  const documents = await prisma.document.findMany({
-    where: { propertyId: bail.propertyId, kind: DocumentKind.DIAGNOSTICS },
-    select: { id: true, fileKey: true, mimeType: true, label: true, size: true },
-    orderBy: { createdAt: "asc" },
-  });
-  if (documents.length === 0) return { success: false, error: "Aucun fichier de diagnostics : ajoutez-le d'abord dans « Le bien »." };
-  const totalSize = documents.reduce((total, doc) => total + (doc.size ?? 0), 0);
-  if (totalSize > MAX_TOTAL_BYTES) {
-    return { success: false, error: "Fichiers trop lourds pour l'analyse (plus de 40 Mo au total)." };
-  }
-
-  const running = await prisma.diagnosticAnalysis.findFirst({
-    where: { propertyId: bail.propertyId, status: "RUNNING", createdAt: { gt: new Date(Date.now() - ANALYSIS_STALE_MS) } },
-    select: { id: true },
-  });
-  if (running) return { success: false, error: "Une analyse est déjà en cours pour ce bien." };
-
-  const analysis = await prisma.diagnosticAnalysis.create({
-    data: {
-      propertyId: bail.propertyId,
-      bailId: bail.id,
-      documentIds: documents.map((doc) => doc.id).sort(),
-      status: "RUNNING",
-      model: diagnosticModel(),
-      createdById: user.id,
-      createdByName: user.name || user.email,
-    },
-    select: { id: true },
-  });
-
-  after(() => runDiagnosticAnalysis(analysis.id, documents));
-
-  if (revalidate) revalidatePath(revalidate);
+  const result = await requestFullReading(open.bail.propertyId, { bailId, actor: { id: user.id, name: getActorName(user) } });
+  if (result.error) return { success: false, error: result.error };
+  refresh(bailId, open.bail.propertyId, revalidate);
   return { success: true };
 }
 
-async function runDiagnosticAnalysis(
-  analysisId: string,
-  documents: Array<{ id: string; fileKey: string; mimeType: string | null; label: string | null }>,
-) {
-  const started = Date.now();
-  try {
-    const files: DiagnosticFile[] = [];
-    for (const [index, doc] of documents.entries()) {
-      const url = await generateSignedDownloadUrl(doc.fileKey, 600);
-      const response = await fetch(url);
-      if (!response.ok) throw new DiagnosticAnalysisError("Impossible de récupérer un fichier de diagnostics sur le stockage.");
-      const extension = doc.fileKey.split(".").pop()?.toLowerCase() || "pdf";
-      files.push({
-        // Nom distinct par fichier : le modèle indique dans quel fichier il a trouvé chaque diagnostic.
-        name: doc.label || `diagnostics-${index + 1}.${extension}`,
-        mimeType: doc.mimeType || (extension === "pdf" ? "application/pdf" : `image/${extension === "jpg" ? "jpeg" : extension}`),
-        data: Buffer.from(await response.arrayBuffer()),
-      });
-    }
-    const result = await readDiagnostics(files);
-    // Les réponses déjà notées pour ce bien restent valables pour la nouvelle analyse.
-    const current = await prisma.diagnosticAnalysis.findUnique({ where: { id: analysisId }, select: { propertyId: true } });
-    const previous = current
-      ? await prisma.diagnosticAnalysis.findFirst({
-          where: { propertyId: current.propertyId, status: "SUCCEEDED", id: { not: analysisId } },
-          orderBy: { createdAt: "desc" },
-          select: { extracted: true },
-        })
-      : null;
-    const answers = (previous?.extracted as unknown as DiagnosticExtraction | null)?.answers;
-    await prisma.diagnosticAnalysis.update({
-      where: { id: analysisId },
-      data: {
-        status: "SUCCEEDED",
-        model: result.model,
-        extracted: { ...result.extraction, ...(answers ? { answers } : {}) } as any,
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        costUsd: result.costUsd,
-        durationMs: Date.now() - started,
-        completedAt: new Date(),
-      },
-    });
-  } catch (error) {
-    console.error("[diagnostics] analyse", analysisId, error);
-    await prisma.diagnosticAnalysis
-      .update({
-        where: { id: analysisId },
-        data: {
-          status: "FAILED",
-          error: error instanceof DiagnosticAnalysisError ? error.message : "L'analyse a échoué : réessayez.",
-          durationMs: Date.now() - started,
-          completedAt: new Date(),
-        },
-      })
-      .catch(() => undefined);
-  }
-}
-
-const applySchema = z.object({ analysisId: z.string().min(1), revalidate: revalidateSchema });
-
-/** « Reporter dans la fiche du bien » : classe énergie, GES et date du DPE lus par l'analyse. */
-export async function applyDiagnosticDpe(data: unknown): Promise<{ success: true } | { success: false; error: string }> {
+/** « Reporter classe X » : classe énergie, GES et date du DPE lus, reportés dans la fiche du bien. */
+export async function applyDiagnosticDpe(data: unknown): Promise<Result> {
   const user = await requireRole([Role.ADMINISTRATEUR]);
-  const parsed = applySchema.safeParse(data);
+  const parsed = requestSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
-  const { analysisId, revalidate } = parsed.data;
+  const { bailId, revalidate } = parsed.data;
+  const open = await openBail(bailId);
+  if ("error" in open) return { success: false, error: open.error! };
 
-  const analysis = await prisma.diagnosticAnalysis.findUnique({
-    where: { id: analysisId },
-    select: { status: true, propertyId: true, extracted: true },
-  });
-  if (!analysis || analysis.status !== "SUCCEEDED") return { success: false, error: "Analyse introuvable" };
-  const dpe = (analysis.extracted as unknown as DiagnosticExtraction | null)?.dpe;
+  const state = await loadDiagnosticState(open.bail.propertyId, open.bail.bailFamily === "COMMERCIAL");
+  const dpe = state?.dpeToApply;
   const letters = ENERGY_LETTERS as readonly string[];
-  if (!dpe?.energyClass || !letters.includes(dpe.energyClass) || !dpe.date || !/^\d{4}-\d{2}-\d{2}$/.test(dpe.date)) {
+  if (!dpe || !letters.includes(dpe.dpeClass) || !/^\d{4}-\d{2}-\d{2}$/.test(dpe.dpeDate)) {
     return { success: false, error: "Classe ou date du DPE non lue : saisissez-les à la main." };
   }
-
   await prisma.property.update({
-    where: { id: analysis.propertyId },
+    where: { id: open.bail.propertyId },
     data: {
-      dpeClass: dpe.energyClass as EnergyClass,
+      dpeClass: dpe.dpeClass as EnergyClass,
       gesClass: dpe.gesClass && letters.includes(dpe.gesClass) ? (dpe.gesClass as EnergyClass) : null,
-      dpeDate: new Date(`${dpe.date}T00:00:00Z`),
+      dpeDate: new Date(`${dpe.dpeDate}T00:00:00Z`),
       updatedById: user.id,
     },
   });
-
-  if (revalidate) revalidatePath(revalidate);
-  revalidatePath(`/interface/properties/${analysis.propertyId}`);
+  refresh(bailId, open.bail.propertyId, revalidate);
   return { success: true };
 }
 
-const answerSchema = z.object({
-  analysisId: z.string().min(1),
-  key: z.enum(QUESTION_KEYS),
-  /** null : retirer la réponse. */
-  answer: z.boolean().nullable(),
-  revalidate: revalidateSchema,
-});
+const decideSchema = z
+  .object({
+    bailId: z.string().min(1),
+    item: z.string().min(1).max(40).regex(/^[a-z0-9-]+$/),
+    kind: z.enum(["CONFORME", "NON_CONCERNE", "DATE"]),
+    /** Motif : obligatoire pour « conforme » et « non concerné ». */
+    note: z.string().trim().max(500).optional(),
+    /** Constat affiché au moment de la décision. */
+    basis: z.string().max(400).optional(),
+    /** DATE : date d'établissement du nouveau diagnostic (AAAA-MM-JJ). */
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    /** Justificatif déjà envoyé sur le stockage (même circuit que les pièces). */
+    proof: z
+      .object({
+        fileKey: z
+          .string()
+          .min(10)
+          .max(500)
+          .refine((key) => key.startsWith("documents/") && !key.includes(".."), { message: "Clé de fichier invalide" }),
+        fileName: z.string().min(1).max(300),
+        mimeType: z.string().max(200).optional(),
+        size: z.number().int().nonnegative().max(50 * 1024 * 1024).optional(),
+      })
+      .optional(),
+    revalidate: revalidateSchema,
+  })
+  .refine((d) => d.kind === "DATE" || (d.note?.length ?? 0) >= 3, { message: "Indiquez le motif (quelques mots)", path: ["note"] })
+  .refine((d) => d.kind !== "DATE" || !!d.date, { message: "Indiquez la date du diagnostic", path: ["date"] });
 
-/** Réponse du propriétaire à une question (oui / non), notée par l'équipe sur la fiche. */
-export async function answerDiagnosticQuestion(data: unknown): Promise<{ success: true } | { success: false; error: string }> {
-  await requireRole([Role.ADMINISTRATEUR]);
-  const parsed = answerSchema.safeParse(data);
+/**
+ * « Marquer conforme » (avec ou sans justificatif), « Non concerné », ou date d'un nouveau fichier non lu.
+ * La décision est gardée avec son auteur et son motif ; le notaire la voit.
+ */
+export async function decideDiagnosticItem(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = decideSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
-  const { analysisId, key, answer, revalidate } = parsed.data;
+  const { bailId, item, kind, note, basis, date, proof, revalidate } = parsed.data;
+  const open = await openBail(bailId);
+  if ("error" in open) return { success: false, error: open.error! };
+  const propertyId = open.bail.propertyId;
 
-  const analysis = await prisma.diagnosticAnalysis.findUnique({ where: { id: analysisId }, select: { status: true, extracted: true } });
-  if (!analysis || analysis.status !== "SUCCEEDED" || !analysis.extracted) return { success: false, error: "Analyse introuvable" };
-  const extracted = analysis.extracted as unknown as DiagnosticExtraction;
-  const answers = { ...(extracted.answers ?? {}) };
-  if (answer === null) delete answers[key];
-  else answers[key] = answer;
+  const state = await loadDiagnosticState(propertyId, open.bail.bailFamily === "COMMERCIAL");
+  const line = state?.items.find((entry) => entry.id === item);
+  if (!line) return { success: false, error: "Ce point n'existe plus : la page a peut-être changé, rechargez-la." };
 
-  await prisma.diagnosticAnalysis.update({ where: { id: analysisId }, data: { extracted: { ...extracted, answers } as any } });
-  if (revalidate) revalidatePath(revalidate);
+  let documentId: string | null = null;
+  if (kind === "DATE") {
+    if (!isDiagnosticItemKey(item) || !DATE_ONLY_ITEMS.includes(item) || !line.unreadFile) {
+      return { success: false, error: "Date à saisir seulement pour un nouveau fichier non lu" };
+    }
+    const when = new Date(`${date}T00:00:00Z`);
+    if (Number.isNaN(when.getTime()) || when > new Date() || when.getUTCFullYear() < 2000) return { success: false, error: "Date invalide" };
+    documentId = line.unreadFile.documentId;
+  } else if (line.basis !== basis) {
+    return { success: false, error: "Le constat a changé entre-temps : vérifiez la ligne à nouveau." };
+  }
+
+  if (proof) {
+    const usedElsewhere = await prisma.document.findFirst({ where: { fileKey: proof.fileKey }, select: { id: true } });
+    if (usedElsewhere) return { success: false, error: "Justificatif invalide" };
+    const doc = await prisma.document.create({
+      data: {
+        kind: DocumentKind.OTHER,
+        label: `Justificatif ${line.label} · ${proof.fileName}`,
+        fileKey: proof.fileKey,
+        mimeType: proof.mimeType || null,
+        size: proof.size ?? null,
+        uploadedById: user.id,
+        propertyId,
+      },
+      select: { id: true },
+    });
+    documentId = doc.id;
+  }
+
+  await prisma.diagnosticDecision.create({
+    data: {
+      propertyId,
+      item,
+      kind,
+      note: note || null,
+      basis: kind === "DATE" ? null : basis ?? null,
+      date: kind === "DATE" ? new Date(`${date}T00:00:00Z`) : null,
+      documentId,
+      createdById: user.id,
+      createdByName: getActorName(user),
+    },
+  });
+  refresh(bailId, propertyId, revalidate);
+  return { success: true };
+}
+
+const revokeSchema = z.object({ bailId: z.string().min(1), decisionId: z.string().min(1), revalidate: revalidateSchema });
+
+/** « Annuler » une décision : elle ne s'applique plus, mais reste dans l'historique. */
+export async function revokeDiagnosticDecision(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = revokeSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, decisionId, revalidate } = parsed.data;
+  const open = await openBail(bailId);
+  if ("error" in open) return { success: false, error: open.error! };
+
+  const decision = await prisma.diagnosticDecision.findUnique({ where: { id: decisionId }, select: { propertyId: true, revokedAt: true } });
+  if (!decision || decision.propertyId !== open.bail.propertyId) return { success: false, error: "Décision introuvable" };
+  if (!decision.revokedAt) {
+    await prisma.diagnosticDecision.update({ where: { id: decisionId }, data: { revokedAt: new Date(), revokedByName: getActorName(user) } });
+  }
+  refresh(bailId, open.bail.propertyId, revalidate);
   return { success: true };
 }

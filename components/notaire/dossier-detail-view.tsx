@@ -10,6 +10,7 @@ import { formatDate, formatCurrency, formatDateTime } from "@/lib/utils/formatte
 import { FileText, User, Building2, Home, Euro, Calendar, MapPin, MessageSquare, Check, X, Copy, ChevronDown, Loader2 } from "lucide-react";
 import { DocumentsStackByKind } from "@/components/documents/documents-stack-by-kind";
 import { NotaireRequests } from "@/components/notaire/notaire-requests";
+import { NotaireDiagnosticsCard } from "@/components/notaire/notaire-diagnostics";
 import { NotaireBailChatSheet } from "@/components/notaire/notaire-bail-chat-sheet";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { getBailTypeLabel, getBailStatusLabel, getBailStatusColor } from "@/lib/utils/bails-labels";
@@ -761,6 +762,7 @@ export function DossierDetailView({ dossier }: DossierDetailViewProps) {
                 )}
               </CardContent>
             </Card>
+            {(dossier as any).diagnostics && <NotaireDiagnosticsCard diagnostics={(dossier as any).diagnostics} />}
           </TabsContent>
         )}
 

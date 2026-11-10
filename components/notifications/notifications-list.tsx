@@ -95,6 +95,13 @@ function getNotificationMessage(notification: Notification): string {
     }
     case "LEAD_CREATED":
       return "Nouveau lead créé";
+    case "DIAGNOSTICS_TO_REVIEW": {
+      const parts = [
+        metadata.toFix ? `${metadata.toFix} à remplacer` : null,
+        metadata.toCheck ? `${metadata.toCheck} à vérifier` : null,
+      ].filter(Boolean);
+      return `Diagnostics à régler — ${metadata.propertyLabel || "un bien"}${parts.length ? ` : ${parts.join(", ")}` : ""}`;
+    }
     case "LEAD_CONVERTED":
       return `Lead converti en ${metadata.newProfilType === "PROPRIETAIRE" ? "propriétaire" : "locataire"}`;
     default:

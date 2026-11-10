@@ -50,7 +50,7 @@ function filePart(file: DiagnosticFile) {
   return { type: "file", file: { filename: file.name, file_data: `data:${file.mimeType || "application/pdf"};base64,${base64}` } };
 }
 
-export async function readDiagnostics(files: DiagnosticFile[]): Promise<DiagnosticModelResult> {
+export async function readDiagnostics(files: DiagnosticFile[], hint?: string): Promise<DiagnosticModelResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new DiagnosticAnalysisError("Clé OpenAI absente : ajoutez OPENAI_API_KEY dans les variables d'environnement.");
   const model = diagnosticModel();
@@ -62,7 +62,7 @@ export async function readDiagnostics(files: DiagnosticFile[]): Promise<Diagnost
       {
         role: "user",
         content: [
-          { type: "text", text: `Fichiers fournis : ${files.map((file) => file.name).join(", ")}` },
+          { type: "text", text: `Fichiers fournis : ${files.map((file) => file.name).join(", ")}${hint ? `\n${hint}` : ""}` },
           ...files.map(filePart),
         ],
       },

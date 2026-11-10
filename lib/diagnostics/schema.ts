@@ -39,21 +39,40 @@ export interface DiagnosticExtraction {
   lead: DatedDiagnostic & { presence: "OUI" | "NON" | null; degraded?: boolean | null };
   /** installationOver15Years : absent des analyses enregistrées avant le 10/11/2026. */
   electricity: DatedDiagnostic & { anomalies: boolean | null; installationOver15Years?: boolean | null };
-  /** installationPresent : absent des analyses enregistrées avant le 10/11/2026 (traité comme inconnu). */
-  gas: DatedDiagnostic & { anomalies: boolean | null; installationPresent?: boolean | null };
+  /** installationPresent, seriousDanger : absents des analyses enregistrées avant le 11/11/2026 (traités comme inconnus). */
+  gas: DatedDiagnostic & { anomalies: boolean | null; installationPresent?: boolean | null; seriousDanger?: boolean | null };
   termites: DatedDiagnostic & { presence: "OUI" | "NON" | null };
   noise: DatedDiagnostic;
   diagnostician: { name: string | null; company: string | null; certification: string | null };
   /** Problèmes de lecture (pages illisibles, document incomplet…). */
   readingIssues: string[];
-  /** Réponses du propriétaire notées par l'équipe (ajoutées après l'analyse, pas lues par l'IA). */
-  answers?: DiagnosticAnswers;
 }
 
-/** Questions posées au propriétaire quand les diagnostics ne donnent pas la réponse. */
-export const QUESTION_KEYS = ["before1949", "before1997", "electricityOld", "gasOld", "address", "surface"] as const;
-export type QuestionKey = (typeof QUESTION_KEYS)[number];
-export type DiagnosticAnswers = Partial<Record<QuestionKey, boolean>>;
+/**
+ * Diagnostics qu'on peut remplacer par un nouveau fichier : clé du point (assess.ts) → partie des données lues.
+ * Un nouveau fichier ajouté pour l'un d'eux est lu seul, et ses données remplacent celles de ce diagnostic.
+ */
+export const DIAGNOSTIC_SECTIONS = {
+  dpe: "dpe",
+  erp: "erp",
+  plomb: "lead",
+  electricite: "electricity",
+  gaz: "gas",
+  amiante: "asbestos",
+} as const;
+export type DiagnosticItemKey = keyof typeof DIAGNOSTIC_SECTIONS;
+export const DIAGNOSTIC_ITEM_KEYS = Object.keys(DIAGNOSTIC_SECTIONS) as DiagnosticItemKey[];
+export const isDiagnosticItemKey = (key: string): key is DiagnosticItemKey => key in DIAGNOSTIC_SECTIONS;
+
+/** Nom complet du diagnostic, pour le modèle (lecture d'un seul fichier). */
+export const DIAGNOSTIC_ITEM_NAMES: Record<DiagnosticItemKey, string> = {
+  dpe: "DPE (diagnostic de performance énergétique)",
+  erp: "état des risques et pollutions (ERP)",
+  plomb: "constat de risque d'exposition au plomb (CREP)",
+  electricite: "état de l'installation intérieure d'électricité",
+  gaz: "état de l'installation intérieure de gaz",
+  amiante: "repérage amiante (DTA)",
+};
 
 const nullable = (type: string, description: string, extra: Record<string, unknown> = {}) => ({
   type: [type, "null"],
@@ -127,6 +146,10 @@ export const DIAGNOSTIC_JSON_SCHEMA = {
         "boolean",
         "Le bien a-t-il une installation de gaz ? Regarde les énergies du chauffage et de l'eau chaude indiquées dans le DPE, et le diagnostic gaz : true si gaz naturel, propane ou butane ; false si le DPE indique des énergies sans gaz (électricité, fioul, bois, réseau de chaleur…) ; null si on ne peut pas le savoir",
       ),
+      seriousDanger: nullable(
+        "boolean",
+        "Le diagnostic gaz signale-t-il une anomalie de type DGI (danger grave et immédiat), ou une coupure de l'alimentation en gaz ? false si le diagnostic gaz est présent sans anomalie DGI ; null s'il n'y a pas de diagnostic gaz",
+      ),
     }),
     termites: dated("état relatif à la présence de termites", presence("termites")),
     noise: dated("diagnostic bruit (zone d'exposition au bruit d'un aéroport)"),
@@ -155,4 +178,9 @@ export const DIAGNOSTIC_SYSTEM_PROMPT = [
   "Les dates sont au format AAAA-MM-JJ. Les lettres des étiquettes énergie et climat (A à G) sont dessinées dans des étiquettes graphiques : lis-les sur l'image.",
   "Pour chaque diagnostic trouvé, indique le nom exact du fichier qui le contient.",
   "Un même dossier peut contenir plusieurs diagnostics, et plusieurs fichiers peuvent être fournis.",
+  "Si un même diagnostic apparaît plusieurs fois (ancienne et nouvelle version), donne les informations de la version la plus récente.",
 ].join("\n");
+
+/** Consigne ajoutée quand on lit seul un nouveau fichier ajouté pour remplacer un diagnostic. */
+export const itemReadingHint = (item: DiagnosticItemKey) =>
+  `Ce fichier a été ajouté pour remplacer ce diagnostic : ${DIAGNOSTIC_ITEM_NAMES[item]}. Lis-le en priorité ; les autres parties peuvent être absentes (found = false).`;

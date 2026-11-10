@@ -10,17 +10,19 @@
  *   antérieur au 1er juillet 1997.
  * Termites, mérules, assainissement et repérage amiante du logement ne concernent que la vente.
  *
- * Chaque point est rangé selon ce que l'équipe doit faire :
- * - « blocking » : la location est impossible en l'état → prévenir le propriétaire (message fourni) ;
- * - « ask »      : l'information manque → question au propriétaire (réponse notée ensuite) ;
+ * Chaque point est rangé selon ce qu'il faut faire :
+ * - « blocking » : la location est impossible en l'état (message pour le propriétaire fourni) ;
+ * - « ask »      : l'information manque (question pour le propriétaire fournie) ;
  * - « team »     : l'équipe s'en charge (refaire l'ERP, reporter le DPE, vérifier un fichier) ;
- * - « ok »       : conforme.
+ * - « ok »       : conforme ;
+ * - « na »       : non exigé pour ce bien (raison donnée).
+ * Les décisions de l'équipe (conforme, non concerné) sont appliquées ensuite, dans items.ts.
  */
 import { assessDpe, dpeValidUntil } from "@/lib/utils/dpe";
-import { ENERGY_LETTERS, type DiagnosticAnswers, type DiagnosticExtraction, type EnergyLetter, type QuestionKey } from "./schema";
+import { ENERGY_LETTERS, type DiagnosticExtraction, type EnergyLetter } from "./schema";
 
 export type CheckTone = "ok" | "warn" | "missing";
-export type CheckGroup = "blocking" | "ask" | "team" | "ok";
+export type CheckGroup = "blocking" | "ask" | "team" | "ok" | "na";
 export type TeamAction = "erp" | "dpe-fiche" | "file";
 
 export interface DiagnosticCheck {
@@ -33,9 +35,11 @@ export interface DiagnosticCheck {
   /** « blocking » : la phrase à dire ou à écrire au propriétaire. */
   message?: string;
   /** « ask » : la question à poser au propriétaire. */
-  question?: { key: QuestionKey; text: string };
+  question?: string;
   /** « team » : ce que l'équipe peut faire depuis la fiche. */
   action?: TeamAction;
+  /** Diagnostic absent des fichiers (et non la date ou le contenu qui pose problème). */
+  absent?: boolean;
 }
 
 export type DiagnosticOverall = "conforme" | "a_verifier" | "non_conforme";
@@ -71,7 +75,9 @@ const toDate = (value: string | Date | null | undefined) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const day = (date: Date) => date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
+export const formatDay = (date: Date) =>
+  date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
+const day = formatDay;
 
 const isoDay = (value: Date | string | null | undefined) => {
   const date = toDate(value as any);
@@ -140,7 +146,6 @@ function validity(date: Date, months: number, now: Date): { state: "valid" | "so
 
 export function assessDiagnostics(extraction: DiagnosticExtraction, context: AssessContext): DiagnosticAssessment {
   const now = context.now ?? new Date();
-  const answers: DiagnosticAnswers = extraction.answers ?? {};
   const checks: DiagnosticCheck[] = [];
   const notFound: string[] = [];
   const fiche = context.property;
@@ -149,17 +154,18 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
   const place = context.commercial ? "local" : "logement";
   let dpeToApply: DiagnosticAssessment["dpeToApply"] = null;
 
-  const blocking = (id: string, label: string, text: string, message: string) =>
-    checks.push({ id, label, tone: "missing", group: "blocking", text, message });
-  const ask = (id: string, label: string, text: string, key: QuestionKey, question: string) =>
-    checks.push({ id, label, tone: "warn", group: "ask", text, question: { key, text: question } });
-  const team = (id: string, label: string, text: string, action: TeamAction) =>
-    checks.push({ id, label, tone: "warn", group: "team", text, action });
+  const blocking = (id: string, label: string, text: string, message: string, absent = false) =>
+    checks.push({ id, label, tone: "missing", group: "blocking", text, message, absent });
+  const ask = (id: string, label: string, text: string, question: string) =>
+    checks.push({ id, label, tone: "warn", group: "ask", text, question, absent: true });
+  const team = (id: string, label: string, text: string, action: TeamAction, absent = false) =>
+    checks.push({ id, label, tone: "warn", group: "team", text, action, absent });
   const ok = (id: string, label: string, text: string, tone: CheckTone = "ok") => checks.push({ id, label, tone, group: "ok", text });
+  const na = (id: string, label: string, text: string) => checks.push({ id, label, tone: "ok", group: "na", text });
 
   // 1. DPE (logement et local) : valable 10 ans ; logement classé G interdit à la location depuis 2025.
   if (!dpe.found) {
-    blocking("dpe", "DPE", "Absent", `Il nous manque le DPE du ${place} : merci de nous l'envoyer, ou de le faire réaliser par un diagnostiqueur certifié.`);
+    blocking("dpe", "DPE", "Absent", `Il nous manque le DPE du ${place} : merci de nous l'envoyer, ou de le faire réaliser par un diagnostiqueur certifié.`, true);
   } else if (!dpe.energyClass || !dpe.date) {
     team("dpe", "DPE", "Classe ou date non lue : à vérifier dans le fichier", "file");
   } else {
@@ -199,7 +205,7 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
   // 2. État des risques et pollutions (logement et local) : moins de 6 mois à la signature. L'équipe peut le refaire.
   const erpDate = toDate(extraction.erp.date);
   if (!extraction.erp.found) {
-    team("erp", "État des risques (ERP)", "Absent", "erp");
+    team("erp", "État des risques (ERP)", "Absent", "erp", true);
   } else if (!erpDate) {
     team("erp", "État des risques (ERP)", "Date non lue : il doit avoir moins de 6 mois à la signature", "erp");
   } else {
@@ -210,7 +216,7 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
 
   if (context.commercial) {
     // 3. Local : amiante (dossier technique amiante) si permis de construire avant le 1er juillet 1997.
-    const before1997 = builtBefore(1997, year, fiche?.constructionPeriod) ?? answers.before1997 ?? null;
+    const before1997 = builtBefore(1997, year, fiche?.constructionPeriod);
     const asbestos = extraction.asbestos;
     if (asbestos.found) {
       ok(
@@ -225,17 +231,20 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
         "Amiante (DTA)",
         "Absent : obligatoire, local d'avant juillet 1997",
         "Le local a été construit avant juillet 1997 : le dossier technique amiante (DTA) est obligatoire. Merci de nous l'envoyer.",
+        true,
       );
     } else if (before1997 === null) {
-      ask("amiante", "Amiante (DTA)", "Année de construction inconnue", "before1997", "Le permis de construire du local date-t-il d'avant juillet 1997 ?");
+      ask("amiante", "Amiante (DTA)", "Absent : obligatoire si le permis de construire date d'avant juillet 1997", "Le permis de construire du local date-t-il d'avant juillet 1997 ?");
+    } else {
+      na("amiante", "Amiante (DTA)", "Permis de construire de juillet 1997 ou après : non exigé");
     }
   } else {
     // 3. Logement : plomb (CREP) si construit avant 1949 ; illimité sans plomb, 6 ans avec ; peintures dégradées = travaux.
-    const before1949 = builtBefore(1949, year, fiche?.constructionPeriod) ?? answers.before1949 ?? null;
+    const before1949 = builtBefore(1949, year, fiche?.constructionPeriod);
     const lead = extraction.lead;
     const leadDate = toDate(lead.date);
-    if (before1949 === false) {
-      // Construit en 1949 ou après : non requis.
+    if (before1949 === false && !lead.found) {
+      na("plomb", "Plomb (CREP)", "Construit en 1949 ou après : non exigé");
     } else if (!lead.found) {
       if (before1949 === true) {
         blocking(
@@ -243,9 +252,10 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
           "Plomb (CREP)",
           "Absent : obligatoire, logement d'avant 1949",
           "Le logement a été construit avant 1949 : un constat de risque d'exposition au plomb (CREP) est obligatoire. Merci de nous l'envoyer, ou de le faire réaliser.",
+          true,
         );
       } else {
-        ask("plomb", "Plomb (CREP)", "Année de construction inconnue", "before1949", "Le logement a-t-il été construit avant 1949 ?");
+        ask("plomb", "Plomb (CREP)", "Absent : obligatoire si le logement date d'avant 1949", "Le logement a-t-il été construit avant 1949 ?");
       }
     } else if (lead.degraded) {
       blocking(
@@ -276,43 +286,57 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
     }
 
     // 4. Électricité et gaz : si l'installation a plus de 15 ans ; valables 6 ans.
+    // Des anomalies ne bloquent pas la location (le diagnostic informe le locataire), mais le logement
+    // doit rester décent : l'équipe vérifie qu'aucune n'est dangereuse. Gaz en « danger grave et immédiat » : bloquant.
     const installation = [
       {
         id: "electricite",
         label: "Électricité",
         item: extraction.electricity,
-        old: extraction.electricity.installationOver15Years ?? answers.electricityOld ?? null,
-        key: "electricityOld" as const,
+        old: extraction.electricity.installationOver15Years ?? null,
+        notRequired: "Installation de moins de 15 ans : non exigé",
         question: "L'installation électrique a-t-elle plus de 15 ans ?",
         required: "L'installation électrique a plus de 15 ans : un diagnostic électricité est obligatoire. Merci de nous l'envoyer, ou de le faire réaliser.",
         redo: "Le diagnostic électricité a plus de 6 ans : il faut le faire refaire par un diagnostiqueur certifié.",
+        danger: false,
       },
       {
         id: "gaz",
         label: "Gaz",
         item: extraction.gas,
         // Pas d'installation de gaz d'après le DPE : non requis.
-        old: extraction.gas.installationPresent === false ? false : answers.gasOld ?? null,
-        key: "gasOld" as const,
+        old: extraction.gas.installationPresent === false ? false : null,
+        notRequired: extraction.gas.installationPresent === false ? "Pas d'installation de gaz (d'après le DPE) : non exigé" : "Installation de moins de 15 ans : non exigé",
         question: "Le logement a-t-il une installation de gaz de plus de 15 ans ?",
         required: "Le logement a une installation de gaz de plus de 15 ans : un diagnostic gaz est obligatoire. Merci de nous l'envoyer, ou de le faire réaliser.",
         redo: "Le diagnostic gaz a plus de 6 ans : il faut le faire refaire par un diagnostiqueur certifié.",
+        danger: extraction.gas.seriousDanger === true,
       },
     ];
     for (const entry of installation) {
       const itemDate = toDate(entry.item.date);
-      if (entry.item.found && itemDate) {
+      if (entry.item.found && entry.danger) {
+        blocking(
+          entry.id,
+          entry.label,
+          "Danger grave et immédiat signalé",
+          "Le diagnostic gaz signale un danger grave et immédiat : l'installation doit être réparée par un professionnel avant la location, avec une attestation de remise en état.",
+        );
+      } else if (entry.item.found && itemDate) {
         const v = validity(itemDate, 72, now);
         if (v.state === "expired") blocking(entry.id, entry.label, `Expiré le ${day(v.until)}`, entry.redo);
-        else ok(entry.id, entry.label, `Valable jusqu'au ${day(v.until)}${entry.item.anomalies ? " · anomalies signalées" : ""}`, v.state === "soon" ? "warn" : "ok");
+        else if (entry.item.anomalies) {
+          team(entry.id, entry.label, `Valable jusqu'au ${day(v.until)} · anomalies signalées : vérifiez qu'aucune n'est dangereuse`, "file");
+        } else ok(entry.id, entry.label, `Valable jusqu'au ${day(v.until)}${entry.item.anomalies === false ? " · sans anomalie" : ""}`, v.state === "soon" ? "warn" : "ok");
       } else if (entry.item.found) {
         team(entry.id, entry.label, "Date non lue : valable 6 ans, à vérifier dans le fichier", "file");
       } else if (entry.old === true) {
-        blocking(entry.id, entry.label, "Absent : installation de plus de 15 ans", entry.required);
+        blocking(entry.id, entry.label, "Absent : installation de plus de 15 ans", entry.required, true);
       } else if (entry.old === null) {
-        ask(entry.id, entry.label, "Absent : obligatoire si l'installation a plus de 15 ans", entry.key, entry.question);
+        ask(entry.id, entry.label, "Absent : obligatoire si l'installation a plus de 15 ans", entry.question);
+      } else {
+        na(entry.id, entry.label, entry.notRequired);
       }
-      // Installation récente ou pas de gaz : non requis, rien à afficher.
     }
   }
 
@@ -323,24 +347,31 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
     const ficheNumber = fiche.housenumber?.match(/\d+/)?.[0] ?? null;
     const same = readPostal === fiche.postalCode && (!readNumber || !ficheNumber || readNumber === ficheNumber);
     const read = extraction.property.address || readPostal;
-    if (!same && answers.address === false) {
-      blocking(
-        "adresse",
-        "Adresse",
-        `Diagnostics d'un autre bien (${read})`,
-        `Les diagnostics reçus concernent un autre bien (${read}) : merci de nous envoyer ceux du bien situé ${fiche.fullAddress || "dans le dossier"}.`,
-      );
-    } else if (!same && answers.address !== true) {
-      ask("adresse", "Adresse", `Le diagnostic indique « ${read} »`, "address", `Ces diagnostics concernent-ils bien le bien situé ${fiche.fullAddress || "dans le dossier"} ?`);
+    if (!same) {
+      checks.push({
+        id: "adresse",
+        label: "Adresse",
+        tone: "warn",
+        group: "ask",
+        text: `Le diagnostic indique « ${read} »`,
+        question: `Ces diagnostics concernent-ils bien le bien situé ${fiche.fullAddress || "dans le dossier"} ?`,
+      });
     }
   }
   // Surface habitable : mention obligatoire du bail d'habitation.
   const surface = extraction.property.surfaceM2;
-  if (!context.commercial && surface && fiche?.surfaceM2 && answers.surface !== true) {
+  if (!context.commercial && surface && fiche?.surfaceM2) {
     const gap = Math.abs(surface - fiche.surfaceM2) / fiche.surfaceM2;
     const fmt = (value: number) => value.toString().replace(".", ",");
     if (gap > 0.05) {
-      ask("surface", "Surface habitable", `${fmt(surface)} m² dans le diagnostic, ${fmt(fiche.surfaceM2)} m² sur la fiche`, "surface", `La surface habitable du logement est-elle bien de ${fmt(surface)} m² ?`);
+      checks.push({
+        id: "surface",
+        label: "Surface habitable",
+        tone: "warn",
+        group: "ask",
+        text: `${fmt(surface)} m² dans le diagnostic, ${fmt(fiche.surfaceM2)} m² sur la fiche`,
+        question: `La surface habitable du logement est-elle bien de ${fmt(surface)} m² ?`,
+      });
     }
   }
 
@@ -357,19 +388,11 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
   ];
   for (const [value, label] of wanted) if (value == null || value === "") notFound.push(label);
 
-  const overall: DiagnosticOverall = checks.some((check) => check.group === "blocking")
-    ? "non_conforme"
-    : checks.some((check) => check.group !== "ok" || check.tone !== "ok")
-      ? "a_verifier"
-      : "conforme";
-
-  return { overall, checks, notFound, dpeToApply };
+  return { overall: overallOf(checks), checks, notFound, dpeToApply };
 }
 
-/** Texte prêt à envoyer (ou à lire au téléphone) pour ce qui bloque, ou pour les questions. */
-export function ownerMessageLines(assessment: DiagnosticAssessment, kind: "blocking" | "ask"): string[] {
-  return assessment.checks
-    .filter((check) => check.group === kind)
-    .map((check) => (kind === "blocking" ? check.message : check.question?.text))
-    .filter((line): line is string => !!line);
+export function overallOf(checks: Array<Pick<DiagnosticCheck, "group" | "tone">>): DiagnosticOverall {
+  if (checks.some((check) => check.group === "blocking")) return "non_conforme";
+  if (checks.some((check) => check.group !== "na" && (check.group !== "ok" || check.tone !== "ok"))) return "a_verifier";
+  return "conforme";
 }
