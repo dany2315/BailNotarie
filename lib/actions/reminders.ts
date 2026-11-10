@@ -12,6 +12,9 @@ import { getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log
 import { describeMissingItems } from "@/lib/utils/missing-items";
 import { assessRentCap, rentCapOverLines } from "@/lib/rent-cap";
 import { documentKindLabels } from "@/lib/utils/document-labels";
+import { assessDiagnostics, ownerMessageLines } from "@/lib/diagnostics/assess";
+import { assessContextFor } from "@/lib/diagnostics/context";
+import type { DiagnosticExtraction } from "@/lib/diagnostics/schema";
 import {
   computeReminderNeeds,
   statusSinceFrom,
@@ -32,6 +35,7 @@ const SUBJECTS: Record<ReminderReasonValue, string> = {
   TENANT_VIA_OWNER: "Votre locataire n'a pas encore rempli son formulaire",
   MISSING_ITEMS: "Votre bail notarié : éléments manquants",
   RENT_CAP: "Votre bail notarié : loyer au-dessus du plafond",
+  DIAGNOSTICS: "Votre bail notarié : vos diagnostics",
 };
 
 const BAIL_FIELD_LABELS: Record<string, string> = {
@@ -459,4 +463,78 @@ function revalidateBail(bailId: string) {
   revalidatePath("/interface");
   revalidatePath("/interface/baux");
   revalidatePath(`/interface/baux/${bailId}`);
+}
+
+/* ------------------------------------------------------------------ */
+/* Diagnostics : prévenir le propriétaire, ou lui poser les questions   */
+/* ------------------------------------------------------------------ */
+
+const diagnosticsSchema = z.object({ bailId: z.string().min(1), kind: z.enum(["blocking", "ask"]) });
+
+/**
+ * E-mail au propriétaire après l'analyse des diagnostics : ce qui bloque la location (« blocking »),
+ * ou les questions dont la réponse n'est pas dans les diagnostics (« ask »). Le texte est recalculé
+ * ici à partir de la dernière analyse, comme sur la fiche ; l'envoi est tracé dans les relances.
+ */
+export async function sendDiagnosticsToOwner(data: unknown): Promise<{ success: true; data: { email: string } } | Fail> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = diagnosticsSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, kind } = parsed.data;
+
+  const bail = await loadBail(bailId);
+  if (!bail?.propertyId) return { success: false, error: "Dossier introuvable" };
+  const { owner } = contextOf(bail);
+  if (!owner) return { success: false, error: "Propriétaire absent du dossier" };
+  if (!owner.email) return { success: false, error: `${owner.name} n'a pas d'adresse e-mail` };
+
+  const [analysis, property, family] = await Promise.all([
+    prisma.diagnosticAnalysis.findFirst({ where: { propertyId: bail.propertyId, status: "SUCCEEDED" }, orderBy: { createdAt: "desc" } }),
+    prisma.property.findUnique({
+      where: { id: bail.propertyId },
+      select: { fullAddress: true, postalCode: true, housenumber: true, surfaceM2: true, dpeClass: true, gesClass: true, dpeDate: true, constructionPeriod: true },
+    }),
+    prisma.bail.findUnique({ where: { id: bailId }, select: { bailFamily: true } }),
+  ]);
+  if (!analysis?.extracted) return { success: false, error: "Aucune analyse des diagnostics pour ce bien" };
+  const assessment = assessDiagnostics(analysis.extracted as unknown as DiagnosticExtraction, assessContextFor(property, family?.bailFamily === "COMMERCIAL"));
+  const items = ownerMessageLines(assessment, kind);
+  if (items.length === 0) return { success: false, error: kind === "blocking" ? "Rien ne bloque la location" : "Aucune question à poser" };
+
+  const address = bail.property?.fullAddress || bail.property?.label || "votre bien";
+  try {
+    const result = await resendSendEmail({
+      from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
+      to: owner.email,
+      subject: kind === "blocking" ? "Votre bail notarié : vos diagnostics à mettre à jour" : "Votre bail notarié : quelques questions sur vos diagnostics",
+      react: MailRelance({
+        reason: "DIAGNOSTICS",
+        name: owner.name,
+        address,
+        actionUrl: `${BASE_URL()}/client/proprietaire/baux/${bailId}`,
+        items,
+      }),
+    });
+    if (result.error) throw new Error(result.error.message);
+  } catch (error) {
+    console.error("[sendDiagnosticsToOwner]", error);
+    return { success: false, error: `Envoi impossible à ${owner.email}` };
+  }
+
+  await prisma.bailReminder.create({
+    data: {
+      bailId,
+      clientId: owner.id,
+      target: ReminderTarget.OWNER,
+      reason: ReminderReason.DIAGNOSTICS,
+      channel: ReminderChannel.EMAIL,
+      recipientEmail: owner.email,
+      items,
+      note: kind === "blocking" ? "Ce qui bloque la location" : "Questions sur les diagnostics",
+      createdById: user.id,
+      createdByName: getActorName(user),
+    },
+  });
+  revalidateBail(bailId);
+  return { success: true, data: { email: owner.email } };
 }

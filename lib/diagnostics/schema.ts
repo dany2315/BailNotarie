@@ -35,8 +35,10 @@ export interface DiagnosticExtraction {
   };
   erp: DatedDiagnostic;
   asbestos: DatedDiagnostic & { presence: "OUI" | "NON" | null };
-  lead: DatedDiagnostic & { presence: "OUI" | "NON" | null };
-  electricity: DatedDiagnostic & { anomalies: boolean | null };
+  /** degraded : absent des analyses enregistrées avant le 10/11/2026 (traité comme inconnu). */
+  lead: DatedDiagnostic & { presence: "OUI" | "NON" | null; degraded?: boolean | null };
+  /** installationOver15Years : absent des analyses enregistrées avant le 10/11/2026. */
+  electricity: DatedDiagnostic & { anomalies: boolean | null; installationOver15Years?: boolean | null };
   /** installationPresent : absent des analyses enregistrées avant le 10/11/2026 (traité comme inconnu). */
   gas: DatedDiagnostic & { anomalies: boolean | null; installationPresent?: boolean | null };
   termites: DatedDiagnostic & { presence: "OUI" | "NON" | null };
@@ -44,7 +46,14 @@ export interface DiagnosticExtraction {
   diagnostician: { name: string | null; company: string | null; certification: string | null };
   /** Problèmes de lecture (pages illisibles, document incomplet…). */
   readingIssues: string[];
+  /** Réponses du propriétaire notées par l'équipe (ajoutées après l'analyse, pas lues par l'IA). */
+  answers?: DiagnosticAnswers;
 }
+
+/** Questions posées au propriétaire quand les diagnostics ne donnent pas la réponse. */
+export const QUESTION_KEYS = ["before1949", "before1997", "electricityOld", "gasOld", "address", "surface"] as const;
+export type QuestionKey = (typeof QUESTION_KEYS)[number];
+export type DiagnosticAnswers = Partial<Record<QuestionKey, boolean>>;
 
 const nullable = (type: string, description: string, extra: Record<string, unknown> = {}) => ({
   type: [type, "null"],
@@ -103,15 +112,20 @@ export const DIAGNOSTIC_JSON_SCHEMA = {
         description:
           "OUI si au moins un revêtement contient du plomb à une concentration égale ou supérieure au seuil (classe 1, 2 ou 3), même non dégradé ; NON si tous les revêtements sont sous le seuil (classe 0) ; null si non indiqué",
       },
+      degraded: nullable("boolean", "Des revêtements dégradés contenant du plomb (classe 3) sont-ils signalés ? null si non indiqué"),
     }),
     electricity: dated("état de l'installation intérieure d'électricité", {
       anomalies: nullable("boolean", "Des anomalies sont-elles signalées ?"),
+      installationOver15Years: nullable(
+        "boolean",
+        "L'installation électrique a-t-elle plus de 15 ans, d'après l'année de l'installation ou de sa dernière rénovation indiquée dans le diagnostic électricité ou le DPE ? null si on ne peut pas le savoir",
+      ),
     }),
     gas: dated("état de l'installation intérieure de gaz", {
       anomalies: nullable("boolean", "Des anomalies sont-elles signalées ?"),
       installationPresent: nullable(
         "boolean",
-        "Le bien a-t-il une installation de gaz (chauffage, eau chaude ou cuisson au gaz), d'après le DPE ou les autres diagnostics ? true / false, null si on ne peut pas le savoir",
+        "Le bien a-t-il une installation de gaz ? Regarde les énergies du chauffage et de l'eau chaude indiquées dans le DPE, et le diagnostic gaz : true si gaz naturel, propane ou butane ; false si le DPE indique des énergies sans gaz (électricité, fioul, bois, réseau de chaleur…) ; null si on ne peut pas le savoir",
       ),
     }),
     termites: dated("état relatif à la présence de termites", presence("termites")),

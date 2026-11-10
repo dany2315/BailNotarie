@@ -58,6 +58,7 @@ import { formatDossierFee } from "@/lib/utils/dossier-fee";
 import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
 import { DiagnosticsAnalysis, type DiagnosticAnalysisView } from "@/components/admin/diagnostics-analysis";
 import { assessDiagnostics } from "@/lib/diagnostics/assess";
+import { assessContextFor } from "@/lib/diagnostics/context";
 import { isDiagnosticAnalysisConfigured } from "@/lib/diagnostics/openai";
 import { ANALYSIS_STALE_MS, type DiagnosticExtraction } from "@/lib/diagnostics/schema";
 
@@ -525,20 +526,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         stale: [...latestAnalysis.documentIds].sort().join(",") !== diagnosticsIds.join(","),
         extraction: analysisExtraction,
         assessment: analysisExtraction
-          ? assessDiagnostics(analysisExtraction, {
-              commercial: isCommercial,
-              property: property
-                ? {
-                    postalCode: property.postalCode,
-                    housenumber: property.housenumber,
-                    surfaceM2: surface,
-                    dpeClass: property.dpeClass,
-                    gesClass: property.gesClass,
-                    dpeDate: property.dpeDate,
-                    constructionPeriod: property.constructionPeriod,
-                  }
-                : null,
-            })
+          ? assessDiagnostics(analysisExtraction, assessContextFor(property, isCommercial))
           : null,
       }
     : null;

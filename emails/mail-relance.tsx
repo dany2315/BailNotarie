@@ -8,7 +8,8 @@ export type RelanceReason =
   | "TENANT_FORM"
   | "TENANT_VIA_OWNER"
   | "MISSING_ITEMS"
-  | "RENT_CAP";
+  | "RENT_CAP"
+  | "DIAGNOSTICS";
 
 export interface MailRelanceProps {
   reason: RelanceReason;
@@ -72,12 +73,18 @@ const CONTENT: Record<RelanceReason, { preview: string; intro: (p: MailRelancePr
     ],
     button: "Accéder à mon espace",
   },
+  DIAGNOSTICS: {
+    preview: "Vos diagnostics : quelques points à régler",
+    intro: (p) => [`Nous avons vérifié les diagnostics de votre bien situé ${p.address} :`],
+    button: "Accéder à mon espace",
+  },
 };
 
 const OUTRO: Partial<Record<RelanceReason, string>> = {
   RENT_CAP:
     "Deux possibilités : ramener le loyer au plafond, ou justifier un complément de loyer (caractéristiques exceptionnelles du logement : vue, terrasse, prestations…). Répondez-nous en précisant votre choix et, le cas échéant, les éléments qui justifient le complément.",
   MISSING_ITEMS: "Vous pouvez nous les transmettre depuis votre espace client ou en répondant à ce message.",
+  DIAGNOSTICS: "Répondez simplement à ce message, ou transmettez les documents depuis votre espace client.",
 };
 
 export default function MailRelance(props: MailRelanceProps) {

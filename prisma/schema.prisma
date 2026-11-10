@@ -756,6 +756,7 @@ enum ReminderReason {
   TENANT_VIA_OWNER // Le propriétaire est relancé au sujet de son locataire
   MISSING_ITEMS // Éléments encore manquants après soumission (relance manuelle)
   RENT_CAP // Loyer au-dessus du loyer de référence majoré
+  DIAGNOSTICS // Diagnostics : ce qui bloque la location, ou questions au propriétaire
 }
 
 /// Comment on a relancé.

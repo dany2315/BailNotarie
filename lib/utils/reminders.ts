@@ -22,7 +22,8 @@ export type ReminderReasonValue =
   | "TENANT_FORM"
   | "TENANT_VIA_OWNER"
   | "MISSING_ITEMS"
-  | "RENT_CAP";
+  | "RENT_CAP"
+  | "DIAGNOSTICS";
 export type ReminderChannelValue = "EMAIL" | "CALL" | "SNOOZE";
 
 export const FIRST_REMINDER_DELAY_H = 24;
@@ -39,6 +40,7 @@ export const REASON_LABELS: Record<ReminderReasonValue, string> = {
   TENANT_VIA_OWNER: "Faire remplir le formulaire à son locataire",
   MISSING_ITEMS: "Envoyer les éléments manquants",
   RENT_CAP: "Loyer au-dessus du plafond",
+  DIAGNOSTICS: "Diagnostics à régler",
 };
 
 export const TARGET_LABELS: Record<ReminderTargetValue, string> = { OWNER: "Propriétaire", TENANT: "Locataire" };

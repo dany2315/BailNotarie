@@ -14,7 +14,7 @@ import {
   readDiagnostics,
   type DiagnosticFile,
 } from "@/lib/diagnostics/openai";
-import { ANALYSIS_STALE_MS, ENERGY_LETTERS, type DiagnosticExtraction } from "@/lib/diagnostics/schema";
+import { ANALYSIS_STALE_MS, ENERGY_LETTERS, QUESTION_KEYS, type DiagnosticExtraction } from "@/lib/diagnostics/schema";
 
 /** Taille totale envoyée à OpenAI (les fichiers partent encodés en base64). */
 const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
@@ -100,12 +100,22 @@ async function runDiagnosticAnalysis(
       });
     }
     const result = await readDiagnostics(files);
+    // Les réponses déjà notées pour ce bien restent valables pour la nouvelle analyse.
+    const current = await prisma.diagnosticAnalysis.findUnique({ where: { id: analysisId }, select: { propertyId: true } });
+    const previous = current
+      ? await prisma.diagnosticAnalysis.findFirst({
+          where: { propertyId: current.propertyId, status: "SUCCEEDED", id: { not: analysisId } },
+          orderBy: { createdAt: "desc" },
+          select: { extracted: true },
+        })
+      : null;
+    const answers = (previous?.extracted as unknown as DiagnosticExtraction | null)?.answers;
     await prisma.diagnosticAnalysis.update({
       where: { id: analysisId },
       data: {
         status: "SUCCEEDED",
         model: result.model,
-        extracted: result.extraction as any,
+        extracted: { ...result.extraction, ...(answers ? { answers } : {}) } as any,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
         costUsd: result.costUsd,
@@ -161,5 +171,32 @@ export async function applyDiagnosticDpe(data: unknown): Promise<{ success: true
 
   if (revalidate) revalidatePath(revalidate);
   revalidatePath(`/interface/properties/${analysis.propertyId}`);
+  return { success: true };
+}
+
+const answerSchema = z.object({
+  analysisId: z.string().min(1),
+  key: z.enum(QUESTION_KEYS),
+  /** null : retirer la réponse. */
+  answer: z.boolean().nullable(),
+  revalidate: revalidateSchema,
+});
+
+/** Réponse du propriétaire à une question (oui / non), notée par l'équipe sur la fiche. */
+export async function answerDiagnosticQuestion(data: unknown): Promise<{ success: true } | { success: false; error: string }> {
+  await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = answerSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { analysisId, key, answer, revalidate } = parsed.data;
+
+  const analysis = await prisma.diagnosticAnalysis.findUnique({ where: { id: analysisId }, select: { status: true, extracted: true } });
+  if (!analysis || analysis.status !== "SUCCEEDED" || !analysis.extracted) return { success: false, error: "Analyse introuvable" };
+  const extracted = analysis.extracted as unknown as DiagnosticExtraction;
+  const answers = { ...(extracted.answers ?? {}) };
+  if (answer === null) delete answers[key];
+  else answers[key] = answer;
+
+  await prisma.diagnosticAnalysis.update({ where: { id: analysisId }, data: { extracted: { ...extracted, answers } as any } });
+  if (revalidate) revalidatePath(revalidate);
   return { success: true };
 }
