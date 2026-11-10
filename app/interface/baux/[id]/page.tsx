@@ -23,7 +23,7 @@ import { RentCapEditor, RentCapExemptionButton, RentSupplementButton } from "@/c
 import { intakeSummary } from "@/lib/utils/intake-summary";
 import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, withVerified } from "@/components/admin/party-check-section";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
-import { ValidateAllButton, VerifyToggle } from "@/components/admin/verify-buttons";
+import { ValidateAllButton } from "@/components/admin/verify-buttons";
 import { pointKey, summarize, summaryChip } from "@/lib/utils/verification";
 import { prisma } from "@/lib/prisma";
 import { DocumentChecklist } from "@/components/documents/document-checklist";
@@ -695,6 +695,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   state={capMissing ? "missing" : isVerified(rulesPoints[0].key, bailLocked || capAuto) ? "ok" : "todo"}
                   label={capAuto && !bailLocked ? <AutoLabel>Plafond de loyer</AutoLabel> : "Plafond de loyer"}
                   actionsBelow
+                  verify={capAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[0].key, verified: isVerified(rulesPoints[0].key, bailLocked), locked: bailLocked }}
                   note={
                     !rentCap
                       ? null
@@ -709,6 +710,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           : null
                   }
                   actions={
+                    !bailLocked && (!!rentCap?.territory || rentCap?.status === "over" || !!lease.rentSupplementReason || (!capMissing && capAuto)) ? (
                     <>
                       {property && rentCap?.territory && rentCap.status !== "no_data" && rentCap.notConcerned !== "exempt" && !bailLocked && (
                         <RentCapEditor
@@ -730,18 +732,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       {(rentCap?.status === "over" || lease.rentSupplementReason) && !bailLocked && (
                         <RentSupplementButton bailId={lease.id} reason={lease.rentSupplementReason} />
                       )}
-                      {!capMissing &&
-                        (capAuto && !bailLocked ? (
-                          <AutoVerified />
-                        ) : (
-                          <VerifyToggle
-                            bailId={lease.id}
-                            pointKey={rulesPoints[0].key}
-                            verified={isVerified(rulesPoints[0].key, bailLocked || capAuto)}
-                            locked={bailLocked || capAuto}
-                          />
-                        ))}
+                      {!capMissing && capAuto && !bailLocked && <AutoVerified />}
                     </>
+                    ) : null
                   }
                 >
                   <span className="flex flex-col gap-1">
@@ -872,6 +865,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   state={relocMissing ? "missing" : isVerified(rulesPoints[2].key, bailLocked || relocAuto) ? "ok" : "todo"}
                   label={relocAuto && !bailLocked ? <AutoLabel>Évolution du loyer (zone tendue)</AutoLabel> : "Évolution du loyer (zone tendue)"}
                   actionsBelow
+                  verify={relocAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[2].key, verified: isVerified(rulesPoints[2].key, bailLocked), locked: bailLocked }}
                   note={
                     !relocation
                       ? null
@@ -884,22 +878,14 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                             : null
                   }
                   actions={
-                    <>
-                      {relocation && relocation.notConcerned === null && !bailLocked && (
-                        <RentRulesEditor bailId={lease.id} values={rentRulesToForm(lease)} missing={relocation.undeclared} />
-                      )}
-                      {!relocMissing &&
-                        (relocAuto && !bailLocked ? (
-                          <AutoVerified />
-                        ) : (
-                          <VerifyToggle
-                            bailId={lease.id}
-                            pointKey={rulesPoints[2].key}
-                            verified={isVerified(rulesPoints[2].key, bailLocked || relocAuto)}
-                            locked={bailLocked || relocAuto}
-                          />
-                        ))}
-                    </>
+                    !bailLocked && ((!!relocation && relocation.notConcerned === null) || (!relocMissing && relocAuto)) ? (
+                      <>
+                        {relocation && relocation.notConcerned === null && (
+                          <RentRulesEditor bailId={lease.id} values={rentRulesToForm(lease)} missing={relocation.undeclared} />
+                        )}
+                        {!relocMissing && relocAuto && <AutoVerified />}
+                      </>
+                    ) : null
                   }
                 >
                   <span className="flex flex-col gap-1">
@@ -963,22 +949,18 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       state={rule.missing ? "missing" : verified ? "ok" : "todo"}
                       label={rule.auto && !bailLocked ? <AutoLabel>{rule.label}</AutoLabel> : rule.label}
                       note={rule.note}
+                      verify={rule.auto ? undefined : { bailId: lease.id, pointKey: key, verified, locked: bailLocked }}
                       actions={
-                        (rule.editsTerms && !bailLocked) || !rule.missing ? (
+                        !bailLocked && (rule.editsTerms || (!rule.missing && rule.auto)) ? (
                           <>
-                            {rule.editsTerms && !bailLocked && (
+                            {rule.editsTerms && (
                               <CommercialTermsEditor
                                 bailId={lease.id}
                                 values={commercialTermsToForm(commercialTerms)}
                                 derogatory={lease.bailType === "COMMERCIAL_DEROGATOIRE"}
                               />
                             )}
-                            {!rule.missing &&
-                              (rule.auto && !bailLocked ? (
-                                <AutoVerified />
-                              ) : (
-                                <VerifyToggle bailId={lease.id} pointKey={key} verified={verified} locked={locked} />
-                              ))}
+                            {!rule.missing && rule.auto && <AutoVerified />}
                           </>
                         ) : null
                       }
@@ -1006,26 +988,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   state={dpe.blocking ? "missing" : isVerified(rulesPoints[1].key, bailLocked) ? "ok" : "todo"}
                   label={isCommercial ? "Diagnostics (DPE, risques, amiante)" : "Classe DPE"}
                   note={dpe.message}
+                  verify={{ bailId: lease.id, pointKey: rulesPoints[1].key, verified: isVerified(rulesPoints[1].key, bailLocked), locked: bailLocked }}
                   actions={
-                    (property && !bailLocked) || !dpe.blocking ? (
-                      <>
-                        {property && !bailLocked && (
-                          <DpeEditor
-                            propertyId={property.id}
-                            dpeClass={property.dpeClass}
-                            gesClass={property.gesClass}
-                            dpeDate={dpeDateValue(property.dpeDate)}
-                          />
-                        )}
-                        {!dpe.blocking && (
-                          <VerifyToggle
-                            bailId={lease.id}
-                            pointKey={rulesPoints[1].key}
-                            verified={isVerified(rulesPoints[1].key, bailLocked)}
-                            locked={bailLocked}
-                          />
-                        )}
-                      </>
+                    property && !bailLocked ? (
+                      <DpeEditor
+                        propertyId={property.id}
+                        dpeClass={property.dpeClass}
+                        gesClass={property.gesClass}
+                        dpeDate={dpeDateValue(property.dpeDate)}
+                      />
                     ) : null
                   }
                 >
