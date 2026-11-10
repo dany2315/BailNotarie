@@ -37,7 +37,8 @@ export interface DiagnosticExtraction {
   asbestos: DatedDiagnostic & { presence: "OUI" | "NON" | null };
   lead: DatedDiagnostic & { presence: "OUI" | "NON" | null };
   electricity: DatedDiagnostic & { anomalies: boolean | null };
-  gas: DatedDiagnostic & { anomalies: boolean | null };
+  /** installationPresent : absent des analyses enregistrées avant le 10/11/2026 (traité comme inconnu). */
+  gas: DatedDiagnostic & { anomalies: boolean | null; installationPresent?: boolean | null };
   termites: DatedDiagnostic & { presence: "OUI" | "NON" | null };
   noise: DatedDiagnostic;
   diagnostician: { name: string | null; company: string | null; certification: string | null };
@@ -82,7 +83,7 @@ export const DIAGNOSTIC_JSON_SCHEMA = {
         postalCode: nullable("string", "Code postal du bien (5 chiffres)"),
         type: { type: ["string", "null"], enum: ["APPARTEMENT", "MAISON", "LOCAL", "AUTRE", null], description: "Type de bien" },
         surfaceM2: nullable("number", "Surface habitable (ou surface du local) en m², telle qu'indiquée"),
-        constructionYear: nullable("integer", "Année de construction (ou de permis de construire) si indiquée"),
+        constructionYear: nullable("integer", "Année de construction (ou du permis de construire). Si seule une période est indiquée (ex. « avant 1948 », « 1949-1974 »), mets la dernière année de cette période (ex. 1947, 1974)"),
       },
       required: ["address", "postalCode", "type", "surfaceM2", "constructionYear"],
     },
@@ -95,12 +96,23 @@ export const DIAGNOSTIC_JSON_SCHEMA = {
     }),
     erp: dated("état des risques et pollutions (ERP, ex-ERNMT)"),
     asbestos: dated("repérage amiante (DAPP, DTA ou constat avant vente)", presence("matériaux amiantés")),
-    lead: dated("constat de risque d'exposition au plomb (CREP)", presence("plomb (revêtements dégradés au-delà du seuil)")),
+    lead: dated("constat de risque d'exposition au plomb (CREP)", {
+      presence: {
+        type: ["string", "null"],
+        enum: ["OUI", "NON", null],
+        description:
+          "OUI si au moins un revêtement contient du plomb à une concentration égale ou supérieure au seuil (classe 1, 2 ou 3), même non dégradé ; NON si tous les revêtements sont sous le seuil (classe 0) ; null si non indiqué",
+      },
+    }),
     electricity: dated("état de l'installation intérieure d'électricité", {
       anomalies: nullable("boolean", "Des anomalies sont-elles signalées ?"),
     }),
     gas: dated("état de l'installation intérieure de gaz", {
       anomalies: nullable("boolean", "Des anomalies sont-elles signalées ?"),
+      installationPresent: nullable(
+        "boolean",
+        "Le bien a-t-il une installation de gaz (chauffage, eau chaude ou cuisson au gaz), d'après le DPE ou les autres diagnostics ? true / false, null si on ne peut pas le savoir",
+      ),
     }),
     termites: dated("état relatif à la présence de termites", presence("termites")),
     noise: dated("diagnostic bruit (zone d'exposition au bruit d'un aéroport)"),

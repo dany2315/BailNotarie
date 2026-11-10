@@ -535,6 +535,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     dpeClass: property.dpeClass,
                     gesClass: property.gesClass,
                     dpeDate: property.dpeDate,
+                    constructionPeriod: property.constructionPeriod,
                   }
                 : null,
             })
