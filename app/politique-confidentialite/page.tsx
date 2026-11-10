@@ -146,10 +146,41 @@ export default function PolitiqueConfidentialitePage() {
                   <li>Vercel (hébergement du site – région Paris)</li>
                   <li>Neon (base de données – région Francfort)</li>
                   <li>AWS S3 (stockage sécurisé des documents – région Paris)</li>
+                  <li>OpenAI (analyse automatisée de certains documents – États-Unis)</li>
                 </ul>
 
                 <p className="mt-4">
                   Les données sont hébergées principalement dans l'Union européenne.
+                </p>
+
+                <h3 className="mt-6 mb-2 text-lg font-semibold text-gray-900">
+                  Analyse automatisée des documents
+                </h3>
+
+                <p className="mb-4">
+                  Pour contrôler plus rapidement certains documents déposés dans votre dossier,
+                  notamment les diagnostics immobiliers (DPE, état des risques, amiante…),
+                  BailNotarie peut les faire lire par un service d'intelligence artificielle
+                  fourni par OpenAI. Seul le document concerné est transmis, dans le seul but
+                  d'en extraire les informations utiles au contrôle du dossier (classe
+                  énergétique, dates de validité, adresse du bien…). Le résultat est toujours
+                  vérifié par un membre de notre équipe : aucune décision n'est prise sur la
+                  seule base de cette analyse.
+                </p>
+
+                <p className="mb-4">
+                  OpenAI agit en qualité de sous-traitant, dans le cadre d'un contrat de
+                  traitement des données conforme à l'article 28 du RGPD. Les documents
+                  transmis ne sont pas utilisés pour entraîner ses modèles et ne sont
+                  conservés par OpenAI que 30 jours au maximum, sauf obligation légale. Ces
+                  données pouvant être traitées aux États-Unis, ce transfert est encadré par
+                  les clauses contractuelles types adoptées par la Commission européenne.
+                </p>
+
+                <p>
+                  Vous pouvez vous opposer à cette analyse automatisée en nous écrivant à
+                  contact@bailnotarie.fr : vos documents seront alors contrôlés uniquement par
+                  notre équipe.
                 </p>
               </section>
 
