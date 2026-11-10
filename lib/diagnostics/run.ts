@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { DocumentKind, NotificationType, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSignedDownloadUrl } from "@/lib/utils/s3-client";
+import { triggerNotificationEmail } from "@/lib/inngest/helpers";
 import { DiagnosticAnalysisError, diagnosticModel, isDiagnosticAnalysisConfigured, readDiagnostics, type DiagnosticFile } from "./openai";
 import { ANALYSIS_STALE_MS, itemReadingHint, type DiagnosticItemKey } from "./schema";
 import { isCommercialProperty, loadDiagnosticState } from "./state";
@@ -186,7 +187,7 @@ export async function startItemReading(
 }
 
 /**
- * Notification aux administrateurs (dans l'application, sans e-mail) quand une lecture automatique
+ * Notification aux administrateurs (dans l'application et par e-mail) quand une lecture automatique
  * trouve des diagnostics à régler. Pas de doublon : rien si la dernière notification du dossier disait la même chose.
  */
 export async function notifyDiagnosticsToReview(propertyId: string) {
@@ -209,8 +210,9 @@ export async function notifyDiagnosticsToReview(propertyId: string) {
   });
   if (JSON.stringify((last?.metadata as any)?.items ?? null) === JSON.stringify(lines)) return;
 
-  const admins = await prisma.user.findMany({ where: { role: Role.ADMINISTRATEUR }, select: { id: true } });
+  const admins = await prisma.user.findMany({ where: { role: Role.ADMINISTRATEUR }, select: { id: true, email: true } });
   if (admins.length === 0) return;
+  const propertyLabel = bail.property?.fullAddress || bail.property?.label || "un bien";
   await prisma.notification.createMany({
     data: admins.map((admin) => ({
       type: NotificationType.DIAGNOSTICS_TO_REVIEW,
@@ -218,11 +220,25 @@ export async function notifyDiagnosticsToReview(propertyId: string) {
       targetId: bail.id,
       recipientId: admin.id,
       metadata: {
-        propertyLabel: bail.property?.fullAddress || bail.property?.label || "un bien",
+        propertyLabel,
         toFix: state.counts.toFix,
         toCheck: state.counts.toCheck,
         items: lines,
       },
     })),
   });
+
+  // Un seul e-mail pour tous les administrateurs (même circuit que les autres notifications).
+  const emails = admins.map((admin) => admin.email).filter((email): email is string => !!email);
+  if (emails.length > 0) {
+    const counts = [state.counts.toFix ? `${state.counts.toFix} à remplacer` : null, state.counts.toCheck ? `${state.counts.toCheck} à vérifier` : null]
+      .filter(Boolean)
+      .join(", ");
+    await triggerNotificationEmail({
+      to: emails,
+      userName: null,
+      notificationMessage: `Diagnostics à régler — ${propertyLabel}${counts ? ` : ${counts}` : ""}`,
+      interfaceUrl: `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/interface/baux/${bail.id}`,
+    }).catch((error) => console.error("[diagnostics] e-mail de notification", error));
+  }
 }
