@@ -422,7 +422,7 @@ function ItemRow({
             </span>
           )}
           {item.origin?.split("\n").map((line) => (
-            <span key={line} className="truncate text-[12px] text-muted-foreground" title={line}>
+            <span key={line} className={cn("text-[12px] text-muted-foreground", /^(Lu dans|Nouveau fichier)/.test(line) && "truncate")} title={line}>
               {line}
             </span>
           ))}

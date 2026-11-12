@@ -81,7 +81,7 @@ export function NotaireDiagnosticsCard({ diagnostics }: { diagnostics: NotaireDi
                     </DocumentViewer>
                   )}
                   {item.origin?.split("\n").map((line) => (
-                    <span key={line} className="truncate text-xs text-muted-foreground" title={line}>
+                    <span key={line} className={cn("text-xs text-muted-foreground", /^(Lu dans|Nouveau fichier)/.test(line) && "truncate")} title={line}>
                       {line}
                     </span>
                   ))}

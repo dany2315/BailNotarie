@@ -239,13 +239,17 @@ export function buildItems(
     const unreadFile = key && merged.unread[key] ? merged.unread[key]! : null;
     // DPE trouvé dans la base officielle : on le dit, et on signale si le fichier indiquait une autre classe.
     const ademe = key === "dpe" ? merged.extraction?.dpe.ademe : undefined;
+    const readClass = merged.extraction?.dpe.energyClass;
     const ademeOrigin =
       ademe?.status === "found"
-        ? `Vérifié dans la base officielle de l'ADEME (n° ${ademe.number})${
-            ademe.energyClass && merged.extraction?.dpe.energyClass && ademe.energyClass !== merged.extraction.dpe.energyClass
-              ? ` : classe officielle ${ademe.energyClass}, le fichier indiquait ${merged.extraction.dpe.energyClass}${ademe.updatedAt ? ` (DPE mis à jour le ${ademe.updatedAt.split("-").reverse().join("/")})` : ""}`
-              : ""
-          }`
+        ? [
+            `Vérifié dans la base officielle de l'ADEME · n° ${ademe.number}`,
+            ademe.energyClass && readClass && ademe.energyClass !== readClass
+              ? `Classe officielle ${ademe.energyClass}, le fichier indiquait ${readClass}${ademe.updatedAt ? ` (DPE mis à jour le ${ademe.updatedAt.split("-").reverse().join("/")})` : ""}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join("\n")
         : null;
     const decision = baseStatus === "valid" || baseStatus === "na" ? null : active.find((d) => d.item === check.id && d.basis === basis) ?? null;
     const view: DiagnosticItemView = {
