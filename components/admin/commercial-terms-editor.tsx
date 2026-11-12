@@ -611,12 +611,12 @@ export function CommercialTermsInline({
             <div
               id={termsRowAnchor(row.key)}
               className={cn(
-                "grid scroll-mt-24 gap-1 px-5 py-3 sm:grid-cols-[minmax(0,14rem)_1fr_auto] sm:items-start sm:gap-4",
+                "grid scroll-mt-24 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-5 py-3 sm:grid-cols-[minmax(0,14rem)_1fr_auto] sm:items-start sm:gap-4",
                 isEditing && "bg-muted/40",
               )}
             >
-              <dt className="text-sm text-muted-foreground sm:pt-0.5">{row.label}</dt>
-              <dd className="min-w-0 text-sm">
+              <dt className="col-start-1 row-start-1 text-sm text-muted-foreground sm:pt-0.5">{row.label}</dt>
+              <dd className="col-span-2 row-start-2 min-w-0 text-sm sm:col-span-1 sm:col-start-2 sm:row-start-1">
                 {isEditing ? (
                   <form
                     className="flex flex-col gap-2.5"
@@ -680,7 +680,7 @@ export function CommercialTermsInline({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8 justify-self-start sm:justify-self-end"
+                  className="col-start-2 row-start-1 -my-1.5 size-8 justify-self-end sm:col-start-3 sm:my-0"
                   aria-label={`Modifier : ${row.label}`}
                   title="Modifier cette ligne"
                   disabled={editing !== null && editing !== row.key}

@@ -1054,7 +1054,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                             {line}
                           </span>
                         ))}
-                        <span className="text-xs text-muted-foreground">{rule.legal}</span>
+                        {rule.legal && <span className="text-xs text-muted-foreground">{rule.legal}</span>}
                       </span>
                     </CheckPoint>
                   );

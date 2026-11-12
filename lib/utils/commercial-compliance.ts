@@ -149,13 +149,9 @@ export function commercialComplianceRules(input: {
               ],
             }
           : null,
-      warnings: [
-        "Si le locataire reste plus d'un mois après la fin sans opposition du propriétaire, le bail devient un 3/6/9.",
-        ...(t.previouslyLet === true
-          ? ["Local déjà loué : si c'était au même locataire en dérogatoire, 3 ans au total au maximum."]
-          : []),
-      ],
-      legal: "Article L145-5 du Code de commerce",
+      warnings:
+        t.previouslyLet === true ? ["Local déjà loué : si c'était au même locataire en dérogatoire, 3 ans au total au maximum."] : [],
+      legal: "",
       values: [bail.bailType, months],
       editsTerms: true,
     });
