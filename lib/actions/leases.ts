@@ -734,6 +734,12 @@ function notaireWhere(notaire?: string) {
   return { dossierAssignments: { some: { notaireId: notaire } } };
 }
 
+/** Filtre « Type de bail » de la liste : habitation ou commercial. */
+function familyWhere(family?: string) {
+  if (family === BailFamille.HABITATION || family === BailFamille.COMMERCIAL) return { bailFamily: family };
+  return {};
+}
+
 export async function getLeases(params: {
   page?: number;
   pageSize?: number;
@@ -744,10 +750,11 @@ export async function getLeases(params: {
   payment?: "paid" | "unpaid";
   sort?: "recent" | "attente";
   notaire?: string;
+  family?: string;
 }) {
   await requireStaff();
 
-  const where: any = { ...notaireWhere(params.notaire) };
+  const where: any = { ...notaireWhere(params.notaire), ...familyWhere(params.family) };
 
   if (params.status) {
     // Gérer plusieurs statuts (tableau ou chaîne séparée par des virgules)
@@ -868,10 +875,11 @@ export async function getLeaseStatusCounts(params: {
   search?: string;
   payment?: "paid" | "unpaid";
   notaire?: string;
+  family?: string;
 }): Promise<Record<string, number>> {
   await requireStaff();
 
-  const where: any = { ...notaireWhere(params.notaire) };
+  const where: any = { ...notaireWhere(params.notaire), ...familyWhere(params.family) };
   if (params.payment === "paid") where.paidAt = { not: null };
   else if (params.payment === "unpaid") where.paidAt = null;
   if (params.search) {
@@ -898,10 +906,11 @@ export async function getLeasePaymentCounts(params: {
   propertyId?: string;
   tenantId?: string;
   notaire?: string;
+  family?: string;
 }) {
   await requireStaff();
 
-  const baseWhere: any = { ...notaireWhere(params.notaire) };
+  const baseWhere: any = { ...notaireWhere(params.notaire), ...familyWhere(params.family) };
 
   if (params.status) {
     const statuses = Array.isArray(params.status)

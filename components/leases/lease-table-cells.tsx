@@ -32,6 +32,21 @@ interface LeaseCellProps {
   row: any;
 }
 
+/** Pastille « Habitation » / « Commercial » (famille du bail). */
+function LeaseFamilyBadge({ family }: { family?: string | null }) {
+  const commercial = family === "COMMERCIAL";
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 w-fit items-center whitespace-nowrap rounded-md px-1.5 text-[11.5px] font-semibold",
+        commercial ? "bg-violet-100 text-violet-800" : "bg-sky-100 text-sky-800",
+      )}
+    >
+      {commercial ? "Commercial" : "Habitation"}
+    </span>
+  );
+}
+
 export function LeaseReferenceCell({ row }: LeaseCellProps) {
   if (!row?.id) {
     return <span className="text-muted-foreground">-</span>;
@@ -297,6 +312,7 @@ export function LeaseDossierCell({ row }: LeaseCellProps) {
   const address = row.property?.fullAddress || row.property?.label || `Bail #${row.id.slice(-8).toUpperCase()}`;
   return (
     <div className="flex min-w-[150px] max-w-[180px] flex-col gap-0.5">
+      <LeaseFamilyBadge family={row.bailFamily} />
       <Link href={`/interface/baux/${row.id}`} className="font-semibold hover:underline">
         {address}
       </Link>
@@ -438,6 +454,7 @@ export function LeaseMobileCard({ row }: LeaseCellProps) {
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", stage.className)}>{stage.label}</span>
+        <LeaseFamilyBadge family={row.bailFamily} />
         <span
           className={cn(
             "rounded-md px-2 py-0.5 text-xs font-semibold",

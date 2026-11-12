@@ -20,6 +20,7 @@ import { LeasePaymentTabs } from "@/components/leases/lease-payment-tabs";
 import { LeaseStageTabs } from "@/components/leases/lease-stage-tabs";
 import { LeaseSortToggle } from "@/components/leases/lease-sort-toggle";
 import { LeaseNotaireFilter } from "@/components/leases/lease-notaire-filter";
+import { LeaseFamilyFilter } from "@/components/leases/lease-family-filter";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
@@ -51,12 +52,15 @@ export default async function LeasesPage({
   const paymentFilter = paymentParam === "paid" || paymentParam === "unpaid" ? paymentParam : undefined;
   
   const notaireFilter = urlParams.get("notaire") || undefined;
+  const familyParam = urlParams.get("type");
+  const familyFilter = familyParam === "HABITATION" || familyParam === "COMMERCIAL" ? familyParam : undefined;
   const baseFilters = {
     search: params.search,
     status: statusFilter,
     propertyId: urlParams.get("propertyId") || undefined,
     tenantId: urlParams.get("tenantId") || undefined,
     notaire: notaireFilter,
+    family: familyFilter,
   };
 
   // Par défaut : les dossiers qui attendent depuis le plus longtemps d'abord.
@@ -71,7 +75,7 @@ export default async function LeasesPage({
       sort: sortParam,
     }),
     getLeasePaymentCounts(baseFilters),
-    getLeaseStatusCounts({ search: params.search, payment: paymentFilter, notaire: notaireFilter }),
+    getLeaseStatusCounts({ search: params.search, payment: paymentFilter, notaire: notaireFilter, family: familyFilter }),
     prisma.user.findMany({
       where: { role: Role.NOTAIRE },
       select: { id: true, name: true, email: true },
@@ -155,6 +159,7 @@ export default async function LeasesPage({
             <LeaseStageTabs statusCounts={statusCounts} />
             <div className="flex flex-wrap items-center gap-3">
               <LeasePaymentTabs counts={paymentCounts} />
+              <LeaseFamilyFilter />
               <LeaseNotaireFilter notaires={notaires.map((n) => ({ id: n.id, name: n.name || n.email }))} />
               <LeaseSortToggle />
             </div>
