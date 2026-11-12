@@ -42,7 +42,7 @@ export interface DiagnosticCheck {
   action?: TeamAction;
   /** Diagnostic absent des fichiers (et non la date ou le contenu qui pose problème). */
   absent?: boolean;
-  /** DPE non reconnu par la base officielle de l'ADEME (numéro absent ou introuvable). */
+  /** DPE absent de la base officielle de l'ADEME (numéro absent ou introuvable) : « à vérifier ». */
   rejected?: boolean;
 }
 
@@ -213,15 +213,17 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
       dpeLine.text = `${dpeLine.text} · ${reason}`;
     };
     const ademe = dpe.ademe;
-    // Pas dans la base officielle : ce n'est pas un DPE valable (ou pas un DPE). Un DPE déjà expiré reste « expiré ».
+    // Pas dans la base officielle : « à vérifier » (peut-être pas un vrai DPE). Un DPE déjà expiré reste « expiré ».
     if ((ademe?.status === "no_number" || ademe?.status === "not_found") && dpeLine && dpeLine.group !== "blocking") {
-      dpeLine.group = "blocking";
-      dpeLine.tone = "missing";
+      dpeLine.group = "team";
+      dpeLine.tone = "warn";
+      dpeLine.action = "file";
       dpeLine.rejected = true;
-      dpeLine.action = undefined;
       dpeLine.text =
-        ademe.status === "no_number" ? "Aucun numéro ADEME sur le document" : `Introuvable dans la base officielle de l'ADEME (n° ${ademe.number})`;
-      dpeLine.message = `Le DPE reçu n'est pas enregistré à l'ADEME : merci de nous envoyer le DPE officiel du ${place}, avec son numéro ADEME.`;
+        ademe.status === "no_number"
+          ? "Numéro ADEME absent du document : vérifiez que c'est un vrai DPE"
+          : `DPE n° ${ademe.number} introuvable dans la base officielle de l'ADEME : vérifiez que c'est un vrai DPE`;
+      dpeLine.question = `Pouvez-vous nous envoyer le DPE officiel du ${place}, avec son numéro ADEME ?`;
     } else if (official && official.postalCode && fiche?.postalCode && official.postalCode !== fiche.postalCode) {
       toCheck(`selon la base de l'ADEME, ce DPE concerne un autre bien (${official.address || official.postalCode})`);
     } else if (!official) {

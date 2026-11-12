@@ -9,13 +9,13 @@
 import { assessDiagnostics, formatDay, type AssessContext, type DiagnosticCheck } from "./assess";
 import { DIAGNOSTIC_SECTIONS, isDiagnosticItemKey, type DiagnosticExtraction, type DiagnosticItemKey, type EnergyLetter } from "./schema";
 
-/** À remplacer · Manquant · Non reconnu (DPE absent de la base ADEME) · À vérifier · Valide · Non concerné. */
-export type ItemStatus = "replace" | "missing" | "rejected" | "check" | "valid" | "na";
+/** À remplacer · Manquant · À vérifier · Valide · Non concerné. */
+export type ItemStatus = "replace" | "missing" | "check" | "valid" | "na";
 /** Le premier est le bouton principal de la ligne. */
 export type ItemAction = "upload" | "conforme" | "na" | "erp" | "date" | "files";
 
 /** Lignes à régler (en rouge). */
-export const isToFix = (status: ItemStatus) => status === "replace" || status === "missing" || status === "rejected";
+export const isToFix = (status: ItemStatus) => status === "replace" || status === "missing";
 
 /** Nom de fichier sur une ligne : la fin est gardée (extension comprise), le début remplacé par « … ». */
 export const shortFileName = (name: string, max = 32) => (name.length > max ? `…${name.slice(-(max - 1))}` : name);
@@ -81,6 +81,8 @@ export interface DiagnosticItemView {
   manualDateId: string | null;
   /** Constat au moment d'une décision (enregistré avec elle). */
   basis: string;
+  /** DPE absent de la base officielle de l'ADEME : ses valeurs ne sont pas affichées comme officielles. */
+  unverified: boolean;
   /** Nouveau fichier en cours de lecture pour ce diagnostic. */
   reading: boolean;
   /** Nouveau fichier ajouté pour ce diagnostic, mais diagnostic non trouvé dedans. */
@@ -167,7 +169,7 @@ export function mergeReadings(analyses: AnalysisRecord[], files: FileRecord[], d
 function statusOf(check: DiagnosticCheck): ItemStatus {
   switch (check.group) {
     case "blocking":
-      return check.rejected ? "rejected" : check.absent ? "missing" : "replace";
+      return check.absent ? "missing" : "replace";
     case "team":
       if (check.action === "erp") return check.absent ? "missing" : "replace";
       return "check";
@@ -186,13 +188,12 @@ function actionsOf(check: DiagnosticCheck, status: ItemStatus): ItemAction[] {
   switch (status) {
     case "replace":
       return ["upload", ...erp, "conforme"];
-    case "rejected":
-      // « Voir les diagnostics », c'est tout ; le reste dans « ⋯ ».
-      return ["files", "conforme"];
     case "missing":
       // DPE et ERP sont toujours exigés : pas de « non concerné ».
       return ["upload", ...erp, ...(check.id === "dpe" || check.id === "erp" ? [] : (["na"] as ItemAction[]))];
     case "check":
+      // DPE absent de la base ADEME : « Voir les diagnostics », le reste dans « ⋯ ».
+      if (check.rejected) return ["files", "conforme"];
       // Diagnostic absent dont l'obligation dépend d'une information manquante (année, installation).
       if (check.group === "ask" && replaceable) return ["upload", "na"];
       return replaceable ? ["conforme", "upload"] : ["conforme"];
@@ -262,6 +263,7 @@ export function buildItems(
       manualDateId: manual?.id ?? null,
       basis,
       reading: !!key && readingItems.includes(key),
+      unverified: !!check.rejected,
       unreadFile,
     };
     if (unreadFile && key && baseStatus !== "valid") {
@@ -285,7 +287,7 @@ export function buildItems(
   });
 
   // Ordre d'affichage : ce qu'il faut faire d'abord, puis le reste (ordre des règles conservé à l'intérieur).
-  const rank: Record<ItemStatus, number> = { rejected: 0, replace: 1, missing: 2, check: 3, valid: 4, na: 5 };
+  const rank: Record<ItemStatus, number> = { replace: 0, missing: 1, check: 2, valid: 3, na: 4 };
   items.sort((a, b) => rank[a.status] - rank[b.status]);
   return { items, notFound: assessment.notFound, dpeToApply: assessment.dpeToApply };
 }

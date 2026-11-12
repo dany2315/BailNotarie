@@ -50,11 +50,6 @@ export const STATUS: Record<ItemStatus, { label: string; chip: string; icon: Rea
     chip: "bg-red-100 text-red-800",
     icon: <X className="size-3.5 text-red-700" strokeWidth={3} aria-hidden />,
   },
-  rejected: {
-    label: "Non reconnu",
-    chip: "bg-red-100 text-red-800",
-    icon: <X className="size-3.5 text-red-700" strokeWidth={3} aria-hidden />,
-  },
   missing: {
     label: "Manquant",
     chip: "bg-red-100 text-red-800",
@@ -391,7 +386,7 @@ function ItemRow({
   // Bouton principal visible ; les autres dans « ⋯ » (sauf l'ajout de fichier, qui a besoin de son propre bouton).
   const [primary, ...others] = locked ? [] : item.actions;
   const dpeEditor =
-    dpe && !locked && item.status !== "rejected" ? <DpeEditor propertyId={propertyId} dpeClass={dpe.dpeClass} gesClass={dpe.gesClass} dpeDate={dpe.dpeDate} /> : null;
+    dpe && !locked && !item.unverified ? <DpeEditor propertyId={propertyId} dpeClass={dpe.dpeClass} gesClass={dpe.gesClass} dpeDate={dpe.dpeDate} /> : null;
   const inline = others.filter((action) => action === "upload" || action === "erp");
   const menu = others.filter((action) => action === "conforme" || action === "na");
 
@@ -406,7 +401,7 @@ function ItemRow({
               <span className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11.5px] font-semibold", status.chip)}>{status.label}</span>
             )}
           </div>
-          {dpe && (dpe.dpeClass || dpe.dpeDate) && item.status !== "rejected" ? (
+          {dpe && (dpe.dpeClass || dpe.dpeDate) && !item.unverified ? (
             <span className="flex flex-col gap-1 text-[13.5px]">
               <DpeSummary
                 dpeClass={dpe.dpeClass}
