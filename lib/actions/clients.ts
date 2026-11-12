@@ -34,7 +34,7 @@ import {
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
 } from "@/lib/utils/completion-status";
 import { createUserForClient } from "@/lib/utils/user-creation";
-import { getMaritalDocumentKind } from "@/lib/utils/required-fields";
+import { getMaritalDocumentKind, needsSubdivisionRules } from "@/lib/utils/required-fields";
 import { entrepriseCommercialFields, requiresKbis } from "@/lib/utils/commercial-terms";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { createBailAuditLog, getClientDisplayName } from "@/lib/actions/bail-audit-log";
@@ -580,6 +580,80 @@ export async function createFullClient(data: unknown) {
 }
 
 // Soumettre le formulaire propriétaire (crée bien, bail, locataire et envoie email)
+/**
+ * Pièces obligatoires du formulaire propriétaire, revérifiées par le serveur au moment de l'envoi (mêmes règles
+ * que la page : une page restée ouverte sur une ancienne version, ou un bug, ne doit pas laisser passer un
+ * formulaire incomplet). Lève une erreur qui liste toutes les pièces manquantes.
+ */
+async function assertOwnerDocuments(input: {
+  clientId: string;
+  propertyId: string | null;
+  bailId: string | null;
+  bailFamily?: string | null;
+  legalStatus?: string | null;
+  subdivisionOver10Years?: string | null;
+  inShoppingCenter?: string | null;
+}) {
+  const client = await prisma.client.findUnique({
+    where: { id: input.clientId },
+    include: {
+      persons: { orderBy: { isPrimary: "desc" }, include: { documents: { select: { kind: true } } } },
+      entreprise: { include: { documents: { select: { kind: true } } } },
+      documents: { select: { kind: true } },
+    },
+  });
+  if (!client) throw new Error("Client introuvable.");
+  const [propertyDocs, bailDocs] = await Promise.all([
+    input.propertyId ? prisma.document.findMany({ where: { propertyId: input.propertyId }, select: { kind: true } }) : [],
+    input.bailId ? prisma.document.findMany({ where: { bailId: input.bailId }, select: { kind: true } }) : [],
+  ]);
+  const has = (docs: Array<{ kind: DocumentKind }>, kind: DocumentKind) => docs.some((doc) => doc.kind === kind);
+  const missing: string[] = [];
+
+  if (client.type === ClientType.PERSONNE_MORALE) {
+    const docs = client.entreprise?.documents ?? [];
+    if (requiresKbis(client.entreprise) && !has(docs, DocumentKind.KBIS)) missing.push("Kbis");
+    if (!has(docs, DocumentKind.STATUTES)) missing.push("statuts de la société");
+  } else {
+    for (const person of client.persons) {
+      if (!has(person.documents, DocumentKind.ID_IDENTITY)) {
+        const name = `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim();
+        missing.push(`pièce d'identité${name ? ` de ${name}` : ""}`);
+      }
+    }
+    const primary = client.persons[0];
+    const maritalKind = getMaritalDocumentKind(primary?.familyStatus, primary?.matrimonialRegime);
+    if (maritalKind && !has(client.documents, maritalKind)) {
+      missing.push(maritalKind === DocumentKind.CONTRAT_DE_MARIAGE ? "contrat de mariage" : "convention de PACS");
+    }
+  }
+
+  if (!has(propertyDocs, DocumentKind.DIAGNOSTICS)) missing.push("diagnostics du bien");
+  if (!has(propertyDocs, DocumentKind.TITLE_DEED)) missing.push("titre de propriété");
+  if (input.legalStatus === "CO_PROPRIETE" && !has(propertyDocs, DocumentKind.REGLEMENT_COPROPRIETE)) {
+    missing.push("règlement de copropriété");
+  }
+  if (
+    input.legalStatus === "LOTISSEMENT" &&
+    needsSubdivisionRules(input.subdivisionOver10Years) &&
+    !has(propertyDocs, DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT)
+  ) {
+    missing.push("règlement du lotissement");
+  }
+  if (
+    input.bailFamily === BailFamille.COMMERCIAL &&
+    input.inShoppingCenter &&
+    input.inShoppingCenter !== "no" &&
+    !has([...propertyDocs, ...bailDocs], DocumentKind.SHOPPING_CENTER_RULES)
+  ) {
+    missing.push(input.inShoppingCenter === "estate_complex" ? "cahier des charges de l'ensemble immobilier" : "règlement du centre commercial");
+  }
+
+  if (missing.length > 0) {
+    throw new Error(`Pièces manquantes : ${missing.join(", ")}. Ajoutez-les avant d'envoyer le formulaire.`);
+  }
+}
+
 export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
   const submittedAt = new Date();
   let validated;
@@ -866,6 +940,17 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
         },
       },
     },
+  });
+
+  // Pièces obligatoires : revérifiées ici, avant d'enregistrer le bail et le paiement.
+  await assertOwnerDocuments({
+    clientId: validated.clientId,
+    propertyId: ownerIntakeLink?.propertyId ?? null,
+    bailId: ownerIntakeLink?.bailId ?? null,
+    bailFamily: validated.bailFamily,
+    legalStatus: validated.propertyLegalStatus,
+    subdivisionOver10Years: (validated as any).propertySubdivisionOver10Years,
+    inShoppingCenter: (validated as any).propertyInShoppingCenter,
   });
 
   // Utiliser le bien existant ou en créer un nouveau
