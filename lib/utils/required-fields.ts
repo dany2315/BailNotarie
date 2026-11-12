@@ -6,27 +6,16 @@ import {
   BienLegalStatus,
   DocumentKind,
 } from "@prisma/client";
-import { commercialDocuments } from "./commercial-terms";
+import {
+  getMaritalDocumentKind,
+  leaseDocumentRequirements,
+  needsSubdivisionRules,
+  partyDocumentRequirements,
+  propertyDocumentRequirements,
+} from "@/lib/rules/dossier-rules";
 
-/**
- * Pièce d'état civil attendue par le notaire : la convention de PACS, ou le
- * contrat de mariage quand le régime n'est pas la communauté légale (mariage
- * sans contrat : rien à fournir, l'étude demande l'extrait d'acte de mariage).
- */
-export function getMaritalDocumentKind(
-  familyStatus?: FamilyStatus | null,
-  matrimonialRegime?: MatrimonialRegime | null
-): DocumentKind | null {
-  if (familyStatus === FamilyStatus.PACS) return DocumentKind.CONTRAT_DE_PACS;
-  if (
-    familyStatus === FamilyStatus.MARIE &&
-    matrimonialRegime &&
-    matrimonialRegime !== MatrimonialRegime.COMMUNAUTE_REDUITE
-  ) {
-    return DocumentKind.CONTRAT_DE_MARIAGE;
-  }
-  return null;
-}
+// Règles réunies dans lib/rules/dossier-rules.ts ; ces fonctions gardent leur forme pour la fiche admin et la complétude.
+export { getMaritalDocumentKind, needsSubdivisionRules };
 
 /** Pièces d'état civil rattachées au client (et non à une personne). */
 export const MARITAL_DOCUMENT_KINDS: DocumentKind[] = [
@@ -59,15 +48,6 @@ export function getRequiredClientFields(
   if (type === ClientType.PERSONNE_PHYSIQUE) {
     requiredFields.push("firstName", "lastName", "nationality", "birthDate", "birthPlace", "familyStatus");
     
-    // Documents requis pour personne physique
-    requiredDocuments.push(DocumentKind.ID_IDENTITY);
-    
-    // Contrat de mariage (hors communauté légale) ou convention de PACS
-    const maritalDocument = getMaritalDocumentKind(familyStatus, matrimonialRegime);
-    if (maritalDocument) {
-      requiredDocuments.push(maritalDocument);
-    }
-
     // Si marié, le régime matrimonial est requis
     if (familyStatus === FamilyStatus.MARIE && !matrimonialRegime) {
       requiredFields.push("matrimonialRegime");
@@ -75,11 +55,14 @@ export function getRequiredClientFields(
   } else if (type === ClientType.PERSONNE_MORALE) {
     requiredFields.push("legalName", "registration");
     
-    // Documents requis pour personne morale
-    // Société pas encore immatriculée : pas de Kbis, les statuts suffisent
-    if (entreprise?.isRegistered !== false) requiredDocuments.push(DocumentKind.KBIS);
-    requiredDocuments.push(DocumentKind.STATUTES);
   }
+
+  // Pièces : identité et état civil, ou Kbis (société immatriculée) et statuts
+  requiredDocuments = partyDocumentRequirements({
+    clientType: type,
+    persons: type === ClientType.PERSONNE_PHYSIQUE ? [{ familyStatus, matrimonialRegime }] : [],
+    entreprise,
+  }).map((rule) => rule.kind as DocumentKind);
 
   // Champs communs selon le profil (l'assurance et le RIB ne sont plus demandés)
   if (profilType === ProfilType.PROPRIETAIRE || profilType === ProfilType.LOCATAIRE) {
@@ -95,15 +78,6 @@ export function getRequiredClientFields(
 }
 
 /**
- * Le règlement d'un lotissement ne s'applique plus 10 ans après son
- * autorisation : il n'est demandé que si le lotissement est plus récent,
- * ou par prudence quand le propriétaire ne sait pas (ou n'a pas répondu).
- */
-export function needsSubdivisionRules(subdivisionOver10Years?: string | null): boolean {
-  return subdivisionOver10Years !== "YES";
-}
-
-/**
  * Détermine les champs de données requis pour un bien selon son statut légal
  * Fonction pure utilisable côté client
  */
@@ -115,18 +89,9 @@ export function getRequiredPropertyFields(
   requiredDocuments: DocumentKind[];
 } {
   const requiredFields: string[] = ["fullAddress"];
-  const requiredDocuments: DocumentKind[] = [
-    DocumentKind.DIAGNOSTICS,
-    DocumentKind.TITLE_DEED,
-  ];
-
-  // Documents conditionnels selon le statut légal
-  if (legalStatus === BienLegalStatus.CO_PROPRIETE) {
-    requiredDocuments.push(DocumentKind.REGLEMENT_COPROPRIETE);
-  } else if (legalStatus === BienLegalStatus.LOTISSEMENT && needsSubdivisionRules(subdivisionOver10Years)) {
-    // Règlement du lotissement (type historique « cahier des charges »)
-    requiredDocuments.push(DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT);
-  }
+  const requiredDocuments = propertyDocumentRequirements({ legalStatus, subdivisionOver10Years }).map(
+    (rule) => rule.kind as DocumentKind,
+  );
 
   return { requiredFields, requiredDocuments };
 }
@@ -138,9 +103,6 @@ export interface BailDocumentRule {
   required: boolean;
   target: "property" | "bail";
 }
-
-/** Pièces du bail commercial rattachées au bail (location précédente) ; les autres vont au bien. */
-const BAIL_TARGET_KINDS = new Set(["PREVIOUS_LEASE", "LEASE_TERMINATION", "PREVIOUS_TENANT_EXIT_PROOF"]);
 
 /**
  * Pièces qui dépendent du bail et pas seulement du bien : celles du bail commercial (selon les
@@ -159,22 +121,16 @@ export function getBailDocumentRules(input: {
   previouslyLet?: boolean | null;
   occupancyDeclarationRequired?: boolean;
 }): BailDocumentRule[] {
-  if (input.bailFamily === "COMMERCIAL") {
-    const surface = input.property?.surfaceM2 != null ? Number(input.property.surfaceM2.toString()) : null;
-    return commercialDocuments({
-      previouslyLet: input.previouslyLet === true ? "yes" : input.previouslyLet === false ? "no" : "",
-      legalStatus: input.property?.legalStatus,
-      inShoppingCenter: input.property?.inShoppingCenter,
-      complexType: input.property?.complexType,
-      surfaceM2: Number.isFinite(surface) ? surface : null,
-      premisesType: input.property?.type,
-    })
+  return (
+    leaseDocumentRequirements(input)
       // « Autres documents » n'est pas une pièce attendue ; le pouvoir de signer suit la société.
       .filter((rule) => rule.kind !== "OTHER" && rule.kind !== "SIGNING_AUTHORITY")
-      .map((rule) => ({ kind: rule.kind, label: rule.label, required: rule.required, target: BAIL_TARGET_KINDS.has(rule.kind) ? "bail" : "property" }));
-  }
-  if (input.occupancyDeclarationRequired) {
-    return [{ kind: DocumentKind.OCCUPANCY_DECLARATION, required: true, target: "property" }];
-  }
-  return [];
+      .map((rule) => ({
+        kind: rule.kind,
+        // Libellé propre au bail commercial ; la déclaration d'occupation garde le libellé général.
+        label: input.bailFamily === "COMMERCIAL" ? rule.label : undefined,
+        required: rule.level !== "optional",
+        target: rule.target === "bail" ? ("bail" as const) : ("property" as const),
+      }))
+  );
 }

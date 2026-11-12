@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isFurnishedBail, maxSecurityDeposit, missingFurniture as missingFurnitureKeys } from "@/lib/rules/dossier-rules";
 import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
 import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
 import { 
@@ -797,46 +798,24 @@ export const ownerFormSchema = z
     // VALIDATION MOBILIER POUR BAIL MEUBLÉ
     // Si un bail meublé est sélectionné, tous les équipements doivent être présents
     // ------------------------------------------------------------------
-    const isMeubleBail = data.bailType === BailType.BAIL_MEUBLE_1_ANS || 
-                         data.bailType === BailType.BAIL_MEUBLE_9_MOIS;
-    
-    if (isMeubleBail) {
-      const furnitureFields = [
-        'hasLiterie',
-        'hasRideaux',
-        'hasPlaquesCuisson',
-        'hasFour',
-        'hasRefrigerateur',
-        'hasCongelateur',
-        'hasVaisselle',
-        'hasUstensilesCuisine',
-        'hasTable',
-        'hasSieges',
-        'hasEtageresRangement',
-        'hasLuminaires',
-        'hasMaterielEntretien',
-      ] as const;
+    // Règles du meublé et du dépôt de garantie : lib/rules/dossier-rules.ts
+    const isMeubleBail = isFurnishedBail(data.bailType);
+    const missingFurniture = missingFurnitureKeys(data as Record<string, unknown>, data.bailType);
+    if (missingFurniture.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bailType"],
+        message: "Pour un bail meublé, tous les équipements obligatoires doivent être présents dans le bien. Veuillez cocher tous les équipements requis.",
+      });
       
-      const missingFurniture = furnitureFields.filter(
-        (field) => !data[field] || data[field] !== true
-      );
-      
-      if (missingFurniture.length > 0) {
+      // Ajouter aussi une erreur sur chaque champ manquant pour guider l'utilisateur
+      missingFurniture.forEach((field) => {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["bailType"],
-          message: "Pour un bail meublé, tous les équipements obligatoires doivent être présents dans le bien. Veuillez cocher tous les équipements requis.",
+          path: [field],
+          message: "Cet équipement est requis pour un bail meublé",
         });
-        
-        // Ajouter aussi une erreur sur chaque champ manquant pour guider l'utilisateur
-        missingFurniture.forEach((field) => {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [field],
-            message: "Cet équipement est requis pour un bail meublé",
-          });
-        });
-      }
+      });
     }
 
     // ------------------------------------------------------------------
@@ -852,9 +831,8 @@ export const ownerFormSchema = z
       : parseInt(String(data.bailSecurityDeposit) || '0', 10);
     
     // Bail commercial : pas de plafond légal du dépôt de garantie
-    if (rentAmount > 0 && securityDeposit > 0 && data.bailFamily !== BailFamille.COMMERCIAL) {
-      const maxDeposit = isMeubleBail ? rentAmount * 2 : rentAmount;
-      
+    const maxDeposit = maxSecurityDeposit({ bailFamily: data.bailFamily, bailType: data.bailType, rentAmount });
+    if (maxDeposit !== null && securityDeposit > 0) {
       if (securityDeposit > maxDeposit) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

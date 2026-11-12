@@ -119,6 +119,16 @@ import {
 } from "@/lib/actions/intakes";
 import { checkOccupancyDeclaration } from "@/lib/actions/rent-check";
 import { getMaritalDocumentKind, needsSubdivisionRules } from "@/lib/utils/required-fields";
+import {
+  firstIncompleteStep,
+  isDocumentProvided,
+  missingDocuments,
+  ownerDocumentRequirements,
+  ownerFieldIssues,
+  shoppingCenterFromAnswer,
+  OWNER_STEP_ORDER,
+  type DocumentRequirement,
+} from "@/lib/rules/dossier-rules";
 import { MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import {
   asksBoughtDuringMarriage,
@@ -751,12 +761,6 @@ const findFirstIncompleteStep = (
   intakeLink: IntakeLink,
   clientType: ClientType | ""
 ) => {
-  const isEmpty = (val: any) =>
-    val === undefined ||
-    val === null ||
-    val === "" ||
-    (typeof val === "string" && val.trim() === "");
-
   // Vérifier si le formulaire a réellement été commencé par l'utilisateur
   // (pas seulement prérempli lors de la création)
   const hasStarted = intakeLink.client && (
@@ -772,217 +776,35 @@ const findFirstIncompleteStep = (
     return 0;
   }
 
-  // Step 1 : type de client
-  if (isEmpty(values.type)) {
-    return 1;
-  }
-
-  // Vérification complète du step 2 (Informations client)
-  if (clientType === ClientType.PERSONNE_PHYSIQUE) {
-    // Vérifier que persons existe et n'est pas vide
-    if (isEmpty(values.persons) || !Array.isArray(values.persons) || values.persons.length === 0) {
-      return 2;
-    }
-
-    // Vérifier toutes les personnes (personne principale + autres)
-    for (let i = 0; i < values.persons.length; i++) {
-      const person = values.persons[i];
-      if (!person) {
-        return 2;
-      }
-
-      // Vérifier tous les champs requis pour chaque personne
-      if (
-        isEmpty(person.firstName) ||
-        isEmpty(person.lastName) ||
-        isEmpty(person.profession) ||
-        isEmpty(person.phone) ||
-        isEmpty(person.email) ||
-        isEmpty(person.fullAddress) ||
-        isEmpty(person.nationality) ||
-        isEmpty(person.familyStatus) ||
-        isEmpty(person.birthPlace) ||
-        isEmpty(person.birthDate)
-      ) {
-        return 2;
-      }
-
-      // Vérifier le régime matrimonial si marié
-      if (person.familyStatus === FamilyStatus.MARIE && isEmpty(person.matrimonialRegime)) {
-        return 2;
-      }
-    }
-
-    // Vérifier aussi email et phone au niveau racine (pour compatibilité)
-    if (isEmpty(values.email)) {
-      return 2;
-    }
-    // Le téléphone peut être au niveau racine ou dans la personne principale
-    const hasPhoneAtRoot = !isEmpty(values.phone);
-    const primaryPerson = values.persons.find((p: any) => p.isPrimary) || values.persons[0];
-    const hasPhoneInPerson = primaryPerson && !isEmpty(primaryPerson.phone);
-    if (!hasPhoneAtRoot && !hasPhoneInPerson) {
-      return 2;
-    }
-  } else if (clientType === ClientType.PERSONNE_MORALE) {
-    // Vérifier que entreprise existe
-    if (!values.entreprise) {
-      return 2;
-    }
-
-    // Vérifier tous les champs requis pour l'entreprise
-    if (
-      isEmpty(values.entreprise.legalName) ||
-      isEmpty(values.entreprise.registration) ||
-      isEmpty(values.entreprise.name) ||
-      isEmpty(values.entreprise.email) ||
-      isEmpty(values.entreprise.phone) ||
-      isEmpty(values.entreprise.fullAddress)
-    ) {
-      return 2;
-    }
-
-    // Vérifier aussi email et phone au niveau racine
-    if (isEmpty(values.email)) {
-      return 2;
-    }
-    if (isEmpty(values.phone)) {
-      return 2;
-    }
-  }
-
-  // Indices résolus dynamiquement (la STEPS array a évolué)
-  const idxPropertyAddress = STEPS.findIndex((s) => s.id === "propertyAddress");
-  const idxPropertyDetails = STEPS.findIndex((s) => s.id === "propertyDetails");
-  const idxBailType = STEPS.findIndex((s) => s.id === "bailType");
-  const idxBailRent = STEPS.findIndex((s) => s.id === "bailRent");
-  const idxBailCharges = STEPS.findIndex((s) => s.id === "bailCharges");
-  const idxBailFurniture = STEPS.findIndex((s) => s.id === "bailFurniture");
-  const idxBailDates = STEPS.findIndex((s) => s.id === "bailDates");
-  const idxTenant = STEPS.findIndex((s) => s.id === "tenant");
-  const idxDocuments = STEPS.findIndex((s) => s.id === "documents");
-
-  if (isEmpty(values.propertyFullAddress) || isEmpty(values.propertySurfaceM2) || isEmpty(values.propertyType)) {
-    return idxPropertyAddress;
-  }
-  if (
-    isEmpty(values.propertyLegalStatus) ||
-    // Bail d'habitation : catégorie du logement pour le plafond de loyer
-    (values.bailFamily !== BailFamille.COMMERCIAL &&
-      (isEmpty(values.propertyMainRooms) ||
-        isEmpty(values.propertyConstructionPeriod) ||
-        isEmpty((values as any).propertyDpeClass))) ||
-    // Bail commercial : centre commercial ou ensemble immobilier
-    (values.bailFamily === BailFamille.COMMERCIAL && isEmpty((values as any).propertyInShoppingCenter))
-  ) {
-    return idxPropertyDetails;
-  }
-
-  // Bail commercial : chaque étape propre doit avoir ses réponses
-  const commercialFlow = values.bailFamily === BailFamille.COMMERCIAL;
-  const commercialIncomplete = (step: CommercialStep) =>
-    commercialFlow &&
-    Object.keys(validateCommercialStep(step, (values as any).commercial, { bailType: values.bailType })).length > 0;
-  const idxStep = (id: StepId) => STEPS.findIndex((s) => s.id === id);
-  if (commercialIncomplete("activity")) {
-    return idxStep("commercialActivity");
-  }
-
-  if (isEmpty(values.bailType) || (commercialFlow && !isCommercialBailType(values.bailType)) || commercialIncomplete("duration")) {
-    return idxBailType;
-  }
-  if (isEmpty(values.bailRentAmount) || commercialIncomplete("rent")) {
-    return idxBailRent;
-  }
-  // Zone tendue : la question sur la relocation doit avoir une réponse.
-  if (
-    values.bailFamily !== BailFamille.COMMERCIAL &&
-    (intakeLink as any).property?.isTightZone &&
-    isEmpty((values as any).rentRules?.relocationLetBefore)
-  ) {
-    return idxBailRent;
-  }
-  if (isEmpty(values.bailMonthlyCharges) || isEmpty(values.bailSecurityDeposit) || commercialIncomplete("deposit")) {
-    return idxBailCharges;
-  }
-  if (commercialIncomplete("charges")) {
-    return idxStep("commercialCharges");
-  }
-  if (commercialIncomplete("clauses")) {
-    return idxStep("commercialClauses");
-  }
-  // Si bail meublé, vérifier que tous les équipements sont cochés
-  const isMeubleBailCheck =
-    values.bailType === BailType.BAIL_MEUBLE_1_ANS ||
-    values.bailType === BailType.BAIL_MEUBLE_9_MOIS;
-  if (isMeubleBailCheck) {
-    const furnitureKeys = [
-      "hasLiterie",
-      "hasRideaux",
-      "hasPlaquesCuisson",
-      "hasFour",
-      "hasRefrigerateur",
-      "hasCongelateur",
-      "hasVaisselle",
-      "hasUstensilesCuisine",
-      "hasTable",
-      "hasSieges",
-      "hasEtageresRangement",
-      "hasLuminaires",
-      "hasMaterielEntretien",
-    ] as const;
-    const allFurniturePresent = furnitureKeys.every(
-      (k) => (values as any)[k] === true
-    );
-    if (!allFurniturePresent) {
-      return idxBailFurniture;
-    }
-  }
-  if (isEmpty(values.bailEffectiveDate) || isEmpty(values.bailPaymentDay)) {
-    // Bail commercial : les dates sont dans « Durée et dates »
-    return commercialFlow ? idxBailType : idxBailDates;
-  }
-
+  // Données : première étape où il manque une réponse (règles dans lib/rules/dossier-rules.ts)
   const hasTenant =
-    intakeLink?.bail?.parties?.some(
-      (party: any) => party.profilType === ProfilType.LOCATAIRE
-    ) ?? false;
-  if (isEmpty(values.tenantEmail) && !hasTenant) {
-    return idxTenant;
-  }
+    intakeLink?.bail?.parties?.some((party: any) => party.profilType === ProfilType.LOCATAIRE) ?? false;
+  const issues = ownerFieldIssues(values, { isTightZone: (intakeLink as any).property?.isTightZone, hasTenant });
+  const incompleteStep = firstIncompleteStep(issues, OWNER_STEP_ORDER);
+  if (incompleteStep) return STEPS.findIndex((s) => s.id === incompleteStep);
 
-  const clientDocs = intakeLink.client?.documents || [];
-  const propertyDocs = intakeLink.property?.documents || [];
-  const bailDocs = intakeLink.bail?.documents || [];
-
-  if (clientType === ClientType.PERSONNE_MORALE) {
-    const hasKbis = clientDocs.some((d: any) => d.kind === "KBIS");
-    const hasStatutes = clientDocs.some((d: any) => d.kind === "STATUTES");
-    if (!hasKbis || !hasStatutes) return idxDocuments;
-  } else if (clientType === ClientType.PERSONNE_PHYSIQUE) {
-    const hasId = clientDocs.some((d: any) => d.kind === "ID_IDENTITY");
-    if (!hasId) return idxDocuments;
-    const primary = (values as any).persons?.[0];
-    const maritalKind = getMaritalDocumentKind(primary?.familyStatus, primary?.matrimonialRegime);
-    if (maritalKind && !clientDocs.some((d: any) => d.kind === maritalKind)) return idxDocuments;
-  }
-
-  const hasDiagnostics = propertyDocs.some((d: any) => d.kind === "DIAGNOSTICS");
-  const hasTitleDeed = propertyDocs.some((d: any) => d.kind === "TITLE_DEED");
-  if (!hasDiagnostics || !hasTitleDeed) return idxDocuments;
-
-  if (
-    values.propertyLegalStatus === BienLegalStatus.CO_PROPRIETE &&
-    !propertyDocs.some((d: any) => d.kind === "REGLEMENT_COPROPRIETE")
-  ) {
-    return idxDocuments;
-  }
-  if (
-    values.propertyLegalStatus === BienLegalStatus.LOTISSEMENT &&
-    needsSubdivisionRules((values as any).propertySubdivisionOver10Years) &&
-    !propertyDocs.some((d: any) => d.kind === "CAHIER_DE_CHARGE_LOTISSEMENT")
-  ) {
-    return idxDocuments;
+  // Pièces : celles qui bloquent l'envoi, selon les réponses
+  const dbPersons = [...(intakeLink.client?.persons || [])].sort((a: any, b: any) => Number(!!b.isPrimary) - Number(!!a.isPrimary));
+  const documentRules = ownerDocumentRequirements({
+    clientType: clientType || values.type,
+    persons: clientType === ClientType.PERSONNE_PHYSIQUE && dbPersons.length ? dbPersons : (values as any).persons,
+    entreprise: intakeLink.client?.entreprise,
+    bailFamily: values.bailFamily,
+    property: {
+      legalStatus: values.propertyLegalStatus as string | undefined,
+      subdivisionOver10Years: (values as any).propertySubdivisionOver10Years,
+      ...shoppingCenterFromAnswer((values as any).propertyInShoppingCenter),
+    },
+  });
+  const provided = {
+    persons: dbPersons.map((person: any) => person.documents || []),
+    client: intakeLink.client?.documents || [],
+    entreprise: intakeLink.client?.entreprise?.documents || [],
+    property: intakeLink.property?.documents || [],
+    bail: intakeLink.bail?.documents || [],
+  };
+  if (missingDocuments(documentRules, (rule) => isDocumentProvided(rule, provided)).length > 0) {
+    return STEPS.findIndex((s) => s.id === "documents");
   }
 
   return STEPS.length - 1;
@@ -1480,89 +1302,44 @@ useEffect(() => {
       return [];
     });
 
-    if (clientType === ClientType.PERSONNE_MORALE) {
-      if (!hasDocument(kbisRef, kbisFile, "KBIS", undefined, uploadedDocuments)) {
-        errors.push("KBIS requis");
-      }
-      if (!hasDocument(statutesRef, statutesFile, "STATUTES", undefined, uploadedDocuments)) {
-        errors.push("Statuts requis");
-      }
-    } else {
-      // Vérifier les documents pour chaque personne
-      const persons = values.persons || [];
-      persons.forEach((person: any, index: number) => {
-        const personName = person.firstName && person.lastName 
-          ? `${person.firstName} ${person.lastName}` 
-          : `Personne ${index + 1}`;
-        
-        const personRefs = personDocumentRefs.current[index];
-        const personFiles = personDocumentFiles[index] || { idIdentity: null };
-        
-        if (!hasDocument(personRefs?.idIdentity || null, personFiles.idIdentity, "ID_IDENTITY", index, uploadedDocuments)) {
-          errors.push(`Pièce d'identité requise pour ${personName}`);
+    // Règles des pièces : lib/rules/dossier-rules.ts (les mêmes que le serveur et la fiche du bail).
+    const persons = values.persons || [];
+    const rules = ownerDocumentRequirements({
+      clientType,
+      persons,
+      entreprise: values.entreprise as any,
+      bailFamily: values.bailFamily,
+      property: {
+        legalStatus: values.propertyLegalStatus as string | undefined,
+        subdivisionOver10Years: (values as any).propertySubdivisionOver10Years,
+        ...shoppingCenterFromAnswer((values as any).propertyInShoppingCenter),
+      },
+    });
+    // Champs d'envoi de la page (fichier choisi mais pas encore envoyé)
+    const localFile = (rule: DocumentRequirement): [RefObject<HTMLInputElement | null> | null, File | null] => {
+      switch (rule.kind) {
+        case "KBIS": return [kbisRef, kbisFile];
+        case "STATUTES": return [statutesRef, statutesFile];
+        case "ID_IDENTITY": {
+          const index = rule.personIndex ?? 0;
+          return [personDocumentRefs.current[index]?.idIdentity || null, personDocumentFiles[index]?.idIdentity ?? null];
         }
-      });
-      
-      // Documents communs au client (contrat de mariage, convention de PACS)
-      // Utiliser le statut familial de la première personne
-      const primaryPerson = persons[0];
-      const maritalKind = getMaritalDocumentKind(primaryPerson?.familyStatus, primaryPerson?.matrimonialRegime);
-      if (maritalKind === "CONTRAT_DE_MARIAGE") {
-        if (!hasDocument(contratDeMariageRef, contratDeMariageFile, "CONTRAT_DE_MARIAGE", undefined, uploadedDocuments)) {
-          errors.push("Contrat de mariage requis");
-        }
+        case "CONTRAT_DE_MARIAGE": return [contratDeMariageRef, contratDeMariageFile];
+        case "CONTRAT_DE_PACS": return [contratDePacsRef, contratDePacsFile];
+        case "DIAGNOSTICS": return [diagnosticsRef, diagnosticsFile];
+        case "TITLE_DEED": return [titleDeedRef, titleDeedFile];
+        case "REGLEMENT_COPROPRIETE": return [reglementCoproprieteRef, reglementCoproprieteFile];
+        case "CAHIER_DE_CHARGE_LOTISSEMENT": return [cahierChargeLotissementRef, cahierChargeLotissementFile];
+        default: return [null, null];
       }
-      if (maritalKind === "CONTRAT_DE_PACS") {
-        if (!hasDocument(contratDePacsRef, contratDePacsFile, "CONTRAT_DE_PACS", undefined, uploadedDocuments)) {
-          errors.push("Convention de PACS requise");
-        }
-      }
-    }
-
-    if (!hasDocument(diagnosticsRef, diagnosticsFile, "DIAGNOSTICS", undefined, uploadedDocuments)) {
-      errors.push("Diagnostics du bien requis");
-    }
-    if (!hasDocument(titleDeedRef, titleDeedFile, "TITLE_DEED", undefined, uploadedDocuments)) {
-      errors.push("Titre de propriété requis");
-    }
-    if (
-      propertyLegalStatus === BienLegalStatus.CO_PROPRIETE &&
-      !hasDocument(
-        reglementCoproprieteRef,
-        reglementCoproprieteFile,
-        "REGLEMENT_COPROPRIETE",
-        undefined,
-        uploadedDocuments
-      )
-    ) {
-      errors.push("Règlement de copropriété requis");
-    }
-    if (
-      propertyLegalStatus === BienLegalStatus.LOTISSEMENT &&
-      needsSubdivisionRules((values as any).propertySubdivisionOver10Years) &&
-      !hasDocument(
-        cahierChargeLotissementRef,
-        cahierChargeLotissementFile,
-        "CAHIER_DE_CHARGE_LOTISSEMENT",
-        undefined,
-        uploadedDocuments
-      )
-    ) {
-      errors.push("Règlement du lotissement requis");
-    }
-
-    // Bail commercial : règlement du centre commercial ou de l'ensemble immobilier
-    if (
-      values.bailFamily === BailFamille.COMMERCIAL &&
-      !!(values as any).propertyInShoppingCenter &&
-      (values as any).propertyInShoppingCenter !== "no" &&
-      !uploadedDocuments.some((d: any) => d.kind === "SHOPPING_CENTER_RULES")
-    ) {
-      errors.push(
-        (values as any).propertyInShoppingCenter === "estate_complex"
-          ? "Cahier des charges de l'ensemble immobilier requis"
-          : "Règlement du centre commercial requis"
-      );
+    };
+    for (const rule of missingDocuments(rules, (rule) => {
+      // Pièces du bail commercial : envoyées directement, seule la liste des pièces reçues compte.
+      if (rule.kind === "SHOPPING_CENTER_RULES") return uploadedDocuments.some((d: any) => d.kind === rule.kind);
+      const [ref, file] = localFile(rule);
+      return hasDocument(ref, file, rule.kind, rule.target === "person" ? rule.personIndex : undefined, uploadedDocuments);
+    })) {
+      errors.push(rule.label);
     }
 
     return { isValid: errors.length === 0, errors };
@@ -2272,63 +2049,22 @@ useEffect(() => {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
 
-        // Bail d'habitation : pièces principales et époque, pour calculer le plafond de loyer
-        // (signalées en même temps que les autres erreurs de l'étape).
-        let missingCategory = false;
-        if (stepId === "propertyDetails" && form.getValues("bailFamily") !== BailFamille.COMMERCIAL) {
-          if (!form.getValues("propertyMainRooms")) {
-            form.setError("propertyMainRooms", { type: "manual", message: "Indiquez le nombre de pièces principales" });
-            missingCategory = true;
-          }
-          if (!form.getValues("propertyConstructionPeriod")) {
-            form.setError("propertyConstructionPeriod", { type: "manual", message: "Indiquez l'époque de construction" });
-            missingCategory = true;
-          }
-          if (!form.getValues("propertyDpeClass" as any)) {
-            form.setError("propertyDpeClass" as any, { type: "manual", message: "Indiquez la classe énergétique du logement" });
-            missingCategory = true;
-          }
+        // Réponses qui dépendent des autres (habitation ou commercial, copropriété, lotissement,
+        // représentant de la société, adresse choisie dans la liste, mobilier du meublé…) :
+        // règles dans lib/rules/dossier-rules.ts. Le loyer a son propre contrôle juste après.
+        const stepIssues = ownerFieldIssues(form.getValues(), {
+          isTightZone: (intakeLink as any).property?.isTightZone,
+        }).filter((issue) => issue.step === stepId && issue.level === "blocking" && !issue.path.startsWith("rentRules"));
+        for (const issue of stepIssues) {
+          form.setError(issue.path as any, { type: "manual", message: issue.message });
         }
-        if (stepId === "propertyAddress") {
-          // Le type de bien suit la famille de bail : local en commercial, habitat sinon
-          const type = form.getValues("propertyType");
-          if (commercialFlow ? !isPremisesType(type) : isPremisesType(type)) {
-            form.setError("propertyType", {
-              type: "manual",
-              message: commercialFlow ? "Choisissez le type de local" : "Choisissez le type d'habitat",
-            });
-            missingCategory = true;
-          }
-        }
-        if (stepId === "clientInfo" && clientType === ClientType.PERSONNE_MORALE && commercialFlow) {
-          if (!String(form.getValues("entreprise.representativeName" as any) ?? "").trim()) {
-            form.setError("entreprise.representativeName" as any, { type: "manual", message: "Indiquez le représentant légal" });
-            missingCategory = true;
-          }
-        }
-        if (stepId === "propertyDetails" && commercialFlow && !form.getValues("propertyInShoppingCenter" as any)) {
-          form.setError("propertyInShoppingCenter" as any, { type: "manual", message: "Indiquez où se trouve le local" });
-          missingCategory = true;
-        }
-        if (stepId === "propertyDetails") {
-          const legalStatus = form.getValues("propertyLegalStatus");
-          if (legalStatus === BienLegalStatus.CO_PROPRIETE) {
-            if (!String(form.getValues("propertySyndicName" as any) ?? "").trim()) {
-              form.setError("propertySyndicName" as any, { type: "manual", message: "Indiquez le nom du syndic" });
-              missingCategory = true;
-            }
-            if (
-              !String(form.getValues("propertySyndicEmail" as any) ?? "").trim() &&
-              !String(form.getValues("propertySyndicPhone" as any) ?? "").trim()
-            ) {
-              form.setError("propertySyndicEmail" as any, { type: "manual", message: "Indiquez l'e-mail ou le téléphone du syndic" });
-              missingCategory = true;
-            }
-          }
-          if (legalStatus === BienLegalStatus.LOTISSEMENT && !form.getValues("propertySubdivisionOver10Years" as any)) {
-            form.setError("propertySubdivisionOver10Years" as any, { type: "manual", message: "Répondez à la question sur le lotissement" });
-            missingCategory = true;
-          }
+        const missingCategory = stepIssues.length > 0;
+        if (stepId === "bailFurniture" && missingCategory) {
+          form.setError("bailType", { type: "manual", message: "Tous les équipements doivent être présents pour un bail meublé" });
+          toast.error("Mobilier incomplet", {
+            description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
+            duration: 6000,
+          });
         }
         if (!valid || missingCategory) return;
 
@@ -2352,62 +2088,6 @@ useEffect(() => {
                       : "Le loyer dépasse le maximum autorisé : baissez-le.",
             });
             return;
-          }
-        }
-
-        // Adresse choisie dans la liste : le bien est localisé (commune, zone d'encadrement des loyers).
-        if (stepId === "propertyAddress" && !String(form.getValues("propertyInseeCode") || "").trim()) {
-          form.setError("propertyFullAddress", { type: "manual", message: "Choisissez l'adresse dans la liste proposée pour que le bien soit localisé." });
-          return;
-        }
-
-        // Validation spéciale pour le step bailFurniture : vérifier le mobilier si bail meublé
-        if (stepId === "bailFurniture") {
-          const bailType = form.getValues("bailType");
-          const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
-
-          if (isMeubleBail) {
-            const furnitureFields = [
-              'hasLiterie',
-              'hasRideaux',
-              'hasPlaquesCuisson',
-              'hasFour',
-              'hasRefrigerateur',
-              'hasCongelateur',
-              'hasVaisselle',
-              'hasUstensilesCuisine',
-              'hasTable',
-              'hasSieges',
-              'hasEtageresRangement',
-              'hasLuminaires',
-              'hasMaterielEntretien',
-            ] as const;
-
-            const values = form.getValues();
-            const missingFurniture = furnitureFields.filter(
-              (field) => !values[field] || values[field] !== true
-            );
-
-            if (missingFurniture.length > 0) {
-              missingFurniture.forEach((field) => {
-                form.setError(field as keyof FormWithPersons, {
-                  type: 'manual',
-                  message: 'Cet équipement est requis pour un bail meublé',
-                });
-              });
-
-              form.setError('bailType', {
-                type: 'manual',
-                message: 'Tous les équipements doivent être présents pour un bail meublé',
-              });
-
-              toast.error("Mobilier incomplet", {
-                description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
-                duration: 6000,
-              });
-
-              return;
-            }
           }
         }
 

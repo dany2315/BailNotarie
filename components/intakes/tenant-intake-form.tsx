@@ -30,6 +30,13 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { getMaritalDocumentKind } from "@/lib/utils/required-fields";
+import {
+  isDocumentProvided,
+  missingDocuments,
+  tenantDocumentRequirements,
+  tenantFieldIssues,
+  type DocumentRequirement,
+} from "@/lib/rules/dossier-rules";
 import { MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import { RENT_PERIODICITY_LABELS } from "@/lib/utils/commercial-terms";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -472,75 +479,25 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return clientTypeIndex !== -1 ? clientTypeIndex : 0;
     }
 
-    // Vérifier l'étape clientInfo (maintenant index 2 si overview existe)
-    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      const primaryPerson = values.persons?.[0];
-      if (!primaryPerson || 
-          isEmpty(primaryPerson.firstName) || isEmpty(primaryPerson.lastName) || 
-          isEmpty(primaryPerson.email) || isEmpty(primaryPerson.phone) || isEmpty(primaryPerson.fullAddress) ||
-          isEmpty(primaryPerson.profession) || !primaryPerson.familyStatus || 
-          isEmpty(primaryPerson.birthPlace) || !primaryPerson.birthDate || isEmpty(primaryPerson.nationality)) {
-        return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-      }
-      if (primaryPerson.familyStatus === FamilyStatus.MARIE && !primaryPerson.matrimonialRegime) {
-        return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-      }
-      // Vérifier toutes les personnes
-      if (values.persons && values.persons.length > 1) {
-        for (let i = 1; i < values.persons.length; i++) {
-          const person = values.persons[i];
-          if (!person || isEmpty(person.firstName) || isEmpty(person.lastName) || 
-              isEmpty(person.email) || isEmpty(person.phone) || isEmpty(person.fullAddress) ||
-              isEmpty(person.profession) || !person.familyStatus || 
-              isEmpty(person.birthPlace) || !person.birthDate || isEmpty(person.nationality)) {
-            return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-          }
-          if (person.familyStatus === FamilyStatus.MARIE && !person.matrimonialRegime) {
-            return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-          }
-        }
-      }
-    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      if (!values.entreprise ||
-          isEmpty(values.entreprise.legalName) || isEmpty(values.entreprise.email) || 
-          isEmpty(values.entreprise.phone) || isEmpty(values.entreprise.fullAddress) ||
-          (isEmpty(values.entreprise.registration) && values.entreprise.isRegistered !== "no")) {
-        return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-      }
+    // Données et pièces du locataire : règles dans lib/rules/dossier-rules.ts
+    const bailFamily = intakeLink.bail?.bailFamily ?? null;
+    if (tenantFieldIssues(values, { bailFamily }).some((issue) => issue.step === "clientInfo")) {
+      return clientInfoIndex !== -1 ? clientInfoIndex : 1;
     }
-
-    // Vérifier l'étape documents (maintenant index 3 si overview existe)
-    // Utiliser intakeLink directement pour avoir les données à jour
-    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      // Vérifier les documents pour chaque personne
-      if (values.persons) {
-        for (let i = 0; i < values.persons.length; i++) {
-          const person = values.persons[i];
-          const personDocs = intakeLink.client?.persons?.[i]?.documents || [];
-          const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
-          
-          if (!hasIdIdentity) {
-            return documentsIndex !== -1 ? documentsIndex : 2;
-          }
-        }
-      }
-      
-      // Vérifier les documents communs (contrat de mariage, convention de PACS)
-      const primaryPerson = values.persons?.[0];
-      const clientDocs = intakeLink.client?.documents || [];
-      const maritalKind = getMaritalDocumentKind(primaryPerson?.familyStatus, primaryPerson?.matrimonialRegime);
-      if (maritalKind && !clientDocs.some((doc: any) => doc.kind === maritalKind)) {
-        return documentsIndex !== -1 ? documentsIndex : 2;
-      }
-    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
-      const hasKbis =
-        intakeLink.client?.entreprise?.isRegistered === false || entrepriseDocs.some((doc: any) => doc.kind === "KBIS");
-      const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES");
-      
-      if (!hasKbis || !hasStatutes) {
-        return documentsIndex !== -1 ? documentsIndex : 2;
-      }
+    // Même ordre que les personnes du formulaire (construites depuis intakeLink.client.persons)
+    const dbPersons = intakeLink.client?.persons || [];
+    const documentRules = tenantDocumentRequirements({
+      clientType: currentClientType,
+      persons: values.persons,
+      entreprise: intakeLink.client?.entreprise ?? (values as any).entreprise,
+    });
+    const provided = {
+      persons: dbPersons.map((person: any) => person.documents || []),
+      client: intakeLink.client?.documents || [],
+      entreprise: intakeLink.client?.entreprise?.documents || [],
+    };
+    if (missingDocuments(documentRules, (rule) => isDocumentProvided(rule, provided)).length > 0) {
+      return documentsIndex !== -1 ? documentsIndex : 2;
     }
 
     // Toutes les étapes sont complètes, retourner la dernière étape
@@ -1322,18 +1279,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
         if (!valid) return;
-        // Bail commercial : représentant légal et immatriculation de la société locataire
-        if (stepId === "clientInfo" && clientType === ClientType.PERSONNE_MORALE && intakeLink.bail?.bailFamily === "COMMERCIAL") {
-          let missing = false;
-          if (!String(form.getValues("entreprise.representativeName" as any) ?? "").trim()) {
-            form.setError("entreprise.representativeName" as any, { type: "manual", message: "Indiquez le représentant légal" });
-            missing = true;
-          }
-          if (!form.getValues("entreprise.isRegistered" as any)) {
-            form.setError("entreprise.isRegistered" as any, { type: "manual", message: "Indiquez si la société est déjà immatriculée" });
-            missing = true;
-          }
-          if (missing) return;
+        // Réponses qui dépendent des autres (bail commercial : représentant légal et immatriculation
+        // de la société) : règles dans lib/rules/dossier-rules.ts
+        if (stepId === "clientInfo") {
+          const stepIssues = tenantFieldIssues(form.getValues(), { bailFamily: intakeLink.bail?.bailFamily ?? null });
+          for (const issue of stepIssues) form.setError(issue.path as any, { type: "manual", message: issue.message });
+          if (stepIssues.length > 0) return;
         }
       }
     }
@@ -1522,63 +1473,43 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return [];
     });
 
-    // Validation selon le type de client
-    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      // Vérifier les documents pour chaque personne
-      persons.forEach((person, index) => {
-        const personRef = personDocumentRefs.current[index];
-        const personFiles = personDocumentFiles[index];
-        const personDocs = intakeLink.client?.persons?.[index]?.documents || [];
-        const personUploadedDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === index);
-        
-        const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
-          personUploadedDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
-          personRef?.idIdentity.current?.files?.[0] || personFiles?.idIdentity;
-        
-        if (!hasIdIdentity) {
-          errors.push(`La pièce d'identité de la personne ${person.firstName} ${person.lastName} est requise`);
+    // Règles des pièces : lib/rules/dossier-rules.ts (les mêmes que le serveur et la fiche du bail).
+    const rules = tenantDocumentRequirements({ clientType: currentClientType, persons, entreprise: values.entreprise as any });
+    const isProvided = (rule: DocumentRequirement): boolean => {
+      switch (rule.target) {
+        case "person": {
+          const index = rule.personIndex ?? 0;
+          const personDocs = intakeLink.client?.persons?.[index]?.documents || [];
+          return (
+            personDocs.some((doc: any) => doc.kind === rule.kind) ||
+            uploadedDocuments.some((doc: any) => doc.personIndex === index && doc.kind === rule.kind) ||
+            !!personDocumentRefs.current[index]?.idIdentity.current?.files?.[0] ||
+            !!personDocumentFiles[index]?.idIdentity
+          );
         }
-      });
-
-      // Vérifier les documents communs (contrat de mariage, convention de PACS)
-      const primaryPerson = persons[0];
-      const maritalKind = getMaritalDocumentKind(primaryPerson?.familyStatus, primaryPerson?.matrimonialRegime);
-      const clientDocs = intakeLink.client?.documents || [];
-      const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.source === 'client');
-
-      if (maritalKind === "CONTRAT_DE_MARIAGE") {
-        const hasContract = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_MARIAGE") ||
-          uploadedClientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_MARIAGE") ||
-          contratDeMariageRef.current?.files?.[0] || contratDeMariageFile;
-        if (!hasContract) {
-          errors.push("Le contrat de mariage est requis");
+        case "client": {
+          const local = rule.kind === "CONTRAT_DE_MARIAGE"
+            ? contratDeMariageRef.current?.files?.[0] || contratDeMariageFile
+            : contratDePacsRef.current?.files?.[0] || contratDePacsFile;
+          return (
+            (intakeLink.client?.documents || []).some((doc: any) => doc.kind === rule.kind) ||
+            uploadedDocuments.some((doc: any) => doc.source === "client" && doc.kind === rule.kind) ||
+            !!local
+          );
         }
-      }
-      if (maritalKind === "CONTRAT_DE_PACS") {
-        const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
-          uploadedClientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
-          contratDePacsRef.current?.files?.[0] || contratDePacsFile;
-        if (!hasPacs) {
-          errors.push("La convention de PACS est requise");
+        case "entreprise": {
+          const local = rule.kind === "KBIS" ? kbisRef.current?.files?.[0] || kbisFile : statutesRef.current?.files?.[0] || statutesFile;
+          return (
+            (intakeLink.client?.entreprise?.documents || []).some((doc: any) => doc.kind === rule.kind) ||
+            uploadedDocuments.some((doc: any) => doc.source === "entreprise" && doc.kind === rule.kind) ||
+            !!local
+          );
         }
+        default:
+          return true;
       }
-    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
-      const uploadedEntrepriseDocs = uploadedDocuments.filter((doc: any) => doc.source === 'entreprise');
-      const hasKbis = entrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
-        uploadedEntrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
-        kbisRef.current?.files?.[0] || kbisFile;
-      const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
-        uploadedEntrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
-        statutesRef.current?.files?.[0] || statutesFile;
-
-      if (!hasKbis && form.getValues("entreprise.isRegistered" as any) !== "no") {
-        errors.push("Le KBIS est requis");
-      }
-      if (!hasStatutes) {
-        errors.push("Les statuts sont requis");
-      }
-    }
+    };
+    for (const rule of missingDocuments(rules, isProvided)) errors.push(rule.label);
 
     return {
       isValid: errors.length === 0,

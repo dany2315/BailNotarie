@@ -34,8 +34,14 @@ import {
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
 } from "@/lib/utils/completion-status";
 import { createUserForClient } from "@/lib/utils/user-creation";
-import { getMaritalDocumentKind, needsSubdivisionRules } from "@/lib/utils/required-fields";
-import { entrepriseCommercialFields, requiresKbis } from "@/lib/utils/commercial-terms";
+import {
+  isDocumentProvided,
+  missingDocuments,
+  ownerDocumentRequirements,
+  shoppingCenterFromAnswer,
+  tenantDocumentRequirements,
+} from "@/lib/rules/dossier-rules";
+import { entrepriseCommercialFields } from "@/lib/utils/commercial-terms";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { createBailAuditLog, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 
@@ -607,47 +613,28 @@ async function assertOwnerDocuments(input: {
     input.propertyId ? prisma.document.findMany({ where: { propertyId: input.propertyId }, select: { kind: true } }) : [],
     input.bailId ? prisma.document.findMany({ where: { bailId: input.bailId }, select: { kind: true } }) : [],
   ]);
-  const has = (docs: Array<{ kind: DocumentKind }>, kind: DocumentKind) => docs.some((doc) => doc.kind === kind);
-  const missing: string[] = [];
-
-  if (client.type === ClientType.PERSONNE_MORALE) {
-    const docs = client.entreprise?.documents ?? [];
-    if (requiresKbis(client.entreprise) && !has(docs, DocumentKind.KBIS)) missing.push("Kbis");
-    if (!has(docs, DocumentKind.STATUTES)) missing.push("statuts de la société");
-  } else {
-    for (const person of client.persons) {
-      if (!has(person.documents, DocumentKind.ID_IDENTITY)) {
-        const name = `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim();
-        missing.push(`pièce d'identité${name ? ` de ${name}` : ""}`);
-      }
-    }
-    const primary = client.persons[0];
-    const maritalKind = getMaritalDocumentKind(primary?.familyStatus, primary?.matrimonialRegime);
-    if (maritalKind && !has(client.documents, maritalKind)) {
-      missing.push(maritalKind === DocumentKind.CONTRAT_DE_MARIAGE ? "contrat de mariage" : "convention de PACS");
-    }
-  }
-
-  if (!has(propertyDocs, DocumentKind.DIAGNOSTICS)) missing.push("diagnostics du bien");
-  if (!has(propertyDocs, DocumentKind.TITLE_DEED)) missing.push("titre de propriété");
-  if (input.legalStatus === "CO_PROPRIETE" && !has(propertyDocs, DocumentKind.REGLEMENT_COPROPRIETE)) {
-    missing.push("règlement de copropriété");
-  }
-  if (
-    input.legalStatus === "LOTISSEMENT" &&
-    needsSubdivisionRules(input.subdivisionOver10Years) &&
-    !has(propertyDocs, DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT)
-  ) {
-    missing.push("règlement du lotissement");
-  }
-  if (
-    input.bailFamily === BailFamille.COMMERCIAL &&
-    input.inShoppingCenter &&
-    input.inShoppingCenter !== "no" &&
-    !has([...propertyDocs, ...bailDocs], DocumentKind.SHOPPING_CENTER_RULES)
-  ) {
-    missing.push(input.inShoppingCenter === "estate_complex" ? "cahier des charges de l'ensemble immobilier" : "règlement du centre commercial");
-  }
+  const shoppingCenter = shoppingCenterFromAnswer(input.inShoppingCenter);
+  const rules = ownerDocumentRequirements({
+    clientType: client.type,
+    persons: client.persons,
+    entreprise: client.entreprise,
+    bailFamily: input.bailFamily,
+    property: {
+      legalStatus: input.legalStatus,
+      subdivisionOver10Years: input.subdivisionOver10Years,
+      // Seule la pièce obligatoire du bail commercial compte ici : le règlement du centre commercial.
+      inShoppingCenter: shoppingCenter.inShoppingCenter,
+      complexType: shoppingCenter.complexType,
+    },
+  });
+  const provided = {
+    persons: client.persons.map((person) => person.documents),
+    client: client.documents,
+    entreprise: client.entreprise?.documents ?? [],
+    property: propertyDocs,
+    bail: bailDocs,
+  };
+  const missing = missingDocuments(rules, (rule) => isDocumentProvided(rule, provided)).map((rule) => rule.label);
 
   if (missing.length > 0) {
     throw new Error(`Pièces manquantes : ${missing.join(", ")}. Ajoutez-les avant d'envoyer le formulaire.`);
@@ -1740,32 +1727,25 @@ export async function submitTenantForm(data: unknown) {
     throw new Error("Client introuvable.");
   }
 
-  if (clientForDocValidation.type === ClientType.PERSONNE_PHYSIQUE) {
-    // Vérifier la pièce d'identité pour chaque personne
-    for (const person of clientForDocValidation.persons) {
-      const hasId = person.documents.some(d => d.kind === DocumentKind.ID_IDENTITY);
-      if (!hasId) {
-        throw new Error(`La pièce d'identité de ${person.firstName ?? ""} ${person.lastName ?? ""} est requise avant de soumettre le formulaire.`.trim());
-      }
-    }
-    // Vérifier le contrat de mariage (hors communauté légale) ou la convention de PACS de la personne principale
-    const primaryPerson = clientForDocValidation.persons.find(p => p.isPrimary) ?? clientForDocValidation.persons[0];
-    const maritalKind = getMaritalDocumentKind(primaryPerson?.familyStatus, primaryPerson?.matrimonialRegime);
-    if (maritalKind && !clientForDocValidation.documents.some(d => d.kind === maritalKind)) {
-      throw new Error(
-        maritalKind === DocumentKind.CONTRAT_DE_MARIAGE
-          ? "Le contrat de mariage est requis avant de soumettre le formulaire."
-          : "La convention de PACS est requise avant de soumettre le formulaire."
-      );
-    }
-  } else if (clientForDocValidation.type === ClientType.PERSONNE_MORALE) {
-    const entrepriseDocs = clientForDocValidation.entreprise?.documents ?? [];
-    if (requiresKbis(clientForDocValidation.entreprise) && !entrepriseDocs.some(d => d.kind === DocumentKind.KBIS)) {
-      throw new Error("Le KBIS est requis avant de soumettre le formulaire.");
-    }
-    if (!entrepriseDocs.some(d => d.kind === DocumentKind.STATUTES)) {
-      throw new Error("Les statuts de la société sont requis avant de soumettre le formulaire.");
-    }
+  // Pièces obligatoires du locataire : mêmes règles que le formulaire (lib/rules/dossier-rules.ts).
+  const tenantPersons = [...clientForDocValidation.persons].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
+  const missingTenantDocs = missingDocuments(
+    tenantDocumentRequirements({
+      clientType: clientForDocValidation.type,
+      persons: tenantPersons,
+      entreprise: clientForDocValidation.entreprise,
+    }),
+    (rule) =>
+      isDocumentProvided(rule, {
+        persons: tenantPersons.map((person) => person.documents),
+        client: clientForDocValidation.documents,
+        entreprise: clientForDocValidation.entreprise?.documents ?? [],
+      }),
+  );
+  if (missingTenantDocs.length > 0) {
+    throw new Error(
+      `Pièces manquantes : ${missingTenantDocs.map((rule) => rule.label).join(", ")}. Ajoutez-les avant d'envoyer le formulaire.`,
+    );
   }
 
   // Mettre à jour l'IntakeLink du locataire comme soumis
