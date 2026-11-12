@@ -3,7 +3,8 @@
  * recopie ce qui est écrit, c'est ce code qui dit quoi faire.
  *
  * Seuls les diagnostics obligatoires pour une mise en location sont contrôlés, et seulement leur
- * présence et leur validité (pas ce qu'ils constatent dans le logement) :
+ * présence et leur validité (pas ce qu'ils constatent dans le logement), plus la lettre du DPE
+ * recalculée à partir de ses valeurs :
  * - logement (loi du 6 juillet 1989, art. 3-3) : DPE (10 ans), ERP (moins de 6 mois), plomb / CREP
  *   si construit avant 1949 (sans limite sans plomb, 6 ans avec plomb),
  *   électricité et gaz si l'installation a plus de 15 ans (6 ans) ;
@@ -185,6 +186,12 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
       ok("dpe", "DPE", `${summary}${soon ? "expire" : "valable jusqu'"}${soon ? " le" : "au"} ${day(validUntil)}`, soon ? "warn" : "ok");
     } else {
       team("dpe", "DPE", "Date de validité inconnue : à vérifier dans le fichier", "file");
+    }
+    // Lettre de l'étiquette recalculée à partir de la consommation et des émissions : une erreur d'étiquette
+    // change la classe reprise dans le bail (et peut cacher un logement G).
+    const expected = expectedDpeLetter(extraction);
+    if (dpe.energyClass && expected && expected !== dpe.energyClass) {
+      team("dpe-lettre", "Étiquette DPE", `Lettre lue ${dpe.energyClass}, les valeurs du DPE donnent ${expected} : vérifiez l'étiquette`, "file");
     }
     if (dpe.energyClass) {
       const ficheDate = isoDay(fiche?.dpeDate ?? null);
