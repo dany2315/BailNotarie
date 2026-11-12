@@ -246,7 +246,8 @@ export function ComplementComposer({
             </div>
           ) : step === "preview" ? (
             <ComplementEmailPreview
-              name={data.name}
+              name={data.greetingName || ""}
+              recipientName={data.name}
               email={data.email}
               address={data.address}
               message={message}

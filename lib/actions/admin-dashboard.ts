@@ -3,6 +3,7 @@
 import { BailStatus, NotaireRequestStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
+import { getClientGreetingName } from "@/lib/actions/bail-audit-log";
 import { daysSince, getLastActivity, getNextAction, type Actor } from "@/lib/utils/bail-stage";
 import { computeReminderNeeds, reminderActionLabel, reminderRank, statusSinceFrom, type ReminderNeed } from "@/lib/utils/reminders";
 
@@ -43,6 +44,7 @@ function reminderParty(party: PartyLite | undefined) {
   return {
     id: party.id,
     name: partyName(party) || (party.profilType === "LOCATAIRE" ? "Locataire" : "Propriétaire"),
+    greetingName: getClientGreetingName(party),
     email: (company ? party.entreprise?.email : party.persons[0]?.email) || null,
     phone: (company ? party.entreprise?.phone : party.persons[0]?.phone) || party.persons[0]?.phone || null,
   };

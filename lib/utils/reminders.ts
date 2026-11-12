@@ -62,6 +62,8 @@ export interface ReminderRecord {
 export interface ReminderParty {
   id: string;
   name: string;
+  /** Nom après « Bonjour » dans l'e-mail (société ou personne principale), sans repli sur l'e-mail. */
+  greetingName: string | null;
   email: string | null;
   phone: string | null;
 }

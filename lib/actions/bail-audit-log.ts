@@ -34,6 +34,23 @@ export function getClientDisplayName(client?: {
   );
 }
 
+/**
+ * Nom à mettre après « Bonjour » dans un e-mail : la société pour une personne morale, sinon la
+ * personne principale. Jamais l'adresse e-mail : sans nom connu, l'e-mail dit simplement « Bonjour, ».
+ */
+export function getClientGreetingName(client?: {
+  type?: string | null;
+  persons?: Array<{ firstName?: string | null; lastName?: string | null }>;
+  entreprise?: { legalName?: string | null; name?: string | null } | null;
+} | null): string | null {
+  if (!client) return null;
+  const primaryPerson = client.persons?.[0];
+  const personName = [primaryPerson?.firstName, primaryPerson?.lastName].filter(Boolean).join(" ").trim();
+  const companyName = (client.entreprise?.legalName || client.entreprise?.name || "").trim();
+  if (client.type === "PERSONNE_MORALE") return companyName || personName || null;
+  return personName || companyName || null;
+}
+
 export async function createBailAuditLog(
   data: {
     bailId: string;

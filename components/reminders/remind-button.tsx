@@ -32,13 +32,14 @@ export function RemindButton({
   className?: string;
   title?: string;
   rentCapLines?: string[] | null;
-  icon?: boolean;
+  /** true : la cloche ; ou une icône propre au motif (locataire à indiquer…). */
+  icon?: boolean | React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <Button type="button" variant={variant} size={size} className={className} onClick={() => setOpen(true)}>
-        {icon && <BellRing className="size-4" />}
+      <Button type="button" variant={variant} size={size} className={cn("gap-1.5", className)} onClick={() => setOpen(true)}>
+        {icon === true ? <BellRing className="size-4" /> : icon || null}
         <span className="truncate">{label}</span>
       </Button>
       <RemindDialog

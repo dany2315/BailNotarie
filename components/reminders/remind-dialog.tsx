@@ -230,11 +230,11 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
   const content = active
     ? relanceEmailContent({
         reason: active.reason,
-        name: active.party.name,
+        name: active.party.greetingName || "",
         address: panel?.address || "",
         actionUrl: "",
         items: active.reason === "RENT_CAP" ? (rentCapLines ?? []) : [],
-        tenantName: panel?.tenant?.name,
+        tenantName: panel?.tenant?.greetingName || undefined,
         note,
       })
     : null;
@@ -244,7 +244,7 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent className="flex max-h-[min(92dvh,860px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]">
         <DialogHeader className="border-b px-5 pb-4 pt-5 text-left sm:px-6">
-          <DialogTitle className="text-[17px]">{title || "Relancer"}</DialogTitle>
+          <DialogTitle className="text-[17px]">{active ? dialogTitle(active) : title || "Relancer"}</DialogTitle>
           <DialogDescription className="truncate">{panel ? panel.address : "Chargement du dossier…"}</DialogDescription>
           {several && (
             <div role="tablist" aria-label="E-mail" className="mt-3 flex flex-col gap-1 rounded-lg bg-slate-100 p-1 sm:flex-row sm:flex-wrap">
@@ -303,7 +303,7 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
               )}
               {need && <p className={cn("text-[12.5px]", need.due ? "font-semibold text-amber-800" : "text-muted-foreground")}>{needStatus(need)}</p>}
 
-              <EmailPreviewFrame to={active.party.email} subject={content.subject}>
+              <EmailPreviewFrame to={active.party.email} toName={active.party.name} toRole={TARGET_LABELS[active.target]} subject={content.subject}>
                 <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
                 <div className="mt-3 flex flex-col gap-3">
                   {content.paragraphs.map((paragraph) => (
@@ -421,6 +421,23 @@ type Candidate = {
   party: ReminderNeed["party"];
   need?: ReminderNeed;
 };
+
+/** Titre de la fenêtre : quoi et à qui, d'après l'e-mail affiché (« Relancer Camille Durand »). */
+function dialogTitle(candidate: Candidate): string {
+  const party = candidate.party;
+  const who = party.name && party.name !== party.email ? party.name : candidate.target === "OWNER" ? "le propriétaire" : "le locataire";
+  const to = who.startsWith("le ") ? `au ${who.slice(3)}` : `à ${who}`;
+  switch (candidate.reason) {
+    case "TENANT_TO_ADD":
+      return `Demander le locataire ${to}`;
+    case "TENANT_VIA_OWNER":
+      return `Relancer ${who} pour son locataire`;
+    case "RENT_CAP":
+      return `Prévenir ${who} du plafond de loyer`;
+    default:
+      return `Relancer ${who}`;
+  }
+}
 
 /** Motif en deux ou trois mots, pour le sélecteur d'e-mails. */
 const SHORT_REASONS: Record<ReminderReasonValue, string> = {

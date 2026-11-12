@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Check, CreditCard, FileUp, Lock, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BellRing, Check, CreditCard, Euro, FileUp, Lock, ShieldCheck, UserPlus, X } from "lucide-react";
 import { BailStatus, CompletionStatus, DocumentKind } from "@prisma/client";
 import { getLease, getBailMissingData } from "@/lib/actions/leases";
 import { getDocuments } from "@/lib/actions/documents";
@@ -248,25 +248,28 @@ function RuleViewBlock({ view }: { view: RuleView }) {
   );
 }
 
-const RELANCE_LABELS: Record<string, string> = {
-  OWNER_FORM: "Relancer le propriétaire · formulaire à terminer",
-  TENANT_TO_ADD: "Relancer le propriétaire · locataire à indiquer",
-  TENANT_FORM: "Relancer le locataire · formulaire à remplir",
-  TENANT_VIA_OWNER: "Relancer le propriétaire · formulaire du locataire",
+/** Bouton de relance de l'en-tête : une phrase courte qui dit quoi demander à qui, comme « Demander 3 pièces au propriétaire ». */
+const RELANCE_ACTIONS: Record<string, { label: string; title: string; icon: "bell" | "tenant" | "rent" }> = {
+  OWNER_FORM: { label: "Relancer le propriétaire pour son formulaire", title: "Relancer le propriétaire", icon: "bell" },
+  TENANT_TO_ADD: { label: "Demander le locataire au propriétaire", title: "Demander le locataire au propriétaire", icon: "tenant" },
+  TENANT_FORM: { label: "Relancer le locataire pour son formulaire", title: "Relancer le locataire", icon: "bell" },
+  TENANT_VIA_OWNER: { label: "Relancer le propriétaire pour son locataire", title: "Relancer le propriétaire", icon: "bell" },
 };
+const RENT_CAP_ACTION = { label: "Prévenir le propriétaire du plafond de loyer", title: "Prévenir le propriétaire", icon: "rent" as const };
+const FALLBACK_ACTION = { label: "Relancer le client", title: "Relancer le client", icon: "bell" as const };
 
 /**
  * Bouton de relance de l'en-tête, nommé d'après ce que le dossier attend : relance due, puis
  * plafond de loyer, puis relance à venir. Les pièces manquantes ont leur propre bouton
  * (« Demander des pièces »), affiché quand aucune relance n'est due.
  */
-function remindAction(panel: ReminderPanel, rentCapOver: boolean, piecesToAsk: boolean): { label: string; title: string } | null {
+function remindAction(panel: ReminderPanel, rentCapOver: boolean, piecesToAsk: boolean): { label: string; title: string; icon: "bell" | "tenant" | "rent" } | null {
   const dueNeed = panel.needs.find((n) => n.due);
-  if (dueNeed) return { label: RELANCE_LABELS[dueNeed.reason] || "Relancer le client", title: "Relancer le client" };
+  if (dueNeed) return RELANCE_ACTIONS[dueNeed.reason] || FALLBACK_ACTION;
   if (piecesToAsk) return null;
-  if (rentCapOver) return { label: "Prévenir le propriétaire · loyer au-dessus du plafond", title: "Prévenir le propriétaire" };
+  if (rentCapOver) return RENT_CAP_ACTION;
   const nextNeed = panel.needs[0];
-  if (nextNeed) return { label: RELANCE_LABELS[nextNeed.reason] || "Relancer le client", title: "Relancer le client" };
+  if (nextNeed) return RELANCE_ACTIONS[nextNeed.reason] || FALLBACK_ACTION;
   return null;
 }
 
@@ -711,7 +714,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 title={remind.title}
                 focus="all"
                 size="default"
-                icon
+                icon={
+                  remind.icon === "tenant" ? <UserPlus className="size-4" /> : remind.icon === "rent" ? <Euro className="size-4" /> : <BellRing className="size-4" />
+                }
                 initialPanel={reminderData}
                 rentCapLines={rentCapNotify}
                 className="h-11 min-w-0 flex-1 px-3 sm:flex-none sm:px-4"

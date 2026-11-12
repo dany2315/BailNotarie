@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientFromUser, requireAuth, requireRole } from "@/lib/auth-helpers";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailComplement from "@/emails/mail-complement";
-import { getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
+import { getActorName, getClientDisplayName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
 import { deleteDocumentFromDB } from "@/lib/document-storage";
 import { queueDiagnosticReading } from "@/lib/diagnostics/run";
 import { isValidUploadKey } from "@/lib/upload-access";
@@ -128,6 +128,8 @@ export interface ComposerData {
   bailId: string;
   target: ReminderTarget;
   name: string;
+  /** Nom après « Bonjour » dans l'e-mail (société ou personne principale). */
+  greetingName: string | null;
   email: string | null;
   address: string;
   rows: ComposerRow[];
@@ -285,7 +287,8 @@ export async function getComplementComposer(data: unknown): Promise<{ success: t
     data: {
       bailId,
       target,
-      name: getClientDisplayName(party) || (target === ReminderTarget.OWNER ? "Propriétaire" : "Locataire"),
+      name: getClientGreetingName(party) || getClientDisplayName(party) || (target === ReminderTarget.OWNER ? "Propriétaire" : "Locataire"),
+      greetingName: getClientGreetingName(party),
       email: partyEmail(party),
       address: addressOf(bail),
       rows,
@@ -363,7 +366,7 @@ async function sendRequestEmail(requestId: string, reminder: boolean): Promise<s
   if (!request) return "Demande introuvable";
   if (request.items.length === 0) return "Plus aucune pièce n'est attendue";
   const props = {
-    name: getClientDisplayName(request.client) || "",
+    name: getClientGreetingName(request.client) || "",
     address: request.bail.property?.fullAddress || request.bail.property?.label || "votre logement",
     // Relance ou pièce redemandée : texte de relance, toujours juste (le premier message peut ne plus l'être).
     message: reminder ? null : request.message,

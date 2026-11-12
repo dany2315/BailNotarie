@@ -15,12 +15,8 @@ import {
   LeaseNotaireCell,
   LeasePaymentCell,
 } from "@/components/leases/lease-table-cells";
-import { BailStatusFilterWrapper } from "@/components/leases/bail-status-filter-wrapper";
-import { LeasePaymentTabs } from "@/components/leases/lease-payment-tabs";
 import { LeaseStageTabs } from "@/components/leases/lease-stage-tabs";
-import { LeaseSortToggle } from "@/components/leases/lease-sort-toggle";
-import { LeaseNotaireFilter } from "@/components/leases/lease-notaire-filter";
-import { LeaseFamilyFilter } from "@/components/leases/lease-family-filter";
+import { LeaseListToolbar } from "@/components/leases/lease-list-toolbar";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
@@ -157,21 +153,13 @@ export default async function LeasesPage({
         belowSearchContent={
           <div className="flex flex-col gap-3">
             <LeaseStageTabs statusCounts={statusCounts} />
-            <div className="flex flex-wrap items-center gap-3">
-              <LeasePaymentTabs counts={paymentCounts} />
-              <LeaseFamilyFilter />
-              <LeaseNotaireFilter notaires={notaires.map((n) => ({ id: n.id, name: n.name || n.email }))} />
-              <LeaseSortToggle />
-            </div>
-            <p className="text-[13.5px] text-muted-foreground">
-              {result.total} dossier{result.total > 1 ? "s" : ""} ·{" "}
-              {sortParam === "attente"
-                ? "triés par attente, du plus ancien au plus récent"
-                : "triés du plus récent au plus ancien"}
-            </p>
+            <LeaseListToolbar
+              total={result.total}
+              paymentCounts={paymentCounts}
+              notaires={notaires.map((n) => ({ id: n.id, name: n.name || n.email }))}
+            />
           </div>
         }
-        filters={<BailStatusFilterWrapper />}
         compact
         mobileCard={LeaseMobileCard}
         highlightRowsWithout="paidAt"

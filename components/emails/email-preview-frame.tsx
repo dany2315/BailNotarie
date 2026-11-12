@@ -10,18 +10,39 @@ import { cn } from "@/lib/utils";
  */
 export function EmailPreviewFrame({
   to,
+  toName,
+  toRole,
   subject,
   children,
 }: {
   to: string | null;
+  /** Qui reçoit l'e-mail : « SCI Les Tilleuls », « Camille Durand »… */
+  toName?: string | null;
+  /** « Propriétaire », « Locataire ». */
+  toRole?: string;
   subject: string;
   children: React.ReactNode;
 }) {
+  // Sans nom connu, le nom affiché serait l'e-mail lui-même : on montre alors le rôle.
+  const name = toName && toName !== to ? toName : toRole;
+  const role = name !== toRole ? toRole : undefined;
   return (
     <div className="flex flex-col gap-3">
       <dl className="grid grid-cols-[52px_minmax(0,1fr)] gap-x-2 gap-y-1 text-[13px]">
         <dt className="text-muted-foreground">À</dt>
-        <dd className="truncate font-medium">{to || "Aucune adresse e-mail"}</dd>
+        <dd className="min-w-0">
+          {name ? (
+            <>
+              <span className="block truncate">
+                <span className="font-semibold">{name}</span>
+                {role && <span className="text-muted-foreground"> · {role}</span>}
+              </span>
+              <span className={cn("block truncate", to ? "text-muted-foreground" : "font-medium text-red-700")}>{to || "Aucune adresse e-mail"}</span>
+            </>
+          ) : (
+            <span className="block truncate font-medium">{to || "Aucune adresse e-mail"}</span>
+          )}
+        </dd>
         <dt className="text-muted-foreground">Objet</dt>
         <dd className="font-medium">{subject}</dd>
       </dl>

@@ -10,6 +10,7 @@ import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/comp
  */
 export function ComplementEmailPreview({
   name,
+  recipientName,
   email,
   address,
   message,
@@ -18,6 +19,8 @@ export function ComplementEmailPreview({
   reminder = false,
 }: {
   name: string;
+  /** Nom affiché sur la ligne « À » (avec repli sur l'e-mail ou « Propriétaire »). */
+  recipientName?: string;
   email: string | null;
   address: string;
   message: string;
@@ -28,7 +31,7 @@ export function ComplementEmailPreview({
   const content = complementEmailContent({ name, address, message, items, reminder });
 
   return (
-    <EmailPreviewFrame to={email} subject={content.subject}>
+    <EmailPreviewFrame to={email} toName={recipientName} subject={content.subject}>
       <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
       <p className="mt-0.5 text-[12.5px] text-slate-500">{content.context}</p>
 

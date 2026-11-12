@@ -9,7 +9,7 @@ import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailRelance from "@/emails/mail-relance";
 import { RELANCE_SUBJECTS } from "@/lib/utils/relance-content";
 import { getBailMissingData, transitionLease } from "@/lib/actions/leases";
-import { getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
+import { getActorName, getClientDisplayName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
 import { describeMissingItems } from "@/lib/utils/missing-items";
 import { assessRentCap, rentCapOverLines } from "@/lib/rent-cap";
 import { documentKindLabels } from "@/lib/utils/document-labels";
@@ -68,7 +68,8 @@ function toParty(row: PartyRow | undefined): ReminderParty | null {
   const isCompany = row.type === "PERSONNE_MORALE";
   return {
     id: row.id,
-    name: getClientDisplayName(row as any) || (row.profilType === "LOCATAIRE" ? "Locataire" : "Propriétaire"),
+    name: getClientGreetingName(row) || getClientDisplayName(row as any) || (row.profilType === "LOCATAIRE" ? "Locataire" : "Propriétaire"),
+    greetingName: getClientGreetingName(row),
     email: (isCompany ? row.entreprise?.email : person?.email) || null,
     phone: (isCompany ? row.entreprise?.phone : person?.phone) || person?.phone || null,
   };
@@ -306,11 +307,11 @@ export async function sendBailReminders(
         subject: SUBJECTS[reason],
         react: MailRelance({
           reason,
-          name: party.name,
+          name: party.greetingName || "",
           address,
           actionUrl,
           items,
-          tenantName: tenant?.name,
+          tenantName: tenant?.greetingName || undefined,
           note: note || undefined,
         }),
       });
@@ -497,7 +498,7 @@ export async function sendDiagnosticsToOwner(data: unknown): Promise<{ success: 
       subject: kind === "blocking" ? "Votre bail notarié : vos diagnostics à mettre à jour" : "Votre bail notarié : quelques questions sur vos diagnostics",
       react: MailRelance({
         reason: "DIAGNOSTICS",
-        name: owner.name,
+        name: owner.greetingName || "",
         address,
         actionUrl: `${BASE_URL()}/client/proprietaire/baux/${bailId}`,
         items,
