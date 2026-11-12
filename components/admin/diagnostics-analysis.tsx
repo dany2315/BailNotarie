@@ -29,6 +29,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DocumentViewer } from "@/components/leases/document-viewer";
+import { DpeEditor } from "@/components/admin/dpe-editor";
+import { DpeSummary } from "@/components/admin/dpe-summary";
+import { assessDpe } from "@/lib/utils/dpe";
 import { DocumentUploadButton, uploadToStorage, ACCEPT } from "@/components/documents/document-upload-button";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { decideDiagnosticItem, requestDiagnosticAnalysis, revokeDiagnosticDecision } from "@/lib/actions/diagnostic-analysis";
@@ -293,6 +296,15 @@ function DateEntry({ item, bailId }: { item: DiagnosticItemView; bailId: string 
   );
 }
 
+/** DPE de la fiche du bien (reporté automatiquement depuis la lecture, modifiable à la main). */
+export interface FicheDpe {
+  dpeClass: string | null;
+  gesClass: string | null;
+  /** « yyyy-MM-dd » */
+  dpeDate: string | null;
+  commercial: boolean;
+}
+
 function ItemRow({
   item,
   bailId,
@@ -300,6 +312,7 @@ function ItemRow({
   state,
   locked,
   onDecide,
+  dpe,
 }: {
   item: DiagnosticItemView;
   bailId: string;
@@ -307,6 +320,7 @@ function ItemRow({
   state: DiagnosticStateView;
   locked: boolean;
   onDecide: (mode: NonNullable<DialogMode>) => void;
+  dpe?: FicheDpe;
 }) {
   const pathname = usePathname();
   const [busy, startBusy] = React.useTransition();
@@ -369,6 +383,8 @@ function ItemRow({
 
   // Bouton principal visible ; les autres dans « ⋯ » (sauf l'ajout de fichier, qui a besoin de son propre bouton).
   const [primary, ...others] = locked ? [] : item.actions;
+  const dpeEditor =
+    dpe && !locked ? <DpeEditor propertyId={propertyId} dpeClass={dpe.dpeClass} gesClass={dpe.gesClass} dpeDate={dpe.dpeDate} /> : null;
   const inline = others.filter((action) => action === "upload" || action === "erp");
   const menu = others.filter((action) => action === "conforme" || action === "na");
 
@@ -383,7 +399,19 @@ function ItemRow({
               <span className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11.5px] font-semibold", status.chip)}>{status.label}</span>
             )}
           </div>
-          <span className={cn("text-[13.5px]", item.status === "na" && "text-muted-foreground")}>{item.text}</span>
+          {dpe && (dpe.dpeClass || dpe.dpeDate) ? (
+            <span className="flex flex-col gap-1 text-[13.5px]">
+              <DpeSummary
+                dpeClass={dpe.dpeClass}
+                gesClass={dpe.gesClass}
+                dpeDate={dpe.dpeDate}
+                assessment={assessDpe(dpe.dpeClass, dpe.dpeDate, undefined, { commercial: dpe.commercial })}
+              />
+              {item.status !== "valid" && <span className="font-medium text-amber-900">{item.text}</span>}
+            </span>
+          ) : (
+            <span className={cn("text-[13.5px]", item.status === "na" && "text-muted-foreground")}>{item.text}</span>
+          )}
           {item.decision && (
             <span className="text-[12.5px] text-muted-foreground">
               Par {item.decision.byName || "l'équipe"} le {shortDay(item.decision.at)}
@@ -433,10 +461,11 @@ function ItemRow({
           )}
         </div>
       </div>
-      {primary && (
+      {(primary || dpeEditor) && (
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 pl-[26px] @xl:pl-0">
-          {button(primary, true)}
+          {primary && button(primary, true)}
           {inline.map((action) => button(action, false))}
+          {dpeEditor}
           {menu.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -507,9 +536,11 @@ export function DiagnosticsPanel({
   state,
   locked,
   configured,
+  dpe,
 }: {
   bailId: string;
   propertyId: string;
+  dpe: FicheDpe;
   state: DiagnosticStateView;
   /** Bail signé : plus de modification. */
   locked: boolean;
@@ -596,7 +627,16 @@ export function DiagnosticsPanel({
       {state.items.length > 0 && (
         <ul className="flex flex-col divide-y rounded-lg border bg-background px-3">
           {state.items.map((item) => (
-            <ItemRow key={item.id} item={item} bailId={bailId} propertyId={propertyId} state={state} locked={locked} onDecide={setDialog} />
+            <ItemRow
+              key={item.id}
+              item={item}
+              bailId={bailId}
+              propertyId={propertyId}
+              state={state}
+              locked={locked}
+              onDecide={setDialog}
+              dpe={item.id === "dpe" ? dpe : undefined}
+            />
           ))}
         </ul>
       )}

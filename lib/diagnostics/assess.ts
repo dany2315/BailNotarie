@@ -196,9 +196,14 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
     }
     // Lettre de l'étiquette recalculée à partir de la consommation et des émissions : une erreur d'étiquette
     // change la classe reprise dans le bail (et peut cacher un logement G).
+    // Vérifiée dans la ligne DPE elle-même (pas de ligne à part) : un DPE valable passe « à vérifier ».
     const expected = expectedDpeLetter(extraction);
-    if (dpe.energyClass && expected && expected !== dpe.energyClass) {
-      team("dpe-lettre", "Étiquette DPE", `Lettre lue ${dpe.energyClass}, les valeurs du DPE donnent ${expected} : vérifiez l'étiquette`, "file");
+    const dpeLine = checks.find((check) => check.id === "dpe");
+    if (dpe.energyClass && expected && expected !== dpe.energyClass && dpeLine && dpeLine.group === "ok") {
+      dpeLine.group = "team";
+      dpeLine.tone = "warn";
+      dpeLine.action = "file";
+      dpeLine.text = `${dpeLine.text} · les valeurs du DPE donnent la classe ${expected} : vérifiez l'étiquette`;
     }
     if (dpe.energyClass) {
       const ficheDate = isoDay(fiche?.dpeDate ?? null);

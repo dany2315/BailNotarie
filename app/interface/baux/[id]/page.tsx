@@ -48,7 +48,6 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { BailTermsEditor, type BailTermInput } from "@/components/admin/bail-terms-editor";
 import { assessDpe } from "@/lib/utils/dpe";
-import { DpeEditor } from "@/components/admin/dpe-editor";
 import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/admin/property-editors";
 import { CommercialTermsList } from "@/components/shared/commercial-terms-list";
 import { commercialComplianceRules, commercialDepositWarning, type RuleTone, type RuleView } from "@/lib/utils/commercial-compliance";
@@ -1064,17 +1063,17 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     label={<AutoLabel>Diagnostics</AutoLabel>}
                     // Liste des diagnostics dans le contenu : toute la largeur.
                     actionsBelow
-                    // Saisie à la main du DPE si les fichiers ne sont pas lus (classe reprise dans le bail).
-                    actions={
-                      !diagnosticsLocked ? (
-                        <DpeEditor propertyId={property.id} dpeClass={property.dpeClass} gesClass={property.gesClass} dpeDate={dpeDateValue(property.dpeDate)} />
-                      ) : null
-                    }
                   >
                     <DiagnosticsPanel
                       bailId={lease.id}
                       propertyId={property.id}
                       state={diagnosticState}
+                      dpe={{
+                        dpeClass: property.dpeClass ?? null,
+                        gesClass: property.gesClass ?? null,
+                        dpeDate: dpeDateValue(property.dpeDate),
+                        commercial: isCommercial,
+                      }}
                       locked={diagnosticsLocked}
                       configured={isDiagnosticAnalysisConfigured()}
                     />
