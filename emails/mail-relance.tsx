@@ -2,94 +2,14 @@ import { Html, Head, Body, Container, Section, Heading, Text, Button, Hr, Img, L
 import * as React from "react";
 import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
 
-export type RelanceReason =
-  | "OWNER_FORM"
-  | "TENANT_TO_ADD"
-  | "TENANT_FORM"
-  | "TENANT_VIA_OWNER"
-  | "MISSING_ITEMS"
-  | "RENT_CAP"
-  | "DIAGNOSTICS";
+import { relanceEmailContent, type RelanceEmailInput, type RelanceReason } from "../lib/utils/relance-content";
 
-export interface MailRelanceProps {
-  reason: RelanceReason;
-  /** Nom affiché après « Bonjour ». */
-  name: string;
-  /** Adresse du bien concerné (logement ou local commercial). */
-  address: string;
-  /** Lien d'action : formulaire, ou espace client. */
-  actionUrl: string;
-  /** Éléments listés (éléments manquants, ou détail du loyer). */
-  items?: string[];
-  /** Nom du locataire, pour la relance du propriétaire à son sujet. */
-  tenantName?: string;
-  /** Message libre ajouté par l'équipe. */
-  note?: string;
-}
-
-const CONTENT: Record<RelanceReason, { preview: string; intro: (p: MailRelanceProps) => string[]; button: string }> = {
-  OWNER_FORM: {
-    preview: "Votre dossier de bail notarié n'est pas encore terminé",
-    intro: (p) => [
-      `Votre dossier de bail notarié pour le bien situé ${p.address} n'est pas encore terminé.`,
-      "Il vous reste à compléter votre formulaire et à le valider pour que nous puissions vérifier votre dossier. Vos informations déjà saisies sont conservées.",
-    ],
-    button: "Reprendre mon dossier",
-  },
-  TENANT_TO_ADD: {
-    preview: "Indiquez-nous votre locataire",
-    intro: (p) => [
-      `Votre dossier de bail notarié pour le bien situé ${p.address} est bien enregistré.`,
-      "Pour continuer, il nous faut les coordonnées de votre locataire : dès que vous l'avez trouvé, indiquez son adresse e-mail depuis votre espace, nous lui enverrons son formulaire.",
-      "Si vous n'avez pas encore de locataire, vous pouvez ignorer ce message.",
-    ],
-    button: "Indiquer mon locataire",
-  },
-  TENANT_FORM: {
-    preview: "Votre formulaire locataire est en attente",
-    intro: (p) => [
-      `Votre propriétaire a lancé un bail notarié pour le bien situé ${p.address}.`,
-      "Votre formulaire locataire n'a pas encore été envoyé : merci de le compléter pour que le bail puisse avancer. Vos informations déjà saisies sont conservées.",
-    ],
-    button: "Compléter mon formulaire",
-  },
-  TENANT_VIA_OWNER: {
-    preview: "Votre locataire n'a pas encore rempli son formulaire",
-    intro: (p) => [
-      `Pour votre bail notarié (${p.address}), ${p.tenantName || "votre locataire"} n'a pas encore rempli son formulaire, malgré nos relances.`,
-      "Pourriez-vous le lui rappeler, ou vérifier avec lui que l'adresse e-mail indiquée est la bonne ? Vous pouvez la corriger depuis votre espace.",
-    ],
-    button: "Voir mon dossier",
-  },
-  MISSING_ITEMS: {
-    preview: "Il manque encore quelques éléments à votre dossier",
-    intro: (p) => [`Pour finaliser votre dossier de bail notarié (${p.address}), il nous manque encore :`],
-    button: "Accéder à mon espace",
-  },
-  RENT_CAP: {
-    preview: "Le loyer de votre bail dépasse le plafond légal",
-    intro: (p) => [
-      `Le logement situé ${p.address} est soumis à l'encadrement des loyers. Le loyer indiqué dépasse le loyer de référence majoré :`,
-    ],
-    button: "Accéder à mon espace",
-  },
-  DIAGNOSTICS: {
-    preview: "Vos diagnostics : quelques points à régler",
-    intro: (p) => [`Nous avons vérifié les diagnostics de votre bien situé ${p.address} :`],
-    button: "Accéder à mon espace",
-  },
-};
-
-const OUTRO: Partial<Record<RelanceReason, string>> = {
-  RENT_CAP:
-    "Deux possibilités : ramener le loyer au plafond, ou justifier un complément de loyer (caractéristiques exceptionnelles du logement : vue, terrasse, prestations…). Répondez-nous en précisant votre choix et, le cas échéant, les éléments qui justifient le complément.",
-  MISSING_ITEMS: "Vous pouvez nous les transmettre depuis votre espace client ou en répondant à ce message.",
-  DIAGNOSTICS: "Répondez simplement à ce message, ou transmettez les documents depuis votre espace client.",
-};
+export type { RelanceReason };
+export type MailRelanceProps = RelanceEmailInput;
 
 export default function MailRelance(props: MailRelanceProps) {
-  const content = CONTENT[props.reason];
-  const outro = OUTRO[props.reason];
+  const content = relanceEmailContent(props);
+  const outro = content.outro;
   return (
     <Html>
       <Head />
@@ -122,7 +42,7 @@ export default function MailRelance(props: MailRelanceProps) {
             <Heading style={{ color: "#1f2937", fontSize: "22px", fontWeight: "bold", margin: "0 0 20px 0" }}>
               Bonjour{props.name ? ` ${props.name}` : ""},
             </Heading>
-            {content.intro(props).map((paragraph) => (
+            {content.paragraphs.map((paragraph) => (
               <Text key={paragraph} style={{ color: "#4b5563", fontSize: "16px", lineHeight: "24px", margin: "0 0 16px 0" }}>
                 {paragraph}
               </Text>

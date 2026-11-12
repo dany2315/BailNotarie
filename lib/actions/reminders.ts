@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailRelance from "@/emails/mail-relance";
+import { RELANCE_SUBJECTS } from "@/lib/utils/relance-content";
 import { getBailMissingData, transitionLease } from "@/lib/actions/leases";
 import { getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 import { describeMissingItems } from "@/lib/utils/missing-items";
@@ -27,15 +28,8 @@ type Fail = { success: false; error: string };
 
 const BASE_URL = () => process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
-const SUBJECTS: Record<ReminderReasonValue, string> = {
-  OWNER_FORM: "Votre dossier de bail notarié n'est pas terminé",
-  TENANT_TO_ADD: "Votre bail notarié : indiquez-nous votre locataire",
-  TENANT_FORM: "Votre formulaire locataire est en attente",
-  TENANT_VIA_OWNER: "Votre locataire n'a pas encore rempli son formulaire",
-  MISSING_ITEMS: "Votre bail notarié : éléments manquants",
-  RENT_CAP: "Votre bail notarié : loyer au-dessus du plafond",
-  DIAGNOSTICS: "Votre bail notarié : vos diagnostics",
-};
+// Objets des e-mails : mêmes textes que l'aperçu de la fenêtre « Relancer ».
+const SUBJECTS = RELANCE_SUBJECTS;
 
 const BAIL_FIELD_LABELS: Record<string, string> = {
   rentAmount: "Loyer",

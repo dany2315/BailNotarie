@@ -1,13 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { History, Loader2, Mail, Phone, PhoneCall } from "lucide-react";
+import { Check, Loader2, Phone, PhoneCall, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   classifyBailWithoutFollowUp,
@@ -27,6 +25,8 @@ import {
   type ReminderTargetValue,
 } from "@/lib/utils/reminders";
 import { formatPhone } from "@/lib/utils/phone-format";
+import { relanceEmailContent } from "@/lib/utils/relance-content";
+import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/components/emails/email-preview-frame";
 import { cn } from "@/lib/utils";
 
 const fmtDate = (iso: string) =>
@@ -81,7 +81,6 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
   const [busy, setBusy] = React.useState<string | null>(null);
   const [confirmClassify, setConfirmClassify] = React.useState(false);
   const [snoozeDays, setSnoozeDays] = React.useState("14");
-  const [showHistory, setShowHistory] = React.useState(false);
 
   const applyDefaults = React.useCallback(
     (data: ReminderPanel) => {
@@ -108,7 +107,6 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
     if (!open) return;
     setNote("");
     setConfirmClassify(false);
-    setShowHistory(false);
     if (initialPanel) {
       setPanel(initialPanel);
       applyDefaults(initialPanel);
@@ -209,220 +207,231 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
     onOpenChange(false);
   };
 
-  const showRentCap = !!panel?.owner && !!rentCapLines?.length;
+  // Un e-mail possible par personne et par motif : ce que le dossier attend, le propriétaire au sujet
+  // d'un locataire qui ne répond pas, le loyer au-dessus du plafond.
+  const candidates = React.useMemo(() => {
+    const list: Candidate[] = [];
+    if (!panel) return list;
+    const add = (target: ReminderTargetValue, reason: ReminderReasonValue, party: ReminderNeed["party"] | null | undefined, need?: ReminderNeed) => {
+      const key = keyOf(target, reason);
+      if (party && (!only || only === target) && !list.some((c) => c.key === key)) list.push({ key, target, reason, party, need });
+    };
+    for (const need of panel.needs) add(need.target, need.reason, need.party, need);
+    if (panel.needs.some((n) => n.target === "TENANT" && (n.escalated || n.suggestViaOwner))) {
+      add("OWNER", "TENANT_VIA_OWNER", panel.owner as ReminderNeed["party"] | null);
+    }
+    if (rentCapLines?.length) add("OWNER", "RENT_CAP", panel.owner as ReminderNeed["party"] | null);
+    return list;
+  }, [panel, only, rentCapLines]);
+
+  const [activeKey, setActiveKey] = React.useState<SendKey | null>(null);
+  const active = candidates.find((c) => c.key === activeKey) ?? candidates.find((c) => selected.has(c.key)) ?? candidates[0] ?? null;
+  const need = active?.need;
+  const content = active
+    ? relanceEmailContent({
+        reason: active.reason,
+        name: active.party.name,
+        address: panel?.address || "",
+        actionUrl: "",
+        items: active.reason === "RENT_CAP" ? (rentCapLines ?? []) : [],
+        tenantName: panel?.tenant?.name,
+        note,
+      })
+    : null;
+  const several = candidates.length > 1;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{title || "Relancer"}</DialogTitle>
-          <DialogDescription>{panel ? panel.address : "Chargement du dossier…"}</DialogDescription>
+      <DialogContent className="flex max-h-[min(92dvh,860px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]">
+        <DialogHeader className="border-b px-5 pb-4 pt-5 text-left sm:px-6">
+          <DialogTitle className="text-[17px]">{title || "Relancer"}</DialogTitle>
+          <DialogDescription className="truncate">{panel ? panel.address : "Chargement du dossier…"}</DialogDescription>
+          {several && (
+            <div role="tablist" aria-label="E-mail" className="mt-3 flex flex-col gap-1 rounded-lg bg-slate-100 p-1 sm:flex-row sm:flex-wrap">
+              {candidates.map((candidate) => {
+                const isActive = candidate.key === active?.key;
+                const included = selected.has(candidate.key);
+                return (
+                  <button
+                    key={candidate.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setActiveKey(candidate.key)}
+                    className={cn(
+                      "flex h-8 min-w-0 items-center gap-1.5 rounded-md px-3 text-left text-[12.5px] font-semibold transition-colors",
+                      isActive ? "bg-white text-foreground shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-foreground",
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "flex size-3.5 items-center justify-center rounded-full border",
+                        included ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300",
+                      )}
+                    >
+                      {included && <Check className="size-2.5" strokeWidth={3.5} />}
+                    </span>
+                    {TARGET_LABELS[candidate.target]} · {SHORT_REASONS[candidate.reason]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </DialogHeader>
 
-        {loading || !panel ? (
-          <div className="flex items-center justify-center py-10 text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-5">
-            {/* Attentes du dossier : relances programmées */}
-            {panel.needs.length > 0 && (
-              <section className="flex flex-col gap-2.5">
-                <h3 className="text-sm font-semibold">En attente du client</h3>
-                {panel.needs.map((need) => {
-                  const key = keyOf(need.target, need.reason);
-                  const viaKey = keyOf("OWNER", "TENANT_VIA_OWNER");
-                  const disabled = !need.party.email;
-                  return (
-                    <div key={key} className={cn("flex flex-col gap-3 rounded-lg border p-3.5", need.due && "border-amber-300 bg-amber-50/50")}>
-                      <label className="flex items-start gap-3">
-                        <Checkbox
-                          checked={selected.has(key)}
-                          disabled={disabled}
-                          onCheckedChange={(on) => toggle(key, on === true)}
-                          className="mt-0.5"
-                          aria-label={`Relancer ${need.party.name} par e-mail`}
-                        />
-                        <span className="flex min-w-0 flex-col gap-0.5">
-                          <span className="text-sm font-semibold">
-                            {TARGET_LABELS[need.target]} · {need.party.name}
-                          </span>
-                          <span className="text-[13px] text-foreground/80">{REASON_LABELS[need.reason]}</span>
-                          <span className="break-all text-[13px] text-muted-foreground">
-                            {need.party.email || "Pas d'adresse e-mail"}
-                            {need.party.phone ? ` · ${formatPhone(need.party.phone) || need.party.phone}` : ""}
-                          </span>
-                          <span className={cn("text-xs", need.due ? "font-semibold text-amber-800" : "text-muted-foreground")}>{needStatus(need)}</span>
-                        </span>
-                      </label>
-
-                      {need.escalated && (
-                        <div className="flex flex-col gap-2 rounded-md bg-muted/60 p-3 text-[13px]">
-                          <span className="font-semibold">
-                            {need.contacts} relances sans réaction
-                            {need.canCall ? " : un appel sera plus efficace." : " et pas de téléphone."}
-                          </span>
-                          <div className="flex flex-wrap gap-2">
-                            {need.canCall && (
-                              <>
-                                <Button asChild size="sm" variant="outline" className="h-9">
-                                  <a href={`tel:${need.party.phone}`}>
-                                    <Phone className="size-3.5" />
-                                    Appeler {formatPhone(need.party.phone) || need.party.phone}
-                                  </a>
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-9" onClick={() => call(need)} disabled={!!busy}>
-                                  {busy === `call:${need.target}` ? <Loader2 className="size-3.5 animate-spin" /> : <PhoneCall className="size-3.5" />}
-                                  Noter l'appel
-                                </Button>
-                              </>
-                            )}
-                            {need.suggestClassify &&
-                              (confirmClassify ? (
-                                <span className="flex flex-wrap items-center gap-2">
-                                  <span>Classer le dossier sans suite ?</span>
-                                  <Button size="sm" variant="destructive" className="h-9" onClick={classify} disabled={!!busy}>
-                                    {busy === "classify" && <Loader2 className="size-3.5 animate-spin" />}
-                                    Confirmer
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-9" onClick={() => setConfirmClassify(false)}>
-                                    Annuler
-                                  </Button>
-                                </span>
-                              ) : (
-                                <Button size="sm" variant="outline" className="h-9" onClick={() => setConfirmClassify(true)}>
-                                  Classer sans suite…
-                                </Button>
-                              ))}
-                          </div>
-                          {need.target === "TENANT" && panel.owner?.email && (
-                            <label className="flex items-start gap-2.5">
-                              <Checkbox checked={selected.has(viaKey)} onCheckedChange={(on) => toggle(viaKey, on === true)} className="mt-0.5" />
-                              <span>
-                                Relancer aussi le propriétaire ({panel.owner.name}) au sujet de son locataire
-                                {need.suggestViaOwner ? " (conseillé)" : ""}
-                              </span>
-                            </label>
-                          )}
-                        </div>
-                      )}
-
-                      {need.reason === "TENANT_TO_ADD" && (
-                        <div className="flex flex-wrap items-center gap-2 text-[13px]">
-                          <span className="text-muted-foreground">Le propriétaire cherche encore son locataire ?</span>
-                          <Select value={snoozeDays} onValueChange={setSnoozeDays}>
-                            <SelectTrigger className="h-9 w-32" aria-label="Durée du report">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="7">7 jours</SelectItem>
-                              <SelectItem value="14">14 jours</SelectItem>
-                              <SelectItem value="30">30 jours</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button size="sm" variant="outline" className="h-9" onClick={() => snooze(need)} disabled={!!busy}>
-                            {busy === `snooze:${need.target}` && <Loader2 className="size-3.5 animate-spin" />}
-                            Reporter les rappels
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </section>
-            )}
-
-            {/* Loyer au-dessus du plafond : le propriétaire choisit entre baisser le loyer et justifier un complément */}
-            {showRentCap && (
-              <section className="flex flex-col gap-2.5">
-                <h3 className="text-sm font-semibold">Loyer au-dessus du plafond</h3>
-                <label className="flex items-start gap-3 rounded-lg border p-3.5">
-                  <Checkbox
-                    checked={selected.has(keyOf("OWNER", "RENT_CAP"))}
-                    disabled={!panel.owner!.email}
-                    onCheckedChange={(on) => toggle(keyOf("OWNER", "RENT_CAP"), on === true)}
-                    className="mt-0.5"
-                    aria-label={`Prévenir ${panel.owner!.name} du dépassement du plafond`}
-                  />
-                  <span className="flex min-w-0 flex-col gap-1">
-                    <span className="text-sm font-semibold">
-                      {TARGET_LABELS.OWNER} · {panel.owner!.name}
-                    </span>
-                    <span className="break-all text-[13px] text-muted-foreground">{panel.owner!.email || "Pas d'adresse e-mail"}</span>
-                    <span className="text-[13px] text-foreground/80">
-                      Il pourra ramener le loyer au plafond ou justifier un complément de loyer.
-                    </span>
-                    <ul className="flex list-disc flex-col gap-0.5 pl-4 text-[13px] text-foreground/80">
-                      {rentCapLines!.map((line) => (
-                        <li key={line}>{line}</li>
-                      ))}
-                    </ul>
-                  </span>
-                </label>
-              </section>
-            )}
-
-            {panel.needs.length === 0 && !showRentCap && (
-              <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                Personne n'est à relancer : le dossier n'attend rien du propriétaire ni du locataire.
-              </p>
-            )}
-
-            {(panel.needs.length > 0 || showRentCap) && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor={`remind-note-${bailId}`}>Message ajouté à l'e-mail (facultatif)</Label>
-                <Textarea
-                  id={`remind-note-${bailId}`}
-                  rows={2}
-                  maxLength={1000}
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder="Ex. : n'hésitez pas à nous appeler si vous avez une question."
-                />
-              </div>
-            )}
-
-            {panel.history.length > 0 && (
-              <section className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  className="flex min-h-9 w-fit items-center gap-2 text-sm font-semibold text-primary hover:underline"
-                  onClick={() => setShowHistory((v) => !v)}
-                  aria-expanded={showHistory}
-                >
-                  <History className="size-4" />
-                  Historique des relances ({panel.history.length})
-                </button>
-                {showHistory && <ReminderHistoryList history={panel.history} />}
-              </section>
-            )}
-          </div>
-        )}
-
-        <DialogFooter className="flex-col gap-2 sm:flex-col sm:items-stretch">
-          {recipients.length > 0 && (
-            <p className="text-[13px] text-muted-foreground">
-              <Mail className="mr-1 inline size-3.5" />
-              Recevront un e-mail :{" "}
-              {recipients
-                .map((r) => `${r.party?.name || TARGET_LABELS[r.target]} (${REASON_LABELS[r.reason].toLowerCase()})`)
-                .join(" · ")}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+          {loading || !panel ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin" />
+            </div>
+          ) : !active || !content ? (
+            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              Personne n&apos;est à relancer : le dossier n&apos;attend rien du propriétaire ni du locataire.
             </p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {several && (
+                <label className="flex items-center gap-2.5 text-[13px] font-medium">
+                  <Checkbox
+                    checked={selected.has(active.key)}
+                    disabled={!active.party.email}
+                    onCheckedChange={(on) => toggle(active.key, on === true)}
+                  />
+                  Envoyer cet e-mail à {active.party.name}
+                </label>
+              )}
+              {need && <p className={cn("text-[12.5px]", need.due ? "font-semibold text-amber-800" : "text-muted-foreground")}>{needStatus(need)}</p>}
+
+              <EmailPreviewFrame to={active.party.email} subject={content.subject}>
+                <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
+                <div className="mt-3 flex flex-col gap-3">
+                  {content.paragraphs.map((paragraph) => (
+                    <p key={paragraph} className="text-[14.5px] leading-[1.55] text-slate-600">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+                {content.items.length > 0 && (
+                  <ul className="mt-3 flex list-disc flex-col gap-1 pl-5 text-[14px] text-slate-800">
+                    {content.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                )}
+                {content.outro && <p className="mt-3 text-[14.5px] leading-[1.55] text-slate-600">{content.outro}</p>}
+                <div className="mt-4">
+                  <EditableEmailText
+                    boxed
+                    label="Un mot de l'équipe (facultatif)"
+                    placeholder="Ajouter un mot pour le client (facultatif)"
+                    value={note}
+                    onChange={setNote}
+                    maxLength={1000}
+                  />
+                </div>
+                <EmailPreviewButton>{content.button}</EmailPreviewButton>
+              </EmailPreviewFrame>
+
+              {/* Plusieurs relances sans réponse, locataire pas encore trouvé : les autres gestes possibles, sur une ligne. */}
+              {need && (need.escalated || need.reason === "TENANT_TO_ADD") && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t pt-3 text-[13px] text-muted-foreground">
+                  {need.escalated ? (
+                    <span>
+                      {need.contacts} relances sans réponse{need.canCall ? " : un appel sera plus efficace." : "."}
+                    </span>
+                  ) : (
+                    <span>Pas encore de locataire ?</span>
+                  )}
+                  <span className="flex flex-wrap items-center gap-2">
+                    {need.escalated && need.canCall && (
+                      <>
+                        <Button asChild size="sm" variant="outline" className="h-8 gap-1.5">
+                          <a href={`tel:${need.party.phone}`}>
+                            <Phone className="size-3.5" />
+                            {formatPhone(need.party.phone) || need.party.phone}
+                          </a>
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => call(need)} disabled={!!busy}>
+                          {busy === `call:${need.target}` ? <Loader2 className="size-3.5 animate-spin" /> : <PhoneCall className="size-3.5" />}
+                          Noter l&apos;appel
+                        </Button>
+                      </>
+                    )}
+                    {need.reason === "TENANT_TO_ADD" && (
+                      <>
+                        <Select value={snoozeDays} onValueChange={setSnoozeDays}>
+                          <SelectTrigger className="h-8 w-28" aria-label="Durée du report">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="7">7 jours</SelectItem>
+                            <SelectItem value="14">14 jours</SelectItem>
+                            <SelectItem value="30">30 jours</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" variant="outline" className="h-8" onClick={() => snooze(need)} disabled={!!busy}>
+                          {busy === `snooze:${need.target}` && <Loader2 className="size-3.5 animate-spin" />}
+                          Reporter les rappels
+                        </Button>
+                      </>
+                    )}
+                    {need.suggestClassify &&
+                      (confirmClassify ? (
+                        <>
+                          <span className="text-foreground">Classer sans suite ?</span>
+                          <Button size="sm" variant="destructive" className="h-8" onClick={classify} disabled={!!busy}>
+                            {busy === "classify" && <Loader2 className="size-3.5 animate-spin" />}
+                            Confirmer
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8" onClick={() => setConfirmClassify(false)}>
+                            Non
+                          </Button>
+                        </>
+                      ) : (
+                        <Button size="sm" variant="ghost" className="h-8" onClick={() => setConfirmClassify(true)}>
+                          Classer sans suite…
+                        </Button>
+                      ))}
+                  </span>
+                </div>
+              )}
+            </div>
           )}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={!!busy}>
-              Fermer
-            </Button>
-            <Button onClick={send} disabled={!panel || recipients.length === 0 || !!busy}>
-              {busy === "send" && <Loader2 className="size-4 animate-spin" />}
-              {recipients.length > 1 ? `Envoyer ${recipients.length} relances` : "Envoyer la relance"}
-            </Button>
-          </div>
-        </DialogFooter>
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t bg-muted/30 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <Button variant="ghost" className="h-10" onClick={() => onOpenChange(false)} disabled={!!busy}>
+            Fermer
+          </Button>
+          <Button className="h-10 gap-1.5" onClick={send} disabled={!panel || recipients.length === 0 || !!busy}>
+            {busy === "send" ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            {recipients.length > 1 ? `Envoyer ${recipients.length} relances` : "Envoyer la relance"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
+
+type Candidate = {
+  key: SendKey;
+  target: ReminderTargetValue;
+  reason: ReminderReasonValue;
+  party: ReminderNeed["party"];
+  need?: ReminderNeed;
+};
+
+/** Motif en deux ou trois mots, pour le sélecteur d'e-mails. */
+const SHORT_REASONS: Record<ReminderReasonValue, string> = {
+  OWNER_FORM: "formulaire",
+  TENANT_TO_ADD: "locataire à indiquer",
+  TENANT_FORM: "formulaire",
+  TENANT_VIA_OWNER: "au sujet du locataire",
+  MISSING_ITEMS: "éléments manquants",
+  RENT_CAP: "plafond de loyer",
+  DIAGNOSTICS: "diagnostics",
+};
 
 /** Liste des relances passées : quand, comment, à qui, par qui. */
 export function ReminderHistoryList({ history, limit }: { history: ReminderPanel["history"]; limit?: number }) {

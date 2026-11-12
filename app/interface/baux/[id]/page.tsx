@@ -610,7 +610,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const rentCapNotify = rentCap?.status === "over" && !bailLocked && rentCapLines?.length ? rentCapLines : null;
   // Pièces manquantes, demandées avec la fenêtre « Demander des pièces ». Pas à une personne qui
   // remplit encore son formulaire (il les demande déjà) ni à qui a déjà une demande en cours.
-  const formPending = new Set((reminderData?.needs ?? []).filter((n) => n.reason === "OWNER_FORM" || n.reason === "TENANT_FORM").map((n) => n.target));
+  const formPending = new Set<string>((reminderData?.needs ?? []).filter((n) => n.reason === "OWNER_FORM" || n.reason === "TENANT_FORM").map((n) => n.target));
+  if (ownerIntake?.status === "PENDING") formPending.add("OWNER");
+  if (tenantIntake?.status === "PENDING") formPending.add("TENANT");
   const requestedFrom = new Set(complementRequests.map((request) => request.target));
   const askable = (target: "OWNER" | "TENANT") => !pastVerification && !formPending.has(target) && !requestedFrom.has(target);
   const missingPieces = {
