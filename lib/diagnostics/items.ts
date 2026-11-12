@@ -237,24 +237,12 @@ export function buildItems(
           ? `Lu dans « ${shortFileName(displayFileName(readFile))} »`
           : null;
     const unreadFile = key && merged.unread[key] ? merged.unread[key]! : null;
-    // DPE trouvé dans la base officielle : la classe qu'elle indique est toujours écrite, et on signale si le fichier
-    // indiquait autre chose.
+    // DPE trouvé dans la base officielle : ce qu'elle indique est toujours écrit (information gardée, la fiche du bien
+    // reste celle du fichier ; une différence fait passer la ligne « à vérifier »).
     const ademe = key === "dpe" ? merged.extraction?.dpe.ademe : undefined;
-    const readClass = merged.extraction?.dpe.energyClass;
-    const readGes = merged.extraction?.dpe.gesClass;
-    const differs =
-      ademe?.status === "found" &&
-      ((!!ademe.energyClass && !!readClass && ademe.energyClass !== readClass) || (!!ademe.gesClass && !!readGes && ademe.gesClass !== readGes));
     const ademeOrigin =
       ademe?.status === "found"
-        ? [
-            `Base officielle de l'ADEME : classe énergie ${ademe.energyClass ?? "?"}, climat (GES) ${ademe.gesClass ?? "?"} · n° ${ademe.number}`,
-            differs
-              ? `Le fichier indiquait énergie ${readClass ?? "?"}, climat ${readGes ?? "?"}${ademe.updatedAt ? ` : DPE mis à jour à l'ADEME le ${ademe.updatedAt.split("-").reverse().join("/")}` : ""}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join("\n")
+        ? `Base officielle de l'ADEME : énergie ${ademe.energyClass ?? "?"}, climat (GES) ${ademe.gesClass ?? "?"} · n° ${ademe.number}`
         : null;
     const decision = baseStatus === "valid" || baseStatus === "na" ? null : active.find((d) => d.item === check.id && d.basis === basis) ?? null;
     const view: DiagnosticItemView = {

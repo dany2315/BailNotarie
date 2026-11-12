@@ -409,7 +409,11 @@ function ItemRow({
                 dpeDate={dpe.dpeDate}
                 assessment={assessDpe(dpe.dpeClass, dpe.dpeDate, undefined, { commercial: dpe.commercial })}
               />
-              {item.status !== "valid" && <span className="font-medium text-amber-900">{item.text}</span>}
+              {item.status !== "valid" && (
+                <span className="font-medium text-amber-900">
+                  {item.text.replace(/^Classe [A-G](, GES [A-G])? · (valable jusqu'au|expire le) [\d/]+ · /, "").replace(/^./, (c) => c.toUpperCase())}
+                </span>
+              )}
             </span>
           ) : (
             <span className={cn("text-[13.5px]", item.status === "na" && "text-muted-foreground")}>{item.text}</span>

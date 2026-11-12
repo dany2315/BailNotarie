@@ -169,18 +169,18 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
 
   // 1. DPE (logement et local) : présence et validité (10 ans, durée plus courte pour les DPE d'avant juillet 2021),
   // et classe interdite à la location pour un logement (G depuis 2025, F à partir de 2028).
-  // Base officielle de l'ADEME : un DPE trouvé donne la classe, le GES et les dates officiels (le fichier peut être
-  // ancien ou faux) ; un numéro absent ou introuvable fait vérifier le document. Base injoignable : lecture du fichier.
+  // Classe, GES et dates : ceux du fichier lu (repris dans la fiche du bien). La base officielle de l'ADEME sert
+  // seulement à prévenir l'équipe et le notaire : classe différente, autre bien, numéro absent ou introuvable.
   const official = dpe.ademe?.status === "found" ? dpe.ademe : null;
-  const dpeClass = official?.energyClass ?? dpe.energyClass;
-  const gesClass = official ? official.gesClass : dpe.gesClass;
-  const dpeDate = official?.date ?? dpe.date;
+  const dpeClass = dpe.energyClass;
+  const gesClass = dpe.gesClass;
+  const dpeDate = dpe.date;
   if (!dpe.found) {
     blocking("dpe", "DPE", "Absent", `Il nous manque le DPE du ${place} : merci de nous l'envoyer, ou de le faire réaliser par un diagnostiqueur certifié.`, true);
   } else if (!dpeDate) {
     team("dpe", "DPE", "Date non lue : à vérifier dans le fichier", "file");
   } else {
-    const validUntil = (official?.validUntil ? toDate(official.validUntil) : null) ?? dpeValidUntil(dpeDate);
+    const validUntil = dpeValidUntil(dpeDate);
     const summary = dpeClass ? `Classe ${dpeClass}${gesClass ? `, GES ${gesClass}` : ""} · ` : "";
     if (validUntil && validUntil < now) {
       blocking(
@@ -226,6 +226,16 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
       dpeLine.question = `Pouvez-vous nous envoyer le DPE officiel du ${place}, avec son numéro ADEME ?`;
     } else if (official && official.postalCode && fiche?.postalCode && official.postalCode !== fiche.postalCode) {
       toCheck(`selon la base de l'ADEME, ce DPE concerne un autre bien (${official.address || official.postalCode})`);
+    } else if (
+      official &&
+      ((official.energyClass && dpe.energyClass && official.energyClass !== dpe.energyClass) ||
+        (official.gesClass && dpe.gesClass && official.gesClass !== dpe.gesClass))
+    ) {
+      toCheck(
+        `classe différente dans la base officielle de l'ADEME${
+          official.updatedAt ? ` (DPE mis à jour le ${official.updatedAt.split("-").reverse().join("/")})` : ""
+        }`,
+      );
     } else if (!official) {
       // Lettre de l'étiquette recalculée à partir de la consommation et des émissions (sans valeurs officielles).
       const expected = expectedDpeLetter(extraction);
