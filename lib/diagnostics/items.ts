@@ -148,8 +148,7 @@ export function mergeReadings(analyses: AnalysisRecord[], files: FileRecord[], d
         found: true,
         date: iso,
         file: label,
-        ...(item === "electricite" || item === "gaz" ? { anomalies: null } : {}),
-        ...(item === "gaz" ? { installationPresent: true, seriousDanger: null } : {}),
+        ...(item === "gaz" ? { installationPresent: true } : {}),
         ...(item === "amiante" ? { presence: null } : {}),
       };
       manualDates[item] = decision;

@@ -79,8 +79,6 @@ const NOTE_HINTS: Record<string, { conforme: string; na: string }> = {
   gaz: { conforme: "Chaudière remplacée en 2024, attestation du chauffagiste", na: "Pas de gaz dans le logement, confirmé par le propriétaire" },
   plomb: { conforme: "Peintures refaites en 2024, facture fournie", na: "Construit en 1955 d'après l'acte de propriété" },
   amiante: { conforme: "DTA reçu par e-mail le 12/11", na: "Permis de construire de 2001 d'après l'acte" },
-  adresse: { conforme: "Même bien : ancienne numérotation de la rue", na: "" },
-  surface: { conforme: "Surface confirmée par le propriétaire", na: "" },
 };
 
 const fileName = (file: DiagnosticFileView, index: number) => file.label || `Diagnostics ${index + 1}`;

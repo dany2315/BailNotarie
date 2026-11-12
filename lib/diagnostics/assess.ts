@@ -2,9 +2,10 @@
  * Règles appliquées aux données lues dans les diagnostics. Fonctions pures : le modèle d'IA
  * recopie ce qui est écrit, c'est ce code qui dit quoi faire.
  *
- * Seuls les diagnostics obligatoires pour une mise en location sont contrôlés, avec leur validité :
+ * Seuls les diagnostics obligatoires pour une mise en location sont contrôlés, et seulement leur
+ * présence et leur validité (pas ce qu'ils constatent dans le logement) :
  * - logement (loi du 6 juillet 1989, art. 3-3) : DPE (10 ans), ERP (moins de 6 mois), plomb / CREP
- *   si construit avant 1949 (illimité sans plomb, 6 ans avec plomb ; peintures dégradées = travaux),
+ *   si construit avant 1949 (sans limite sans plomb, 6 ans avec plomb),
  *   électricité et gaz si l'installation a plus de 15 ans (6 ans) ;
  * - local commercial : DPE (10 ans), ERP (moins de 6 mois), amiante / DTA si permis de construire
  *   antérieur au 1er juillet 1997.
@@ -18,7 +19,7 @@
  * - « na »       : non exigé pour ce bien (raison donnée).
  * Les décisions de l'équipe (conforme, non concerné) sont appliquées ensuite, dans items.ts.
  */
-import { assessDpe, dpeValidUntil } from "@/lib/utils/dpe";
+import { dpeValidUntil } from "@/lib/utils/dpe";
 import { ENERGY_LETTERS, type DiagnosticExtraction, type EnergyLetter } from "./schema";
 
 export type CheckTone = "ok" | "warn" | "missing";
@@ -163,42 +164,33 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
   const ok = (id: string, label: string, text: string, tone: CheckTone = "ok") => checks.push({ id, label, tone, group: "ok", text });
   const na = (id: string, label: string, text: string) => checks.push({ id, label, tone: "ok", group: "na", text });
 
-  // 1. DPE (logement et local) : valable 10 ans ; logement classé G interdit à la location depuis 2025.
+  // 1. DPE (logement et local) : présence et validité (10 ans, durée plus courte pour les DPE d'avant juillet 2021).
+  // La classe énergie (logement G interdit à la location) est contrôlée à part, par la ligne « Classe DPE ».
   if (!dpe.found) {
     blocking("dpe", "DPE", "Absent", `Il nous manque le DPE du ${place} : merci de nous l'envoyer, ou de le faire réaliser par un diagnostiqueur certifié.`, true);
-  } else if (!dpe.energyClass || !dpe.date) {
-    team("dpe", "DPE", "Classe ou date non lue : à vérifier dans le fichier", "file");
+  } else if (!dpe.date) {
+    team("dpe", "DPE", "Date non lue : à vérifier dans le fichier", "file");
   } else {
     const validUntil = dpeValidUntil(dpe.date);
-    const verdict = assessDpe(dpe.energyClass, dpe.date, now, { commercial: context.commercial });
-    const summary = `Classe ${dpe.energyClass}${dpe.gesClass ? `, GES ${dpe.gesClass}` : ""}`;
-    if (verdict.expired) {
+    const summary = dpe.energyClass ? `Classe ${dpe.energyClass}${dpe.gesClass ? `, GES ${dpe.gesClass}` : ""} · ` : "";
+    if (validUntil && validUntil < now) {
       blocking(
         "dpe",
         "DPE",
-        `${summary} · expiré${validUntil ? ` le ${day(validUntil)}` : ""}`,
-        `Votre DPE n'est plus valable${validUntil ? ` depuis le ${day(validUntil)}` : ""} : il faut en faire réaliser un nouveau par un diagnostiqueur certifié.`,
+        `${summary}expiré le ${day(validUntil)}`,
+        `Votre DPE n'est plus valable depuis le ${day(validUntil)} : il faut en faire réaliser un nouveau par un diagnostiqueur certifié.`,
       );
-    } else if (verdict.blocking) {
-      blocking(
-        "dpe",
-        "DPE",
-        `${summary} · ${verdict.message}`,
-        `Votre logement est classé ${dpe.energyClass} au DPE : il ne peut plus être loué. Des travaux de rénovation énergétique sont nécessaires avant de signer un bail.`,
-      );
+    } else if (validUntil) {
+      const soon = validUntil.getTime() - now.getTime() < SOON_MS;
+      ok("dpe", "DPE", `${summary}${soon ? "expire" : "valable jusqu'"}${soon ? " le" : "au"} ${day(validUntil)}`, soon ? "warn" : "ok");
     } else {
-      ok("dpe", "DPE", `${summary} · valable jusqu'au ${validUntil ? day(validUntil) : "?"}${verdict.warning ? ` · ${verdict.warning}` : ""}`, verdict.warning ? "warn" : "ok");
+      team("dpe", "DPE", "Date de validité inconnue : à vérifier dans le fichier", "file");
     }
-    const expected = expectedDpeLetter(extraction);
-    if (expected && expected !== dpe.energyClass) {
-      team("dpe-lettre", "Étiquette DPE", `Lettre lue ${dpe.energyClass}, les valeurs donnent ${expected} : vérifiez l'étiquette`, "file");
-    }
-
-    // Report dans la fiche du bien (le DPE y est repris pour le bail et le notaire).
-    const ficheDate = isoDay(fiche?.dpeDate ?? null);
-    if (!fiche?.dpeClass || !ficheDate || fiche.dpeClass !== dpe.energyClass || ficheDate !== dpe.date || (dpe.gesClass && fiche.gesClass !== dpe.gesClass)) {
-      team("fiche", "Fiche du bien", fiche?.dpeClass ? `Indique classe ${fiche.dpeClass} : à corriger` : "DPE pas encore saisi", "dpe-fiche");
-      dpeToApply = { dpeClass: dpe.energyClass, gesClass: dpe.gesClass, dpeDate: dpe.date };
+    if (dpe.energyClass) {
+      const ficheDate = isoDay(fiche?.dpeDate ?? null);
+      if (!fiche?.dpeClass || !ficheDate || fiche.dpeClass !== dpe.energyClass || ficheDate !== dpe.date) {
+        dpeToApply = { dpeClass: dpe.energyClass, gesClass: dpe.gesClass, dpeDate: dpe.date };
+      }
     }
   }
 
@@ -219,12 +211,7 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
     const before1997 = builtBefore(1997, year, fiche?.constructionPeriod);
     const asbestos = extraction.asbestos;
     if (asbestos.found) {
-      ok(
-        "amiante",
-        "Amiante (DTA)",
-        asbestos.presence === "OUI" ? "Amiante repéré : suivi de son état à prévoir" : "Présent",
-        asbestos.presence === "OUI" ? "warn" : "ok",
-      );
+      ok("amiante", "Amiante (DTA)", "Présent");
     } else if (before1997 === true) {
       blocking(
         "amiante",
@@ -257,37 +244,26 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
       } else {
         ask("plomb", "Plomb (CREP)", "Absent : obligatoire si le logement date d'avant 1949", "Le logement a-t-il été construit avant 1949 ?");
       }
-    } else if (lead.degraded) {
-      blocking(
-        "plomb",
-        "Plomb (CREP)",
-        "Peintures au plomb dégradées",
-        "Le constat plomb signale des peintures dégradées contenant du plomb : des travaux sont obligatoires avant de louer le logement.",
-      );
     } else if (lead.presence === "NON") {
-      ok("plomb", "Plomb (CREP)", "Pas de plomb : valable sans limite");
+      ok("plomb", "Plomb (CREP)", "Sans plomb : valable sans limite");
     } else if (lead.presence === "OUI" && leadDate) {
       const v = validity(leadDate, 72, now);
       if (v.state === "expired") {
         blocking(
           "plomb",
           "Plomb (CREP)",
-          `Plomb signalé · expiré le ${day(v.until)}`,
+          `Avec plomb · expiré le ${day(v.until)}`,
           "Le constat plomb signale du plomb et a plus de 6 ans : il faut le faire refaire par un diagnostiqueur certifié.",
         );
-      } else if (lead.degraded === false) {
-        ok("plomb", "Plomb (CREP)", `Plomb non dégradé · valable jusqu'au ${day(v.until)}`, v.state === "soon" ? "warn" : "ok");
       } else {
-        // État des peintures non lu (analyse ancienne ou constat incomplet) : l'équipe vérifie la classe 3.
-        team("plomb", "Plomb (CREP)", `Plomb signalé, valable jusqu'au ${day(v.until)} : vérifiez qu'aucune peinture n'est dégradée (classe 3)`, "file");
+        ok("plomb", "Plomb (CREP)", `Avec plomb · ${v.state === "soon" ? "expire le" : "valable jusqu'au"} ${day(v.until)}`, v.state === "soon" ? "warn" : "ok");
       }
     } else {
       team("plomb", "Plomb (CREP)", "Résultat ou date non lu : à vérifier dans le fichier", "file");
     }
 
     // 4. Électricité et gaz : si l'installation a plus de 15 ans ; valables 6 ans.
-    // Des anomalies ne bloquent pas la location (le diagnostic informe le locataire), mais le logement
-    // doit rester décent : l'équipe vérifie qu'aucune n'est dangereuse. Gaz en « danger grave et immédiat » : bloquant.
+    // Seule la validité compte : les anomalies constatées ne sont pas contrôlées.
     const installation = [
       {
         id: "electricite",
@@ -298,7 +274,6 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
         question: "L'installation électrique a-t-elle plus de 15 ans ?",
         required: "L'installation électrique a plus de 15 ans : un diagnostic électricité est obligatoire. Merci de nous l'envoyer, ou de le faire réaliser.",
         redo: "Le diagnostic électricité a plus de 6 ans : il faut le faire refaire par un diagnostiqueur certifié.",
-        danger: false,
       },
       {
         id: "gaz",
@@ -310,24 +285,14 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
         question: "Le logement a-t-il une installation de gaz de plus de 15 ans ?",
         required: "Le logement a une installation de gaz de plus de 15 ans : un diagnostic gaz est obligatoire. Merci de nous l'envoyer, ou de le faire réaliser.",
         redo: "Le diagnostic gaz a plus de 6 ans : il faut le faire refaire par un diagnostiqueur certifié.",
-        danger: extraction.gas.seriousDanger === true,
       },
     ];
     for (const entry of installation) {
       const itemDate = toDate(entry.item.date);
-      if (entry.item.found && entry.danger) {
-        blocking(
-          entry.id,
-          entry.label,
-          "Danger grave et immédiat signalé",
-          "Le diagnostic gaz signale un danger grave et immédiat : l'installation doit être réparée par un professionnel avant la location, avec une attestation de remise en état.",
-        );
-      } else if (entry.item.found && itemDate) {
+      if (entry.item.found && itemDate) {
         const v = validity(itemDate, 72, now);
         if (v.state === "expired") blocking(entry.id, entry.label, `Expiré le ${day(v.until)}`, entry.redo);
-        else if (entry.item.anomalies) {
-          team(entry.id, entry.label, `Valable jusqu'au ${day(v.until)} · anomalies signalées : vérifiez qu'aucune n'est dangereuse`, "file");
-        } else ok(entry.id, entry.label, `Valable jusqu'au ${day(v.until)}${entry.item.anomalies === false ? " · sans anomalie" : ""}`, v.state === "soon" ? "warn" : "ok");
+        else ok(entry.id, entry.label, `${v.state === "soon" ? "Expire le" : "Valable jusqu'au"} ${day(v.until)}`, v.state === "soon" ? "warn" : "ok");
       } else if (entry.item.found) {
         team(entry.id, entry.label, "Date non lue : valable 6 ans, à vérifier dans le fichier", "file");
       } else if (entry.old === true) {
@@ -340,51 +305,10 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
     }
   }
 
-  // 5. Les diagnostics portent-ils sur ce bien ?
-  const readPostal = extraction.property.postalCode?.replace(/\s/g, "") || null;
-  if (readPostal && fiche?.postalCode) {
-    const readNumber = extraction.property.address?.match(/^\s*(\d+)/)?.[1] ?? null;
-    const ficheNumber = fiche.housenumber?.match(/\d+/)?.[0] ?? null;
-    const same = readPostal === fiche.postalCode && (!readNumber || !ficheNumber || readNumber === ficheNumber);
-    const read = extraction.property.address || readPostal;
-    if (!same) {
-      checks.push({
-        id: "adresse",
-        label: "Adresse",
-        tone: "warn",
-        group: "ask",
-        text: `Le diagnostic indique « ${read} »`,
-        question: `Ces diagnostics concernent-ils bien le bien situé ${fiche.fullAddress || "dans le dossier"} ?`,
-      });
-    }
-  }
-  // Surface habitable : mention obligatoire du bail d'habitation.
-  const surface = extraction.property.surfaceM2;
-  if (!context.commercial && surface && fiche?.surfaceM2) {
-    const gap = Math.abs(surface - fiche.surfaceM2) / fiche.surfaceM2;
-    const fmt = (value: number) => value.toString().replace(".", ",");
-    if (gap > 0.05) {
-      checks.push({
-        id: "surface",
-        label: "Surface habitable",
-        tone: "warn",
-        group: "ask",
-        text: `${fmt(surface)} m² dans le diagnostic, ${fmt(fiche.surfaceM2)} m² sur la fiche`,
-        question: `La surface habitable du logement est-elle bien de ${fmt(surface)} m² ?`,
-      });
-    }
-  }
-
-  for (const [index, issue] of extraction.readingIssues.entries()) {
-    team(`lecture-${index}`, "Fichier", issue, "file");
-  }
-
   // Données utiles non trouvées (affichées pour que l'équipe sache quoi chercher à la main).
   const wanted: Array<[unknown, string]> = [
-    [extraction.property.address, "adresse"],
-    [context.commercial ? true : extraction.property.surfaceM2, "surface"],
+    // Année de construction : elle dit si le plomb (avant 1949) ou l'amiante (avant juillet 1997) sont exigés.
     [year ?? (fiche?.constructionPeriod || null), "année de construction"],
-    [dpe.found ? dpe.ademeNumber : true, "numéro ADEME"],
   ];
   for (const [value, label] of wanted) if (value == null || value === "") notFound.push(label);
 

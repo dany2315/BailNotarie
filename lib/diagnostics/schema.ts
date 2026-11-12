@@ -36,16 +36,16 @@ export interface DiagnosticExtraction {
   erp: DatedDiagnostic;
   asbestos: DatedDiagnostic & { presence: "OUI" | "NON" | null };
   /** degraded : absent des analyses enregistrées avant le 10/11/2026 (traité comme inconnu). */
-  lead: DatedDiagnostic & { presence: "OUI" | "NON" | null; degraded?: boolean | null };
+  lead: DatedDiagnostic & { presence: "OUI" | "NON" | null; /** Plus lu depuis le 12/11/2026. */ degraded?: boolean | null };
   /** installationOver15Years : absent des analyses enregistrées avant le 10/11/2026. */
-  electricity: DatedDiagnostic & { anomalies: boolean | null; installationOver15Years?: boolean | null };
+  electricity: DatedDiagnostic & { /** Plus lu depuis le 12/11/2026. */ anomalies?: boolean | null; installationOver15Years?: boolean | null };
   /** installationPresent, seriousDanger : absents des analyses enregistrées avant le 11/11/2026 (traités comme inconnus). */
-  gas: DatedDiagnostic & { anomalies: boolean | null; installationPresent?: boolean | null; seriousDanger?: boolean | null };
+  gas: DatedDiagnostic & { /** Plus lus depuis le 12/11/2026. */ anomalies?: boolean | null; installationPresent?: boolean | null; seriousDanger?: boolean | null };
   termites: DatedDiagnostic & { presence: "OUI" | "NON" | null };
   noise: DatedDiagnostic;
   diagnostician: { name: string | null; company: string | null; certification: string | null };
-  /** Problèmes de lecture (pages illisibles, document incomplet…). */
-  readingIssues: string[];
+  /** Problèmes de lecture (anciennes lectures seulement, plus demandés depuis le 12/11/2026). */
+  readingIssues?: string[];
 }
 
 /**
@@ -131,24 +131,17 @@ export const DIAGNOSTIC_JSON_SCHEMA = {
         description:
           "OUI si au moins un revêtement contient du plomb à une concentration égale ou supérieure au seuil (classe 1, 2 ou 3), même non dégradé ; NON si tous les revêtements sont sous le seuil (classe 0) ; null si non indiqué",
       },
-      degraded: nullable("boolean", "Des revêtements dégradés contenant du plomb (classe 3) sont-ils signalés ? null si non indiqué"),
     }),
     electricity: dated("état de l'installation intérieure d'électricité", {
-      anomalies: nullable("boolean", "Des anomalies sont-elles signalées ?"),
       installationOver15Years: nullable(
         "boolean",
         "L'installation électrique a-t-elle plus de 15 ans, d'après l'année de l'installation ou de sa dernière rénovation indiquée dans le diagnostic électricité ou le DPE ? null si on ne peut pas le savoir",
       ),
     }),
     gas: dated("état de l'installation intérieure de gaz", {
-      anomalies: nullable("boolean", "Des anomalies sont-elles signalées ?"),
       installationPresent: nullable(
         "boolean",
         "Le bien a-t-il une installation de gaz ? Regarde les énergies du chauffage et de l'eau chaude indiquées dans le DPE, et le diagnostic gaz : true si gaz naturel, propane ou butane ; false si le DPE indique des énergies sans gaz (électricité, fioul, bois, réseau de chaleur…) ; null si on ne peut pas le savoir",
-      ),
-      seriousDanger: nullable(
-        "boolean",
-        "Le diagnostic gaz signale-t-il une anomalie de type DGI (danger grave et immédiat), ou une coupure de l'alimentation en gaz ? false si le diagnostic gaz est présent sans anomalie DGI ; null s'il n'y a pas de diagnostic gaz",
       ),
     }),
     termites: dated("état relatif à la présence de termites", presence("termites")),
@@ -163,17 +156,12 @@ export const DIAGNOSTIC_JSON_SCHEMA = {
       },
       required: ["name", "company", "certification"],
     },
-    readingIssues: {
-      type: "array",
-      items: { type: "string" },
-      description: "Problèmes de lecture rencontrés (pages illisibles, document coupé, diagnostic annoncé mais absent…), en français",
-    },
   },
-  required: ["property", "dpe", "erp", "asbestos", "lead", "electricity", "gas", "termites", "noise", "diagnostician", "readingIssues"],
+  required: ["property", "dpe", "erp", "asbestos", "lead", "electricity", "gas", "termites", "noise", "diagnostician"],
 } as const;
 
 export const DIAGNOSTIC_SYSTEM_PROMPT = [
-  "Tu lis le dossier de diagnostics techniques d'un bien immobilier mis en location en France.",
+  "Tu lis le dossier de diagnostics techniques d'un bien immobilier mis en location en France, pour savoir quels diagnostics sont présents et à quelle date ils ont été établis.",
   "Recopie uniquement ce qui est écrit dans les fichiers. N'invente rien : si une information n'apparaît pas, mets null (ou found = false).",
   "Les dates sont au format AAAA-MM-JJ. Les lettres des étiquettes énergie et climat (A à G) sont dessinées dans des étiquettes graphiques : lis-les sur l'image.",
   "Pour chaque diagnostic trouvé, indique le nom exact du fichier qui le contient.",
