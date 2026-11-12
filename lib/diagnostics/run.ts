@@ -7,6 +7,7 @@ import { triggerNotificationEmail } from "@/lib/inngest/helpers";
 import { DiagnosticAnalysisError, diagnosticModel, isDiagnosticAnalysisConfigured, readDiagnostics, type DiagnosticFile } from "./openai";
 import { ANALYSIS_STALE_MS, ENERGY_LETTERS, itemReadingHint, type DiagnosticExtraction, type DiagnosticItemKey } from "./schema";
 import { checkDpeAtAdeme } from "./ademe";
+import { isToFix } from "./items";
 import { isCommercialProperty, loadDiagnosticState } from "./state";
 
 /** Taille totale envoyée à OpenAI (les fichiers partent encodés en base64). */
@@ -225,7 +226,7 @@ export async function notifyDiagnosticsToReview(propertyId: string) {
   if (!bail) return;
   const state = await loadDiagnosticState(propertyId, await isCommercialProperty(propertyId));
   if (!state) return;
-  const toReview = state.items.filter((item) => item.status === "replace" || item.status === "missing" || item.status === "check");
+  const toReview = state.items.filter((item) => isToFix(item.status) || item.status === "check");
   if (toReview.length === 0) return;
   const lines = toReview.map((item) => `${item.label} : ${item.text}`);
 

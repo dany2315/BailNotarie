@@ -9,10 +9,16 @@
 import { assessDiagnostics, formatDay, type AssessContext, type DiagnosticCheck } from "./assess";
 import { DIAGNOSTIC_SECTIONS, isDiagnosticItemKey, type DiagnosticExtraction, type DiagnosticItemKey, type EnergyLetter } from "./schema";
 
-/** À remplacer · Manquant · À vérifier · Valide · Non concerné. */
-export type ItemStatus = "replace" | "missing" | "check" | "valid" | "na";
+/** À remplacer · Manquant · Non reconnu (DPE absent de la base ADEME) · À vérifier · Valide · Non concerné. */
+export type ItemStatus = "replace" | "missing" | "rejected" | "check" | "valid" | "na";
 /** Le premier est le bouton principal de la ligne. */
-export type ItemAction = "upload" | "conforme" | "na" | "erp" | "date";
+export type ItemAction = "upload" | "conforme" | "na" | "erp" | "date" | "files";
+
+/** Lignes à régler (en rouge). */
+export const isToFix = (status: ItemStatus) => status === "replace" || status === "missing" || status === "rejected";
+
+/** Nom de fichier sur une ligne : la fin est gardée (extension comprise), le début remplacé par « … ». */
+export const shortFileName = (name: string, max = 32) => (name.length > max ? `…${name.slice(-(max - 1))}` : name);
 
 /** Diagnostics dont on peut saisir la date à la main si le nouveau fichier n'est pas lu (pas de classe ni de résultat à lire). */
 export const DATE_ONLY_ITEMS: DiagnosticItemKey[] = ["erp", "electricite", "gaz", "amiante"];
@@ -161,7 +167,7 @@ export function mergeReadings(analyses: AnalysisRecord[], files: FileRecord[], d
 function statusOf(check: DiagnosticCheck): ItemStatus {
   switch (check.group) {
     case "blocking":
-      return check.absent ? "missing" : "replace";
+      return check.rejected ? "rejected" : check.absent ? "missing" : "replace";
     case "team":
       if (check.action === "erp") return check.absent ? "missing" : "replace";
       return "check";
@@ -180,6 +186,9 @@ function actionsOf(check: DiagnosticCheck, status: ItemStatus): ItemAction[] {
   switch (status) {
     case "replace":
       return ["upload", ...erp, "conforme"];
+    case "rejected":
+      // « Voir les diagnostics », c'est tout ; le reste dans « ⋯ ».
+      return ["files", "conforme"];
     case "missing":
       // DPE et ERP sont toujours exigés : pas de « non concerné ».
       return ["upload", ...erp, ...(check.id === "dpe" || check.id === "erp" ? [] : (["na"] as ItemAction[]))];
@@ -221,10 +230,10 @@ export function buildItems(
     const origin = manual
       ? `Date saisie par ${manual.createdByName || "l'équipe"} le ${short(manual.createdAt)}`
       : source
-        ? `Nouveau fichier ajouté le ${short(source.at)}${source.label ? ` (${displayFileName(source.label)})` : ""}`
+        ? `Nouveau fichier ajouté le ${short(source.at)}${source.label ? ` (${shortFileName(displayFileName(source.label))})` : ""}`
         : // Un seul fichier : inutile de le répéter sur chaque ligne.
           readFile && baseStatus !== "na" && !check.absent && files.filter((file) => !file.proof).length > 1
-          ? `Lu dans « ${displayFileName(readFile)} »`
+          ? `Lu dans « ${shortFileName(displayFileName(readFile))} »`
           : null;
     const unreadFile = key && merged.unread[key] ? merged.unread[key]! : null;
     // DPE trouvé dans la base officielle : on le dit, et on signale si le fichier indiquait une autre classe.
@@ -247,7 +256,8 @@ export function buildItems(
       message: check.message ?? null,
       question: check.question ?? null,
       actions: actionsOf(check, baseStatus),
-      origin: ademeOrigin ? (origin ? `${ademeOrigin} · ${origin}` : ademeOrigin) : origin,
+      // Une ligne par information (le composant affiche chaque ligne sur une seule ligne d'écran).
+      origin: ademeOrigin ? (origin ? `${ademeOrigin}\n${origin}` : ademeOrigin) : origin,
       decision: null,
       manualDateId: manual?.id ?? null,
       basis,
@@ -275,7 +285,7 @@ export function buildItems(
   });
 
   // Ordre d'affichage : ce qu'il faut faire d'abord, puis le reste (ordre des règles conservé à l'intérieur).
-  const rank: Record<ItemStatus, number> = { replace: 0, missing: 1, check: 2, valid: 3, na: 4 };
+  const rank: Record<ItemStatus, number> = { rejected: 0, replace: 1, missing: 2, check: 3, valid: 4, na: 5 };
   items.sort((a, b) => rank[a.status] - rank[b.status]);
   return { items, notFound: assessment.notFound, dpeToApply: assessment.dpeToApply };
 }
@@ -283,7 +293,7 @@ export function buildItems(
 export type DiagnosticsOverall = "conforme" | "a_verifier" | "non_conforme";
 
 export function overallOfItems(items: DiagnosticItemView[]): DiagnosticsOverall {
-  if (items.some((item) => item.status === "replace" || item.status === "missing")) return "non_conforme";
+  if (items.some((item) => isToFix(item.status))) return "non_conforme";
   if (items.some((item) => item.status === "check")) return "a_verifier";
   return "conforme";
 }
@@ -291,7 +301,7 @@ export function overallOfItems(items: DiagnosticItemView[]): DiagnosticsOverall 
 /** Lignes à envoyer au propriétaire : ce qui bloque, puis les questions. */
 export function ownerLines(items: DiagnosticItemView[]): { blocking: string[]; questions: string[] } {
   return {
-    blocking: items.filter((item) => (item.status === "replace" || item.status === "missing") && item.message).map((item) => item.message!),
+    blocking: items.filter((item) => (isToFix(item.status)) && item.message).map((item) => item.message!),
     questions: items.filter((item) => item.status === "check" && item.question).map((item) => item.question!),
   };
 }

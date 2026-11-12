@@ -36,7 +36,7 @@ import { DocumentUploadButton, uploadToStorage, ACCEPT } from "@/components/docu
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { decideDiagnosticItem, requestDiagnosticAnalysis, revokeDiagnosticDecision } from "@/lib/actions/diagnostic-analysis";
 import { sendDiagnosticsToOwner } from "@/lib/actions/reminders";
-import { displayFileName, type DiagnosticItemView, type ItemStatus } from "@/lib/diagnostics/items";
+import { displayFileName, isToFix, type DiagnosticItemView, type ItemStatus } from "@/lib/diagnostics/items";
 import type { DiagnosticFileView, DiagnosticStateView } from "@/lib/diagnostics/state";
 import type { DiagnosticExtraction } from "@/lib/diagnostics/schema";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,11 @@ const ERRIAL_URL = "https://errial.georisques.gouv.fr/";
 export const STATUS: Record<ItemStatus, { label: string; chip: string; icon: React.ReactNode }> = {
   replace: {
     label: "À remplacer",
+    chip: "bg-red-100 text-red-800",
+    icon: <X className="size-3.5 text-red-700" strokeWidth={3} aria-hidden />,
+  },
+  rejected: {
+    label: "Non reconnu",
     chip: "bg-red-100 text-red-800",
     icon: <X className="size-3.5 text-red-700" strokeWidth={3} aria-hidden />,
   },
@@ -378,13 +383,15 @@ function ItemRow({
         );
       case "date":
         return <DateEntry key="date" item={item} bailId={bailId} />;
+      case "files":
+        return <ViewFilesButton key="files" files={state.files} />;
     }
   };
 
   // Bouton principal visible ; les autres dans « ⋯ » (sauf l'ajout de fichier, qui a besoin de son propre bouton).
   const [primary, ...others] = locked ? [] : item.actions;
   const dpeEditor =
-    dpe && !locked ? <DpeEditor propertyId={propertyId} dpeClass={dpe.dpeClass} gesClass={dpe.gesClass} dpeDate={dpe.dpeDate} /> : null;
+    dpe && !locked && item.status !== "rejected" ? <DpeEditor propertyId={propertyId} dpeClass={dpe.dpeClass} gesClass={dpe.gesClass} dpeDate={dpe.dpeDate} /> : null;
   const inline = others.filter((action) => action === "upload" || action === "erp");
   const menu = others.filter((action) => action === "conforme" || action === "na");
 
@@ -399,7 +406,7 @@ function ItemRow({
               <span className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11.5px] font-semibold", status.chip)}>{status.label}</span>
             )}
           </div>
-          {dpe && (dpe.dpeClass || dpe.dpeDate) ? (
+          {dpe && (dpe.dpeClass || dpe.dpeDate) && item.status !== "rejected" ? (
             <span className="flex flex-col gap-1 text-[13.5px]">
               <DpeSummary
                 dpeClass={dpe.dpeClass}
@@ -419,7 +426,11 @@ function ItemRow({
               {item.finding ? ` · constat : ${item.finding}` : ""}
             </span>
           )}
-          {item.origin && <span className="text-[12px] text-muted-foreground">{item.origin}</span>}
+          {item.origin?.split("\n").map((line) => (
+            <span key={line} className="truncate text-[12px] text-muted-foreground" title={line}>
+              {line}
+            </span>
+          ))}
           {(item.decision || item.manualDateId) && (
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
               {proof && (
@@ -492,7 +503,7 @@ function ItemRow({
 function OwnerButtons({ bailId, state, locked }: { bailId: string; state: DiagnosticStateView; locked: boolean }) {
   const [sending, startSending] = React.useTransition();
   const lines = [
-    ...state.items.filter((item) => (item.status === "replace" || item.status === "missing") && item.message).map((item) => item.message!),
+    ...state.items.filter((item) => (isToFix(item.status)) && item.message).map((item) => item.message!),
     ...state.items.filter((item) => item.status === "check" && item.question).map((item) => item.question!),
   ];
   if (lines.length === 0) return null;

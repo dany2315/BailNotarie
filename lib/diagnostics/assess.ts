@@ -42,6 +42,8 @@ export interface DiagnosticCheck {
   action?: TeamAction;
   /** Diagnostic absent des fichiers (et non la date ou le contenu qui pose problème). */
   absent?: boolean;
+  /** DPE non reconnu par la base officielle de l'ADEME (numéro absent ou introuvable). */
+  rejected?: boolean;
 }
 
 export type DiagnosticOverall = "conforme" | "a_verifier" | "non_conforme";
@@ -211,10 +213,15 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
       dpeLine.text = `${dpeLine.text} · ${reason}`;
     };
     const ademe = dpe.ademe;
-    if (ademe?.status === "no_number") {
-      toCheck("numéro ADEME absent du document : vérifiez que c'est un vrai DPE");
-    } else if (ademe?.status === "not_found") {
-      toCheck(`DPE n° ${ademe.number} introuvable dans la base officielle de l'ADEME : vérifiez que c'est un vrai DPE`);
+    // Pas dans la base officielle : ce n'est pas un DPE valable (ou pas un DPE). Un DPE déjà expiré reste « expiré ».
+    if ((ademe?.status === "no_number" || ademe?.status === "not_found") && dpeLine && dpeLine.group !== "blocking") {
+      dpeLine.group = "blocking";
+      dpeLine.tone = "missing";
+      dpeLine.rejected = true;
+      dpeLine.action = undefined;
+      dpeLine.text =
+        ademe.status === "no_number" ? "Aucun numéro ADEME sur le document" : `Introuvable dans la base officielle de l'ADEME (n° ${ademe.number})`;
+      dpeLine.message = `Le DPE reçu n'est pas enregistré à l'ADEME : merci de nous envoyer le DPE officiel du ${place}, avec son numéro ADEME.`;
     } else if (official && official.postalCode && fiche?.postalCode && official.postalCode !== fiche.postalCode) {
       toCheck(`selon la base de l'ADEME, ce DPE concerne un autre bien (${official.address || official.postalCode})`);
     } else if (!official) {
@@ -223,7 +230,8 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
       if (dpe.energyClass && expected && expected !== dpe.energyClass) toCheck(`les valeurs du DPE donnent la classe ${expected} : vérifiez l'étiquette`);
     }
 
-    if (dpeClass) {
+    // Un DPE non reconnu par l'ADEME n'est pas reporté dans la fiche du bien.
+    if (dpeClass && !dpeLine?.rejected) {
       const ficheDate = isoDay(fiche?.dpeDate ?? null);
       if (!fiche?.dpeClass || !ficheDate || fiche.dpeClass !== dpeClass || ficheDate !== dpeDate || (fiche.gesClass ?? null) !== (gesClass ?? null)) {
         dpeToApply = { dpeClass, gesClass, dpeDate };
@@ -318,7 +326,10 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
         item: extraction.gas,
         // Pas d'installation de gaz d'après le DPE : non requis.
         old: extraction.gas.installationPresent === false ? false : null,
-        notRequired: extraction.gas.installationPresent === false ? "Pas d'installation de gaz (d'après le DPE) : non exigé" : "Installation de moins de 15 ans : non exigé",
+        notRequired:
+          extraction.gas.installationPresent === false
+            ? "Chauffage et eau chaude sans gaz d'après le DPE : non exigé"
+            : "Installation de moins de 15 ans : non exigé",
         question: "Le logement a-t-il une installation de gaz de plus de 15 ans ?",
         required: "Le logement a une installation de gaz de plus de 15 ans : un diagnostic gaz est obligatoire. Merci de nous l'envoyer, ou de le faire réaliser.",
         redo: "Le diagnostic gaz a plus de 6 ans : il faut le faire refaire par un diagnostiqueur certifié.",

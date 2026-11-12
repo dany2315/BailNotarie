@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { assessContextFor } from "./context";
 import {
   buildItems,
+  isToFix,
   mergeReadings,
   overallOfItems,
   type AnalysisRecord,
@@ -162,7 +163,7 @@ export async function loadDiagnosticState(propertyId: string, commercial: boolea
       items: built.items,
       overall: overallOfItems(built.items),
       counts: {
-        toFix: built.items.filter((item) => item.status === "replace" || item.status === "missing").length,
+        toFix: built.items.filter((item) => isToFix(item.status)).length,
         toCheck: built.items.filter((item) => item.status === "check").length,
         valid: built.items.filter((item) => item.status === "valid").length,
       },

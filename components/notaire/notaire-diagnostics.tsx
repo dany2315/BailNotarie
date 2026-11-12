@@ -6,7 +6,7 @@ import { DocumentViewer } from "@/components/leases/document-viewer";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { cn } from "@/lib/utils";
 
-type Status = "replace" | "missing" | "check" | "valid" | "na";
+type Status = "replace" | "missing" | "rejected" | "check" | "valid" | "na";
 
 export interface NotaireDiagnostics {
   readAt: string | null;
@@ -25,6 +25,7 @@ export interface NotaireDiagnostics {
 
 const STATUS: Record<Status, { label: string; chip: string; icon: React.ReactNode }> = {
   replace: { label: "À remplacer", chip: "bg-red-100 text-red-800", icon: <X className="size-3.5 text-red-700" strokeWidth={3} aria-hidden /> },
+  rejected: { label: "Non reconnu", chip: "bg-red-100 text-red-800", icon: <X className="size-3.5 text-red-700" strokeWidth={3} aria-hidden /> },
   missing: { label: "Manquant", chip: "bg-red-100 text-red-800", icon: <X className="size-3.5 text-red-700" strokeWidth={3} aria-hidden /> },
   check: { label: "À vérifier", chip: "bg-amber-100 text-amber-900", icon: <AlertTriangle className="size-3.5 text-amber-700" aria-hidden /> },
   valid: { label: "Valide", chip: "bg-green-100 text-green-800", icon: <Check className="size-3.5 text-green-700" strokeWidth={3} aria-hidden /> },
@@ -80,7 +81,11 @@ export function NotaireDiagnosticsCard({ diagnostics }: { diagnostics: NotaireDi
                       </button>
                     </DocumentViewer>
                   )}
-                  {item.origin && <span className="text-xs text-muted-foreground">{item.origin}</span>}
+                  {item.origin?.split("\n").map((line) => (
+                    <span key={line} className="truncate text-xs text-muted-foreground" title={line}>
+                      {line}
+                    </span>
+                  ))}
                 </div>
               </li>
             );
