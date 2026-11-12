@@ -31,6 +31,13 @@ export const REASON_SENTENCES: Record<ComplementReasonValue, string> = {
 export const DEFAULT_COMPLEMENT_MESSAGE =
   "Pour finaliser votre dossier de bail notarié, nous avons besoin des pièces ci-dessous. Vous pouvez les envoyer en quelques minutes depuis votre espace.";
 
+/**
+ * Message des relances et des pièces redemandées : il reste juste quel que soit le nombre de pièces
+ * encore attendues (le message du premier envoi, lui, peut ne plus l'être).
+ */
+export const REMINDER_COMPLEMENT_MESSAGE =
+  "Il nous manque encore les pièces ci-dessous pour finaliser votre dossier de bail notarié. Vous pouvez les envoyer en quelques minutes depuis votre espace.";
+
 export const COMPLEMENT_MESSAGE_MAX = 1500;
 export const COMPLEMENT_NOTE_MAX = 500;
 
@@ -58,7 +65,7 @@ export function complementEmailContent(input: ComplementEmailInput) {
     preview: input.reminder ? `Il nous manque encore ${pieces} pour votre dossier` : `Nous avons besoin de ${pieces} pour votre dossier`,
     greeting: `Bonjour${input.name ? ` ${input.name}` : ""},`,
     context: `Dossier : ${input.address}`,
-    message: (input.message ?? "").trim() || DEFAULT_COMPLEMENT_MESSAGE,
+    message: (input.message ?? "").trim() || (input.reminder ? REMINDER_COMPLEMENT_MESSAGE : DEFAULT_COMPLEMENT_MESSAGE),
     items: input.items.map((item) => ({
       label: item.label,
       reason: REASON_LABELS[item.reason],

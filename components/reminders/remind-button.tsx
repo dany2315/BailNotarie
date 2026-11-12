@@ -24,7 +24,7 @@ export function RemindButton({
 }: {
   bailId: string;
   label?: string;
-  focus?: "due" | "missing" | "all";
+  focus?: "due" | "all";
   initialPanel?: ReminderPanel;
   only?: ReminderTargetValue;
   variant?: "default" | "outline";
@@ -81,7 +81,7 @@ export function ReminderSummary({ panel }: { panel: ReminderPanel }) {
       {panel.needs.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">
           {missingCount > 0
-            ? `Pas de relance automatique en cours. ${missingCount} élément${missingCount > 1 ? "s" : ""} manquant${missingCount > 1 ? "s" : ""} à demander avec le bouton en haut de la fiche.`
+            ? `Pas de relance automatique en cours. ${missingCount} élément${missingCount > 1 ? "s" : ""} manquant${missingCount > 1 ? "s" : ""} dans le dossier.`
             : "Le dossier n'attend rien du client pour l'instant."}
         </p>
       ) : (

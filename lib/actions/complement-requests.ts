@@ -365,7 +365,8 @@ async function sendRequestEmail(requestId: string, reminder: boolean): Promise<s
   const props = {
     name: getClientDisplayName(request.client) || "",
     address: request.bail.property?.fullAddress || request.bail.property?.label || "votre logement",
-    message: request.message,
+    // Relance ou pièce redemandée : texte de relance, toujours juste (le premier message peut ne plus l'être).
+    message: reminder ? null : request.message,
     items: request.items.map((item) => ({ label: item.label, reason: item.reason as ComplementReasonValue, note: item.note })),
     reminder,
     actionUrl: `${BASE_URL()}${complementRequestPath(request.id)}`,
@@ -451,7 +452,8 @@ export async function sendComplementRequest(data: unknown): Promise<{ success: t
       where: { id: existing.id },
       data: {
         status: ComplementRequestStatus.OPEN,
-        message: message ?? existing.message,
+        // Nouveau message relu dans l'aperçu (le précédent ne parlait pas de ces pièces).
+        message: message || null,
         recipientEmail: email,
         submittedAt: null,
         sentCount: { increment: 1 },
@@ -599,7 +601,7 @@ export async function reviewComplementItem(data: unknown): Promise<{ success: tr
   const { reason, note } = parsed.data;
   const providedIds = item.documents.map((doc) => doc.id);
   const before = { status: item.status, reason: item.reason, note: item.note, replacesDocumentIds: item.replacesDocumentIds, providedAt: item.providedAt };
-  const requestBefore = { status: item.request.status, submittedAt: item.request.submittedAt };
+  const requestBefore = { status: item.request.status, submittedAt: item.request.submittedAt, message: item.request.message };
   await prisma.$transaction([
     // Le fichier refusé reste dans le dossier jusqu'à ce que le nouveau soit accepté.
     prisma.document.updateMany({ where: { id: { in: providedIds } }, data: { complementItemId: null } }),
@@ -613,7 +615,8 @@ export async function reviewComplementItem(data: unknown): Promise<{ success: tr
         providedAt: null,
       },
     }),
-    prisma.complementRequest.update({ where: { id: item.requestId }, data: { status: ComplementRequestStatus.OPEN, submittedAt: null } }),
+    // Le message du premier envoi ne correspond plus : la page du client ne l'affiche plus.
+    prisma.complementRequest.update({ where: { id: item.requestId }, data: { status: ComplementRequestStatus.OPEN, submittedAt: null, message: null } }),
   ]);
   const sendError = await sendRequestEmail(item.requestId, true);
   if (sendError) {

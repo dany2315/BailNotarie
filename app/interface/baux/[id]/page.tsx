@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Check, CreditCard, Lock, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, CreditCard, FileUp, Lock, ShieldCheck, X } from "lucide-react";
 import { BailStatus, CompletionStatus, DocumentKind } from "@prisma/client";
 import { getLease, getBailMissingData } from "@/lib/actions/leases";
 import { getDocuments } from "@/lib/actions/documents";
@@ -15,6 +15,7 @@ import { RemindButton, ReminderSummary } from "@/components/reminders/remind-but
 import { getReminderPanel, type ReminderPanel } from "@/lib/actions/reminders";
 import { getBailComplementRequests } from "@/lib/actions/complement-requests";
 import { ComplementRequestsPanel } from "@/components/complements/complement-requests-panel";
+import { ComplementRequestButton } from "@/components/complements/complement-composer";
 import { describeRentCapZone, rentCapBlocking, rentCapOverLines } from "@/lib/rent-cap";
 import { assessRentRules } from "@/lib/rent-rules";
 import { PROOF_LABELS, VACANCY_MONTHS, relocationSummaryLines } from "@/lib/utils/rent-relocation";
@@ -255,28 +256,14 @@ const RELANCE_LABELS: Record<string, string> = {
 };
 
 /**
- * Bouton unique de relance de l'en-tête, nommé d'après ce que le dossier attend :
- * relance due, puis éléments manquants, puis plafond de loyer, puis relance à venir.
- * Rien d'attendu du client : pas de bouton.
+ * Bouton de relance de l'en-tête, nommé d'après ce que le dossier attend : relance due, puis
+ * plafond de loyer, puis relance à venir. Les pièces manquantes ont leur propre bouton
+ * (« Demander des pièces »), affiché quand aucune relance n'est due.
  */
-function remindAction(panel: ReminderPanel, rentCapOver: boolean): { label: string; title: string } | null {
-  const formPending = new Set(panel.needs.filter((n) => n.reason === "OWNER_FORM" || n.reason === "TENANT_FORM").map((n) => n.target));
-  const missingTargets = (["OWNER", "TENANT"] as const).filter(
-    (t) => !formPending.has(t) && panel.missing[t].length > 0 && (t === "OWNER" ? panel.owner : panel.tenant),
-  );
-  const missingCount = missingTargets.reduce((total, t) => total + panel.missing[t].length, 0);
+function remindAction(panel: ReminderPanel, rentCapOver: boolean, piecesToAsk: boolean): { label: string; title: string } | null {
   const dueNeed = panel.needs.find((n) => n.due);
   if (dueNeed) return { label: RELANCE_LABELS[dueNeed.reason] || "Relancer le client", title: "Relancer le client" };
-  if (missingCount > 0) {
-    const plural = missingCount > 1 ? "s" : "";
-    return {
-      label:
-        missingTargets.length > 1
-          ? `Demander ${missingCount} éléments manquants`
-          : `Demander ${missingCount} élément${plural} au ${missingTargets[0] === "OWNER" ? "propriétaire" : "locataire"}`,
-      title: "Demander les éléments manquants",
-    };
-  }
+  if (piecesToAsk) return null;
   if (rentCapOver) return { label: "Prévenir le propriétaire · loyer au-dessus du plafond", title: "Prévenir le propriétaire" };
   const nextNeed = panel.needs[0];
   if (nextNeed) return { label: RELANCE_LABELS[nextNeed.reason] || "Relancer le client", title: "Relancer le client" };
@@ -621,7 +608,24 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
   const reminderData = reminderPanel.success ? reminderPanel.data : null;
   const rentCapNotify = rentCap?.status === "over" && !bailLocked && rentCapLines?.length ? rentCapLines : null;
-  const remind = reminderData && stage.key !== "clos" ? remindAction(reminderData, !!rentCapNotify) : null;
+  // Pièces manquantes, demandées avec la fenêtre « Demander des pièces ». Pas à une personne qui
+  // remplit encore son formulaire (il les demande déjà) ni à qui a déjà une demande en cours.
+  const formPending = new Set((reminderData?.needs ?? []).filter((n) => n.reason === "OWNER_FORM" || n.reason === "TENANT_FORM").map((n) => n.target));
+  const requestedFrom = new Set(complementRequests.map((request) => request.target));
+  const askable = (target: "OWNER" | "TENANT") => !pastVerification && !formPending.has(target) && !requestedFrom.has(target);
+  const missingPieces = {
+    OWNER: owner && askable("OWNER") ? (missingData?.owner?.totalMissingDocuments || 0) + (missingData?.property?.missingDocuments.length || 0) : 0,
+    TENANT: tenant && askable("TENANT") ? missingData?.tenant?.totalMissingDocuments || 0 : 0,
+  };
+  const pieceTargets = (["OWNER", "TENANT"] as const).filter((target) => missingPieces[target] > 0);
+  const piecesCount = missingPieces.OWNER + missingPieces.TENANT;
+  const piecesLabel =
+    pieceTargets.length > 1
+      ? `Demander ${piecesCount} pièces manquantes`
+      : pieceTargets.length === 1
+        ? `Demander ${piecesCount} pièce${piecesCount > 1 ? "s" : ""} au ${pieceTargets[0] === "OWNER" ? "propriétaire" : "locataire"}`
+        : null;
+  const remind = reminderData && stage.key !== "clos" ? remindAction(reminderData, !!rentCapNotify, !!piecesLabel) : null;
   // « Demander » sur une pièce manquante : même fenêtre, ouverte sur les éléments manquants de cette personne.
   const stepItems = STAGE_ORDER.filter((key) => key !== "clos" || stage.key === "clos");
   const progress = overall.total > 0 ? Math.round((overall.verified / overall.total) * 100) : 0;
@@ -708,6 +712,17 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 icon
                 initialPanel={reminderData}
                 rentCapLines={rentCapNotify}
+                className="h-11 min-w-0 flex-1 px-3 sm:flex-none sm:px-4"
+              />
+            )}
+            {!remind && piecesLabel && (
+              <ComplementRequestButton
+                bailId={lease.id}
+                target={pieceTargets[0]}
+                alsoTarget={pieceTargets[1]}
+                label={piecesLabel}
+                size="default"
+                icon={<FileUp className="size-4" />}
                 className="h-11 min-w-0 flex-1 px-3 sm:flex-none sm:px-4"
               />
             )}
@@ -1093,14 +1108,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   note={docsMissing > 0 ? `${docsMissing} pièce${docsMissing > 1 ? "s" : ""} manquante${docsMissing > 1 ? "s" : ""}` : null}
                   actions={
                     docsMissing > 0 ? (
-                      reminderData && !pastVerification ? (
-                        <RemindButton
+                      pieceTargets.length > 0 ? (
+                        <ComplementRequestButton
                           bailId={lease.id}
-                          label={docsMissing > 1 ? `Demander les ${docsMissing} pièces` : "Demander la pièce"}
-                          title="Demander les éléments manquants"
-                          focus="missing"
-                          initialPanel={reminderData}
-                          className="h-9"
+                          target={pieceTargets[0]}
+                          alsoTarget={pieceTargets[1]}
+                          label={piecesCount > 1 ? `Demander les ${piecesCount} pièces` : "Demander la pièce"}
                         />
                       ) : null
                     ) : !bailLocked ? (

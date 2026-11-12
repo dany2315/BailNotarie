@@ -55,11 +55,11 @@ export interface RemindDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /**
-   * « missing » : ouvre sur la demande des éléments manquants (relance manuelle).
+   * « due » : seulement les relances dues.
    * « all » : fiche dossier, tout ce que le dossier attend du client est présélectionné.
    */
-  focus?: "due" | "missing" | "all";
-  /** Titre de la fenêtre (par défaut selon focus). */
+  focus?: "due" | "all";
+  /** Titre de la fenêtre (par défaut « Relancer »). Les pièces manquantes se demandent avec « Demander des pièces ». */
   title?: string;
   /** Loyer au-dessus du plafond : détail envoyé au propriétaire avec la relance « RENT_CAP ». */
   rentCapLines?: string[] | null;
@@ -86,24 +86,13 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
   const applyDefaults = React.useCallback(
     (data: ReminderPanel) => {
       const next = new Set<SendKey>();
-      const addMissing = () => {
-        const pendingForm = new Set(data.needs.filter((n) => n.reason === "OWNER_FORM" || n.reason === "TENANT_FORM").map((n) => n.target));
-        (Object.keys(data.missing) as ReminderTargetValue[]).forEach((t) => {
-          if (!pendingForm.has(t) && (!only || only === t) && data.missing[t].length > 0 && (t === "OWNER" ? data.owner : data.tenant)?.email) {
-            next.add(keyOf(t, "MISSING_ITEMS"));
-          }
-        });
-      };
       const addDue = () => {
         data.needs.filter((n) => n.due && n.party.email && (!only || only === n.target)).forEach((n) => next.add(keyOf(n.target, n.reason)));
         // Locataire sans téléphone, relancé sans réaction : on relance aussi son propriétaire.
         if (data.owner?.email && data.needs.some((n) => n.due && n.suggestViaOwner)) next.add(keyOf("OWNER", "TENANT_VIA_OWNER"));
       };
-      if (focus === "missing") {
-        addMissing();
-      } else if (focus === "all") {
+      if (focus === "all") {
         addDue();
-        addMissing();
         if (rentCapLines?.length && data.owner?.email) next.add(keyOf("OWNER", "RENT_CAP"));
         // Rien d'urgent : on propose quand même ce que le dossier attend.
         if (next.size === 0) data.needs.filter((n) => n.party.email).forEach((n) => next.add(keyOf(n.target, n.reason)));
@@ -220,22 +209,13 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
     onOpenChange(false);
   };
 
-  // Une personne qui doit encore remplir son formulaire est relancée pour ce formulaire :
-  // la demande d'éléments manquants ne concerne que ceux qui l'ont déjà envoyé.
-  const formPending = new Set(panel?.needs.filter((n) => n.reason === "OWNER_FORM" || n.reason === "TENANT_FORM").map((n) => n.target));
-  const missingTargets = panel
-    ? (["OWNER", "TENANT"] as ReminderTargetValue[]).filter(
-        (t) => !formPending.has(t) && panel.missing[t].length > 0 && (t === "OWNER" ? panel.owner : panel.tenant),
-      )
-    : [];
-
   const showRentCap = !!panel?.owner && !!rentCapLines?.length;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{title || (focus === "missing" ? "Demander les éléments manquants" : "Relancer")}</DialogTitle>
+          <DialogTitle>{title || "Relancer"}</DialogTitle>
           <DialogDescription>{panel ? panel.address : "Chargement du dossier…"}</DialogDescription>
         </DialogHeader>
 
@@ -352,35 +332,6 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
               </section>
             )}
 
-            {/* Éléments manquants : relance manuelle seulement */}
-            {missingTargets.length > 0 && (
-              <section className="flex flex-col gap-2.5">
-                <h3 className="text-sm font-semibold">Éléments manquants</h3>
-                {missingTargets.map((target) => {
-                  const party = target === "OWNER" ? panel.owner! : panel.tenant!;
-                  const key = keyOf(target, "MISSING_ITEMS");
-                  return (
-                    <label key={key} className="flex items-start gap-3 rounded-lg border p-3.5">
-                      <Checkbox
-                        checked={selected.has(key)}
-                        disabled={!party.email}
-                        onCheckedChange={(on) => toggle(key, on === true)}
-                        className="mt-0.5"
-                        aria-label={`Demander à ${party.name} les éléments manquants`}
-                      />
-                      <span className="flex min-w-0 flex-col gap-1">
-                        <span className="text-sm font-semibold">
-                          {TARGET_LABELS[target]} · {party.name}
-                        </span>
-                        <span className="break-all text-[13px] text-muted-foreground">{party.email || "Pas d'adresse e-mail"}</span>
-                        <span className="text-[13px] text-foreground/80">{panel.missing[target].join(" · ")}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </section>
-            )}
-
             {/* Loyer au-dessus du plafond : le propriétaire choisit entre baisser le loyer et justifier un complément */}
             {showRentCap && (
               <section className="flex flex-col gap-2.5">
@@ -411,13 +362,13 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
               </section>
             )}
 
-            {panel.needs.length === 0 && missingTargets.length === 0 && !showRentCap && (
+            {panel.needs.length === 0 && !showRentCap && (
               <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                 Personne n'est à relancer : le dossier n'attend rien du propriétaire ni du locataire.
               </p>
             )}
 
-            {(panel.needs.length > 0 || missingTargets.length > 0 || showRentCap) && (
+            {(panel.needs.length > 0 || showRentCap) && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={`remind-note-${bailId}`}>Message ajouté à l'e-mail (facultatif)</Label>
                 <Textarea

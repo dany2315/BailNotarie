@@ -47,46 +47,56 @@ const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day:
 export function ComplementRequestButton({
   bailId,
   target,
+  alsoTarget,
   preselect,
   label,
   icon,
   className,
   variant = "outline",
+  size = "sm",
 }: {
   bailId: string;
   target: Target;
+  /** L'autre partie a aussi des pièces à fournir : la fenêtre permet de passer de l'une à l'autre. */
+  alsoTarget?: Target;
   preselect?: ComplementPreselect;
   label: string;
   icon?: React.ReactNode;
   className?: string;
   variant?: "outline" | "default" | "ghost";
+  size?: "sm" | "default";
 }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <Button type="button" variant={variant} size="sm" className={cn("h-9 gap-1.5", className)} onClick={() => setOpen(true)}>
+      <Button type="button" variant={variant} size={size} className={cn(size === "sm" && "h-9", "gap-1.5", className)} onClick={() => setOpen(true)}>
         {icon}
-        {label}
+        <span className="truncate">{label}</span>
       </Button>
-      {open && <ComplementComposer bailId={bailId} target={target} preselect={preselect} open={open} onOpenChange={setOpen} />}
+      {open && (
+        <ComplementComposer bailId={bailId} target={target} alsoTarget={alsoTarget} preselect={preselect} open={open} onOpenChange={setOpen} />
+      )}
     </>
   );
 }
 
 export function ComplementComposer({
   bailId,
-  target,
+  target: initialTarget,
+  alsoTarget,
   preselect,
   open,
   onOpenChange,
 }: {
   bailId: string;
   target: Target;
+  alsoTarget?: Target;
   preselect?: ComplementPreselect;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
+  const [target, setTarget] = React.useState<Target>(initialTarget);
   const [data, setData] = React.useState<ComposerData | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [step, setStep] = React.useState<"pick" | "preview">("pick");
@@ -98,6 +108,13 @@ export function ComplementComposer({
 
   React.useEffect(() => {
     let cancelled = false;
+    // Autre personne : on repart d'une demande vierge.
+    setData(null);
+    setError(null);
+    setStep("pick");
+    setChoices(new Map());
+    setExtras([]);
+    setMessage(DEFAULT_COMPLEMENT_MESSAGE);
     getComplementComposer({ bailId, target }).then((result) => {
       if (cancelled) return;
       if (!result.success) {
@@ -105,8 +122,7 @@ export function ComplementComposer({
         return;
       }
       setData(result.data);
-      if (result.data.openRequest?.message) setMessage(result.data.openRequest.message);
-      const row = preselect && result.data.rows.find((r) => r.key === preselect.key && !r.pending);
+      const row = target === initialTarget && preselect && result.data.rows.find((r) => r.key === preselect.key && !r.pending);
       if (row) {
         setChoices(new Map([[row.key, { reason: row.documents.length > 0 ? "ILLEGIBLE" : "MISSING", note: "" }]]));
         if (row.level === "optional") setShowOptional(true);
@@ -115,7 +131,7 @@ export function ComplementComposer({
     return () => {
       cancelled = true;
     };
-  }, [bailId, target, preselect?.key]);
+  }, [bailId, target, initialTarget, preselect?.key]);
 
   const toggle = (row: ComposerRow, on: boolean) => {
     setChoices((current) => {
@@ -199,6 +215,26 @@ export function ComplementComposer({
           <DialogDescription className="truncate">
             {data ? `${data.name}${data.email ? ` · ${data.email}` : ""}` : error ? "" : "Chargement du dossier…"}
           </DialogDescription>
+          {alsoTarget && step === "pick" && (
+            <div role="tablist" aria-label="Personne" className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
+              {[initialTarget, alsoTarget].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={target === value}
+                  disabled={sending}
+                  onClick={() => setTarget(value)}
+                  className={cn(
+                    "h-8 rounded-md text-[13px] font-semibold transition-colors",
+                    target === value ? "bg-white text-foreground shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-foreground",
+                  )}
+                >
+                  {value === "OWNER" ? "Propriétaire" : "Locataire"}
+                </button>
+              ))}
+            </div>
+          )}
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
