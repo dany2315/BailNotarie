@@ -32,6 +32,8 @@ export interface DiagnosticExtraction {
     energyKwhM2: number | null;
     emissionsKgM2: number | null;
     ademeNumber: string | null;
+    /** Vérification dans la base officielle de l'ADEME, ajoutée après la lecture (absente des lectures d'avant le 12/11/2026). */
+    ademe?: AdemeCheck;
   };
   erp: DatedDiagnostic;
   asbestos: DatedDiagnostic & { presence: "OUI" | "NON" | null };
@@ -47,6 +49,24 @@ export interface DiagnosticExtraction {
   /** Problèmes de lecture (anciennes lectures seulement, plus demandés depuis le 12/11/2026). */
   readingIssues?: string[];
 }
+
+/** Résultat de la recherche du DPE dans la base de l'ADEME (valeurs officielles quand il est trouvé). */
+export type AdemeCheck =
+  | {
+      status: "found";
+      number: string;
+      checkedAt: string;
+      dataset: string;
+      energyClass: EnergyLetter | null;
+      gesClass: EnergyLetter | null;
+      /** AAAA-MM-JJ */
+      date: string | null;
+      validUntil: string | null;
+      address: string | null;
+      postalCode: string | null;
+      updatedAt: string | null;
+    }
+  | { status: "not_found" | "no_number" | "error"; number: string | null; checkedAt: string };
 
 /**
  * Diagnostics qu'on peut remplacer par un nouveau fichier : clé du point (assess.ts) → partie des données lues.
@@ -120,7 +140,7 @@ export const DIAGNOSTIC_JSON_SCHEMA = {
       gesClass: letter("Lettre de l'étiquette climat (GES) du DPE, lue sur l'étiquette"),
       energyKwhM2: nullable("number", "Consommation d'énergie primaire en kWh/m²/an affichée dans l'étiquette énergie"),
       emissionsKgM2: nullable("number", "Émissions en kg CO2/m²/an affichées dans l'étiquette"),
-      ademeNumber: nullable("string", "Numéro ADEME du DPE (13 caractères)"),
+      ademeNumber: nullable("string", "Numéro ADEME du DPE, 13 caractères (chiffres et lettres), imprimé en haut de la première page (« N° DPE » ou « Numéro ADEME »). null s'il n'apparaît pas"),
     }),
     erp: dated("état des risques et pollutions (ERP, ex-ERNMT)"),
     asbestos: dated("repérage amiante (DAPP, DTA ou constat avant vente)", presence("matériaux amiantés")),

@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { generateSignedDownloadUrl } from "@/lib/utils/s3-client";
 import { triggerNotificationEmail } from "@/lib/inngest/helpers";
 import { DiagnosticAnalysisError, diagnosticModel, isDiagnosticAnalysisConfigured, readDiagnostics, type DiagnosticFile } from "./openai";
-import { ANALYSIS_STALE_MS, ENERGY_LETTERS, itemReadingHint, type DiagnosticItemKey } from "./schema";
+import { ANALYSIS_STALE_MS, ENERGY_LETTERS, itemReadingHint, type DiagnosticExtraction, type DiagnosticItemKey } from "./schema";
+import { checkDpeAtAdeme } from "./ademe";
 import { isCommercialProperty, loadDiagnosticState } from "./state";
 
 /** Taille totale envoyée à OpenAI (les fichiers partent encodés en base64). */
@@ -81,12 +82,15 @@ export async function runReading(analysisId: string, documents: DocToRead[], ite
       });
     }
     const result = await readDiagnostics(files, item ? itemReadingHint(item) : undefined);
+    // DPE lu : recherche de son numéro dans la base officielle de l'ADEME (gratuit, quelques secondes).
+    const extraction = result.extraction as DiagnosticExtraction;
+    if (extraction.dpe?.found) extraction.dpe.ademe = await checkDpeAtAdeme(extraction.dpe.ademeNumber);
     await prisma.diagnosticAnalysis.update({
       where: { id: analysisId },
       data: {
         status: "SUCCEEDED",
         model: result.model,
-        extracted: result.extraction as any,
+        extracted: extraction as any,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
         costUsd: result.costUsd,

@@ -117,7 +117,9 @@ export function DpeEditor({
               fromYear={2006}
               toYear={new Date().getFullYear()}
             />
-            <span className="text-xs text-muted-foreground">La validité se calcule à partir de cette date.</span>
+            <span className="text-xs text-muted-foreground">
+              La date « Établi le » écrite en haut de la première page du DPE. La validité se calcule à partir de cette date.
+            </span>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={saving}>

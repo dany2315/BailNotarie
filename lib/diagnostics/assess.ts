@@ -167,13 +167,19 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
 
   // 1. DPE (logement et local) : présence et validité (10 ans, durée plus courte pour les DPE d'avant juillet 2021),
   // et classe interdite à la location pour un logement (G depuis 2025, F à partir de 2028).
+  // Base officielle de l'ADEME : un DPE trouvé donne la classe, le GES et les dates officiels (le fichier peut être
+  // ancien ou faux) ; un numéro absent ou introuvable fait vérifier le document. Base injoignable : lecture du fichier.
+  const official = dpe.ademe?.status === "found" ? dpe.ademe : null;
+  const dpeClass = official?.energyClass ?? dpe.energyClass;
+  const gesClass = official ? official.gesClass : dpe.gesClass;
+  const dpeDate = official?.date ?? dpe.date;
   if (!dpe.found) {
     blocking("dpe", "DPE", "Absent", `Il nous manque le DPE du ${place} : merci de nous l'envoyer, ou de le faire réaliser par un diagnostiqueur certifié.`, true);
-  } else if (!dpe.date) {
+  } else if (!dpeDate) {
     team("dpe", "DPE", "Date non lue : à vérifier dans le fichier", "file");
   } else {
-    const validUntil = dpeValidUntil(dpe.date);
-    const summary = dpe.energyClass ? `Classe ${dpe.energyClass}${dpe.gesClass ? `, GES ${dpe.gesClass}` : ""} · ` : "";
+    const validUntil = (official?.validUntil ? toDate(official.validUntil) : null) ?? dpeValidUntil(dpeDate);
+    const summary = dpeClass ? `Classe ${dpeClass}${gesClass ? `, GES ${gesClass}` : ""} · ` : "";
     if (validUntil && validUntil < now) {
       blocking(
         "dpe",
@@ -181,12 +187,12 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
         `${summary}expiré le ${day(validUntil)}`,
         `Votre DPE n'est plus valable depuis le ${day(validUntil)} : il faut en faire réaliser un nouveau par un diagnostiqueur certifié.`,
       );
-    } else if (dpe.energyClass && !context.commercial && assessDpe(dpe.energyClass, dpe.date, now).blocking) {
+    } else if (dpeClass && !context.commercial && assessDpe(dpeClass, dpeDate, now).blocking) {
       blocking(
         "dpe",
         "DPE",
-        assessDpe(dpe.energyClass, dpe.date, now).message || `Classe ${dpe.energyClass} : logement interdit à la location`,
-        `Votre logement est classé ${dpe.energyClass} au DPE : il ne peut plus être loué. Des travaux de rénovation énergétique sont nécessaires avant de signer un bail.`,
+        assessDpe(dpeClass, dpeDate, now).message || `Classe ${dpeClass} : logement interdit à la location`,
+        `Votre logement est classé ${dpeClass} au DPE : il ne peut plus être loué. Des travaux de rénovation énergétique sont nécessaires avant de signer un bail.`,
       );
     } else if (validUntil) {
       const soon = validUntil.getTime() - now.getTime() < SOON_MS;
@@ -194,21 +200,33 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
     } else {
       team("dpe", "DPE", "Date de validité inconnue : à vérifier dans le fichier", "file");
     }
-    // Lettre de l'étiquette recalculée à partir de la consommation et des émissions : une erreur d'étiquette
-    // change la classe reprise dans le bail (et peut cacher un logement G).
-    // Vérifiée dans la ligne DPE elle-même (pas de ligne à part) : un DPE valable passe « à vérifier ».
-    const expected = expectedDpeLetter(extraction);
+
+    // Vérifications faites dans la ligne DPE elle-même (pas de ligne à part) : un DPE valable passe « à vérifier ».
     const dpeLine = checks.find((check) => check.id === "dpe");
-    if (dpe.energyClass && expected && expected !== dpe.energyClass && dpeLine && dpeLine.group === "ok") {
+    const toCheck = (reason: string) => {
+      if (!dpeLine || dpeLine.group !== "ok") return;
       dpeLine.group = "team";
       dpeLine.tone = "warn";
       dpeLine.action = "file";
-      dpeLine.text = `${dpeLine.text} · les valeurs du DPE donnent la classe ${expected} : vérifiez l'étiquette`;
+      dpeLine.text = `${dpeLine.text} · ${reason}`;
+    };
+    const ademe = dpe.ademe;
+    if (ademe?.status === "no_number") {
+      toCheck("numéro ADEME absent du document : vérifiez que c'est un vrai DPE");
+    } else if (ademe?.status === "not_found") {
+      toCheck(`DPE n° ${ademe.number} introuvable dans la base officielle de l'ADEME : vérifiez que c'est un vrai DPE`);
+    } else if (official && official.postalCode && fiche?.postalCode && official.postalCode !== fiche.postalCode) {
+      toCheck(`selon la base de l'ADEME, ce DPE concerne un autre bien (${official.address || official.postalCode})`);
+    } else if (!official) {
+      // Lettre de l'étiquette recalculée à partir de la consommation et des émissions (sans valeurs officielles).
+      const expected = expectedDpeLetter(extraction);
+      if (dpe.energyClass && expected && expected !== dpe.energyClass) toCheck(`les valeurs du DPE donnent la classe ${expected} : vérifiez l'étiquette`);
     }
-    if (dpe.energyClass) {
+
+    if (dpeClass) {
       const ficheDate = isoDay(fiche?.dpeDate ?? null);
-      if (!fiche?.dpeClass || !ficheDate || fiche.dpeClass !== dpe.energyClass || ficheDate !== dpe.date) {
-        dpeToApply = { dpeClass: dpe.energyClass, gesClass: dpe.gesClass, dpeDate: dpe.date };
+      if (!fiche?.dpeClass || !ficheDate || fiche.dpeClass !== dpeClass || ficheDate !== dpeDate || (fiche.gesClass ?? null) !== (gesClass ?? null)) {
+        dpeToApply = { dpeClass, gesClass, dpeDate };
       }
     }
   }
