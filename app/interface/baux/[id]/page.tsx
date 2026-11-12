@@ -13,6 +13,8 @@ import { BailMoreMenu } from "@/components/leases/bail-more-menu";
 import { SendToNotaryButton } from "@/components/leases/send-to-notary-dialog";
 import { RemindButton, ReminderSummary } from "@/components/reminders/remind-button";
 import { getReminderPanel, type ReminderPanel } from "@/lib/actions/reminders";
+import { getBailComplementRequests } from "@/lib/actions/complement-requests";
+import { ComplementRequestsPanel } from "@/components/complements/complement-requests-panel";
 import { describeRentCapZone, rentCapBlocking, rentCapOverLines } from "@/lib/rent-cap";
 import { assessRentRules } from "@/lib/rent-rules";
 import { PROOF_LABELS, VACANCY_MONTHS, relocationSummaryLines } from "@/lib/utils/rent-relocation";
@@ -305,7 +307,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     getBailFollowUp(lease.id),
     prisma.bailVerificationCheck.findMany({ where: { bailId: lease.id }, select: { pointKey: true } }),
   ]);
-  const reminderPanel = await getReminderPanel(lease.id);
+  const [reminderPanel, complementRequests] = await Promise.all([getReminderPanel(lease.id), getBailComplementRequests(lease.id)]);
   const verifiedKeys = new Set(verificationChecks.map((c) => c.pointKey));
 
   // Pièces du client hors personnes et société (déjà affichées dans leur bloc).
@@ -621,11 +623,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const rentCapNotify = rentCap?.status === "over" && !bailLocked && rentCapLines?.length ? rentCapLines : null;
   const remind = reminderData && stage.key !== "clos" ? remindAction(reminderData, !!rentCapNotify) : null;
   // « Demander » sur une pièce manquante : même fenêtre, ouverte sur les éléments manquants de cette personne.
-  const requestButton = (only: "OWNER" | "TENANT") =>
-    reminderData && !pastVerification ? (
-      <RemindButton bailId={lease.id} label="Demander" focus="missing" only={only} initialPanel={reminderData} className="h-9" />
-    ) : undefined;
-
   const stepItems = STAGE_ORDER.filter((key) => key !== "clos" || stage.key === "clos");
   const progress = overall.total > 0 ? Math.round((overall.verified / overall.total) * 100) : 0;
   const ctaHelp = pastVerification
@@ -1129,6 +1126,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           </div>
 
           <div className="order-4 flex min-w-0 flex-col gap-[18px] lg:order-none">
+          {/* Pièces demandées au propriétaire ou au locataire : en attente, ou reçues et à vérifier */}
+          {complementRequests.length > 0 && <ComplementRequestsPanel requests={complementRequests} locked={pastVerification} />}
+
           {/* Le bail */}
           <CheckSection
             id="bloc-bail"
@@ -1213,7 +1213,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             verifiedKeys={verifiedKeys}
             locked={ownerLocked}
             formNote={formNote(ownerIntake)}
-            requestAction={requestButton("OWNER")}
+            complement={pastVerification ? undefined : { bailId: lease.id, target: "OWNER" }}
           />
           <PartyCheckSection
             id="bloc-locataire"
@@ -1223,7 +1223,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             verifiedKeys={verifiedKeys}
             locked={tenantLocked}
             formNote={formNote(tenantIntake)}
-            requestAction={requestButton("TENANT")}
+            complement={pastVerification ? undefined : { bailId: lease.id, target: "TENANT" }}
             emptyAction={pastVerification ? undefined : <TenantCreateButton bailId={lease.id} variant="default" className="h-10" />}
             emptyHint="Ajoutez-le si le propriétaire vous l'a communiqué : il recevra son formulaire par e-mail. Sinon, relancez le propriétaire avec le bouton en haut de la fiche."
           />
@@ -1367,7 +1367,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     inset
                     editable={!propertyLocked}
                     rows={propertyDocRows}
-                    requestAction={requestButton("OWNER")}
+                    complement={propertyLocked ? undefined : { bailId: lease.id, target: "OWNER" }}
                     verification={{
                       bailId: lease.id,
                       locked: propertyLocked,
@@ -1389,7 +1389,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               title="Documents du bail"
               subtitle={bailRules.length > 0 ? "Location précédente du local et pièces rattachées au bail" : "Pièces rattachées au bail lui-même"}
             >
-              <DocumentChecklist inset editable rows={bailDocRows} />
+              <DocumentChecklist
+                inset
+                editable
+                rows={bailDocRows}
+                complement={pastVerification ? undefined : { bailId: lease.id, target: "OWNER" }}
+              />
             </CheckSection>
           )}
 

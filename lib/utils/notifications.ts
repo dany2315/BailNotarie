@@ -82,6 +82,8 @@ function getNotificationMessageText(
       ].filter(Boolean);
       return `Diagnostics à régler — ${meta.propertyLabel || "un bien"}${parts.length ? ` : ${parts.join(", ")}` : ""}`;
     }
+    case "COMPLEMENT_SUBMITTED":
+      return `Pièces reçues — ${meta.clientName || "le client"} a répondu à la demande${meta.propertyLabel ? ` (${meta.propertyLabel})` : ""}`;
     case "LEAD_CONVERTED":
       return `Lead converti en ${meta.newProfilType === "PROPRIETAIRE" ? "propriétaire" : "locataire"}`;
     default:

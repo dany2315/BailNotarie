@@ -165,6 +165,7 @@ enum NotificationType {
   LEAD_CREATED
   LEAD_CONVERTED
   DIAGNOSTICS_TO_REVIEW
+  COMPLEMENT_SUBMITTED
 }
 
 enum DocumentKind {
@@ -270,6 +271,9 @@ model User {
   // Relations pour les demandes du notaire
   notaireRequestsCreated NotaireRequest[] @relation("NotaireRequestCreatedBy")
 
+  // Demandes de pièces envoyées depuis la fiche du bail
+  complementRequestsCreated ComplementRequest[] @relation("ComplementRequestCreatedBy")
+
   // Messages de chat sur les baux
   bailMessagesSent BailMessage[] @relation("BailMessageSender")
 }
@@ -301,6 +305,9 @@ model Client {
   documents Document[]
 
   bails Bail[] @relation("BailClients")
+
+  // Pièces que l'équipe lui a redemandées
+  complementRequests ComplementRequest[]
 
   intakeLinks IntakeLink[]
 
@@ -475,8 +482,8 @@ model Property {
   intakes   IntakeLink[] @relation("PropertyIntakes")
   bails     Bail[]       @relation("PropertyBails")
 
-  dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
-  diagnosticAnalyses DiagnosticAnalysis[]
+  dossierAssignments  DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
+  diagnosticAnalyses  DiagnosticAnalysis[]
   diagnosticDecisions DiagnosticDecision[]
 
   @@index([status])
@@ -687,6 +694,9 @@ model Bail {
 
   // Relances (e-mails, appels, reports) faites depuis l'interface
   reminders BailReminder[]
+
+  // Pièces redemandées par l'équipe au propriétaire ou au locataire
+  complementRequests ComplementRequest[]
 
   @@index([status])
   @@index([propertyId])
@@ -1004,6 +1014,10 @@ model Document {
 
   bailMessages BailMessage[] @relation("BailMessageDocument")
 
+  // Reçue via une demande de pièces de l'équipe
+  complementItemId String?
+  complementItem   ComplementRequestItem? @relation(fields: [complementItemId], references: [id], onDelete: SetNull)
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   uploadedById String?
@@ -1017,6 +1031,7 @@ model Document {
   @@index([uploadedById])
   @@index([fileKey])
   @@index([notaireRequestId])
+  @@index([complementItemId])
 }
 
 /**
@@ -1223,6 +1238,103 @@ model NotaireRequest {
   @@index([dossierId])
   @@index([status])
   @@index([createdById])
+}
+
+/**
+ * ---------------------- Demandes de pièces ------------------
+ * L'équipe redemande des pièces au propriétaire ou au locataire depuis la fiche du bail
+ * (manquante, illisible, expirée…). La personne les envoie depuis son espace client ;
+ * l'équipe accepte chaque pièce ou la redemande.
+ */
+
+enum ComplementRequestStatus {
+  OPEN // Envoyée : en attente de la personne
+  SUBMITTED // Tout est envoyé : à vérifier par l'équipe
+  ACCEPTED // Vérifiée et acceptée
+  CANCELLED // Annulée par l'équipe
+}
+
+enum ComplementItemStatus {
+  PENDING // À fournir
+  PROVIDED // Fournie, à vérifier
+  ACCEPTED // Acceptée par l'équipe
+}
+
+enum ComplementReason {
+  MISSING
+  ILLEGIBLE
+  EXPIRED
+  WRONG_DOCUMENT
+  INCOMPLETE
+}
+
+model ComplementRequest {
+  id String @id @default(cuid())
+
+  bailId String
+  bail   Bail   @relation(fields: [bailId], references: [id], onDelete: Cascade)
+
+  // Partie à qui la demande est adressée
+  clientId String
+  client   Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  target   ReminderTarget
+
+  status ComplementRequestStatus @default(OPEN)
+
+  // Message de l'équipe, relu dans l'aperçu de l'e-mail avant l'envoi
+  message        String?   @db.Text
+  recipientEmail String
+  sentCount      Int       @default(1)
+  lastSentAt     DateTime  @default(now())
+  submittedAt    DateTime?
+  closedAt       DateTime?
+
+  createdById   String?
+  createdBy     User?   @relation("ComplementRequestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items ComplementRequestItem[]
+
+  @@index([bailId, status])
+  @@index([clientId, status])
+}
+
+model ComplementRequestItem {
+  id String @id @default(cuid())
+
+  requestId String
+  request   ComplementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  position  Int               @default(0)
+
+  documentKind DocumentKind
+  // Nom simple montré à la personne (« Pièce d'identité de Marie Durand »)
+  label        String
+  reason       ComplementReason     @default(MISSING)
+  // Précision de l'équipe, affichée à la personne
+  note         String?              @db.Text
+  status       ComplementItemStatus @default(PENDING)
+
+  // Rattachement de la nouvelle pièce (une seule cible), comme les pièces du dossier
+  personId     String?
+  entrepriseId String?
+  clientId     String?
+  propertyId   String?
+  bailId       String?
+
+  // Pièces à remplacer (illisible, expirée…) : supprimées quand l'équipe accepte la nouvelle
+  replacesDocumentIds String[] @default([])
+
+  providedAt DateTime?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  documents Document[]
+
+  @@index([requestId])
 }
 
 /**

@@ -328,6 +328,7 @@ export function PartyCheckSection({
   emptyAction,
   emptyHint,
   requestAction,
+  complement,
 }: {
   id: string;
   role: keyof typeof ROLE_TITLES;
@@ -342,6 +343,8 @@ export function PartyCheckSection({
   emptyHint?: string;
   /** « Demander » sur les pièces manquantes (ouvre la relance). */
   requestAction?: ReactNode;
+  /** Demandes de pièces à cette personne (« Demander », « Redemander »). */
+  complement?: { bailId: string; target: "OWNER" | "TENANT" };
 }) {
   const roleTitle = ROLE_TITLES[role];
   const party = data.party;
@@ -430,6 +433,7 @@ export function PartyCheckSection({
           <DocumentChecklist
             rows={data.docRows}
             requestAction={requestAction}
+            complement={complement}
             inset
             editable={!locked}
             verification={{

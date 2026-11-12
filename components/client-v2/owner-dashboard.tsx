@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { ClientComplementRequest } from "@/lib/actions/complement-requests";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -111,6 +112,8 @@ export interface OwnerDashboardProps {
   pendingRequests: PendingRequest[];
   /** Justificatifs du loyer attendus (relocation en zone tendue), par bail. */
   rentProofs?: RentProofTodo[];
+  /** Pièces que l'équipe redemande (demandes en attente du propriétaire). */
+  complementRequests?: ClientComplementRequest[];
   activeIntakes: ActiveIntake[];
   bailDrafts: BailDraft[];
   userName: string | null;
@@ -192,6 +195,7 @@ export function OwnerDashboard({
   bailDrafts: initialBailDrafts,
   userName,
   rentProofs = [],
+  complementRequests = [],
 }: OwnerDashboardProps) {
   const { demo } = useOwnerRuntime();
   const [bailDrafts, setBailDrafts] = React.useState(initialBailDrafts);
@@ -218,7 +222,8 @@ export function OwnerDashboard({
     (bail) => bail.status === "AWAITING_TENANT" && !bail.parties.some((party) => party.profilType === "LOCATAIRE"),
   );
   const enCours = baux.filter((bail) => ACTIVE_STATUSES.includes(bail.status)).length;
-  const aTraiter = pendingRequests.length + activeIntakes.length + bailDrafts.length + missingTenantBails.length + rentProofs.length;
+  const aTraiter =
+    pendingRequests.length + complementRequests.length + activeIntakes.length + bailDrafts.length + missingTenantBails.length + rentProofs.length;
   const signes = baux.filter((bail) => bail.status === "SIGNED").length;
 
   const recentBails = React.useMemo(
@@ -243,6 +248,18 @@ export function OwnerDashboard({
       href: request.bail
         ? `/client/proprietaire/demandes?open=bail-${request.bail.id}&chat=1`
         : undefined,
+    })),
+    // L'équipe redemande des pièces : la page de la demande ne montre qu'elles.
+    ...complementRequests.map((request) => ({
+      key: `complement-${request.id}`,
+      icon: FileText,
+      tone: "amber" as Tone,
+      kicker: "À faire · Pièces demandées",
+      title: request.propertyLabel || request.address.split(",")[0] || "Votre dossier",
+      subtitle: null,
+      message: `${request.items.length > 1 ? `${request.items.length} pièces` : "1 pièce"} à nous envoyer : ${request.items.map((item) => item.label).join(" · ")}`,
+      actionLabel: "Envoyer",
+      href: `/client/proprietaire/demande/${request.id}`,
     })),
     // Le dossier attend le locataire : le propriétaire l'ajoute dès qu'il l'a trouvé.
     ...missingTenantBails.map((bail) => ({

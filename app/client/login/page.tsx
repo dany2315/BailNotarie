@@ -23,6 +23,13 @@ const otpSchema = z.object({
   code: z.string().length(6, "Le code doit contenir 6 chiffres"),
 });
 
+/** Page demandée avant la connexion (lien reçu par e-mail), limitée à l'espace client. */
+function nextPath(): string | null {
+  if (typeof window === "undefined") return null;
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next && /^\/client\/[\w/-]+$/.test(next) ? next : null;
+}
+
 type LoginFormData = z.infer<typeof loginSchema>;
 type OTPFormData = z.infer<typeof otpSchema>;
 
@@ -52,7 +59,10 @@ export default function ClientLoginPage() {
             
             // Si c'est un client, rediriger vers son dashboard approprié
             if (role === "UTILISATEUR") {
-              if (profilType === "PROPRIETAIRE") {
+              const next = nextPath();
+              if (next) {
+                router.push(next);
+              } else if (profilType === "PROPRIETAIRE") {
                 router.push("/client/proprietaire");
               } else if (profilType === "LOCATAIRE") {
                 router.push("/client/locataire");
@@ -206,6 +216,13 @@ export default function ClientLoginPage() {
       // Attendre un peu pour que le cookie soit défini
       await new Promise(resolve => setTimeout(resolve, 300));
       
+      // Lien reçu par e-mail (pièces demandées…) : on y retourne.
+      const next = nextPath();
+      if (next) {
+        window.location.href = next;
+        return;
+      }
+
       // Récupérer le profilType pour rediriger directement vers la bonne page
       try {
         const userResponse = await fetch("/api/user/current");

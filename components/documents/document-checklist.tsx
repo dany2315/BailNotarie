@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Download, Eye, Loader2 } from "lucide-react";
+import { Check, Download, Eye, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentViewer } from "@/components/leases/document-viewer";
 import { useDownloadFile } from "@/hooks/use-download-file";
@@ -12,6 +12,8 @@ import { VerifyBullet } from "@/components/admin/verify-buttons";
 import { DocumentDeleteButton } from "@/components/documents/document-delete-button";
 import { DocumentUploadButton } from "@/components/documents/document-upload-button";
 import { FileStack } from "@/components/documents/file-stack";
+import { ComplementRequestButton } from "@/components/complements/complement-composer";
+import { complementKey } from "@/lib/utils/complement";
 
 function formatSize(size?: number | null) {
   if (!size || size <= 0) return null;
@@ -43,6 +45,7 @@ export function DocumentChecklist({
   verification,
   editable = false,
   requestAction,
+  complement,
 }: {
   rows: ChecklistRow[];
   className?: string;
@@ -54,6 +57,11 @@ export function DocumentChecklist({
   editable?: boolean;
   /** Fiche dossier : « Demander » une pièce obligatoire manquante (ouvre la relance). */
   requestAction?: React.ReactNode;
+  /**
+   * Fiche dossier : demandes de pièces à cette personne. « Demander » sur une pièce manquante,
+   * « Redemander » sur une pièce reçue (illisible, expirée…). Remplace « requestAction ».
+   */
+  complement?: { bailId: string; target: "OWNER" | "TENANT" };
 }) {
   const { downloadFile, isFileDownloading } = useDownloadFile();
   // Fichiers en cours de suppression : leurs autres actions sont bloquées jusqu'au rechargement.
@@ -80,7 +88,13 @@ export function DocumentChecklist({
         // Avec la vérification : coche verte seulement une fois la pièce validée.
         const checked = present && (!verification || !!point?.verified);
         const canUpload = editable && !!row.upload;
-        const hasActions = (canUpload && !present) || (missing && !!requestAction);
+        const requestKey = complement && row.upload ? complementKey(row.kind, row.upload) : null;
+        const requestButton = requestKey ? (
+          <ComplementRequestButton bailId={complement!.bailId} target={complement!.target} preselect={{ key: requestKey }} label="Demander" />
+        ) : (
+          requestAction
+        );
+        const hasActions = (canUpload && !present) || (missing && !!requestButton);
         return (
           <li
             key={row.key}
@@ -131,9 +145,14 @@ export function DocumentChecklist({
                     aria-busy={deleting}
                     className={cn("flex flex-col gap-2 transition-opacity", stacked && "p-2.5", deleting && "opacity-60")}
                   >
-                    <span className="flex min-w-0 items-center gap-1.5 truncate text-[13px] text-muted-foreground">
+                    <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
                       {deleting && <Loader2 className="size-3.5 shrink-0 animate-spin text-red-700" />}
-                      {deleting ? <span className="font-medium text-red-700">Suppression en cours…</span> : meta || "Fichier"}
+                      <span className="min-w-0 truncate">
+                        {deleting ? <span className="font-medium text-red-700">Suppression en cours…</span> : meta || "Fichier"}
+                      </span>
+                      {doc.viaComplement && !deleting && (
+                        <span className="shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 text-[11.5px] font-semibold text-blue-700">Reçue via la demande</span>
+                      )}
                     </span>
                     <span className="flex flex-wrap gap-2">
                       <DocumentViewer document={doc} documentKindLabels={documentKindLabels}>
@@ -154,6 +173,15 @@ export function DocumentChecklist({
                         Télécharger
                       </Button>
                       {canUpload && <DocumentUploadButton target={row.upload!} kind={row.kind} replaceIds={[doc.id]} disabled={deleting} />}
+                      {requestKey && !deleting && (
+                        <ComplementRequestButton
+                          bailId={complement!.bailId}
+                          target={complement!.target}
+                          preselect={{ key: requestKey }}
+                          label="Redemander"
+                          icon={<RotateCcw className="size-4" />}
+                        />
+                      )}
                       {editable && (
                         <DocumentDeleteButton
                           documentId={doc.id}
@@ -178,7 +206,7 @@ export function DocumentChecklist({
             </div>
             {hasActions && (
               <div className="col-span-2 flex flex-wrap items-start gap-2 sm:col-span-1 sm:justify-end [&>*]:flex-1 sm:[&>*]:flex-none">
-                {missing && requestAction}
+                {missing && requestButton}
                 {canUpload && !present && <DocumentUploadButton target={row.upload!} kind={row.kind} />}
               </div>
             )}

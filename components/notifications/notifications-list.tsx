@@ -102,6 +102,8 @@ function getNotificationMessage(notification: Notification): string {
       ].filter(Boolean);
       return `Diagnostics à régler — ${metadata.propertyLabel || "un bien"}${parts.length ? ` : ${parts.join(", ")}` : ""}`;
     }
+    case "COMPLEMENT_SUBMITTED":
+      return `Pièces reçues — ${metadata.clientName || "le client"} a répondu à la demande${metadata.propertyLabel ? ` (${metadata.propertyLabel})` : ""}`;
     case "LEAD_CONVERTED":
       return `Lead converti en ${metadata.newProfilType === "PROPRIETAIRE" ? "propriétaire" : "locataire"}`;
     default:

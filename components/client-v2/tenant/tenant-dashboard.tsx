@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { TodoRow } from "../owner-todo";
+import type { ClientComplementRequest } from "@/lib/actions/complement-requests";
 import { useOwnerRuntime } from "../owner-runtime";
 import {
   EmptyState,
@@ -53,6 +54,8 @@ export interface TenantDashboardProps {
   pendingRequests: TenantPendingRequest[];
   activeIntake: TenantIntake | null;
   userName: string | null;
+  /** Pièces que l'équipe redemande (demandes en attente du locataire). */
+  complementRequests?: ClientComplementRequest[];
 }
 
 type TodoItem = {
@@ -72,6 +75,7 @@ export function TenantDashboard({
   pendingRequests,
   activeIntake,
   userName,
+  complementRequests = [],
 }: TenantDashboardProps) {
   const { demo } = useOwnerRuntime();
   const todoRef = React.useRef<HTMLDivElement>(null);
@@ -94,7 +98,7 @@ export function TenantDashboard({
 
   const enCours = activeBails.filter((bail) => ACTIVE_STATUSES.includes(bail.status)).length;
   const signes = activeBails.filter((bail) => bail.status === "SIGNED").length;
-  const aTraiter = pendingRequests.length + (activeIntake ? 1 : 0);
+  const aTraiter = pendingRequests.length + complementRequests.length + (activeIntake ? 1 : 0);
 
   const recentBails = React.useMemo(
     () =>
@@ -133,6 +137,18 @@ export function TenantDashboard({
       message: request.content || null,
       actionLabel: "Répondre",
       href: request.bail ? `/client/locataire/baux/${request.bail.id}?chat=1` : undefined,
+    })),
+    // L'équipe redemande des pièces : la page de la demande ne montre qu'elles.
+    ...complementRequests.map((request) => ({
+      key: `complement-${request.id}`,
+      icon: FileText,
+      tone: "amber" as Tone,
+      kicker: "À faire · Pièces demandées",
+      title: request.propertyLabel || request.address.split(",")[0] || "Votre dossier",
+      subtitle: null,
+      message: `${request.items.length > 1 ? `${request.items.length} pièces` : "1 pièce"} à nous envoyer : ${request.items.map((item) => item.label).join(" · ")}`,
+      actionLabel: "Envoyer",
+      href: `/client/locataire/demande/${request.id}`,
     })),
     ...(activeIntake
       ? [

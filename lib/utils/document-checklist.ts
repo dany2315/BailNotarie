@@ -9,6 +9,8 @@ export interface ChecklistDocument {
   label?: string | null;
   size?: number | null;
   createdAt?: Date | string | null;
+  /** Reçue via une demande de pièces de l'équipe. */
+  viaComplement?: boolean;
 }
 
 /** Où rattacher une pièce envoyée depuis la fiche (une seule cible). */
@@ -100,6 +102,7 @@ export function toChecklistDocument(doc: {
   label?: string | null;
   size?: number | null;
   createdAt?: Date | string | null;
+  complementItemId?: string | null;
 }): ChecklistDocument {
   return {
     id: doc.id,
@@ -109,5 +112,6 @@ export function toChecklistDocument(doc: {
     label: doc.label ?? null,
     size: doc.size ?? null,
     createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
+    viaComplement: !!doc.complementItemId,
   };
 }

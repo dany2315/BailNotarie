@@ -60,6 +60,8 @@ const DETAIL_ROUTES: Array<{ pattern: RegExp; parent: OwnerTabKey }> = [
   { pattern: /^\/client\/proprietaire\/biens\/(?!new$)[^/]+$/, parent: "dossiers" },
   { pattern: /^\/client\/proprietaire\/baux\/(?!new$)[^/]+$/, parent: "dossiers" },
   { pattern: /^\/client\/locataire\/baux\/(?!new$)[^/]+$/, parent: "dossiers" },
+  // Pièces demandées par l'équipe : on y arrive depuis l'accueil ou l'e-mail.
+  { pattern: /^\/client\/(proprietaire|locataire)\/demande\/[^/]+$/, parent: "dashboard" },
 ];
 
 /** La sous-page de détail où l'on se trouve, s'il y en a une. */
