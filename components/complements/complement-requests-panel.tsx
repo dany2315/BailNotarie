@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Clock3, Eye, Loader2, RotateCcw } from "lucide-react";
+import { ArrowRight, Check, Clock3, Eye, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CheckSection, StateChip } from "@/components/admin/check-list";
@@ -16,7 +16,7 @@ import {
   type StaffComplementItem,
   type StaffComplementRequest,
 } from "@/lib/actions/complement-requests";
-import { COMPLEMENT_NOTE_MAX, REASON_LABELS, REDO_REASONS, type ComplementReasonValue } from "@/lib/utils/complement";
+import { COMPLEMENT_NOTE_MAX, FIELD_REDO_REASONS, REASON_LABELS, REDO_REASONS, type ComplementReasonValue } from "@/lib/utils/complement";
 import { cn } from "@/lib/utils";
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: "Europe/Paris" });
@@ -39,6 +39,9 @@ function RequestCard({ request, locked }: { request: StaffComplementRequest; loc
   const toReview = request.items.filter((item) => item.status === "PROVIDED").length;
   const waiting = request.items.filter((item) => item.status === "PENDING").length;
   const who = request.target === "OWNER" ? "propriétaire" : "locataire";
+  const hasFields = request.items.some((item) => item.type === "FIELD");
+  const hasPieces = request.items.some((item) => item.type !== "FIELD");
+  const what = hasFields && hasPieces ? "Pièces et informations demandées" : hasFields ? "Informations demandées" : "Pièces demandées";
 
   const run = async (key: string, action: () => Promise<{ success: true } | { success: false; error: string }>, done: string) => {
     setBusy(key);
@@ -57,7 +60,7 @@ function RequestCard({ request, locked }: { request: StaffComplementRequest; loc
   return (
     <CheckSection
       id={`demande-${request.id}`}
-      title={`Pièces demandées au ${who}`}
+      title={`${what} au ${who}`}
       subtitle={`${request.recipientName} · ${request.submittedAt ? `réponse reçue le ${fmtDay(request.submittedAt)}` : sent}`}
       headerRight={
         request.status === "SUBMITTED" ? (
@@ -77,7 +80,7 @@ function RequestCard({ request, locked }: { request: StaffComplementRequest; loc
               type="button"
               className="h-10 gap-1.5 max-sm:flex-1"
               disabled={!!busy || toReview === 0}
-              onClick={() => run("accept-all", () => acceptComplementRequest({ requestId: request.id }), "Pièces acceptées")}
+              onClick={() => run("accept-all", () => acceptComplementRequest({ requestId: request.id }), "Tout est accepté")}
             >
               {busy === "accept-all" ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
               Tout accepter
@@ -142,8 +145,10 @@ function ItemRow({
   busy: string | null;
   run: (key: string, action: () => Promise<{ success: true } | { success: false; error: string }>, done: string) => Promise<void>;
 }) {
+  const field = item.type === "FIELD";
+  const reasons = field ? FIELD_REDO_REASONS : REDO_REASONS;
   const [redo, setRedo] = React.useState(false);
-  const [reason, setReason] = React.useState<ComplementReasonValue>("ILLEGIBLE");
+  const [reason, setReason] = React.useState<ComplementReasonValue>(reasons[0]);
   const [note, setNote] = React.useState("");
   const provided = item.status === "PROVIDED";
 
@@ -176,9 +181,29 @@ function ItemRow({
           {item.status === "ACCEPTED"
             ? "Acceptée"
             : provided
-              ? `Reçue · à vérifier${item.replaces > 0 ? " · remplacera l'ancien fichier une fois acceptée" : ""}`
-              : "En attente du client"}
+              ? field
+                ? "Renseignée · à vérifier (déjà enregistrée dans le dossier)"
+                : `Reçue · à vérifier${item.replaces > 0 ? " · remplacera l'ancien fichier une fois acceptée" : ""}`
+              : item.automatic
+                ? "En attente du client · demandée d'elle-même après une de ses réponses"
+                : "En attente du client"}
         </p>
+
+        {field && item.changes.length > 0 && (
+          <dl className="grid grid-cols-1 gap-1.5 rounded-lg border bg-muted/20 px-3 py-2.5 text-[13px] sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] sm:gap-x-3">
+            {item.changes.map((change) => (
+              <React.Fragment key={change.label}>
+                <dt className="font-medium text-muted-foreground">{change.label}</dt>
+                <dd className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+                  <span className="text-muted-foreground line-through decoration-slate-300">{change.before}</span>
+                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="font-semibold">{change.after}</span>
+                </dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        )}
+        {field && provided && item.changes.length === 0 && <p className="text-[13px] text-muted-foreground">Le client a confirmé les valeurs, sans rien changer.</p>}
 
         {item.documents.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -204,7 +229,7 @@ function ItemRow({
               size="sm"
               className="h-9 gap-1.5"
               disabled={!!busy}
-              onClick={() => run(`accept-${item.id}`, () => reviewComplementItem({ itemId: item.id, decision: "accept" }), "Pièce acceptée")}
+              onClick={() => run(`accept-${item.id}`, () => reviewComplementItem({ itemId: item.id, decision: "accept" }), field ? "Information acceptée" : "Pièce acceptée")}
             >
               {busy === `accept-${item.id}` ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
               Accepter
@@ -219,7 +244,7 @@ function ItemRow({
         {redo && (
           <div className="flex flex-col gap-2.5 rounded-lg border bg-muted/30 p-3">
             <div role="radiogroup" aria-label="Motif" className="flex flex-wrap gap-1.5">
-              {REDO_REASONS.map((value) => (
+              {reasons.map((value) => (
                 <button
                   key={value}
                   type="button"
@@ -256,7 +281,7 @@ function ItemRow({
                   run(
                     `redo-${item.id}`,
                     () => reviewComplementItem({ itemId: item.id, decision: "redo", reason, note: note.trim() || undefined }),
-                    "Pièce redemandée : le client a reçu un e-mail",
+                    field ? "Information redemandée : le client a reçu un e-mail" : "Pièce redemandée : le client a reçu un e-mail",
                   )
                 }
               >

@@ -53,7 +53,9 @@ function FieldError({ form, path }: { form: FormLike; path: string }) {
   return message ? <p className="text-sm text-destructive">{message}</p> : null;
 }
 
-function StepHeader({ title, subtitle }: { title: string; subtitle: string }) {
+/** En-tête d'étape ; masqué quand l'étape est posée seule (demande de complément). */
+function StepHeader({ title, subtitle, hidden = false }: { title: string; subtitle: string; hidden?: boolean }) {
+  if (hidden) return null;
   return (
     <div>
       <p className="text-xl font-semibold">{title}</p>
@@ -231,11 +233,11 @@ export function CommercialPropertyDetails({ form }: { form: FormLike }) {
 /* Étape « L'activité »                                                */
 /* ------------------------------------------------------------------ */
 
-export function CommercialActivityStep({ form }: { form: FormLike }) {
+export function CommercialActivityStep({ form, bare = false }: { form: FormLike; bare?: boolean }) {
   const previouslyLet = useWatch({ control: form.control, name: "commercial.previouslyLet" });
   return (
     <div className="space-y-5">
-      <StepHeader title="L'activité" subtitle="L'activité qui sera exercée dans le local, et sa situation actuelle." />
+      <StepHeader hidden={bare} title="L'activité" subtitle="L'activité qui sera exercée dans le local, et sa situation actuelle." />
       <TextField
         form={form}
         name="commercial.activity"
@@ -270,7 +272,7 @@ const DURATION_OPTIONS = [
   { value: BailType.COMMERCIAL_DEROGATOIRE, label: "Bail dérogatoire (courte durée)", hint: `${DEROGATORY_MAX_MONTHS} mois au plus, sans droit au renouvellement` },
 ];
 
-export function CommercialDurationStep({ form }: { form: FormLike }) {
+export function CommercialDurationStep({ form, bare = false }: { form: FormLike; bare?: boolean }) {
   const bailType = useWatch({ control: form.control, name: "bailType" });
   const effectiveDate = useWatch({ control: form.control, name: "bailEffectiveDate" });
   const months = useWatch({ control: form.control, name: "commercial.derogatoryMonths" });
@@ -286,7 +288,7 @@ export function CommercialDurationStep({ form }: { form: FormLike }) {
 
   return (
     <div className="space-y-5">
-      <StepHeader title="Durée et dates" subtitle="La durée du bail, sa prise d'effet et la remise des clés." />
+      <StepHeader hidden={bare} title="Durée et dates" subtitle="La durée du bail, sa prise d'effet et la remise des clés." />
       <div className="space-y-2">
         <Label>Durée du bail *</Label>
         <Controller
@@ -379,7 +381,7 @@ const dateValue = (value: unknown): string | undefined => {
 /* Étape « Le loyer »                                                  */
 /* ------------------------------------------------------------------ */
 
-export function CommercialRentStep({ form }: { form: FormLike }) {
+export function CommercialRentStep({ form, bare = false }: { form: FormLike; bare?: boolean }) {
   const rent = useWatch({ control: form.control, name: "bailRentAmount" });
   const rentFree = useWatch({ control: form.control, name: "commercial.rentFree" });
   const indexation = useWatch({ control: form.control, name: "commercial.indexation" });
@@ -394,7 +396,7 @@ export function CommercialRentStep({ form }: { form: FormLike }) {
 
   return (
     <div className="space-y-5">
-      <StepHeader title="Le loyer" subtitle="Le loyer hors taxes et ses conditions de paiement." />
+      <StepHeader hidden={bare} title="Le loyer" subtitle="Le loyer hors taxes et ses conditions de paiement." />
       <div className="space-y-2">
         <Label>Loyer mensuel hors taxes et hors charges *</Label>
         <NumberInputGroup field={form.register("bailRentAmount")} min={0} step={1} unit="€" className="h-11" />
@@ -470,11 +472,11 @@ export function CommercialRentStep({ form }: { form: FormLike }) {
 /* Étape « Dépôt et frais »                                            */
 /* ------------------------------------------------------------------ */
 
-export function CommercialDepositStep({ form }: { form: FormLike }) {
+export function CommercialDepositStep({ form, bare = false }: { form: FormLike; bare?: boolean }) {
   const entryFee = useWatch({ control: form.control, name: "commercial.entryFee" });
   return (
     <div className="space-y-5">
-      <StepHeader title="Dépôt et frais" subtitle="La provision pour charges, le dépôt de garantie et les frais de l'acte." />
+      <StepHeader hidden={bare} title="Dépôt et frais" subtitle="La provision pour charges, le dépôt de garantie et les frais de l'acte." />
       <div className="space-y-2">
         <Label>Provision mensuelle pour charges *</Label>
         <p className="text-xs text-muted-foreground">Mettez 0 s&apos;il n&apos;y en a pas.</p>
@@ -582,12 +584,12 @@ function WorksList({ form, name }: { form: FormLike; name: "pastWorks" | "planne
   );
 }
 
-export function CommercialChargesStep({ form }: { form: FormLike }) {
+export function CommercialChargesStep({ form, bare = false }: { form: FormLike; bare?: boolean }) {
   const hasPastWorks = useWatch({ control: form.control, name: "commercial.hasPastWorks" });
   const hasPlannedWorks = useWatch({ control: form.control, name: "commercial.hasPlannedWorks" });
   return (
     <div className="space-y-5">
-      <StepHeader
+      <StepHeader hidden={bare}
         title="Charges et travaux"
         subtitle="La loi impose de préciser qui paie chaque charge, et les travaux passés et prévus."
       />
@@ -644,11 +646,11 @@ export function CommercialChargesStep({ form }: { form: FormLike }) {
 /* Étape « Garanties et clauses »                                      */
 /* ------------------------------------------------------------------ */
 
-export function CommercialClausesStep({ form }: { form: FormLike }) {
+export function CommercialClausesStep({ form, bare = false }: { form: FormLike; bare?: boolean }) {
   const hasGuarantor = useWatch({ control: form.control, name: "commercial.hasGuarantor" });
   return (
     <div className="space-y-5">
-      <StepHeader title="Garanties et clauses" subtitle="Un garant éventuel et les clauses particulières que vous souhaitez." />
+      <StepHeader hidden={bare} title="Garanties et clauses" subtitle="Un garant éventuel et les clauses particulières que vous souhaitez." />
       <YesNoQuestion form={form} name="hasGuarantor" label="Une personne se porte-t-elle garante du locataire ? *" />
       {hasGuarantor === "yes" && (
         <div className="grid gap-3 sm:grid-cols-2">

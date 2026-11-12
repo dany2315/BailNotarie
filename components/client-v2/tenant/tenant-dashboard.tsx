@@ -15,6 +15,7 @@ import {
 
 import { TodoRow } from "../owner-todo";
 import type { ClientComplementRequest } from "@/lib/actions/complement-requests";
+import { complementCountLabel } from "@/lib/utils/complement";
 import { useOwnerRuntime } from "../owner-runtime";
 import {
   EmptyState,
@@ -138,16 +139,16 @@ export function TenantDashboard({
       actionLabel: "Répondre",
       href: request.bail ? `/client/locataire/baux/${request.bail.id}?chat=1` : undefined,
     })),
-    // L'équipe redemande des pièces : la page de la demande ne montre qu'elles.
+    // L'équipe demande des pièces ou des informations : la page de la demande ne montre qu'elles.
     ...complementRequests.map((request) => ({
       key: `complement-${request.id}`,
       icon: FileText,
       tone: "amber" as Tone,
-      kicker: "À faire · Pièces demandées",
+      kicker: request.items.some((item) => item.type === "FIELD") ? "À faire · Demande de l'équipe" : "À faire · Pièces demandées",
       title: request.propertyLabel || request.address.split(",")[0] || "Votre dossier",
       subtitle: null,
-      message: `${request.items.length > 1 ? `${request.items.length} pièces` : "1 pièce"} à nous envoyer : ${request.items.map((item) => item.label).join(" · ")}`,
-      actionLabel: "Envoyer",
+      message: `${complementCountLabel(request.items.map((item) => ({ kind: item.type })))} ${request.items.some((item) => item.type === "FIELD") ? "à compléter" : "à nous envoyer"} : ${request.items.map((item) => item.label).join(" · ")}`,
+      actionLabel: request.items.some((item) => item.type === "FIELD") ? "Compléter" : "Envoyer",
       href: `/client/locataire/demande/${request.id}`,
     })),
     ...(activeIntake

@@ -1266,6 +1266,13 @@ enum ComplementReason {
   EXPIRED
   WRONG_DOCUMENT
   INCOMPLETE
+  WRONG_VALUE // Information à corriger
+  TO_CONFIRM // Information à confirmer
+}
+
+enum ComplementItemKind {
+  DOCUMENT // Pièce à envoyer
+  FIELD // Information à compléter (question du formulaire)
 }
 
 model ComplementRequest {
@@ -1309,7 +1316,15 @@ model ComplementRequestItem {
   request   ComplementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   position  Int               @default(0)
 
-  documentKind DocumentKind
+  kind         ComplementItemKind @default(DOCUMENT)
+  // Pièce : son type. Information : vide.
+  documentKind DocumentKind?
+  // Information : question demandée (« person.birth », « property.legalStatus »…). Pièce ajoutée
+  // automatiquement après une réponse : « auto:<question> ».
+  fieldKey     String?
+  // Information : valeurs au moment de la demande, puis réponse du client (historique de la ligne)
+  previousValue Json?
+  providedValue Json?
   // Nom simple montré à la personne (« Pièce d'identité de Marie Durand »)
   label        String
   reason       ComplementReason     @default(MISSING)

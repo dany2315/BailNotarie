@@ -4,11 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   BailFamille,
+  ComplementItemKind,
   ComplementItemStatus,
   ComplementReason,
   ComplementRequestStatus,
   DocumentKind,
   NotificationType,
+  Prisma,
   ProfilType,
   ReminderTarget,
   Role,
@@ -40,10 +42,31 @@ import {
   COMPLEMENT_MESSAGE_MAX,
   COMPLEMENT_NOTE_MAX,
   complementEmailContent,
+  complementItemKey,
   complementKey,
   complementRequestPath,
+  fieldComplementKey,
+  type ComplementItemKindValue,
   type ComplementReasonValue,
 } from "@/lib/utils/complement";
+import {
+  FIELD_QUESTION_IDS,
+  availableQuestions,
+  describeChanges,
+  missingQuestions,
+  pickQuestionValues,
+  questionErrors,
+  questionLabel,
+  questionPersonName,
+  questionScope,
+  sameQuestion,
+  questionSummary,
+  type FieldChange,
+  type FieldQuestionId,
+  type QuestionContext,
+  type QuestionRef,
+} from "@/lib/rules/complement-questions";
+import { loadDossierState, personIndexOf, saveAnswer, type DossierState } from "@/lib/complements/dossier-answers";
 
 type Fail = { success: false; error: string };
 
@@ -124,6 +147,20 @@ export interface ComposerRow {
   pending: boolean;
 }
 
+/** Information qu'on peut demander (une question du formulaire). */
+export interface ComposerFieldRow {
+  key: string;
+  question: FieldQuestionId;
+  label: string;
+  group: "party" | "property" | "bail";
+  target: { personId?: string; entrepriseId?: string; propertyId?: string; bailId?: string };
+  /** Données manquantes de cette question (vide : tout est renseigné). */
+  missing: string[];
+  /** Valeurs actuelles, en clair. */
+  current: string;
+  pending: boolean;
+}
+
 export interface ComposerData {
   bailId: string;
   target: ReminderTarget;
@@ -133,14 +170,70 @@ export interface ComposerData {
   email: string | null;
   address: string;
   rows: ComposerRow[];
+  fields: ComposerFieldRow[];
+  /** Formulaire pas encore envoyé : on le relance, on ne demande rien d'autre. */
+  formPending: boolean;
   /** Demande déjà ouverte pour cette personne : les nouvelles pièces s'y ajoutent. */
   openRequest: {
     id: string;
     status: ComplementRequestStatus;
     message: string | null;
-    /** Pièces déjà attendues : l'e-mail repart avec elles et les nouvelles. */
-    pendingItems: Array<{ label: string; reason: ComplementReasonValue; note: string | null }>;
+    /** Lignes déjà attendues : l'e-mail repart avec elles et les nouvelles. */
+    pendingItems: Array<{ label: string; reason: ComplementReasonValue; note: string | null; kind: ComplementItemKindValue }>;
   } | null;
+}
+
+/** Rattachement d'une question : la personne, la société, le bien ou le bail. */
+function questionTarget(state: DossierState, ref: QuestionRef): ComposerFieldRow["target"] | null {
+  switch (questionScope(ref.id)) {
+    case "person": {
+      const personId = state.personIds[ref.personIndex ?? 0];
+      return personId ? { personId } : null;
+    }
+    case "entreprise":
+      return state.party.entreprise ? { entrepriseId: state.party.entreprise.id } : null;
+    case "property":
+      return state.bail.property ? { propertyId: state.bail.property.id } : null;
+    case "bail":
+      return { bailId: state.bail.id };
+  }
+}
+
+function questionGroup(id: FieldQuestionId): ComposerFieldRow["group"] {
+  const scope = questionScope(id);
+  return scope === "person" || scope === "entreprise" ? "party" : scope === "property" ? "property" : "bail";
+}
+
+function labelFor(state: DossierState, ref: QuestionRef) {
+  const person = ref.personIndex !== null ? state.values.persons?.[ref.personIndex] : null;
+  return questionLabel(ref.id, { personName: person ? questionPersonName(person) : null, commercial: state.ctx.bailFamily === "COMMERCIAL" });
+}
+
+/** Informations que l'équipe peut demander : les manquantes d'abord, puis les autres (à corriger ou confirmer). */
+function composerFields(state: DossierState): ComposerFieldRow[] {
+  const missing = missingQuestions(state.values, state.ctx);
+  const rows: ComposerFieldRow[] = [];
+  for (const ref of availableQuestions(state.values, state.ctx)) {
+    const target = questionTarget(state, ref);
+    if (!target) continue;
+    rows.push({
+      key: fieldComplementKey(ref.id, target),
+      question: ref.id,
+      label: labelFor(state, ref),
+      group: questionGroup(ref.id),
+      target,
+      missing: missing.find((m) => sameQuestion(m, ref))?.messages ?? [],
+      current: questionSummary(ref, state.values, state.ctx),
+      pending: false,
+    });
+  }
+  return rows;
+}
+
+/** Le formulaire de cette personne est-il encore en cours ? (On le relance, on ne demande rien d'autre.) */
+async function formStillPending(bailId: string, clientId: string) {
+  const link = await prisma.intakeLink.findFirst({ where: { bailId, clientId, status: "PENDING" }, select: { id: true } });
+  return !!link;
 }
 
 function targetIds(rule: DocumentRequirement, bail: LoadedBail, party: NonNullable<ReturnType<typeof partyOf>>): ComposerRow["target"] | null {
@@ -266,21 +359,37 @@ export async function getComplementComposer(data: unknown): Promise<{ success: t
   const party = partyOf(bail, target);
   if (!party) return { success: false, error: target === ReminderTarget.OWNER ? "Pas de propriétaire dans ce dossier" : "Pas de locataire dans ce dossier" };
 
-  const [rows, openRequest] = await Promise.all([
+  const [rows, state, formPending, openRequest] = await Promise.all([
     composerRows(bail, target),
+    loadDossierState(bailId, target),
+    formStillPending(bailId, party.id),
     prisma.complementRequest.findFirst({
       where: { bailId, clientId: party.id, status: { in: ACTIVE_STATUSES } },
       orderBy: { createdAt: "desc" },
       select: { id: true, status: true, message: true, items: {
           where: { status: ComplementItemStatus.PENDING },
           orderBy: { position: "asc" },
-          select: { documentKind: true, label: true, reason: true, note: true, personId: true, entrepriseId: true, clientId: true, propertyId: true, bailId: true },
+          select: {
+            kind: true,
+            documentKind: true,
+            fieldKey: true,
+            label: true,
+            reason: true,
+            note: true,
+            personId: true,
+            entrepriseId: true,
+            clientId: true,
+            propertyId: true,
+            bailId: true,
+          },
         },
       },
     }),
   ]);
-  const pendingKeys = new Set((openRequest?.items ?? []).map((item) => complementKey(item.documentKind, item)));
+  const fields = state ? composerFields(state) : [];
+  const pendingKeys = new Set((openRequest?.items ?? []).map((item) => complementItemKey(item)));
   for (const row of rows) row.pending = pendingKeys.has(row.key);
+  for (const row of fields) row.pending = pendingKeys.has(row.key);
 
   return {
     success: true,
@@ -292,16 +401,34 @@ export async function getComplementComposer(data: unknown): Promise<{ success: t
       email: partyEmail(party),
       address: addressOf(bail),
       rows,
+      fields,
+      formPending,
       openRequest: openRequest
         ? {
             id: openRequest.id,
             status: openRequest.status,
             message: openRequest.message,
-            pendingItems: openRequest.items.map((item) => ({ label: item.label, reason: item.reason as ComplementReasonValue, note: item.note })),
+            pendingItems: openRequest.items.map((item) => ({
+              label: item.label,
+              reason: item.reason as ComplementReasonValue,
+              note: item.note,
+              kind: item.kind as ComplementItemKindValue,
+            })),
           }
         : null,
     },
   };
+}
+
+/** Informations manquantes par personne (bouton « Demander… » de la fiche), selon les règles du formulaire. */
+export async function getMissingFieldCounts(bailId: string): Promise<Record<"OWNER" | "TENANT", number>> {
+  await requireRole([Role.ADMINISTRATEUR, Role.OPERATEUR, Role.REVIEWER]);
+  const counts = { OWNER: 0, TENANT: 0 };
+  for (const target of ["OWNER", "TENANT"] as const) {
+    const state = await loadDossierState(bailId, target).catch(() => null);
+    if (state) counts[target] = missingQuestions(state.values, state.ctx).length;
+  }
+  return counts;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -327,12 +454,38 @@ const itemSchema = z.object({
   replacesDocumentIds: z.array(z.string().min(1)).max(20).default([]),
 });
 
-const sendSchema = z.object({
-  bailId: z.string().min(1),
-  target: z.nativeEnum(ReminderTarget),
-  message: z.string().trim().max(COMPLEMENT_MESSAGE_MAX).optional(),
-  items: z.array(itemSchema).min(1, "Choisissez au moins une pièce").max(40),
+const fieldItemSchema = z.object({
+  question: z.enum(FIELD_QUESTION_IDS),
+  reason: z.enum(["MISSING", "WRONG_VALUE", "TO_CONFIRM"]),
+  note: z.string().trim().max(COMPLEMENT_NOTE_MAX).optional(),
+  target: targetSchema,
 });
+
+const sendSchema = z
+  .object({
+    bailId: z.string().min(1),
+    target: z.nativeEnum(ReminderTarget),
+    message: z.string().trim().max(COMPLEMENT_MESSAGE_MAX).optional(),
+    items: z.array(itemSchema).max(40).default([]),
+    fields: z.array(fieldItemSchema).max(40).default([]),
+  })
+  .refine((data) => data.items.length + data.fields.length > 0, { message: "Choisissez au moins une pièce ou une information" });
+
+/** Question demandée : elle existe pour cette personne, et sa cible appartient bien au dossier. */
+function resolveField(state: DossierState, field: z.infer<typeof fieldItemSchema>): { ref: QuestionRef; label: string; previousValue: Record<string, unknown> } | string {
+  const t = field.target;
+  const scope = questionScope(field.question);
+  let personIndex: number | null = null;
+  if (scope === "person") {
+    personIndex = personIndexOf(state, t.personId);
+    if (personIndex === null) return "Cette personne n'est plus dans le dossier";
+  } else if (scope === "entreprise" ? t.entrepriseId !== state.party.entreprise?.id : scope === "property" ? t.propertyId !== state.bail.property?.id : t.bailId !== state.bail.id) {
+    return "Cette information ne concerne pas ce dossier";
+  }
+  const ref: QuestionRef = { id: field.question, personIndex };
+  if (!availableQuestions(state.values, state.ctx).some((a) => sameQuestion(a, ref))) return "Cette information ne se demande pas pour ce dossier";
+  return { ref, label: labelFor(state, ref), previousValue: pickQuestionValues(ref, state.values, state.ctx) };
+}
 
 /** La cible et les pièces à remplacer appartiennent bien à cette personne, à ce bien ou à ce bail. */
 function checkItemTargets(bail: LoadedBail, party: NonNullable<ReturnType<typeof partyOf>>, target: ReminderTarget, items: z.infer<typeof itemSchema>[]) {
@@ -364,13 +517,18 @@ async function sendRequestEmail(requestId: string, reminder: boolean): Promise<s
     },
   });
   if (!request) return "Demande introuvable";
-  if (request.items.length === 0) return "Plus aucune pièce n'est attendue";
+  if (request.items.length === 0) return "Plus rien n'est attendu";
   const props = {
     name: getClientGreetingName(request.client) || "",
     address: request.bail.property?.fullAddress || request.bail.property?.label || "votre logement",
     // Relance ou pièce redemandée : texte de relance, toujours juste (le premier message peut ne plus l'être).
     message: reminder ? null : request.message,
-    items: request.items.map((item) => ({ label: item.label, reason: item.reason as ComplementReasonValue, note: item.note })),
+    items: request.items.map((item) => ({
+      label: item.label,
+      reason: item.reason as ComplementReasonValue,
+      note: item.note,
+      kind: item.kind as ComplementItemKindValue,
+    })),
     reminder,
     actionUrl: `${BASE_URL()}${complementRequestPath(request.id)}`,
   };
@@ -403,7 +561,7 @@ export async function sendComplementRequest(data: unknown): Promise<{ success: t
   const user = await requireRole([Role.ADMINISTRATEUR]);
   const parsed = sendSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
-  const { bailId, target, message, items } = parsed.data;
+  const { bailId, target, message, items, fields } = parsed.data;
 
   const bail = await loadBail(bailId);
   if (!bail) return { success: false, error: "Dossier introuvable" };
@@ -411,8 +569,22 @@ export async function sendComplementRequest(data: unknown): Promise<{ success: t
   if (!party) return { success: false, error: "Personne absente du dossier" };
   const email = partyEmail(party);
   if (!email) return { success: false, error: `${getClientDisplayName(party) || "Cette personne"} n'a pas d'adresse e-mail` };
+  // Formulaire pas encore envoyé : il demande déjà tout ce qui est obligatoire, on le relance plutôt.
+  if (await formStillPending(bailId, party.id)) {
+    return { success: false, error: "Son formulaire n'est pas encore envoyé : relancez-le plutôt (il demande déjà tout ce qui manque)." };
+  }
   const invalid = checkItemTargets(bail, party, target, items);
   if (invalid) return { success: false, error: invalid };
+
+  // Informations : la question existe pour ce dossier ; libellé et valeurs actuelles calculés ici.
+  const state = fields.length > 0 ? await loadDossierState(bailId, target) : null;
+  if (fields.length > 0 && !state) return { success: false, error: "Dossier introuvable" };
+  const resolvedFields: Array<{ field: z.infer<typeof fieldItemSchema>; ref: QuestionRef; label: string; previousValue: Record<string, unknown> }> = [];
+  for (const field of fields) {
+    const resolved = resolveField(state!, field);
+    if (typeof resolved === "string") return { success: false, error: resolved };
+    resolvedFields.push({ field, ...resolved });
+  }
 
   // Compte de l'espace client (connexion par code reçu par e-mail) : créé s'il n'existe pas encore.
   try {
@@ -427,23 +599,35 @@ export async function sendComplementRequest(data: unknown): Promise<{ success: t
     include: { items: true },
   });
 
-  // Une pièce déjà attendue n'est pas ajoutée deux fois.
+  // Une ligne déjà attendue n'est pas ajoutée deux fois.
   const pendingKeys = new Set(
-    (existing?.items ?? []).filter((item) => item.status === ComplementItemStatus.PENDING).map((item) => complementKey(item.documentKind, item)),
+    (existing?.items ?? []).filter((item) => item.status === ComplementItemStatus.PENDING).map((item) => complementItemKey(item)),
   );
   const fresh = items.filter((item) => !pendingKeys.has(complementKey(item.kind, item.target)));
-  if (existing && fresh.length === 0) return { success: false, error: "Ces pièces sont déjà demandées" };
+  const freshFields = resolvedFields.filter(({ field }) => !pendingKeys.has(fieldComplementKey(field.question, field.target)));
+  if (existing && fresh.length === 0 && freshFields.length === 0) return { success: false, error: "Tout cela est déjà demandé" };
 
   const startAt = existing?.items.length ?? 0;
-  const itemData = fresh.map((item, index) => ({
-    position: startAt + index,
-    documentKind: item.kind,
-    label: item.label,
-    reason: item.reason,
-    note: item.note || null,
-    replacesDocumentIds: item.replacesDocumentIds,
-    ...item.target,
-  }));
+  const itemData = [
+    ...fresh.map((item) => ({
+      kind: ComplementItemKind.DOCUMENT,
+      documentKind: item.kind,
+      label: item.label,
+      reason: item.reason,
+      note: item.note || null,
+      replacesDocumentIds: item.replacesDocumentIds,
+      ...item.target,
+    })),
+    ...freshFields.map(({ field, label, previousValue }) => ({
+      kind: ComplementItemKind.FIELD,
+      fieldKey: field.question,
+      label,
+      reason: field.reason as ComplementReason,
+      note: field.note || null,
+      previousValue: previousValue as Prisma.InputJsonValue,
+      ...field.target,
+    })),
+  ].map((item, index) => ({ ...item, position: startAt + index }));
 
   let requestId: string;
   let createdItemIds: string[] = [];
@@ -592,7 +776,11 @@ export async function reviewComplementItem(data: unknown): Promise<{ success: tr
     include: { request: true, documents: { select: { id: true } } },
   });
   if (!item || !ACTIVE_STATUSES.includes(item.request.status)) return { success: false, error: "Cette demande est déjà terminée" };
-  if (item.status !== ComplementItemStatus.PROVIDED) return { success: false, error: "Cette pièce n'a pas encore été envoyée" };
+  if (item.status !== ComplementItemStatus.PROVIDED) return { success: false, error: "Le client n'a pas encore répondu pour cette ligne" };
+  if (parsed.data.decision === "redo") {
+    const fieldReason = parsed.data.reason === "WRONG_VALUE" || parsed.data.reason === "TO_CONFIRM";
+    if ((item.kind === ComplementItemKind.FIELD) !== fieldReason) return { success: false, error: "Motif invalide" };
+  }
 
   if (parsed.data.decision === "accept") {
     await acceptItems([item.id]);
@@ -657,12 +845,19 @@ export async function acceptComplementRequest(data: unknown): Promise<{ success:
 export interface StaffComplementItem {
   id: string;
   label: string;
+  /** Pièce ou information. */
+  type: ComplementItemKindValue;
+  /** Type de pièce (vide pour une information). */
   kind: string;
   reason: ComplementReasonValue;
   note: string | null;
   status: ComplementItemStatus;
   replaces: number;
   documents: ComposerDocument[];
+  /** Information : ce que le client a changé (avant → après). */
+  changes: FieldChange[];
+  /** Pièce ajoutée d'elle-même après une réponse du client (ex. contrat de mariage). */
+  automatic: boolean;
 }
 
 export interface StaffComplementRequest {
@@ -706,12 +901,18 @@ export async function getBailComplementRequests(bailId: string): Promise<StaffCo
     items: request.items.map((item) => ({
       id: item.id,
       label: item.label,
-      kind: item.documentKind,
+      type: item.kind as ComplementItemKindValue,
+      kind: item.documentKind ?? "",
       reason: item.reason as ComplementReasonValue,
       note: item.note,
       status: item.status,
       replaces: item.replacesDocumentIds.length,
       documents: item.documents.map(toComposerDoc),
+      changes:
+        item.kind === ComplementItemKind.FIELD && item.providedValue
+          ? describeChanges(item.previousValue as Record<string, unknown> | null, item.providedValue as Record<string, unknown>)
+          : [],
+      automatic: !!item.fieldKey?.startsWith("auto:"),
     })),
   }));
 }
@@ -723,17 +924,25 @@ export async function getBailComplementRequests(bailId: string): Promise<StaffCo
 export interface ClientComplementItem {
   id: string;
   label: string;
+  /** Pièce ou information. */
+  type: ComplementItemKindValue;
+  /** Type de pièce (vide pour une information). */
   kind: string;
   reason: ComplementReasonValue;
   note: string | null;
   status: ComplementItemStatus;
   target: { personId?: string; entrepriseId?: string; clientId?: string; propertyId?: string; bailId?: string };
   documents: Array<{ id: string; label: string | null; size: number | null; createdAt: string }>;
+  /** Information : la question et la personne visée (rang dans le dossier). */
+  question: QuestionRef | null;
+  /** Pièce ajoutée d'elle-même après une réponse (ex. contrat de mariage). */
+  automatic: boolean;
 }
 
 export interface ClientComplementRequest {
   id: string;
   bailId: string;
+  target: ReminderTarget;
   status: ComplementRequestStatus;
   message: string | null;
   address: string;
@@ -741,6 +950,8 @@ export interface ClientComplementRequest {
   lastSentAt: string;
   submittedAt: string | null;
   items: ClientComplementItem[];
+  /** Informations demandées : le dossier sous la forme du formulaire, pour répondre avec les mêmes règles. */
+  form: { values: any; ctx: QuestionContext } | null;
 }
 
 /** Client connecté (propriétaire ou locataire). */
@@ -760,29 +971,40 @@ const clientRequestInclude = {
   },
 };
 
-function toClientRequest(request: any): ClientComplementRequest {
+function toClientRequest(request: any, state: DossierState | null = null): ClientComplementRequest {
+  // Lignes déjà acceptées : plus rien à faire, le client ne voit que ce qui reste attendu.
+  const items = request.items.filter((item: any) => item.status !== ComplementItemStatus.ACCEPTED);
+  const hasFields = items.some((item: any) => item.kind === ComplementItemKind.FIELD);
   return {
     id: request.id,
     bailId: request.bail.id,
+    target: request.target,
     status: request.status,
     message: request.message,
     address: request.bail.property?.fullAddress || request.bail.property?.label || "",
     propertyLabel: request.bail.property?.label || null,
     lastSentAt: request.lastSentAt.toISOString(),
     submittedAt: request.submittedAt?.toISOString() ?? null,
-    // Pièces déjà acceptées : plus rien à faire, le client ne voit que ce qui reste attendu.
-    items: request.items.filter((item: any) => item.status !== ComplementItemStatus.ACCEPTED).map((item: any) => ({
-      id: item.id,
-      label: item.label,
-      kind: item.documentKind,
-      reason: item.reason,
-      note: item.note,
-      status: item.status,
-      target: Object.fromEntries(
-        (["personId", "entrepriseId", "clientId", "propertyId", "bailId"] as const).filter((key) => item[key]).map((key) => [key, item[key]]),
-      ),
-      documents: item.documents.map((doc: any) => ({ id: doc.id, label: doc.label, size: doc.size, createdAt: doc.createdAt.toISOString() })),
-    })),
+    items: items.map((item: any) => {
+      const field = item.kind === ComplementItemKind.FIELD;
+      return {
+        id: item.id,
+        label: item.label,
+        type: item.kind,
+        kind: item.documentKind ?? "",
+        reason: item.reason,
+        note: item.note,
+        status: item.status,
+        target: Object.fromEntries(
+          (["personId", "entrepriseId", "clientId", "propertyId", "bailId"] as const).filter((key) => item[key]).map((key) => [key, item[key]]),
+        ),
+        documents: item.documents.map((doc: any) => ({ id: doc.id, label: doc.label, size: doc.size, createdAt: doc.createdAt.toISOString() })),
+        question:
+          field && state ? { id: item.fieldKey as FieldQuestionId, personIndex: item.personId ? personIndexOf(state, item.personId) : null } : null,
+        automatic: !!item.fieldKey?.startsWith("auto:"),
+      };
+    }),
+    form: hasFields && state ? { values: state.values, ctx: state.ctx } : null,
   };
 }
 
@@ -793,7 +1015,10 @@ export async function getMyComplementRequest(requestId: string): Promise<ClientC
     where: { id: requestId, clientId: client.id, status: { not: ComplementRequestStatus.CANCELLED } },
     include: clientRequestInclude,
   });
-  return request ? toClientRequest(request) : null;
+  if (!request) return null;
+  const needsForm = request.status === ComplementRequestStatus.OPEN && request.items.some((item) => item.kind === ComplementItemKind.FIELD);
+  const state = needsForm ? await loadDossierState(request.bailId, request.target) : null;
+  return toClientRequest(request, state);
 }
 
 /** Demandes qui attendent le client (tableau de bord, page du bail). */
@@ -804,7 +1029,7 @@ export async function getMyOpenComplementRequests(bailId?: string): Promise<Clie
     orderBy: { lastSentAt: "desc" },
     include: clientRequestInclude,
   });
-  return requests.map(toClientRequest);
+  return requests.map((request) => toClientRequest(request));
 }
 
 async function myOpenItem(itemId: string) {
@@ -834,6 +1059,7 @@ export async function addComplementDocument(data: unknown): Promise<{ success: t
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
   try {
     const { user, item } = await myOpenItem(parsed.data.itemId);
+    if (item.kind !== ComplementItemKind.DOCUMENT || !item.documentKind) return { success: false, error: "Cette ligne attend une information, pas un fichier" };
     if (item.status === ComplementItemStatus.ACCEPTED) return { success: false, error: "Cette pièce a déjà été acceptée" };
     await prisma.$transaction([
       prisma.document.create({
@@ -861,6 +1087,97 @@ export async function addComplementDocument(data: unknown): Promise<{ success: t
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error?.message || "Envoi impossible" };
+  }
+}
+
+/** Pièces obligatoires encore absentes de ce dossier pour cette personne (clé → ligne). */
+async function missingBlockingDocuments(bailId: string, target: ReminderTarget) {
+  const bail = await loadBail(bailId);
+  if (!bail) return new Map<string, ComposerRow>();
+  const rows = await composerRows(bail, target);
+  return new Map(rows.filter((row) => row.level === "blocking" && row.documents.length === 0).map((row) => [row.key, row]));
+}
+
+const answerSchema = z.object({
+  itemId: z.string().min(1),
+  answer: z.record(z.string().max(120), z.unknown()).refine((value) => JSON.stringify(value).length < 20_000, { message: "Réponse trop longue" }),
+});
+
+/**
+ * Réponse du client à une information demandée : contrôlée avec les règles du formulaire, enregistrée
+ * tout de suite dans le dossier (avec l'ancienne et la nouvelle valeur dans la ligne). Si la réponse
+ * rend une pièce obligatoire (contrat de mariage, règlement de copropriété…), elle s'ajoute à la demande ;
+ * une pièce ajoutée ainsi qui n'est plus nécessaire est retirée.
+ */
+export async function answerComplementField(
+  data: unknown,
+): Promise<{ success: true; data: { addedDocuments: string[] } } | (Fail & { fieldErrors?: Record<string, string> })> {
+  const parsed = answerSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  try {
+    const { item } = await myOpenItem(parsed.data.itemId);
+    if (item.kind !== ComplementItemKind.FIELD || !item.fieldKey || !FIELD_QUESTION_IDS.includes(item.fieldKey as FieldQuestionId)) {
+      return { success: false, error: "Cette ligne attend une pièce" };
+    }
+    const state = await loadDossierState(item.request.bailId, item.request.target);
+    if (!state) return { success: false, error: "Dossier introuvable" };
+    const personIndex = personIndexOf(state, item.personId);
+    if (item.personId && personIndex === null) return { success: false, error: "Cette personne n'est plus dans le dossier" };
+    const ref: QuestionRef = { id: item.fieldKey as FieldQuestionId, personIndex };
+
+    const before = await missingBlockingDocuments(item.request.bailId, item.request.target);
+    const result = await saveAnswer(state, ref, parsed.data.answer);
+    if (!result.ok) return { success: false, error: result.error, fieldErrors: result.fieldErrors };
+
+    await prisma.complementRequestItem.update({
+      where: { id: item.id },
+      data: {
+        status: ComplementItemStatus.PROVIDED,
+        providedAt: new Date(),
+        providedValue: pickQuestionValues(ref, result.merged, state.ctx) as Prisma.InputJsonValue,
+      },
+    });
+
+    // Pièces devenues obligatoires avec cette réponse : ajoutées à la demande, déjà rattachées au bon endroit.
+    const after = await missingBlockingDocuments(item.request.bailId, item.request.target);
+    const lines = await prisma.complementRequestItem.findMany({
+      where: { requestId: item.requestId },
+      select: { id: true, kind: true, documentKind: true, fieldKey: true, status: true, personId: true, entrepriseId: true, clientId: true, propertyId: true, bailId: true, _count: { select: { documents: true } } },
+    });
+    const inRequest = new Set(lines.filter((line) => line.status !== ComplementItemStatus.ACCEPTED).map((line) => complementItemKey(line)));
+    const added = Array.from(after.values()).filter((row) => !before.has(row.key) && !inRequest.has(row.key));
+    if (added.length > 0) {
+      const start = lines.length;
+      await prisma.complementRequestItem.createMany({
+        data: added.map((row, index) => ({
+          requestId: item.requestId,
+          position: start + index,
+          kind: ComplementItemKind.DOCUMENT,
+          documentKind: row.kind as DocumentKind,
+          fieldKey: `auto:${ref.id}`,
+          label: row.label,
+          reason: ComplementReason.MISSING,
+          ...row.target,
+        })),
+      });
+    }
+    // Pièce ajoutée d'elle-même, plus nécessaire après une nouvelle réponse (et sans fichier) : retirée.
+    const obsolete = lines.filter(
+      (line) =>
+        line.kind === ComplementItemKind.DOCUMENT &&
+        line.fieldKey?.startsWith("auto:") &&
+        line.status === ComplementItemStatus.PENDING &&
+        line._count.documents === 0 &&
+        !after.has(complementItemKey(line)),
+    );
+    if (obsolete.length > 0) await prisma.complementRequestItem.deleteMany({ where: { id: { in: obsolete.map((line) => line.id) } } });
+
+    revalidateClient(item.requestId);
+    revalidateBail(item.request.bailId);
+    return { success: true, data: { addedDocuments: added.map((row) => row.label) } };
+  } catch (error: any) {
+    console.error("[complement-requests] réponse", error);
+    return { success: false, error: error?.message || "Enregistrement impossible" };
   }
 }
 
@@ -896,9 +1213,25 @@ export async function submitComplementRequest(data: unknown): Promise<{ success:
     });
     if (!request) return { success: false, error: "Demande introuvable" };
     if (request.status !== ComplementRequestStatus.OPEN) return { success: false, error: "Cette demande a déjà été envoyée" };
-    const missing = request.items.filter((item) => item.status === ComplementItemStatus.PENDING || (item.status === ComplementItemStatus.PROVIDED && item._count.documents === 0));
+    const missing = request.items.filter(
+      (item) =>
+        item.status === ComplementItemStatus.PENDING ||
+        (item.kind === ComplementItemKind.DOCUMENT && item.status === ComplementItemStatus.PROVIDED && item._count.documents === 0),
+    );
     if (missing.length > 0) {
       return { success: false, error: `Il manque encore : ${missing.map((item) => item.label).join(", ")}.` };
+    }
+    // Informations : revérifiées sur le dossier tel qu'il est maintenant (mêmes règles que le formulaire).
+    const fieldItems = request.items.filter((item) => item.kind === ComplementItemKind.FIELD && item.status !== ComplementItemStatus.ACCEPTED);
+    if (fieldItems.length > 0) {
+      const state = await loadDossierState(request.bailId, request.target);
+      if (!state) return { success: false, error: "Dossier introuvable" };
+      for (const item of fieldItems) {
+        const ref: QuestionRef = { id: item.fieldKey as FieldQuestionId, personIndex: personIndexOf(state, item.personId) };
+        const errors = questionErrors(ref, state.values, state.ctx);
+        const first = Object.values(errors)[0];
+        if (first) return { success: false, error: `${item.label} : ${first}` };
+      }
     }
     await prisma.complementRequest.update({ where: { id: request.id }, data: { status: ComplementRequestStatus.SUBMITTED, submittedAt: new Date() } });
     await createNotificationForAllUsers(NotificationType.COMPLEMENT_SUBMITTED, "BAIL", request.bailId, user.id, {

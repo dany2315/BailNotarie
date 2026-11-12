@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
 import { AlertCircle, Check, CheckCircle2, FileText, Loader2, Paperclip, Send, UploadCloud, X } from "lucide-react";
 import { toast } from "sonner";
 import { OwnerCanvas, MicroLabel, Pill, IconTile, PrimaryAction, Surface } from "./owner-ui";
@@ -15,7 +16,8 @@ import {
   type ClientComplementItem,
   type ClientComplementRequest,
 } from "@/lib/actions/complement-requests";
-import { REASON_LABELS, REASON_SENTENCES } from "@/lib/utils/complement";
+import { REASON_LABELS, REASON_SENTENCES, complementCountLabel } from "@/lib/utils/complement";
+import { ComplementFieldCard } from "./complement-field-card";
 import { cn } from "@/lib/utils";
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" });
@@ -25,16 +27,22 @@ function formatSize(size: number | null) {
   return size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} Ko` : `${(size / (1024 * 1024)).toFixed(1).replace(".", ",")} Mo`;
 }
 
-/** Page « Pièces demandées » de l'espace client : seulement ce que l'équipe a demandé. */
+/** Page « Demande » de l'espace client : seulement ce que l'équipe a demandé (informations, puis pièces). */
 export function ComplementRequestView({ request, space }: { request: ClientComplementRequest; space: "proprietaire" | "locataire" }) {
   const router = useRouter();
   const [submitting, setSubmitting] = React.useState(false);
   const home = `/client/${space}`;
   const title = request.propertyLabel || request.address.split(",")[0] || "Votre dossier";
-  const total = request.items.length;
-  const done = request.items.filter((item) => item.documents.length > 0).length;
+  const fields = request.items.filter((item) => item.type === "FIELD" && item.question);
+  const pieces = request.items.filter((item) => item.type !== "FIELD");
+  const hasFieldItems = request.items.some((item) => item.type === "FIELD");
+  const total = fields.length + pieces.length;
+  const done = pieces.filter((item) => item.documents.length > 0).length + fields.filter((item) => item.status === "PROVIDED").length;
   const left = total - done;
   const open = request.status === "OPEN";
+  const what = complementCountLabel([...fields.map(() => ({ kind: "FIELD" as const })), ...pieces.map(() => ({ kind: "DOCUMENT" as const }))]);
+  // Le dossier sous la forme du formulaire : les informations se remplissent avec les mêmes règles.
+  const form = useForm({ defaultValues: request.form?.values ?? {} });
 
   const submit = async () => {
     setSubmitting(true);
@@ -49,13 +57,13 @@ export function ComplementRequestView({ request, space }: { request: ClientCompl
 
   return (
     <>
-      <SubPageBar backHref={home} trail={[{ label: "Accueil", href: home }, { label: "Pièces demandées" }]} />
+      <SubPageBar backHref={home} trail={[{ label: "Accueil", href: home }, { label: hasFieldItems ? "Demande de l'équipe" : "Pièces demandées" }]} />
       <OwnerCanvas navOffset={false}>
         <div className="mx-auto w-full max-w-2xl px-4 pb-12 pt-2 sm:px-6 sm:pt-4">
           <header className="mb-6 mt-5">
-            <MicroLabel>Pièces demandées</MicroLabel>
+            <MicroLabel>{hasFieldItems ? "Demande de l'équipe" : "Pièces demandées"}</MicroLabel>
             <h1 className="lp-title mt-1.5 text-[24px] font-bold leading-tight text-slate-900 sm:text-[28px]">
-              {open ? (total > 1 ? `${total} pièces à nous envoyer` : "1 pièce à nous envoyer") : "Merci, c'est bien reçu"}
+              {open ? `${what} ${fields.length > 0 ? "à compléter" : "à nous envoyer"}` : "Merci, c'est bien reçu"}
             </h1>
             <p className="mt-1.5 truncate text-[13px] text-slate-500">{title === request.address ? request.address : `${title} · ${request.address}`}</p>
           </header>
@@ -66,12 +74,12 @@ export function ComplementRequestView({ request, space }: { request: ClientCompl
                 <CheckCircle2 className="h-6 w-6" />
               </span>
               <p className="text-[15px] font-semibold text-slate-900">
-                {request.status === "ACCEPTED" ? "Vos pièces ont été validées." : "Vos pièces sont envoyées."}
+                {request.status === "ACCEPTED" ? "Tout a été validé." : "Votre réponse est envoyée."}
               </p>
               <p className="max-w-sm text-[13.5px] leading-relaxed text-slate-500">
                 {request.status === "ACCEPTED"
-                  ? "Tout est en ordre de notre côté pour ces pièces."
-                  : `Notre équipe les vérifie${request.submittedAt ? ` (envoi du ${fmtDay(request.submittedAt)})` : ""}. Nous vous écrirons si quelque chose manque encore.`}
+                  ? "Tout est en ordre de notre côté pour cette demande."
+                  : `Notre équipe vérifie votre réponse${request.submittedAt ? ` (envoi du ${fmtDay(request.submittedAt)})` : ""}. Nous vous écrirons si quelque chose manque encore.`}
               </p>
               <Link href={home} className="mt-2 text-[13px] font-semibold text-[#3563e9] hover:text-[#2451c7]">
                 Retour à l&apos;accueil
@@ -102,19 +110,39 @@ export function ComplementRequestView({ request, space }: { request: ClientCompl
                   />
                 </div>
                 <span className="shrink-0 text-[12.5px] font-semibold tabular-nums text-slate-500">
-                  {done} / {total} ajoutée{done > 1 ? "s" : ""}
+                  {done} / {total} prêt{done > 1 ? "s" : ""}
                 </span>
               </div>
 
-              <ul className="flex flex-col gap-3">
-                {request.items.map((item) => (
-                  <PieceCard key={item.id} item={item} disabled={submitting} />
-                ))}
-              </ul>
+              {fields.length > 0 && request.form && (
+                <section className="flex flex-col gap-3">
+                  {pieces.length > 0 && <SectionTitle>Informations à compléter</SectionTitle>}
+                  <ul className="flex flex-col gap-3">
+                    {fields.map((item) => (
+                      <ComplementFieldCard key={item.id} item={item} form={form} ctx={request.form!.ctx} disabled={submitting} />
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {pieces.length > 0 && (
+                <section className="flex flex-col gap-3">
+                  {fields.length > 0 && <SectionTitle>Pièces à envoyer</SectionTitle>}
+                  <ul className="flex flex-col gap-3">
+                    {pieces.map((item) => (
+                      <PieceCard key={item.id} item={item} disabled={submitting} />
+                    ))}
+                  </ul>
+                </section>
+              )}
 
               <Surface tone="plain" className="mt-1 flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                 <p className={cn("text-[13px]", left > 0 ? "text-slate-500" : "font-semibold text-emerald-700")}>
-                  {left > 0 ? `Encore ${left} pièce${left > 1 ? "s" : ""} à ajouter avant l'envoi.` : "Tout est prêt : envoyez vos pièces à notre équipe."}
+                  {left > 0
+                    ? `Encore ${left} élément${left > 1 ? "s" : ""} avant l'envoi.`
+                    : fields.length > 0
+                      ? "Tout est prêt : envoyez votre réponse à notre équipe."
+                      : "Tout est prêt : envoyez vos pièces à notre équipe."}
                 </p>
                 <PrimaryAction onClick={submit} disabled={left > 0 || submitting} className="h-11 w-full sm:w-auto">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -127,6 +155,10 @@ export function ComplementRequestView({ request, space }: { request: ClientCompl
       </OwnerCanvas>
     </>
   );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="mt-2 px-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500">{children}</h2>;
 }
 
 function PieceCard({ item, disabled }: { item: ClientComplementItem; disabled: boolean }) {
@@ -184,7 +216,11 @@ function PieceCard({ item, disabled }: { item: ClientComplementItem; disabled: b
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h2 className="text-[14.5px] font-semibold leading-snug text-slate-900">{item.label}</h2>
-              {added ? <Pill tone="emerald">Ajoutée</Pill> : <Pill tone={problem ? "amber" : "slate"}>{problem ? REASON_LABELS[item.reason] : "À envoyer"}</Pill>}
+              {added ? (
+                <Pill tone="emerald">Ajoutée</Pill>
+              ) : (
+                <Pill tone={problem ? "amber" : item.automatic ? "blue" : "slate"}>{problem ? REASON_LABELS[item.reason] : item.automatic ? "Suite à votre réponse" : "À envoyer"}</Pill>
+              )}
             </div>
             {/* Une fois le fichier ajouté, l'explication n'a plus lieu d'être : le fichier suffit. */}
             {!added && (

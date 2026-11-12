@@ -13,7 +13,8 @@ import { BailMoreMenu } from "@/components/leases/bail-more-menu";
 import { SendToNotaryButton } from "@/components/leases/send-to-notary-dialog";
 import { RemindButton, ReminderSummary } from "@/components/reminders/remind-button";
 import { getReminderPanel, type ReminderPanel } from "@/lib/actions/reminders";
-import { getBailComplementRequests } from "@/lib/actions/complement-requests";
+import { getBailComplementRequests, getMissingFieldCounts } from "@/lib/actions/complement-requests";
+import { complementCountLabel } from "@/lib/utils/complement";
 import { ComplementRequestsPanel } from "@/components/complements/complement-requests-panel";
 import { ComplementRequestButton } from "@/components/complements/complement-composer";
 import { describeRentCapZone, rentCapBlocking, rentCapOverLines } from "@/lib/rent-cap";
@@ -297,7 +298,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     getBailFollowUp(lease.id),
     prisma.bailVerificationCheck.findMany({ where: { bailId: lease.id }, select: { pointKey: true } }),
   ]);
-  const [reminderPanel, complementRequests] = await Promise.all([getReminderPanel(lease.id), getBailComplementRequests(lease.id)]);
+  const [reminderPanel, complementRequests, missingFieldCounts] = await Promise.all([
+    getReminderPanel(lease.id),
+    getBailComplementRequests(lease.id),
+    getMissingFieldCounts(lease.id),
+  ]);
   const verifiedKeys = new Set(verificationChecks.map((c) => c.pointKey));
 
   // Pièces du client hors personnes et société (déjà affichées dans leur bloc).
@@ -624,11 +629,21 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   };
   const pieceTargets = (["OWNER", "TENANT"] as const).filter((target) => missingPieces[target] > 0);
   const piecesCount = missingPieces.OWNER + missingPieces.TENANT;
+  // Informations manquantes (mêmes règles que le formulaire), demandées dans la même fenêtre que les pièces.
+  const missingInfos = {
+    OWNER: owner && askable("OWNER") ? missingFieldCounts.OWNER : 0,
+    TENANT: tenant && askable("TENANT") ? missingFieldCounts.TENANT : 0,
+  };
+  const askTargets = (["OWNER", "TENANT"] as const).filter((target) => missingPieces[target] + missingInfos[target] > 0);
+  const askWhat = complementCountLabel([
+    ...Array.from({ length: missingPieces.OWNER + missingPieces.TENANT }, () => ({ kind: "DOCUMENT" as const })),
+    ...Array.from({ length: missingInfos.OWNER + missingInfos.TENANT }, () => ({ kind: "FIELD" as const })),
+  ]);
   const piecesLabel =
-    pieceTargets.length > 1
-      ? `Demander ${piecesCount} pièces manquantes`
-      : pieceTargets.length === 1
-        ? `Demander ${piecesCount} pièce${piecesCount > 1 ? "s" : ""} au ${pieceTargets[0] === "OWNER" ? "propriétaire" : "locataire"}`
+    askTargets.length > 1
+      ? `Demander ${askWhat}`
+      : askTargets.length === 1
+        ? `Demander ${askWhat} au ${askTargets[0] === "OWNER" ? "propriétaire" : "locataire"}`
         : null;
   const remind = reminderData && stage.key !== "clos" ? remindAction(reminderData, !!rentCapNotify, !!piecesLabel) : null;
   // « Demander » sur une pièce manquante : même fenêtre, ouverte sur les éléments manquants de cette personne.
@@ -725,8 +740,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             {!remind && piecesLabel && (
               <ComplementRequestButton
                 bailId={lease.id}
-                target={pieceTargets[0]}
-                alsoTarget={pieceTargets[1]}
+                target={askTargets[0]}
+                alsoTarget={askTargets[1]}
                 label={piecesLabel}
                 size="default"
                 icon={<FileUp className="size-4" />}
