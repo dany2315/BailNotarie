@@ -49,10 +49,18 @@ import { format } from "date-fns";
 import { BailTermsEditor, type BailTermInput } from "@/components/admin/bail-terms-editor";
 import { assessDpe } from "@/lib/utils/dpe";
 import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/admin/property-editors";
-import { CommercialTermsList } from "@/components/shared/commercial-terms-list";
 import { commercialComplianceRules, commercialDepositWarning, type RuleTone, type RuleView } from "@/lib/utils/commercial-compliance";
-import { commercialPaymentText, commercialTermsToForm, commercialVatText, complexTypeValue } from "@/lib/utils/commercial-terms";
-import { CommercialTermsEditor } from "@/components/admin/commercial-terms-editor";
+import { asksBoughtDuringMarriage, commercialPaymentText, commercialTermsToForm, commercialVatText, complexTypeValue } from "@/lib/utils/commercial-terms";
+import { CommercialTermsInline, EditTermsLink } from "@/components/admin/commercial-terms-editor";
+
+/** Règle de la Conformité légale → ligne des « Conditions commerciales » qui la corrige. */
+const TERMS_ROW_FOR_RULE: Record<string, string> = {
+  duree: "derogatory",
+  charges: "charges",
+  travaux: "pastWorks",
+  indexation: "indexation",
+  conjoint: "marriage",
+};
 import { formatDossierFee } from "@/lib/utils/dossier-fee";
 import { dpeDateValue } from "@/components/admin/dpe-summary";
 import { DiagnosticsPanel } from "@/components/admin/diagnostics-analysis";
@@ -1033,13 +1041,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       actions={
                         !bailLocked && (rule.editsTerms || (!rule.missing && rule.auto)) ? (
                           <>
-                            {rule.editsTerms && (
-                              <CommercialTermsEditor
-                                bailId={lease.id}
-                                values={commercialTermsToForm(commercialTerms)}
-                                derogatory={lease.bailType === "COMMERCIAL_DEROGATOIRE"}
-                              />
-                            )}
+                            {rule.editsTerms && <EditTermsLink row={TERMS_ROW_FOR_RULE[rule.id] ?? "activity"} />}
                             {!rule.missing && rule.auto && <AutoVerified />}
                           </>
                         ) : null
@@ -1163,20 +1165,18 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             <CheckSection
               id="bloc-commercial"
               title="Conditions commerciales"
-              subtitle="Réponses du propriétaire, transmises au notaire"
-              headerRight={
-                !bailLocked && (
-                  <CommercialTermsEditor
-                    bailId={lease.id}
-                    values={commercialTermsToForm((lease as any).commercialTerms)}
-                    derogatory={lease.bailType === "COMMERCIAL_DEROGATOIRE"}
-                  />
-                )
-              }
+              subtitle="Réponses du propriétaire, transmises au notaire. Le crayon corrige une ligne sur place."
             >
-              <CommercialTermsList
-                terms={(lease as any).commercialTerms}
-                bail={{ bailType: lease.bailType, rentAmount: lease.rentAmount }}
+              <CommercialTermsInline
+                bailId={lease.id}
+                values={commercialTermsToForm((lease as any).commercialTerms)}
+                derogatory={lease.bailType === "COMMERCIAL_DEROGATOIRE"}
+                asksMarriage={(() => {
+                  const person = owner?.type === "PERSONNE_PHYSIQUE" ? (owner.persons?.find((p: any) => p.isPrimary) ?? owner.persons?.[0]) : null;
+                  return !!person && asksBoughtDuringMarriage(person.familyStatus, person.matrimonialRegime);
+                })()}
+                annualRent={lease.rentAmount ? lease.rentAmount * 12 : null}
+                locked={bailLocked}
               />
             </CheckSection>
           )}

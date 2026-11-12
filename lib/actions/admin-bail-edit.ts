@@ -25,6 +25,7 @@ import { EXEMPTION_LABELS } from "@/lib/utils/rent-cap";
 import { assessRentCap } from "@/lib/rent-cap";
 import { rentRulesFromForm } from "@/lib/utils/rent-draft";
 import { commercialTermsFromForm, commercialTermsToForm, validateCommercialStep, type CommercialStep } from "@/lib/utils/commercial-terms";
+import { commercialComplianceRules, commercialDepositWarning } from "@/lib/utils/commercial-compliance";
 
 /** Étapes du questionnaire commercial du formulaire propriétaire : l'équipe suit les mêmes règles. */
 const COMMERCIAL_STEPS: CommercialStep[] = ["activity", "duration", "rent", "deposit", "charges", "clauses"];
@@ -175,8 +176,15 @@ const commercialTermsSchema = z.object({
   revalidate: revalidateField,
 });
 
-/** Conditions du bail commercial corrigées par l'équipe (sans renvoyer le formulaire au client). */
-export async function updateCommercialTermsAdmin(data: unknown): Promise<Result> {
+const frDay = (date: Date) => date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
+
+/**
+ * Conditions du bail commercial corrigées par l'équipe (sans renvoyer le formulaire au client), une ligne à la fois.
+ * Seules les réponses envoyées sont contrôlées et enregistrées. Renvoie les conséquences sur le reste du dossier
+ * (date de fin recalculée, règles de la Conformité légale à revalider ou devenues bloquantes, dépôt de garantie,
+ * pièces à demander), affichées à l'équipe après l'enregistrement.
+ */
+export async function updateCommercialTermsAdmin(data: unknown): Promise<Result<{ effects: string[] }>> {
   const user = await requireRole([Role.ADMINISTRATEUR]);
   const parsed = commercialTermsSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
@@ -184,29 +192,111 @@ export async function updateCommercialTermsAdmin(data: unknown): Promise<Result>
 
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
-    select: { id: true, status: true, bailFamily: true, bailType: true, commercialTerms: true },
+    select: {
+      id: true,
+      status: true,
+      bailFamily: true,
+      bailType: true,
+      rentAmount: true,
+      securityDeposit: true,
+      effectiveDate: true,
+      endDate: true,
+      commercialTerms: true,
+      parties: {
+        select: {
+          profilType: true,
+          type: true,
+          entreprise: true,
+          persons: { select: { isPrimary: true, familyStatus: true, matrimonialRegime: true } },
+        },
+      },
+    },
   });
   if (!bail) return { success: false, error: "Dossier introuvable" };
   if (bail.bailFamily !== BailFamille.COMMERCIAL) return { success: false, error: "Ce dossier n'est pas un bail commercial" };
   if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
 
-  // Mêmes contrôles que le questionnaire du formulaire propriétaire, sur l'ensemble des réponses
-  // (celles déjà enregistrées, complétées par la modification).
+  // Mêmes contrôles que le formulaire propriétaire, sur l'ensemble des réponses (enregistrées + modifiées),
+  // mais seules les erreurs des réponses modifiées bloquent (une ligne se corrige sans toucher aux autres).
   const merged = { ...commercialTermsToForm(bail.commercialTerms), ...values } as any;
-  const errors = COMMERCIAL_STEPS.flatMap((step) => Object.values(validateCommercialStep(step, merged, { bailType: bail.bailType })));
-  // Une ligne par réponse à corriger : la fenêtre de modification les affiche en liste.
+  const edited = new Set(Object.keys(values).map((key) => `commercial.${key}`));
+  const errors = COMMERCIAL_STEPS.flatMap((step) =>
+    Object.entries(validateCommercialStep(step, merged, { bailType: bail.bailType }))
+      .filter(([path]) => edited.has(path))
+      .map(([, message]) => message),
+  );
   if (errors.length > 0) return { success: false, error: [...new Set(errors)].join("\n") };
 
   const terms = commercialTermsFromForm(values);
-  if (Object.keys(terms).length === 0) return { success: true };
+  if (Object.keys(terms).length === 0) return { success: true, data: { effects: [] } };
+  const before = (bail.commercialTerms ?? {}) as Record<string, any>;
+  const after = { ...before, ...terms } as Record<string, any>;
+
+  // Bail dérogatoire : la date de fin suit la durée.
+  const effects: string[] = [];
+  let endDate = bail.endDate;
+  if (
+    bail.bailType === BailType.COMMERCIAL_DEROGATOIRE &&
+    "derogatoryMonths" in terms &&
+    terms.derogatoryMonths !== before.derogatoryMonths &&
+    bail.effectiveDate
+  ) {
+    // Calcul en UTC (dates enregistrées à minuit UTC) : même jour, N mois plus tard.
+    const months = terms.derogatoryMonths as number | null;
+    const start = bail.effectiveDate;
+    const computed = months ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + months, start.getUTCDate())) : null;
+    if (computed && (!endDate || computed.getTime() !== endDate.getTime())) {
+      endDate = computed;
+      effects.push(`Date de fin du bail recalculée : ${frDay(computed)} (${terms.derogatoryMonths} mois à partir du ${frDay(bail.effectiveDate)}).`);
+    }
+  }
+
   await prisma.$transaction([
     prisma.bailCommercialTerms.upsert({ where: { bailId }, create: { bailId, ...terms }, update: terms }),
-    prisma.bail.update({ where: { id: bailId }, data: { updatedById: user.id } }),
+    prisma.bail.update({ where: { id: bailId }, data: { updatedById: user.id, ...(endDate !== bail.endDate ? { endDate } : {}) } }),
   ]);
+
+  // Règles de la Conformité légale avant / après : à revalider (contrôle de l'équipe), devenues bloquantes ou réglées.
+  const owner = bail.parties.find((party) => party.profilType === ProfilType.PROPRIETAIRE) ?? null;
+  const tenant = bail.parties.find((party) => party.profilType === ProfilType.LOCATAIRE) ?? null;
+  const rulesOf = (t: Record<string, any>, end: Date | null) =>
+    commercialComplianceRules({ bail: { ...bail, endDate: end }, terms: t, owner: owner as any, tenant: tenant as any });
+  const oldRules = new Map(rulesOf(before, bail.endDate).map((rule) => [rule.id, rule]));
+  for (const rule of rulesOf(after, endDate)) {
+    const old = oldRules.get(rule.id);
+    if (!old) {
+      effects.push(`Nouvelle règle dans la Conformité légale : « ${rule.label} »${rule.note ? ` (${rule.note})` : ""}.`);
+    } else if (!old.missing && rule.missing) {
+      effects.push(`« ${rule.label} » devient bloquant dans la Conformité légale${rule.note ? ` : ${rule.note}` : ""}.`);
+    } else if (old.missing && !rule.missing) {
+      // Ce que la règle dit maintenant (ex. « le conjoint doit aussi signer le bail »).
+      const fact = rule.view?.kind === "facts" ? rule.view.facts.find((f: any) => f.tone === "warn") ?? rule.view.facts[0] : null;
+      effects.push(`« ${rule.label} » n'est plus bloquant${fact ? ` : ${String(fact.label).toLowerCase()} ${fact.values.join(", ")}` : ""}.`);
+    } else if (!rule.auto && JSON.stringify(old.values) !== JSON.stringify(rule.values)) {
+      effects.push(`« ${rule.label} » est à revalider dans la Conformité légale.`);
+    }
+    oldRules.delete(rule.id);
+  }
+  for (const rule of oldRules.values()) effects.push(`« ${rule.label} » ne s'applique plus à ce bail.`);
+
+  // Dépôt de garantie comparé au terme de loyer (mensuel ou trimestriel).
+  const depositBefore = commercialDepositWarning({ rentAmount: bail.rentAmount, securityDeposit: bail.securityDeposit, rentPeriodicity: before.rentPeriodicity });
+  const depositAfter = commercialDepositWarning({ rentAmount: bail.rentAmount, securityDeposit: bail.securityDeposit, rentPeriodicity: after.rentPeriodicity });
+  if (depositAfter && depositAfter !== depositBefore) effects.push(`Dépôt de garantie : ${depositAfter}`);
+  if (!depositAfter && depositBefore) effects.push("Dépôt de garantie : plus d'alerte.");
+
+  // Pièces du bien qui dépendent de la location précédente.
+  if ("previouslyLet" in terms && terms.previouslyLet !== before.previouslyLet) {
+    effects.push(
+      terms.previouslyLet === true
+        ? "Pièces du bien : bail du locataire précédent, congé et état des lieux de sortie peuvent être demandés."
+        : "Pièces du bien : plus de pièces de la location précédente à demander.",
+    );
+  }
 
   if (revalidate) revalidatePath(revalidate);
   revalidatePath(`/interface/baux/${bailId}`);
-  return { success: true };
+  return { success: true, data: { effects } };
 }
 
 /* ------------------------------------------------------------------ */

@@ -232,9 +232,9 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
         (official.gesClass && dpe.gesClass && official.gesClass !== dpe.gesClass))
     ) {
       toCheck(
-        `classe différente dans la base officielle de l'ADEME${
+        `la base officielle de l'ADEME indique énergie ${official.energyClass ?? "?"}, climat (GES) ${official.gesClass ?? "?"}${
           official.updatedAt ? ` (DPE mis à jour le ${official.updatedAt.split("-").reverse().join("/")})` : ""
-        }`,
+        } · n° ${official.number}`,
       );
     } else if (!official) {
       // Lettre de l'étiquette recalculée à partir de la consommation et des émissions (sans valeurs officielles).

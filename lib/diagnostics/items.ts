@@ -240,8 +240,9 @@ export function buildItems(
     // DPE trouvé dans la base officielle : ce qu'elle indique est toujours écrit (information gardée, la fiche du bien
     // reste celle du fichier ; une différence fait passer la ligne « à vérifier »).
     const ademe = key === "dpe" ? merged.extraction?.dpe.ademe : undefined;
+    // Classe différente : déjà dite dans le constat de la ligne (« la base officielle de l'ADEME indique… »).
     const ademeOrigin =
-      ademe?.status === "found"
+      ademe?.status === "found" && !check.text.includes("la base officielle de l'ADEME indique")
         ? `Base officielle de l'ADEME : énergie ${ademe.energyClass ?? "?"}, climat (GES) ${ademe.gesClass ?? "?"} · n° ${ademe.number}`
         : null;
     const decision = baseStatus === "valid" || baseStatus === "na" ? null : active.find((d) => d.item === check.id && d.basis === basis) ?? null;
