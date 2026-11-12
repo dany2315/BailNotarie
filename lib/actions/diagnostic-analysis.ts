@@ -2,14 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { DocumentKind, EnergyClass, Role } from "@prisma/client";
+import { DocumentKind, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { getActorName } from "@/lib/actions/bail-audit-log";
 import { requestFullReading } from "@/lib/diagnostics/run";
 import { loadDiagnosticState } from "@/lib/diagnostics/state";
 import { DATE_ONLY_ITEMS } from "@/lib/diagnostics/items";
-import { ENERGY_LETTERS, isDiagnosticItemKey } from "@/lib/diagnostics/schema";
+import { isDiagnosticItemKey } from "@/lib/diagnostics/schema";
 
 type Result = { success: true } | { success: false; error: string };
 
@@ -47,34 +47,6 @@ export async function requestDiagnosticAnalysis(data: unknown): Promise<Result> 
 
   const result = await requestFullReading(open.bail.propertyId, { bailId, actor: { id: user.id, name: getActorName(user) } });
   if (result.error) return { success: false, error: result.error };
-  refresh(bailId, open.bail.propertyId, revalidate);
-  return { success: true };
-}
-
-/** « Reporter classe X » : classe énergie, GES et date du DPE lus, reportés dans la fiche du bien. */
-export async function applyDiagnosticDpe(data: unknown): Promise<Result> {
-  const user = await requireRole([Role.ADMINISTRATEUR]);
-  const parsed = requestSchema.safeParse(data);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
-  const { bailId, revalidate } = parsed.data;
-  const open = await openBail(bailId);
-  if ("error" in open) return { success: false, error: open.error! };
-
-  const state = await loadDiagnosticState(open.bail.propertyId, open.bail.bailFamily === "COMMERCIAL");
-  const dpe = state?.dpeToApply;
-  const letters = ENERGY_LETTERS as readonly string[];
-  if (!dpe || !letters.includes(dpe.dpeClass) || !/^\d{4}-\d{2}-\d{2}$/.test(dpe.dpeDate)) {
-    return { success: false, error: "Classe ou date du DPE non lue : saisissez-les à la main." };
-  }
-  await prisma.property.update({
-    where: { id: open.bail.propertyId },
-    data: {
-      dpeClass: dpe.dpeClass as EnergyClass,
-      gesClass: dpe.gesClass && letters.includes(dpe.gesClass) ? (dpe.gesClass as EnergyClass) : null,
-      dpeDate: new Date(`${dpe.dpeDate}T00:00:00Z`),
-      updatedById: user.id,
-    },
-  });
   refresh(bailId, open.bail.propertyId, revalidate);
   return { success: true };
 }

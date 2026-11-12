@@ -1,11 +1,11 @@
 // Module serveur interne : lectures des diagnostics par l'IA, en tâche de fond (après la réponse).
 import { after } from "next/server";
-import { DocumentKind, NotificationType, Role } from "@prisma/client";
+import { DocumentKind, EnergyClass, NotificationType, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSignedDownloadUrl } from "@/lib/utils/s3-client";
 import { triggerNotificationEmail } from "@/lib/inngest/helpers";
 import { DiagnosticAnalysisError, diagnosticModel, isDiagnosticAnalysisConfigured, readDiagnostics, type DiagnosticFile } from "./openai";
-import { ANALYSIS_STALE_MS, itemReadingHint, type DiagnosticItemKey } from "./schema";
+import { ANALYSIS_STALE_MS, ENERGY_LETTERS, itemReadingHint, type DiagnosticItemKey } from "./schema";
 import { isCommercialProperty, loadDiagnosticState } from "./state";
 
 /** Taille totale envoyée à OpenAI (les fichiers partent encodés en base64). */
@@ -94,6 +94,8 @@ export async function runReading(analysisId: string, documents: DocToRead[], ite
         completedAt: new Date(),
       },
     });
+    const done = await prisma.diagnosticAnalysis.findUnique({ where: { id: analysisId }, select: { propertyId: true } });
+    if (done) await syncPropertyDpe(done.propertyId).catch((error) => console.error("[diagnostics] report du DPE", error));
   } catch (error) {
     console.error("[diagnostics] lecture", analysisId, error);
     await prisma.diagnosticAnalysis
@@ -108,6 +110,26 @@ export async function runReading(analysisId: string, documents: DocToRead[], ite
       })
       .catch(() => undefined);
   }
+}
+
+/**
+ * Classe énergie, GES et date du DPE lus, reportés dans la fiche du bien (repris dans le bail et les règles du loyer).
+ * Sans effet si la fiche indique déjà la même chose.
+ */
+export async function syncPropertyDpe(propertyId: string): Promise<boolean> {
+  const state = await loadDiagnosticState(propertyId, await isCommercialProperty(propertyId));
+  const dpe = state?.dpeToApply;
+  const letters = ENERGY_LETTERS as readonly string[];
+  if (!dpe || !letters.includes(dpe.dpeClass) || !/^\d{4}-\d{2}-\d{2}$/.test(dpe.dpeDate)) return false;
+  await prisma.property.update({
+    where: { id: propertyId },
+    data: {
+      dpeClass: dpe.dpeClass as EnergyClass,
+      gesClass: dpe.gesClass && letters.includes(dpe.gesClass) ? (dpe.gesClass as EnergyClass) : null,
+      dpeDate: new Date(`${dpe.dpeDate}T00:00:00Z`),
+    },
+  });
+  return true;
 }
 
 /** Lecture complète, puis une seconde si des fichiers ont changé pendant la première ; notification si automatique. */

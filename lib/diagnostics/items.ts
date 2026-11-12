@@ -12,7 +12,7 @@ import { DIAGNOSTIC_SECTIONS, isDiagnosticItemKey, type DiagnosticExtraction, ty
 /** À remplacer · Manquant · À vérifier · Valide · Non concerné. */
 export type ItemStatus = "replace" | "missing" | "check" | "valid" | "na";
 /** Le premier est le bouton principal de la ligne. */
-export type ItemAction = "upload" | "conforme" | "na" | "erp" | "dpe-fiche" | "date";
+export type ItemAction = "upload" | "conforme" | "na" | "erp" | "date";
 
 /** Diagnostics dont on peut saisir la date à la main si le nouveau fichier n'est pas lu (pas de classe ni de résultat à lire). */
 export const DATE_ONLY_ITEMS: DiagnosticItemKey[] = ["erp", "electricite", "gaz", "amiante"];
@@ -184,7 +184,6 @@ function actionsOf(check: DiagnosticCheck, status: ItemStatus): ItemAction[] {
       // DPE et ERP sont toujours exigés : pas de « non concerné ».
       return ["upload", ...erp, ...(check.id === "dpe" || check.id === "erp" ? [] : (["na"] as ItemAction[]))];
     case "check":
-      if (check.action === "dpe-fiche") return ["dpe-fiche", "conforme"];
       // Diagnostic absent dont l'obligation dépend d'une information manquante (année, installation).
       if (check.group === "ask" && replaceable) return ["upload", "na"];
       return replaceable ? ["conforme", "upload"] : ["conforme"];

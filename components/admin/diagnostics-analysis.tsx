@@ -31,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { DocumentViewer } from "@/components/leases/document-viewer";
 import { DocumentUploadButton, uploadToStorage, ACCEPT } from "@/components/documents/document-upload-button";
 import { documentKindLabels } from "@/lib/utils/document-labels";
-import { applyDiagnosticDpe, decideDiagnosticItem, requestDiagnosticAnalysis, revokeDiagnosticDecision } from "@/lib/actions/diagnostic-analysis";
+import { decideDiagnosticItem, requestDiagnosticAnalysis, revokeDiagnosticDecision } from "@/lib/actions/diagnostic-analysis";
 import { sendDiagnosticsToOwner } from "@/lib/actions/reminders";
 import { displayFileName, type DiagnosticItemView, type ItemStatus } from "@/lib/diagnostics/items";
 import type { DiagnosticFileView, DiagnosticStateView } from "@/lib/diagnostics/state";
@@ -362,21 +362,6 @@ function ItemRow({
             </a>
           </Button>
         );
-      case "dpe-fiche":
-        return state.dpeToApply ? (
-          <Button
-            key="dpe"
-            type="button"
-            size="sm"
-            variant={variant}
-            className="h-9 gap-1.5"
-            disabled={busy}
-            onClick={() => run(() => applyDiagnosticDpe({ bailId, revalidate: pathname }), "DPE reporté dans la fiche du bien")}
-          >
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            Reporter classe {state.dpeToApply.dpeClass}
-          </Button>
-        ) : null;
       case "date":
         return <DateEntry key="date" item={item} bailId={bailId} />;
     }

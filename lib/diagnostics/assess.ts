@@ -20,12 +20,12 @@
  * - « na »       : non exigé pour ce bien (raison donnée).
  * Les décisions de l'équipe (conforme, non concerné) sont appliquées ensuite, dans items.ts.
  */
-import { dpeValidUntil } from "@/lib/utils/dpe";
+import { assessDpe, dpeValidUntil } from "@/lib/utils/dpe";
 import { ENERGY_LETTERS, type DiagnosticExtraction, type EnergyLetter } from "./schema";
 
 export type CheckTone = "ok" | "warn" | "missing";
 export type CheckGroup = "blocking" | "ask" | "team" | "ok" | "na";
-export type TeamAction = "erp" | "dpe-fiche" | "file";
+export type TeamAction = "erp" | "file";
 
 export interface DiagnosticCheck {
   id: string;
@@ -51,7 +51,7 @@ export interface DiagnosticAssessment {
   checks: DiagnosticCheck[];
   /** Données utiles que le modèle n'a pas trouvées. */
   notFound: string[];
-  /** DPE lu à reporter dans la fiche du bien (absent ou différent), sinon null. */
+  /** DPE lu, à reporter automatiquement dans la fiche du bien (absent ou différent), sinon null. */
   dpeToApply: { dpeClass: EnergyLetter; gesClass: EnergyLetter | null; dpeDate: string } | null;
 }
 
@@ -165,8 +165,8 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
   const ok = (id: string, label: string, text: string, tone: CheckTone = "ok") => checks.push({ id, label, tone, group: "ok", text });
   const na = (id: string, label: string, text: string) => checks.push({ id, label, tone: "ok", group: "na", text });
 
-  // 1. DPE (logement et local) : présence et validité (10 ans, durée plus courte pour les DPE d'avant juillet 2021).
-  // La classe énergie (logement G interdit à la location) est contrôlée à part, par la ligne « Classe DPE ».
+  // 1. DPE (logement et local) : présence et validité (10 ans, durée plus courte pour les DPE d'avant juillet 2021),
+  // et classe interdite à la location pour un logement (G depuis 2025, F à partir de 2028).
   if (!dpe.found) {
     blocking("dpe", "DPE", "Absent", `Il nous manque le DPE du ${place} : merci de nous l'envoyer, ou de le faire réaliser par un diagnostiqueur certifié.`, true);
   } else if (!dpe.date) {
@@ -180,6 +180,13 @@ export function assessDiagnostics(extraction: DiagnosticExtraction, context: Ass
         "DPE",
         `${summary}expiré le ${day(validUntil)}`,
         `Votre DPE n'est plus valable depuis le ${day(validUntil)} : il faut en faire réaliser un nouveau par un diagnostiqueur certifié.`,
+      );
+    } else if (dpe.energyClass && !context.commercial && assessDpe(dpe.energyClass, dpe.date, now).blocking) {
+      blocking(
+        "dpe",
+        "DPE",
+        assessDpe(dpe.energyClass, dpe.date, now).message || `Classe ${dpe.energyClass} : logement interdit à la location`,
+        `Votre logement est classé ${dpe.energyClass} au DPE : il ne peut plus être loué. Des travaux de rénovation énergétique sont nécessaires avant de signer un bail.`,
       );
     } else if (validUntil) {
       const soon = validUntil.getTime() - now.getTime() < SOON_MS;

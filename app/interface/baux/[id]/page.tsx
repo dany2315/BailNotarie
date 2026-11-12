@@ -55,7 +55,7 @@ import { commercialComplianceRules, commercialDepositWarning, type RuleTone, typ
 import { commercialPaymentText, commercialTermsToForm, commercialVatText, complexTypeValue } from "@/lib/utils/commercial-terms";
 import { CommercialTermsEditor } from "@/components/admin/commercial-terms-editor";
 import { formatDossierFee } from "@/lib/utils/dossier-fee";
-import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
+import { dpeDateValue } from "@/components/admin/dpe-summary";
 import { DiagnosticsPanel } from "@/components/admin/diagnostics-analysis";
 import { isDiagnosticAnalysisConfigured } from "@/lib/diagnostics/openai";
 import { loadDiagnosticState } from "@/lib/diagnostics/state";
@@ -493,7 +493,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   );
 
   // Contrôles réglementaires (manuels)
-  const diagnosticsIds = (propertyDocuments as any[]).filter((d) => d.kind === DocumentKind.DIAGNOSTICS).map((d) => d.id).sort();
   // Diagnostics lus par l'IA, une ligne par diagnostic avec les décisions de l'équipe (null si tables absentes).
   const diagnosticState = property ? await loadDiagnosticState(property.id, isCommercial) : null;
   // Modifiables jusqu'à la signature : le notaire voit les mises à jour.
@@ -533,10 +532,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       label: "Plafond de loyer",
     },
     {
-      key: pointKey("rules:dpe", [...diagnosticsIds, property?.dpeClass || null, property?.gesClass || null, dpeDateValue(property?.dpeDate)]),
-      label: "Classe DPE",
-    },
-    {
       key: pointKey("rules:relocation", [
         lease.rentAmount,
         property?.inseeCode || null,
@@ -556,6 +551,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   // DPE saisi à la main : à saisir, expiré ou classe interdite à la location = bloquant.
   // Bail commercial : DPE à annexer, sans interdiction de louer selon la classe (propre au logement).
   const dpe = assessDpe(property?.dpeClass, property?.dpeDate, undefined, { commercial: isCommercial });
+  // Classe reportée automatiquement depuis les diagnostics lus ; un DPE absent ou expiré est signalé dans « Diagnostics ».
+  const dpeBanned = !isCommercial && !!property?.dpeClass && !!property?.dpeDate && !dpe.expired && dpe.blocking;
   // Bail commercial : règles du Code de commerce à la place du plafond et de la relocation en zone tendue.
   const commercialTerms = (lease as any).commercialTerms ?? null;
   const commercialRules = isCommercial ? commercialComplianceRules({ bail: lease, terms: commercialTerms, owner, tenant }) : [];
@@ -567,8 +564,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     : null;
   const rulesStates = [
     ...(isCommercial ? [] : withVerified([{ key: rulesPoints[0].key, missing: capMissing }], verifiedKeys, bailLocked || capAuto)),
-    ...withVerified([{ key: rulesPoints[1].key, missing: dpe.blocking }], verifiedKeys, bailLocked),
-    ...(isCommercial ? [] : withVerified([{ key: rulesPoints[2].key, missing: relocMissing }], verifiedKeys, bailLocked || relocAuto)),
+    // Logement dont la classe DPE est interdite à la location (G, puis F en 2028) : l'envoi au notaire reste bloqué.
+    ...withVerified([{ key: "rules:dpe-classe", missing: dpeBanned }], verifiedKeys, true),
+    ...(isCommercial ? [] : withVerified([{ key: rulesPoints[1].key, missing: relocMissing }], verifiedKeys, bailLocked || relocAuto)),
     ...commercialRules.flatMap((rule) =>
       withVerified([{ key: commercialKeys[rule.id], missing: rule.missing }], verifiedKeys, bailLocked || rule.auto),
     ),
@@ -943,10 +941,10 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   </span>
                 </CheckPoint>
                 <CheckPoint
-                  state={relocMissing ? "missing" : isVerified(rulesPoints[2].key, bailLocked || relocAuto) ? "ok" : "todo"}
+                  state={relocMissing ? "missing" : isVerified(rulesPoints[1].key, bailLocked || relocAuto) ? "ok" : "todo"}
                   label={relocAuto && !bailLocked ? <AutoLabel>Évolution du loyer (zone tendue)</AutoLabel> : "Évolution du loyer (zone tendue)"}
                   actionsBelow
-                  verify={relocAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[2].key, verified: isVerified(rulesPoints[2].key, bailLocked), locked: bailLocked }}
+                  verify={relocAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[1].key, verified: isVerified(rulesPoints[1].key, bailLocked), locked: bailLocked }}
                   note={
                     !relocation
                       ? null
@@ -1060,44 +1058,18 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     </CheckPoint>
                   );
                 })}
-                <CheckPoint
-                  state={dpe.blocking ? "missing" : isVerified(rulesPoints[1].key, bailLocked) ? "ok" : "todo"}
-                  label={isCommercial ? "DPE" : "Classe DPE"}
-                  note={dpe.message}
-                  verify={{ bailId: lease.id, pointKey: rulesPoints[1].key, verified: isVerified(rulesPoints[1].key, bailLocked), locked: bailLocked }}
-                  actions={
-                    property && !bailLocked ? (
-                      <DpeEditor
-                        propertyId={property.id}
-                        dpeClass={property.dpeClass}
-                        gesClass={property.gesClass}
-                        dpeDate={dpeDateValue(property.dpeDate)}
-                      />
-                    ) : null
-                  }
-                >
-                  <div className="flex flex-col gap-1">
-                    <DpeSummary dpeClass={property?.dpeClass || null} gesClass={property?.gesClass || null} dpeDate={property?.dpeDate || null} assessment={dpe} />
-                    {isCommercial && (
-                      <>
-                        <span className="text-[13px] text-amber-800">
-                          À annexer au bail : DPE, état des risques et pollutions de moins de 6 mois, et diagnostic amiante (DTA) si le permis de
-                          construire date d&apos;avant le 1er juillet 1997. Pas d&apos;interdiction de louer selon la classe énergétique pour un local
-                          commercial.
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          Articles L126-29 du Code de la construction, L125-5 du Code de l&apos;environnement et R1334-29-5 du Code de la santé publique
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </CheckPoint>
                 {property && diagnosticState && (
                   <CheckPoint
                     state={diagnosticState.counts.toFix > 0 ? "missing" : diagnosticState.counts.toCheck > 0 || diagnosticState.items.length === 0 ? "todo" : "ok"}
                     label={<AutoLabel>Diagnostics</AutoLabel>}
                     // Liste des diagnostics dans le contenu : toute la largeur.
                     actionsBelow
+                    // Saisie à la main du DPE si les fichiers ne sont pas lus (classe reprise dans le bail).
+                    actions={
+                      !diagnosticsLocked ? (
+                        <DpeEditor propertyId={property.id} dpeClass={property.dpeClass} gesClass={property.gesClass} dpeDate={dpeDateValue(property.dpeDate)} />
+                      ) : null
+                    }
                   >
                     <DiagnosticsPanel
                       bailId={lease.id}
