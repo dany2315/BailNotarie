@@ -166,6 +166,7 @@ enum NotificationType {
   LEAD_CONVERTED
   DIAGNOSTICS_TO_REVIEW
   COMPLEMENT_SUBMITTED
+  COMPLEMENT_REQUESTED_BY_NOTAIRE
 }
 
 enum DocumentKind {
@@ -1270,6 +1271,11 @@ enum ComplementReason {
   TO_CONFIRM // Information à confirmer
 }
 
+enum ComplementOrigin {
+  TEAM // Demande de l'équipe BailNotarie
+  NOTAIRE // Demande du notaire assigné au dossier
+}
+
 enum ComplementItemKind {
   DOCUMENT // Pièce à envoyer
   FIELD // Information à compléter (question du formulaire)
@@ -1287,6 +1293,8 @@ model ComplementRequest {
   target   ReminderTarget
 
   status ComplementRequestStatus @default(OPEN)
+  // Qui a fait la demande : l'équipe, ou le notaire assigné (il la suit depuis son espace)
+  origin ComplementOrigin        @default(TEAM)
 
   // Message de l'équipe, relu dans l'aperçu de l'e-mail avant l'envoi
   message        String?   @db.Text

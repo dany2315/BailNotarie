@@ -36,6 +36,8 @@ export function ComplementRequestView({ request, space }: { request: ClientCompl
   const fields = request.items.filter((item) => item.type === "FIELD" && item.question);
   const pieces = request.items.filter((item) => item.type !== "FIELD");
   const hasFieldItems = request.items.some((item) => item.type === "FIELD");
+  const fromNotary = request.origin === "NOTAIRE";
+  const kicker = fromNotary ? "Demande du notaire" : hasFieldItems ? "Demande de l'équipe" : "Pièces demandées";
   const total = fields.length + pieces.length;
   const done = pieces.filter((item) => item.documents.length > 0).length + fields.filter((item) => item.status === "PROVIDED").length;
   const left = total - done;
@@ -57,11 +59,11 @@ export function ComplementRequestView({ request, space }: { request: ClientCompl
 
   return (
     <>
-      <SubPageBar backHref={home} trail={[{ label: "Accueil", href: home }, { label: hasFieldItems ? "Demande de l'équipe" : "Pièces demandées" }]} />
+      <SubPageBar backHref={home} trail={[{ label: "Accueil", href: home }, { label: kicker }]} />
       <OwnerCanvas navOffset={false}>
         <div className="mx-auto w-full max-w-2xl px-4 pb-12 pt-2 sm:px-6 sm:pt-4">
           <header className="mb-6 mt-5">
-            <MicroLabel>{hasFieldItems ? "Demande de l'équipe" : "Pièces demandées"}</MicroLabel>
+            <MicroLabel>{kicker}</MicroLabel>
             <h1 className="lp-title mt-1.5 text-[24px] font-bold leading-tight text-slate-900 sm:text-[28px]">
               {open ? `${what} ${fields.length > 0 ? "à compléter" : "à nous envoyer"}` : "Merci, c'est bien reçu"}
             </h1>
@@ -79,7 +81,7 @@ export function ComplementRequestView({ request, space }: { request: ClientCompl
               <p className="max-w-sm text-[13.5px] leading-relaxed text-slate-500">
                 {request.status === "ACCEPTED"
                   ? "Tout est en ordre de notre côté pour cette demande."
-                  : `Notre équipe vérifie votre réponse${request.submittedAt ? ` (envoi du ${fmtDay(request.submittedAt)})` : ""}. Nous vous écrirons si quelque chose manque encore.`}
+                  : `${fromNotary ? "Le notaire vérifie" : "Notre équipe vérifie"} votre réponse${request.submittedAt ? ` (envoi du ${fmtDay(request.submittedAt)})` : ""}. Nous vous écrirons si quelque chose manque encore.`}
               </p>
               <Link href={home} className="mt-2 text-[13px] font-semibold text-[#3563e9] hover:text-[#2451c7]">
                 Retour à l&apos;accueil
@@ -140,13 +142,15 @@ export function ComplementRequestView({ request, space }: { request: ClientCompl
                 <p className={cn("text-[13px]", left > 0 ? "text-slate-500" : "font-semibold text-emerald-700")}>
                   {left > 0
                     ? `Encore ${left} élément${left > 1 ? "s" : ""} avant l'envoi.`
-                    : fields.length > 0
+                    : fromNotary
+                      ? "Tout est prêt : envoyez votre réponse au notaire."
+                      : fields.length > 0
                       ? "Tout est prêt : envoyez votre réponse à notre équipe."
                       : "Tout est prêt : envoyez vos pièces à notre équipe."}
                 </p>
                 <PrimaryAction onClick={submit} disabled={left > 0 || submitting} className="h-11 w-full sm:w-auto">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Envoyer à l&apos;équipe
+                  {fromNotary ? "Envoyer au notaire" : "Envoyer à l'équipe"}
                 </PrimaryAction>
               </Surface>
             </div>

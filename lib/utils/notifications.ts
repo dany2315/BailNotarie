@@ -83,7 +83,9 @@ function getNotificationMessageText(
       return `Diagnostics à régler — ${meta.propertyLabel || "un bien"}${parts.length ? ` : ${parts.join(", ")}` : ""}`;
     }
     case "COMPLEMENT_SUBMITTED":
-      return `Pièces reçues — ${meta.clientName || "le client"} a répondu à la demande${meta.propertyLabel ? ` (${meta.propertyLabel})` : ""}`;
+      return `Réponse reçue — ${meta.clientName || "le client"} a répondu à la demande${meta.propertyLabel ? ` (${meta.propertyLabel})` : ""}`;
+    case "COMPLEMENT_REQUESTED_BY_NOTAIRE":
+      return `Demande du notaire — ${meta.notaireName || "le notaire"} a demandé ${meta.count || ""} élément${(meta.count || 0) > 1 ? "s" : ""} à ${meta.clientName || "un client"}${meta.propertyLabel ? ` (${meta.propertyLabel})` : ""}`;
     case "LEAD_CONVERTED":
       return `Lead converti en ${meta.newProfilType === "PROPRIETAIRE" ? "propriétaire" : "locataire"}`;
     default:
@@ -111,6 +113,8 @@ function getNotificationInterfaceLink(
       return `${baseUrl}/interface/properties/${targetId}`;
     case "BAIL":
       return `${baseUrl}/interface/baux/${targetId}`;
+    case "NOTAIRE_DOSSIER":
+      return `${baseUrl}/notaire/dossiers?dossierId=${targetId}`;
     case "INTAKE":
       return `${baseUrl}/interface/intakes`;
     case "COMMENT":

@@ -144,7 +144,7 @@ export function TenantDashboard({
       key: `complement-${request.id}`,
       icon: FileText,
       tone: "amber" as Tone,
-      kicker: request.items.some((item) => item.type === "FIELD") ? "À faire · Demande de l'équipe" : "À faire · Pièces demandées",
+      kicker: request.origin === "NOTAIRE" ? "À faire · Demande du notaire" : request.items.some((item) => item.type === "FIELD") ? "À faire · Demande de l'équipe" : "À faire · Pièces demandées",
       title: request.propertyLabel || request.address.split(",")[0] || "Votre dossier",
       subtitle: null,
       message: `${complementCountLabel(request.items.map((item) => ({ kind: item.type })))} ${request.items.some((item) => item.type === "FIELD") ? "à compléter" : "à nous envoyer"} : ${request.items.map((item) => item.label).join(" · ")}`,

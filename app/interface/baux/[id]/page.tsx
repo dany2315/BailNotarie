@@ -16,7 +16,7 @@ import { getReminderPanel, type ReminderPanel } from "@/lib/actions/reminders";
 import { getBailComplementRequests, getMissingFieldCounts } from "@/lib/actions/complement-requests";
 import { complementCountLabel } from "@/lib/utils/complement";
 import { ComplementRequestsPanel } from "@/components/complements/complement-requests-panel";
-import { ComplementRequestButton } from "@/components/complements/complement-composer";
+import { AskFieldsButton, ComplementRequestButton } from "@/components/complements/complement-composer";
 import { describeRentCapZone, rentCapBlocking, rentCapOverLines } from "@/lib/rent-cap";
 import { assessRentRules } from "@/lib/rent-rules";
 import { PROOF_LABELS, VACANCY_MONTHS, relocationSummaryLines } from "@/lib/utils/rent-relocation";
@@ -621,7 +621,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const formPending = new Set<string>((reminderData?.needs ?? []).filter((n) => n.reason === "OWNER_FORM" || n.reason === "TENANT_FORM").map((n) => n.target));
   if (ownerIntake?.status === "PENDING") formPending.add("OWNER");
   if (tenantIntake?.status === "PENDING") formPending.add("TENANT");
-  const requestedFrom = new Set(complementRequests.map((request) => request.target));
+  const requestedFrom = new Set(complementRequests.filter((request) => request.origin === "TEAM").map((request) => request.target));
   const askable = (target: "OWNER" | "TENANT") => !pastVerification && !formPending.has(target) && !requestedFrom.has(target);
   const missingPieces = {
     OWNER: owner && askable("OWNER") ? (missingData?.owner?.totalMissingDocuments || 0) + (missingData?.property?.missingDocuments.length || 0) : 0,
@@ -1000,6 +1000,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   actions={
                     !bailLocked && ((!!relocation && relocation.notConcerned === null) || (!relocMissing && relocAuto)) ? (
                       <>
+                        {relocation && relocation.notConcerned === null && relocMissing && owner && (
+                          <AskFieldsButton bailId={lease.id} target="OWNER" scope="bail" targetId={lease.id} fields={["relocationLetBefore"]} />
+                        )}
                         {relocation && relocation.notConcerned === null && (
                           <RentRulesEditor bailId={lease.id} values={rentRulesToForm(lease)} missing={relocation.undeclared} />
                         )}
@@ -1187,7 +1190,16 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     label={point.label}
                     note={missing ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}` : null}
                     verify={{ bailId: lease.id, pointKey: point.key, verified, locked: bailLocked }}
-                    actions={!bailLocked && <BailTermsEditor bailId={lease.id} title={point.label} fields={point.fields} />}
+                    actions={
+                      !bailLocked && (
+                        <>
+                          {missing && owner && (
+                            <AskFieldsButton bailId={lease.id} target="OWNER" scope="bail" targetId={lease.id} fields={point.missing} commercial={isCommercial} />
+                          )}
+                          <BailTermsEditor bailId={lease.id} title={point.label} fields={point.fields} />
+                        </>
+                      )
+                    }
                   >
                     {point.text.filter(Boolean).join("\n")}
                   </CheckPoint>
@@ -1248,7 +1260,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             verifiedKeys={verifiedKeys}
             locked={ownerLocked}
             formNote={formNote(ownerIntake)}
-            complement={pastVerification ? undefined : { bailId: lease.id, target: "OWNER" }}
+            complement={pastVerification ? undefined : { bailId: lease.id, target: "OWNER", commercial: isCommercial }}
           />
           <PartyCheckSection
             id="bloc-locataire"
@@ -1258,7 +1270,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             verifiedKeys={verifiedKeys}
             locked={tenantLocked}
             formNote={formNote(tenantIntake)}
-            complement={pastVerification ? undefined : { bailId: lease.id, target: "TENANT" }}
+            complement={pastVerification ? undefined : { bailId: lease.id, target: "TENANT", commercial: isCommercial }}
             emptyAction={pastVerification ? undefined : <TenantCreateButton bailId={lease.id} variant="default" className="h-10" />}
             emptyHint="Ajoutez-le si le propriétaire vous l'a communiqué : il recevra son formulaire par e-mail. Sinon, relancez le propriétaire avec le bouton en haut de la fiche."
           />
@@ -1349,6 +1361,17 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     verify={{ bailId: lease.id, pointKey: propertyDescKey, verified: isVerified(propertyDescKey, propertyLocked), locked: propertyLocked }}
                     actions={
                       !propertyLocked && (
+                        <>
+                          {propertyDescMissing && owner && (
+                            <AskFieldsButton
+                              bailId={lease.id}
+                              target="OWNER"
+                              scope="property"
+                              targetId={property.id}
+                              fields={missingData?.property?.missingFields ?? []}
+                              commercial={isCommercial}
+                            />
+                          )}
                           <PropertyDetailsEditor
                             propertyId={property.id}
                             missing={propertyDescMissing}
@@ -1367,6 +1390,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                               outbuildings: property.outbuildings,
                             }}
                           />
+                        </>
                       )
                     }
                   >

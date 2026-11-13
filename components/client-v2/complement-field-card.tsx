@@ -43,6 +43,7 @@ import { asksBoughtDuringMarriage } from "@/lib/utils/commercial-terms";
 import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import { OWNER_PERIODS, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { REASON_LABELS, reasonSentence } from "@/lib/utils/complement";
+import { RENT_INCREASE_LABELS } from "@/lib/utils/rent-relocation";
 import { cn } from "@/lib/utils";
 
 type FormLike = any;
@@ -820,6 +821,69 @@ function QuestionFields({ refQ, form, ctx }: { refQ: QuestionRef; form: FormLike
           <NumberField form={form} path="bailPaymentDay" label="Jour de paiement du loyer" min={1} max={31} hint="Ex. : 5 pour le 5 de chaque mois." />
         </div>
       );
+    case "bail.rentRules": {
+      const r = values.rentRules ?? {};
+      const leftAt = r.previousTenantLeftAt ? new Date(String(r.previousTenantLeftAt)) : null;
+      const vacant = !!leftAt && !Number.isNaN(leftAt.getTime()) && leftAt <= new Date(new Date().setMonth(new Date().getMonth() - 18));
+      return (
+        <div className="flex flex-col gap-4">
+          <p className="text-[12.5px] leading-relaxed text-slate-500">
+            Le logement est en zone tendue : à la relocation, le nouveau loyer dépend en principe du loyer du locataire précédent.
+          </p>
+          <ChoiceField
+            form={form}
+            path="rentRules.relocationLetBefore"
+            label="Le logement a-t-il déjà été loué ?"
+            options={[
+              { value: "yes", label: "Oui, il a déjà été loué" },
+              { value: "no", label: "Non, première location" },
+            ]}
+          />
+          {r.relocationLetBefore === "yes" && (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <DateField form={form} path="rentRules.previousTenantLeftAt" label="Départ du locataire précédent" />
+                <NumberField form={form} path="rentRules.previousRentAmount" label="Son dernier loyer hors charges" unit="€" />
+              </div>
+              {leftAt && !vacant && (
+                <>
+                  <ChoiceField
+                    form={form}
+                    path="rentRules.previousRentRevisedRecently"
+                    label="Ce loyer a-t-il été révisé au cours des 12 derniers mois ?"
+                    options={[
+                      { value: "yes", label: "Oui" },
+                      { value: "no", label: "Non" },
+                    ]}
+                  />
+                  <SelectField
+                    form={form}
+                    path="rentRules.rentIncreaseReason"
+                    label="Le nouveau loyer est-il plus élevé que le dernier ?"
+                    placeholder="Choisir"
+                    options={Object.entries(RENT_INCREASE_LABELS).map(([value, label]) => ({ value, label }))}
+                  />
+                  {r.rentIncreaseReason === "WORKS" && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <NumberField form={form} path="rentRules.worksAmount" label="Coût TTC des travaux" unit="€" />
+                      <DateField form={form} path="rentRules.worksCompletedAt" label="Fin des travaux" />
+                    </div>
+                  )}
+                  {r.rentIncreaseReason === "UNDERVALUED" && (
+                    <NumberField
+                      form={form}
+                      path="rentRules.neighborhoodRent"
+                      label="Loyer du voisinage pour un logement comparable"
+                      unit="€"
+                    />
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      );
+    }
     case "commercial.activity":
       return <CommercialActivityStep form={form} bare />;
     case "commercial.duration":

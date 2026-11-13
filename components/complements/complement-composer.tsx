@@ -24,13 +24,16 @@ import {
   type ComplementReasonValue,
 } from "@/lib/utils/complement";
 import { ComplementEmailPreview } from "@/components/complements/complement-email-preview";
+import { questionsForDataFields, type QuestionScope } from "@/lib/rules/complement-questions";
+import { fieldComplementKey } from "@/lib/utils/complement";
 import { cn } from "@/lib/utils";
 
 type Target = "OWNER" | "TENANT";
 
-/** Pièce cochée à l'ouverture (on vient de sa ligne dans la fiche). */
+/** Lignes cochées à l'ouverture (on vient d'une ligne de la fiche : une pièce, ou des informations). */
 export interface ComplementPreselect {
-  key: string;
+  key?: string;
+  keys?: string[];
 }
 
 interface Choice {
@@ -88,6 +91,49 @@ export function ComplementRequestButton({
   );
 }
 
+/**
+ * « Demander » sur une ligne de la fiche où il manque des données : la fenêtre s'ouvre avec les
+ * informations correspondantes déjà cochées. Rien n'est affiché si ces données ne se demandent pas.
+ */
+export function AskFieldsButton({
+  bailId,
+  target,
+  scope,
+  targetId,
+  fields,
+  commercial,
+  primaryPerson,
+}: {
+  bailId: string;
+  target: Target;
+  scope: QuestionScope;
+  /** Id de la personne, de la société, du bien ou du bail. */
+  targetId: string;
+  /** Champs manquants, sous leur nom en base. */
+  fields: string[];
+  commercial?: boolean;
+  primaryPerson?: boolean;
+}) {
+  const questions = questionsForDataFields(scope, fields, { commercial, primaryPerson });
+  if (questions.length === 0) return null;
+  const ids =
+    scope === "person"
+      ? { personId: targetId }
+      : scope === "entreprise"
+        ? { entrepriseId: targetId }
+        : scope === "property"
+          ? { propertyId: targetId }
+          : { bailId: targetId };
+  return (
+    <ComplementRequestButton
+      bailId={bailId}
+      target={target}
+      preselect={{ keys: questions.map((id) => fieldComplementKey(id, ids)) }}
+      label="Demander"
+    />
+  );
+}
+
 export function ComplementComposer({
   bailId,
   target: initialTarget,
@@ -135,21 +181,22 @@ export function ComplementComposer({
         return;
       }
       setData(result.data);
-      const row = target === initialTarget && preselect && result.data.rows.find((r) => r.key === preselect.key && !r.pending);
+      const keys = new Set(target === initialTarget && preselect ? [preselect.key, ...(preselect.keys ?? [])].filter(Boolean) : []);
+      const row = result.data.rows.find((r) => keys.has(r.key) && !r.pending);
       if (row) {
         setChoices(new Map([[row.key, { reason: row.documents.length > 0 ? "ILLEGIBLE" : "MISSING", note: "" }]]));
         if (row.level === "optional") setShowOptional(true);
       }
-      const field = target === initialTarget && preselect && result.data.fields.find((r) => r.key === preselect.key && !r.pending);
-      if (field) {
-        setFieldChoices(new Map([[field.key, { reason: field.missing.length > 0 ? "MISSING" : "WRONG_VALUE", note: "" }]]));
-        if (field.missing.length === 0) setShowOtherFields(true);
+      const fields = result.data.fields.filter((r) => keys.has(r.key) && !r.pending);
+      if (fields.length > 0) {
+        setFieldChoices(new Map(fields.map((field) => [field.key, { reason: field.missing.length > 0 ? "MISSING" : "WRONG_VALUE", note: "" }])));
+        if (fields.some((field) => field.missing.length === 0)) setShowOtherFields(true);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [bailId, target, initialTarget, preselect?.key]);
+  }, [bailId, target, initialTarget, preselect?.key, preselect?.keys?.join("|")]);
 
   const toggle = (row: ComposerRow, on: boolean) => {
     setChoices((current) => {

@@ -60,10 +60,14 @@ function RequestCard({ request, locked }: { request: StaffComplementRequest; loc
   return (
     <CheckSection
       id={`demande-${request.id}`}
-      title={`${what} au ${who}`}
+      title={`${what}${request.origin === "NOTAIRE" ? " par le notaire" : ""} au ${who}`}
       subtitle={`${request.recipientName} · ${request.submittedAt ? `réponse reçue le ${fmtDay(request.submittedAt)}` : sent}`}
       headerRight={
-        request.status === "SUBMITTED" ? (
+        request.status === "ACCEPTED" ? (
+          <StateChip tone="neutral" className="bg-green-100 text-green-800">
+            Terminée
+          </StateChip>
+        ) : request.status === "SUBMITTED" ? (
           <StateChip tone="neutral" className="bg-blue-100 text-blue-800">
             À vérifier · {toReview}
           </StateChip>
@@ -74,7 +78,7 @@ function RequestCard({ request, locked }: { request: StaffComplementRequest; loc
         )
       }
       footer={
-        locked ? undefined : request.status === "SUBMITTED" || (toReview > 0 && waiting === 0) ? (
+        locked || request.status === "ACCEPTED" ? undefined : request.status === "SUBMITTED" || (toReview > 0 && waiting === 0) ? (
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               type="button"

@@ -10,7 +10,7 @@ import { computeBailEndDate } from "@/lib/utils/bail-duration";
 import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
 import { euros } from "@/lib/utils/rent-relocation";
 import { assessRentRules } from "@/lib/rent-rules";
-import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
+import { checkTightZone, updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
 import { ensurePropertyGeocoded } from "@/lib/geocode";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { updateClientCompletionStatus, updatePropertyCompletionStatus } from "@/lib/utils/completion-status";
@@ -97,10 +97,15 @@ export async function loadDossierState(bailId: string, target: ComplementTarget)
   if (!bail) return null;
   const party = bail.parties.find((p) => p.profilType === (target === "OWNER" ? ProfilType.PROPRIETAIRE : ProfilType.LOCATAIRE));
   if (!party) return null;
-  return buildState(bail, party, target);
+  // Zone tendue : celle enregistrée sur le bien, ou relue à partir de la commune (comme le contrôle du loyer).
+  let tightZone = bail.property?.isTightZone === true;
+  if (!tightZone && target === "OWNER" && bail.bailFamily !== BailFamille.COMMERCIAL && bail.property?.inseeCode) {
+    tightZone = (await checkTightZone(bail.property.inseeCode).catch(() => ({ isTightZone: false }))).isTightZone;
+  }
+  return buildState(bail, party, target, tightZone);
 }
 
-function buildState(bail: AnswerBail, party: AnswerBail["parties"][number], target: ComplementTarget): DossierState {
+function buildState(bail: AnswerBail, party: AnswerBail["parties"][number], target: ComplementTarget, tightZone: boolean): DossierState {
   const moral = party.type === ClientType.PERSONNE_MORALE;
   const persons = moral ? [] : party.persons.map(personToForm);
   const entreprise = entrepriseToForm(party.entreprise);
@@ -117,7 +122,7 @@ function buildState(bail: AnswerBail, party: AnswerBail["parties"][number], targ
     target,
     bailFamily: bail.bailFamily,
     clientType: party.type,
-    isTightZone: bail.property?.isTightZone ?? null,
+    isTightZone: tightZone,
     hasTenant: bail.parties.some((p) => p.profilType === ProfilType.LOCATAIRE),
   };
 
@@ -307,7 +312,7 @@ export async function saveAnswer(state: DossierState, ref: QuestionRef, answer: 
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: Object.values(fieldErrors)[0], fieldErrors };
   }
-  if (ref.id === "bail.rent" || ref.id === "bail.type" || ref.id === "bail.dates") {
+  if (ref.id === "bail.rent" || ref.id === "bail.type" || ref.id === "bail.dates" || ref.id === "bail.rentRules") {
     const tooHigh = await rentTooHigh(state, merged);
     if (tooHigh) return { ok: false, error: tooHigh, fieldErrors: { bailRentAmount: tooHigh } };
   }
@@ -494,6 +499,9 @@ export async function saveAnswer(state: DossierState, ref: QuestionRef, answer: 
         break;
       case "bail.dates":
         Object.assign(bailData, { effectiveDate: toDate(merged.bailEffectiveDate) ?? bail.effectiveDate, paymentDay: toInt(merged.bailPaymentDay), endDate: endDate() });
+        break;
+      case "bail.rentRules":
+        Object.assign(bailData, rentRulesFromForm(merged.rentRules ?? {}));
         break;
       case "commercial.duration":
         Object.assign(bailData, {

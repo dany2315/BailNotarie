@@ -180,9 +180,11 @@ interface NotaireBailChatSheetProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger?: React.ReactNode;
+  /** Demande de pièces ou d'informations : ouvre la fenêtre « Demander » (remplace l'ancienne demande de document). */
+  onAsk?: (target: "OWNER" | "TENANT") => void;
 }
 
-export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedPartyId: externalSelectedPartyId, open: controlledOpen, onOpenChange, trigger }: NotaireBailChatSheetProps) {
+export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedPartyId: externalSelectedPartyId, open: controlledOpen, onOpenChange, trigger, onAsk }: NotaireBailChatSheetProps) {
   const { data: session } = useSession(); 
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -1045,9 +1047,14 @@ export function NotaireBailChatSheet({ bailId, dossierId, bailParties, selectedP
             actions: [
               {
                 id: "request",
-                label: "Demande de document",
+                label: onAsk ? "Demander des pièces ou informations" : "Demande de document",
                 icon: FileText,
                 onSelect: () => {
+                  if (onAsk && selectedPartyId && selectedPartyId !== "all") {
+                    const party = bailParties.find((p) => p.id === selectedPartyId);
+                    onAsk(party?.profilType === "LOCATAIRE" ? "TENANT" : "OWNER");
+                    return;
+                  }
                   if (!selectedPartyId || selectedPartyId === "all") {
                     toast.error("Destinataire requis", {
                       description:

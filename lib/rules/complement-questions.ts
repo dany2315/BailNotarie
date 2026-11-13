@@ -18,6 +18,7 @@ import {
 } from "@/lib/utils/commercial-terms";
 import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
+import { RENT_INCREASE_LABELS } from "@/lib/utils/rent-relocation";
 
 export type ComplementTarget = "OWNER" | "TENANT";
 export type QuestionScope = "person" | "entreprise" | "property" | "bail";
@@ -44,6 +45,7 @@ export const FIELD_QUESTION_IDS = [
   "bail.rent",
   "bail.charges",
   "bail.dates",
+  "bail.rentRules",
   "commercial.activity",
   "commercial.duration",
   "commercial.rent",
@@ -105,6 +107,7 @@ const BASE_LABELS: Record<FieldQuestionId, string> = {
   "bail.rent": "Montant du loyer",
   "bail.charges": "Charges et dépôt de garantie",
   "bail.dates": "Date de début et jour de paiement",
+  "bail.rentRules": "Location précédente du logement",
   "commercial.activity": "Activité exercée dans le local",
   "commercial.duration": "Durée et dates du bail",
   "commercial.rent": "Loyer et conditions de paiement",
@@ -147,7 +150,10 @@ export function availableQuestions(values: any, ctx: QuestionContext): QuestionR
     if (commercial) {
       ids.push("property.shoppingCenter", "commercial.activity", "commercial.duration", "commercial.rent", "commercial.deposit", "commercial.charges", "commercial.clauses");
     } else {
-      ids.push("property.category", "bail.type", "bail.rent", "bail.charges");
+      ids.push("property.category", "bail.type", "bail.rent");
+      // Zone tendue : à la relocation, le loyer dépend du loyer du locataire précédent.
+      if (ctx.isTightZone) ids.push("bail.rentRules");
+      ids.push("bail.charges");
       if (isFurnishedBail(v.bailType)) ids.push("property.furniture");
       ids.push("bail.dates");
     }
@@ -219,6 +225,8 @@ export function questionPaths(ref: QuestionRef, values: any, ctx: QuestionContex
       return ["bailMonthlyCharges", "bailSecurityDeposit"];
     case "bail.dates":
       return ["bailEffectiveDate", "bailPaymentDay"];
+    case "bail.rentRules":
+      return RENT_RULE_PATHS;
     case "commercial.activity":
       return ["commercial.activity", "commercial.ancillaryActivities", "commercial.previouslyLet", "commercial.previousActivity", "commercial.currentlyVacant"];
     case "commercial.duration":
@@ -233,6 +241,18 @@ export function questionPaths(ref: QuestionRef, values: any, ctx: QuestionContex
       return ["commercial.hasGuarantor", "commercial.guarantorName", "commercial.guarantorEmail", "commercial.clauses", "commercial.clausesNote"];
   }
 }
+
+/** Questions de la relocation en zone tendue (mêmes champs que l'étape « Loyer » du formulaire). */
+const RENT_RULE_PATHS = [
+  "rentRules.relocationLetBefore",
+  "rentRules.previousTenantLeftAt",
+  "rentRules.previousRentAmount",
+  "rentRules.previousRentRevisedRecently",
+  "rentRules.rentIncreaseReason",
+  "rentRules.worksAmount",
+  "rentRules.worksCompletedAt",
+  "rentRules.neighborhoodRent",
+];
 
 const PERSON_FIELDS = ["firstName", "lastName", "email", "phone", "fullAddress", "profession", "nationality", "familyStatus", "matrimonialRegime", "birthPlace", "birthDate"];
 
@@ -310,6 +330,7 @@ export function questionForPath(path: string, ctx: QuestionContext): QuestionRef
     return id ? { id, personIndex: null } : null;
   }
   if ((FURNITURE_KEYS as readonly string[]).includes(path)) return { id: "property.furniture", personIndex: null };
+  if (path.startsWith("rentRules.")) return commercial ? null : { id: "bail.rentRules", personIndex: null };
   const simple: Record<string, FieldQuestionId> = {
     propertyFullAddress: "property.address",
     propertySurfaceM2: "property.surface",
@@ -332,6 +353,75 @@ export function questionForPath(path: string, ctx: QuestionContext): QuestionRef
   };
   const id = simple[path];
   return id ? { id, personIndex: null } : null;
+}
+
+/**
+ * Questions qui répondent à des champs de la base (fiche du dossier : « Manquant : lieu de naissance… »).
+ * Les champs qui ne se demandent pas (e-mail de l'espace, forme juridique…) sont ignorés.
+ */
+export function questionsForDataFields(
+  scope: QuestionScope,
+  fields: string[],
+  options: { commercial?: boolean; primaryPerson?: boolean } = {},
+): FieldQuestionId[] {
+  const out = new Set<FieldQuestionId>();
+  const c = !!options.commercial;
+  const maps: Record<QuestionScope, Record<string, FieldQuestionId | null>> = {
+    person: {
+      firstName: "person.identity",
+      lastName: "person.identity",
+      birthDate: "person.birth",
+      birthPlace: "person.birth",
+      nationality: "person.nationality",
+      profession: "person.profession",
+      fullAddress: "person.address",
+      phone: "person.phone",
+      email: options.primaryPerson ? null : "person.email",
+      familyStatus: "person.family",
+      matrimonialRegime: "person.family",
+    },
+    entreprise: {
+      legalName: "company.identity",
+      name: "company.identity",
+      registration: "company.identity",
+      isRegistered: "company.identity",
+      fullAddress: "company.identity",
+      phone: "company.phone",
+      representativeName: "company.representative",
+      representativeRole: "company.representative",
+    },
+    property: {
+      fullAddress: "property.address",
+      surfaceM2: "property.surface",
+      type: "property.surface",
+      legalStatus: "property.legalStatus",
+      syndicName: "property.legalStatus",
+      syndicEmail: "property.legalStatus",
+      syndicPhone: "property.legalStatus",
+      subdivisionOver10Years: "property.legalStatus",
+      mainRooms: c ? null : "property.category",
+      constructionPeriod: c ? null : "property.category",
+      dpeClass: c ? null : "property.category",
+      inShoppingCenter: c ? "property.shoppingCenter" : null,
+      ...Object.fromEntries(FURNITURE_KEYS.map((key) => [key, c ? null : "property.furniture"])),
+    },
+    bail: {
+      bailType: c ? "commercial.duration" : "bail.type",
+      rentAmount: c ? "commercial.rent" : "bail.rent",
+      monthlyCharges: c ? "commercial.deposit" : "bail.charges",
+      securityDeposit: c ? "commercial.deposit" : "bail.charges",
+      effectiveDate: c ? "commercial.duration" : "bail.dates",
+      paymentDay: c ? "commercial.duration" : "bail.dates",
+      relocationLetBefore: c ? null : "bail.rentRules",
+      previousRentAmount: c ? null : "bail.rentRules",
+      previousTenantLeftAt: c ? null : "bail.rentRules",
+    },
+  };
+  for (const field of fields) {
+    const id = maps[scope][field];
+    if (id) out.add(id);
+  }
+  return Array.from(out);
 }
 
 const isBlank = (value: unknown) => value === undefined || value === null || (typeof value === "string" && value.trim() === "");
@@ -394,6 +484,30 @@ export function questionErrors(ref: QuestionRef, values: any, ctx: QuestionConte
       if (!Number.isInteger(day) || day < 1 || day > 31) set(path, "Indiquez un jour entre 1 et 31");
     }
   }
+  // Relocation en zone tendue : les réponses qui permettent de calculer le loyer maximum.
+  if (ref.id === "bail.rentRules") {
+    const r = values?.rentRules ?? {};
+    const need = (key: string, message: string) => {
+      if (isBlank(r[key])) set(`rentRules.${key}`, message);
+    };
+    need("relocationLetBefore", "Indiquez si le logement a déjà été loué");
+    if (r.relocationLetBefore === "yes") {
+      need("previousTenantLeftAt", "Indiquez la date de départ du locataire précédent");
+      need("previousRentAmount", "Indiquez le dernier loyer hors charges");
+      const leftAt = r.previousTenantLeftAt ? new Date(String(r.previousTenantLeftAt)) : null;
+      const vacant = leftAt && !Number.isNaN(leftAt.getTime()) && leftAt <= new Date(new Date().setMonth(new Date().getMonth() - 18));
+      if (leftAt && !vacant) {
+        need("previousRentRevisedRecently", "Indiquez si le loyer a été révisé au cours des 12 derniers mois");
+        need("rentIncreaseReason", "Indiquez s'il y a une hausse par rapport au dernier loyer");
+        if (r.rentIncreaseReason === "WORKS") {
+          need("worksAmount", "Indiquez le coût des travaux");
+          need("worksCompletedAt", "Indiquez la date de fin des travaux");
+        }
+        if (r.rentIncreaseReason === "UNDERVALUED") need("neighborhoodRent", "Indiquez le loyer du voisinage");
+      }
+    }
+  }
+
   // Deux personnes du même client ne peuvent pas avoir le même e-mail.
   if (Array.isArray(values?.persons)) {
     const seen = new Map<string, number>();
@@ -505,6 +619,14 @@ const FIELD_LABELS: Record<string, string> = {
   hasEtageresRangement: "Étagères",
   hasLuminaires: "Luminaires",
   hasMaterielEntretien: "Matériel d'entretien",
+  relocationLetBefore: "Déjà loué",
+  previousTenantLeftAt: "Départ du locataire précédent",
+  previousRentAmount: "Dernier loyer hors charges",
+  previousRentRevisedRecently: "Révisé dans les 12 derniers mois",
+  rentIncreaseReason: "Hausse du loyer",
+  worksAmount: "Coût des travaux",
+  worksCompletedAt: "Fin des travaux",
+  neighborhoodRent: "Loyer du voisinage",
 };
 
 const BAIL_TYPE_LABELS: Record<string, string> = {
@@ -583,7 +705,12 @@ export function formatFieldValue(path: string, value: unknown): string {
     case "bailMonthlyCharges":
     case "bailSecurityDeposit":
     case "entryFeeAmount":
+    case "previousRentAmount":
+    case "worksAmount":
+    case "neighborhoodRent":
       return euro(text);
+    case "rentIncreaseReason":
+      return RENT_INCREASE_LABELS[text as keyof typeof RENT_INCREASE_LABELS] ?? text;
     case "bailPaymentDay":
       return `Le ${text} du mois`;
     case "rentPeriodicity":

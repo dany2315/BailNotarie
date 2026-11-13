@@ -87,7 +87,9 @@ function getNotificationMessage(notification: Notification): string {
       return `Diagnostics à régler — ${metadata.propertyLabel || "un bien"}${parts.length ? ` : ${parts.join(", ")}` : ""}`;
     }
     case "COMPLEMENT_SUBMITTED":
-      return `Pièces reçues — ${metadata.clientName || "le client"} a répondu à la demande${metadata.propertyLabel ? ` (${metadata.propertyLabel})` : ""}`;
+      return `Réponse reçue — ${metadata.clientName || "le client"} a répondu à la demande${metadata.propertyLabel ? ` (${metadata.propertyLabel})` : ""}`;
+    case "COMPLEMENT_REQUESTED_BY_NOTAIRE":
+      return `Demande du notaire — ${metadata.notaireName || "le notaire"} a demandé ${metadata.count || ""} élément${(metadata.count || 0) > 1 ? "s" : ""} à ${metadata.clientName || "un client"}${metadata.propertyLabel ? ` (${metadata.propertyLabel})` : ""}`;
     case "LEAD_CONVERTED":
       return `Lead converti en ${metadata.newProfilType === "PROPRIETAIRE" ? "propriétaire" : "locataire"}`;
     default:

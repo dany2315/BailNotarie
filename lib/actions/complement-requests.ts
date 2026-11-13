@@ -6,6 +6,7 @@ import {
   BailFamille,
   ComplementItemKind,
   ComplementItemStatus,
+  ComplementOrigin,
   ComplementReason,
   ComplementRequestStatus,
   DocumentKind,
@@ -24,7 +25,7 @@ import { deleteDocumentFromDB } from "@/lib/document-storage";
 import { queueDiagnosticReading } from "@/lib/diagnostics/run";
 import { isValidUploadKey } from "@/lib/upload-access";
 import { createUserForClient } from "@/lib/utils/user-creation";
-import { createNotificationForAllUsers } from "@/lib/utils/notifications";
+import { createNotificationForAllUsers, createNotificationForUser } from "@/lib/utils/notifications";
 import {
   updateClientCompletionStatus,
   updatePropertyCompletionStatus,
@@ -110,6 +111,35 @@ async function loadBail(bailId: string) {
   });
 }
 type LoadedBail = NonNullable<Awaited<ReturnType<typeof loadBail>>>;
+
+/**
+ * Qui peut demander pour ce dossier : un administrateur (demande de l'équipe) ou le notaire
+ * assigné au dossier (sa propre demande, qu'il suit depuis son espace).
+ */
+async function requireRequester(bailId: string) {
+  const user = await requireAuth();
+  if (user.role === Role.ADMINISTRATEUR) return { user, origin: ComplementOrigin.TEAM, assignmentId: null as string | null };
+  if (user.role === Role.NOTAIRE) {
+    const assignment = await prisma.dossierNotaireAssignment.findFirst({ where: { bailId, notaireId: user.id }, select: { id: true } });
+    if (assignment) return { user, origin: ComplementOrigin.NOTAIRE, assignmentId: assignment.id };
+  }
+  throw new Error("Non autorisé");
+}
+
+/** Suivi d'une demande : l'équipe pour toutes, le notaire seulement pour les siennes. */
+async function requireRequestAccess(request: { bailId: string; origin: ComplementOrigin }) {
+  const access = await requireRequester(request.bailId);
+  if (access.origin === ComplementOrigin.NOTAIRE && request.origin !== ComplementOrigin.NOTAIRE) throw new Error("Non autorisé");
+  return access;
+}
+
+async function allowed<T>(check: () => Promise<T>): Promise<T | null> {
+  try {
+    return await check();
+  } catch {
+    return null;
+  }
+}
 
 function partyOf(bail: LoadedBail, target: ReminderTarget) {
   return bail.parties.find((p) => p.profilType === (target === ReminderTarget.OWNER ? ProfilType.PROPRIETAIRE : ProfilType.LOCATAIRE)) ?? null;
@@ -349,10 +379,11 @@ async function composerRows(bail: LoadedBail, target: ReminderTarget): Promise<C
 }
 
 export async function getComplementComposer(data: unknown): Promise<{ success: true; data: ComposerData } | Fail> {
-  await requireRole([Role.ADMINISTRATEUR]);
   const parsed = z.object({ bailId: z.string().min(1), target: z.nativeEnum(ReminderTarget) }).safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const { bailId, target } = parsed.data;
+  const access = await allowed(() => requireRequester(bailId));
+  if (!access) return { success: false, error: "Accès refusé" };
 
   const bail = await loadBail(bailId);
   if (!bail) return { success: false, error: "Dossier introuvable" };
@@ -364,7 +395,7 @@ export async function getComplementComposer(data: unknown): Promise<{ success: t
     loadDossierState(bailId, target),
     formStillPending(bailId, party.id),
     prisma.complementRequest.findFirst({
-      where: { bailId, clientId: party.id, status: { in: ACTIVE_STATUSES } },
+      where: { bailId, clientId: party.id, origin: access.origin, status: { in: ACTIVE_STATUSES } },
       orderBy: { createdAt: "desc" },
       select: { id: true, status: true, message: true, items: {
           where: { status: ComplementItemStatus.PENDING },
@@ -549,6 +580,7 @@ async function sendRequestEmail(requestId: string, reminder: boolean): Promise<s
 
 function revalidateBail(bailId: string) {
   revalidatePath(`/interface/baux/${bailId}`);
+  revalidatePath("/notaire/dossiers", "layout");
   revalidatePath("/client/proprietaire");
   revalidatePath("/client/locataire");
 }
@@ -558,10 +590,12 @@ function revalidateBail(bailId: string) {
  * Si l'e-mail ne part pas, rien n'est enregistré.
  */
 export async function sendComplementRequest(data: unknown): Promise<{ success: true; data: { requestId: string; email: string } } | Fail> {
-  const user = await requireRole([Role.ADMINISTRATEUR]);
   const parsed = sendSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
   const { bailId, target, message, items, fields } = parsed.data;
+  const access = await allowed(() => requireRequester(bailId));
+  if (!access) return { success: false, error: "Accès refusé" };
+  const { user, origin } = access;
 
   const bail = await loadBail(bailId);
   if (!bail) return { success: false, error: "Dossier introuvable" };
@@ -594,7 +628,7 @@ export async function sendComplementRequest(data: unknown): Promise<{ success: t
   }
 
   const existing = await prisma.complementRequest.findFirst({
-    where: { bailId, clientId: party.id, status: { in: ACTIVE_STATUSES } },
+    where: { bailId, clientId: party.id, origin, status: { in: ACTIVE_STATUSES } },
     orderBy: { createdAt: "desc" },
     include: { items: true },
   });
@@ -654,6 +688,7 @@ export async function sendComplementRequest(data: unknown): Promise<{ success: t
         bailId,
         clientId: party.id,
         target,
+        origin,
         message: message || null,
         recipientEmail: email,
         createdById: user.id,
@@ -677,6 +712,15 @@ export async function sendComplementRequest(data: unknown): Promise<{ success: t
     return { success: false, error: sendError };
   }
 
+  // Demande du notaire : l'équipe est prévenue (elle suit aussi le dossier).
+  if (origin === ComplementOrigin.NOTAIRE) {
+    await createNotificationForAllUsers(NotificationType.COMPLEMENT_REQUESTED_BY_NOTAIRE, "BAIL", bailId, user.id, {
+      notaireName: getActorName(user),
+      clientName: getClientDisplayName(party),
+      propertyLabel: bail.property?.label || bail.property?.fullAddress || null,
+      count: items.length + fields.length,
+    }).catch((error) => console.error("[complement-requests] notification notaire", error));
+  }
   revalidateBail(bailId);
   return { success: true, data: { requestId, email } };
 }
@@ -687,10 +731,10 @@ async function loadRequestForStaff(requestId: string) {
 
 /** Relance : le même e-mail, avec seulement les pièces encore attendues. */
 export async function remindComplementRequest(data: unknown): Promise<{ success: true } | Fail> {
-  await requireRole([Role.ADMINISTRATEUR]);
   const parsed = z.object({ requestId: z.string().min(1) }).safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const request = await loadRequestForStaff(parsed.data.requestId);
+  if (request && !(await allowed(() => requireRequestAccess(request)))) return { success: false, error: "Accès refusé" };
   if (!request || request.status !== ComplementRequestStatus.OPEN) return { success: false, error: "Cette demande n'attend plus le client" };
   const sendError = await sendRequestEmail(request.id, true);
   if (sendError) return { success: false, error: sendError };
@@ -701,10 +745,10 @@ export async function remindComplementRequest(data: unknown): Promise<{ success:
 
 /** Annule la demande : les pièces déjà reçues restent dans le dossier. */
 export async function cancelComplementRequest(data: unknown): Promise<{ success: true } | Fail> {
-  await requireRole([Role.ADMINISTRATEUR]);
   const parsed = z.object({ requestId: z.string().min(1) }).safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const request = await loadRequestForStaff(parsed.data.requestId);
+  if (request && !(await allowed(() => requireRequestAccess(request)))) return { success: false, error: "Accès refusé" };
   if (!request || !ACTIVE_STATUSES.includes(request.status)) return { success: false, error: "Cette demande est déjà terminée" };
   await prisma.complementRequest.update({ where: { id: request.id }, data: { status: ComplementRequestStatus.CANCELLED, closedAt: new Date() } });
   revalidateBail(request.bailId);
@@ -768,13 +812,13 @@ const reviewSchema = z.discriminatedUnion("decision", [
  * par e-mail ; le fichier refusé sera remplacé par le prochain.
  */
 export async function reviewComplementItem(data: unknown): Promise<{ success: true } | Fail> {
-  await requireRole([Role.ADMINISTRATEUR]);
   const parsed = reviewSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
   const item = await prisma.complementRequestItem.findUnique({
     where: { id: parsed.data.itemId },
     include: { request: true, documents: { select: { id: true } } },
   });
+  if (item && !(await allowed(() => requireRequestAccess(item.request)))) return { success: false, error: "Accès refusé" };
   if (!item || !ACTIVE_STATUSES.includes(item.request.status)) return { success: false, error: "Cette demande est déjà terminée" };
   if (item.status !== ComplementItemStatus.PROVIDED) return { success: false, error: "Le client n'a pas encore répondu pour cette ligne" };
   if (parsed.data.decision === "redo") {
@@ -825,10 +869,10 @@ export async function reviewComplementItem(data: unknown): Promise<{ success: tr
 
 /** Accepte toutes les pièces reçues de la demande. */
 export async function acceptComplementRequest(data: unknown): Promise<{ success: true } | Fail> {
-  await requireRole([Role.ADMINISTRATEUR]);
   const parsed = z.object({ requestId: z.string().min(1) }).safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const request = await loadRequestForStaff(parsed.data.requestId);
+  if (request && !(await allowed(() => requireRequestAccess(request)))) return { success: false, error: "Accès refusé" };
   if (!request || !ACTIVE_STATUSES.includes(request.status)) return { success: false, error: "Cette demande est déjà terminée" };
   const provided = request.items.filter((item) => item.status === ComplementItemStatus.PROVIDED).map((item) => item.id);
   if (provided.length === 0) return { success: false, error: "Aucune pièce à accepter" };
@@ -863,6 +907,8 @@ export interface StaffComplementItem {
 export interface StaffComplementRequest {
   id: string;
   target: ReminderTarget;
+  /** L'équipe ou le notaire. */
+  origin: ComplementOrigin;
   status: ComplementRequestStatus;
   recipientName: string;
   recipientEmail: string;
@@ -878,8 +924,21 @@ export interface StaffComplementRequest {
 /** Demandes en cours d'un dossier (en attente du client ou à vérifier). */
 export async function getBailComplementRequests(bailId: string): Promise<StaffComplementRequest[]> {
   await requireRole([Role.ADMINISTRATEUR, Role.OPERATEUR, Role.REVIEWER]);
+  return loadStaffRequests({ bailId, status: { in: ACTIVE_STATUSES } });
+}
+
+/** Demandes du notaire connecté pour ce dossier : en cours, puis terminées (les plus récentes d'abord). */
+export async function getNotaireComplementRequests(bailId: string): Promise<StaffComplementRequest[]> {
+  const access = await allowed(() => requireRequester(bailId));
+  if (!access || access.origin !== ComplementOrigin.NOTAIRE) return [];
+  const requests = await loadStaffRequests({ bailId, origin: ComplementOrigin.NOTAIRE, status: { not: ComplementRequestStatus.CANCELLED } });
+  const rank = (status: ComplementRequestStatus) => (status === ComplementRequestStatus.SUBMITTED ? 0 : status === ComplementRequestStatus.OPEN ? 1 : 2);
+  return requests.sort((a, b) => rank(a.status) - rank(b.status) || b.lastSentAt.localeCompare(a.lastSentAt));
+}
+
+async function loadStaffRequests(where: Prisma.ComplementRequestWhereInput): Promise<StaffComplementRequest[]> {
   const requests = await prisma.complementRequest.findMany({
-    where: { bailId, status: { in: ACTIVE_STATUSES } },
+    where,
     orderBy: { createdAt: "asc" },
     include: {
       client: { include: { persons: { orderBy: { isPrimary: "desc" }, take: 1 }, entreprise: true } },
@@ -889,6 +948,7 @@ export async function getBailComplementRequests(bailId: string): Promise<StaffCo
   return requests.map((request) => ({
     id: request.id,
     target: request.target,
+    origin: request.origin,
     status: request.status,
     recipientName: getClientDisplayName(request.client) || "",
     recipientEmail: request.recipientEmail,
@@ -943,6 +1003,8 @@ export interface ClientComplementRequest {
   id: string;
   bailId: string;
   target: ReminderTarget;
+  /** Demande de l'équipe ou du notaire. */
+  origin: ComplementOrigin;
   status: ComplementRequestStatus;
   message: string | null;
   address: string;
@@ -979,6 +1041,7 @@ function toClientRequest(request: any, state: DossierState | null = null): Clien
     id: request.id,
     bailId: request.bail.id,
     target: request.target,
+    origin: request.origin,
     status: request.status,
     message: request.message,
     address: request.bail.property?.fullAddress || request.bail.property?.label || "",
@@ -1090,12 +1153,17 @@ export async function addComplementDocument(data: unknown): Promise<{ success: t
   }
 }
 
-/** Pièces obligatoires encore absentes de ce dossier pour cette personne (clé → ligne). */
+/**
+ * Pièces attendues encore absentes de ce dossier pour cette personne (clé → ligne) : les obligatoires,
+ * et celles dont le notaire a besoin (justificatifs du loyer, déclaration d'occupation).
+ */
 async function missingBlockingDocuments(bailId: string, target: ReminderTarget) {
   const bail = await loadBail(bailId);
   if (!bail) return new Map<string, ComposerRow>();
   const rows = await composerRows(bail, target);
-  return new Map(rows.filter((row) => row.level === "blocking" && row.documents.length === 0).map((row) => [row.key, row]));
+  return new Map(
+    rows.filter((row) => (row.level === "blocking" || row.level === "expected") && row.documents.length === 0).map((row) => [row.key, row]),
+  );
 }
 
 const answerSchema = z.object({
@@ -1234,6 +1302,17 @@ export async function submitComplementRequest(data: unknown): Promise<{ success:
       }
     }
     await prisma.complementRequest.update({ where: { id: request.id }, data: { status: ComplementRequestStatus.SUBMITTED, submittedAt: new Date() } });
+    if (request.origin === ComplementOrigin.NOTAIRE) {
+      // Le notaire qui a fait la demande est prévenu de la réponse.
+      const assignment = await prisma.dossierNotaireAssignment.findFirst({ where: { bailId: request.bailId }, orderBy: { assignedAt: "desc" }, select: { id: true, notaireId: true } });
+      if (assignment) {
+        await createNotificationForUser(NotificationType.COMPLEMENT_SUBMITTED, assignment.notaireId, "NOTAIRE_DOSSIER", assignment.id, user.id, {
+          clientName: getClientDisplayName(client as any),
+          propertyLabel: request.bail.property?.label || request.bail.property?.fullAddress || null,
+          count: request.items.length,
+        }).catch((error) => console.error("[complement-requests] notification notaire", error));
+      }
+    }
     await createNotificationForAllUsers(NotificationType.COMPLEMENT_SUBMITTED, "BAIL", request.bailId, user.id, {
       clientName: getClientDisplayName(client as any),
       propertyLabel: request.bail.property?.label || request.bail.property?.fullAddress || null,

@@ -13,6 +13,7 @@ import { MISSING_FIELD_LABELS } from "@/lib/utils/missing-items";
 import { formatPhone } from "@/lib/utils/phone-format";
 import { REGISTERED_LABELS, registryNotes } from "@/lib/utils/company-registry";
 import { CompanyRegistryButton } from "@/components/admin/company-registry-button";
+import { AskFieldsButton } from "@/components/complements/complement-composer";
 import { pointKey, summarize, summaryChip, type VerificationPointState } from "@/lib/utils/verification";
 
 const isoDay = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : null);
@@ -69,6 +70,8 @@ interface PartyGroup {
   text: string;
   missing: string[];
   editor: { entity: "person" | "entreprise"; id: string; title: string; fields: GroupField[] };
+  /** Personne principale (son e-mail est celui de l'espace : il ne se demande pas). */
+  primary?: boolean;
   /** Société : recherche au registre des entreprises, à côté de « Modifier ». */
   registry?: { entrepriseId: string; registration: string | null; representativeName: string | null };
 }
@@ -268,6 +271,7 @@ export function buildPartyPoints(
           text: d.lines.filter(Boolean).join("\n"),
           missing: [...d.fields.filter(isMissing), ...d.extra],
           editor: { entity: "person", id: person.id, title: d.label.replace(" (principale)", ""), fields: fieldsOf(person, d.fields, isMissing) },
+          primary: person.id === primary?.id,
         });
       }
     }
@@ -344,7 +348,7 @@ export function PartyCheckSection({
   /** « Demander » sur les pièces manquantes (ouvre la relance). */
   requestAction?: ReactNode;
   /** Demandes de pièces à cette personne (« Demander », « Redemander »). */
-  complement?: { bailId: string; target: "OWNER" | "TENANT" };
+  complement?: { bailId: string; target: "OWNER" | "TENANT"; commercial?: boolean };
 }) {
   const roleTitle = ROLE_TITLES[role];
   const party = data.party;
@@ -417,6 +421,17 @@ export function PartyCheckSection({
                       entrepriseId={g.registry.entrepriseId}
                       registration={g.registry.registration}
                       representativeName={g.registry.representativeName}
+                    />
+                  )}
+                  {missing && complement && !locked && (
+                    <AskFieldsButton
+                      bailId={complement.bailId}
+                      target={complement.target}
+                      scope={g.editor.entity}
+                      targetId={g.editor.id}
+                      fields={g.missing}
+                      commercial={complement.commercial}
+                      primaryPerson={g.primary}
                     />
                   )}
                   <GroupFieldEditor entity={g.editor.entity} id={g.editor.id} title={g.editor.title} fields={g.editor.fields} />
