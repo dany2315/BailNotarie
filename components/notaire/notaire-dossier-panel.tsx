@@ -59,8 +59,6 @@ const dayFr = (iso: string) =>
     timeZone: "Europe/Paris",
   });
 
-const sectionText = (section: FactSection) =>
-  `${section.title}\n${section.rows.map((r) => `${r.label} : ${r.value}`).join("\n")}`;
 
 /** Copie avec un retour visuel bref (« Copié »). */
 function useCopy() {
@@ -251,18 +249,6 @@ export function NotaireDossierPanel({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button
-            variant="ghost"
-            className="h-10 gap-2 text-muted-foreground hover:text-foreground"
-            onClick={() => copy("all", view.text)}
-          >
-            {copied === "all" ? (
-              <Check className="size-4 text-emerald-600" />
-            ) : (
-              <Copy className="size-4" />
-            )}
-            {copied === "all" ? "Fiche copiée" : "Copier toute la fiche"}
-          </Button>
         </div>
       </header>
 
@@ -511,31 +497,15 @@ function FactGroup({
           key={section.key}
           className="overflow-hidden rounded-2xl border bg-background"
         >
-          <div className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-5">
-            <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold">
-                {section.title}
+          <div className="border-b px-4 py-3 sm:px-5">
+            <p className="truncate text-[15px] font-semibold">
+              {section.title}
+            </p>
+            {section.hint && (
+              <p className="text-[12px] text-muted-foreground">
+                {section.hint}
               </p>
-              {section.hint && (
-                <p className="text-[12px] text-muted-foreground">
-                  {section.hint}
-                </p>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
-              onClick={() => copy(section.key, sectionText(section))}
-              disabled={section.rows.length === 0}
-            >
-              {copied === section.key ? (
-                <Check className="size-3.5 text-emerald-600" />
-              ) : (
-                <Copy className="size-3.5" />
-              )}
-              {copied === section.key ? "Copié" : "Copier le bloc"}
-            </Button>
+            )}
           </div>
           {section.rows.length === 0 ? (
             <p className="px-5 py-4 text-[13px] text-muted-foreground">
@@ -551,8 +521,9 @@ function FactGroup({
                     key={key}
                     type="button"
                     onClick={() => copy(key, row.value)}
-                    title="Cliquer pour copier"
-                    className="group relative grid w-full grid-cols-1 gap-0.5 px-4 py-2.5 pr-20 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none sm:grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] sm:items-baseline sm:gap-4 sm:px-5 sm:pr-20"
+                    title={`Copier : ${row.value}`}
+                    aria-label={`Copier ${row.label} : ${row.value}`}
+                    className="group relative grid w-full grid-cols-1 gap-0.5 px-4 py-2.5 pr-14 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none sm:grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] sm:items-baseline sm:gap-4 sm:px-5 sm:pr-14"
                   >
                     <dt className="text-[12.5px] text-muted-foreground sm:text-[13px]">
                       {row.label}
@@ -560,21 +531,20 @@ function FactGroup({
                     <dd className="whitespace-pre-line break-words text-[14px] font-medium">
                       {row.value}
                     </dd>
+                    {/* Icône toujours visible : chaque ligne se copie seule, d'un clic. */}
                     <span
-                      aria-live="polite"
+                      aria-hidden
                       className={cn(
-                        "absolute right-4 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 text-[12px] font-medium transition-opacity",
+                        "absolute right-3 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md transition-colors sm:right-4",
                         done
-                          ? "text-emerald-600 opacity-100"
-                          : "text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+                          ? "bg-emerald-50 text-emerald-600"
+                          : "text-muted-foreground/70 group-hover:bg-muted group-hover:text-foreground group-focus-visible:bg-muted group-focus-visible:text-foreground",
                       )}
                     >
-                      {done ? (
-                        <Check className="size-3.5" />
-                      ) : (
-                        <Copy className="size-3.5" />
-                      )}
-                      {done ? "Copié" : "Copier"}
+                      {done ? <Check className="size-4" /> : <Copy className="size-4" />}
+                    </span>
+                    <span aria-live="polite" className="sr-only">
+                      {done ? `${row.label} copié` : ""}
                     </span>
                   </button>
                 );
