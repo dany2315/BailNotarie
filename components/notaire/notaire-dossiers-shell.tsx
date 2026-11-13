@@ -9,6 +9,7 @@ import { DOSSIER_FILTER_TABS, DOSSIER_TAB_STATUSES, getBailStatusColor, type Dos
 import type { NotaireDossierView } from "@/lib/notaire/dossier-view";
 import type { StaffComplementRequest } from "@/lib/actions/complement-requests";
 import { NotaireDossierPanel } from "./notaire-dossier-panel";
+import { NotaireAccount } from "./notaire-account";
 import { cn } from "@/lib/utils";
 
 export interface DossierListItem {
@@ -43,7 +44,10 @@ export function NotaireDossiersShell({
   explicit,
   view,
   requests,
+  user,
 }: {
+  /** Notaire connecté (bas du menu). */
+  user: { name: string | null; email: string };
   list: DossierListItem[];
   selectedId: string | null;
   /** Dossier choisi dans l'adresse (sur téléphone, on l'affiche au lieu de la liste). */
@@ -63,28 +67,17 @@ export function NotaireDossiersShell({
     (d) => tabOf(d.status) === tab && (!query || [d.owner, d.tenant, d.address].some((text) => text?.toLowerCase().includes(query))),
   );
 
-  if (list.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center p-6">
-        <div className="max-w-sm text-center">
-          <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <FileText className="size-5" />
-          </span>
-          <p className="mt-4 text-[15px] font-semibold">Aucun dossier pour le moment</p>
-          <p className="mt-1 text-[13.5px] text-muted-foreground">Les dossiers qui vous sont confiés apparaîtront ici.</p>
-        </div>
-      </div>
-    );
-  }
-
   const open = (id: string) => startTransition(() => router.push(`/notaire/dossiers?dossierId=${id}`, { scroll: false }));
 
   return (
     <div className="flex h-full min-h-0">
       {/* Liste */}
       <aside className={cn("flex min-h-0 w-full flex-col border-r bg-background lg:w-[320px] lg:shrink-0", explicit ? "hidden lg:flex" : "flex")}>
-        <div className="flex flex-col gap-3 px-4 pb-3 pt-5">
-          <h1 className="text-[17px] font-semibold tracking-tight">Dossiers</h1>
+        <div className="flex flex-col gap-3 px-4 pb-3 pt-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <h1 className="text-[17px] font-semibold tracking-tight">Dossiers</h1>
+            <span className="text-[12px] font-medium text-muted-foreground">BailNotarie · Espace notaire</span>
+          </div>
           <div role="tablist" aria-label="Statut des dossiers" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
             {DOSSIER_FILTER_TABS.map((t) => (
               <button
@@ -115,7 +108,15 @@ export function NotaireDossiersShell({
           </div>
         </div>
         <nav aria-label="Dossiers" className="min-h-0 flex-1 overflow-y-auto border-t px-2 py-2">
-          {shown.length === 0 ? (
+          {list.length === 0 ? (
+            <div className="px-4 py-10 text-center">
+              <span className="mx-auto flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <FileText className="size-4" />
+              </span>
+              <p className="mt-3 text-[14px] font-semibold">Aucun dossier pour le moment</p>
+              <p className="mt-1 text-[12.5px] text-muted-foreground">Les dossiers qui vous sont confiés apparaîtront ici.</p>
+            </div>
+          ) : shown.length === 0 ? (
             <p className="px-3 py-8 text-center text-[13px] text-muted-foreground">Aucun dossier</p>
           ) : (
             <ul className="flex flex-col gap-0.5">
@@ -153,6 +154,7 @@ export function NotaireDossiersShell({
             </ul>
           )}
         </nav>
+        <NotaireAccount userName={user.name} userEmail={user.email} />
       </aside>
 
       {/* Dossier */}
@@ -167,7 +169,7 @@ export function NotaireDossiersShell({
         )}
         {view ? (
           <NotaireDossierPanel key={view.assignmentId} view={view} requests={requests} />
-        ) : (
+        ) : list.length === 0 ? null : (
           <p className="p-10 text-center text-[13.5px] text-muted-foreground">Ce dossier n&apos;est pas accessible.</p>
         )}
       </section>

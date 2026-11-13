@@ -1,42 +1,14 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
-import { NotaireSidebar } from "@/components/notaire/notaire-sidebar";
-import { NotaireHeader } from "@/components/notaire/notaire-header";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-export default async function NotaireProtectedLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+/** Espace notaire : un seul écran, le menu latéral des dossiers et le dossier ouvert. */
+export default async function NotaireProtectedLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
+  if (!user || user.role !== Role.NOTAIRE) redirect("/notaire/login");
 
-  if (!user) {
-    redirect("/notaire/login");
-  }
-
-  if (user.role !== Role.NOTAIRE) {
-    redirect("/notaire/login");
-  }
-
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <NotaireSidebar />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <NotaireHeader
-          userName={user.name}
-          userEmail={user.email}
-        />
-        <main className="flex-1 overflow-y-auto min-h-0">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  return <main className="h-dvh overflow-hidden">{children}</main>;
 }
-
-
-

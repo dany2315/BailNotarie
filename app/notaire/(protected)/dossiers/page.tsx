@@ -44,5 +44,5 @@ export default async function NotaireDossiersPage({ searchParams }: { searchPara
   const view = selectedId ? await loadNotaireDossier(selectedId) : null;
   const requests = view?.bailId ? await getNotaireComplementRequests(view.bailId) : [];
 
-  return <NotaireDossiersShell list={list} selectedId={selectedId} explicit={!!dossierId} view={view} requests={requests} />;
+  return <NotaireDossiersShell user={{ name: user.name ?? null, email: user.email }} list={list} selectedId={selectedId} explicit={!!dossierId} view={view} requests={requests} />;
 }
