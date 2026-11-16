@@ -25,7 +25,8 @@ type FieldConflict = Array<{ label: string; before: string; after: string }>;
 
 /**
  * Demandes de pièces en cours du dossier : ce qui est attendu, ce qui est arrivé, et la décision de l'équipe.
- * `canArchive` (équipe uniquement) : en acceptant une pièce, choisir les anciennes pièces à retirer.
+ * `canArchive` (équipe, et notaire sur ses propres demandes) : en acceptant une pièce, choisir les anciennes
+ * pièces à retirer.
  */
 export function ComplementRequestsPanel({
   requests,
@@ -308,8 +309,8 @@ function ItemRow({
           <div className="flex flex-col gap-2.5 rounded-lg border bg-muted/30 p-3">
             <p className="text-[13px] font-semibold">Anciennes pièces à retirer des pièces actives</p>
             <p className="text-[13px] text-muted-foreground">
-              Cochez celles que la nouvelle pièce remplace. Elles sont archivées : le fichier est conservé et reste consultable par
-              l&apos;équipe. Sans rien cocher, toutes restent actives.
+              Cochez celles que la nouvelle pièce remplace. Elles sont archivées : le fichier est conservé et vous pourrez
+              toujours le rouvrir. Sans rien cocher, toutes restent actives.
             </p>
             <ul className="flex flex-col gap-1.5">
               {item.replaceable.map((doc) => (

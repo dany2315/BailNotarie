@@ -26,6 +26,7 @@ import {
 import { DocumentViewer } from "@/components/leases/document-viewer";
 import { ComplementComposer } from "@/components/complements/complement-composer";
 import { ComplementRequestsPanel } from "@/components/complements/complement-requests-panel";
+import { ArchivedDocuments, type ArchivedDocumentRow } from "@/components/admin/archived-documents";
 import { NotaireBailChatSheet } from "@/components/notaire/notaire-bail-chat-sheet";
 import { NotaireDiagnosticsCard } from "@/components/notaire/notaire-diagnostics";
 import { useDownloadFile } from "@/hooks/use-download-file";
@@ -85,9 +86,12 @@ function useCopy() {
 export function NotaireDossierPanel({
   view,
   requests,
+  archived = [],
 }: {
   view: NotaireDossierView;
   requests: StaffComplementRequest[];
+  /** Anciennes pièces que ce notaire a retirées en acceptant une nouvelle : il peut toujours les rouvrir. */
+  archived?: ArchivedDocumentRow[];
 }) {
   const router = useRouter();
   const [status, setStatus] = React.useState(view.status);
@@ -271,7 +275,13 @@ export function NotaireDossierPanel({
                   </span>
                 )}
               </h3>
-              <ComplementRequestsPanel requests={requests} />
+              <ComplementRequestsPanel requests={requests} canArchive />
+            </section>
+          )}
+
+          {archived.length > 0 && (
+            <section className="mt-6">
+              <ArchivedDocuments documents={archived} />
             </section>
           )}
 

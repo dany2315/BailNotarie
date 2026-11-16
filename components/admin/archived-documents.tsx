@@ -21,7 +21,8 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "2
 
 /**
  * Pièces retirées des pièces actives du dossier (remplacées par une nouvelle). Elles ne comptent plus dans
- * le dossier et ne sont plus visibles du client ni du notaire ; le fichier est conservé pour l'équipe.
+ * le dossier et ne sont plus visibles du client ; le fichier est conservé pour l'équipe, et pour le notaire
+ * quand c'est lui qui a retiré la pièce.
  */
 export function ArchivedDocuments({ documents }: { documents: ArchivedDocumentRow[] }) {
   if (documents.length === 0) return null;
@@ -29,7 +30,7 @@ export function ArchivedDocuments({ documents }: { documents: ArchivedDocumentRo
     <CheckSection
       id="bloc-archives"
       title="Pièces archivées"
-      subtitle="Remplacées par une nouvelle pièce : conservées, visibles de l'équipe seulement"
+      subtitle="Remplacées par une nouvelle pièce : conservées, hors du dossier actif"
       headerRight={<StateChip tone="neutral">{documents.length}</StateChip>}
     >
       <ul className="flex flex-col divide-y">

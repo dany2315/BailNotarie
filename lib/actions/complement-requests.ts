@@ -826,8 +826,9 @@ export type AcceptOutcome =
 /**
  * Accepte une ligne reçue.
  *
- * Pièce : les anciennes pièces choisies par l'équipe sont archivées (retirées des pièces actives, fichier
- * et ligne conservés, reliées à la nouvelle). Sans choix, les anciennes pièces restent actives.
+ * Pièce : les anciennes pièces choisies par l'équipe (ou par le notaire, sur sa propre demande) sont archivées
+ * (retirées des pièces actives, fichier et ligne conservés, reliées à la nouvelle). Sans choix, les anciennes
+ * pièces restent actives.
  *
  * Information : la réponse du client, restée une proposition jusque-là, est recontrôlée puis écrite dans le
  * dossier avec le journal avant/après. Si le dossier a changé depuis la réponse, rien n'est écrit tant que
@@ -972,10 +973,8 @@ export async function reviewComplementItem(data: unknown): Promise<{ success: tr
   }
 
   if (parsed.data.decision === "accept") {
-    // Retirer d'anciennes pièces est une décision de l'équipe (pas du notaire).
-    if (parsed.data.archiveDocumentIds?.length && access!.origin !== ComplementOrigin.TEAM) {
-      return { success: false, error: "Seule l'équipe BailNotarie peut retirer d'anciennes pièces" };
-    }
+    // Retirer d'anciennes pièces : l'équipe sur toutes les demandes, le notaire assigné sur les siennes
+    // (requireRequestAccess ne lui ouvre que celles-là). Une fois le dossier chez lui, il ne dépend pas de l'équipe.
     try {
       const outcome = await acceptItem(item.id, item.request, { id: access!.user.id, name: getActorName(access!.user) }, parsed.data);
       if (!outcome.ok) return { success: false, error: outcome.error, conflict: outcome.conflict };
@@ -1098,6 +1097,27 @@ export interface StaffComplementRequest {
 export async function getBailComplementRequests(bailId: string): Promise<StaffComplementRequest[]> {
   await requireRole([Role.ADMINISTRATEUR, Role.OPERATEUR, Role.REVIEWER]);
   return loadStaffRequests({ bailId, status: { in: ACTIVE_STATUSES } });
+}
+
+/** Pièces que le notaire connecté a lui-même archivées dans ce dossier : il peut toujours les rouvrir. */
+export async function getNotaireArchivedDocuments(bailId: string) {
+  const access = await allowed(() => requireRequester(bailId));
+  if (!access || access.origin !== ComplementOrigin.NOTAIRE) return [];
+  const documents = await prisma.document.findMany({
+    where: { archivedBailId: bailId, archivedById: access.user.id, archivedAt: { not: null } },
+    orderBy: { archivedAt: "desc" },
+    select: { id: true, kind: true, label: true, fileKey: true, mimeType: true, archivedAt: true, archivedByName: true, replacedBy: { select: { label: true } } },
+  });
+  return documents.map((doc) => ({
+    id: doc.id,
+    kind: doc.kind as string,
+    label: doc.label,
+    fileKey: doc.fileKey,
+    mimeType: doc.mimeType,
+    archivedAt: (doc.archivedAt as Date).toISOString(),
+    archivedByName: doc.archivedByName,
+    replacedByLabel: doc.replacedBy?.label ?? null,
+  }));
 }
 
 /** Demandes du notaire connecté pour ce dossier : en cours, puis terminées (les plus récentes d'abord). */

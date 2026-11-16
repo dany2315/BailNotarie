@@ -255,17 +255,59 @@ suite('Lot 4 — compléments et archivage', path.join(__dirname, '../../reports
     assert.equal((await itemOf(tx, item.id)).status, 'PROVIDED');
   });
 
-  await test('Le notaire accepte sa demande mais ne peut pas retirer d’anciennes pièces', async (tx, r, f) => {
-    const notary = await tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', role: 'NOTAIRE', emailVerified: true } });
+  await test('Le notaire assigné archive lui-même les anciennes pièces sur sa propre demande, et peut les rouvrir', async (tx, r, f) => {
+    const notary = await tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', name: 'Maître Test', role: 'NOTAIRE', emailVerified: true } });
     await tx.dossierNotaireAssignment.create({ data: { clientId: f.owner.id, propertyId: f.property.id, bailId: f.bail.id, notaireId: notary.id, assignedById: f.admin.id } });
     const { req, item } = await request(tx, f, 'DOCUMENT');
     await tx.complementRequest.update({ where: { id: req.id }, data: { origin: 'NOTAIRE' } });
-    const { old } = await withDocs(tx, f, item, 1);
+    const { old, fresh } = await withDocs(tx, f, item, 1);
     r.state.user = notary;
-    const refused = await mod(r).reviewComplementItem({ itemId: item.id, decision: 'accept', archiveDocumentIds: [old[0].id] });
+    const res = await mod(r).reviewComplementItem({ itemId: item.id, decision: 'accept', archiveDocumentIds: [old[0].id] });
+    assert(res.success, res.error);
+    const row = await tx.document.findUnique({ where: { id: old[0].id } });
+    assert(row.archivedAt, 'le notaire devait pouvoir archiver sans passer par l’équipe');
+    assert.equal(row.archivedById, notary.id);
+    assert.equal(row.bailId, null);
+    assert.equal(row.replacedById, fresh.id);
+    assert.equal(r.state.suppressed['s3.delete'] ?? 0, 0, 'aucun fichier supprimé');
+    // Il retrouve la pièce qu'il a archivée et peut la rouvrir ; il ne peut pas la supprimer.
+    const mine = await mod(r).getNotaireArchivedDocuments(f.bail.id);
+    assert.equal(mine.length, 1);
+    assert.equal(mine[0].id, old[0].id);
+    assert(await access(r).accessibleDocument(old[0].id, 'read'));
+    assert.equal(await access(r).accessibleDocument(old[0].id, 'delete'), null);
+    // L'équipe la voit aussi ; le client qui l'avait envoyée, non.
+    r.state.user = f.admin;
+    assert(await access(r).accessibleDocument(old[0].id, 'read'));
+    r.state.user = f.ownerUser;
+    assert.equal(await access(r).accessibleDocument(old[0].id, 'read'), null);
+  });
+
+  await test('Notaire : pas d’accès aux pièces archivées par l’équipe, ni aux demandes de l’équipe, ni au dossier d’un confrère', async (tx, r, f) => {
+    const notary = await tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', role: 'NOTAIRE', emailVerified: true } });
+    await tx.dossierNotaireAssignment.create({ data: { clientId: f.owner.id, propertyId: f.property.id, bailId: f.bail.id, notaireId: notary.id, assignedById: f.admin.id } });
+    const other = await tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', role: 'NOTAIRE', emailVerified: true } });
+    // Pièce archivée par l'équipe sur une demande de l'équipe.
+    const team = await request(tx, f, 'DOCUMENT');
+    const teamDocs = await withDocs(tx, f, team.item, 1);
+    assert((await mod(r).reviewComplementItem({ itemId: team.item.id, decision: 'accept', archiveDocumentIds: [teamDocs.old[0].id] })).success);
+    r.state.user = notary;
+    assert.equal(await access(r).accessibleDocument(teamDocs.old[0].id, 'read'), null, 'pièce archivée par l’équipe visible du notaire');
+    assert.equal((await mod(r).getNotaireArchivedDocuments(f.bail.id)).length, 0);
+    // Demande de l'équipe : le notaire ne peut ni l'accepter ni archiver dessus.
+    const teamOpen = await request(tx, f, 'DOCUMENT');
+    const openDocs = await withDocs(tx, f, teamOpen.item, 1);
+    const refused = await mod(r).reviewComplementItem({ itemId: teamOpen.item.id, decision: 'accept', archiveDocumentIds: [openDocs.old[0].id] });
     assert.equal(refused.success, false);
-    assert.equal((await tx.document.findUnique({ where: { id: old[0].id } })).archivedAt, null);
-    assert((await mod(r).reviewComplementItem({ itemId: item.id, decision: 'accept' })).success);
+    assert.equal((await tx.document.findUnique({ where: { id: openDocs.old[0].id } })).archivedAt, null);
+    // Notaire non assigné : rien, même sur une demande de notaire de ce dossier.
+    const own = await request(tx, f, 'DOCUMENT');
+    await tx.complementRequest.update({ where: { id: own.req.id }, data: { origin: 'NOTAIRE' } });
+    const ownDocs = await withDocs(tx, f, own.item, 1);
+    r.state.user = other;
+    assert.equal((await mod(r).reviewComplementItem({ itemId: own.item.id, decision: 'accept', archiveDocumentIds: [ownDocs.old[0].id] })).success, false);
+    assert.equal((await mod(r).getNotaireArchivedDocuments(f.bail.id)).length, 0);
+    assert.equal((await tx.document.findUnique({ where: { id: ownDocs.old[0].id } })).archivedAt, null);
   });
 
   await test('Suivi de l’équipe : la ligne « pièce reçue » liste les anciennes pièces remplaçables, sans rien cocher d’avance', async (tx, r, f) => {
