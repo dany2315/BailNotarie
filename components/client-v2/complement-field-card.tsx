@@ -146,11 +146,11 @@ export function ComplementFieldCard({
     });
     const added = result.data.addedDocuments;
     if (added.length > 0) {
-      toast.success("C'est enregistré", {
+      toast.success("Réponse enregistrée", {
         description: `Avec cette réponse, il faut aussi : ${added.join(", ")}. ${added.length > 1 ? "Elles sont ajoutées" : "Elle est ajoutée"} à votre demande.`,
       });
     } else {
-      toast.success("C'est enregistré");
+      toast.success("Réponse enregistrée", { description: "Elle sera vérifiée par notre équipe après l'envoi de la demande." });
     }
     setSavedHere(true);
     setEditing(false);

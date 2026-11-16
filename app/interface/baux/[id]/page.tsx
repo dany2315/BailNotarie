@@ -68,6 +68,7 @@ const TERMS_ROW_FOR_RULE: Record<string, string> = {
 import { formatDossierFee } from "@/lib/utils/dossier-fee";
 import { HISTORICAL_PAID_LABEL, isBailPaid, knownPaymentDate, paymentKind } from "@/lib/payments/paid";
 import { HistoricalPaymentReview } from "@/components/admin/historical-payment-review";
+import { ArchivedDocuments } from "@/components/admin/archived-documents";
 import { dpeDateValue } from "@/components/admin/dpe-summary";
 import { DiagnosticsPanel } from "@/components/admin/diagnostics-analysis";
 import { isDiagnosticAnalysisConfigured } from "@/lib/diagnostics/openai";
@@ -287,6 +288,13 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const lease = await getLease(id);
   if (!lease) notFound();
+
+  // Pièces archivées depuis ce dossier (remplacées par une nouvelle) : conservées, visibles de l'équipe.
+  const archivedDocuments = await prisma.document.findMany({
+    where: { archivedBailId: lease.id, archivedAt: { not: null } },
+    orderBy: { archivedAt: "desc" },
+    select: { id: true, kind: true, label: true, fileKey: true, mimeType: true, archivedAt: true, archivedByName: true, replacedBy: { select: { label: true } } },
+  });
 
   const tenant = lease.parties?.find((p: any) => p.profilType === "LOCATAIRE") || null;
   const owner = lease.parties?.find((p: any) => p.profilType === "PROPRIETAIRE") || lease.property?.owner || null;
@@ -1188,7 +1196,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
           <div className="order-4 flex min-w-0 flex-col gap-[18px] lg:order-none">
           {/* Pièces demandées au propriétaire ou au locataire : en attente, ou reçues et à vérifier */}
-          {complementRequests.length > 0 && <ComplementRequestsPanel requests={complementRequests} locked={pastVerification} />}
+          {complementRequests.length > 0 && <ComplementRequestsPanel requests={complementRequests} locked={pastVerification} canArchive />}
 
           {/* Le bail */}
           <CheckSection
@@ -1301,6 +1309,19 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               </div>
             )}
           </CheckSection>
+
+          <ArchivedDocuments
+            documents={archivedDocuments.map((doc) => ({
+              id: doc.id,
+              kind: doc.kind,
+              label: doc.label,
+              fileKey: doc.fileKey,
+              mimeType: doc.mimeType,
+              archivedAt: (doc.archivedAt as Date).toISOString(),
+              archivedByName: doc.archivedByName,
+              replacedByLabel: doc.replacedBy?.label ?? null,
+            }))}
+          />
 
           <PartyCheckSection
             id="bloc-proprietaire"

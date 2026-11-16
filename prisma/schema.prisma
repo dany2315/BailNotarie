@@ -1035,9 +1035,14 @@ model Document {
 
   // Pièce retirée des pièces actives par l'équipe (remplacée par une nouvelle). Le fichier et la ligne sont
   // conservés : seule l'équipe la consulte encore. Vide = pièce active.
+  // À l'archivage, la pièce est détachée de sa fiche (personId, propertyId… vidés) : elle sort ainsi de
+  // toutes les listes et du calcul de complétude. Son ancien rattachement est gardé dans archivedFrom, et
+  // archivedBailId donne le dossier depuis lequel elle a été archivée (pour la retrouver).
   archivedAt     DateTime?
   archivedById   String?
   archivedByName String?
+  archivedFrom   Json?
+  archivedBailId String?
   // Pièce qui la remplace (traçabilité ancienne → nouvelle)
   replacedById   String?
   replacedBy     Document?  @relation("DocumentReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
@@ -1059,6 +1064,7 @@ model Document {
   @@index([complementItemId])
   @@index([archivedAt])
   @@index([replacedById])
+  @@index([archivedBailId])
 }
 
 /**
@@ -1381,6 +1387,8 @@ model ComplementRequestItem {
   // baseValue = valeurs du dossier au moment de la réponse (pour voir si le dossier a changé depuis) ;
   // appliedBefore / appliedAfter = journal de ce qui a été écrit à l'acceptation.
   baseValue     Json?
+  // Réponse du client telle qu'il l'a envoyée, rejouée sur le dossier au moment de l'acceptation
+  proposedAnswer Json?
   appliedBefore Json?
   appliedAfter  Json?
   appliedAt     DateTime?

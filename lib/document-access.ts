@@ -12,6 +12,7 @@ import { hasIntakeSession } from "@/lib/intake-session";
  * - Notaire : pièces des dossiers qui lui sont attribués ; il ne supprime que ce qu'il a envoyé.
  * - Client : ses pièces, celles de ses biens et de ses baux (un locataire lit les pièces du bail
  *   et du bien loué) ; il ne supprime que les pièces de son dossier propriétaire ou qu'il a envoyées.
+ * - Pièce archivée : lecture par l'équipe uniquement, aucune suppression.
  */
 
 export type DocumentMode = "read" | "delete";
@@ -26,6 +27,7 @@ const DOCUMENT_SELECT = {
   bailId: true,
   notaireRequestId: true,
   uploadedById: true,
+  archivedAt: true,
   person: { select: { clientId: true } },
   entreprise: { select: { clientId: true } },
   notaireRequest: { select: { dossier: { select: { notaireId: true, bailId: true } } } },
@@ -41,6 +43,14 @@ function findDocument(id: string) {
 const docClientId = (doc: AccessDocument) => doc.clientId ?? doc.person?.clientId ?? doc.entreprise?.clientId ?? null;
 
 export async function canAccessDocument(doc: AccessDocument, mode: DocumentMode, token?: string | null): Promise<boolean> {
+  // Pièce archivée (retirée des pièces actives par l'équipe) : consultable par l'équipe seulement, jamais
+  // supprimable ; ni le client qui l'avait envoyée, ni le notaire, ni un lien de formulaire n'y accèdent plus.
+  if (doc.archivedAt) {
+    if (token || mode === "delete") return false;
+    const staff = await getCurrentUser();
+    return !!staff && STAFF_ROLES.includes(staff.role);
+  }
+
   const clientId = docClientId(doc);
 
   if (token) {

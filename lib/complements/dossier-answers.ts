@@ -28,8 +28,10 @@ import {
 /*                         Le dossier, tel que le formulaire le voit          */
 /* -------------------------------------------------------------------------- */
 
-async function loadForAnswers(bailId: string) {
-  return prisma.bail.findUnique({
+type Db = Prisma.TransactionClient;
+
+async function loadForAnswers(bailId: string, db: Db = prisma) {
+  return db.bail.findUnique({
     where: { id: bailId },
     include: {
       property: true,
@@ -92,8 +94,8 @@ function entrepriseToForm(entreprise: any) {
 }
 
 /** Le dossier de cette personne, sous la forme du formulaire. null si elle n'est pas dans le bail. */
-export async function loadDossierState(bailId: string, target: ComplementTarget): Promise<DossierState | null> {
-  const bail = await loadForAnswers(bailId);
+export async function loadDossierState(bailId: string, target: ComplementTarget, db: Db = prisma): Promise<DossierState | null> {
+  const bail = await loadForAnswers(bailId, db);
   if (!bail) return null;
   const party = bail.parties.find((p) => p.profilType === (target === "OWNER" ? ProfilType.PROPRIETAIRE : ProfilType.LOCATAIRE));
   if (!party) return null;
@@ -303,10 +305,11 @@ async function rentTooHigh(state: DossierState, merged: any): Promise<string | n
 export type AnswerResult = { ok: true; merged: any } | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
 /**
- * Contrôle puis enregistre la réponse : mêmes règles que le formulaire (le serveur ne fait pas
- * confiance au navigateur), puis écriture dans la personne, la société, le bien ou le bail.
+ * Contrôle la réponse sans rien écrire : mêmes règles que le formulaire (le serveur ne fait pas confiance
+ * au navigateur). Sert à la réponse du client (qui reste une proposition) et, de nouveau, au moment où
+ * l'équipe l'accepte, sur le dossier tel qu'il est alors.
  */
-export async function saveAnswer(state: DossierState, ref: QuestionRef, answer: Record<string, unknown>): Promise<AnswerResult> {
+export async function checkAnswer(state: DossierState, ref: QuestionRef, answer: Record<string, unknown>): Promise<AnswerResult> {
   const merged = mergeAnswer(state, ref, answer);
   const fieldErrors = questionErrors(ref, merged, state.ctx);
   if (Object.keys(fieldErrors).length > 0) {
@@ -338,13 +341,26 @@ export async function saveAnswer(state: DossierState, ref: QuestionRef, answer: 
     }
   }
 
+  return { ok: true, merged };
+}
+
+/**
+ * Écrit dans le dossier (personne, société, bien ou bail) les valeurs d'une réponse déjà contrôlée, dans
+ * la transaction de l'appelant. « merged » vient de checkAnswer.
+ */
+export async function writeAnswer(tx: Prisma.TransactionClient, state: DossierState, ref: QuestionRef, merged: any): Promise<void> {
+  const { bail, party } = state;
+  const index = ref.personIndex ?? 0;
+  const person = merged.persons?.[index];
+  const personId = state.personIds[index];
+  const newSpouse = ref.id === "person.family" ? merged.persons.find((p: any) => p?.isNew) : null;
   const bailData: Prisma.BailUpdateInput = {};
   const propertyData: Prisma.PropertyUpdateInput = {};
   const commercial = bail.bailFamily === BailFamille.COMMERCIAL;
   const endDate = () =>
     computeBailEndDate(toDate(merged.bailEffectiveDate), merged.bailType || bail.bailType, toInt(merged.commercial?.derogatoryMonths));
 
-  await prisma.$transaction(async (tx) => {
+  {
     switch (ref.id) {
       case "person.identity":
         await tx.person.update({ where: { id: personId }, data: { firstName: textOrNull(person.firstName, 200), lastName: textOrNull(person.lastName, 200) } });
@@ -524,8 +540,12 @@ export async function saveAnswer(state: DossierState, ref: QuestionRef, answer: 
     }
     if (Object.keys(bailData).length > 0) await tx.bail.update({ where: { id: bail.id }, data: bailData });
     if (Object.keys(propertyData).length > 0 && bail.property) await tx.property.update({ where: { id: bail.property.id }, data: propertyData });
-  });
+  }
+}
 
+/** Après l'écriture d'une réponse : localisation, zone tendue et états de complétude recalculés. */
+export async function afterAnswerWritten(state: DossierState, ref: QuestionRef): Promise<void> {
+  const { bail, party } = state;
   // Nouvelle adresse ou nouveau type : localisation et zone tendue recalculées (comme le formulaire).
   if (bail.property && (ref.id === "property.address" || ref.id === "property.surface")) {
     await ensurePropertyGeocoded(bail.property.id).catch((error) => console.error("[complement-answers] géocodage", error));
@@ -536,8 +556,15 @@ export async function saveAnswer(state: DossierState, ref: QuestionRef, answer: 
   }
   await updateClientCompletionStatus(party.id).catch((error) => console.error("[complement-answers] client", error));
   if (bail.property) await updatePropertyCompletionStatus(bail.property.id).catch((error) => console.error("[complement-answers] bien", error));
+}
 
-  return { ok: true, merged };
+/** Contrôle puis enregistre tout de suite la réponse (contrôle, écriture, recalculs). */
+export async function saveAnswer(state: DossierState, ref: QuestionRef, answer: Record<string, unknown>): Promise<AnswerResult> {
+  const checked = await checkAnswer(state, ref, answer);
+  if (!checked.ok) return checked;
+  await prisma.$transaction((tx) => writeAnswer(tx, state, ref, checked.merged));
+  await afterAnswerWritten(state, ref);
+  return checked;
 }
 
 /** Valeur d'un champ du dossier (pour l'historique). */

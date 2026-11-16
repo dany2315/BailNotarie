@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, Clock3, Eye, Loader2, RotateCcw } from "lucide-react";
+import { Archive, ArrowRight, Check, Clock3, Eye, Loader2, RotateCcw, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CheckSection, StateChip } from "@/components/admin/check-list";
@@ -21,18 +21,31 @@ import { cn } from "@/lib/utils";
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: "Europe/Paris" });
 
-/** Demandes de pièces en cours du dossier : ce qui est attendu, ce qui est arrivé, et la décision de l'équipe. */
-export function ComplementRequestsPanel({ requests, locked = false }: { requests: StaffComplementRequest[]; locked?: boolean }) {
+type FieldConflict = Array<{ label: string; before: string; after: string }>;
+
+/**
+ * Demandes de pièces en cours du dossier : ce qui est attendu, ce qui est arrivé, et la décision de l'équipe.
+ * `canArchive` (équipe uniquement) : en acceptant une pièce, choisir les anciennes pièces à retirer.
+ */
+export function ComplementRequestsPanel({
+  requests,
+  locked = false,
+  canArchive = false,
+}: {
+  requests: StaffComplementRequest[];
+  locked?: boolean;
+  canArchive?: boolean;
+}) {
   return (
     <>
       {requests.map((request) => (
-        <RequestCard key={request.id} request={request} locked={locked} />
+        <RequestCard key={request.id} request={request} locked={locked} canArchive={canArchive} />
       ))}
     </>
   );
 }
 
-function RequestCard({ request, locked }: { request: StaffComplementRequest; locked: boolean }) {
+function RequestCard({ request, locked, canArchive }: { request: StaffComplementRequest; locked: boolean; canArchive: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = React.useState(false);
@@ -131,7 +144,7 @@ function RequestCard({ request, locked }: { request: StaffComplementRequest; loc
     >
       <ul className="flex flex-col divide-y">
         {request.items.map((item) => (
-          <ItemRow key={item.id} item={item} locked={locked} busy={busy} run={run} />
+          <ItemRow key={item.id} item={item} locked={locked} busy={busy} run={run} canArchive={canArchive} />
         ))}
       </ul>
     </CheckSection>
@@ -143,11 +156,13 @@ function ItemRow({
   locked,
   busy,
   run,
+  canArchive,
 }: {
   item: StaffComplementItem;
   locked: boolean;
   busy: string | null;
   run: (key: string, action: () => Promise<{ success: true } | { success: false; error: string }>, done: string) => Promise<void>;
+  canArchive: boolean;
 }) {
   const field = item.type === "FIELD";
   const reasons = field ? FIELD_REDO_REASONS : REDO_REASONS;
@@ -155,6 +170,34 @@ function ItemRow({
   const [reason, setReason] = React.useState<ComplementReasonValue>(reasons[0]);
   const [note, setNote] = React.useState("");
   const provided = item.status === "PROVIDED";
+  // Pièce : choix des anciennes pièces à retirer (aucune cochée d'avance : sans choix, elles restent actives).
+  const offersArchive = !field && canArchive && item.replaceable.length > 0;
+  const [choosing, setChoosing] = React.useState(false);
+  const [toArchive, setToArchive] = React.useState<string[]>([]);
+  // Information : le dossier a changé depuis la réponse du client (valeur lors de la réponse → valeur actuelle).
+  const [conflict, setConflict] = React.useState<FieldConflict | null>(null);
+
+  const accept = (options: { archiveDocumentIds?: string[]; confirmConflict?: boolean } = {}) =>
+    run(
+      `accept-${item.id}`,
+      async () => {
+        const result = await reviewComplementItem({ itemId: item.id, decision: "accept", ...options });
+        if (!result.success && result.conflict) {
+          setConflict(result.conflict);
+          return { success: false as const, error: result.error };
+        }
+        if (result.success) {
+          setConflict(null);
+          setChoosing(false);
+        }
+        return result;
+      },
+      field
+        ? "Information acceptée et enregistrée dans le dossier"
+        : options.archiveDocumentIds?.length
+          ? "Pièce acceptée, anciennes pièces archivées"
+          : "Pièce acceptée",
+    );
 
   return (
     <li className="grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-2.5 px-5 py-3.5">
@@ -186,8 +229,10 @@ function ItemRow({
             ? "Acceptée"
             : provided
               ? field
-                ? "Renseignée · à vérifier (déjà enregistrée dans le dossier)"
-                : `Reçue · à vérifier${item.replaces > 0 ? " · remplacera l'ancien fichier une fois acceptée" : ""}`
+                ? item.proposal
+                  ? "Renseignée · à vérifier (sera enregistrée dans le dossier quand vous l'accepterez)"
+                  : "Renseignée · à vérifier (déjà enregistrée dans le dossier)"
+                : `Reçue · à vérifier${item.replaceable.length > 0 ? " · vous choisirez en l'acceptant les anciennes pièces à retirer" : ""}`
               : item.automatic
                 ? "En attente du client · demandée d'elle-même après une de ses réponses"
                 : "En attente du client"}
@@ -226,14 +271,95 @@ function ItemRow({
           </div>
         )}
 
-        {provided && !locked && !redo && (
+        {conflict && provided && !locked && (
+          <div className="flex flex-col gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <p className="flex items-start gap-2 text-[13px] font-semibold text-amber-900">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              Le dossier a été modifié depuis la réponse du client.
+            </p>
+            <dl className="grid grid-cols-1 gap-1.5 text-[13px] sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] sm:gap-x-3">
+              {conflict.map((change) => (
+                <React.Fragment key={change.label}>
+                  <dt className="font-medium text-amber-900/80">{change.label}</dt>
+                  <dd className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-amber-950">
+                    <span>lors de la réponse : {change.before || "vide"}</span>
+                    <ArrowRight className="size-3.5 shrink-0" />
+                    <span className="font-semibold">aujourd&apos;hui : {change.after || "vide"}</span>
+                  </dd>
+                </React.Fragment>
+              ))}
+            </dl>
+            <p className="text-[13px] text-amber-900">
+              Accepter remplacera la valeur actuelle par la réponse du client. Sinon, laissez la ligne telle quelle ou redemandez-la.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" className="h-9" disabled={!!busy} onClick={() => setConflict(null)}>
+                Ne rien changer
+              </Button>
+              <Button type="button" size="sm" className="h-9 gap-1.5" disabled={!!busy} onClick={() => accept({ confirmConflict: true })}>
+                {busy === `accept-${item.id}` && <Loader2 className="size-3.5 animate-spin" />}
+                Appliquer la réponse du client
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {choosing && provided && !locked && (
+          <div className="flex flex-col gap-2.5 rounded-lg border bg-muted/30 p-3">
+            <p className="text-[13px] font-semibold">Anciennes pièces à retirer des pièces actives</p>
+            <p className="text-[13px] text-muted-foreground">
+              Cochez celles que la nouvelle pièce remplace. Elles sont archivées : le fichier est conservé et reste consultable par
+              l&apos;équipe. Sans rien cocher, toutes restent actives.
+            </p>
+            <ul className="flex flex-col gap-1.5">
+              {item.replaceable.map((doc) => (
+                <li key={doc.id} className="flex flex-wrap items-center gap-2">
+                  <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-[13px]">
+                    <input
+                      type="checkbox"
+                      className="size-4 shrink-0 accent-blue-600"
+                      checked={toArchive.includes(doc.id)}
+                      disabled={!!busy}
+                      onChange={(event) => setToArchive((ids) => (event.target.checked ? [...ids, doc.id] : ids.filter((id) => id !== doc.id)))}
+                    />
+                    <span className="truncate">{doc.label || "Fichier"}</span>
+                    <span className="shrink-0 text-muted-foreground">· reçue le {fmtDay(doc.createdAt)}</span>
+                    {doc.suggested && <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[11.5px] font-semibold text-amber-900">visée par la demande</span>}
+                  </label>
+                  <DocumentViewer
+                    document={{ id: doc.id, kind: item.kind, fileKey: doc.fileKey, mimeType: doc.mimeType, label: doc.label } as any}
+                    documentKindLabels={documentKindLabels}
+                  >
+                    <Button type="button" variant="ghost" size="sm" className="h-8 gap-1">
+                      <Eye className="size-3.5" />
+                      Voir
+                    </Button>
+                  </DocumentViewer>
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" className="h-9" disabled={!!busy} onClick={() => setChoosing(false)}>
+                Annuler
+              </Button>
+              <Button type="button" size="sm" className="h-9 gap-1.5" disabled={!!busy} onClick={() => accept({ archiveDocumentIds: toArchive })}>
+                {busy === `accept-${item.id}` ? <Loader2 className="size-3.5 animate-spin" /> : toArchive.length > 0 ? <Archive className="size-3.5" /> : <Check className="size-3.5" />}
+                {toArchive.length > 0
+                  ? `Accepter et archiver ${toArchive.length} ancienne${toArchive.length > 1 ? "s" : ""} pièce${toArchive.length > 1 ? "s" : ""}`
+                  : "Accepter sans rien retirer"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {provided && !locked && !redo && !choosing && !conflict && (
           <div className="flex flex-wrap gap-2 pt-0.5">
             <Button
               type="button"
               size="sm"
               className="h-9 gap-1.5"
               disabled={!!busy}
-              onClick={() => run(`accept-${item.id}`, () => reviewComplementItem({ itemId: item.id, decision: "accept" }), field ? "Information acceptée" : "Pièce acceptée")}
+              onClick={() => (offersArchive ? setChoosing(true) : accept())}
             >
               {busy === `accept-${item.id}` ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
               Accepter

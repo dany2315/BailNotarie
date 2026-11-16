@@ -67,7 +67,16 @@ import {
   type QuestionContext,
   type QuestionRef,
 } from "@/lib/rules/complement-questions";
-import { loadDossierState, personIndexOf, saveAnswer, type DossierState } from "@/lib/complements/dossier-answers";
+import {
+  afterAnswerWritten,
+  checkAnswer,
+  loadDossierState,
+  mergeAnswer,
+  personIndexOf,
+  writeAnswer,
+  type DossierState,
+} from "@/lib/complements/dossier-answers";
+import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
 
 type Fail = { success: false; error: string };
 
@@ -99,8 +108,8 @@ const partyInclude = {
   documents: { where: { personId: null, entrepriseId: null, propertyId: null, bailId: null }, select: docSelect },
 };
 
-async function loadBail(bailId: string) {
-  return prisma.bail.findUnique({
+async function loadBail(bailId: string, db: Prisma.TransactionClient = prisma) {
+  return db.bail.findUnique({
     where: { id: bailId },
     include: {
       property: { include: { documents: { select: docSelect } } },
@@ -743,7 +752,11 @@ export async function remindComplementRequest(data: unknown): Promise<{ success:
   return { success: true };
 }
 
-/** Annule la demande : les pièces déjà reçues restent dans le dossier. */
+/**
+ * Annule la demande : les pièces déjà reçues restent dans le dossier. Les informations proposées par le
+ * client et pas encore acceptées ne sont jamais appliquées : les valeurs du dossier restent telles quelles
+ * (rien n'est « restauré » par-dessus une modification faite entre-temps).
+ */
 export async function cancelComplementRequest(data: unknown): Promise<{ success: true } | Fail> {
   const parsed = z.object({ requestId: z.string().min(1) }).safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
@@ -775,18 +788,142 @@ async function recalculate(targets: Array<{ personId?: string | null; entreprise
   for (const id of propertyIds) await updatePropertyCompletionStatus(id).catch((error) => console.error("[complement-requests] bien", error));
 }
 
-/** Accepte des pièces reçues : les anciennes pièces qu'elles remplacent sont supprimées. */
-async function acceptItems(itemIds: string[]) {
-  const items = await prisma.complementRequestItem.findMany({ where: { id: { in: itemIds }, status: ComplementItemStatus.PROVIDED } });
-  for (const item of items) {
-    for (const documentId of item.replacesDocumentIds) {
-      const stillThere = await prisma.document.findUnique({ where: { id: documentId }, select: { id: true } });
-      if (stillThere) await deleteDocumentFromDB(documentId, { skipDiagnosticReading: true });
-    }
-    await prisma.complementRequestItem.update({ where: { id: item.id }, data: { status: ComplementItemStatus.ACCEPTED, reviewedAt: new Date() } });
+type ReviewActor = { id: string; name: string };
+type ItemTarget = { personId: string | null; entrepriseId: string | null; clientId: string | null; propertyId: string | null; bailId: string | null };
+
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/**
+ * Anciennes pièces que l'équipe peut retirer en acceptant la nouvelle : les pièces actives du même type au
+ * même endroit du dossier, et celles que la demande visait (illisible, expirée…). Jamais les fichiers que
+ * le client vient d'envoyer pour cette ligne.
+ */
+async function replaceableDocuments(item: ItemTarget & { id: string; documentKind: DocumentKind | null; replacesDocumentIds: string[] }, db: Prisma.TransactionClient = prisma) {
+  if (!item.documentKind) return [];
+  return db.document.findMany({
+    where: {
+      archivedAt: null,
+      AND: [
+        // Pas les fichiers envoyés pour cette ligne (une pièce sans demande d'origine reste éligible).
+        { OR: [{ complementItemId: null }, { complementItemId: { not: item.id } }] },
+        {
+          OR: [
+            { kind: item.documentKind, personId: item.personId, entrepriseId: item.entrepriseId, clientId: item.clientId, propertyId: item.propertyId, bailId: item.bailId },
+            { id: { in: item.replacesDocumentIds } },
+          ],
+        },
+      ],
+    },
+    select: { ...docSelect, personId: true, entrepriseId: true, clientId: true, propertyId: true, bailId: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+export type AcceptOutcome =
+  | { ok: true }
+  | { ok: false; error: string; conflict?: FieldChange[] };
+
+/**
+ * Accepte une ligne reçue.
+ *
+ * Pièce : les anciennes pièces choisies par l'équipe sont archivées (retirées des pièces actives, fichier
+ * et ligne conservés, reliées à la nouvelle). Sans choix, les anciennes pièces restent actives.
+ *
+ * Information : la réponse du client, restée une proposition jusque-là, est recontrôlée puis écrite dans le
+ * dossier avec le journal avant/après. Si le dossier a changé depuis la réponse, rien n'est écrit tant que
+ * l'équipe n'a pas vu la différence et confirmé.
+ */
+async function acceptItem(
+  itemId: string,
+  request: { bailId: string; target: ReminderTarget },
+  actor: ReviewActor,
+  options: { archiveDocumentIds?: string[]; confirmConflict?: boolean } = {},
+): Promise<AcceptOutcome> {
+  const item = await prisma.complementRequestItem.findUnique({ where: { id: itemId }, include: { documents: { select: { id: true }, orderBy: { createdAt: "asc" } } } });
+  if (!item || item.status !== ComplementItemStatus.PROVIDED) return { ok: false, error: "Le client n'a pas encore répondu pour cette ligne" };
+  const reviewed = { status: ComplementItemStatus.ACCEPTED, reviewedAt: new Date() };
+
+  if (item.kind === ComplementItemKind.DOCUMENT) {
+    const wanted = Array.from(new Set(options.archiveDocumentIds ?? []));
+    const newDocumentId = item.documents[0]?.id ?? null;
+    if (wanted.length > 0 && !newDocumentId) return { ok: false, error: "Aucune nouvelle pièce ne remplace les anciennes" };
+    await prisma.$transaction(async (tx) => {
+      if (wanted.length > 0) {
+        // Seules des pièces de ce dossier, au même endroit, peuvent être retirées (jamais celles d'un autre client).
+        const allowed = await replaceableDocuments(item, tx);
+        const chosen = allowed.filter((doc) => wanted.includes(doc.id));
+        if (chosen.length !== wanted.length) throw new Error("Une des pièces choisies ne peut pas être retirée depuis cette demande");
+        for (const doc of chosen) {
+          await tx.document.update({
+            where: { id: doc.id },
+            data: {
+              archivedAt: new Date(),
+              archivedById: actor.id,
+              archivedByName: actor.name,
+              archivedBailId: request.bailId,
+              archivedFrom: { personId: doc.personId, entrepriseId: doc.entrepriseId, clientId: doc.clientId, propertyId: doc.propertyId, bailId: doc.bailId },
+              replacedById: newDocumentId,
+              // Détachée de sa fiche : elle sort des pièces actives et de la complétude. Le fichier reste.
+              personId: null,
+              entrepriseId: null,
+              clientId: null,
+              propertyId: null,
+              bailId: null,
+            },
+          });
+        }
+      }
+      await tx.complementRequestItem.update({ where: { id: item.id }, data: reviewed });
+    });
+    await recalculate([item]);
+    return { ok: true };
   }
-  await recalculate(items);
-  return items.length;
+
+  // Information déjà appliquée à la réponse (lignes d'avant ce fonctionnement) : rien à écrire.
+  if (!item.proposedAnswer || !item.fieldKey) {
+    await prisma.complementRequestItem.update({ where: { id: item.id }, data: reviewed });
+    return { ok: true };
+  }
+
+  const state = await loadDossierState(request.bailId, request.target);
+  if (!state) return { ok: false, error: "Dossier introuvable" };
+  const personIndex = personIndexOf(state, item.personId);
+  if (item.personId && personIndex === null) return { ok: false, error: "Cette personne n'est plus dans le dossier" };
+  const ref: QuestionRef = { id: item.fieldKey as FieldQuestionId, personIndex };
+  const current = pickQuestionValues(ref, state.values, state.ctx);
+
+  // Le dossier a changé depuis la réponse du client : l'équipe voit la différence avant de décider.
+  if (!sameJson(current, item.baseValue) && !options.confirmConflict) {
+    return {
+      ok: false,
+      error: "Cette information a été modifiée dans le dossier depuis la réponse du client. Vérifiez la différence avant d'accepter.",
+      conflict: describeChanges(item.baseValue as Record<string, unknown> | null, current),
+    };
+  }
+
+  const checked = await checkAnswer(state, ref, item.proposedAnswer as Record<string, unknown>);
+  if (!checked.ok) return { ok: false, error: `La réponse ne peut plus être appliquée : ${checked.error}` };
+  const after = pickQuestionValues(ref, checked.merged, state.ctx);
+
+  await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, request.bailId);
+    await writeAnswer(tx, state, ref, checked.merged);
+    // Une condition confirmée par le locataire change : son accord est archivé et redemandé.
+    await settleTenantAgreement(tx, request.bailId, agreement, { id: actor.id, name: actor.name });
+    await tx.complementRequestItem.update({
+      where: { id: item.id },
+      data: {
+        ...reviewed,
+        appliedBefore: current as Prisma.InputJsonValue,
+        appliedAfter: after as Prisma.InputJsonValue,
+        appliedAt: new Date(),
+        appliedById: actor.id,
+        appliedByName: actor.name,
+      },
+    });
+  });
+  await afterAnswerWritten(state, ref);
+  return { ok: true };
 }
 
 /** Ferme la demande quand toutes ses pièces sont acceptées. */
@@ -798,7 +935,14 @@ async function closeIfDone(requestId: string) {
 }
 
 const reviewSchema = z.discriminatedUnion("decision", [
-  z.object({ itemId: z.string().min(1), decision: z.literal("accept") }),
+  z.object({
+    itemId: z.string().min(1),
+    decision: z.literal("accept"),
+    // Pièce : anciennes pièces que l'équipe choisit de retirer (archivées). Vide = elles restent actives.
+    archiveDocumentIds: z.array(z.string().min(1)).max(50).optional(),
+    // Information : l'équipe a vu que le dossier a changé depuis la réponse et applique quand même.
+    confirmConflict: z.boolean().optional(),
+  }),
   z.object({
     itemId: z.string().min(1),
     decision: z.literal("redo"),
@@ -811,14 +955,15 @@ const reviewSchema = z.discriminatedUnion("decision", [
  * Pièce reçue : l'accepter, ou la redemander (avec un motif). Une pièce redemandée repart chez le client
  * par e-mail ; le fichier refusé sera remplacé par le prochain.
  */
-export async function reviewComplementItem(data: unknown): Promise<{ success: true } | Fail> {
+export async function reviewComplementItem(data: unknown): Promise<{ success: true } | (Fail & { conflict?: FieldChange[] })> {
   const parsed = reviewSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
   const item = await prisma.complementRequestItem.findUnique({
     where: { id: parsed.data.itemId },
     include: { request: true, documents: { select: { id: true } } },
   });
-  if (item && !(await allowed(() => requireRequestAccess(item.request)))) return { success: false, error: "Accès refusé" };
+  const access = item ? await allowed(() => requireRequestAccess(item.request)) : null;
+  if (item && !access) return { success: false, error: "Accès refusé" };
   if (!item || !ACTIVE_STATUSES.includes(item.request.status)) return { success: false, error: "Cette demande est déjà terminée" };
   if (item.status !== ComplementItemStatus.PROVIDED) return { success: false, error: "Le client n'a pas encore répondu pour cette ligne" };
   if (parsed.data.decision === "redo") {
@@ -827,7 +972,16 @@ export async function reviewComplementItem(data: unknown): Promise<{ success: tr
   }
 
   if (parsed.data.decision === "accept") {
-    await acceptItems([item.id]);
+    // Retirer d'anciennes pièces est une décision de l'équipe (pas du notaire).
+    if (parsed.data.archiveDocumentIds?.length && access!.origin !== ComplementOrigin.TEAM) {
+      return { success: false, error: "Seule l'équipe BailNotarie peut retirer d'anciennes pièces" };
+    }
+    try {
+      const outcome = await acceptItem(item.id, item.request, { id: access!.user.id, name: getActorName(access!.user) }, parsed.data);
+      if (!outcome.ok) return { success: false, error: outcome.error, conflict: outcome.conflict };
+    } catch (error: any) {
+      return { success: false, error: error?.message || "Acceptation impossible" };
+    }
     await closeIfDone(item.requestId);
     revalidateBail(item.request.bailId);
     return { success: true };
@@ -867,18 +1021,33 @@ export async function reviewComplementItem(data: unknown): Promise<{ success: tr
   return { success: true };
 }
 
-/** Accepte toutes les pièces reçues de la demande. */
+/**
+ * Accepte toutes les lignes reçues de la demande. Aucune ancienne pièce n'est retirée ici (elles se
+ * choisissent ligne par ligne). Une information dont le dossier a changé depuis la réponse n'est pas
+ * appliquée en lot : elle reste à traiter seule, différence sous les yeux.
+ */
 export async function acceptComplementRequest(data: unknown): Promise<{ success: true } | Fail> {
   const parsed = z.object({ requestId: z.string().min(1) }).safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const request = await loadRequestForStaff(parsed.data.requestId);
-  if (request && !(await allowed(() => requireRequestAccess(request)))) return { success: false, error: "Accès refusé" };
+  const access = request ? await allowed(() => requireRequestAccess(request)) : null;
+  if (request && !access) return { success: false, error: "Accès refusé" };
   if (!request || !ACTIVE_STATUSES.includes(request.status)) return { success: false, error: "Cette demande est déjà terminée" };
-  const provided = request.items.filter((item) => item.status === ComplementItemStatus.PROVIDED).map((item) => item.id);
+  const provided = request.items.filter((item) => item.status === ComplementItemStatus.PROVIDED);
   if (provided.length === 0) return { success: false, error: "Aucune pièce à accepter" };
-  await acceptItems(provided);
+  const actor = { id: access!.user.id, name: getActorName(access!.user) };
+  const left: string[] = [];
+  for (const item of provided) {
+    try {
+      const outcome = await acceptItem(item.id, request, actor);
+      if (!outcome.ok) left.push(`${item.label} : ${outcome.error}`);
+    } catch (error: any) {
+      left.push(`${item.label} : ${error?.message || "acceptation impossible"}`);
+    }
+  }
   await closeIfDone(request.id);
   revalidateBail(request.bailId);
+  if (left.length > 0) return { success: false, error: `Lignes à traiter une par une — ${left.join(" ; ")}` };
   return { success: true };
 }
 
@@ -902,6 +1071,10 @@ export interface StaffComplementItem {
   changes: FieldChange[];
   /** Pièce ajoutée d'elle-même après une réponse du client (ex. contrat de mariage). */
   automatic: boolean;
+  /** Information reçue, pas encore écrite dans le dossier : elle le sera à l'acceptation. */
+  proposal: boolean;
+  /** Pièce reçue : anciennes pièces que l'équipe peut choisir de retirer en l'acceptant. */
+  replaceable: Array<ComposerDocument & { suggested: boolean }>;
 }
 
 export interface StaffComplementRequest {
@@ -945,6 +1118,14 @@ async function loadStaffRequests(where: Prisma.ComplementRequestWhereInput): Pro
       items: { orderBy: { position: "asc" }, include: { documents: { select: docSelect, orderBy: { createdAt: "asc" } } } },
     },
   });
+  const replaceable = new Map<string, StaffComplementItem["replaceable"]>();
+  for (const request of requests) {
+    for (const item of request.items) {
+      if (item.kind !== ComplementItemKind.DOCUMENT || item.status !== ComplementItemStatus.PROVIDED) continue;
+      const docs = await replaceableDocuments(item);
+      replaceable.set(item.id, docs.map((doc) => ({ ...toComposerDoc(doc), suggested: item.replacesDocumentIds.includes(doc.id) })));
+    }
+  }
   return requests.map((request) => ({
     id: request.id,
     target: request.target,
@@ -973,6 +1154,8 @@ async function loadStaffRequests(where: Prisma.ComplementRequestWhereInput): Pro
           ? describeChanges(item.previousValue as Record<string, unknown> | null, item.providedValue as Record<string, unknown>)
           : [],
       automatic: !!item.fieldKey?.startsWith("auto:"),
+      proposal: item.kind === ComplementItemKind.FIELD && item.status === ComplementItemStatus.PROVIDED && !!item.proposedAnswer,
+      replaceable: replaceable.get(item.id) ?? [],
     })),
   }));
 }
@@ -1080,7 +1263,9 @@ export async function getMyComplementRequest(requestId: string): Promise<ClientC
   });
   if (!request) return null;
   const needsForm = request.status === ComplementRequestStatus.OPEN && request.items.some((item) => item.kind === ComplementItemKind.FIELD);
-  const state = needsForm ? await loadDossierState(request.bailId, request.target) : null;
+  const current = needsForm ? await loadDossierState(request.bailId, request.target) : null;
+  // Le client retrouve ses réponses (propositions en attente), pas seulement les valeurs du dossier.
+  const state = current ? withProposals(current, proposalsOf(request.items)) : null;
   return toClientRequest(request, state);
 }
 
@@ -1157,8 +1342,8 @@ export async function addComplementDocument(data: unknown): Promise<{ success: t
  * Pièces attendues encore absentes de ce dossier pour cette personne (clé → ligne) : les obligatoires,
  * et celles dont le notaire a besoin (justificatifs du loyer, déclaration d'occupation).
  */
-async function missingBlockingDocuments(bailId: string, target: ReminderTarget) {
-  const bail = await loadBail(bailId);
+async function missingBlockingDocuments(bailId: string, target: ReminderTarget, db: Prisma.TransactionClient = prisma) {
+  const bail = await loadBail(bailId, db);
   if (!bail) return new Map<string, ComposerRow>();
   const rows = await composerRows(bail, target);
   return new Map(
@@ -1171,11 +1356,64 @@ const answerSchema = z.object({
   answer: z.record(z.string().max(120), z.unknown()).refine((value) => JSON.stringify(value).length < 20_000, { message: "Réponse trop longue" }),
 });
 
+/** Sert à annuler la transaction de simulation (rien de ce qu'elle a écrit n'est conservé). */
+class SimulationRollback extends Error {}
+
+type Proposal = { fieldKey: string; personId: string | null; answer: Record<string, unknown> };
+
 /**
- * Réponse du client à une information demandée : contrôlée avec les règles du formulaire, enregistrée
- * tout de suite dans le dossier (avec l'ancienne et la nouvelle valeur dans la ligne). Si la réponse
- * rend une pièce obligatoire (contrat de mariage, règlement de copropriété…), elle s'ajoute à la demande ;
- * une pièce ajoutée ainsi qui n'est plus nécessaire est retirée.
+ * Le dossier tel qu'il serait si les réponses proposées étaient acceptées (en mémoire, rien n'est écrit).
+ * Sert à montrer au client ce qu'il a répondu et à contrôler sa demande avant l'envoi à l'équipe.
+ */
+function withProposals(state: DossierState, proposals: Proposal[]): DossierState {
+  let current = state;
+  for (const proposal of proposals) {
+    const personIndex = personIndexOf(current, proposal.personId);
+    if (proposal.personId && personIndex === null) continue;
+    const ref: QuestionRef = { id: proposal.fieldKey as FieldQuestionId, personIndex };
+    current = { ...current, values: mergeAnswer(current, ref, proposal.answer) };
+  }
+  return current;
+}
+
+const proposalsOf = (items: Array<{ kind: ComplementItemKind; status: ComplementItemStatus; fieldKey: string | null; personId: string | null; proposedAnswer: Prisma.JsonValue | null; providedAt: Date | null }>): Proposal[] =>
+  items
+    .filter((item) => item.kind === ComplementItemKind.FIELD && item.status === ComplementItemStatus.PROVIDED && item.proposedAnswer && item.fieldKey)
+    .sort((a, b) => (a.providedAt?.getTime() ?? 0) - (b.providedAt?.getTime() ?? 0))
+    .map((item) => ({ fieldKey: item.fieldKey as string, personId: item.personId, answer: item.proposedAnswer as Record<string, unknown> }));
+
+/**
+ * Pièces qui manqueraient si les réponses proposées étaient acceptées. Les réponses sont écrites dans une
+ * transaction systématiquement annulée : le dossier n'est pas modifié, mais on sait quelles pièces la
+ * réponse rend obligatoires (contrat de mariage, règlement de copropriété…) pour les demander tout de suite.
+ */
+async function missingDocumentsIfAccepted(bailId: string, target: ReminderTarget, proposals: Proposal[]) {
+  let rows = new Map<string, ComposerRow>();
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const proposal of proposals) {
+        const state = await loadDossierState(bailId, target, tx);
+        if (!state) continue;
+        const personIndex = personIndexOf(state, proposal.personId);
+        if (proposal.personId && personIndex === null) continue;
+        const ref: QuestionRef = { id: proposal.fieldKey as FieldQuestionId, personIndex };
+        await writeAnswer(tx, state, ref, mergeAnswer(state, ref, proposal.answer));
+      }
+      rows = await missingBlockingDocuments(bailId, target, tx);
+      throw new SimulationRollback();
+    });
+  } catch (error) {
+    if (!(error instanceof SimulationRollback)) throw error;
+  }
+  return rows;
+}
+
+/**
+ * Réponse du client à une information demandée : contrôlée avec les règles du formulaire, puis gardée
+ * comme PROPOSITION dans la ligne de la demande. Le dossier (bail, bien, personnes) n'est pas modifié :
+ * la valeur n'y est écrite que lorsque l'équipe l'accepte. Si la réponse rendrait une pièce obligatoire
+ * (contrat de mariage, règlement de copropriété…), elle s'ajoute à la demande ; une pièce ajoutée ainsi
+ * qui n'est plus nécessaire est retirée.
  */
 export async function answerComplementField(
   data: unknown,
@@ -1194,7 +1432,8 @@ export async function answerComplementField(
     const ref: QuestionRef = { id: item.fieldKey as FieldQuestionId, personIndex };
 
     const before = await missingBlockingDocuments(item.request.bailId, item.request.target);
-    const result = await saveAnswer(state, ref, parsed.data.answer);
+    // Contrôle seulement : rien n'est écrit dans le dossier.
+    const result = await checkAnswer(state, ref, parsed.data.answer);
     if (!result.ok) return { success: false, error: result.error, fieldErrors: result.fieldErrors };
 
     await prisma.complementRequestItem.update({
@@ -1203,15 +1442,19 @@ export async function answerComplementField(
         status: ComplementItemStatus.PROVIDED,
         providedAt: new Date(),
         providedValue: pickQuestionValues(ref, result.merged, state.ctx) as Prisma.InputJsonValue,
+        // Valeurs du dossier au moment de la réponse : si elles changent d'ici l'acceptation, l'équipe le voit.
+        baseValue: pickQuestionValues(ref, state.values, state.ctx) as Prisma.InputJsonValue,
+        proposedAnswer: parsed.data.answer as Prisma.InputJsonValue,
       },
     });
 
-    // Pièces devenues obligatoires avec cette réponse : ajoutées à la demande, déjà rattachées au bon endroit.
-    const after = await missingBlockingDocuments(item.request.bailId, item.request.target);
+    // Pièces que cette réponse (et les autres réponses en attente de la demande) rendrait obligatoires :
+    // ajoutées à la demande, déjà rattachées au bon endroit.
     const lines = await prisma.complementRequestItem.findMany({
       where: { requestId: item.requestId },
-      select: { id: true, kind: true, documentKind: true, fieldKey: true, status: true, personId: true, entrepriseId: true, clientId: true, propertyId: true, bailId: true, _count: { select: { documents: true } } },
+      select: { id: true, kind: true, documentKind: true, fieldKey: true, status: true, personId: true, entrepriseId: true, clientId: true, propertyId: true, bailId: true, proposedAnswer: true, providedAt: true, _count: { select: { documents: true } } },
     });
+    const after = await missingDocumentsIfAccepted(item.request.bailId, item.request.target, proposalsOf(lines));
     const inRequest = new Set(lines.filter((line) => line.status !== ComplementItemStatus.ACCEPTED).map((line) => complementItemKey(line)));
     const added = Array.from(after.values()).filter((row) => !before.has(row.key) && !inRequest.has(row.key));
     if (added.length > 0) {
@@ -1289,11 +1532,13 @@ export async function submitComplementRequest(data: unknown): Promise<{ success:
     if (missing.length > 0) {
       return { success: false, error: `Il manque encore : ${missing.map((item) => item.label).join(", ")}.` };
     }
-    // Informations : revérifiées sur le dossier tel qu'il est maintenant (mêmes règles que le formulaire).
+    // Informations : revérifiées sur le dossier tel qu'il serait avec les réponses proposées (mêmes règles
+    // que le formulaire). Les réponses ne sont toujours pas écrites dans le dossier.
     const fieldItems = request.items.filter((item) => item.kind === ComplementItemKind.FIELD && item.status !== ComplementItemStatus.ACCEPTED);
     if (fieldItems.length > 0) {
-      const state = await loadDossierState(request.bailId, request.target);
-      if (!state) return { success: false, error: "Dossier introuvable" };
+      const current = await loadDossierState(request.bailId, request.target);
+      if (!current) return { success: false, error: "Dossier introuvable" };
+      const state = withProposals(current, proposalsOf(request.items));
       for (const item of fieldItems) {
         const ref: QuestionRef = { id: item.fieldKey as FieldQuestionId, personIndex: personIndexOf(state, item.personId) };
         const errors = questionErrors(ref, state.values, state.ctx);

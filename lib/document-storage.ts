@@ -45,11 +45,18 @@ export async function deleteBlobFiles(fileKeys: string[]) {
 export async function deleteDocumentFromDB(id: string, options: { skipDiagnosticReading?: boolean } = {}) {
   const document = await prisma.document.findUnique({
     where: { id },
-    select: { fileKey: true, kind: true, propertyId: true },
+    select: { fileKey: true, kind: true, propertyId: true, archivedAt: true },
   });
 
   if (!document) {
     throw new Error("Document introuvable");
+  }
+
+  // Pièce archivée par l'équipe (remplacée par une nouvelle) : son fichier et sa ligne sont conservés.
+  // Aucun parcours de suppression ordinaire ne la retire.
+  if (document.archivedAt) {
+    console.warn(`[document-storage] pièce archivée ${id} conservée (suppression ignorée)`);
+    return;
   }
 
   // Supprimer le fichier AWS S3
@@ -79,9 +86,12 @@ export async function deleteDocumentsFromDB(where: {
   entrepriseId?: string | { in: string[] } | null;
   notaireRequestId?: string | { in: string[] } | null;
 }) {
+  // Les pièces archivées ne sont jamais retirées par une suppression en lot (fichier et ligne conservés).
+  const activeWhere = { ...where, archivedAt: null };
+
   // Récupérer les documents avant suppression pour obtenir les fileKeys
   const documents = await prisma.document.findMany({
-    where,
+    where: activeWhere,
     select: { fileKey: true },
   });
 
@@ -94,7 +104,7 @@ export async function deleteDocumentsFromDB(where: {
   }
 
   // Supprimer les documents de la DB
-  await prisma.document.deleteMany({ where });
+  await prisma.document.deleteMany({ where: activeWhere });
 }
 
 // Helper pour uploader un fichier et créer un document
