@@ -1,7 +1,7 @@
 {
  "suite": "Lot 3 — dates conditionnées au locataire",
- "createdAt": "2026-11-16T15:55:16.870Z",
- "passed": 21,
+ "createdAt": "2026-11-16T16:00:03.865Z",
+ "passed": 26,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
@@ -154,6 +154,59 @@
    "passed": true,
    "error": null,
    "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Date de fin calculée automatiquement dans chaque parcours ; aucune date de fin sans date de prise d’effet",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "triggerTenantFormEmail": 1,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Date de fin — formulaire sans locataire ni date : pas de date de fin (une ancienne valeur n’est pas gardée)",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Date de fin — étape « Locataire » et ajout ultérieur du locataire : calculée par le serveur",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "triggerTenantFormEmail": 2,
+    "createNotificationForAllUsers": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Date de fin — espace client : calculée même si l’écran ne l’envoie pas ; vide sans date de début",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 2,
+    "createNotificationForAllUsers": 2,
+    "triggerTenantFormEmail": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Documents : l’envoi du formulaire propriétaire reste refusé sans les pièces obligatoires (avec ou sans locataire)",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 2
+   },
    "networkAttempts": 0
   },
   {

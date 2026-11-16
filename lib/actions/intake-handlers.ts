@@ -17,6 +17,7 @@ import { commercialTermsFromForm, entrepriseCommercialFields } from "@/lib/utils
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
 import { DATES_REQUIRED_WITH_TENANT, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
+import { computeBailEndDate } from "@/lib/utils/bail-duration";
 
 /**
  * Pièces principales (1 à 4, 4 = « 4 et plus »), époque de construction et classe énergétique,
@@ -544,7 +545,16 @@ export async function handleOwnerTenantStep(
   if (missingTenantDates({ effectiveDate: tenantEffectiveDate, paymentDay: tenantPaymentDay }).length > 0) {
     throw new Error(DATES_REQUIRED_WITH_TENANT);
   }
-  const tenantEndDate = payload.bailEndDate ? new Date(payload.bailEndDate) : null;
+  // Date de fin : celle calculée par l'écran, sinon recalculée ici (type de bail + date de prise d'effet).
+  const sentEndDate = payload.bailEndDate ? new Date(payload.bailEndDate) : null;
+  const tenantEndDate =
+    sentEndDate && !Number.isNaN(sentEndDate.getTime())
+      ? sentEndDate
+      : computeBailEndDate(
+          tenantEffectiveDate,
+          payload.bailType || intakeLink.bail?.bailType,
+          Number.parseInt(String(payload.commercial?.derogatoryMonths ?? ""), 10) || null,
+        );
 
   // Récupérer l'ancien email du locataire avant la transaction pour détecter les changements
   const existingTenant = intakeLink.bail?.parties?.find(

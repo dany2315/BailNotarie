@@ -246,6 +246,60 @@ suite('Lot 3 — dates conditionnées au locataire', path.join(__dirname, '../..
     await assert.rejects(() => leases(r).getBailTenantDates(f.bail.id));
   });
 
+  /* ---------- Date de fin : toujours calculée (type de bail + date de prise d'effet) ---------- */
+
+  await test('Date de fin calculée automatiquement dans chaque parcours ; aucune date de fin sans date de prise d’effet', async (tx, r, f) => {
+    // 1. Formulaire propriétaire avec locataire : bail nu 3 ans → fin 3 ans après la prise d'effet.
+    await noTenant(tx, f, { effectiveDate: null, paymentDay: null, endDate: new Date('2030-01-01') });
+    const payload = await ownerPayload(tx, f, { tenantEmail: crypto.randomUUID() + '@example.invalid', bailEffectiveDate: '2027-02-01', bailPaymentDay: '5' });
+    r.state.user = f.ownerUser;
+    await clients(r).submitOwnerForm(payload, paid(r, f));
+    assert.equal(day((await bailOf(tx, f.bail.id)).endDate), '2030-02-01');
+  });
+
+  await test('Date de fin — formulaire sans locataire ni date : pas de date de fin (une ancienne valeur n’est pas gardée)', async (tx, r, f) => {
+    await noTenant(tx, f, { effectiveDate: null, paymentDay: null, endDate: new Date('2030-01-01') });
+    const payload = await ownerPayload(tx, f);
+    r.state.user = f.ownerUser;
+    await clients(r).submitOwnerForm(payload, paid(r, f));
+    assert.equal((await bailOf(tx, f.bail.id)).endDate, null);
+  });
+
+  await test('Date de fin — étape « Locataire » et ajout ultérieur du locataire : calculée par le serveur', async (tx, r, f) => {
+    await noTenant(tx, f, { effectiveDate: null, paymentDay: null, endDate: null, bailType: 'BAIL_MEUBLE_1_ANS' });
+    r.state.user = f.ownerUser;
+    await intakes(r).savePartialIntake({ token: f.intake.token, stepId: 'tenant', payload: { tenantEmail: crypto.randomUUID() + '@example.invalid', bailEffectiveDate: '2027-03-01', bailPaymentDay: '10' } });
+    assert.equal(day((await bailOf(tx, f.bail.id)).endDate), '2028-03-01', 'bail meublé 1 an : fin un an après');
+    // Ajout du locataire plus tard, depuis l'espace client.
+    const other = await tx.bail.create({ data: { propertyId: f.property.id, rentAmount: 500, bailType: 'BAIL_NU_3_ANS', status: 'AWAITING_TENANT', paidAt: new Date(), parties: { connect: [{ id: f.owner.id }] } } });
+    await leases(r).createTenantForLease({ bailId: other.id, email: crypto.randomUUID() + '@example.invalid', effectiveDate: '2027-04-01', paymentDay: '8' });
+    assert.equal(day((await bailOf(tx, other.id)).endDate), '2030-04-01');
+  });
+
+  await test('Date de fin — espace client : calculée même si l’écran ne l’envoie pas ; vide sans date de début', async (tx, r, f) => {
+    await free(tx, f);
+    r.state.user = f.ownerUser;
+    const withTenant = await leases(r).createLease(leaseData(f, { tenantId: f.tenant.id, effectiveDate: '2027-02-01', paymentDay: '5' }), userPaid(r, f.ownerUser));
+    assert.equal(day((await bailOf(tx, withTenant.id)).endDate), '2030-02-01');
+    await tx.bail.update({ where: { id: withTenant.id }, data: { status: 'TERMINATED', endDate: new Date('2026-01-01') } });
+    const without = await leases(r).createLease(leaseData(f), userPaid(r, f.ownerUser));
+    assert.equal((await bailOf(tx, without.id)).endDate, null);
+  });
+
+  /* ---------- Pièces : toujours exigées ---------- */
+
+  await test('Documents : l’envoi du formulaire propriétaire reste refusé sans les pièces obligatoires (avec ou sans locataire)', async (tx, r, f) => {
+    await noTenant(tx, f, { effectiveDate: null, paymentDay: null });
+    const payload = await ownerPayload(tx, f);
+    await tx.document.deleteMany({ where: { OR: [{ propertyId: f.property.id }, { person: { clientId: f.owner.id } }] } });
+    r.state.user = f.ownerUser;
+    await assert.rejects(() => clients(r).submitOwnerForm(payload, paid(r, f)), /Pièces manquantes/);
+    await assert.rejects(() => clients(r).submitOwnerForm({ ...payload, tenantEmail: crypto.randomUUID() + '@example.invalid', bailEffectiveDate: '2027-02-01', bailPaymentDay: '5' }, paid(r, f)), /Pièces manquantes/);
+    const bail = await bailOf(tx, f.bail.id);
+    assert.equal(bail.paidAt, null, 'dossier marqué payé sans les pièces');
+    assert.equal((await tx.intakeLink.findUnique({ where: { id: f.intake.id } })).status, 'PENDING');
+  });
+
   /* ---------- Étapes qui exigent un dossier complet, et lectures avec une date absente ---------- */
 
   await test('Dossier sans date d’effet : compté comme incomplet, envoi au notaire refusé', async (tx, r, f) => {

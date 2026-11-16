@@ -19,6 +19,7 @@ import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-
 import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
 import { HISTORICAL_PAYMENT_SELECT, PAID_WHERE, UNPAID_WHERE, isBailPaid, paymentKind } from "@/lib/payments/paid";
 import { DATES_REQUIRED_WITH_TENANT, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
+import { computeBailEndDate } from "@/lib/utils/bail-duration";
 import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
 
 /**
@@ -197,7 +198,8 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
           monthlyCharges: validated.monthlyCharges,
           securityDeposit: validated.securityDeposit,
           effectiveDate: validated.effectiveDate,
-          endDate: validated.endDate || null,
+          // Date de fin : celle calculée par l'écran, sinon recalculée (type de bail + date de début) ; aucune sans date de début.
+          endDate: validated.effectiveDate ? validated.endDate || computeBailEndDate(validated.effectiveDate, validated.bailType) : null,
           paymentDay: validated.paymentDay || null,
           ...rentRulesData,
           parties: { set: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
@@ -243,7 +245,8 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
           monthlyCharges: validated.monthlyCharges,
           securityDeposit: validated.securityDeposit,
           effectiveDate: validated.effectiveDate,
-          endDate: validated.endDate || null,
+          // Date de fin : celle calculée par l'écran, sinon recalculée (type de bail + date de début) ; aucune sans date de début.
+          endDate: validated.effectiveDate ? validated.endDate || computeBailEndDate(validated.effectiveDate, validated.bailType) : null,
           paymentDay: validated.paymentDay || null,
           ...rentRulesData,
           propertyId: validated.propertyId,
@@ -1029,6 +1032,7 @@ export async function createTenantForLease(data: unknown) {
     include: {
       property: true,
       parties: true,
+      commercialTerms: { select: { derogatoryMonths: true } },
     },
   });
 
@@ -1110,6 +1114,9 @@ export async function createTenantForLease(data: unknown) {
       parties: { connect: { id: tenant.id } },
       effectiveDate: tenantEffectiveDate,
       paymentDay: tenantPaymentDay,
+      // Date de fin : calculée d'après le type de bail et la date de prise d'effet, comme à la création
+      // (une date de fin déjà enregistrée n'est pas remplacée).
+      ...(bail.endDate ? {} : { endDate: computeBailEndDate(tenantEffectiveDate, bail.bailType, bail.commercialTerms?.derogatoryMonths ?? null) }),
       ...(bail.status === BailStatus.AWAITING_TENANT && { status: BailStatus.AWAITING_TENANT_FORM }),
     },
   });

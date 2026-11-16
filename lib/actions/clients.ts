@@ -49,6 +49,7 @@ import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-pa
 import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 import { isBailPaidById } from "@/lib/payments/paid-check";
 import { DATES_REQUIRED_WITH_TENANT, missingTenantDates } from "@/lib/bail/dates";
+import { computeBailEndDate } from "@/lib/utils/bail-duration";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -1162,7 +1163,9 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
       // Le formulaire envoyé fait foi : sans date ni jour de paiement (pas de locataire), les deux restent
       // vides — une ancienne date provisoire de brouillon n'est pas conservée comme une vraie date.
       effectiveDate: validated.bailEffectiveDate ?? null,
-      endDate: validated.bailEndDate,
+      // Date de fin : calculée d'après le type de bail et la date de prise d'effet. Sans date de prise
+      // d'effet, il n'y a pas de date de fin (une ancienne valeur n'est pas conservée).
+      endDate: validated.bailEffectiveDate ? validated.bailEndDate ?? computeBailEndDate(validated.bailEffectiveDate, validated.bailType || BailType.BAIL_NU_3_ANS) : null,
       paymentDay: validated.bailPaymentDay ?? null,
     };
 
@@ -1205,7 +1208,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
           monthlyCharges: validated.bailMonthlyCharges || 0,
           securityDeposit: validated.bailSecurityDeposit || 0,
           effectiveDate: validated.bailEffectiveDate ?? null,
-          endDate: validated.bailEndDate,
+          endDate: validated.bailEffectiveDate ? validated.bailEndDate ?? computeBailEndDate(validated.bailEffectiveDate, validated.bailType || BailType.BAIL_NU_3_ANS) : null,
           paymentDay: validated.bailPaymentDay ?? null,
           propertyId: property.id,
           parties: {
