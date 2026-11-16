@@ -1,3 +1,4 @@
+import { HISTORICAL_PAID_LABEL, isBailPaid, knownPaymentDate } from "@/lib/payments/paid";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CircleAlert, CircleCheck } from "lucide-react";
@@ -69,6 +70,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         status: true,
         bailType: true,
         paidAt: true,
+        historicalPayment: { select: { status: true, paymentDate: true } },
         rentAmount: true,
         property: { select: { fullAddress: true, label: true } },
         parties: {
@@ -260,8 +262,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                       {client.profilType === ProfilType.LOCATAIRE ? "propriétaire" : "locataire"} : {partyName(other) || "à ajouter"}
                     </span>
                     <span>
-                      <StateChip tone={bail.paidAt ? "ok" : "missing"} className="h-6">
-                        {bail.paidAt ? `Frais payés le ${formatDate(bail.paidAt)}` : "Frais non payés"}
+                      <StateChip tone={isBailPaid(bail) ? "ok" : "missing"} className="h-6">
+                        {bail.paidAt
+                          ? `Frais payés le ${formatDate(bail.paidAt)}`
+                          : isBailPaid(bail)
+                            ? knownPaymentDate(bail)
+                              ? `Frais payés le ${formatDate(knownPaymentDate(bail) as Date)} (paiement historique confirmé)`
+                              : HISTORICAL_PAID_LABEL
+                            : "Frais non payés"}
                       </StateChip>
                     </span>
                     {next.actor !== "personne" && <span className="text-[13px] font-semibold">Prochaine action : {next.label.toLowerCase()}</span>}

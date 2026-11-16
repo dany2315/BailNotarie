@@ -121,10 +121,10 @@ export function WorkQueue({ items }: { items: QueueItem[] }) {
                     <span
                       className={cn(
                         "rounded-md px-1.5 py-0.5 text-xs font-semibold",
-                        item.paidAt ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
+                        item.paid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
                       )}
                     >
-                      {item.paidAt ? "Payé" : "Non payé"}
+                      {item.paid ? "Payé" : "Non payé"}
                     </span>
                   </div>
                   <span className="text-sm text-foreground/80">

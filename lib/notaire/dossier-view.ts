@@ -193,7 +193,14 @@ async function buildView(a: Assignment): Promise<NotaireDossierView> {
       [commercial ? "Provision mensuelle pour charges" : "Charges mensuelles", euros(bail.monthlyCharges)],
       ["Dépôt de garantie", euros(bail.securityDeposit)],
       ["Jour de paiement", bail.paymentDay ? `Le ${bail.paymentDay} de chaque mois` : null],
-      ["Confirmé par le locataire", bail.tenantConfirmedTermsAt ? `Loyer, charges et date d'entrée confirmés le ${day(bail.tenantConfirmedTermsAt)}` : null],
+      [
+        "Confirmé par le locataire",
+        bail.tenantConfirmedTermsAt
+          ? `Loyer, charges et date d'entrée confirmés le ${day(bail.tenantConfirmedTermsAt)}`
+          : bail.tenantReconfirmationRequestedAt
+            ? `À renouveler : conditions ou locataire modifiés le ${day(bail.tenantReconfirmationRequestedAt)}`
+            : null,
+      ],
     ]);
     bailSections.push({ key: "bail", title: "Conditions du bail", rows: terms });
 

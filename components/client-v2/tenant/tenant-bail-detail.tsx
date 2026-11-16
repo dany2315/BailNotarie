@@ -36,6 +36,8 @@ import {
 } from "../owner-ui";
 import { SubPageBar } from "../owner-tabs";
 import { TenantStepBar } from "./tenant-bail-line";
+import { TenantReconfirmCard } from "./tenant-reconfirm-card";
+import { agreementTerms } from "@/lib/bail/tenant-agreement";
 import { BAIL_TYPE_LABELS, STATUS_VIEW, STEP_INDEX, TERMINAL_STATUSES } from "./model";
 
 /* =========================================================================
@@ -58,6 +60,9 @@ export type TenantBailDetailData = {
   effectiveDate: Date | string | null;
   endDate: Date | string | null;
   paymentDay: number | null;
+  /** Accord du locataire sur les conditions : date de l'accord en cours, ou date à laquelle il a été redemandé. */
+  tenantConfirmedTermsAt?: Date | string | null;
+  tenantReconfirmationRequestedAt?: Date | string | null;
   /** Conditions du bail commercial (réponses du propriétaire). */
   commercialTerms?: unknown;
   property: {
@@ -233,6 +238,24 @@ export function TenantBailDetail({
         </header>
 
         <div className="space-y-4">
+          {/* ── Accord à renouveler : conditions modifiées depuis la confirmation ── */}
+          {!terminal && !demoChat && bail.tenantReconfirmationRequestedAt && !bail.tenantConfirmedTermsAt && (
+            <TenantReconfirmCard
+              bailId={bailId}
+              commercial={isCommercial}
+              terms={agreementTerms({
+                bailFamily: bail.bailFamily ?? "HABITATION",
+                bailType: bail.bailType ?? "",
+                rentAmount: bail.rentAmount ?? 0,
+                monthlyCharges: bail.monthlyCharges,
+                securityDeposit: bail.securityDeposit,
+                effectiveDate: bail.effectiveDate,
+                endDate: bail.endDate,
+                commercialTerms: terms,
+              })}
+            />
+          )}
+
           {/* ── Le bail ──────────────────────────────────────────────────── */}
           <Surface tone="raised" className="p-4 sm:p-5">
             <div className="mb-4 flex items-center gap-2.5">

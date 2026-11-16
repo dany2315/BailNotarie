@@ -162,7 +162,7 @@ export default async function LeasesPage({
         }
         compact
         mobileCard={LeaseMobileCard}
-        highlightRowsWithout="paidAt"
+        highlightRowsWithout="paid"
       />
     </div>
   );

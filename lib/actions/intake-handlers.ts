@@ -15,6 +15,7 @@ import { rentRulesFromForm } from "@/lib/utils/rent-draft";
 import { euros } from "@/lib/utils/rent-relocation";
 import { commercialTermsFromForm, entrepriseCommercialFields } from "@/lib/utils/commercial-terms";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
+import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
 
 /**
  * Pièces principales (1 à 4, 4 = « 4 et plus »), époque de construction et classe énergétique,
@@ -444,10 +445,14 @@ export async function handleOwnerBailStep(
       }
       Object.assign(updateData, rentRulesData);
 
+      // Le locataire a pu confirmer des conditions que le propriétaire modifie ensuite dans son formulaire :
+      // son accord est alors archivé et redemandé (même transaction).
+      const agreement = await readAgreementSnapshot(tx, bailId);
       await tx.bail.update({
         where: { id: bailId },
         data: updateData,
       });
+      await settleTenantAgreement(tx, bailId, agreement, { id: null, name: "Propriétaire (formulaire)" });
     } else {
       if (!propertyId) {
         throw new Error("PropertyId manquant pour créer le bail");
@@ -545,10 +550,13 @@ export async function handleOwnerTenantStep(
         where: { clientId: existingTenant.id, isPrimary: true },
       });
       if (tenantPerson && tenantPerson.email?.toLowerCase() !== tenantEmail) {
+        const agreement = await readAgreementSnapshot(tx, intakeLink.bailId);
         await tx.person.update({
           where: { id: tenantPerson.id },
           data: { email: tenantEmail },
         });
+        // Le formulaire part chez une autre personne : l'accord donné par la précédente ne vaut plus.
+        await settleTenantAgreement(tx, intakeLink.bailId, agreement, { id: null, name: "Propriétaire (formulaire)" }, { tenantReplaced: true });
       }
     } else {
       // Créer un nouveau locataire

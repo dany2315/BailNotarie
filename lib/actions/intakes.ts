@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma  } from "@/lib/prisma";
-import { stripe } from "@/lib/stripe";
+import { verifyFeePayment } from "@/lib/payments/dossier-payment";
 import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { hasIntakeSession, requireIntakeSession } from "@/lib/intake-session";
 import { dossierFeeCents } from "@/lib/utils/dossier-fee";
@@ -209,24 +209,20 @@ export async function submitIntake(data: unknown) {
     },
   });
 
-  // Vérifier le paiement Stripe si un PaymentIntentId est fourni : réglé, pour ce dossier, et du
-  // montant du type de bail envoyé (39,90 €, ou 59,90 € pour un bail commercial).
-  if (paymentIntentId) {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    if (paymentIntent.status !== "succeeded") {
-      throw new Error("Le paiement n'a pas été confirmé. Veuillez réessayer.");
-    }
-    if (paymentIntent.metadata?.token !== token) {
-      throw new Error("Ce paiement ne correspond pas à ce dossier.");
-    }
-    const bailFamily = (payload as any)?.bailFamily ?? intakeLink?.bail?.bailFamily ?? intakeLink?.bailFamilyPreference;
-    if (paymentIntent.amount !== dossierFeeCents(bailFamily)) {
-      throw new Error("Montant de paiement incorrect.");
-    }
-  }
-
   if (!intakeLink) {
     throw new Error("Lien d'intake introuvable");
+  }
+
+  // Vérifier le paiement Stripe si un PaymentIntentId est fourni : réglé, pour ce dossier, dans la bonne
+  // devise et du montant du type de bail envoyé (39,90 €, ou 59,90 € pour un bail commercial).
+  // submitOwnerForm refait la même vérification avant d'enregistrer (elle peut être appelée seule).
+  if (paymentIntentId) {
+    const bailFamily = (payload as any)?.bailFamily ?? intakeLink.bail?.bailFamily ?? intakeLink.bailFamilyPreference;
+    await verifyFeePayment(paymentIntentId, {
+      amountCents: dossierFeeCents(bailFamily),
+      intakeLinkId: intakeLink.id,
+      intakeToken: token,
+    });
   }
 
   if (intakeLink.status !== "PENDING") {

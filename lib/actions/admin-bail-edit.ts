@@ -26,6 +26,7 @@ import { assessRentCap } from "@/lib/rent-cap";
 import { rentRulesFromForm } from "@/lib/utils/rent-draft";
 import { commercialTermsFromForm, commercialTermsToForm, validateCommercialStep, type CommercialStep } from "@/lib/utils/commercial-terms";
 import { commercialComplianceRules, commercialDepositWarning } from "@/lib/utils/commercial-compliance";
+import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
 
 /** Étapes du questionnaire commercial du formulaire propriétaire : l'équipe suit les mêmes règles. */
 const COMMERCIAL_STEPS: CommercialStep[] = ["activity", "duration", "rent", "deposit", "charges", "clauses"];
@@ -144,19 +145,25 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
     }
   }
 
-  await prisma.bail.update({
-    where: { id: bailId },
-    data: {
-      ...(values.bailType !== undefined && { bailType: values.bailType }),
-      ...(values.bailFamily !== undefined && { bailFamily: values.bailFamily }),
-      ...(values.effectiveDate !== undefined && { effectiveDate }),
-      ...(values.endDate !== undefined && { endDate }),
-      ...(values.rentAmount !== undefined && { rentAmount: values.rentAmount }),
-      ...(values.monthlyCharges !== undefined && { monthlyCharges: values.monthlyCharges }),
-      ...(values.securityDeposit !== undefined && { securityDeposit: values.securityDeposit }),
-      ...(values.paymentDay !== undefined && { paymentDay: values.paymentDay }),
-      updatedById: user.id,
-    },
+  // La modification et le sort de l'accord du locataire vont ensemble : si une condition qu'il a confirmée
+  // change réellement, son accord est archivé et une nouvelle confirmation est demandée.
+  await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, bailId);
+    await tx.bail.update({
+      where: { id: bailId },
+      data: {
+        ...(values.bailType !== undefined && { bailType: values.bailType }),
+        ...(values.bailFamily !== undefined && { bailFamily: values.bailFamily }),
+        ...(values.effectiveDate !== undefined && { effectiveDate }),
+        ...(values.endDate !== undefined && { endDate }),
+        ...(values.rentAmount !== undefined && { rentAmount: values.rentAmount }),
+        ...(values.monthlyCharges !== undefined && { monthlyCharges: values.monthlyCharges }),
+        ...(values.securityDeposit !== undefined && { securityDeposit: values.securityDeposit }),
+        ...(values.paymentDay !== undefined && { paymentDay: values.paymentDay }),
+        updatedById: user.id,
+      },
+    });
+    await settleTenantAgreement(tx, bailId, agreement, { id: user.id, name: getActorName(user) });
   });
 
   if (revalidate) revalidatePath(revalidate);
@@ -251,10 +258,13 @@ export async function updateCommercialTermsAdmin(data: unknown): Promise<Result<
     }
   }
 
-  await prisma.$transaction([
-    prisma.bailCommercialTerms.upsert({ where: { bailId }, create: { bailId, ...terms }, update: terms }),
-    prisma.bail.update({ where: { id: bailId }, data: { updatedById: user.id, ...(endDate !== bail.endDate ? { endDate } : {}) } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, bailId);
+    await tx.bailCommercialTerms.upsert({ where: { bailId }, create: { bailId, ...terms }, update: terms });
+    await tx.bail.update({ where: { id: bailId }, data: { updatedById: user.id, ...(endDate !== bail.endDate ? { endDate } : {}) } });
+    // Périodicité du loyer ou date de fin modifiée : l'accord du locataire est à renouveler.
+    await settleTenantAgreement(tx, bailId, agreement, { id: user.id, name: getActorName(user) });
+  });
 
   // Règles de la Conformité légale avant / après : à revalider (contrôle de l'équipe), devenues bloquantes ou réglées.
   const owner = bail.parties.find((party) => party.profilType === ProfilType.PROPRIETAIRE) ?? null;
@@ -427,6 +437,7 @@ export async function changeBailTenantAdmin(data: unknown): Promise<Result<{ ten
   const actorName = getActorName(user);
 
   const intakeLink = await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, bailId);
     await tx.bail.update({
       where: { id: bailId },
       data: {
@@ -435,6 +446,8 @@ export async function changeBailTenantAdmin(data: unknown): Promise<Result<{ ten
         updatedById: user.id,
       },
     });
+    // L'accord donné par l'ancien locataire ne vaut pas pour le nouveau : archivé, à redemander.
+    await settleTenantAgreement(tx, bailId, agreement, { id: user.id, name: actorName });
     // Les formulaires encore ouverts de l'ancien locataire pour ce dossier ne servent plus.
     if (previous) {
       await tx.intakeLink.updateMany({

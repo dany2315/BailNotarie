@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { HISTORICAL_PAYMENT_SELECT, isBailPaid } from "@/lib/payments/paid";
 import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
 import { revalidatePath } from "next/cache";
 import {
@@ -160,6 +161,7 @@ export async function validateAndSendToNotary(
         id: true,
         status: true,
         paidAt: true,
+        historicalPayment: HISTORICAL_PAYMENT_SELECT,
         rentAmount: true,
         bailType: true,
         effectiveDate: true,
@@ -202,7 +204,8 @@ export async function validateAndSendToNotary(
     const owner = bail.parties.find((p) => p.profilType === "PROPRIETAIRE");
     const tenant = bail.parties.find((p) => p.profilType === "LOCATAIRE");
     if (!owner || !tenant) return { success: false, error: "Le dossier doit avoir un propriétaire et un locataire" };
-    if (!bail.paidAt) return { success: false, error: "Les frais de dossier ne sont pas payés : le dossier ne peut pas partir chez le notaire." };
+    // Payé = confirmé par Stripe, ou ancien paiement vérifié et confirmé par l'équipe (règle commune).
+    if (!isBailPaid(bail)) return { success: false, error: "Les frais de dossier ne sont pas payés : le dossier ne peut pas partir chez le notaire." };
 
     // Encadrement des loyers : catégorie complète, et loyer au plus au plafond (sauf complément justifié).
     // Zone tendue : loyer au plus au maximum de relocation, justificatifs reçus.

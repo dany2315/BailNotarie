@@ -16,7 +16,9 @@ import { getBailDocumentRules } from "@/lib/utils/required-fields";
 import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 import { rentRulesFromForm, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
-import { stripe } from "@/lib/stripe";
+import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
+import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
+import { HISTORICAL_PAYMENT_SELECT, PAID_WHERE, UNPAID_WHERE, isBailPaid, paymentKind } from "@/lib/payments/paid";
 import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
 
 /**
@@ -64,18 +66,18 @@ async function rentRulesColumns(
 
 /**
  * Paiement des frais de dossier (espace client) : vérifié auprès de Stripe avant de marquer le bail
- * payé. Réglé, du bon montant, créé pour cet utilisateur, et pas déjà utilisé pour un autre bail.
+ * payé. Réglé, du bon montant, dans la bonne devise, créé pour cet utilisateur, et pas déjà utilisé pour
+ * un autre bail. Le rattachement au bail (attachPaymentToBail) se fait ensuite dans la transaction qui
+ * crée le bail : un même paiement ne peut pas servir deux fois, même avec deux requêtes simultanées.
  */
 async function assertBailPayment(paymentIntentId: string, userId: string, draftBailId?: string) {
-  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-  if (paymentIntent.status !== "succeeded") throw new Error("Le paiement n'a pas été confirmé. Veuillez réessayer.");
-  if (paymentIntent.amount !== dossierFeeCents("HABITATION")) throw new Error("Montant de paiement incorrect.");
-  if (paymentIntent.metadata?.userId !== userId) throw new Error("Ce paiement ne correspond pas à votre compte.");
+  const paymentIntent = await verifyFeePayment(paymentIntentId, { amountCents: dossierFeeCents("HABITATION"), userId });
   const used = await prisma.bail.findFirst({
     where: { stripePaymentIntentId: paymentIntentId, ...(draftBailId ? { NOT: { id: draftBailId } } : {}) },
     select: { id: true },
   });
   if (used) throw new Error("Ce paiement a déjà été utilisé.");
+  return paymentIntent;
 }
 
 /** Classe DPE saisie par le propriétaire pour un bien qui n'en avait pas (jamais écrasée). */
@@ -99,7 +101,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
   const validated = createLeaseSchema.parse(data);
   // Seuls l'équipe et les propriétaires créent un bail.
   if (!STAFF_ROLES.includes(user.role)) await requireProprietaireAuth();
-  if (paymentIntentId) await assertBailPayment(paymentIntentId, user.id, draftBailId);
+  const paidIntent = paymentIntentId ? await assertBailPayment(paymentIntentId, user.id, draftBailId) : null;
 
   // Récupérer le propriétaire du bien
   const property = await prisma.property.findUnique({
@@ -198,8 +200,6 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
           endDate: validated.endDate || null,
           paymentDay: validated.paymentDay || null,
           ...rentRulesData,
-          stripePaymentIntentId: paymentIntentId || null,
-          paidAt: paymentIntentId ? new Date() : null,
           parties: { set: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
           updatedById: user.id,
         },
@@ -214,14 +214,9 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         createdAt: updatedBail.createdAt,
       }, tx);
 
-      if (paymentIntentId) {
-        await createBailAuditLog({
-          bailId: updatedBail.id,
-          eventType: BailAuditEventType.PAYMENT_RECEIVED,
-          actorId: user.id,
-          actorName,
-          createdAt: updatedBail.paidAt || undefined,
-        }, tx);
+      // Paiement rattaché à ce bail et bail marqué payé, une seule fois (avec sa ligne d'historique).
+      if (paidIntent) {
+        await attachPaymentToBail(tx, { intent: paidIntent, bailId: updatedBail.id, link: { userId: user.id }, actor: { id: user.id, name: actorName } });
       }
 
       if (validated.tenantId) {
@@ -235,7 +230,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         }, tx);
       }
 
-      return updatedBail;
+      return paidIntent ? tx.bail.findUniqueOrThrow({ where: { id: updatedBail.id }, include: bailInclude }) : updatedBail;
     });
   } else {
     bail = await prisma.$transaction(async (tx) => {
@@ -252,8 +247,6 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
           paymentDay: validated.paymentDay || null,
           ...rentRulesData,
           propertyId: validated.propertyId,
-          stripePaymentIntentId: paymentIntentId || null,
-          paidAt: paymentIntentId ? new Date() : null,
           parties: { connect: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
           createdById: user.id,
         },
@@ -268,14 +261,8 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         createdAt: createdBail.createdAt,
       }, tx);
 
-      if (paymentIntentId) {
-        await createBailAuditLog({
-          bailId: createdBail.id,
-          eventType: BailAuditEventType.PAYMENT_RECEIVED,
-          actorId: user.id,
-          actorName,
-          createdAt: createdBail.paidAt || undefined,
-        }, tx);
+      if (paidIntent) {
+        await attachPaymentToBail(tx, { intent: paidIntent, bailId: createdBail.id, link: { userId: user.id }, actor: { id: user.id, name: actorName } });
       }
 
       if (validated.tenantId) {
@@ -289,7 +276,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         }, tx);
       }
 
-      return createdBail;
+      return paidIntent ? tx.bail.findUniqueOrThrow({ where: { id: createdBail.id }, include: bailInclude }) : createdBail;
     });
   }
 
@@ -450,6 +437,7 @@ export async function updateLease(data: unknown) {
   const newStatus = updatePayload.status || oldBail?.status;
 
   const updatedBail = await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, id);
     const bail = await tx.bail.update({
       where: { id },
       data: updatePayload,
@@ -458,6 +446,8 @@ export async function updateLease(data: unknown) {
         parties: true,
       },
     });
+    // Conditions confirmées par le locataire modifiées, ou locataire remplacé : accord archivé, à redemander.
+    await settleTenantAgreement(tx, id, agreement, { id: user.id, name: getActorName(user) });
 
     if (oldStatus && newStatus && oldStatus !== newStatus) {
       await createBailAuditLog({
@@ -779,10 +769,11 @@ export async function getLeases(params: {
     };
   }
 
+  // « Payé » = confirmé par Stripe, ou ancien paiement confirmé à la main par l'équipe (règle commune).
   if (params.payment === "paid") {
-    where.paidAt = { not: null };
+    where.AND = [...(where.AND ?? []), PAID_WHERE];
   } else if (params.payment === "unpaid") {
-    where.paidAt = null;
+    where.AND = [...(where.AND ?? []), UNPAID_WHERE];
   }
 
   if (params.search) {
@@ -845,6 +836,8 @@ export async function getLeases(params: {
           orderBy: { createdAt: "desc" },
           take: 1,
         },
+        // Ancien paiement confirmé à la main (pastille « Payés » sans date Stripe)
+        historicalPayment: HISTORICAL_PAYMENT_SELECT,
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -854,8 +847,9 @@ export async function getLeases(params: {
     prisma.bail.count({ where }),
   ]);
 
-  // Sérialiser les données pour éviter les problèmes de sérialisation
-  const serializedData = JSON.parse(JSON.stringify(data));
+  // Sérialiser les données pour éviter les problèmes de sérialisation.
+  // « paid » : état de paiement selon la règle commune (sert à la pastille et à la teinte des lignes).
+  const serializedData = JSON.parse(JSON.stringify(data.map((bail) => ({ ...bail, paid: isBailPaid(bail) ? paymentKind(bail) : null }))));
 
   return {
     data: serializedData,
@@ -880,8 +874,8 @@ export async function getLeaseStatusCounts(params: {
   await requireStaff();
 
   const where: any = { ...notaireWhere(params.notaire), ...familyWhere(params.family) };
-  if (params.payment === "paid") where.paidAt = { not: null };
-  else if (params.payment === "unpaid") where.paidAt = null;
+  if (params.payment === "paid") where.AND = [PAID_WHERE];
+  else if (params.payment === "unpaid") where.AND = [UNPAID_WHERE];
   if (params.search) {
     where.OR = [
       { property: { fullAddress: { contains: params.search, mode: "insensitive" } } },
@@ -948,8 +942,8 @@ export async function getLeasePaymentCounts(params: {
 
   const [total, unpaid, paid] = await Promise.all([
     prisma.bail.count({ where: baseWhere }),
-    prisma.bail.count({ where: { ...baseWhere, paidAt: null } }),
-    prisma.bail.count({ where: { ...baseWhere, paidAt: { not: null } } }),
+    prisma.bail.count({ where: { AND: [baseWhere, UNPAID_WHERE] } }),
+    prisma.bail.count({ where: { AND: [baseWhere, PAID_WHERE] } }),
   ]);
 
   return { total, unpaid, paid };

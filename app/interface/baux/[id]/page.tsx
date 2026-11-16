@@ -360,9 +360,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const dateValue = (date: Date | string | null | undefined) => (date ? format(new Date(date), "yyyy-MM-dd") : "");
   const months = lease.rentAmount > 0 ? Math.round((lease.securityDeposit / lease.rentAmount) * 10) / 10 : null;
   // Le locataire confirme le loyer, les charges et la date d'entrée en envoyant son formulaire.
+  // Si ces conditions changent ensuite (ou si le locataire est remplacé), l'accord est archivé et redemandé.
   const tenantConfirmation = lease.tenantConfirmedTermsAt
     ? `Loyer, charges et date d'entrée confirmés par le locataire le ${formatDate(lease.tenantConfirmedTermsAt)}`
-    : null;
+    : (lease as any).tenantReconfirmationRequestedAt
+      ? `Confirmation du locataire à renouveler : conditions ou locataire modifiés le ${formatDate((lease as any).tenantReconfirmationRequestedAt)} (il la redonne depuis son espace)`
+      : null;
   const bailPoints = [
     {
       key: pointKey("bail:type", [lease.bailType, lease.bailFamily, lease.effectiveDate, lease.endDate]),

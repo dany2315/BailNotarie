@@ -676,6 +676,19 @@ model Bail {
 
   // Le locataire a confirmé le loyer, les charges et la date d'entrée en envoyant son formulaire
   tenantConfirmedTermsAt DateTime?
+  // Conditions montrées au locataire au moment de son accord (vide pour les accords antérieurs à ce suivi :
+  // leur contenu précis n'a pas été enregistré et n'est pas reconstitué)
+  tenantConfirmedTerms            Json?
+  // Fiche client du locataire qui a donné l'accord
+  tenantConfirmedById             String?
+  // Accord précédent invalidé (conditions modifiées ou locataire remplacé) : nouvelle confirmation attendue
+  tenantReconfirmationRequestedAt DateTime?
+  tenantAgreementHistory          BailTenantAgreementHistory[]
+
+  // Tentatives et confirmations de paiement des frais de dossier (source : Stripe)
+  payments          DossierPayment[]
+  // Paiement ancien confirmé à la main par l'équipe (périmètre fermé, listé à la bascule)
+  historicalPayment HistoricalPaymentReview?
 
   // Bail commercial : conditions propres (activité, loyer HT, charges, travaux…)
   commercialTerms BailCommercialTerms?
@@ -903,6 +916,7 @@ model IntakeLink {
   lastOpenedAt        DateTime?
 
   stripePaymentIntentId String? @db.Text // Temporaire : cache pour réutiliser le PaymentIntent
+  payments              DossierPayment[]
 
   bailFamilyPreference BailFamille?
 
@@ -1019,6 +1033,16 @@ model Document {
   complementItemId String?
   complementItem   ComplementRequestItem? @relation(fields: [complementItemId], references: [id], onDelete: SetNull)
 
+  // Pièce retirée des pièces actives par l'équipe (remplacée par une nouvelle). Le fichier et la ligne sont
+  // conservés : seule l'équipe la consulte encore. Vide = pièce active.
+  archivedAt     DateTime?
+  archivedById   String?
+  archivedByName String?
+  // Pièce qui la remplace (traçabilité ancienne → nouvelle)
+  replacedById   String?
+  replacedBy     Document?  @relation("DocumentReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces       Document[] @relation("DocumentReplacement")
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   uploadedById String?
@@ -1033,6 +1057,8 @@ model Document {
   @@index([fileKey])
   @@index([notaireRequestId])
   @@index([complementItemId])
+  @@index([archivedAt])
+  @@index([replacedById])
 }
 
 /**
@@ -1347,8 +1373,19 @@ model ComplementRequestItem {
   propertyId   String?
   bailId       String?
 
-  // Pièces à remplacer (illisible, expirée…) : supprimées quand l'équipe accepte la nouvelle
+  // Pièces à remplacer (illisible, expirée…) : proposées à l'équipe quand elle accepte la nouvelle.
+  // Elle choisit celles à retirer ; elles sont archivées, jamais supprimées.
   replacesDocumentIds String[] @default([])
+
+  // Information : la réponse (providedValue) reste une proposition tant que l'équipe ne l'a pas acceptée.
+  // baseValue = valeurs du dossier au moment de la réponse (pour voir si le dossier a changé depuis) ;
+  // appliedBefore / appliedAfter = journal de ce qui a été écrit à l'acceptation.
+  baseValue     Json?
+  appliedBefore Json?
+  appliedAfter  Json?
+  appliedAt     DateTime?
+  appliedById   String?
+  appliedByName String?
 
   providedAt DateTime?
   reviewedAt DateTime?
@@ -1375,3 +1412,128 @@ model OTPCode {
   @@index([email, used])
   @@index([expiresAt])
 }
+
+/**
+ * ---------------------- Paiements des frais de dossier ------------------
+ */
+
+enum DossierPaymentStatus {
+  PENDING // Créé chez Stripe, pas encore payé (moyen de paiement ou confirmation attendus)
+  PROCESSING // En cours chez Stripe : résultat pas encore connu
+  SUCCEEDED // Confirmé par Stripe
+  FAILED // Refusé
+  CANCELED // Annulé
+  UNKNOWN // État impossible à vérifier pour le moment : aucune nouvelle tentative tant qu'il n'est pas éclairci
+}
+
+/// Une ligne par ordre de paiement Stripe (PaymentIntent). La référence Stripe est unique : un paiement
+/// ne peut être rattaché qu'à un seul dossier (bailId posé une seule fois, de façon atomique).
+model DossierPayment {
+  id                    String               @id @default(cuid())
+  stripePaymentIntentId String               @unique
+  status                DossierPaymentStatus @default(PENDING)
+  amountCents           Int
+  currency              String               @default("eur")
+  // Numéro de tentative pour ce dossier (clé d'idempotence Stripe)
+  attempt               Int                  @default(1)
+
+  // Dossier payé : formulaire propriétaire (intake) ou création depuis l'espace client (utilisateur)
+  intakeLinkId String?
+  intakeLink   IntakeLink? @relation(fields: [intakeLinkId], references: [id], onDelete: SetNull)
+  userId       String?
+  // Bail auquel le paiement est rattaché (vide = confirmé mais en attente de rattachement)
+  bailId       String?
+  bail         Bail?       @relation(fields: [bailId], references: [id], onDelete: SetNull)
+
+  // Date réelle du paiement donnée par Stripe (vide si inconnue) — distincte de la date d'enregistrement
+  stripePaidAt DateTime?
+  // Date à laquelle notre serveur a enregistré la confirmation
+  confirmedAt  DateTime?
+  // Date du rattachement au bail
+  attachedAt   DateTime?
+  // Dernier événement Stripe pris en compte (les événements plus anciens sont ignorés)
+  lastEventAt  DateTime?
+  lastError    String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([intakeLinkId])
+  @@index([bailId])
+  @@index([userId])
+  @@index([status])
+}
+
+/// Événements Stripe déjà reçus (un événement rejoué n'est traité qu'une fois).
+model StripeWebhookEvent {
+  id              String    @id // identifiant Stripe de l'événement (evt_…)
+  type            String
+  paymentIntentId String?
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+  outcome         String?
+
+  @@index([paymentIntentId])
+}
+
+enum HistoricalPaymentStatus {
+  PENDING // À vérifier par l'équipe
+  CONFIRMED // Paiement retrouvé et confirmé par l'équipe
+  REJECTED // Vérifié : pas de paiement retrouvé
+}
+
+/// Anciens dossiers sans paiement enregistré, listés une fois à la bascule. Seuls les dossiers de cette
+/// liste peuvent être confirmés à la main ; rien n'est confirmé automatiquement.
+model HistoricalPaymentReview {
+  id     String                  @id @default(cuid())
+  bailId String                  @unique
+  bail   Bail                    @relation(fields: [bailId], references: [id], onDelete: Cascade)
+  status HistoricalPaymentStatus @default(PENDING)
+
+  listedAt       DateTime  @default(now())
+  // Vérification par un administrateur
+  verifiedById   String?
+  verifiedByName String?
+  verifiedAt     DateTime?
+  // Preuve du rapprochement (référence Stripe, virement, facture…)
+  proofReference String?   @db.Text
+  note           String?   @db.Text
+  // Date réelle du paiement si elle est connue ; sinon vide (jamais inventée)
+  paymentDate    DateTime?
+
+  @@index([status])
+}
+
+/**
+ * ---------------------- Accords du locataire (historique) ------------------
+ */
+
+enum TenantAgreementEndReason {
+  TERMS_CHANGED // Conditions du bail modifiées après l'accord
+  TENANT_REPLACED // Locataire remplacé ou retiré du dossier
+}
+
+/// Accord du locataire qui n'est plus valable : conservé pour l'historique, jamais supprimé.
+model BailTenantAgreementHistory {
+  id     String @id @default(cuid())
+  bailId String
+  bail   Bail   @relation(fields: [bailId], references: [id], onDelete: Cascade)
+
+  tenantId          String?
+  tenantName        String?
+  confirmedAt       DateTime
+  // Conditions montrées au locataire lors de l'accord ; vide si elles n'avaient pas été enregistrées
+  confirmedTerms    Json?
+  // Conditions du dossier juste avant la modification qui a mis fin à l'accord
+  termsBeforeChange Json
+  // Champs modifiés : [{ field, before, after }]
+  changes           Json?
+
+  reason            TenantAgreementEndReason
+  invalidatedAt     DateTime                 @default(now())
+  invalidatedById   String?
+  invalidatedByName String
+
+  @@index([bailId, invalidatedAt])
+}
+

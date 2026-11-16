@@ -44,6 +44,9 @@ import {
 import { entrepriseCommercialFields } from "@/lib/utils/commercial-terms";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { createBailAuditLog, getClientDisplayName } from "@/lib/actions/bail-audit-log";
+import { readAgreementSnapshot, recordTenantAgreement, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
+import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
+import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -675,6 +678,17 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     throw new Error("Accès non autorisé : aucun lien d'intake valide trouvé pour ce client");
   }
 
+  // Paiement des frais de dossier : vérifié ici, auprès de Stripe, quel que soit l'appelant (cette action
+  // peut être appelée directement). Réglé, du montant du type de bail envoyé, dans la bonne devise et créé
+  // pour ce dossier. Un simple identifiant ne suffit jamais à marquer le dossier payé.
+  const paidIntent = paymentIntentId
+    ? await verifyFeePayment(paymentIntentId, {
+        amountCents: dossierFeeCents(validated.bailFamily),
+        intakeLinkId: intakeLink.id,
+        intakeToken: intakeLink.token,
+      })
+    : null;
+
   // Mettre à jour le type du client si nécessaire
   await prisma.client.update({
     where: { id: validated.clientId },
@@ -929,6 +943,23 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     },
   });
 
+  // Reprise après un envoi interrompu : si ce paiement est déjà rattaché à un bail de ce dossier (le bail
+  // a été créé mais la suite a échoué), on reprend ce bail au lieu d'en créer un second.
+  if (paidIntent && ownerIntakeLink && !ownerIntakeLink.bail) {
+    const prior = await prisma.dossierPayment.findUnique({
+      where: { stripePaymentIntentId: paidIntent.id },
+      select: { bailId: true, intakeLinkId: true },
+    });
+    if (prior?.bailId && prior.intakeLinkId === ownerIntakeLink.id) {
+      const resumed = await prisma.bail.findUnique({ where: { id: prior.bailId }, include: { parties: true } });
+      if (resumed) {
+        ownerIntakeLink.bailId = resumed.id;
+        ownerIntakeLink.bail = resumed;
+      }
+    }
+  }
+  const paymentActor = { id: null, name: "Propriétaire (formulaire)" };
+
   // Pièces obligatoires : revérifiées ici, avant d'enregistrer le bail et le paiement.
   await assertOwnerDocuments({
     clientId: validated.clientId,
@@ -1120,10 +1151,6 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
       effectiveDate: validated.bailEffectiveDate,
       endDate: validated.bailEndDate,
       paymentDay: validated.bailPaymentDay,
-      ...(paymentIntentId && {
-        stripePaymentIntentId: paymentIntentId,
-        paidAt: new Date(),
-      }),
     };
 
     // Connecter le locataire seulement s'il existe et n'est pas déjà connecté
@@ -1134,34 +1161,50 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
       };
     }
 
-    // Mettre à jour le bail existant
-    bail = await prisma.bail.update({
-      where: { id: ownerIntakeLink.bailId },
-      data: updateData,
+    // Mettre à jour le bail existant. Si le locataire avait déjà confirmé des conditions que ce formulaire
+    // modifie, son accord est archivé et redemandé dans la même transaction.
+    const existingBailId = ownerIntakeLink.bailId;
+    bail = await prisma.$transaction(async (tx) => {
+      const agreement = await readAgreementSnapshot(tx, existingBailId);
+      const updated = await tx.bail.update({
+        where: { id: existingBailId },
+        data: updateData,
+      });
+      await settleTenantAgreement(tx, existingBailId, agreement, { id: null, name: "Propriétaire (formulaire)" });
+      // Paiement rattaché à ce bail et bail marqué payé, une seule fois, avec sa ligne d'historique.
+      if (paidIntent) {
+        await attachPaymentToBail(tx, { intent: paidIntent, bailId: existingBailId, link: { intakeLinkId: intakeLink.id }, actor: paymentActor, at: submittedAt });
+        return tx.bail.findUniqueOrThrow({ where: { id: existingBailId } });
+      }
+      return updated;
     });
 
   } else {
-    // Créer un nouveau bail
-    bail = await prisma.bail.create({
-      data: {
-        bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
-        bailFamily: validated.bailFamily || BailFamille.HABITATION,
-        status: tenant ? BailStatus.AWAITING_TENANT_FORM : BailStatus.AWAITING_TENANT,
-        rentAmount: validated.bailRentAmount,
-        monthlyCharges: validated.bailMonthlyCharges || 0,
-        securityDeposit: validated.bailSecurityDeposit || 0,
-        effectiveDate: validated.bailEffectiveDate,
-        endDate: validated.bailEndDate,
-        paymentDay: validated.bailPaymentDay,
-        propertyId: property.id,
-        ...(paymentIntentId && {
-          stripePaymentIntentId: paymentIntentId,
-          paidAt: new Date(),
-        }),
-        parties: {
-          connect: bailParties,
+    // Créer un nouveau bail. Le bail et le rattachement du paiement vont ensemble : si le paiement ne peut
+    // pas être rattaché (déjà utilisé pour un autre dossier), le bail n'est pas créé.
+    bail = await prisma.$transaction(async (tx) => {
+      const created = await tx.bail.create({
+        data: {
+          bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
+          bailFamily: validated.bailFamily || BailFamille.HABITATION,
+          status: tenant ? BailStatus.AWAITING_TENANT_FORM : BailStatus.AWAITING_TENANT,
+          rentAmount: validated.bailRentAmount,
+          monthlyCharges: validated.bailMonthlyCharges || 0,
+          securityDeposit: validated.bailSecurityDeposit || 0,
+          effectiveDate: validated.bailEffectiveDate,
+          endDate: validated.bailEndDate,
+          paymentDay: validated.bailPaymentDay,
+          propertyId: property.id,
+          parties: {
+            connect: bailParties,
+          },
         },
-      },
+      });
+      if (paidIntent) {
+        await attachPaymentToBail(tx, { intent: paidIntent, bailId: created.id, link: { intakeLinkId: intakeLink.id }, actor: paymentActor, at: submittedAt });
+        return tx.bail.findUniqueOrThrow({ where: { id: created.id } });
+      }
+      return created;
     });
   }
 
@@ -1201,15 +1244,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     });
   }
 
-  if (paymentIntentId) {
-    await createBailAuditLog({
-      bailId: bail.id,
-      eventType: BailAuditEventType.PAYMENT_RECEIVED,
-      actorId: null,
-      actorName: auditActorName,
-      createdAt: bail.paidAt || submittedAt,
-    });
-  }
+  // La ligne « paiement reçu » de l'historique est écrite avec le rattachement du paiement (une seule fois).
 
   if ((shouldLogTenantAdded || (!previousBailStatus && tenant)) && tenant) {
     await createBailAuditLog({
@@ -1781,10 +1816,9 @@ export async function submitTenantForm(data: unknown) {
       });
 
       if (validated.tenantConfirmedTerms) {
-        await prisma.bail.update({
-          where: { id: tenantIntakeLink.bailId },
-          data: { tenantConfirmedTermsAt: submittedAt },
-        });
+        // L'accord est enregistré avec les conditions du bail à cet instant (ce que le locataire a vu).
+        const confirmedBailId = tenantIntakeLink.bailId;
+        await prisma.$transaction((tx) => recordTenantAgreement(tx, confirmedBailId, validated.clientId, submittedAt));
       }
 
       await createBailAuditLog({
@@ -2371,13 +2405,18 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Supprimer les connexions avec les baux (disconnect le locataire des baux)
     for (const bail of client.bails) {
-      await prisma.bail.update({
-        where: { id: bail.id },
-        data: {
-          parties: {
-            disconnect: { id },
+      // Un locataire retiré du dossier emporte son accord : archivé dans l'historique du bail.
+      await prisma.$transaction(async (tx) => {
+        const agreement = await readAgreementSnapshot(tx, bail.id);
+        await tx.bail.update({
+          where: { id: bail.id },
+          data: {
+            parties: {
+              disconnect: { id },
+            },
           },
-        },
+        });
+        await settleTenantAgreement(tx, bail.id, agreement, { id: null, name: "Équipe BailNotarie (fiche client supprimée)" });
       });
     }
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { BailStatus, NotaireRequestStatus, Role } from "@prisma/client";
+import { HISTORICAL_PAYMENT_SELECT, UNPAID_WHERE, isBailPaid } from "@/lib/payments/paid";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { getClientGreetingName } from "@/lib/actions/bail-audit-log";
@@ -87,6 +88,8 @@ export interface QueueItem {
   ownerName: string | null;
   tenantName: string | null;
   paidAt: string | null;
+  /** Payé selon la règle commune (Stripe, ou ancien paiement confirmé par l'équipe). */
+  paid: boolean;
   action: string;
   actor: Actor;
   primary: boolean;
@@ -147,7 +150,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   const [statusGroups, unpaidCount, activeBails, unpaidBails, requests, received, pendingRequestBails] = await Promise.all([
     prisma.bail.groupBy({ by: ["status"], _count: { _all: true } }),
-    prisma.bail.count({ where: { paidAt: null, status: { in: ACTIVE_STATUSES } } }),
+    prisma.bail.count({ where: { ...UNPAID_WHERE, status: { in: ACTIVE_STATUSES } } }),
     prisma.bail.findMany({
       where: { status: { in: ACTIVE_STATUSES } },
       select: {
@@ -155,6 +158,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         status: true,
         bailType: true,
         paidAt: true,
+        historicalPayment: HISTORICAL_PAYMENT_SELECT,
         createdAt: true,
         updatedAt: true,
         property: { select: { label: true, fullAddress: true } },
@@ -172,7 +176,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       take: 200,
     }),
     prisma.bail.findMany({
-      where: { paidAt: null, status: { in: ACTIVE_STATUSES } },
+      where: { ...UNPAID_WHERE, status: { in: ACTIVE_STATUSES } },
       select: {
         id: true,
         status: true,
@@ -274,6 +278,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       ownerName: partyName(owner as PartyLite | undefined),
       tenantName: partyName(tenant as PartyLite | undefined),
       paidAt: bail.paidAt ? bail.paidAt.toISOString() : null,
+      paid: isBailPaid(bail),
       action: next.label,
       actor: next.actor,
       primary: next.primary,

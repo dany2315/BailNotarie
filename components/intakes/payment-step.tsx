@@ -68,14 +68,20 @@ const STRIPE_APPEARANCE = {
 
 // ─── Inner form (accès à stripe/elements via context) ────────────────────────
 
+/** Message d'attente : le paiement existe, son résultat n'est pas encore connu. */
+const PAYMENT_PENDING_MESSAGE =
+  "Votre paiement est en cours de vérification. Ne payez pas une seconde fois : cette page se mettra à jour dès qu'il sera confirmé.";
+
 interface PaymentFormProps {
   onPaymentSuccess: (paymentIntentId: string) => void;
+  /** Paiement envoyé mais pas encore confirmé par la banque : on attend la confirmation. */
+  onPaymentPending: () => void;
   isSubmitting: boolean;
   /** « 39,90 € » ou « 59,90 € » selon le type de bail. */
   feeLabel: string;
 }
 
-function PaymentForm({ onPaymentSuccess, isSubmitting, feeLabel }: PaymentFormProps) {
+function PaymentForm({ onPaymentSuccess, onPaymentPending, isSubmitting, feeLabel }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -106,6 +112,9 @@ function PaymentForm({ onPaymentSuccess, isSubmitting, feeLabel }: PaymentFormPr
 
     if (paymentIntent?.status === "succeeded") {
       onPaymentSuccess(paymentIntent.id);
+    } else if (paymentIntent?.status === "processing" || paymentIntent?.status === "requires_capture") {
+      // Paiement parti : surtout ne pas inviter à réessayer, on attend la confirmation.
+      onPaymentPending();
     } else {
       setError("Le paiement n'a pas pu être confirmé. Veuillez réessayer.");
       setIsProcessing(false);
@@ -216,8 +225,18 @@ export function PaymentStep({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Paiement parti mais pas encore confirmé (ou état impossible à vérifier pour l'instant) : on attend et
+  // on revérifie, sans jamais proposer de payer une seconde fois.
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [checkCount, setCheckCount] = useState(0);
+
   useEffect(() => {
     const controller = new AbortController();
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const waitAndRecheck = (message: string) => {
+      setPendingMessage(message);
+      retry = setTimeout(() => setCheckCount((count) => count + 1), 5000);
+    };
 
     fetch("/api/stripe/create-payment-intent", {
       method: "POST",
@@ -230,8 +249,12 @@ export function PaymentStep({
         if (data.alreadyPaid && data.paymentIntentId) {
           // Le paiement a déjà réussi (ex: retry après échec de soumission)
           // Poursuivre directement la soumission sans repayer
+          setPendingMessage(null);
           onPaymentSuccess(data.paymentIntentId);
+        } else if (data.state === "processing" || data.state === "unknown") {
+          waitAndRecheck(data.message || data.error || PAYMENT_PENDING_MESSAGE);
         } else if (data.clientSecret) {
+          setPendingMessage(null);
           setClientSecret(data.clientSecret);
         } else {
           setLoadError(
@@ -241,12 +264,17 @@ export function PaymentStep({
       })
       .catch((err) => {
         if (err.name !== "AbortError") {
-          setLoadError("Erreur réseau lors de l'initialisation du paiement.");
+          if (pendingMessage) waitAndRecheck(pendingMessage);
+          else setLoadError("Erreur réseau lors de l'initialisation du paiement.");
         }
       });
 
-    return () => controller.abort();
-  }, [token]);
+    return () => {
+      controller.abort();
+      if (retry) clearTimeout(retry);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, checkCount]);
 
   const inclus = [
     "Constitution du dossier en ligne",
@@ -337,6 +365,14 @@ export function PaymentStep({
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{loadError}</span>
         </div>
+      ) : pendingMessage ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-3" role="status">
+          <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-amber-600" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-amber-900">Paiement en cours de vérification</p>
+            <p className="text-sm text-amber-800">{pendingMessage}</p>
+          </div>
+        </div>
       ) : !clientSecret ? (
         <div className="rounded-xl border border-gray-200 bg-white p-8 flex flex-col items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-[#4373f5]" />
@@ -353,6 +389,10 @@ export function PaymentStep({
         >
           <PaymentForm
             onPaymentSuccess={onPaymentSuccess}
+            onPaymentPending={() => {
+              setPendingMessage(PAYMENT_PENDING_MESSAGE);
+              setCheckCount((count) => count + 1);
+            }}
             isSubmitting={isSubmitting}
             feeLabel={feeLabel}
           />

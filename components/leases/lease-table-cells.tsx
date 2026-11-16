@@ -1,5 +1,6 @@
 "use client";
 
+import { isBailPaid, knownPaymentDate } from "@/lib/payments/paid";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate, formatCurrency } from "@/lib/utils/formatters";
 import { ArrowRight, Building2, User, GraduationCap, CheckCircle2, CreditCard } from "lucide-react";
@@ -258,12 +259,18 @@ export function LeasePaymentCell({ row }: LeaseCellProps) {
       <span
         className={cn(
           "inline-flex h-6 items-center whitespace-nowrap rounded-md px-2 text-xs font-semibold",
-          row?.paidAt ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
+          row && isBailPaid(row) ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
         )}
       >
-        {row?.paidAt ? "Payés" : "Non payés"}
+        {row && isBailPaid(row) ? "Payés" : "Non payés"}
       </span>
-      <span className="whitespace-nowrap text-xs text-muted-foreground">{row?.paidAt ? `le ${formatDate(row.paidAt)}` : "à régler"}</span>
+      <span className="whitespace-nowrap text-xs text-muted-foreground">
+        {row && isBailPaid(row)
+          ? knownPaymentDate(row)
+            ? `le ${formatDate(knownPaymentDate(row) as Date)}`
+            : "paiement historique, date inconnue"
+          : "à régler"}
+      </span>
     </div>
   );
 }
@@ -458,10 +465,10 @@ export function LeaseMobileCard({ row }: LeaseCellProps) {
         <span
           className={cn(
             "rounded-md px-2 py-0.5 text-xs font-semibold",
-            row.paidAt ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
+            isBailPaid(row) ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
           )}
         >
-          {row.paidAt ? "Payés" : "Non payés"}
+          {isBailPaid(row) ? "Payés" : "Non payés"}
         </span>
         <span className="ml-auto flex items-center gap-1">
           {days !== null && (

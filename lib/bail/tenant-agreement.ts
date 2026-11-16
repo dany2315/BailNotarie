@@ -1,0 +1,233 @@
+import { Prisma, ProfilType, TenantAgreementEndReason } from "@prisma/client";
+
+/**
+ * Accord du locataire sur les conditions du bail.
+ *
+ * Le locataire confirme les conditions en envoyant son formulaire (ou depuis son espace quand une nouvelle
+ * confirmation lui est demandée). Cet accord ne vaut que pour les conditions qu'il a vues : dès qu'une de
+ * ces conditions change, ou que le locataire est remplacé, l'accord en cours est retiré du dossier, gardé
+ * dans l'historique, et une nouvelle confirmation est attendue.
+ *
+ * Tout se fait dans la transaction de la modification : jamais de conditions modifiées avec un accord
+ * resté valable.
+ */
+
+type Tx = Prisma.TransactionClient;
+
+/** Conditions couvertes par l'accord. Le reste du dossier (pièces, relocation, clauses…) ne le remet pas en cause. */
+export const AGREEMENT_FIELDS = [
+  "bailFamily",
+  "bailType",
+  "rentAmount",
+  "monthlyCharges",
+  "securityDeposit",
+  "effectiveDate",
+  "endDate",
+  "rentPeriodicity",
+] as const;
+
+export type AgreementField = (typeof AGREEMENT_FIELDS)[number];
+export type AgreementTerms = Record<AgreementField, string | number | null>;
+export type AgreementChange = { field: AgreementField; before: string | number | null; after: string | number | null };
+
+export const AGREEMENT_FIELD_LABELS: Record<AgreementField, string> = {
+  bailFamily: "Usage du bail",
+  bailType: "Type de bail",
+  rentAmount: "Loyer",
+  monthlyCharges: "Charges",
+  securityDeposit: "Dépôt de garantie",
+  effectiveDate: "Date de prise d'effet",
+  endDate: "Date de fin",
+  rentPeriodicity: "Périodicité du loyer",
+};
+
+const day = (value: Date | string | null | undefined) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+};
+
+type BailTermsSource = {
+  bailFamily: string;
+  bailType: string;
+  rentAmount: number;
+  monthlyCharges: number;
+  securityDeposit: number;
+  effectiveDate: Date | string | null;
+  endDate: Date | string | null;
+  commercialTerms?: { rentPeriodicity?: string | null } | null;
+};
+
+/** Conditions du bail sous une forme stable et comparable (dates au jour près). */
+export function agreementTerms(bail: BailTermsSource): AgreementTerms {
+  return {
+    bailFamily: bail.bailFamily,
+    bailType: bail.bailType,
+    rentAmount: bail.rentAmount,
+    monthlyCharges: bail.monthlyCharges,
+    securityDeposit: bail.securityDeposit,
+    effectiveDate: day(bail.effectiveDate),
+    endDate: day(bail.endDate),
+    rentPeriodicity: bail.commercialTerms?.rentPeriodicity ?? null,
+  };
+}
+
+/** Champs réellement différents entre deux états des conditions (une sauvegarde identique ne renvoie rien). */
+export function agreementChanges(before: AgreementTerms, after: AgreementTerms): AgreementChange[] {
+  return AGREEMENT_FIELDS.filter((field) => (before[field] ?? null) !== (after[field] ?? null)).map((field) => ({
+    field,
+    before: before[field] ?? null,
+    after: after[field] ?? null,
+  }));
+}
+
+const AGREEMENT_SELECT = {
+  id: true,
+  bailFamily: true,
+  bailType: true,
+  rentAmount: true,
+  monthlyCharges: true,
+  securityDeposit: true,
+  effectiveDate: true,
+  endDate: true,
+  tenantConfirmedTermsAt: true,
+  tenantConfirmedTerms: true,
+  tenantConfirmedById: true,
+  commercialTerms: { select: { rentPeriodicity: true } },
+  parties: {
+    select: {
+      id: true,
+      profilType: true,
+      persons: { where: { isPrimary: true }, take: 1, select: { firstName: true, lastName: true, email: true } },
+      entreprise: { select: { legalName: true, name: true } },
+    },
+  },
+} satisfies Prisma.BailSelect;
+
+export type AgreementSnapshot = {
+  terms: AgreementTerms;
+  tenantId: string | null;
+  tenantName: string | null;
+  confirmedAt: Date | null;
+  confirmedTerms: Prisma.JsonValue | null;
+  confirmedById: string | null;
+};
+
+type AgreementParty = Prisma.BailGetPayload<{ select: typeof AGREEMENT_SELECT }>["parties"][number];
+
+function partyName(party: AgreementParty | undefined): string | null {
+  if (!party) return null;
+  const person = party.persons[0];
+  const name = party.entreprise?.legalName || party.entreprise?.name || [person?.firstName, person?.lastName].filter(Boolean).join(" ").trim();
+  return name || person?.email || null;
+}
+
+/**
+ * État de l'accord et des conditions du bail, à lire AVANT la modification, dans la même transaction.
+ * Renvoie null si le bail n'existe pas.
+ */
+export async function readAgreementSnapshot(tx: Tx, bailId: string): Promise<AgreementSnapshot | null> {
+  const bail = await tx.bail.findUnique({ where: { id: bailId }, select: AGREEMENT_SELECT });
+  if (!bail) return null;
+  const tenant = bail.parties.find((party) => party.profilType === ProfilType.LOCATAIRE);
+  return {
+    terms: agreementTerms(bail),
+    tenantId: tenant?.id ?? null,
+    tenantName: partyName(tenant),
+    confirmedAt: bail.tenantConfirmedTermsAt,
+    confirmedTerms: bail.tenantConfirmedTerms,
+    confirmedById: bail.tenantConfirmedById,
+  };
+}
+
+export type AgreementActor = { id: string | null; name: string };
+
+export type AgreementOutcome = {
+  /** L'accord en cours a été retiré et archivé. */
+  invalidated: boolean;
+  reason: TenantAgreementEndReason | null;
+  changes: AgreementChange[];
+};
+
+/**
+ * À appeler APRÈS la modification du bail, dans la même transaction, avec l'état lu juste avant.
+ * Compare les conditions et le locataire ; si l'un a réellement changé alors qu'un accord était en cours,
+ * archive cet accord (auteur, date, conditions connues) et demande une nouvelle confirmation.
+ * Ne fait rien si rien n'a changé ou s'il n'y avait pas d'accord.
+ */
+export async function settleTenantAgreement(
+  tx: Tx,
+  bailId: string,
+  before: AgreementSnapshot | null,
+  actor: AgreementActor,
+  // Cas où la personne change sans que la fiche locataire change (adresse e-mail du locataire remplacée) :
+  // l'accord est retiré même si les conditions sont identiques.
+  options: { tenantReplaced?: boolean } = {},
+): Promise<AgreementOutcome> {
+  const none: AgreementOutcome = { invalidated: false, reason: null, changes: [] };
+  if (!before) return none;
+  const after = await readAgreementSnapshot(tx, bailId);
+  if (!after) return none;
+
+  const changes = agreementChanges(before.terms, after.terms);
+  const tenantChanged = before.tenantId !== after.tenantId || options.tenantReplaced === true;
+  if (!before.confirmedAt || (changes.length === 0 && !tenantChanged)) return { ...none, changes };
+
+  // Le remplacement du locataire prime : l'accord était celui d'une autre personne.
+  const reason = tenantChanged ? TenantAgreementEndReason.TENANT_REPLACED : TenantAgreementEndReason.TERMS_CHANGED;
+  await tx.bailTenantAgreementHistory.create({
+    data: {
+      bailId,
+      // L'auteur de l'accord est celui enregistré avec l'accord ; à défaut, le locataire du dossier à ce moment-là.
+      tenantId: before.confirmedById ?? before.tenantId,
+      tenantName: before.tenantName,
+      confirmedAt: before.confirmedAt,
+      // Conditions réellement montrées au locataire : seulement si elles avaient été enregistrées.
+      confirmedTerms: before.confirmedTerms ?? Prisma.DbNull,
+      termsBeforeChange: before.terms,
+      changes: changes.length > 0 ? changes : Prisma.DbNull,
+      reason,
+      invalidatedById: actor.id,
+      invalidatedByName: actor.name,
+    },
+  });
+  await tx.bail.update({
+    where: { id: bailId },
+    data: {
+      tenantConfirmedTermsAt: null,
+      tenantConfirmedTerms: Prisma.DbNull,
+      tenantConfirmedById: null,
+      // Sans locataire sur le dossier, il n'y a personne à qui redemander pour l'instant.
+      tenantReconfirmationRequestedAt: after.tenantId ? new Date() : null,
+    },
+  });
+  return { invalidated: true, reason, changes };
+}
+
+/**
+ * Enregistre l'accord du locataire sur les conditions actuelles du bail (avec ces conditions, pour pouvoir
+ * dire plus tard à quoi il avait consenti).
+ */
+export async function recordTenantAgreement(tx: Tx, bailId: string, tenantClientId: string, at: Date = new Date()) {
+  const current = await readAgreementSnapshot(tx, bailId);
+  if (!current) throw new Error("Dossier introuvable");
+  await tx.bail.update({
+    where: { id: bailId },
+    data: {
+      tenantConfirmedTermsAt: at,
+      tenantConfirmedTerms: current.terms,
+      tenantConfirmedById: tenantClientId,
+      tenantReconfirmationRequestedAt: null,
+    },
+  });
+  return current.terms;
+}
+
+/** État affiché à l'équipe, au notaire et au locataire. */
+export type AgreementStatus = "confirmed" | "to_renew" | "none";
+
+export function agreementStatus(bail: { tenantConfirmedTermsAt?: Date | string | null; tenantReconfirmationRequestedAt?: Date | string | null }): AgreementStatus {
+  if (bail.tenantConfirmedTermsAt) return "confirmed";
+  if (bail.tenantReconfirmationRequestedAt) return "to_renew";
+  return "none";
+}
