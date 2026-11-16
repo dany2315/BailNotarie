@@ -206,7 +206,7 @@ type StepId = (typeof STEPS)[number]["id"];
 const COMMERCIAL_STEP_TITLES: Partial<Record<StepId, string>> = {
   propertyAddress: "Le local",
   propertyDetails: "Caractéristiques du local",
-  bailType: "Durée et dates",
+  bailType: "Durée du bail",
   bailCharges: "Dépôt et frais",
 };
 
@@ -215,7 +215,11 @@ const isCommercialFamily = (family: unknown) => family === BailFamille.COMMERCIA
 const stepTitle = (id: StepId, family: unknown) =>
   (isCommercialFamily(family) && COMMERCIAL_STEP_TITLES[id]) || STEPS.find((s) => s.id === id)?.title || "";
 
-/** Étape affichée pour ce bail ? (mobilier : meublé ; dates : dans « Durée et dates » en commercial) */
+/**
+ * Étape affichée pour ce bail ? (mobilier : meublé).
+ * « Dates du bail » n'est plus une étape : la date de prise d'effet et le jour de paiement se demandent
+ * dans l'étape « Locataire », une fois le locataire indiqué.
+ */
 const isStepVisible = (id: StepId, values: { bailFamily?: unknown; bailType?: unknown }) => {
   const commercial = isCommercialFamily(values.bailFamily);
   switch (id) {
@@ -224,7 +228,7 @@ const isStepVisible = (id: StepId, values: { bailFamily?: unknown; bailType?: un
     case "commercialClauses":
       return commercial;
     case "bailDates":
-      return !commercial;
+      return false;
     case "bailFurniture":
       return !commercial && (values.bailType === BailType.BAIL_MEUBLE_1_ANS || values.bailType === BailType.BAIL_MEUBLE_9_MOIS);
     default:
@@ -1476,8 +1480,10 @@ useEffect(() => {
         return ["commercial", "bailFamily", "bailType"] as (keyof FormWithPersons)[];
       case "bailType":
         // Bail commercial : « Durée et dates » porte aussi les dates et les conditions
+        // Bail commercial : « Durée et dates » porte la durée et les conditions (la date de prise d'effet et
+        // le jour de paiement partent avec l'étape « Locataire »).
         return isCommercialFamily(getValues("bailFamily"))
-          ? (["bailType", "bailFamily", "bailEffectiveDate", "bailEndDate", "bailPaymentDay", "commercial"] as (keyof FormWithPersons)[])
+          ? (["bailType", "bailFamily", "commercial"] as (keyof FormWithPersons)[])
           : ["bailType", "bailFamily"];
       case "bailRent":
         return isCommercialFamily(getValues("bailFamily"))
@@ -1510,7 +1516,8 @@ useEffect(() => {
           "bailEndDate",
         ];
       case "tenant":
-        return ["tenantEmail"];
+        // Le locataire et, avec lui, la date de prise d'effet et le jour de paiement.
+        return ["tenantEmail", "bailEffectiveDate", "bailEndDate", "bailPaymentDay"];
       default:
         return [];
     }
@@ -1951,8 +1958,7 @@ useEffect(() => {
           form.setError("bailType", { type: "manual", message: "Choisissez la durée du bail" });
           blocked = true;
         }
-        const datesValid = await trigger(["bailEffectiveDate", "bailPaymentDay"] as any);
-        if (!datesValid) blocked = true;
+        // La date de prise d'effet et le jour de paiement se demandent avec le locataire (étape « Locataire »).
       }
       if (blocked) {
         toast.error("Complétez les informations de l'étape");
@@ -2054,6 +2060,7 @@ useEffect(() => {
         // règles dans lib/rules/dossier-rules.ts. Le loyer a son propre contrôle juste après.
         const stepIssues = ownerFieldIssues(form.getValues(), {
           isTightZone: (intakeLink as any).property?.isTightZone,
+          hasTenant: hasTenantInCurrentBail,
         }).filter((issue) => issue.step === stepId && issue.level === "blocking" && !issue.path.startsWith("rentRules"));
         for (const issue of stepIssues) {
           form.setError(issue.path as any, { type: "manual", message: issue.message });
@@ -2697,7 +2704,7 @@ useEffect(() => {
             <PropertyStep form={form as any} isMobile={isMobile} slice="details" />
           )}
           {STEPS[currentStep].id === "commercialActivity" && <CommercialActivityStep form={form} />}
-          {STEPS[currentStep].id === "bailType" && isCommercialFamily(watchedBailFamily) && <CommercialDurationStep form={form} />}
+          {STEPS[currentStep].id === "bailType" && isCommercialFamily(watchedBailFamily) && <CommercialDurationStep form={form} withTenantDates={false} />}
           {STEPS[currentStep].id === "bailType" && !isCommercialFamily(watchedBailFamily) && (
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="type" />
           )}
@@ -2728,11 +2735,17 @@ useEffect(() => {
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="dates" />
           )}
           {STEPS[currentStep].id === "tenant" && (
-            <TenantStep
-              form={form as any}
-              hasTenantInCurrentBail={hasTenantInCurrentBail}
-              documentsReadyForSubmission={documentsReadyForSubmission}
-            />
+            <div className="space-y-6">
+              <TenantStep
+                form={form as any}
+                hasTenantInCurrentBail={hasTenantInCurrentBail}
+                documentsReadyForSubmission={documentsReadyForSubmission}
+              />
+              {/* Locataire connu : date de prise d'effet et jour de paiement, exigés dans la même étape. */}
+              {canSubmitOwnerIntake && (
+                <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="dates" />
+              )}
+            </div>
           )}
           {STEPS[currentStep].id === "payment" && (() => {
             const ownerPeopleCount =
@@ -4457,9 +4470,10 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, rentAdvanceR
 
   // Calcul automatique de la date de fin du bail à partir du type + date de début
   const watchedEffectiveDate = useWatch({ control: form.control, name: "bailEffectiveDate" });
+  const watchedDerogatoryMonths = parseInt(String(useWatch({ control: form.control, name: "commercial.derogatoryMonths" as any }) ?? ""), 10);
   const computedBailEndDate = useMemo(
-    () => computeBailEndDate(watchedEffectiveDate as any, currentBailType as any),
-    [watchedEffectiveDate, currentBailType]
+    () => computeBailEndDate(watchedEffectiveDate as any, currentBailType as any, Number.isFinite(watchedDerogatoryMonths) ? watchedDerogatoryMonths : null),
+    [watchedEffectiveDate, currentBailType, watchedDerogatoryMonths]
   );
   useEffect(() => {
     if (computedBailEndDate) {
@@ -4512,7 +4526,7 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, rentAdvanceR
     rent: { title: "Le loyer", subtitle: "Nous vous accompagnons pour fixer le bon loyer pour votre logement." },
     charges: { title: "Charges et dépôt de garantie", subtitle: "Les charges mensuelles et le dépôt de garantie demandé au locataire." },
     furniture: { title: "Mobilier du logement", subtitle: "Cochez tous les équipements obligatoires pour un bail meublé." },
-    dates: { title: "Dates du bail", subtitle: "Date de prise d'effet, fin éventuelle et jour de paiement." },
+    dates: { title: "Dates du bail", subtitle: "Avec un locataire, indiquez le jour de paiement du loyer et la date de prise d'effet." },
   };
   const header = slice ? titles[slice] : { title: "Informations du bail", subtitle: "Renseignez les paramètres du bail." };
 
@@ -4747,7 +4761,8 @@ const TenantStep = ({
     <CardHeader>
       <CardTitle>Locataire</CardTitle>
       <CardDescription>
-        Cette étape est optionnelle pour l’instant : vous pouvez continuer et revenir plus tard.
+        Cette étape est optionnelle pour l’instant : vous pouvez continuer et revenir plus tard. Si vous indiquez
+        votre locataire, nous vous demandons aussi la date de prise d’effet du bail et le jour de paiement du loyer.
       </CardDescription>
     </CardHeader>
     <CardContent className="space-y-4">

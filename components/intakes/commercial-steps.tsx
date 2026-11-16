@@ -272,7 +272,19 @@ const DURATION_OPTIONS = [
   { value: BailType.COMMERCIAL_DEROGATOIRE, label: "Bail dérogatoire (courte durée)", hint: `${DEROGATORY_MAX_MONTHS} mois au plus, sans droit au renouvellement` },
 ];
 
-export function CommercialDurationStep({ form, bare = false }: { form: FormLike; bare?: boolean }) {
+export function CommercialDurationStep({
+  form,
+  bare = false,
+  withTenantDates = true,
+}: {
+  form: FormLike;
+  bare?: boolean;
+  /**
+   * Date de prise d'effet et jour de paiement dans cette étape ? Non dans le formulaire propriétaire : ils s'y
+   * demandent avec le locataire. Oui ailleurs (demande de complément sur « Durée et dates »).
+   */
+  withTenantDates?: boolean;
+}) {
   const bailType = useWatch({ control: form.control, name: "bailType" });
   const effectiveDate = useWatch({ control: form.control, name: "bailEffectiveDate" });
   const months = useWatch({ control: form.control, name: "commercial.derogatoryMonths" });
@@ -288,7 +300,11 @@ export function CommercialDurationStep({ form, bare = false }: { form: FormLike;
 
   return (
     <div className="space-y-5">
-      <StepHeader hidden={bare} title="Durée et dates" subtitle="La durée du bail, sa prise d'effet et la remise des clés." />
+      <StepHeader
+        hidden={bare}
+        title={withTenantDates ? "Durée et dates" : "Durée du bail"}
+        subtitle={withTenantDates ? "La durée du bail, sa prise d'effet et la remise des clés." : "La durée du bail et la remise des clés."}
+      />
       <div className="space-y-2">
         <Label>Durée du bail *</Label>
         <Controller
@@ -321,6 +337,7 @@ export function CommercialDurationStep({ form, bare = false }: { form: FormLike;
           <FieldError form={form} path="commercial.derogatoryMonths" />
         </div>
       )}
+      {withTenantDates && (
       <div className="space-y-2">
         <Label htmlFor="bailEffectiveDate">Date de prise d&apos;effet *</Label>
         <Controller
@@ -344,6 +361,7 @@ export function CommercialDurationStep({ form, bare = false }: { form: FormLike;
           </p>
         )}
       </div>
+      )}
       <div className="space-y-2">
         <Label htmlFor="commercialKeys">Remise des clés (facultatif)</Label>
         <p className="text-xs text-muted-foreground">Laissez vide si les clés sont remises le jour de la prise d&apos;effet.</p>
@@ -361,11 +379,13 @@ export function CommercialDurationStep({ form, bare = false }: { form: FormLike;
           )}
         />
       </div>
+      {withTenantDates && (
       <div className="space-y-2">
         <Label>Jour de paiement du loyer *</Label>
         <NumberInputGroup field={form.register("bailPaymentDay")} min={1} max={28} step={1} className="h-11" />
         <FieldError form={form} path="bailPaymentDay" />
       </div>
+      )}
     </div>
   );
 }

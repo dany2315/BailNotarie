@@ -1,0 +1,188 @@
+{
+ "suite": "Lot 3 — dates conditionnées au locataire",
+ "createdAt": "2026-11-16T15:39:12.758Z",
+ "passed": 21,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "Sans locataire et sans dates : le formulaire se termine et se paie, les deux valeurs restent vides",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Sans locataire mais avec des dates saisies : elles sont conservées telles quelles",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Locataire indiqué sans date ni jour de paiement : envoi refusé, rien n’est enregistré ni payé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Locataire déjà rattaché au bail (sans e-mail dans l’envoi) et dates absentes : refusé aussi",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Locataire indiqué avec les deux valeurs : enregistré, formulaire envoyé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "triggerTenantFormEmail": 1,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Étape « Locataire » du formulaire : e-mail sans les deux valeurs refusé (aucun locataire créé, aucun e-mail) ; avec, enregistré",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "triggerTenantFormEmail": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Étape « Locataire » sans e-mail : rien d’exigé, le brouillon reste enregistrable",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Nouveau brouillon créé par le formulaire : aucune date provisoire (ni date du jour, ni jour 1)",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Règles du formulaire : sans locataire aucune date exigée ; avec locataire, les deux, à l’étape « Locataire »",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Espace client — bail créé sans locataire et sans dates : créé et payé, valeurs vides",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "createNotificationForAllUsers": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Espace client — locataire choisi sans date ou sans jour de paiement : refusé, aucun bail créé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Espace client — locataire choisi avec les deux valeurs : créé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "createNotificationForAllUsers": 1,
+    "triggerTenantFormEmail": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Espace client — brouillon enregistré sans dates : pas de date provisoire, et il se rouvre sans date",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Ancien brouillon à date provisoire : présenté sans date, la base n’est pas modifiée",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Ajout du locataire plus tard, bail sans dates : les deux valeurs sont exigées dans la même action",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "createNotificationForAllUsers": 1,
+    "triggerTenantFormEmail": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Ajout du locataire plus tard, bail qui a déjà ses dates : l’e-mail suffit, les dates ne changent pas",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "createNotificationForAllUsers": 1,
+    "triggerTenantFormEmail": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Dates du bail : seul le propriétaire du bien (ou l’équipe) peut les lire",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Dossier sans date d’effet : compté comme incomplet, envoi au notaire refusé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Plafond de loyer sans date d’effet : résultat indicatif signalé, jamais « vérifié »",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Écrans et listes : un bail sans date se lit sans erreur (équipe, propriétaire, locataire, notaire)",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Accord du locataire : une date d’effet saisie après son accord le rend à renouveler",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

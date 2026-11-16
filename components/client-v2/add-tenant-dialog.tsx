@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TenantDatesFields, tenantDatesError, useTenantDates } from "@/components/shared/tenant-dates-fields";
 import { useOwnerRuntime } from "./owner-runtime";
 import { PrimaryAction, QuietAction } from "./owner-ui";
 
@@ -36,16 +37,29 @@ export function AddTenantDialog({
   const { demo } = useOwnerRuntime();
   const [email, setEmail] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  // Si le bail n'a pas encore sa date de prise d'effet ni son jour de paiement, ils se saisissent ici,
+  // avec le locataire.
+  const [dates, setDates] = useTenantDates(bailId, open, !demo);
 
   const submit = async () => {
     if (!email.includes("@")) {
       toast.error("Email invalide");
       return;
     }
+    const datesError = tenantDatesError(dates);
+    if (datesError) {
+      toast.error(datesError);
+      return;
+    }
     try {
       setSaving(true);
       if (demo) await new Promise((resolve) => setTimeout(resolve, 450));
-      else await createTenantForLease({ bailId, email });
+      else
+        await createTenantForLease({
+          bailId,
+          email,
+          ...(dates.needed ? { effectiveDate: dates.effectiveDate, paymentDay: dates.paymentDay } : {}),
+        });
       toast.success("Locataire ajouté — un email lui a été envoyé");
       onOpenChange(false);
       setEmail("");
@@ -86,8 +100,9 @@ export function AddTenantDialog({
             }}
           />
         </div>
+        <TenantDatesFields state={dates} onChange={setDates} disabled={saving} inputClassName="h-11 rounded-xl" />
         <DialogFooter className="flex-col gap-2 sm:flex-col">
-          <PrimaryAction onClick={submit} disabled={saving || !email} className="w-full py-3">
+          <PrimaryAction onClick={submit} disabled={saving || !email || dates.loading} className="w-full py-3">
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />

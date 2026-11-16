@@ -57,10 +57,22 @@ const schema = z.object({
   rentAmount: z.string().min(1, "Le loyer est requis"),
   monthlyCharges: z.string().min(1, "Les charges mensuelles sont requises"),
   securityDeposit: z.string().optional(),
-  effectiveDate: z.string().min(1, "La date de début est requise"),
+  // Date de début et jour de paiement : demandés seulement quand un locataire est choisi (étape « Dates »,
+  // après le locataire). Sans locataire, le bail se crée sans ces deux valeurs.
+  effectiveDate: z.string().optional(),
   endDate: z.string().optional(),
-  paymentDay: z.string().min(1, "Le jour de paiement est requis"),
+  paymentDay: z.string().optional(),
 });
+
+/** Avec un locataire, les deux valeurs sont exigées (le serveur refait ce contrôle). */
+const tenantDateErrors = (values: { tenantId?: string; effectiveDate?: string; paymentDay?: string }) => {
+  const errors: Partial<Record<"effectiveDate" | "paymentDay", string>> = {};
+  if (!values.tenantId) return errors;
+  if (!values.effectiveDate) errors.effectiveDate = "La date de début est requise";
+  const day = parseInt(values.paymentDay || "", 10);
+  if (!values.paymentDay || Number.isNaN(day) || day < 1 || day > 31) errors.paymentDay = "Le jour de paiement est requis (entre 1 et 31)";
+  return errors;
+};
 
 type FormData = z.infer<typeof schema>;
 
@@ -179,6 +191,7 @@ export function CreateBailPageClient({
     setValue,
     watch,
     trigger,
+    setError,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -299,12 +312,15 @@ export function CreateBailPageClient({
   const handleBack = useCallback(() => {
     if (step === 2 && bailPart === "charges") {
       setBailPart("rent");
+    } else if (step === 4 && !watch("tenantId")) {
+      // Sans locataire, l'étape « Dates » n'existe pas : retour aux charges.
+      setStep(2);
     } else if (step > 0) {
       setStep((s) => s - 1);
     } else {
       router.back();
     }
-  }, [step, router, bailPart]);
+  }, [step, router, bailPart, watch]);
 
   const startCommercial = async () => {
     setIsStartingCommercial(true);
@@ -343,6 +359,17 @@ export function CreateBailPageClient({
       );
       return;
     }
+    // Sans locataire, l'étape « Dates » n'est pas demandée : on passe au paiement, sans date ni jour de paiement.
+    if (step === 2 && bailPart === "charges" && !watch("tenantId")) {
+      setValue("effectiveDate", "");
+      setValue("endDate", "");
+      setValue("paymentDay", "");
+      handleSubmit((data) => {
+        setPendingFormData(data);
+        setStep(4);
+      })();
+      return;
+    }
     // Loyer : plafond de l'arrêté et relocation en zone tendue, contrôlés côté serveur avant le paiement.
     if (step === 2 && bailPart === "rent") {
       const check = rentRulesResultRef.current;
@@ -368,6 +395,10 @@ export function CreateBailPageClient({
       return;
     }
     if (step === 3) {
+      // Locataire choisi : date de début et jour de paiement exigés avant le paiement.
+      const dateErrors = tenantDateErrors({ tenantId: watch("tenantId"), effectiveDate: watch("effectiveDate"), paymentDay: watch("paymentDay") });
+      for (const [field, message] of Object.entries(dateErrors)) setError(field as "effectiveDate" | "paymentDay", { type: "manual", message });
+      if (Object.keys(dateErrors).length > 0) return;
       handleSubmit((data) => {
         setPendingFormData(data);
         setStep(4);
@@ -375,7 +406,7 @@ export function CreateBailPageClient({
       return;
     }
     setStep((s) => s + 1);
-  }, [step, bailPart, trigger, handleSubmit, isSecurityDepositExceeded, isMeubleBailType]);
+  }, [step, bailPart, trigger, handleSubmit, isSecurityDepositExceeded, isMeubleBailType, watch, setValue, setError]);
 
   const handleSaveDraft = useCallback(async () => {
     const currentPropertyId = watch("propertyId");
@@ -839,7 +870,7 @@ export function CreateBailPageClient({
             <div>
               <p className="text-xl font-semibold">Dates du bail</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Durée et échéance de paiement
+                Avec un locataire, indiquez la date de début du bail et le jour de paiement du loyer.
               </p>
             </div>
 
@@ -940,7 +971,7 @@ export function CreateBailPageClient({
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm leading-tight">Nouveau bail</p>
             <p className="text-xs text-muted-foreground">
-              {step === 2 ? (bailPart === "rent" ? "Le loyer" : "Charges & dépôt") : STEP_LABELS[step]} · Étape {step + 1}/{STEP_LABELS.length}
+              {step === 2 ? (bailPart === "rent" ? "Le loyer" : "Charges & dépôt") : STEP_LABELS[step]} · Étape {!tenantId && step === 4 ? 4 : step + 1}/{tenantId ? STEP_LABELS.length : STEP_LABELS.length - 1}
             </p>
           </div>
           {step > 0 && step < 4 && (
@@ -959,7 +990,7 @@ export function CreateBailPageClient({
         <div className="shrink-0 h-0.5 bg-muted">
           <div
             className="h-full bg-primary transition-all duration-300 ease-out"
-            style={{ width: `${((step + 1) / STEP_LABELS.length) * 100}%` }}
+            style={{ width: `${((!tenantId && step === 4 ? 4 : step + 1) / (tenantId ? STEP_LABELS.length : STEP_LABELS.length - 1)) * 100}%` }}
           />
         </div>
 
