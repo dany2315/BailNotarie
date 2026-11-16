@@ -1,5 +1,6 @@
 "use server";
 
+import { isBailPaidById } from "@/lib/payments/paid-check";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireProprietaireAuth, requireStaff, requireClientAccess, STAFF_ROLES } from "@/lib/auth-helpers";
 import { createPropertySchema, updatePropertySchema } from "@/lib/zod/property";
@@ -592,11 +593,14 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
       tenant.completionStatus === "PENDING_CHECK" && 
       completionStatus === "PENDING_CHECK";
 
+    // Un dossier non payé ne passe pas tout seul à « prêt pour notaire » (règle commune « payé »).
     if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION")) {
-      await prisma.bail.update({
-        where: { id: bail.id },
-        data: { status: "READY_FOR_NOTARY" }
-      });
+      if (await isBailPaidById(bail.id)) {
+        await prisma.bail.update({
+          where: { id: bail.id },
+          data: { status: "READY_FOR_NOTARY" }
+        });
+      }
     } else if (allPendingCheck && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM")) {
       await prisma.bail.update({
         where: { id: bail.id },

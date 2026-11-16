@@ -47,6 +47,7 @@ import { createBailAuditLog, getClientDisplayName } from "@/lib/actions/bail-aud
 import { readAgreementSnapshot, recordTenantAgreement, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
 import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
 import { dossierFeeCents } from "@/lib/utils/dossier-fee";
+import { isBailPaidById } from "@/lib/payments/paid-check";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -3476,7 +3477,10 @@ export async function updateClientCompletionStatus(data: { id: string; completio
       tenantStatus === "PENDING_CHECK" && 
       property.completionStatus === "PENDING_CHECK";
 
-    if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION")) {
+    // Un dossier non payé ne passe pas tout seul à « prêt pour notaire » (règle commune « payé »).
+    if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION") && !(await isBailPaidById(bail.id))) {
+      // Fiches complétées mais frais non payés : le statut ne change pas.
+    } else if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION")) {
       await prisma.bail.update({
         where: { id: bail.id },
         data: { status: "READY_FOR_NOTARY" }

@@ -110,6 +110,29 @@ suite('Lot 1 — paiements historiques', path.join(__dirname, '../../reports/pre
     assert(!unpaidList.data.some((b) => b.id === f.bail.id));
   });
 
+  await test('Passage automatique à « prêt pour notaire » (toutes les fiches complétées) : jamais sans paiement', async (tx, r, f) => {
+    await tx.property.update({ where: { id: f.property.id }, data: { completionStatus: 'COMPLETED' } });
+    const recalc = () => r.load('lib/utils/completion-status.ts').updateClientCompletionStatus(f.owner.id);
+    const status = async () => (await tx.bail.findUnique({ where: { id: f.bail.id } })).status;
+    await recalc();
+    assert.equal(await status(), 'PENDING_VALIDATION', 'un dossier non payé est passé tout seul à « prêt pour notaire »');
+    // Listé parmi les anciens paiements mais pas encore vérifié : toujours pas.
+    await list(tx, f);
+    await recalc();
+    assert.equal(await status(), 'PENDING_VALIDATION');
+    // Confirmé par l'équipe : le dossier avance.
+    assert((await actions(r).confirmHistoricalPayment({ bailId: f.bail.id, proofReference: 'Virement A' })).success);
+    await recalc();
+    assert.equal(await status(), 'READY_FOR_NOTARY');
+  });
+
+  await test('Passage automatique à « prêt pour notaire » : dossier payé par Stripe, comportement inchangé', async (tx, r, f) => {
+    await tx.property.update({ where: { id: f.property.id }, data: { completionStatus: 'COMPLETED' } });
+    await tx.bail.update({ where: { id: f.bail.id }, data: { paidAt: new Date('2026-11-01') } });
+    await r.load('lib/utils/completion-status.ts').updateClientCompletionStatus(f.owner.id);
+    assert.equal((await tx.bail.findUnique({ where: { id: f.bail.id } })).status, 'READY_FOR_NOTARY');
+  });
+
   await test('Dossier confirmé : le refus d’envoi au notaire ne porte plus sur le paiement', async (tx, r, f) => {
     await list(tx, f);
     assert((await actions(r).confirmHistoricalPayment({ bailId: f.bail.id, proofReference: 'Virement A' })).success);

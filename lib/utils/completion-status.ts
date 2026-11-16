@@ -1,3 +1,4 @@
+import { isBailPaidById } from "@/lib/payments/paid-check";
 import { prisma } from "@/lib/prisma";
 import { 
   ClientType, 
@@ -666,9 +667,13 @@ async function checkAndUpdateBailStatus(bail: any): Promise<void> {
   const tenantPendingCheck = tenant.completionStatus === CompletionStatus.PENDING_CHECK;
   const propertyPendingCheck = property.completionStatus === CompletionStatus.PENDING_CHECK;
 
-  // Si tous sont COMPLETED → passer à READY_FOR_NOTARY
+  // Si tous sont COMPLETED → passer à READY_FOR_NOTARY, seulement si les frais de dossier sont payés
+  // (même règle que l'envoi au notaire par l'équipe : un dossier non payé n'avance pas tout seul).
   if (ownerCompleted && tenantCompleted && propertyCompleted) {
-    if (bail.status === BailStatus.DRAFT || bail.status === BailStatus.AWAITING_TENANT_FORM || bail.status === BailStatus.PENDING_VALIDATION) {
+    if (
+      (bail.status === BailStatus.DRAFT || bail.status === BailStatus.AWAITING_TENANT_FORM || bail.status === BailStatus.PENDING_VALIDATION) &&
+      (await isBailPaidById(bail.id))
+    ) {
       const oldStatus = bail.status;
       await prisma.bail.update({
         where: { id: bail.id },

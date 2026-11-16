@@ -1,11 +1,11 @@
 {
  "suite": "Lot 1 — paiements historiques",
- "createdAt": "2026-11-16T14:31:23.840Z",
- "passed": 9,
+ "createdAt": "2026-11-16T14:51:29.198Z",
+ "passed": 11,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
- "tables": 40,
+ "tables": 41,
  "results": [
   {
    "name": "Dossier hors liste (nouveau dossier compris) : impossible de le confirmer à la main",
@@ -61,6 +61,24 @@
    "passed": true,
    "error": null,
    "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Passage automatique à « prêt pour notaire » (toutes les fiches complétées) : jamais sans paiement",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "createNotificationForAllUsers": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Passage automatique à « prêt pour notaire » : dossier payé par Stripe, comportement inchangé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "createNotificationForAllUsers": 1
+   },
    "networkAttempts": 0
   },
   {

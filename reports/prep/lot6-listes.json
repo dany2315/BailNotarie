@@ -1,0 +1,576 @@
+{
+ "createdAt": "2026-11-16T14:49:08.280Z",
+ "lectureSeule": true,
+ "biens": {
+  "total": 77,
+  "sansInsee": [
+   {
+    "id": "cmj63ieet00060qfpc1gt7sco",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmj63jt6z00080qfptagbgoqa:DRAFT"
+    ]
+   },
+   {
+    "id": "cmjqywaze00064dgzvtdc2mqi",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmjqyyl2d00084dgzfsray8g7:DRAFT"
+    ]
+   },
+   {
+    "id": "cmjsmsh2w00062hgbyy28yhmd",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmjsmt3xz00082hgbr10cq8bf:DRAFT"
+    ]
+   },
+   {
+    "id": "cmiswlo8t00060zeh4eavuq8u",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmiswmob300080zehcv57g4vh:DRAFT"
+    ]
+   },
+   {
+    "id": "cmjsn41n7000f2hgbv2ajx5ff",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmjsn5o39000h2hgbwy2g61ci:DRAFT"
+    ]
+   },
+   {
+    "id": "cmizx1cju00062tfqrof4wim2",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmizx2wky00082tfqaftk2jb3:DRAFT"
+    ]
+   },
+   {
+    "id": "cmkinmd3x0003l704mtjgr07r",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmkinonc30005l7045cusfis3:DRAFT"
+    ]
+   },
+   {
+    "id": "cmilw5fcn00015zii8qisez68",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmim4j9kj00013sh3082uyi2n:SIGNED"
+    ]
+   },
+   {
+    "id": "cmkpjnzqi0001jv040llvptjf",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmkpjp9an0003jv046xpsprw6:DRAFT"
+    ]
+   },
+   {
+    "id": "cmk084qpw00011bdmde7scmof",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmk0875qi00031bdmlvux04gq:DRAFT"
+    ]
+   },
+   {
+    "id": "cmkr9l1810003l504nxfr885v",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmkr9lwsr0001la04cu6xbei3:DRAFT"
+    ]
+   },
+   {
+    "id": "cmkzju4ea0001lh04zdiivyya",
+    "adresseSaisie": true,
+    "bauxEnCours": []
+   },
+   {
+    "id": "cmlc6te5o0003le04q7bs4vqo",
+    "adresseSaisie": true,
+    "bauxEnCours": []
+   },
+   {
+    "id": "cmk9shskj0001l104oerq0ao9",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmk9sj42m0003l104b0uq5kh6:PENDING_VALIDATION"
+    ]
+   },
+   {
+    "id": "cmka7dhr70003l104xokrtnra",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmka7j46r0005l104zbf75zbw:DRAFT"
+    ]
+   },
+   {
+    "id": "cmkcjx43l0001jx0475h9inmc",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmkcjy95k0003jx04kxkv37r7:DRAFT"
+    ]
+   },
+   {
+    "id": "cmkfmf6oe0001ld0477indkpg",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmkfmgq3x0001l105ta8htpr0:DRAFT"
+    ]
+   },
+   {
+    "id": "cmlju0s6m0001js041lzru2nv",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmlju20120003js04jdf2fft5:DRAFT"
+    ]
+   },
+   {
+    "id": "cmlkujygo0003ju04mq7gzbm6",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmlkun0w10001i9043ev6kt5y:DRAFT"
+    ]
+   },
+   {
+    "id": "cmlj9fjun0003lb04u4qnxkeb",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmlj9h6le0005lb04z0p66dj8:PENDING_VALIDATION"
+    ]
+   },
+   {
+    "id": "cmjulgubd000644ezu2b0asgd",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmjulhgxf000844ezhgpz0tjw:DRAFT",
+     "cmolufuy20001jo04b1zrofpw:PENDING_VALIDATION"
+    ]
+   },
+   {
+    "id": "cmosrlpc30003jj04156v3nsq",
+    "adresseSaisie": true,
+    "bauxEnCours": []
+   },
+   {
+    "id": "cmrm4mp380003le046eue36c6",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmrm4oir60005le04ysrw2n69:AWAITING_TENANT_FORM"
+    ]
+   },
+   {
+    "id": "cms94kusl0001ky04skbgrthb",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cms94lk5m0003ky04ev7rinst:DRAFT"
+    ]
+   },
+   {
+    "id": "cmvcckv1b0001l206u21r76mo",
+    "adresseSaisie": true,
+    "bauxEnCours": [
+     "cmvccly8i0003l206kzaa59m8:DRAFT"
+    ]
+   },
+   {
+    "id": "cmwj6agxb0001le08hnz6jqy1",
+    "adresseSaisie": true,
+    "bauxEnCours": []
+   }
+  ],
+  "sansCoordonnees": 26,
+  "sansSurface": [
+   {
+    "id": "cms23bw1c0001l104w5vl2fyo",
+    "bauxEnCours": []
+   },
+   {
+    "id": "cmsa3io660001l804grmlklfc",
+    "bauxEnCours": []
+   },
+   {
+    "id": "cmwj6agxb0001le08hnz6jqy1",
+    "bauxEnCours": []
+   }
+  ]
+ },
+ "bauxHabitationSansAdresseLocalisee": [
+  {
+   "id": "cmiswmob300080zehcv57g4vh",
+   "statut": "DRAFT",
+   "bien": "cmiswlo8t00060zeh4eavuq8u"
+  },
+  {
+   "id": "cmizx2wky00082tfqaftk2jb3",
+   "statut": "DRAFT",
+   "bien": "cmizx1cju00062tfqrof4wim2"
+  },
+  {
+   "id": "cmj63jt6z00080qfptagbgoqa",
+   "statut": "DRAFT",
+   "bien": "cmj63ieet00060qfpc1gt7sco"
+  },
+  {
+   "id": "cmjqyyl2d00084dgzfsray8g7",
+   "statut": "DRAFT",
+   "bien": "cmjqywaze00064dgzvtdc2mqi"
+  },
+  {
+   "id": "cmjsmt3xz00082hgbr10cq8bf",
+   "statut": "DRAFT",
+   "bien": "cmjsmsh2w00062hgbyy28yhmd"
+  },
+  {
+   "id": "cmjsn5o39000h2hgbwy2g61ci",
+   "statut": "DRAFT",
+   "bien": "cmjsn41n7000f2hgbv2ajx5ff"
+  },
+  {
+   "id": "cmk0875qi00031bdmlvux04gq",
+   "statut": "DRAFT",
+   "bien": "cmk084qpw00011bdmde7scmof"
+  },
+  {
+   "id": "cmka7j46r0005l104zbf75zbw",
+   "statut": "DRAFT",
+   "bien": "cmka7dhr70003l104xokrtnra"
+  },
+  {
+   "id": "cmk9sj42m0003l104b0uq5kh6",
+   "statut": "PENDING_VALIDATION",
+   "bien": "cmk9shskj0001l104oerq0ao9"
+  },
+  {
+   "id": "cmkcjy95k0003jx04kxkv37r7",
+   "statut": "DRAFT",
+   "bien": "cmkcjx43l0001jx0475h9inmc"
+  },
+  {
+   "id": "cmkfmgq3x0001l105ta8htpr0",
+   "statut": "DRAFT",
+   "bien": "cmkfmf6oe0001ld0477indkpg"
+  },
+  {
+   "id": "cmkinonc30005l7045cusfis3",
+   "statut": "DRAFT",
+   "bien": "cmkinmd3x0003l704mtjgr07r"
+  },
+  {
+   "id": "cmkpjp9an0003jv046xpsprw6",
+   "statut": "DRAFT",
+   "bien": "cmkpjnzqi0001jv040llvptjf"
+  },
+  {
+   "id": "cmkr9lwsr0001la04cu6xbei3",
+   "statut": "DRAFT",
+   "bien": "cmkr9l1810003l504nxfr885v"
+  },
+  {
+   "id": "cmlju20120003js04jdf2fft5",
+   "statut": "DRAFT",
+   "bien": "cmlju0s6m0001js041lzru2nv"
+  },
+  {
+   "id": "cmlkun0w10001i9043ev6kt5y",
+   "statut": "DRAFT",
+   "bien": "cmlkujygo0003ju04mq7gzbm6"
+  },
+  {
+   "id": "cmlj9h6le0005lb04z0p66dj8",
+   "statut": "PENDING_VALIDATION",
+   "bien": "cmlj9fjun0003lb04u4qnxkeb"
+  },
+  {
+   "id": "cmjulhgxf000844ezhgpz0tjw",
+   "statut": "DRAFT",
+   "bien": "cmjulgubd000644ezu2b0asgd"
+  },
+  {
+   "id": "cmolufuy20001jo04b1zrofpw",
+   "statut": "PENDING_VALIDATION",
+   "bien": "cmjulgubd000644ezu2b0asgd"
+  },
+  {
+   "id": "cmosrnrww0005jj04h5bpxmu2",
+   "statut": "DESISTE",
+   "bien": "cmosrlpc30003jj04156v3nsq"
+  },
+  {
+   "id": "cmim4j9kj00013sh3082uyi2n",
+   "statut": "SIGNED",
+   "bien": "cmilw5fcn00015zii8qisez68"
+  },
+  {
+   "id": "cmrm4oir60005le04ysrw2n69",
+   "statut": "AWAITING_TENANT_FORM",
+   "bien": "cmrm4mp380003le046eue36c6"
+  },
+  {
+   "id": "cms94lk5m0003ky04ev7rinst",
+   "statut": "DRAFT",
+   "bien": "cms94kusl0001ky04skbgrthb"
+  },
+  {
+   "id": "cmvccly8i0003l206kzaa59m8",
+   "statut": "DRAFT",
+   "bien": "cmvcckv1b0001l206u21r76mo"
+  }
+ ],
+ "commerciauxAQualifier": [
+  {
+   "id": "cmr0kac350003kw04cnmekc5j",
+   "statut": "DRAFT",
+   "typeActuel": "BAIL_NU_3_ANS",
+   "paye": false
+  },
+  {
+   "id": "cmojwisue0005k604rxn098aq",
+   "statut": "DRAFT",
+   "typeActuel": "BAIL_NU_3_ANS",
+   "paye": false
+  },
+  {
+   "id": "cmp6xi0e80001l104us24rwhk",
+   "statut": "DRAFT",
+   "typeActuel": "BAIL_NU_6_ANS",
+   "paye": false
+  },
+  {
+   "id": "cmq5qmho60001l70404rhzuj7",
+   "statut": "DRAFT",
+   "typeActuel": "BAIL_NU_3_ANS",
+   "paye": false
+  },
+  {
+   "id": "cmqj7e1mf0003ks04ef9zy9kn",
+   "statut": "DRAFT",
+   "typeActuel": "BAIL_NU_3_ANS",
+   "paye": false
+  },
+  {
+   "id": "cmw6bw55s0005jr08mdyhp5gm",
+   "statut": "DRAFT",
+   "typeActuel": "BAIL_NU_6_ANS",
+   "paye": false
+  }
+ ],
+ "documentsSansRattachement": [
+  {
+   "id": "cmkiomzd70001jr04c04h5byu",
+   "type": "ID_IDENTITY",
+   "creeLe": "2026-01-17",
+   "envoyePar": "inconnu",
+   "dossierDuFichier": "documents",
+   "indicesDansLeChemin": [],
+   "messagesDuChat": [],
+   "personnesSansPieceCreeesLeMemeJour": [
+    "personne cmkijg4es0001l204z3vqh90a (client cmkijg4es0000l204ehj57pqa)",
+    "personne cmkinhs8i0001js04zucb73wk (client cmkinhs8i0000js04du934q8f)",
+    "personne cmkioghgm0007l704gyuebo68 (client cmkioghgm0006l704ifbahlxw)"
+   ]
+  }
+ ],
+ "datesProbablementProvisoires": [
+  {
+   "id": "cmr0kac350003kw04cnmekc5j",
+   "creeLe": "2026-06-30",
+   "dateEffet": "2026-06-30",
+   "jourPaiement": null,
+   "locataire": false
+  },
+  {
+   "id": "cmnrz0alc0001js04s11y9tqw",
+   "creeLe": "2026-04-09",
+   "dateEffet": "2026-04-09",
+   "jourPaiement": 5,
+   "locataire": false
+  },
+  {
+   "id": "cmp2jaab70003l204rcgp4gen",
+   "creeLe": "2026-05-12",
+   "dateEffet": "2026-05-12",
+   "jourPaiement": 1,
+   "locataire": true
+  },
+  {
+   "id": "cmp6xi0e80001l104us24rwhk",
+   "creeLe": "2026-05-15",
+   "dateEffet": "2026-09-01",
+   "jourPaiement": null,
+   "locataire": false
+  },
+  {
+   "id": "cmr0nru8w0003l204qgkkwl2j",
+   "creeLe": "2026-06-30",
+   "dateEffet": "2026-06-30",
+   "jourPaiement": null,
+   "locataire": false
+  },
+  {
+   "id": "cmwehw2br0003l208sjiycq14",
+   "creeLe": "2026-11-13",
+   "dateEffet": "2026-11-13",
+   "jourPaiement": null,
+   "locataire": false
+  },
+  {
+   "id": "cmwhll2690001l608f2rf0o2b",
+   "creeLe": "2026-11-15",
+   "dateEffet": "2026-11-15",
+   "jourPaiement": null,
+   "locataire": false
+  }
+ ],
+ "bauxSansLocataireAvecDate": [
+  {
+   "id": "cmnxli10b0005l604wqscytpb",
+   "statut": "DESISTE",
+   "dateEffet": "2026-05-01",
+   "jourPaiement": 5
+  },
+  {
+   "id": "cmqj7k6wu0003l504c2kqa22p",
+   "statut": "AWAITING_TENANT",
+   "dateEffet": "2026-06-26",
+   "jourPaiement": 5
+  },
+  {
+   "id": "cmuoikouu0003i3046tw6i2ke",
+   "statut": "DESISTE",
+   "dateEffet": "2026-10-10",
+   "jourPaiement": null
+  },
+  {
+   "id": "cmv8geg0e0003l606e1sgpwvt",
+   "statut": "DESISTE",
+   "dateEffet": "2026-10-26",
+   "jourPaiement": 1
+  },
+  {
+   "id": "cmumkcff70003l704ngghzsln",
+   "statut": "DESISTE",
+   "dateEffet": "2026-10-20",
+   "jourPaiement": 4
+  }
+ ],
+ "dossiersSignes": [
+  {
+   "id": "cmim4j9kj00013sh3082uyi2n",
+   "statut": "SIGNED",
+   "parties": [
+    "PROPRIETAIRE:COMPLETED",
+    "LOCATAIRE:COMPLETED"
+   ],
+   "bien": "COMPLETED"
+  }
+ ],
+ "pretsPourNotaireSansPaiement": [],
+ "completude": {
+  "fichesDontLesExigencesChangent": 104,
+  "exigencesAjouteesSurStaging": {
+   "personne:field:familyStatus": 68,
+   "client:document:CONTRAT_DE_MARIAGE": 26
+  },
+  "exigencesRetireesSurStaging": {
+   "client:document:LIVRET_DE_FAMILLE": 24,
+   "client:document:INSURANCE": 23,
+   "client:document:RIB": 21
+  },
+  "deviennentIncompletes": [
+   {
+    "client": "cmiedvr4v00010yffv9an2l5p",
+    "statutEnregistre": "COMPLETED",
+    "ajoute": [
+     "client:document:CONTRAT_DE_MARIAGE"
+    ],
+    "baux": [
+     "cmim4j9kj00013sh3082uyi2n:SIGNED"
+    ]
+   },
+   {
+    "client": "cmn4a4boo0000ih04at6kffnq",
+    "statutEnregistre": "PENDING_CHECK",
+    "ajoute": [
+     "client:document:CONTRAT_DE_MARIAGE"
+    ],
+    "baux": [
+     "cmn4adu9f0003l5040sqz891v:DRAFT"
+    ]
+   },
+   {
+    "client": "cmqc8or760004jp04pnmy7grf",
+    "statutEnregistre": "PENDING_CHECK",
+    "ajoute": [
+     "client:document:CONTRAT_DE_MARIAGE"
+    ],
+    "baux": [
+     "cmqc8n4fr0003jp04qt8pm8bx:CLIENT_CONTACTED"
+    ]
+   },
+   {
+    "client": "cmphfb4rw0000l404m4k1lyqw",
+    "statutEnregistre": "PENDING_CHECK",
+    "ajoute": [
+     "client:document:CONTRAT_DE_MARIAGE"
+    ],
+    "baux": [
+     "cmphfv1ip0005jp04d1lfuhzl:AWAITING_TENANT_FORM"
+    ]
+   },
+   {
+    "client": "cmur1ggr70000ic04c04b8514",
+    "statutEnregistre": "PENDING_CHECK",
+    "ajoute": [
+     "client:document:CONTRAT_DE_MARIAGE"
+    ],
+    "baux": [
+     "cmvrs70gq0005k108pcprp4px:AWAITING_TENANT_FORM"
+    ]
+   }
+  ],
+  "deviennentCompletes": [
+   {
+    "client": "cmnaip3je0000js040ol9x73k",
+    "statutEnregistre": "PENDING_CHECK",
+    "retire": [
+     "general:document:INSURANCE"
+    ],
+    "baux": [
+     "cmncz4b230001jr045azy465l:PENDING_VALIDATION"
+    ]
+   },
+   {
+    "client": "cmmc1hdvd0002jv04quj3z4fg",
+    "statutEnregistre": "PARTIAL",
+    "retire": [
+     "general:document:INSURANCE"
+    ],
+    "baux": [
+     "cmmc1f6y40001jv04wwt4rc7k:DRAFT"
+    ]
+   },
+   {
+    "client": "cmqt98um30000jv048z33ykxl",
+    "statutEnregistre": "PENDING_CHECK",
+    "retire": [
+     "general:document:INSURANCE"
+    ],
+    "baux": [
+     "cmqfmnyb40005l104d9zha9bj:DESISTE"
+    ]
+   },
+   {
+    "client": "cmqaznt3o0000k0046e5zhaen",
+    "statutEnregistre": "PARTIAL",
+    "retire": [
+     "general:document:RIB"
+    ],
+    "baux": [
+     "cmphfv1ip0005jp04d1lfuhzl:AWAITING_TENANT_FORM"
+    ]
+   }
+  ]
+ }
+}
