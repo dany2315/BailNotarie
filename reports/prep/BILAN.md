@@ -1,6 +1,6 @@
 # Préparation de la PR staging → main — bilan au 16/11/2026
 
-Branche locale `codex/prep-pr-main` (6 commits au-dessus de `staging` 6c49ac1), dans un worktree isolé.
+Branche locale `codex/prep-pr-main`, basée sur `staging` 6c49ac1, dans un worktree isolé.
 **Rien n'est poussé, aucune PR, aucune fusion dans `main` ni `staging`, aucun accès à la production.**
 Seule base utilisée : la copie `DATABASE_MIGRATE_TEST`. Stripe, e-mails, S3, Pusher, Inngest : simulés.
 
@@ -10,15 +10,15 @@ Seule base utilisée : la copie `DATABASE_MIGRATE_TEST`. Stripe, e-mails, S3, Pu
 | --- | --- | --- |
 | 1 — Paiements | Implémenté, testé sur la copie avec Stripe simulé | 41 tests + 5 tours de concurrence réelle |
 | 2 — Accord du locataire | Implémenté, testé sur la copie | 18 tests |
-| 3 — Dates après le locataire | **Non commencé** | — |
+| 3 — Dates après le locataire | Implémenté, testé sur la copie (formulaire propriétaire, espace client, ajout ultérieur du locataire) | 21 tests |
 | 4 — Compléments et archivage | Implémenté, testé sur la copie | 17 tests |
 | 5 — Loyers et barèmes | **Partiel** : garde-fou de disponibilité, import vérifié, ancien contrôle retiré | 7 tests + panne d'import simulée puis reprise |
 | 6 — Données historiques | Listes en lecture seule produites ; aucune donnée modifiée | `lot6-listes.json` |
-| 7 — Tests | 83 tests, 0 échec, base restaurée à chaque suite ; TypeScript et build de production isolé OK | fichiers `tests-*.json` |
+| 7 — Tests | 104 tests, 0 échec, base restaurée à chaque suite ; TypeScript et build de production isolé OK | fichiers `tests-*.json` |
 | 8 — Bascule | Déroulé rédigé ci-dessous ; **rien d'exécuté** | — |
 
 Non testé : paiement réel en mode test Stripe, webhook réel, e-mails, S3, parcours complet au navigateur
-(seule la fiche dossier admin et la liste ont été vues dans un navigateur), chaîne complète sur une copie
+(vus dans un navigateur : la fiche dossier admin, la liste des dossiers, et les écrans listés en fin de document), chaîne complète sur une copie
 fraîche de la production, sauvegarde/restauration.
 
 ## 2. Ce qui change dans les données
@@ -32,8 +32,9 @@ fraîche de la production, sauvegarde/restauration.
 | `20261116120000_complement_proposals_document_archive` | colonnes facultatives sur `ComplementRequestItem` et `Document` |
 | `20261116130000_complement_proposed_answer_archive_origin` | colonnes facultatives sur `ComplementRequestItem` et `Document` |
 | `20261116140000_rent_cap_import_journal` | table `RentCapImport` |
+| `20261116150000_bail_effective_date_optional` | `Bail.effectiveDate` accepte une valeur vide (aucune date existante modifiée) |
 
-Avec les 17 de staging, `main` recevra 22 migrations. La seule qui écrit dans des lignes existantes reste
+Avec les 17 de staging, `main` recevra 23 migrations. La seule qui écrit dans des lignes existantes reste
 `20261008120000_add_intake_form_tracking` (rétro-remplissage de `IntakeLink`).
 
 Vérifié sur la copie : les 31 tables métier d'origine sont identiques, ligne par ligne, avant et après
@@ -45,7 +46,19 @@ Comportements qui réinterprètent des données existantes :
 - un dossier non payé ne passe plus tout seul à « prêt pour notaire » ;
 - une réponse à un complément n'est plus écrite dans le dossier avant acceptation ;
 - accepter une nouvelle pièce ne supprime plus l'ancienne ;
-- sans barèmes importés et vérifiés, l'envoi au notaire d'un bail d'habitation est refusé.
+- sans barèmes importés et vérifiés, l'envoi au notaire d'un bail d'habitation est refusé (décision validée) ;
+- la date de prise d'effet et le jour de paiement ne sont plus exigés sans locataire ; les anciens brouillons
+  à date provisoire (jour de création, sans jour de paiement) sont présentés sans date, sans être modifiés ;
+- les nouvelles règles de complétude de staging s'appliquent (décision validée) : un dossier soumis mais pas
+  encore envoyé au notaire doit être complété selon la nouvelle liste avant l'envoi.
+
+Lot 3, choix faits :
+- formulaire propriétaire : les deux champs s'affichent dans l'étape « Locataire » dès qu'un e-mail de
+  locataire est saisi (l'ancienne étape « Dates du bail » disparaît) ;
+- bail commercial : ils quittent l'étape « Durée du bail » et suivent la même règle ;
+- espace client : l'étape « Dates » n'apparaît que si un locataire est choisi ; à l'ajout ultérieur du
+  locataire, la fenêtre demande les deux valeurs si le bail ne les a pas ;
+- retour arrière : le code précédent ne sait pas lire un bail sans date d'effet.
 
 ## 3. Écarts trouvés que le plan ne nommait pas
 
@@ -62,16 +75,19 @@ Comportements qui réinterprètent des données existantes :
 
 ## 4. Décisions à prendre
 
-1. **Référentiel des loyers indisponible** : bloquer l'envoi au notaire (choix provisoire dans le code) ou seulement avertir.
-2. **Complétude** : sur 104 fiches, staging ajoute la situation familiale (68) et le contrat de mariage (26), retire le livret de famille (24), l'assurance (23) et le RIB (21). 5 fiches deviennent incomplètes, 4 deviennent complètes. Les statuts enregistrés ne bougent pas tout seuls.
-3. **Six brouillons commerciaux** avec un type d'habitation : valeurs à donner dossier par dossier.
-4. **Document d'identité orphelin** `cmkiomzd70001jr04c04h5byu` (17/01/2026) : trois personnes sans pièce créées ce jour-là sont des pistes, rien n'est rattaché.
-5. **Deux interprétations faites** : une pièce envoyée pour un complément rejoint le dossier tout de suite (marquée « à vérifier ») ; le notaire qui accepte sa propre demande applique la réponse, mais seule l'équipe archive des pièces.
+Tranché le 16/11/2026 :
+- Référentiel des loyers indisponible : l'envoi au notaire est bloqué ; l'import des barèmes suit la migration.
+- Complétude : les règles de staging sont confirmées, y compris la fin de l'assurance et du RIB.
+
+Reste à décider :
+1. **Six brouillons commerciaux** avec un type d'habitation : valeurs à donner dossier par dossier.
+2. **Document d'identité orphelin** `cmkiomzd70001jr04c04h5byu` (17/01/2026) : trois personnes sans pièce créées ce jour-là sont des pistes, rien n'est rattaché.
+3. **Deux interprétations faites** : une pièce envoyée pour un complément rejoint le dossier tout de suite (marquée « à vérifier ») ; le notaire qui accepte sa propre demande applique la réponse, mais seule l'équipe archive des pièces.
 
 ## 5. Déroulé de bascule (à exécuter par vous, sur autorisation explicite)
 
-1. Trancher les décisions ci-dessus ; terminer le Lot 3 ou le sortir explicitement du périmètre.
-2. Rejouer sur une copie fraîche de la production : 22 migrations, import des barèmes, suites de tests.
+1. Trancher les décisions restantes ; relire puis fusionner la branche `codex/prep-pr-main` dans `staging` et tester sur staging.
+2. Rejouer sur une copie fraîche de la production : 23 migrations, import des barèmes, suites de tests.
 3. Vérifier dans Vercel : branche de production, base de chaque environnement, commande de build.
 4. Créer le point de terminaison Stripe `/api/stripe/webhook` (événements `payment_intent.succeeded`, `processing`, `payment_failed`, `canceled`) et la variable `STRIPE_WEBHOOK_SECRET`.
 5. Vérifier une sauvegarde et une restauration sur une cible séparée.
