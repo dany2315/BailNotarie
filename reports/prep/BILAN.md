@@ -10,11 +10,11 @@ Seule base utilisée : la copie `DATABASE_MIGRATE_TEST`. Stripe, e-mails, S3, Pu
 | --- | --- | --- |
 | 1 — Paiements | Implémenté, testé sur la copie avec Stripe simulé | 41 tests + 5 tours de concurrence réelle |
 | 2 — Accord du locataire | Implémenté, testé sur la copie | 18 tests |
-| 3 — Dates après le locataire | Implémenté, testé sur la copie (formulaire propriétaire, espace client, ajout ultérieur du locataire) | 21 tests |
+| 3 — Dates après le locataire | Implémenté, testé sur la copie (formulaire propriétaire, espace client, ajout ultérieur du locataire) | 26 tests |
 | 4 — Compléments et archivage | Implémenté, testé sur la copie | 17 tests |
 | 5 — Loyers et barèmes | **Partiel** : garde-fou de disponibilité, import vérifié, ancien contrôle retiré | 7 tests + panne d'import simulée puis reprise |
 | 6 — Données historiques | Listes en lecture seule produites ; aucune donnée modifiée | `lot6-listes.json` |
-| 7 — Tests | 104 tests, 0 échec, base restaurée à chaque suite ; TypeScript et build de production isolé OK | fichiers `tests-*.json` |
+| 7 — Tests | 109 tests, 0 échec, base restaurée à chaque suite ; TypeScript et build de production isolé OK | fichiers `tests-*.json` |
 | 8 — Bascule | Déroulé rédigé ci-dessous ; **rien d'exécuté** | — |
 
 Non testé : paiement réel en mode test Stripe, webhook réel, e-mails, S3, parcours complet au navigateur
@@ -58,6 +58,9 @@ Lot 3, choix faits :
 - bail commercial : ils quittent l'étape « Durée du bail » et suivent la même règle ;
 - espace client : l'étape « Dates » n'apparaît que si un locataire est choisi ; à l'ajout ultérieur du
   locataire, la fenêtre demande les deux valeurs si le bail ne les a pas ;
+- la date de fin est calculée par le serveur (type de bail + date de prise d'effet) dans tous les parcours ;
+  sans date de prise d'effet, il n'y a pas de date de fin ;
+- l'étape « Documents » et les pièces obligatoires sont inchangées ;
 - retour arrière : le code précédent ne sait pas lire un bail sans date d'effet.
 
 ## 3. Écarts trouvés que le plan ne nommait pas
