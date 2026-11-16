@@ -459,8 +459,9 @@ export async function convertLead(data: {
         rentAmount: 0, // Sera mis à jour lors du formulaire propriétaire
         monthlyCharges: 0,
         securityDeposit: 0,
-        effectiveDate: new Date(), // Date temporaire, sera mise à jour
-        paymentDay: 1, // Valeur par défaut
+        // Pas de date provisoire : la date d'effet et le jour de paiement restent vides jusqu'à leur saisie.
+        effectiveDate: null,
+        paymentDay: null,
         propertyId: property.id,
         parties: {
           connect: [

@@ -371,8 +371,9 @@ export const OWNER_STEP_ORDER: OwnerStep[] = [
   "commercialCharges",
   "commercialClauses",
   "bailFurniture",
-  "bailDates",
   "tenant",
+  // Date d'effet et jour de paiement : demandés avec le locataire, après lui.
+  "bailDates",
 ];
 
 /** Donnée manquante ou incohérente : chemin du champ du formulaire et message simple. */
@@ -561,13 +562,16 @@ export function ownerFieldIssues(values: any, context: OwnerFieldContext = {}): 
     for (const key of missingFurniture(v, v.bailType)) add("bailFurniture", key, "Cet équipement est requis pour un bail meublé");
   }
 
-  // Dates (commercial : dans « Durée et dates »)
-  const datesStep: OwnerStep = commercial ? "bailType" : "bailDates";
-  if (isBlank(v.bailEffectiveDate)) add(datesStep, "bailEffectiveDate", "La date de prise d'effet est requise");
-  if (isBlank(v.bailPaymentDay)) add(datesStep, "bailPaymentDay", "Le jour de paiement est requis");
-
   // Locataire : peut être invité plus tard
-  if (isBlank(v.tenantEmail) && !context.hasTenant) add("tenant", "tenantEmail", "Indiquez l'e-mail du locataire", "expected");
+  const tenantKnown = !isBlank(v.tenantEmail) || context.hasTenant === true;
+  if (!tenantKnown) add("tenant", "tenantEmail", "Indiquez l'e-mail du locataire", "expected");
+
+  // Date d'effet et jour de paiement : exigés seulement quand le locataire est connu, et demandés avec lui
+  // (étape « Locataire »). Sans locataire, le formulaire se termine sans ces deux valeurs.
+  if (tenantKnown) {
+    if (isBlank(v.bailEffectiveDate)) add("tenant", "bailEffectiveDate", "La date de prise d'effet est requise");
+    if (isBlank(v.bailPaymentDay)) add("tenant", "bailPaymentDay", "Le jour de paiement est requis");
+  }
 
   return issues;
 }

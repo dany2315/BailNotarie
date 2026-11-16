@@ -25,7 +25,7 @@ type RenewBailFormData = z.infer<typeof renewBailSchema>;
 interface RenewBailFormProps {
   bail: {
     id: string;
-    effectiveDate: Date;
+    effectiveDate: Date | null;
     endDate: Date | null;
     rentAmount: number;
     monthlyCharges: number;

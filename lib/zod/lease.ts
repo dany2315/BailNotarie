@@ -56,11 +56,18 @@ const createLeaseBaseSchema = z.object({
       if (isNaN(num) || num < 0) return 0;
       return num;
     }),
-  effectiveDate: z.string().transform((val) => {
-    const date = new Date(val);
-    if (isNaN(date.getTime())) throw new Error("Date de début invalide");
-    return date;
-  }),
+  // Date de début et jour de paiement : demandés une fois le locataire choisi. Sans locataire, ils restent
+  // vides (jamais une date d'attente) ; avec un locataire, ils sont exigés (contrôle plus bas).
+  effectiveDate: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val) return null;
+      const date = new Date(val);
+      if (isNaN(date.getTime())) throw new Error("Date de début invalide");
+      return date;
+    }),
   endDate: z
     .string()
     .optional()
@@ -73,6 +80,7 @@ const createLeaseBaseSchema = z.object({
   paymentDay: z
     .string()
     .optional()
+    .nullable()
     .transform((val) => {
       if (!val) return null;
       const num = parseInt(val);
@@ -90,6 +98,11 @@ const createLeaseBaseSchema = z.object({
 // Schéma de création avec validation du dépôt de garantie
 export const createLeaseSchema = createLeaseBaseSchema.superRefine((data, ctx) => {
   validateSecurityDeposit(data.bailType, data.rentAmount, data.securityDeposit, ctx);
+  // Locataire choisi : la date de début et le jour de paiement sont exigés dans le même parcours.
+  if (data.tenantId) {
+    if (!data.effectiveDate) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["effectiveDate"], message: "La date de début est requise quand un locataire est indiqué" });
+    if (!data.paymentDay) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["paymentDay"], message: "Le jour de paiement est requis quand un locataire est indiqué" });
+  }
 });
 
 // Schéma de base pour la mise à jour - tous les champs sont optionnels

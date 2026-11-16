@@ -48,6 +48,7 @@ import { readAgreementSnapshot, recordTenantAgreement, settleTenantAgreement } f
 import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
 import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 import { isBailPaidById } from "@/lib/payments/paid-check";
+import { DATES_REQUIRED_WITH_TENANT, missingTenantDates } from "@/lib/bail/dates";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -351,7 +352,8 @@ export async function createFullClient(data: unknown) {
         rentAmount: validated.bailRentAmount || 0,
         monthlyCharges: validated.bailMonthlyCharges || 0,
         securityDeposit: validated.bailSecurityDeposit || 0,
-        effectiveDate: validated.bailEffectiveDate ? new Date(validated.bailEffectiveDate) : new Date(),
+        // Sans date saisie, la date d'effet reste vide (jamais la date du jour).
+        effectiveDate: validated.bailEffectiveDate ? new Date(validated.bailEffectiveDate) : null,
         endDate: validated.bailEndDate ? new Date(validated.bailEndDate) : null,
         paymentDay: validated.bailPaymentDay || null,
         propertyId: property.id,
@@ -1125,6 +1127,14 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     }
   }
 
+  // Locataire connu (indiqué dans ce formulaire, ou déjà rattaché au bail) : la date de prise d'effet et le
+  // jour de paiement sont exigés. Sans locataire, le formulaire se termine sans ces deux valeurs.
+  const tenantOnBail =
+    !!tenant || !!ownerIntakeLink?.bail?.parties?.some((party: any) => party.profilType === ProfilType.LOCATAIRE);
+  if (tenantOnBail && missingTenantDates({ effectiveDate: validated.bailEffectiveDate, paymentDay: validated.bailPaymentDay }).length > 0) {
+    throw new Error(DATES_REQUIRED_WITH_TENANT);
+  }
+
   // Utiliser le bail existant ou en créer un nouveau
   let bail;
   let shouldLogTenantAdded = false;
@@ -1149,9 +1159,11 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
       rentAmount: validated.bailRentAmount,
       monthlyCharges: validated.bailMonthlyCharges || 0,
       securityDeposit: validated.bailSecurityDeposit || 0,
-      effectiveDate: validated.bailEffectiveDate,
+      // Le formulaire envoyé fait foi : sans date ni jour de paiement (pas de locataire), les deux restent
+      // vides — une ancienne date provisoire de brouillon n'est pas conservée comme une vraie date.
+      effectiveDate: validated.bailEffectiveDate ?? null,
       endDate: validated.bailEndDate,
-      paymentDay: validated.bailPaymentDay,
+      paymentDay: validated.bailPaymentDay ?? null,
     };
 
     // Connecter le locataire seulement s'il existe et n'est pas déjà connecté
@@ -1192,9 +1204,9 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
           rentAmount: validated.bailRentAmount,
           monthlyCharges: validated.bailMonthlyCharges || 0,
           securityDeposit: validated.bailSecurityDeposit || 0,
-          effectiveDate: validated.bailEffectiveDate,
+          effectiveDate: validated.bailEffectiveDate ?? null,
           endDate: validated.bailEndDate,
-          paymentDay: validated.bailPaymentDay,
+          paymentDay: validated.bailPaymentDay ?? null,
           propertyId: property.id,
           parties: {
             connect: bailParties,

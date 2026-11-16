@@ -649,7 +649,9 @@ model Bail {
   monthlyCharges  Int @default(0)
   securityDeposit Int @default(0)
 
-  effectiveDate DateTime
+  // Date de prise d'effet et jour de paiement : demandés une fois le locataire connu. Sans locataire, le
+  // dossier s'enregistre sans ces valeurs (vides, jamais une date provisoire).
+  effectiveDate DateTime?
   endDate       DateTime?
   paymentDay    Int?
 

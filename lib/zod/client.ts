@@ -414,14 +414,18 @@ const bailFieldsSchema = {
       })
       .transform((val) => parseInt(val, 10))
   ),
+  // Date de prise d'effet et jour de paiement : demandés une fois le locataire connu. Sans locataire, ils
+  // restent vides (le contrôle « exigés avec un locataire » est dans le schéma du formulaire, plus bas, et
+  // refait par le serveur).
   bailEffectiveDate: z.preprocess(
     (val) => {
-      if (val === "" || val === null || val === undefined) return "";
+      if (val === "" || val === null || val === undefined) return undefined;
       return String(val);
     },
     z.string()
-      .min(1, "La date de prise d'effet est requise")
+      .optional()
       .transform((val) => {
+        if (!val) return undefined;
         const date = new Date(val);
         if (isNaN(date.getTime())) {
           throw new z.ZodError([{
@@ -449,18 +453,20 @@ const bailFieldsSchema = {
   ),
   bailPaymentDay: z.preprocess(
     (val) => {
-      if (val === "" || val === null || val === undefined) return "";
+      if (val === "" || val === null || val === undefined) return undefined;
       return String(val);
     },
     z.string()
-      .min(1, "Le jour de paiement est requis")
+      .optional()
       .refine((val) => {
+        if (!val) return true;
         const num = parseInt(val);
         return !isNaN(num) && num >= 1 && num <= 31;
       }, {
         message: "Le jour de paiement doit être un nombre entre 1 et 31",
       })
       .transform((val) => {
+        if (!val) return undefined;
         const num = parseInt(val);
         return num;
       })
@@ -652,6 +658,19 @@ export const ownerFormSchema = z
     persons: personsArraySchema,
   })
   .superRefine((data, ctx) => {
+    // ------------------------------------------------------------------
+    // LOCATAIRE INDIQUÉ → date de prise d'effet et jour de paiement exigés
+    // (sans locataire, le formulaire se termine sans ces deux valeurs)
+    // ------------------------------------------------------------------
+    if (data.tenantEmail) {
+      if (!data.bailEffectiveDate) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["bailEffectiveDate"], message: "La date de prise d'effet est requise" });
+      }
+      if (!data.bailPaymentDay) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["bailPaymentDay"], message: "Le jour de paiement est requis" });
+      }
+    }
+
     // ------------------------------------------------------------------
     // PERSONNE PHYSIQUE → tout doit venir de persons[]
     // ------------------------------------------------------------------

@@ -78,6 +78,12 @@ export interface RentCapAssessment {
    * est impossible. Ce n'est PAS « commune non encadrée » : rien ne permet de le dire.
    */
   referentialUnavailable?: boolean;
+  /**
+   * Date de prise d'effet pas encore connue (pas de locataire) : le plafond est calculé avec l'arrêté en
+   * vigueur aujourd'hui, à titre indicatif. Ce n'est pas un résultat définitif : il se recalcule quand la
+   * date est saisie, et n'est jamais présenté comme « vérifié ».
+   */
+  effectiveDateMissing?: boolean;
   territory: {
     id: string;
     label: string;
@@ -192,6 +198,7 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
   const result: RentCapAssessment = {
     ...empty(bail.rentAmount, furnished, surface, null),
     status: "missing",
+    effectiveDateMissing: !bail.effectiveDate,
     supplement: bail.rentSupplementReason,
     territory: {
       id: territory.id,

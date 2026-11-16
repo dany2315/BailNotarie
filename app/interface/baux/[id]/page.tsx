@@ -526,8 +526,10 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const rentCapLines = rentCap ? rentCapOverLines(rentCap) : null;
   // Contrôlé automatiquement : loyer conforme à l'arrêté applicable, ou pas de plafond (commune non encadrée,
   // hors périmètre, bail commercial, logement exclu). Adresse non localisée ou bail hors période : à la main.
+  // Sans date de prise d'effet, le plafond n'est qu'indicatif : jamais « vérifié automatiquement ».
   const capAuto =
     !!rentCap &&
+    !rentCap.effectiveDateMissing &&
     ((rentCap.status === "ok" && rentCap.validity === "in") ||
       (rentCap.status === "not_concerned" && rentCap.notConcerned !== "no_address"));
   // Complément de loyer interdit pour un logement classé F ou G : bloquant comme un dépassement.
@@ -912,6 +914,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           {rentCap.territory.label}
                           {rentCap.status !== "no_data" && rentCap.notConcerned !== "exempt" ? ` · ${describeRentCapZone(rentCap)}` : ""}
                         </span>
+                        {rentCap.effectiveDateMissing && (
+                          <span className="font-semibold text-amber-800">
+                            Date de prise d&apos;effet non renseignée : plafond calculé avec l&apos;arrêté en vigueur aujourd&apos;hui, à titre
+                            indicatif. Il sera recalculé quand la date sera saisie.
+                          </span>
+                        )}
                         {rentCap.notConcerned === "exempt" && (
                           <span className="font-semibold text-amber-800">
                             Logement exclu de l&apos;encadrement : {EXEMPTION_LABELS[rentCap.exemption?.code || ""] || rentCap.exemption?.code}

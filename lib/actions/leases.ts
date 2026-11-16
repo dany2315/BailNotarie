@@ -18,6 +18,7 @@ import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/ac
 import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
 import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
 import { HISTORICAL_PAYMENT_SELECT, PAID_WHERE, UNPAID_WHERE, isBailPaid, paymentKind } from "@/lib/payments/paid";
+import { DATES_REQUIRED_WITH_TENANT, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
 import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
 
 /**
@@ -986,6 +987,10 @@ const createTenantForLeaseSchema = z.object({
     .max(100, "L'email est trop long")
     .toLowerCase()
     .trim(),
+  // Date de prise d'effet et jour de paiement : à fournir ici si le bail ne les a pas encore (ils se
+  // demandent avec le locataire, dans le même parcours).
+  effectiveDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide"), z.literal("")]).optional(),
+  paymentDay: z.union([z.number().int().min(1).max(31), z.string().regex(/^\d{1,2}$/, "Jour de paiement invalide"), z.literal("")]).optional(),
 });
 
 // Schéma pour créer un locataire depuis un email (sans bailId)
@@ -997,7 +1002,23 @@ const createTenantFromEmailSchema = z.object({
     .trim(),
 });
 
-// Créer un locataire pour un bail existant (avec juste l'email)
+/**
+ * Ce que l'écran « Ajouter un locataire » doit demander : la date de prise d'effet et le jour de paiement
+ * déjà enregistrés sur le bail, ou vides s'ils restent à saisir.
+ */
+export async function getBailTenantDates(bailId: string): Promise<{ effectiveDate: string | null; paymentDay: number | null; needed: boolean }> {
+  await requireAuth();
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    select: { effectiveDate: true, paymentDay: true, createdAt: true, status: true, property: { select: { ownerId: true } } },
+  });
+  if (!bail) throw new Error("Bail introuvable");
+  await requireClientAccess(bail.property.ownerId);
+  const effectiveDate = effectiveDateGiven(bail) && bail.effectiveDate ? bail.effectiveDate.toISOString().slice(0, 10) : null;
+  return { effectiveDate, paymentDay: bail.paymentDay, needed: missingTenantDates({ effectiveDate, paymentDay: bail.paymentDay }).length > 0 };
+}
+
+// Créer un locataire pour un bail existant (e-mail, et date d'effet + jour de paiement s'ils manquent)
 export async function createTenantForLease(data: unknown) {
   const user = await requireAuth();
   const validated = createTenantForLeaseSchema.parse(data);
@@ -1024,6 +1045,16 @@ export async function createTenantForLease(data: unknown) {
 
   if (existingTenant) {
     throw new Error("Un locataire est déjà connecté à ce bail");
+  }
+
+  // Avec un locataire, la date de prise d'effet et le jour de paiement sont exigés : ceux du bail s'ils
+  // existent déjà, sinon ceux fournis ici. Vérifié avant de créer quoi que ce soit.
+  const givenDate = validated.effectiveDate ? new Date(`${validated.effectiveDate}T00:00:00.000Z`) : null;
+  const tenantEffectiveDate = givenDate ?? (effectiveDateGiven(bail) ? bail.effectiveDate : null);
+  const givenDay = validated.paymentDay === "" || validated.paymentDay === undefined ? null : Number(validated.paymentDay);
+  const tenantPaymentDay = givenDay ?? bail.paymentDay ?? null;
+  if (missingTenantDates({ effectiveDate: tenantEffectiveDate, paymentDay: tenantPaymentDay }).length > 0) {
+    throw new Error(DATES_REQUIRED_WITH_TENANT);
   }
 
   // Chercher une personne existante avec cet email (toutes profils confondus)
@@ -1071,11 +1102,14 @@ export async function createTenantForLease(data: unknown) {
     );
   }
 
-  // Connecter le locataire au bail + passer à PENDING_VALIDATION si en attente de locataire
+  // Connecter le locataire au bail + passer à PENDING_VALIDATION si en attente de locataire.
+  // La date de prise d'effet et le jour de paiement sont enregistrés dans la même écriture.
   await prisma.bail.update({
     where: { id: validated.bailId },
     data: {
       parties: { connect: { id: tenant.id } },
+      effectiveDate: tenantEffectiveDate,
+      paymentDay: tenantPaymentDay,
       ...(bail.status === BailStatus.AWAITING_TENANT && { status: BailStatus.AWAITING_TENANT_FORM }),
     },
   });
@@ -1556,7 +1590,8 @@ export async function saveBailDraft(data: {
   const rentAmount = data.rentAmount ? (parseInt(data.rentAmount, 10) || 0) : 0;
   const monthlyCharges = data.monthlyCharges ? (parseInt(data.monthlyCharges, 10) || 0) : 0;
   const securityDeposit = data.securityDeposit ? (parseInt(data.securityDeposit, 10) || 0) : 0;
-  const effectiveDate = data.effectiveDate ? new Date(data.effectiveDate) : new Date();
+  // Sans date saisie, la date d'effet reste vide (jamais la date du jour).
+  const effectiveDate = data.effectiveDate ? new Date(data.effectiveDate) : null;
   const endDate = data.endDate ? new Date(data.endDate) : null;
   const paymentDay = data.paymentDay ? (parseInt(data.paymentDay, 10) || null) : null;
   const bailType = (data.bailType as BailType) || BailType.BAIL_NU_3_ANS;
@@ -1684,7 +1719,7 @@ export async function getClientBailDrafts(clientId: string) {
     ...d,
     createdAt: d.createdAt.toISOString(),
     updatedAt: d.updatedAt.toISOString(),
-    effectiveDate: d.effectiveDate.toISOString(),
+    effectiveDate: d.effectiveDate ? d.effectiveDate.toISOString() : null,
   }));
 }
 
@@ -1711,14 +1746,11 @@ export async function getDraftBailForClient(bailId: string, clientId: string) {
   }
 
   const tenant = bail.parties.find((p) => p.profilType === "LOCATAIRE");
-  // Le brouillon est enregistré avec des valeurs par défaut (loyer et charges à 0, date d'effet
-  // au jour même) : sans loyer, l'étape « Détails du bail » n'a pas été remplie, sans jour de
-  // paiement et avec la date du jour de création, l'étape des dates non plus. On ne les
-  // présente pas comme des saisies.
+  // Sans loyer, l'étape « Détails du bail » n'a pas été remplie. Les anciens brouillons portaient une
+  // date d'effet provisoire (le jour de leur création) : sans jour de paiement et avec cette date-là,
+  // l'étape des dates n'a pas été remplie non plus. On ne les présente pas comme des saisies.
   const rentSaved = bail.rentAmount > 0;
-  const datesSaved =
-    bail.paymentDay != null ||
-    bail.effectiveDate.toISOString().slice(0, 10) !== bail.createdAt.toISOString().slice(0, 10);
+  const datesSaved = effectiveDateGiven(bail);
 
   return {
     id: bail.id,
@@ -1726,7 +1758,7 @@ export async function getDraftBailForClient(bailId: string, clientId: string) {
     rentAmount: bail.rentAmount,
     monthlyCharges: rentSaved ? bail.monthlyCharges : null,
     securityDeposit: rentSaved ? bail.securityDeposit : null,
-    effectiveDate: datesSaved ? bail.effectiveDate.toISOString().split("T")[0] : null,
+    effectiveDate: datesSaved && bail.effectiveDate ? bail.effectiveDate.toISOString().split("T")[0] : null,
     endDate: null,
     paymentDay: bail.paymentDay,
     propertyId: bail.property.id,

@@ -16,6 +16,7 @@ import { euros } from "@/lib/utils/rent-relocation";
 import { commercialTermsFromForm, entrepriseCommercialFields } from "@/lib/utils/commercial-terms";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
+import { DATES_REQUIRED_WITH_TENANT, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
 
 /**
  * Pièces principales (1 à 4, 4 = « 4 et plus »), époque de construction et classe énergétique,
@@ -86,7 +87,7 @@ async function rentRulesUpdate(intakeLink: any, payload: any, rentAmount: number
       rentAmount: rent,
       bailType: payload.bailType || intakeLink.bail?.bailType || BailType.BAIL_NU_3_ANS,
       bailFamily: payload.bailFamily || intakeLink.bail?.bailFamily || BailFamille.HABITATION,
-      effectiveDate: intakeLink.bail?.paymentDay != null ? intakeLink.bail?.effectiveDate ?? null : null,
+      effectiveDate: effectiveDateGiven(intakeLink.bail ?? {}) ? intakeLink.bail?.effectiveDate ?? null : null,
       rentCapExemption: intakeLink.bail?.rentCapExemption ?? null,
       ...answers,
     },
@@ -472,7 +473,9 @@ export async function handleOwnerBailStep(
           securityDeposit: typeof payload.bailSecurityDeposit === 'string'
             ? parseInt(payload.bailSecurityDeposit, 10) || 0
             : payload.bailSecurityDeposit || 0,
-          effectiveDate: payload.bailEffectiveDate ? new Date(payload.bailEffectiveDate) : new Date(),
+          // Sans date saisie, la date d'effet reste vide (jamais la date du jour) : elle est demandée avec
+          // le jour de paiement, une fois le locataire indiqué.
+          effectiveDate: payload.bailEffectiveDate ? new Date(payload.bailEffectiveDate) : null,
           endDate: payload.bailEndDate ? new Date(payload.bailEndDate) : null,
           paymentDay: typeof payload.bailPaymentDay === 'string'
             ? parseInt(payload.bailPaymentDay, 10) || null
@@ -527,6 +530,22 @@ export async function handleOwnerTenantStep(
     throw new Error("BailId manquant pour ajouter le locataire");
   }
 
+  // Locataire indiqué : la date de prise d'effet et le jour de paiement se saisissent dans cette même étape
+  // et sont exigés avant d'enregistrer le locataire (il recevra son formulaire avec ces conditions).
+  const givenDate = payload.bailEffectiveDate ? new Date(payload.bailEffectiveDate) : null;
+  const tenantEffectiveDate =
+    givenDate && !Number.isNaN(givenDate.getTime())
+      ? givenDate
+      : effectiveDateGiven(intakeLink.bail ?? {})
+        ? (intakeLink.bail.effectiveDate as Date)
+        : null;
+  const parsedDay = Number.parseInt(String(payload.bailPaymentDay ?? ""), 10);
+  const tenantPaymentDay: number | null = Number.isFinite(parsedDay) ? parsedDay : intakeLink.bail?.paymentDay ?? null;
+  if (missingTenantDates({ effectiveDate: tenantEffectiveDate, paymentDay: tenantPaymentDay }).length > 0) {
+    throw new Error(DATES_REQUIRED_WITH_TENANT);
+  }
+  const tenantEndDate = payload.bailEndDate ? new Date(payload.bailEndDate) : null;
+
   // Récupérer l'ancien email du locataire avant la transaction pour détecter les changements
   const existingTenant = intakeLink.bail?.parties?.find(
     (party: any) => party.profilType === ProfilType.LOCATAIRE
@@ -544,6 +563,19 @@ export async function handleOwnerTenantStep(
 
   // Exécuter la transaction pour créer/mettre à jour le locataire
   await prisma.$transaction(async (tx) => {
+    // Les deux valeurs sont enregistrées avec le locataire, dans la même transaction. Si le locataire avait
+    // déjà confirmé une autre date, son accord est archivé et redemandé.
+    const datesAgreement = await readAgreementSnapshot(tx, intakeLink.bailId);
+    await tx.bail.update({
+      where: { id: intakeLink.bailId },
+      data: {
+        effectiveDate: tenantEffectiveDate,
+        paymentDay: tenantPaymentDay,
+        ...(tenantEndDate && !Number.isNaN(tenantEndDate.getTime()) ? { endDate: tenantEndDate } : {}),
+      },
+    });
+    await settleTenantAgreement(tx, intakeLink.bailId, datesAgreement, { id: null, name: "Propriétaire (formulaire)" });
+
     if (existingTenant) {
       // Mettre à jour l'email de la personne primaire
       const tenantPerson = await tx.person.findFirst({
