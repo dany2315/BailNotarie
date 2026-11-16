@@ -15,6 +15,7 @@ import {
 } from "./ui/lp-product-mockups";
 import { AuroraBackdrop, GhostButton, NoiseOverlay, usePointerParallax } from "./ui/lp-primitives";
 import { LpStartField } from "./lp-start-field";
+import { LpBailTypePills } from "./lp-bail-types";
 
 const AVATARS = [
   "https://images.pexels.com/photos/3785079/pexels-photo-3785079.jpeg?auto=compress&cs=tinysrgb&w=80&h=80&fit=crop&crop=face",
@@ -29,7 +30,8 @@ const GUARANTEES = [
   { icon: Sparkles, label: "39,90 € TTC de frais de dossier", tone: "green" },
 ] as const;
 
-export function LpHero() {
+/** bailTypes : montre les deux baux (habitation et commercial) sous le titre. */
+export function LpHero({ bailTypes = false }: { bailTypes?: boolean } = {}) {
   const sceneRef = React.useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const parallax = usePointerParallax(1);
@@ -132,12 +134,24 @@ export function LpHero() {
             </span>
           </h1>
 
+          {bailTypes && (
+            <div style={{ ["--lp-delay" as string]: "0.1s" }} className="lp-enter-up mt-8">
+              <LpBailTypePills />
+            </div>
+          )}
+
           <p
             style={{ ["--lp-delay" as string]: "0.14s" }}
             className="lp-enter-up lp-balance mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-600 sm:text-xl"
           >
             Service dédié aux <strong className="font-semibold text-slate-900">propriétaires</strong> pour constituer
-            leur dossier de <strong className="font-semibold text-slate-900">bail notarié en France</strong>.
+            leur dossier de <strong className="font-semibold text-slate-900">bail notarié en France</strong>
+            {bailTypes && (
+              <>
+                , <strong className="font-semibold text-slate-900">d&apos;habitation ou commercial</strong>
+              </>
+            )}
+            .
             Constitution du dossier <strong className="font-semibold text-slate-900">100% en ligne</strong>,
             transmission au <strong className="font-semibold text-slate-900">notaire</strong> et{" "}
             <strong className="font-semibold text-slate-900">signature à distance par procuration</strong>. Simple, rapide et{" "}
@@ -221,7 +235,7 @@ export function LpHero() {
           {GUARANTEES.map((item) => (
             <span key={item.label} className="flex items-center gap-2 text-[14px] font-medium text-slate-600">
               <item.icon className={item.tone === "green" ? "h-4 w-4 text-emerald-500" : "h-4 w-4 text-[#4373f5]"} />
-              {item.label}
+              {bailTypes && item.label.startsWith("39,90") ? "Dès 39,90 € TTC de frais de dossier" : item.label}
             </span>
           ))}
         </div>

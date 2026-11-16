@@ -206,7 +206,7 @@ export function LpBenefits() {
                 </span>
                 <h3 className="lp-title mt-6 text-2xl font-bold text-slate-900">Tarif transparent</h3>
                 <p className="mt-3 text-[14.5px] leading-relaxed text-slate-600">
-                  39,90 € TTC de frais de dossier, remboursés si le dossier n&apos;aboutit pas*. Les frais notariés
+                  39,90 € TTC de frais de dossier (59,90 € pour un bail commercial), remboursés si le dossier n&apos;aboutit pas*. Les frais notariés
                   restent réglementés par l&apos;État.
                 </p>
                 <Link

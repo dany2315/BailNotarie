@@ -56,7 +56,9 @@ const PHONE_HREF = `tel:${PHONE.replace(/\s/g, "")}`;
  * Les ancres de section n'existent que sur l'accueil : hors de celle-ci elles
  * sont préfixées par `/` pour y ramener le visiteur, au lieu de ne rien faire.
  */
-export function LpNav({ overlay = false }: { overlay?: boolean } = {}) {
+/** commercialLink : ajoute « Bail commercial » (vers la section des baux) dans le menu. */
+export function LpNav({ overlay = false, commercialLink = false }: { overlay?: boolean; commercialLink?: boolean } = {}) {
+  const links = commercialLink ? [LINKS[0], { href: "#baux", label: "Bail commercial" }, ...LINKS.slice(1)] : LINKS;
   const [scrolled, setScrolled] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const { scrollY } = useScroll();
@@ -155,7 +157,7 @@ export function LpNav({ overlay = false }: { overlay?: boolean } = {}) {
         </Link>
 
         <div className="hidden items-center gap-1 lg:flex">
-          {LINKS.map((link) => {
+          {links.map((link) => {
             const className =
               "whitespace-nowrap rounded-xl px-2.5 py-2 text-[14px] font-medium text-slate-600 transition-colors hover:bg-slate-900/[0.04] hover:text-slate-900";
             return isPage(link.href) || !onHome ? (
@@ -213,7 +215,7 @@ export function LpNav({ overlay = false }: { overlay?: boolean } = {}) {
              page vers le bas à l'ouverture du menu. */
           className="lp-swap pointer-events-auto absolute inset-x-4 top-full mx-auto mt-2 max-h-[calc(100dvh-7rem)] max-w-7xl overflow-y-auto rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_30px_70px_-30px_rgba(30,58,138,0.6)] backdrop-blur-xl lg:hidden"
         >
-          {LINKS.map((link) => {
+          {links.map((link) => {
             const className =
               "block rounded-xl px-4 py-3 text-[15px] font-medium text-slate-700 transition-colors hover:bg-slate-50";
             return isPage(link.href) || !onHome ? (

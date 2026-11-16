@@ -16,7 +16,7 @@ const STEPS = [
     icon: FileText,
     title: "Constitution du dossier 100% en ligne",
     description:
-      "Vous remplissez votre dossier de bail d'habitation directement en ligne, en quelques minutes. Les pièces sont vérifiées au fil de l'eau.",
+      "Vous remplissez votre dossier de bail d'habitation ou de bail commercial directement en ligne, en quelques minutes. Les pièces sont vérifiées au fil de l'eau.",
     bullets: ["Formulaire guidé, sauvegarde automatique", "Dépôt des pièces justificatives", "Vérification des documents"],
     accent: "#4373f5",
     preview: <DocumentsMockup compact />,

@@ -12,7 +12,7 @@ import { SectionLabel } from "@/components/lp/ui/lp-primitives";
    Le vocabulaire visuel est celui de l'accueil, pas son contenu.
    ========================================================================= */
 
-export function StartHeading({ step }: { step: "email" | "otp" }) {
+export function StartHeading({ step, bailFamily }: { step: "email" | "otp"; bailFamily?: "HABITATION" | "COMMERCIAL" }) {
   const otp = step === "otp";
 
   return (
@@ -29,7 +29,8 @@ export function StartHeading({ step }: { step: "email" | "otp" }) {
           </>
         ) : (
           <>
-            Votre bail notarié <span className="lp-gradient-text">commence ici</span>
+            Votre bail notarié{bailFamily === "COMMERCIAL" ? " commercial" : bailFamily === "HABITATION" ? " d'habitation" : ""}{" "}
+            <span className="lp-gradient-text">commence ici</span>
           </>
         )}
       </h1>

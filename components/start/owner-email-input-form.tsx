@@ -23,9 +23,11 @@ interface OwnerEmailInputFormProps {
   onOtpSent: (email: string, token: string | undefined, isExistingClient: boolean) => void;
   /** Adresse déjà saisie sur l'accueil, à ne pas redemander. */
   initialEmail?: string;
+  /** Bail choisi sur l'accueil (habitation ou commercial), prérempli dans le formulaire. */
+  bailFamily?: "HABITATION" | "COMMERCIAL";
 }
 
-export function OwnerEmailInputForm({ onOtpSent, initialEmail = "" }: OwnerEmailInputFormProps) {
+export function OwnerEmailInputForm({ onOtpSent, initialEmail = "", bailFamily }: OwnerEmailInputFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorState, setErrorState] = useState<{
     message: string;
@@ -50,6 +52,7 @@ export function OwnerEmailInputForm({ onOtpSent, initialEmail = "" }: OwnerEmail
       const result = await startAsOwner({
         role: "PROPRIETAIRE",
         email: emailNormalized,
+        ...(bailFamily ? { bailFamily } : {}),
       });
 
       if (!result || !result.success) {

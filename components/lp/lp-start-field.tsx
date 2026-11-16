@@ -189,7 +189,7 @@ export function LpStartField({ className }: { className?: string }) {
         </span>
         <span aria-hidden className="text-slate-300">·</span>
         <span>
-          <strong className="font-semibold text-slate-700">39,90 € TTC</strong> de frais de dossier
+          Dès <strong className="font-semibold text-slate-700">39,90 € TTC</strong> de frais de dossier
         </span>
       </p>
     </form>

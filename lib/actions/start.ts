@@ -11,6 +11,8 @@ import { z } from "zod";
 const startOwnerSchema = z.object({
   role: z.literal("PROPRIETAIRE"),
   email: z.string().email("Email invalide"),
+  /** Bail choisi sur l'accueil (« Votre bail notarié commercial commence ici ») : prérempli dans le formulaire. */
+  bailFamily: z.nativeEnum(BailFamille).optional(),
 });
 
 const startTenantSchema = z.object({
@@ -102,6 +104,7 @@ export async function startAsOwner(data: StartOwnerInput) {
         target: "OWNER",
         clientId: client?.id,
         status: "PENDING",
+        bailFamilyPreference: validated.bailFamily ?? null,
       },
     });
 
@@ -150,6 +153,11 @@ export async function startAsOwner(data: StartOwnerInput) {
         createdAt: "desc",
       },
     });
+
+    // Formulaire pas encore commencé (aucun bail créé) : le bail choisi sur l'accueil est repris.
+    if (pendingIntakeLink && !pendingIntakeLink.bailId && validated.bailFamily && pendingIntakeLink.bailFamilyPreference !== validated.bailFamily) {
+      await prisma.intakeLink.update({ where: { id: pendingIntakeLink.id }, data: { bailFamilyPreference: validated.bailFamily } });
+    }
 
     if (pendingIntakeLink && client) {
       // Client existant avec formulaire en cours → redirige vers l'espace client

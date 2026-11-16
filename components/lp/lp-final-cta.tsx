@@ -76,7 +76,7 @@ export function LpFinalCta() {
                 href={cta.href}
                 className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-8 py-4 text-base font-semibold text-[#1e3a8a] shadow-[0_20px_50px_-20px_rgba(2,6,23,0.6)] transition-transform duration-300 hover:-translate-y-0.5"
               >
-                {cta.connected ? cta.label : "Constituer mon dossier — 39,90 € TTC"}
+                {cta.connected ? cta.label : "Constituer mon dossier — dès 39,90 € TTC"}
                 <ArrowRight className="h-4.5 w-4.5 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
               )}

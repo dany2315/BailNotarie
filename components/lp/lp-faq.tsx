@@ -63,12 +63,12 @@ const FAQ: Record<CategoryId, { question: string; answer: string }[]> = {
     {
       question: "Combien coûte un bail notarié avec BailNotarie ?",
       answer:
-        "Deux types de frais s'appliquent : (1) Les frais de dossier BailNotarie : 39,90€ TTC forfaitaires, pour la constitution, la vérification documentaire et la transmission de votre dossier à l'étude notariale. Ces frais sont remboursés intégralement si le dossier n'aboutit pas pour une raison indépendante de votre volonté. (2) Les frais notariés : fixés par l'État, ils correspondent à environ la moitié d'un loyer mensuel hors charges, et sont facturés directement par le notaire. Ces frais sont indépendants de BailNotarie.",
+        "Deux types de frais s'appliquent : (1) Les frais de dossier BailNotarie : 39,90€ TTC forfaitaires pour un bail d'habitation, 59,90€ TTC pour un bail commercial, pour la constitution, la vérification documentaire et la transmission de votre dossier à l'étude notariale. Ces frais sont remboursés intégralement si le dossier n'aboutit pas pour une raison indépendante de votre volonté. (2) Les frais notariés : fixés par l'État, ils correspondent à environ la moitié d'un loyer mensuel hors charges, et sont facturés directement par le notaire. Ces frais sont indépendants de BailNotarie.",
     },
     {
       question: "Y a-t-il des frais cachés ?",
       answer:
-        "Non. Notre tarification est totalement transparente : 39,90€ TTC de frais de dossier pour la constitution, vérification et transmission du dossier par la plateforme BailNotarie. À cela s'ajoutent les frais notariés réglementés par l'État (environ 50% du loyer mensuel hors charges), directement facturés par l'étude notariale. Aucune surprise.",
+        "Non. Notre tarification est totalement transparente : 39,90€ TTC de frais de dossier (59,90€ TTC pour un bail commercial) pour la constitution, vérification et transmission du dossier par la plateforme BailNotarie. À cela s'ajoutent les frais notariés réglementés par l'État (environ 50% du loyer mensuel hors charges), directement facturés par l'étude notariale. Aucune surprise.",
     },
     {
       question: "Le coût est-il déductible fiscalement ?",

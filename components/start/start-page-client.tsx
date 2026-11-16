@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, startTransition } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { OwnerEmailInputForm } from "@/components/start/owner-email-input-form";
 import { AlreadyClientState } from "@/components/start/already-client-state";
 import { OtpVerificationForm } from "@/components/start/otp-verification-form";
@@ -25,6 +25,13 @@ export function StartPageClient() {
   /* L'adresse vient de l'accueil : le parcours qui reste ne compte que le code
      et le dossier, et le repère d'avancement doit compter comme le visiteur. */
   const [fromHome, setFromHome] = useState(false);
+  // Bail choisi sur l'accueil (?bail=commercial ou ?bail=habitation)
+  const [bailFamily, setBailFamily] = useState<"HABITATION" | "COMMERCIAL" | undefined>(undefined);
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("bail");
+    if (value === "commercial") setBailFamily("COMMERCIAL");
+    else if (value === "habitation") setBailFamily("HABITATION");
+  }, []);
 
   /* Relais de l'accueil : quand l'adresse y a déjà été saisie, le code est
      parti et il ne reste que la vérification. La lecture se fait avant la
@@ -125,7 +132,7 @@ export function StartPageClient() {
         {/* Une seule colonne, centrée : on arrive ici décidé, le champ doit
             être la seule chose à regarder. */}
         <div className="relative z-10 w-full max-w-[30rem]">
-          <StartHeading step={step} />
+          <StartHeading step={step} bailFamily={bailFamily} />
 
           <div className="mt-7 sm:mt-8">
             {currentStep === "email-input" && initialError && (
@@ -137,7 +144,7 @@ export function StartPageClient() {
               />
             )}
             {currentStep === "email-input" && !initialError && (
-              <OwnerEmailInputForm onOtpSent={handleOtpSent} initialEmail={email} />
+              <OwnerEmailInputForm onOtpSent={handleOtpSent} initialEmail={email} bailFamily={bailFamily} />
             )}
             {currentStep === "otp-verification" && (
               <OtpVerificationForm

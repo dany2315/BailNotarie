@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/utils";
+import { LpFamilySwitch } from "./lp-bail-types";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -28,7 +30,7 @@ import { WithDossierCta } from "./lp-user-menu";
    chemin emprunté ; BailNotarie n'ajoute que 39,90 €.
    ========================================================================= */
 
-const DOSSIER_FEE = 39.9;
+const BASE_DOSSIER_FEE = 39.9;
 
 const INCLUDED = [
   "Constitution du dossier 100% en ligne",
@@ -60,8 +62,14 @@ const REASSURANCE = [
 const euro = (value: number, decimals = 0) =>
   value.toLocaleString("fr-FR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
-export function LpPricing() {
+/** familyToggle : choix habitation / commercial, qui change les frais de dossier (39,90 € ou 59,90 €). */
+export function LpPricing({ familyToggle = false }: { familyToggle?: boolean } = {}) {
   const [rent, setRent] = React.useState(900);
+  const [family, setFamily] = React.useState<"HABITATION" | "COMMERCIAL">("HABITATION");
+  const DOSSIER_FEE = familyToggle && family === "COMMERCIAL" ? 59.9 : BASE_DOSSIER_FEE;
+  const feeLabel = DOSSIER_FEE === 59.9 ? "59,90 €" : "39,90 €";
+  // Bail commercial : les frais notariés dépendent du bail (loyer annuel, durée…) ; le notaire assigné les communique.
+  const commercialMode = familyToggle && family === "COMMERCIAL";
 
   // Règle annoncée par les études : environ la moitié d'un loyer mensuel hors
   // charges. Arrondi à la dizaine pour ne pas donner un faux air de devis.
@@ -101,6 +109,13 @@ export function LpPricing() {
                 <div aria-hidden className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[#4373f5]/30 blur-3xl" />
 
                 <div className="relative">
+                  {familyToggle && (
+                    <div className="mb-6">
+                      <LpFamilySwitch value={family} onChange={setFamily} />
+                    </div>
+                  )}
+                  {!commercialMode && (
+                    <>
                   {/* Curseur de loyer */}
                   <label htmlFor="lp-rent" className="block text-[13px] font-medium text-blue-100/70">
                     Loyer mensuel hors charges de votre bien
@@ -126,9 +141,11 @@ export function LpPricing() {
                     <span>400 €</span>
                     <span>2 500 €</span>
                   </div>
+                    </>
+                  )}
 
                   {/* Les deux lignes, additionnées */}
-                  <div className="mt-7 space-y-px overflow-hidden rounded-2xl border border-white/10">
+                  <div className={cn("space-y-px overflow-hidden rounded-2xl border border-white/10", commercialMode ? "mt-1" : "mt-7")}>
                     <div className="flex items-start justify-between gap-4 bg-white/[0.04] px-4 py-4 sm:px-5">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -142,7 +159,7 @@ export function LpPricing() {
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <div className="whitespace-nowrap text-[17px] font-bold">39,90 €</div>
+                        <div className="whitespace-nowrap text-[17px] font-bold">{feeLabel}</div>
                         <div className="text-[11px] text-blue-100/50">TTC</div>
                       </div>
                     </div>
@@ -159,12 +176,20 @@ export function LpPricing() {
                           Versés à l&apos;étude notariale, qui rédige et authentifie l&apos;acte.
                         </p>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <div className="whitespace-nowrap text-[17px] font-bold">≈ {euro(notaryFee)} €</div>
-                        <div className="text-[11px] text-blue-100/50">½ loyer HC</div>
-                      </div>
+                      {commercialMode ? (
+                        <div className="max-w-[9.5rem] shrink-0 text-right text-[13px] font-semibold leading-snug text-white">
+                          Communiqués par le notaire assigné
+                        </div>
+                      ) : (
+                        <div className="shrink-0 text-right">
+                          <div className="whitespace-nowrap text-[17px] font-bold">≈ {euro(notaryFee)} €</div>
+                          <div className="text-[11px] text-blue-100/50">½ loyer HC</div>
+                        </div>
+                      )}
                     </div>
 
+                    {!commercialMode && (
+                      <>
                     {/* Total */}
                     {/* Sur petit écran le total passe sous son libellé : côte à
                         côte, les deux se serraient et perdaient leur impact. */}
@@ -182,13 +207,16 @@ export function LpPricing() {
                         <div className="text-[11px] text-blue-100/60 sm:mt-1">estimation</div>
                       </div>
                     </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="mt-4 flex items-start gap-2.5 text-[12px] leading-relaxed text-blue-100/50">
                     <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <p>
-                      Estimation indicative. Les frais notariés sont fixés par décret et calculés par l&apos;étude selon
-                      votre situation ; une procuration authentique à distance peut s&apos;ajouter (~40 €).
+                      {commercialMode
+                        ? "Les frais notariés d'un bail commercial dépendent de ses conditions (loyer annuel, durée…) : le notaire assigné à votre dossier vous les communique avant la signature."
+                        : "Estimation indicative. Les frais notariés sont fixés par décret et calculés par l'étude selon votre situation ; une procuration authentique à distance peut s'ajouter (~40 €)."}
                     </p>
                   </div>
 
@@ -196,7 +224,7 @@ export function LpPricing() {
                       <WithDossierCta>
                         {(cta) => (
                       <Link
-                        href={cta.href}
+                        href={commercialMode && !cta.connected && cta.href === "/commencer" ? "/commencer?bail=commercial" : cta.href}
                         className="group inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-[15px] font-semibold text-[#1e3a8a] transition-transform duration-300 hover:-translate-y-0.5"
                       >
                         {cta.label}
@@ -204,6 +232,7 @@ export function LpPricing() {
                       </Link>
                         )}
                       </WithDossierCta>
+                    {!commercialMode && (
                     <Link
                       href="/simulateur-prix-bail-notarie"
                       className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/[0.06] px-6 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-white/[0.12]"
@@ -211,6 +240,7 @@ export function LpPricing() {
                       <Calculator className="h-4 w-4" />
                       Chiffrer précisément
                     </Link>
+                    )}
                   </div>
                 </div>
               </div>
@@ -222,7 +252,7 @@ export function LpPricing() {
             <div className="flex h-full flex-col rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur sm:p-8">
               <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[13px] font-medium text-blue-100">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                Ce que couvrent nos 39,90 €
+                Ce que couvrent nos {familyToggle ? feeLabel : "39,90 €"}
               </span>
 
               <p className="mt-5 text-[15px] leading-relaxed text-blue-100/70">

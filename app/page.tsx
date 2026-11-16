@@ -23,6 +23,7 @@ import { LpPricing } from "@/components/lp/lp-pricing";
 import { LpFaq } from "@/components/lp/lp-faq";
 import { LpFinalCta } from "@/components/lp/lp-final-cta";
 import { LpContact } from "@/components/lp/lp-contact";
+import { LpBailFamilies, LpBailMarquee } from "@/components/lp/lp-bail-types";
 
 export const metadata: Metadata = generateDynamicMetadata({ page: "home" });
 
@@ -33,17 +34,21 @@ export default function Home() {
       <ScrollReset />
       {/* Accorde les barres du navigateur mobile à la section affichée. */}
       <LpChrome />
-      <LpNav />
+      <LpNav commercialLink />
 
       <main>
-        <LpHero />
+        <LpHero bailTypes />
+        {/* Les baux que nous préparons, en bande défilante */}
+        <LpBailMarquee />
         <LpDefinition />
+        {/* Habitation ou commercial : un même parcours */}
+        <LpBailFamilies />
         <LpProcess />
         <LpShowcase />
         <LpBenefits />
         <LpNotaires />
         <LpTestimonials />
-        <LpPricing />
+        <LpPricing familyToggle />
         <LpFaq />
         <LpFinalCta />
 
