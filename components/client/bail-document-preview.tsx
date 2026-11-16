@@ -182,10 +182,13 @@ export function BailDocumentPreview({ document }: BailDocumentPreviewProps) {
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>{document.label || getDocumentLabel(document.kind)}</DialogTitle>
-            <DialogDescription>{getDocumentLabel(document.kind)}</DialogDescription>
+        {/* Largeur fixe et titre tronqué : un nom de fichier long ne doit pas élargir la fenêtre. */}
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[90vh] min-w-0 overflow-hidden">
+          <DialogHeader className="min-w-0 pr-8">
+            <DialogTitle className="truncate" title={document.label || getDocumentLabel(document.kind)}>
+              {document.label || getDocumentLabel(document.kind)}
+            </DialogTitle>
+            <DialogDescription className="truncate">{getDocumentLabel(document.kind)}</DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-center min-h-[400px]">
             {isLoading ? (
