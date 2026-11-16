@@ -1,11 +1,11 @@
 {
  "suite": "Lot 2 — accord du locataire",
- "createdAt": "2026-11-16T14:32:49.453Z",
+ "createdAt": "2026-11-16T14:58:15.508Z",
  "passed": 18,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
- "tables": 40,
+ "tables": 41,
  "results": [
   {
    "name": "Modifier les charges invalide l’accord, l’archive et demande une nouvelle confirmation",

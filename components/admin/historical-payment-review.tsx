@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,12 +20,16 @@ export function HistoricalPaymentReview({ bailId }: { bailId: string }) {
   const [date, setDate] = React.useState("");
   const [note, setNote] = React.useState("");
   const [pending, startTransition] = React.useTransition();
+  const router = useRouter();
 
   const run = (action: () => Promise<{ success: true } | { success: false; error: string }>, done: string) =>
     startTransition(async () => {
       const result = await action();
-      if (result.success) toast.success(done);
-      else toast.error(result.error);
+      if (result.success) {
+        toast.success(done);
+        // Décision prise une seule fois : la fiche est rechargée pour afficher le nouvel état du paiement.
+        router.refresh();
+      } else toast.error(result.error);
     });
 
   return (

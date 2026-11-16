@@ -1,0 +1,701 @@
+{
+ "createdAt": "2026-11-16T15:01:46.894Z",
+ "tables": {
+  "Account": {
+   "columns": [
+    "accessToken",
+    "accessTokenExpiresAt",
+    "accountId",
+    "createdAt",
+    "id",
+    "idToken",
+    "password",
+    "providerId",
+    "refreshToken",
+    "refreshTokenExpiresAt",
+    "scope",
+    "updatedAt",
+    "userId"
+   ],
+   "count": 3,
+   "hash": "0526031366cf06122ead3d2138581cef572bdea0d907f904779611653b46cb91"
+  },
+  "Bail": {
+   "columns": [
+    "bailFamily",
+    "bailType",
+    "createdAt",
+    "createdById",
+    "effectiveDate",
+    "endDate",
+    "id",
+    "monthlyCharges",
+    "neighborhoodRent",
+    "paidAt",
+    "paymentDay",
+    "previousRentAmount",
+    "previousRentRevisedRecently",
+    "previousTenantLeftAt",
+    "propertyId",
+    "relocationLetBefore",
+    "rentAmount",
+    "rentCapExemption",
+    "rentCapExemptionAt",
+    "rentCapExemptionByName",
+    "rentCapExemptionNote",
+    "rentIncreaseReason",
+    "rentSupplementAmount",
+    "rentSupplementAt",
+    "rentSupplementByName",
+    "rentSupplementReason",
+    "securityDeposit",
+    "status",
+    "stripePaymentIntentId",
+    "tenantConfirmedTermsAt",
+    "updatedAt",
+    "updatedById",
+    "worksAmount",
+    "worksCompletedAt"
+   ],
+   "count": 72,
+   "hash": "3d7960e5ca9290c73cd2d5940aafec1c0a2dff68ba5efa97a8b4ad18c8c6a635"
+  },
+  "BailAuditLog": {
+   "columns": [
+    "actorId",
+    "actorName",
+    "bailId",
+    "createdAt",
+    "eventType",
+    "fromStatus",
+    "id",
+    "notaireId",
+    "notaireName",
+    "tenantId",
+    "tenantName",
+    "toStatus"
+   ],
+   "count": 24,
+   "hash": "9da5c735503a8e40f39248f73ee75b3efcfcf910c041358372505cb6ffdcef14"
+  },
+  "BailCommercialTerms": {
+   "columns": [
+    "activity",
+    "ancillaryActivities",
+    "bailId",
+    "chargesAllocation",
+    "clauses",
+    "clausesNote",
+    "createdAt",
+    "currentlyVacant",
+    "derogatoryMonths",
+    "entryFee",
+    "feesPaidBy",
+    "guarantorEmail",
+    "guarantorName",
+    "hasGuarantor",
+    "hasPastWorks",
+    "hasPlannedWorks",
+    "id",
+    "indexation",
+    "keysHandoverDate",
+    "pastWorks",
+    "plannedWorks",
+    "premisesBoughtDuringMarriage",
+    "previousActivity",
+    "previouslyLet",
+    "rentFreeMonths",
+    "rentPeriodicity",
+    "updatedAt",
+    "vatApplicable"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "BailMessage": {
+   "columns": [
+    "bailId",
+    "content",
+    "createdAt",
+    "documentId",
+    "id",
+    "messageType",
+    "notaireRequestId",
+    "recipientPartyId",
+    "senderId"
+   ],
+   "count": 3,
+   "hash": "a85e5a43ce4cec24338fac80d545da2eab62bccba8b088aa7d6e1328701055d0"
+  },
+  "BailReminder": {
+   "columns": [
+    "bailId",
+    "channel",
+    "clientId",
+    "createdAt",
+    "createdById",
+    "createdByName",
+    "id",
+    "items",
+    "note",
+    "reason",
+    "recipientEmail",
+    "snoozeUntil",
+    "target"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "BailTenantAgreementHistory": {
+   "added": true
+  },
+  "BailVerificationCheck": {
+   "columns": [
+    "bailId",
+    "createdAt",
+    "id",
+    "pointKey",
+    "verifiedById"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "Client": {
+   "columns": [
+    "completionStatus",
+    "createdAt",
+    "createdById",
+    "id",
+    "profilType",
+    "type",
+    "updatedAt",
+    "updatedById"
+   ],
+   "count": 176,
+   "hash": "0b92b25d245ab97207316c9a01fda8ea4fd42b6e0d5f457870ab0e6fc9ad7055"
+  },
+  "CommentInterface": {
+   "columns": [
+    "body",
+    "createdAt",
+    "createdById",
+    "id",
+    "target",
+    "targetId"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "CommentRead": {
+   "columns": [
+    "commentId",
+    "id",
+    "readAt",
+    "userId"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "ComplementRequest": {
+   "columns": [
+    "bailId",
+    "clientId",
+    "closedAt",
+    "createdAt",
+    "createdById",
+    "createdByName",
+    "id",
+    "lastSentAt",
+    "message",
+    "origin",
+    "recipientEmail",
+    "sentCount",
+    "status",
+    "submittedAt",
+    "target",
+    "updatedAt"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "ComplementRequestItem": {
+   "columns": [
+    "bailId",
+    "clientId",
+    "createdAt",
+    "documentKind",
+    "entrepriseId",
+    "fieldKey",
+    "id",
+    "kind",
+    "label",
+    "note",
+    "personId",
+    "position",
+    "previousValue",
+    "propertyId",
+    "providedAt",
+    "providedValue",
+    "reason",
+    "replacesDocumentIds",
+    "requestId",
+    "reviewedAt",
+    "status",
+    "updatedAt"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "DiagnosticAnalysis": {
+   "columns": [
+    "bailId",
+    "completedAt",
+    "costUsd",
+    "createdAt",
+    "createdById",
+    "createdByName",
+    "documentIds",
+    "durationMs",
+    "error",
+    "extracted",
+    "id",
+    "inputTokens",
+    "item",
+    "model",
+    "outputTokens",
+    "propertyId",
+    "status"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "DiagnosticDecision": {
+   "columns": [
+    "basis",
+    "createdAt",
+    "createdById",
+    "createdByName",
+    "date",
+    "documentId",
+    "id",
+    "item",
+    "kind",
+    "note",
+    "propertyId",
+    "revokedAt",
+    "revokedByName"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "Document": {
+   "columns": [
+    "bailId",
+    "clientId",
+    "complementItemId",
+    "createdAt",
+    "entrepriseId",
+    "fileKey",
+    "id",
+    "kind",
+    "label",
+    "mimeType",
+    "notaireRequestId",
+    "personId",
+    "propertyId",
+    "size",
+    "updatedAt",
+    "uploadedById"
+   ],
+   "count": 230,
+   "hash": "00f20b6d72fee923d4f23c9b41a78e10fbef0d24d9a5ee138b6d61af37cf0374"
+  },
+  "DossierNotaireAssignment": {
+   "columns": [
+    "assignedAt",
+    "assignedById",
+    "bailId",
+    "clientId",
+    "id",
+    "notaireId",
+    "notes",
+    "propertyId"
+   ],
+   "count": 13,
+   "hash": "a47287910e70f7b5d9d5bfb6af55aa0bc688811140840328e05b629536d5bf00"
+  },
+  "DossierPayment": {
+   "added": true
+  },
+  "Entreprise": {
+   "columns": [
+    "clientId",
+    "createdAt",
+    "createdById",
+    "email",
+    "fullAddress",
+    "id",
+    "isRegistered",
+    "legalFormCode",
+    "legalFormLabel",
+    "legalName",
+    "nafCode",
+    "name",
+    "phone",
+    "registration",
+    "registryCheckedAt",
+    "registryConfirmedByClient",
+    "registrySnapshot",
+    "registrySource",
+    "registryStatus",
+    "representativeName",
+    "representativeRole",
+    "siren",
+    "siret",
+    "updatedAt",
+    "updatedById"
+   ],
+   "count": 26,
+   "hash": "30e76e261fc0160f3f3a82cd24da62e5c1d0882ca82be3cbf5a210258ec16032"
+  },
+  "HistoricalPaymentReview": {
+   "added": true
+  },
+  "IntakeLink": {
+   "columns": [
+    "bailFamilyPreference",
+    "bailId",
+    "clientId",
+    "createdAt",
+    "createdById",
+    "firstOpenedAt",
+    "formEmailCount",
+    "formEmailSentAt",
+    "id",
+    "lastFormEmailSentAt",
+    "lastOpenedAt",
+    "propertyId",
+    "status",
+    "stripePaymentIntentId",
+    "submittedAt",
+    "target",
+    "token",
+    "updatedAt"
+   ],
+   "count": 174,
+   "hash": "8ff6667807f4507e92d025cd9a017d3e0088ace1387f6dc5d77a62ae9a81c378"
+  },
+  "IrlIndex": {
+   "columns": [
+    "publishedAt",
+    "quarter",
+    "quarterNum",
+    "updatedAt",
+    "value",
+    "year"
+   ],
+   "count": 44,
+   "hash": "d2533ac0358d55301c28b8b6fd51574a5a5a183cd641babe9108f3b8216b915f"
+  },
+  "NotaireRequest": {
+   "columns": [
+    "content",
+    "createdAt",
+    "createdById",
+    "dossierId",
+    "id",
+    "status",
+    "targetLocataire",
+    "targetPartyIds",
+    "targetProprietaire",
+    "title",
+    "updatedAt"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "Notification": {
+   "columns": [
+    "createdAt",
+    "createdById",
+    "id",
+    "isRead",
+    "metadata",
+    "readAt",
+    "recipientId",
+    "targetId",
+    "targetType",
+    "type"
+   ],
+   "count": 442,
+   "hash": "7fae6d1e27cbbefe236b21b3b56bf4fda3f1c90c40969b30e16baaef3c12fbbb"
+  },
+  "OTPCode": {
+   "columns": [
+    "code",
+    "createdAt",
+    "email",
+    "expiresAt",
+    "id",
+    "used"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "Person": {
+   "columns": [
+    "birthDate",
+    "birthPlace",
+    "clientId",
+    "createdAt",
+    "createdById",
+    "email",
+    "familyStatus",
+    "firstName",
+    "fullAddress",
+    "id",
+    "isPrimary",
+    "lastName",
+    "matrimonialRegime",
+    "nationality",
+    "phone",
+    "profession",
+    "updatedAt",
+    "updatedById"
+   ],
+   "count": 189,
+   "hash": "a6c937cbee752d5119efa9f4666d1748ade20d05c81df94548f3386da23d1c94"
+  },
+  "Property": {
+   "columns": [
+    "city",
+    "completionStatus",
+    "complexType",
+    "constructionPeriod",
+    "createdAt",
+    "createdById",
+    "department",
+    "district",
+    "dpeClass",
+    "dpeDate",
+    "fullAddress",
+    "gesClass",
+    "hasCongelateur",
+    "hasEtageresRangement",
+    "hasFour",
+    "hasLiterie",
+    "hasLuminaires",
+    "hasMaterielEntretien",
+    "hasPlaquesCuisson",
+    "hasRefrigerateur",
+    "hasRentControl",
+    "hasRideaux",
+    "hasSieges",
+    "hasTable",
+    "hasUstensilesCuisine",
+    "hasVaisselle",
+    "housenumber",
+    "id",
+    "inShoppingCenter",
+    "inseeCode",
+    "isTightZone",
+    "label",
+    "latitude",
+    "legalStatus",
+    "longitude",
+    "mainRooms",
+    "outbuildings",
+    "ownerId",
+    "postalCode",
+    "region",
+    "rentCapZone",
+    "status",
+    "street",
+    "subdivisionOver10Years",
+    "surfaceM2",
+    "syndicEmail",
+    "syndicName",
+    "syndicPhone",
+    "type",
+    "updatedAt",
+    "updatedById"
+   ],
+   "count": 77,
+   "hash": "164ffe12b0ee27ef022d7eaa2bae5d2f0384f03a43503cc5944ae9c927742f11"
+  },
+  "RentCapArea": {
+   "columns": [
+    "bbox",
+    "geometry",
+    "id",
+    "label",
+    "territoryId",
+    "zoneCode"
+   ],
+   "count": 1520,
+   "hash": "b977b23bf06d7269212d870bf5f1be88a523af1ac8f46440ae2d36f9b4a0a639"
+  },
+  "RentCapImport": {
+   "added": true
+  },
+  "RentCapReference": {
+   "columns": [
+    "furnished",
+    "houseType",
+    "id",
+    "period",
+    "ref",
+    "refMax",
+    "refMin",
+    "rooms",
+    "territoryId",
+    "zoneCode"
+   ],
+   "count": 4896,
+   "hash": "3ad802839f0a755bbbd24c56d1b24e70943b049bf424ee8e2995ac0dd172de3e"
+  },
+  "RentCapTerritory": {
+   "columns": [
+    "communeZones",
+    "geometrySource",
+    "houseTypes",
+    "id",
+    "importedAt",
+    "inseeCodes",
+    "label",
+    "mapUrl",
+    "partialInseeCodes",
+    "periods",
+    "precisionM",
+    "simulatorUrl",
+    "sourceTitle",
+    "sourceUrl",
+    "validFrom",
+    "validTo",
+    "zoneMode"
+   ],
+   "count": 18,
+   "hash": "0d3c16a697cf51d638c152ec11844d663bb796ac45897c9bda3badf898cbaef6"
+  },
+  "RentCapZone": {
+   "columns": [
+    "code",
+    "id",
+    "label",
+    "territoryId"
+   ],
+   "count": 106,
+   "hash": "c2eb7953822e2b4c0154a0f5b4470f460ee34655f87256efea7b4c3fb755fd3b"
+  },
+  "RentControl": {
+   "columns": [
+    "createdAt",
+    "effectiveDate",
+    "endDate",
+    "id",
+    "maxRentPerM2",
+    "propertyType",
+    "updatedAt",
+    "zoneTendueId"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "Session": {
+   "columns": [
+    "createdAt",
+    "expiresAt",
+    "id",
+    "ipAddress",
+    "token",
+    "updatedAt",
+    "userAgent",
+    "userId"
+   ],
+   "count": 238,
+   "hash": "8c446de2150989dafaf1a80ae8ae228ef13d034d0a71e2d1ea7b85fc4a3c0210"
+  },
+  "StripeWebhookEvent": {
+   "added": true
+  },
+  "User": {
+   "columns": [
+    "clientId",
+    "createdAt",
+    "email",
+    "emailVerified",
+    "id",
+    "image",
+    "name",
+    "role",
+    "updatedAt"
+   ],
+   "count": 120,
+   "hash": "21a9277bbce6a904f2af2f00c1d129137de2bcb62d2d7e14e57840be929126b6"
+  },
+  "Verification": {
+   "columns": [
+    "createdAt",
+    "expiresAt",
+    "id",
+    "identifier",
+    "updatedAt",
+    "value"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "ZoneTendue": {
+   "columns": [
+    "city",
+    "createdAt",
+    "department",
+    "id",
+    "inseeCode",
+    "isActive",
+    "postalCode",
+    "region",
+    "rentControlEnabled",
+    "updatedAt"
+   ],
+   "count": 1430,
+   "hash": "a9a558cd5bba4698bc6f07b54a67cb1f955c2e6e99c1b40e9445b433cdb841cc"
+  },
+  "_BailClients": {
+   "columns": [
+    "A",
+    "B"
+   ],
+   "count": 103,
+   "hash": "d2ae1de9bfa050f5b40ec1b66686e618bf7e26bc95d2bb0dbe6c1f73d766e9d5"
+  },
+  "_prisma_migrations": {
+   "columns": [
+    "applied_steps_count",
+    "checksum",
+    "finished_at",
+    "id",
+    "logs",
+    "migration_name",
+    "rolled_back_at",
+    "started_at"
+   ],
+   "count": 77,
+   "hash": "a62f79908b5e73296b26bb2597068a360631b1cdf822232a05aad90a4cae9ab1"
+  },
+  "comments": {
+   "columns": [
+    "articleId",
+    "content",
+    "createdAt",
+    "email",
+    "id",
+    "isApproved",
+    "name",
+    "updatedAt"
+   ],
+   "count": 1,
+   "hash": "21a09aa0e8d85b90f0f41b7d71de9ddf8987ad749d0cf6b0d03820e695b39e2b"
+  }
+ }
+}

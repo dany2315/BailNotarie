@@ -1,11 +1,11 @@
 {
  "suite": "Lot 4 — compléments et archivage",
- "createdAt": "2026-11-16T14:28:18.279Z",
+ "createdAt": "2026-11-16T15:00:32.013Z",
  "passed": 17,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
- "tables": 40,
+ "tables": 41,
  "results": [
   {
    "name": "Réponse du client : gardée comme proposition, le bail n’est pas modifié",

@@ -1,11 +1,11 @@
 {
  "suite": "Lot 1 — paiements",
- "createdAt": "2026-11-16T14:30:35.774Z",
+ "createdAt": "2026-11-16T14:55:54.431Z",
  "passed": 30,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
- "tables": 40,
+ "tables": 41,
  "results": [
   {
    "name": "Anomalie 3 de l’audit — paiement « processing » + erreur de mise à jour : aucun nouvel ordre, référence conservée",
