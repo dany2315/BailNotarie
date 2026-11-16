@@ -126,7 +126,7 @@ export function BailDetailDrawer({
     : locataire?.persons?.[0]?.email || null;
 
   const notaire = bail?.dossierAssignments?.[0]?.notaire;
-  const calculatedEndDate = bail ? calculateBailEndDate(bail.effectiveDate, bail.bailType) : null;
+  const calculatedEndDate = bail && bail.effectiveDate ? calculateBailEndDate(bail.effectiveDate, bail.bailType) : null;
   const totalMonthly = bail ? bail.rentAmount + bail.monthlyCharges : 0;
 
   return (

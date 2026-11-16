@@ -99,3 +99,15 @@ Reste à décider :
 Retour arrière : le code précédent ignore les nouvelles tables et colonnes. Un paiement historique confirmé
 redevient « non payé » à l'écran, une pièce archivée reste invisible, et les réponses de complément en
 attente ne sont pas appliquées. Une restauration de base perdrait les écritures faites depuis la bascule.
+
+## 6. Écrans vus dans un navigateur (serveur isolé, copie de test, clés factices)
+
+- Fiche dossier (équipe) : encart « Ancien dossier : paiement à vérifier », confirmation de bout en bout, affichage « Paiement historique confirmé — date du paiement inconnue ».
+- Liste des dossiers (équipe) : filtre « payés » avec le dossier confirmé à la main.
+- Espace propriétaire, bail sans locataire ni dates : la fenêtre « Ajouter un locataire » affiche la date de prise d'effet et le jour de paiement, et refuse sans eux.
+- Espace propriétaire, création d'un bail sans locataire : après les charges, passage direct au paiement (4 étapes au lieu de 5), retour arrière correct.
+- Défaut trouvé à cette occasion et corrigé : la page d'un bail sans date affichait une « date de fin » calculée à partir d'une date vide (01/01/1973). Corrigé dans trois composants ; compilé, pas revu au navigateur après correction.
+
+Non vus au navigateur : le formulaire propriétaire reçu par lien (étape « Locataire » avec les dates), la reconfirmation côté locataire, le panneau des compléments, l'écran de paiement en attente. Ils sont couverts par les tests serveur, pas par un essai à l'écran.
+
+Toutes les données synthétiques créées pour ces essais ont été supprimées : les 41 tables de la copie sont identiques avant et après.

@@ -160,7 +160,7 @@ export function BailsListWithFilter({ bails, profilType, basePath }: BailsListWi
           <div className="space-y-4">
             {filteredBails.map((bail) => {
               const otherPartyName = getOtherPartyName(bail);
-              const endDate = bail.endDate || calculateBailEndDate(bail.effectiveDate, bail.bailType);
+              const endDate = bail.endDate || (bail.effectiveDate ? calculateBailEndDate(bail.effectiveDate, bail.bailType) : null);
 
               return (
                 <Link key={bail.id} href={`${basePath}/baux/${bail.id}`}>

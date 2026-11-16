@@ -1,5 +1,5 @@
 {
- "createdAt": "2026-11-16T15:01:46.894Z",
+ "createdAt": "2026-11-16T15:52:55.425Z",
  "tables": {
   "Account": {
    "columns": [
@@ -51,14 +51,17 @@
     "securityDeposit",
     "status",
     "stripePaymentIntentId",
+    "tenantConfirmedById",
+    "tenantConfirmedTerms",
     "tenantConfirmedTermsAt",
+    "tenantReconfirmationRequestedAt",
     "updatedAt",
     "updatedById",
     "worksAmount",
     "worksCompletedAt"
    ],
    "count": 72,
-   "hash": "3d7960e5ca9290c73cd2d5940aafec1c0a2dff68ba5efa97a8b4ad18c8c6a635"
+   "hash": "5482a70d3d6e76a2091dd7fc6b91a291b989e69f04501ee5171a7a9066009aa2"
   },
   "BailAuditLog": {
    "columns": [
@@ -147,7 +150,22 @@
    "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
   },
   "BailTenantAgreementHistory": {
-   "added": true
+   "columns": [
+    "bailId",
+    "changes",
+    "confirmedAt",
+    "confirmedTerms",
+    "id",
+    "invalidatedAt",
+    "invalidatedById",
+    "invalidatedByName",
+    "reason",
+    "tenantId",
+    "tenantName",
+    "termsBeforeChange"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
   },
   "BailVerificationCheck": {
    "columns": [
@@ -220,7 +238,13 @@
   },
   "ComplementRequestItem": {
    "columns": [
+    "appliedAfter",
+    "appliedAt",
+    "appliedBefore",
+    "appliedById",
+    "appliedByName",
     "bailId",
+    "baseValue",
     "clientId",
     "createdAt",
     "documentKind",
@@ -234,6 +258,7 @@
     "position",
     "previousValue",
     "propertyId",
+    "proposedAnswer",
     "providedAt",
     "providedValue",
     "reason",
@@ -290,6 +315,11 @@
   },
   "Document": {
    "columns": [
+    "archivedAt",
+    "archivedBailId",
+    "archivedById",
+    "archivedByName",
+    "archivedFrom",
     "bailId",
     "clientId",
     "complementItemId",
@@ -303,12 +333,13 @@
     "notaireRequestId",
     "personId",
     "propertyId",
+    "replacedById",
     "size",
     "updatedAt",
     "uploadedById"
    ],
    "count": 230,
-   "hash": "00f20b6d72fee923d4f23c9b41a78e10fbef0d24d9a5ee138b6d61af37cf0374"
+   "hash": "c9a430c63bae882c649ca18b0cd9b184bf25ef5c5ec590533ef5549481a428cb"
   },
   "DossierNotaireAssignment": {
    "columns": [
@@ -325,7 +356,26 @@
    "hash": "a47287910e70f7b5d9d5bfb6af55aa0bc688811140840328e05b629536d5bf00"
   },
   "DossierPayment": {
-   "added": true
+   "columns": [
+    "amountCents",
+    "attachedAt",
+    "attempt",
+    "bailId",
+    "confirmedAt",
+    "createdAt",
+    "currency",
+    "id",
+    "intakeLinkId",
+    "lastError",
+    "lastEventAt",
+    "status",
+    "stripePaidAt",
+    "stripePaymentIntentId",
+    "updatedAt",
+    "userId"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
   },
   "Entreprise": {
    "columns": [
@@ -359,7 +409,20 @@
    "hash": "30e76e261fc0160f3f3a82cd24da62e5c1d0882ca82be3cbf5a210258ec16032"
   },
   "HistoricalPaymentReview": {
-   "added": true
+   "columns": [
+    "bailId",
+    "id",
+    "listedAt",
+    "note",
+    "paymentDate",
+    "proofReference",
+    "status",
+    "verifiedAt",
+    "verifiedById",
+    "verifiedByName"
+   ],
+   "count": 6,
+   "hash": "c64746a0fbc07a012f697c04ffff85d09ee3b1fa35b46d8e973ebfda5c91c7bb"
   },
   "IntakeLink": {
    "columns": [
@@ -536,7 +599,19 @@
    "hash": "b977b23bf06d7269212d870bf5f1be88a523af1ac8f46440ae2d36f9b4a0a639"
   },
   "RentCapImport": {
-   "added": true
+   "columns": [
+    "areas",
+    "completedAt",
+    "id",
+    "manifest",
+    "note",
+    "references",
+    "startedAt",
+    "territories",
+    "zones"
+   ],
+   "count": 2,
+   "hash": "259b935413d464d28c4d75972fcb4a70d2e04630deefddc673ea5c8052cf51ab"
   },
   "RentCapReference": {
    "columns": [
@@ -616,7 +691,16 @@
    "hash": "8c446de2150989dafaf1a80ae8ae228ef13d034d0a71e2d1ea7b85fc4a3c0210"
   },
   "StripeWebhookEvent": {
-   "added": true
+   "columns": [
+    "id",
+    "outcome",
+    "paymentIntentId",
+    "processedAt",
+    "receivedAt",
+    "type"
+   ],
+   "count": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
   },
   "User": {
    "columns": [
@@ -680,8 +764,8 @@
     "rolled_back_at",
     "started_at"
    ],
-   "count": 77,
-   "hash": "a62f79908b5e73296b26bb2597068a360631b1cdf822232a05aad90a4cae9ab1"
+   "count": 78,
+   "hash": "fd93a69e3aa0214cfd682daaf03a27fafadb4e3e43fb264aa3267266d94f86d4"
   },
   "comments": {
    "columns": [

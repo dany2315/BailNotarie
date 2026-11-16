@@ -142,7 +142,8 @@ export function BailPage({
   const [tenantDialog, setTenantDialog] = React.useState(false);
 
   const view = STATUS_VIEW[bail.status];
-  const endDate = calculateBailEndDate(bail.effectiveDate as any, bail.bailType as any);
+  // Sans date de début (pas encore de locataire), pas de date de fin : rien n'est calculé à partir d'une date vide.
+  const endDate = bail.effectiveDate ? calculateBailEndDate(new Date(bail.effectiveDate as any), bail.bailType as any) : null;
   const totalMonthly = (bail.rentAmount ?? 0) + bail.monthlyCharges;
   const propertyTitle = bail.property?.label || bail.property?.fullAddress || "Le bien";
   const familyLabel = bail.bailFamily
