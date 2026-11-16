@@ -791,7 +791,18 @@ async function recalculate(targets: Array<{ personId?: string | null; entreprise
 type ReviewActor = { id: string; name: string };
 type ItemTarget = { personId: string | null; entrepriseId: string | null; clientId: string | null; propertyId: string | null; bailId: string | null };
 
-const sameJson = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/**
+ * Même contenu, quel que soit l'ordre des champs : la base range les champs d'une valeur JSON dans son propre
+ * ordre, différent de celui du formulaire. Sans ce tri, une information à plusieurs champs (nom et prénom,
+ * loyer commercial…) passait pour « modifiée depuis la réponse » alors que rien n'avait changé.
+ */
+const sortedKeys = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(sortedKeys)
+    : value && typeof value === "object"
+      ? Object.fromEntries(Object.keys(value as Record<string, unknown>).sort().map((key) => [key, sortedKeys((value as Record<string, unknown>)[key])]))
+      : value;
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(sortedKeys(a ?? null)) === JSON.stringify(sortedKeys(b ?? null));
 
 /**
  * Anciennes pièces que l'équipe peut retirer en acceptant la nouvelle : les pièces actives du même type au

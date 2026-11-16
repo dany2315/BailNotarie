@@ -1,7 +1,7 @@
 {
  "suite": "Lot 4 — compléments et archivage",
- "createdAt": "2026-11-16T17:54:57.730Z",
- "passed": 18,
+ "createdAt": "2026-11-16T18:53:07.452Z",
+ "passed": 19,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
@@ -55,6 +55,13 @@
   },
   {
    "name": "Conflit : le dossier a changé depuis la réponse → rien n’est écrit sans confirmation explicite",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Information à plusieurs champs (nom et prénom) : pas de faux conflit quand rien n’a changé",
    "passed": true,
    "error": null,
    "simulated": {},

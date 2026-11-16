@@ -121,6 +121,22 @@ suite('Lot 4 — compléments et archivage', path.join(__dirname, '../../reports
     assert.equal(String((await itemOf(tx, item.id)).appliedBefore.bailMonthlyCharges), '60', 'le journal doit garder la valeur réellement remplacée');
   });
 
+  await test('Information à plusieurs champs (nom et prénom) : pas de faux conflit quand rien n’a changé', async (tx, r, f) => {
+    // La base range les champs JSON dans son ordre à elle (ici « lastName » avant « firstName ») : la comparaison
+    // entre la valeur gardée à la réponse et le dossier ne doit pas dépendre de cet ordre.
+    const person = await tx.person.findFirst({ where: { clientId: f.owner.id, isPrimary: true } });
+    const { item } = await request(tx, f, 'FIELD', { fieldKey: 'person.identity', label: 'Nom et prénom', personId: person.id, bailId: null });
+    const res = await answer(r, f, item, { 'persons.0.firstName': 'Camille', 'persons.0.lastName': 'Durand' });
+    assert(res.success, res.error);
+    const stored = (await itemOf(tx, item.id)).baseValue;
+    assert.equal(Object.keys(stored).length, 2, 'la question doit porter sur deux champs');
+    const accepted = await mod(r).reviewComplementItem({ itemId: item.id, decision: 'accept' });
+    assert(accepted.success, 'faux conflit : ' + (accepted.error || ''));
+    const after = await tx.person.findUnique({ where: { id: person.id } });
+    assert.equal(after.firstName, 'Camille');
+    assert.equal(after.lastName, 'Durand');
+  });
+
   await test('« Tout accepter » n’applique pas une information en conflit', async (tx, r, f) => {
     const { req, item } = await request(tx, f);
     assert((await answer(r, f, item)).success);
