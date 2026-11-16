@@ -23,7 +23,7 @@ fraîche de la production, sauvegarde/restauration.
 
 ## 2. Ce qui change dans les données
 
-5 migrations ajoutées, toutes additives (aucune ligne existante modifiée) :
+6 migrations ajoutées, toutes additives (aucune ligne existante modifiée) :
 
 | Migration | Ajout |
 | --- | --- |
@@ -37,7 +37,7 @@ fraîche de la production, sauvegarde/restauration.
 Avec les 17 de staging, `main` recevra 23 migrations. La seule qui écrit dans des lignes existantes reste
 `20261008120000_add_intake_form_tracking` (rétro-remplissage de `IntakeLink`).
 
-Vérifié sur la copie : les 31 tables métier d'origine sont identiques, ligne par ligne, avant et après
+Vérifié sur la copie : les tables métier d'origine sont identiques, ligne par ligne, avant et après
 (empreintes SHA-256). Seuls changent le journal des migrations et les identifiants techniques des barèmes
 réimportés.
 
@@ -74,7 +74,7 @@ Lot 3, choix faits :
 7. La lecture automatique des diagnostics démarre dès que `OPENAI_API_KEY` existe en production et peut modifier un bien partagé.
 8. Retour arrière : l'ancien code ne lit pas une date d'effet vide (Lot 3) ni les nouvelles valeurs d'énumération de staging.
 9. `vercel-build` lance `prisma migrate deploy` à chaque déploiement ; la configuration Vercel n'a pas pu être lue (accès refusé).
-10. La chaîne complète (22 migrations + import) n'a pas été rejouée sur une copie fraîche : il en faut une.
+10. La chaîne complète (23 migrations + import) n'a pas été rejouée sur une copie fraîche : il en faut une.
 
 ## 4. Décisions à prendre
 
