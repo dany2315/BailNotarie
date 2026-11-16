@@ -157,15 +157,9 @@ export function LpHero({ bailTypes = false }: { bailTypes?: boolean } = {}) {
             style={{ ["--lp-delay" as string]: "0.18s" }}
             className="lp-enter-up mx-auto mt-8 flex max-w-xl flex-col items-center"
           >
-            <LpStartField />
+            {/* Les deux baux, côte à côte juste sous le champ. */}
+            <LpStartField below={bailTypes ? <LpBailTypePills /> : undefined} />
           </div>
-
-          {/* Les deux baux, côte à côte sous le champ. */}
-          {bailTypes && (
-            <div style={{ ["--lp-delay" as string]: "0.24s" }} className="lp-enter-up mt-6">
-              <LpBailTypePills />
-            </div>
-          )}
 
           <div style={{ ["--lp-delay" as string]: "0.28s" }} className="lp-enter-up mt-5 flex justify-center">
             <GhostButton href="#processus" className="px-6 py-3 text-[14.5px]">

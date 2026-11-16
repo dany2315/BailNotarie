@@ -25,7 +25,8 @@ import { LayoutDashboard } from "lucide-react";
    reste en retrait, puis il s'allume aux couleurs de l'action principale.
    ========================================================================= */
 
-export function LpStartField({ className }: { className?: string }) {
+/** below : contenu affiché juste sous le champ (les deux baux, sur la page d'accueil). */
+export function LpStartField({ className, below }: { className?: string; below?: React.ReactNode }) {
   const router = useRouter();
   const session = useClientSession();
   const [email, setEmail] = React.useState("");
@@ -106,6 +107,7 @@ export function LpStartField({ className }: { className?: string }) {
             <ArrowRight className="h-[18px] w-[18px] transition-transform duration-300 group-hover/cta:translate-x-1" />
           </span>
         </Link>
+        {below && <div className="mt-4">{below}</div>}
         <p className="mt-3 text-center text-[13px] text-slate-500">
           Vos baux, vos biens et vos documents, au même endroit.
         </p>
@@ -181,6 +183,8 @@ export function LpStartField({ className }: { className?: string }) {
           )}
         </button>
       </div>
+
+      {below && <div className="mt-4">{below}</div>}
 
       <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[13px] text-slate-500">
         <span className="inline-flex items-center gap-1.5 font-medium text-slate-600">
