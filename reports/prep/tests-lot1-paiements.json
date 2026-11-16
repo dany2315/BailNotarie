@@ -1,7 +1,7 @@
 {
  "suite": "Lot 1 — paiements",
- "createdAt": "2026-11-16T14:03:26.665Z",
- "passed": 26,
+ "createdAt": "2026-11-16T14:12:53.990Z",
+ "passed": 30,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
@@ -175,6 +175,48 @@
    "simulated": {
     "stripe.create": 1,
     "stripe.retrieve": 3
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "submitOwnerForm appelée directement avec un identifiant inventé, non réglé, d’un autre dossier ou d’un autre montant : refus, dossier non payé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 5
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "submitOwnerForm avec paiement vérifié : bail payé à la date Stripe, une ligne d’historique, formulaire envoyé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Reprise — paiement réussi et bail créé, puis panne avant la fin de l’envoi : le nouvel essai reprend le même bail, sans doublon ni second paiement",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 2,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Formulaire propriétaire sans locataire : le paiement reste possible (statut « en attente du locataire »)",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
    },
    "networkAttempts": 0
   },

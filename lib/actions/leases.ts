@@ -710,6 +710,8 @@ export async function getLease(id: string) {
         },
       },
       commercialTerms: true,
+      // Ancien paiement à vérifier ou confirmé à la main par l'équipe
+      historicalPayment: true,
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
       documents: true,

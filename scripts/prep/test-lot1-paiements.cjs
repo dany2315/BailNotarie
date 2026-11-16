@@ -283,6 +283,88 @@ suite('Lot 1 — paiements', path.join(__dirname, '../../reports/prep/tests-lot1
     assert.equal((await bailRoute(r)).status, 401);
   });
 
+  /* ---------- Formulaire propriétaire (submitOwnerForm appelée directement) ---------- */
+
+  const ownerPayload = async (tx, f) => {
+    const person = await tx.person.findFirst({ where: { clientId: f.owner.id } });
+    // Pièces obligatoires du formulaire (fichiers fictifs : aucun envoi S3).
+    await tx.document.createMany({ data: [
+      { kind: 'ID_IDENTITY', fileKey: 'documents/test-id', personId: person.id },
+      { kind: 'DIAGNOSTICS', fileKey: 'documents/test-diag', propertyId: f.property.id },
+      { kind: 'TITLE_DEED', fileKey: 'documents/test-titre', propertyId: f.property.id },
+    ] });
+    return {
+      clientId: f.owner.id, type: 'PERSONNE_PHYSIQUE', email: person.email,
+      persons: [{ firstName: 'Test', lastName: 'Proprietaire', email: person.email, phone: '+33612345678', fullAddress: '1 rue de Test, 75001 Paris', nationality: 'Française', profession: 'Test', familyStatus: 'CELIBATAIRE', birthPlace: 'Paris', birthDate: new Date('1980-01-01') }],
+      propertyFullAddress: 'TEST — bien synthétique', propertySurfaceM2: '40', propertyType: 'APPARTEMENT', propertyLegalStatus: 'PLEIN_PROPRIETE', propertyLatitude: '', propertyLongitude: '',
+      bailType: 'BAIL_NU_3_ANS', bailFamily: 'HABITATION', bailRentAmount: '600', bailMonthlyCharges: '50', bailSecurityDeposit: '600', bailEffectiveDate: '2026-12-01', bailPaymentDay: '5',
+    };
+  };
+  const submitOwner = (r, payload, id) => r.load('lib/actions/clients.ts').submitOwnerForm(payload, id);
+
+  await test('submitOwnerForm appelée directement avec un identifiant inventé, non réglé, d’un autre dossier ou d’un autre montant : refus, dossier non payé', async (tx, r, f) => {
+    const payload = await ownerPayload(tx, f);
+    r.state.user = f.ownerUser;
+    await assert.rejects(() => submitOwner(r, payload, 'pi_invente'), /introuvable/);
+    await assert.rejects(() => submitOwner(r, payload, intent(r, f, { status: 'processing' }).id), /pas été confirmé/);
+    await assert.rejects(() => submitOwner(r, payload, intent(r, f, { metadata: { intakeLinkId: 'autre', token: 'autre' } }).id), /ne correspond pas à ce dossier/);
+    await assert.rejects(() => submitOwner(r, payload, intent(r, f, { amount: 100, amount_received: 100 }).id), /Montant/);
+    await assert.rejects(() => submitOwner(r, { ...payload, bailFamily: 'COMMERCIAL', bailType: 'COMMERCIAL_3_6_9' }, intent(r, f).id), /Montant|commercial|requis|invalid/i);
+    const bail = await tx.bail.findUnique({ where: { id: f.bail.id } });
+    assert.equal(bail.paidAt, null);
+    assert.equal(bail.stripePaymentIntentId, null);
+    assert.equal((await tx.intakeLink.findUnique({ where: { id: f.intake.id } })).status, 'PENDING');
+    assert.equal(await audits(tx, f.bail.id), 0);
+  });
+
+  await test('submitOwnerForm avec paiement vérifié : bail payé à la date Stripe, une ligne d’historique, formulaire envoyé', async (tx, r, f) => {
+    const payload = await ownerPayload(tx, f);
+    r.state.user = f.ownerUser;
+    const it = intent(r, f);
+    await submitOwner(r, payload, it.id);
+    const bail = await tx.bail.findUnique({ where: { id: f.bail.id } });
+    assert.equal(bail.paidAt.toISOString(), '2026-11-12T09:30:00.000Z');
+    assert.equal(bail.stripePaymentIntentId, it.id);
+    assert.equal(await audits(tx, f.bail.id), 1);
+    assert.equal((await tx.intakeLink.findUnique({ where: { id: f.intake.id } })).status, 'SUBMITTED');
+    const row = await tx.dossierPayment.findUnique({ where: { stripePaymentIntentId: it.id } });
+    assert.equal(row.bailId, f.bail.id);
+    assert.equal(row.intakeLinkId, f.intake.id);
+  });
+
+  await test('Reprise — paiement réussi et bail créé, puis panne avant la fin de l’envoi : le nouvel essai reprend le même bail, sans doublon ni second paiement', async (tx, r, f) => {
+    const payload = await ownerPayload(tx, f);
+    r.state.user = f.ownerUser;
+    // État laissé par la panne : le bail existe et porte le paiement, mais le formulaire n'est pas marqué
+    // envoyé et le lien n'a pas encore reçu la référence du bail.
+    const it = intent(r, f);
+    await pay(r).attachPaymentToBail(r.db, { intent: it, bailId: f.bail.id, link: { intakeLinkId: f.intake.id }, actor: { id: null, name: 'Propriétaire (formulaire)' } });
+    await tx.intakeLink.update({ where: { id: f.intake.id }, data: { bailId: null, stripePaymentIntentId: it.id } });
+    const bails = await tx.bail.count();
+    // Le client revient : la page de paiement le laisse poursuivre sans repayer…
+    const back = await (await route(r, f.intake.token)).json();
+    assert.equal(back.alreadyPaid, true);
+    assert.equal(r.state.stripe.created, 0);
+    // … et le nouvel envoi termine le dossier sur le même bail.
+    await submitOwner(r, payload, it.id);
+    assert.equal(await tx.bail.count(), bails, 'un second bail a été créé à la reprise');
+    const intake = await tx.intakeLink.findUnique({ where: { id: f.intake.id } });
+    assert.equal(intake.status, 'SUBMITTED');
+    assert.equal(intake.bailId, f.bail.id);
+    assert.equal(await audits(tx, f.bail.id), 1, 'doublon « paiement reçu » à la reprise');
+    assert.equal((await tx.bail.findUnique({ where: { id: f.bail.id } })).paidAt.toISOString(), '2026-11-12T09:30:00.000Z');
+  });
+
+  await test('Formulaire propriétaire sans locataire : le paiement reste possible (statut « en attente du locataire »)', async (tx, r, f) => {
+    const payload = await ownerPayload(tx, f);
+    await tx.bail.update({ where: { id: f.bail.id }, data: { parties: { set: [{ id: f.owner.id }] }, status: 'DRAFT' } });
+    r.state.user = f.ownerUser;
+    await submitOwner(r, payload, intent(r, f).id);
+    const bail = await tx.bail.findUnique({ where: { id: f.bail.id } });
+    assert(bail.paidAt);
+    assert.equal(bail.status, 'AWAITING_TENANT');
+  });
+
   /* ---------- Webhook ---------- */
 
   await test('Webhook : signature invalide ou absente → 400 ; secret non configuré → 500 ; rien d’écrit', async (tx, r, f) => {

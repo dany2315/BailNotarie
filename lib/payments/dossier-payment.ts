@@ -122,11 +122,11 @@ export async function recordIntent(db: Db, intent: Stripe.PaymentIntent, link: P
   const intakeLinkId = link.intakeLinkId ?? meta.intakeLinkId ?? null;
   const userId = link.userId ?? meta.userId ?? null;
 
-  const existing = await db.dossierPayment.findUnique({ where: { stripePaymentIntentId: intent.id } });
-  if (!existing) {
-    return db.dossierPayment.upsert({
-      where: { stripePaymentIntentId: intent.id },
-      create: {
+  // Création sans conflit : si une autre requête crée la même ligne au même moment, celle-ci attend puis
+  // ne fait rien (pas d'erreur de doublon), et la suite complète seulement ce qui manque.
+  await db.dossierPayment.createMany({
+    data: [
+      {
         stripePaymentIntentId: intent.id,
         status,
         amountCents: intent.amount,
@@ -136,10 +136,10 @@ export async function recordIntent(db: Db, intent: Stripe.PaymentIntent, link: P
         stripePaidAt: paidAt,
         confirmedAt: status === DossierPaymentStatus.SUCCEEDED ? at : null,
       },
-      // Créée entre-temps par une autre requête : on ne retire rien de ce qu'elle a posé.
-      update: {},
-    });
-  }
+    ],
+    skipDuplicates: true,
+  });
+  const existing = await db.dossierPayment.findUniqueOrThrow({ where: { stripePaymentIntentId: intent.id } });
   // Confirmé une fois pour toutes : seules les informations manquantes sont complétées.
   const settled = existing.status === DossierPaymentStatus.SUCCEEDED;
   return db.dossierPayment.update({

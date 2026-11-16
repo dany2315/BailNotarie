@@ -61,7 +61,7 @@ export function CheckPoint({
       <div className="flex min-w-0 flex-col gap-1">
         <span className="text-[14.5px] font-semibold leading-snug">{label}</span>
         {children && <div className="whitespace-pre-line break-words text-sm leading-relaxed text-foreground/80">{children}</div>}
-        {note && <span className="text-[13px] font-semibold text-red-700">{note}</span>}
+        {note && <span className="whitespace-pre-line text-[13px] font-semibold text-red-700">{note}</span>}
       </div>
       {actions && (
         <div

@@ -66,6 +66,8 @@ const TERMS_ROW_FOR_RULE: Record<string, string> = {
   conjoint: "marriage",
 };
 import { formatDossierFee } from "@/lib/utils/dossier-fee";
+import { HISTORICAL_PAID_LABEL, isBailPaid, knownPaymentDate, paymentKind } from "@/lib/payments/paid";
+import { HistoricalPaymentReview } from "@/components/admin/historical-payment-review";
 import { dpeDateValue } from "@/components/admin/dpe-summary";
 import { DiagnosticsPanel } from "@/components/admin/diagnostics-analysis";
 import { isDiagnosticAnalysisConfigured } from "@/lib/diagnostics/openai";
@@ -288,6 +290,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
   const tenant = lease.parties?.find((p: any) => p.profilType === "LOCATAIRE") || null;
   const owner = lease.parties?.find((p: any) => p.profilType === "PROPRIETAIRE") || lease.property?.owner || null;
+
+  // Paiements Stripe de ce dossier qui ne sont pas (encore) rattachés au bail : en cours de vérification,
+  // ou confirmés alors que le formulaire n'est pas envoyé. Affichés à l'équipe, jamais comptés comme « payé ».
+  const openPayments = await prisma.dossierPayment.findMany({
+    where: { bailId: null, intakeLink: { bailId: lease.id }, status: { in: ["PROCESSING", "UNKNOWN", "SUCCEEDED"] } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, status: true, stripePaymentIntentId: true, stripePaidAt: true, confirmedAt: true, lastError: true },
+    take: 5,
+  });
 
   const [tenantClientDocs, ownerClientDocs, propertyDocuments, bailDocuments, missingData, followUp, verificationChecks] = await Promise.all([
     tenant ? getDocuments({ clientId: tenant.id }) : Promise.resolve([]),
@@ -589,7 +600,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   ].filter((group) => group.count > 0);
 
   // Paiement des frais de dossier : contrôlé automatiquement (Stripe), bloquant s'il manque.
-  const paid = !!lease.paidAt;
+  // Payé = confirmé par Stripe, ou ancien paiement vérifié et confirmé par l'équipe (règle commune).
+  const paid = isBailPaid(lease);
+  const historicalPayment = lease.historicalPayment;
+  const paidHistorically = paymentKind(lease) === "historical";
+  const paidOn = knownPaymentDate(lease);
   const paymentStates = withVerified([{ key: "payment:paid", missing: !paid }], verifiedKeys, true);
 
   const isVerified = (key: string, locked: boolean) => locked || verifiedKeys.has(key);
@@ -682,6 +697,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   Frais payés le {formatDate(lease.paidAt).slice(0, 5)}
                   {/* Montant contrôlé côté serveur : 39,90 €, ou 59,90 € pour un bail commercial. */}
                   {lease.stripePaymentIntentId ? ` · ${formatDossierFee(lease.bailFamily)}` : ""}
+                </span>
+              ) : paidHistorically ? (
+                <span className="inline-flex min-h-[30px] items-center gap-1 rounded-lg bg-green-100 px-2.5 py-1 text-[13.5px] sm:gap-1.5 sm:px-3 font-semibold text-green-800">
+                  <Check className="size-4 shrink-0" strokeWidth={3} />
+                  {paidOn ? `Frais payés le ${formatDate(paidOn)} (paiement historique confirmé)` : HISTORICAL_PAID_LABEL}
                 </span>
               ) : (
                 <span className="inline-flex h-[30px] items-center gap-1 whitespace-nowrap rounded-lg bg-red-100 px-2.5 text-[13.5px] sm:gap-1.5 sm:px-3 font-semibold text-red-800">
@@ -1241,18 +1261,45 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               <CheckPoint
                 state={paid ? "ok" : "missing"}
                 label="Frais de dossier"
-                note={paid ? null : "Non payés : le dossier ne peut pas partir chez le notaire."}
+                note={
+                  paid
+                    ? null
+                    : [
+                        "Non payés : le dossier ne peut pas partir chez le notaire.",
+                        ...openPayments.map((payment) =>
+                          payment.status === "SUCCEEDED"
+                            ? `Paiement Stripe ${payment.stripePaymentIntentId.slice(0, 8)}…${payment.stripePaymentIntentId.slice(-6)} confirmé${payment.stripePaidAt ? ` le ${formatDateTime(payment.stripePaidAt)}` : ""} : en attente de l'envoi du formulaire par le propriétaire (il ne repaiera pas).${payment.lastError ? ` ${payment.lastError}` : ""}`
+                            : `Paiement Stripe ${payment.stripePaymentIntentId.slice(0, 8)}…${payment.stripePaymentIntentId.slice(-6)} en cours de vérification : aucune nouvelle tentative n'est proposée au client tant que son résultat n'est pas connu.`,
+                        ),
+                      ].join("\n")
+                }
               >
-                {paid
+                {lease.paidAt
                   ? [
                       `${formatDossierFee(lease.bailFamily)} payés le ${formatDateTime(lease.paidAt as Date)}`,
                       lease.stripePaymentIntentId ? `Paiement Stripe ${lease.stripePaymentIntentId.slice(0, 8)}…${lease.stripePaymentIntentId.slice(-6)}` : null,
                     ]
                       .filter(Boolean)
                       .join("\n")
-                  : "Aucun paiement enregistré pour ce dossier."}
+                  : paidHistorically && historicalPayment
+                    ? [
+                        paidOn ? `Paiement historique confirmé — payé le ${formatDate(paidOn)}` : HISTORICAL_PAID_LABEL,
+                        `Vérifié par ${historicalPayment.verifiedByName ?? "l'équipe"}${historicalPayment.verifiedAt ? ` le ${formatDate(historicalPayment.verifiedAt)}` : ""}`,
+                        historicalPayment.proofReference ? `Preuve : ${historicalPayment.proofReference}` : null,
+                        historicalPayment.note ? `Note : ${historicalPayment.note}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join("\n")
+                    : historicalPayment?.status === "REJECTED"
+                      ? `Aucun paiement enregistré pour ce dossier.\nVérifié par ${historicalPayment.verifiedByName ?? "l'équipe"}${historicalPayment.verifiedAt ? ` le ${formatDate(historicalPayment.verifiedAt)}` : ""} : aucun paiement retrouvé${historicalPayment.note ? ` (${historicalPayment.note})` : ""}.`
+                      : "Aucun paiement enregistré pour ce dossier."}
               </CheckPoint>
             </CheckList>
+            {!paid && historicalPayment?.status === "PENDING" && (
+              <div className="px-4 pb-4 sm:px-5">
+                <HistoricalPaymentReview bailId={lease.id} />
+              </div>
+            )}
           </CheckSection>
 
           <PartyCheckSection

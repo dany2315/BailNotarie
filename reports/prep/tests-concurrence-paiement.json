@@ -1,0 +1,67 @@
+{
+ "createdAt": "2026-11-16T14:09:18.104Z",
+ "rounds": [
+  {
+   "round": 0,
+   "winners": 1,
+   "loser": {
+    "ok": false,
+    "name": "PaymentAlreadyUsedError",
+    "message": "Ce paiement a déjà été utilisé."
+   },
+   "bailsPayes": 1,
+   "lignesHistorique": 1,
+   "rattacheA": "un bail"
+  },
+  {
+   "round": 1,
+   "winners": 1,
+   "loser": {
+    "ok": false,
+    "name": "PaymentAlreadyUsedError",
+    "message": "Ce paiement a déjà été utilisé."
+   },
+   "bailsPayes": 1,
+   "lignesHistorique": 1,
+   "rattacheA": "un bail"
+  },
+  {
+   "round": 2,
+   "winners": 1,
+   "loser": {
+    "ok": false,
+    "name": "PaymentAlreadyUsedError",
+    "message": "Ce paiement a déjà été utilisé."
+   },
+   "bailsPayes": 1,
+   "lignesHistorique": 1,
+   "rattacheA": "un bail"
+  },
+  {
+   "round": 3,
+   "winners": 1,
+   "loser": {
+    "ok": false,
+    "name": "PaymentAlreadyUsedError",
+    "message": "Ce paiement a déjà été utilisé."
+   },
+   "bailsPayes": 1,
+   "lignesHistorique": 1,
+   "rattacheA": "un bail"
+  },
+  {
+   "round": 4,
+   "winners": 1,
+   "loser": {
+    "ok": false,
+    "name": "PaymentAlreadyUsedError",
+    "message": "Ce paiement a déjà été utilisé."
+   },
+   "bailsPayes": 1,
+   "lignesHistorique": 1,
+   "rattacheA": "un bail"
+  }
+ ],
+ "unSeulGagnantAChaqueFois": true,
+ "baseRestauree": true
+}

@@ -1,0 +1,53 @@
+{
+ "mode": "apply",
+ "hote": "ep-odd-resonance-agluwatb-pooler.c-2.eu-central-1.aws.neon.tech",
+ "bascule": "2026-11-17",
+ "dossiersAajouter": 6,
+ "dejaDansLaListe": {},
+ "dossiers": [
+  {
+   "bailId": "cmim4j9kj00013sh3082uyi2n",
+   "statut": "SIGNED",
+   "usage": "HABITATION",
+   "creeLe": "2025-11-30",
+   "pistesStripe": []
+  },
+  {
+   "bailId": "cmk9sj42m0003l104b0uq5kh6",
+   "statut": "PENDING_VALIDATION",
+   "usage": "HABITATION",
+   "creeLe": "2026-01-11",
+   "pistesStripe": []
+  },
+  {
+   "bailId": "cmlj9h6le0005lb04z0p66dj8",
+   "statut": "PENDING_VALIDATION",
+   "usage": "HABITATION",
+   "creeLe": "2026-02-12",
+   "pistesStripe": []
+  },
+  {
+   "bailId": "cmlwuliw70005la04expf0b0v",
+   "statut": "PENDING_VALIDATION",
+   "usage": "HABITATION",
+   "creeLe": "2026-02-21",
+   "pistesStripe": []
+  },
+  {
+   "bailId": "cmncz4b230001jr045azy465l",
+   "statut": "PENDING_VALIDATION",
+   "usage": "HABITATION",
+   "creeLe": "2026-03-30",
+   "pistesStripe": []
+  },
+  {
+   "bailId": "cmolufuy20001jo04b1zrofpw",
+   "statut": "PENDING_VALIDATION",
+   "usage": "HABITATION",
+   "creeLe": "2026-04-30",
+   "pistesStripe": []
+  }
+ ],
+ "appliqueLe": "2026-11-16T14:07:10.512Z",
+ "lignesAjoutees": 6
+}

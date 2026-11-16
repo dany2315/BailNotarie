@@ -206,4 +206,4 @@ async function suite(label, outFile, body) {
   if (report.failed > 0 || !report.databaseRestored) process.exitCode = 1;
 }
 
-module.exports = { test, suite, assert, prisma, crypto };
+module.exports = { test, suite, assert, prisma, crypto, runtime, snapshot };
