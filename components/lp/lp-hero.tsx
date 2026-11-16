@@ -140,33 +140,34 @@ export function LpHero({ bailTypes = false }: { bailTypes?: boolean } = {}) {
             </div>
           )}
 
-          <p
-            style={{ ["--lp-delay" as string]: "0.14s" }}
-            className="lp-enter-up lp-balance mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-600 sm:text-xl"
-          >
-            Service dédié aux <strong className="font-semibold text-slate-900">propriétaires</strong> pour constituer
-            leur dossier de <strong className="font-semibold text-slate-900">bail notarié en France</strong>
-            {bailTypes && (
-              <>
-                , <strong className="font-semibold text-slate-900">d&apos;habitation ou commercial</strong>
-              </>
-            )}
-            .
-            Constitution du dossier <strong className="font-semibold text-slate-900">100% en ligne</strong>,
-            transmission au <strong className="font-semibold text-slate-900">notaire</strong> et{" "}
-            <strong className="font-semibold text-slate-900">signature à distance par procuration</strong>. Simple, rapide et{" "}
-            <strong className="font-semibold text-slate-900">force exécutoire</strong>.
-          </p>
-
           {/* ---------- Action : le dossier s'ouvre ici ---------- */}
-          {/* La saisie de l'adresse était la première étape de « Commencer ».
-              Elle remonte dans le hero : le code part d'ici, et la page
-              suivante ouvre directement l'écran de vérification. */}
+          {/* Juste sous le titre : sur téléphone, le champ est visible dès l'arrivée.
+              La saisie de l'adresse est la première étape de « Commencer » : le
+              code part d'ici, et la page suivante ouvre l'écran de vérification. */}
           <div
-            style={{ ["--lp-delay" as string]: "0.22s" }}
-            className="lp-enter-up mx-auto mt-8 flex max-w-xl flex-col items-center gap-4"
+            style={{ ["--lp-delay" as string]: "0.14s" }}
+            className="lp-enter-up mx-auto mt-8 flex max-w-xl flex-col items-center"
           >
             <LpStartField />
+          </div>
+
+          <p
+            style={{ ["--lp-delay" as string]: "0.22s" }}
+            className="lp-enter-up lp-balance mx-auto mt-7 max-w-2xl text-[17px] leading-relaxed text-slate-600 sm:text-lg"
+          >
+            Votre dossier de <strong className="font-semibold text-slate-900">bail notarié</strong>
+            {bailTypes && (
+              <>
+                {" "}
+                <strong className="font-semibold text-slate-900">d&apos;habitation ou commercial</strong>
+              </>
+            )}{" "}
+            constitué <strong className="font-semibold text-slate-900">100% en ligne</strong>, transmis au{" "}
+            <strong className="font-semibold text-slate-900">notaire</strong> et signé à distance par procuration. Simple,
+            rapide, avec <strong className="font-semibold text-slate-900">force exécutoire</strong>.
+          </p>
+
+          <div style={{ ["--lp-delay" as string]: "0.28s" }} className="lp-enter-up mt-5 flex justify-center">
             <GhostButton href="#processus" className="px-6 py-3 text-[14.5px]">
               <Play className="h-4 w-4 text-[#4373f5]" />
               Voir le déroulé
