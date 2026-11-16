@@ -38,7 +38,7 @@ import { SubPageBar } from "../owner-tabs";
 import { TenantStepBar } from "./tenant-bail-line";
 import { TenantReconfirmCard } from "./tenant-reconfirm-card";
 import { agreementTerms } from "@/lib/bail/agreement-terms";
-import { BAIL_TYPE_LABELS, STATUS_VIEW, STEP_INDEX, TERMINAL_STATUSES } from "./model";
+import { BAIL_TYPE_LABELS, RECONFIRM_VIEW, STATUS_VIEW, STEP_INDEX, TERMINAL_STATUSES, needsTenantReconfirmation } from "./model";
 
 /* =========================================================================
    La page d'un bail, côté locataire — rendu seul.
@@ -151,7 +151,7 @@ export function TenantBailDetail({
   demoChat?: boolean;
 }) {
   // ── Mise en forme ──────────────────────────────────────────────────────────
-  const view = STATUS_VIEW[bail.status];
+  const view = needsTenantReconfirmation(bail) ? RECONFIRM_VIEW : STATUS_VIEW[bail.status];
   const statusTitle = view?.title ?? bail.status;
   const statusTone = view?.tone ?? "slate";
   const terminal = TERMINAL_STATUSES.includes(bail.status);

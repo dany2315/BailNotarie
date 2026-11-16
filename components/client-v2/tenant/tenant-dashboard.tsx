@@ -31,6 +31,7 @@ import { TenantAwaitingLine, TenantBailLine } from "./tenant-bail-line";
 import {
   ACTIVE_STATUSES,
   STAGE_LABELS,
+  needsTenantReconfirmation,
   type TenantBail,
   type TenantIntake,
   type TenantPendingRequest,
@@ -99,7 +100,9 @@ export function TenantDashboard({
 
   const enCours = activeBails.filter((bail) => ACTIVE_STATUSES.includes(bail.status)).length;
   const signes = activeBails.filter((bail) => bail.status === "SIGNED").length;
-  const aTraiter = pendingRequests.length + complementRequests.length + (activeIntake ? 1 : 0);
+  // Conditions modifiées depuis l'accord du locataire : c'est à lui de les confirmer de nouveau.
+  const toReconfirm = activeBails.filter(needsTenantReconfirmation);
+  const aTraiter = pendingRequests.length + complementRequests.length + (activeIntake ? 1 : 0) + toReconfirm.length;
 
   const recentBails = React.useMemo(
     () =>
@@ -126,6 +129,17 @@ export function TenantDashboard({
   );
 
   const todos: TodoItem[] = [
+    ...toReconfirm.map((bail) => ({
+      key: `reconfirm-${bail.id}`,
+      icon: FileSignature,
+      tone: "amber" as Tone,
+      kicker: "À faire · Confirmation à renouveler",
+      title: bail.property.label || bail.property.fullAddress?.split(",")[0] || "Votre bail",
+      subtitle: null,
+      message: "Les conditions du bail ont été mises à jour : relisez-les et confirmez votre accord.",
+      actionLabel: "Relire et confirmer",
+      href: `/client/locataire/baux/${bail.id}`,
+    })),
     ...pendingRequests.map((request) => ({
       key: `req-${request.id}`,
       icon: MessageSquare,

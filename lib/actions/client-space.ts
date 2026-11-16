@@ -181,6 +181,9 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
       rentAmount: true,
       effectiveDate: true,
       endDate: true,
+      // Accord du locataire sur les conditions : sert à lui signaler une confirmation à renouveler
+      tenantConfirmedTermsAt: true,
+      tenantReconfirmationRequestedAt: true,
       createdAt: true,
       updatedAt: true,
       propertyId: true,

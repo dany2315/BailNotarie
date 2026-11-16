@@ -22,6 +22,9 @@ export type TenantBail = {
   rentAmount: number | null;
   effectiveDate: string | null;
   endDate: string | null;
+  /** Accord du locataire sur les conditions du bail (absents des données de démonstration). */
+  tenantConfirmedTermsAt?: string | Date | null;
+  tenantReconfirmationRequestedAt?: string | Date | null;
   property: { id: string; label: string | null; fullAddress: string | null };
   parties: Array<{
     id: string;
@@ -130,6 +133,23 @@ export const STATUS_VIEW: Record<string, { title: string; note?: string; tone: T
 
 export const FALLBACK_VIEW = { title: "En cours", tone: "slate" as Tone };
 
+/** Statuts où l'accord du locataire n'a plus à être redonné : le bail est signé ou clos. */
+const AGREEMENT_CLOSED_STATUSES = ["SIGNED", ...TERMINAL_STATUSES];
+
+/**
+ * Les conditions du bail ont changé depuis l'accord du locataire (ou le locataire a été remplacé) : il doit
+ * les relire et les confirmer de nouveau. Tant que c'est le cas, c'est à lui d'agir, pas à l'équipe.
+ */
+export function needsTenantReconfirmation(bail: Pick<TenantBail, "status" | "tenantConfirmedTermsAt" | "tenantReconfirmationRequestedAt">): boolean {
+  return !!bail.tenantReconfirmationRequestedAt && !bail.tenantConfirmedTermsAt && !AGREEMENT_CLOSED_STATUSES.includes(bail.status);
+}
+
+export const RECONFIRM_VIEW = {
+  title: "Confirmation à renouveler",
+  note: "Les conditions du bail ont été mises à jour : relisez-les et confirmez votre accord.",
+  tone: "amber" as Tone,
+};
+
 export const STAGE_LABELS: Record<string, string> = {
   identity: "Informations personnelles",
   property: "Bien immobilier",
@@ -149,7 +169,8 @@ export function getProprietaireName(parties: TenantBail["parties"]): string | nu
 
 /** Tout ce qu'une ligne de bail affiche, calculé une fois. */
 export function tenantBailFacts(bail: TenantBail) {
-  const view = STATUS_VIEW[bail.status] ?? FALLBACK_VIEW;
+  const toReconfirm = needsTenantReconfirmation(bail);
+  const view = toReconfirm ? RECONFIRM_VIEW : (STATUS_VIEW[bail.status] ?? FALLBACK_VIEW);
   const endDate = bail.endDate
     ? bail.endDate
     : bail.effectiveDate && bail.bailType
@@ -158,6 +179,7 @@ export function tenantBailFacts(bail: TenantBail) {
 
   return {
     view,
+    toReconfirm,
     endDate,
     terminal: TERMINAL_STATUSES.includes(bail.status),
     stepIndex: STEP_INDEX[bail.status] ?? 0,
