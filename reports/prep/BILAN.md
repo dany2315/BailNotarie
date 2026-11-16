@@ -11,10 +11,10 @@ Seule base utilisée : la copie `DATABASE_MIGRATE_TEST`. Stripe, e-mails, S3, Pu
 | 1 — Paiements | Implémenté, testé sur la copie avec Stripe simulé | 41 tests + 5 tours de concurrence réelle |
 | 2 — Accord du locataire | Implémenté, testé sur la copie | 18 tests |
 | 3 — Dates après le locataire | Implémenté, testé sur la copie (formulaire propriétaire, espace client, ajout ultérieur du locataire) | 26 tests |
-| 4 — Compléments et archivage | Implémenté, testé sur la copie | 17 tests |
+| 4 — Compléments et archivage | Implémenté, testé sur la copie | 19 tests |
 | 5 — Loyers et barèmes | **Partiel** : garde-fou de disponibilité, import vérifié, ancien contrôle retiré | 7 tests + panne d'import simulée puis reprise |
 | 6 — Données historiques | Listes en lecture seule produites ; aucune donnée modifiée | `lot6-listes.json` |
-| 7 — Tests | 109 tests, 0 échec, base restaurée à chaque suite ; TypeScript et build de production isolé OK | fichiers `tests-*.json` |
+| 7 — Tests | 111 tests, 0 échec, base restaurée à chaque suite ; TypeScript et build de production isolé OK ; recette complète au navigateur | fichiers `tests-*.json`, `RECETTE_RESULTATS.md` |
 | 8 — Bascule | Déroulé rédigé ci-dessous ; **rien d'exécuté** | — |
 
 Non testé : paiement réel en mode test Stripe, webhook réel, e-mails, S3, parcours complet au navigateur
@@ -82,10 +82,14 @@ Tranché le 16/11/2026 :
 - Référentiel des loyers indisponible : l'envoi au notaire est bloqué ; l'import des barèmes suit la migration.
 - Complétude : les règles de staging sont confirmées, y compris la fin de l'assurance et du RIB.
 
-Reste à décider :
-1. **Six brouillons commerciaux** avec un type d'habitation : valeurs à donner dossier par dossier.
-2. **Document d'identité orphelin** `cmkiomzd70001jr04c04h5byu` (17/01/2026) : trois personnes sans pièce créées ce jour-là sont des pistes, rien n'est rattaché.
-3. **Deux interprétations faites** : une pièce envoyée pour un complément rejoint le dossier tout de suite (marquée « à vérifier ») ; le notaire qui accepte sa propre demande applique la réponse, mais seule l'équipe archive des pièces.
+Tranché ensuite, le même jour :
+- Six brouillons commerciaux avec un type d'habitation : laissés tels quels. Ce sont des brouillons ; le formulaire redemandera ce qui manque.
+- Document d'identité orphelin `cmkiomzd70001jr04c04h5byu` : laissé tel quel.
+- Une pièce envoyée pour un complément rejoint le dossier tout de suite, marquée « à vérifier » : confirmé.
+- Le notaire qui accepte sa propre demande applique la réponse, **et peut archiver lui-même les anciennes pièces** : il ne dépend plus de l'équipe une fois le dossier chez lui.
+
+Reste à décider (vu pendant la recette au navigateur) :
+1. **Envoi au notaire quand la confirmation du locataire est à renouveler** : la fiche l'indique, mais l'envoi reste possible. Faut-il le bloquer ?
 
 ## 5. Déroulé de bascule (à exécuter par vous, sur autorisation explicite)
 
@@ -111,6 +115,6 @@ attente ne sont pas appliquées. Une restauration de base perdrait les écriture
 - Espace propriétaire, création d'un bail sans locataire : après les charges, passage direct au paiement (4 étapes au lieu de 5), retour arrière correct.
 - Défaut trouvé à cette occasion et corrigé : la page d'un bail sans date affichait une « date de fin » calculée à partir d'une date vide (01/01/1973). Corrigé dans trois composants ; compilé, pas revu au navigateur après correction.
 
-Non vus au navigateur : le formulaire propriétaire reçu par lien (étape « Locataire » avec les dates), la reconfirmation côté locataire, le panneau des compléments, l'écran de paiement en attente. Ils sont couverts par les tests serveur, pas par un essai à l'écran.
+Une recette complète a ensuite été menée au navigateur, avec Stripe en mode test et des doublures locales pour les e-mails, les fichiers et les tâches de fond : deux dossiers fictifs, dont un jusqu'à « Signé ». Elle a révélé deux défauts, corrigés : le locataire ne voyait pas sur son tableau de bord qu'il devait reconfirmer, et l'équipe voyait un faux conflit sur une information à plusieurs champs. Détail, observations et limites dans `RECETTE_RESULTATS.md`.
 
 Toutes les données synthétiques créées pour ces essais ont été supprimées : les 41 tables de la copie sont identiques avant et après.

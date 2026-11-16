@@ -1,12 +1,16 @@
 # Recette manuelle — à faire sur staging, puis contrôles sur main
 
+> Cette liste a été déroulée le 16/11/2026 sur un serveur local isolé (copie de test, Stripe en mode test,
+> e-mails et fichiers capturés en local). Résultats dans `RECETTE_RESULTATS.md`. Restent à faire par vous sur
+> staging : ce qui passe par les vrais services (points A) et la section 8 après la mise en production.
+
 Niveaux : **A** = indispensable (mes tests ne peuvent pas le vérifier) · **B** = recommandé (règle testée côté
 serveur, écran non vu) · **C** = facultatif (déjà testé et vu à l'écran).
 
 Conditions : sur staging, une fois la branche fusionnée, les migrations passées, les barèmes importés et le
 webhook Stripe de test déclaré. Stripe en mode test (carte 4242 4242 4242 4242). Adresses e-mail de test.
 
-## Ce que mes 109 tests prouvent déjà
+## Ce que mes 111 tests prouvent déjà
 
 Les règles côté serveur des lots 1 à 5, y compris les cas qu'on ne peut presque pas provoquer à la main :
 mauvais montant ou mauvaise devise, paiement réutilisé pour un autre dossier, deux requêtes simultanées,
@@ -18,13 +22,13 @@ données existantes après migration.
 
 1. Rien de ce qui passe par un vrai service : paiement Stripe réel, webhook réel, e-mails, envoi et
    téléchargement de fichiers, messagerie en direct, tâches de fond.
-2. La plupart des écrans : quatre seulement ont été vus dans un navigateur.
+2. Sur les vrais services, aucun écran : la recette au navigateur du 16/11/2026 a utilisé des doublures locales.
 3. Les fonctionnalités de staging que je n'ai pas écrites (178 commits absents de main) : bail commercial,
    lecture des diagnostics, espace notaire refait, écrans des demandes de complément, contrôle du loyer à
    l'écran, connexion par code. Mes tests ne les touchent qu'en passant.
 4. L'affichage sur téléphone.
 
-## 1. Propriétaire — formulaire reçu par lien (`/commencer`, `/intakes/…`)
+## 1. Propriétaire — formulaire rempli depuis le site (`/commencer`) ou par un lien de l'équipe (`/intakes/…`)
 
 | Niv. | Test | Résultat attendu |
 | --- | --- | --- |
