@@ -134,25 +134,8 @@ export function LpHero({ bailTypes = false }: { bailTypes?: boolean } = {}) {
             </span>
           </h1>
 
-          {bailTypes && (
-            <div style={{ ["--lp-delay" as string]: "0.1s" }} className="lp-enter-up mt-8">
-              <LpBailTypePills />
-            </div>
-          )}
-
-          {/* ---------- Action : le dossier s'ouvre ici ---------- */}
-          {/* Juste sous le titre : sur téléphone, le champ est visible dès l'arrivée.
-              La saisie de l'adresse est la première étape de « Commencer » : le
-              code part d'ici, et la page suivante ouvre l'écran de vérification. */}
-          <div
-            style={{ ["--lp-delay" as string]: "0.14s" }}
-            className="lp-enter-up mx-auto mt-8 flex max-w-xl flex-col items-center"
-          >
-            <LpStartField />
-          </div>
-
           <p
-            style={{ ["--lp-delay" as string]: "0.22s" }}
+            style={{ ["--lp-delay" as string]: "0.12s" }}
             className="lp-enter-up lp-balance mx-auto mt-7 max-w-2xl text-[17px] leading-relaxed text-slate-600 sm:text-lg"
           >
             Votre dossier de <strong className="font-semibold text-slate-900">bail notarié</strong>
@@ -166,6 +149,23 @@ export function LpHero({ bailTypes = false }: { bailTypes?: boolean } = {}) {
             <strong className="font-semibold text-slate-900">notaire</strong> et signé à distance par procuration. Simple,
             rapide, avec <strong className="font-semibold text-slate-900">force exécutoire</strong>.
           </p>
+
+          {/* ---------- Action : le dossier s'ouvre ici ---------- */}
+          {/* La saisie de l'adresse est la première étape de « Commencer » : le
+              code part d'ici, et la page suivante ouvre l'écran de vérification. */}
+          <div
+            style={{ ["--lp-delay" as string]: "0.18s" }}
+            className="lp-enter-up mx-auto mt-8 flex max-w-xl flex-col items-center"
+          >
+            <LpStartField />
+          </div>
+
+          {/* Les deux baux, côte à côte sous le champ. */}
+          {bailTypes && (
+            <div style={{ ["--lp-delay" as string]: "0.24s" }} className="lp-enter-up mt-6">
+              <LpBailTypePills />
+            </div>
+          )}
 
           <div style={{ ["--lp-delay" as string]: "0.28s" }} className="lp-enter-up mt-5 flex justify-center">
             <GhostButton href="#processus" className="px-6 py-3 text-[14.5px]">

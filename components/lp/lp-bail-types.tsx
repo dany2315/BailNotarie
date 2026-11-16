@@ -26,25 +26,30 @@ export const COMMERCIAL_TONE = {
 
 /* ---------- A · Les deux pastilles du haut de page ---------- */
 
+/* Côte à côte, même sur téléphone : les précisions n'apparaissent qu'à partir de sm. */
 export function LpBailTypePills({ className }: { className?: string }) {
+  const pill =
+    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-white/80 py-1 pl-1 pr-3 text-[13px] font-medium text-slate-800 backdrop-blur sm:gap-2 sm:py-1.5 sm:pl-1.5 sm:pr-3.5 sm:text-[13.5px]";
   return (
-    <div className={cn("flex flex-wrap items-center justify-center gap-2.5", className)}>
-      <span className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-[#4373f5]/20 bg-white/80 py-1.5 pl-1.5 pr-3.5 text-[13.5px] font-medium text-slate-800 shadow-[0_8px_24px_-16px_rgba(30,58,138,0.55)] backdrop-blur">
+    <div className={cn("flex flex-nowrap items-center justify-center gap-2 sm:gap-2.5", className)}>
+      <span className={cn(pill, "border-[#4373f5]/20 shadow-[0_8px_24px_-16px_rgba(30,58,138,0.55)]")}>
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-[#5b85f7] to-[#3563e9] text-white">
           <Home className="h-3.5 w-3.5" />
         </span>
         Bail d&apos;habitation
-        <span className="hidden text-slate-400 sm:inline">·</span>
-        <span className="hidden text-slate-500 sm:inline">vide ou meublé</span>
+        <span className="hidden text-slate-400 md:inline">·</span>
+        <span className="hidden text-slate-500 md:inline">vide ou meublé</span>
       </span>
-      <span className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-[#6d5cf5]/25 bg-white/80 py-1.5 pl-1.5 pr-3.5 text-[13.5px] font-medium text-slate-800 shadow-[0_8px_24px_-16px_rgba(91,71,224,0.6)] backdrop-blur">
+      <span className={cn(pill, "border-[#6d5cf5]/25 shadow-[0_8px_24px_-16px_rgba(91,71,224,0.6)]")}>
         <span className={cn("flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br text-white", COMMERCIAL_TONE.gradient)}>
           <Store className="h-3.5 w-3.5" />
         </span>
         Bail commercial
-        <span className="hidden text-slate-400 sm:inline">·</span>
-        <span className="hidden text-slate-500 sm:inline">boutiques, bureaux, locaux</span>
-        <span className="ml-0.5 rounded-full bg-[#6d5cf5]/10 px-2 py-0.5 text-[11px] font-semibold text-[#5b47e0]">Nouveau</span>
+        <span className="hidden text-slate-400 md:inline">·</span>
+        <span className="hidden text-slate-500 md:inline">boutiques, bureaux, locaux</span>
+        <span className="rounded-full bg-gradient-to-b from-[#8a7bf8] to-[#5b47e0] px-1.5 py-px text-[10.5px] font-semibold uppercase leading-4 tracking-wide text-white">
+          New
+        </span>
       </span>
     </div>
   );
