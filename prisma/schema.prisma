@@ -558,6 +558,24 @@ model RentCapTerritory {
   references        RentCapReference[]
 }
 
+/// Journal des imports de barèmes. Un import commence (ligne créée), écrit les territoires, puis est vérifié
+/// (comptes attendus, liens) avant d'être marqué terminé. Tant que le dernier import n'est pas terminé, le
+/// contrôle des loyers se déclare « impossible » au lieu de conclure qu'une commune n'est pas encadrée.
+model RentCapImport {
+  id          String    @id @default(cuid())
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  /// Fichiers attendus : [{ id, sha256, zones, areas, references, validFrom, validTo }]
+  manifest    Json
+  territories Int
+  zones       Int
+  areas       Int
+  references  Int
+  note        String?   @db.Text
+
+  @@index([startedAt])
+}
+
 model RentCapZone {
   id          String           @id @default(cuid())
   territoryId String

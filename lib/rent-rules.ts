@@ -361,6 +361,7 @@ export async function assessRentRules(input: RentRulesInput): Promise<RentRulesA
   const ownerBlocking = over || relocation.status === "missing" || (capOver && (!!forbidden || dpeUnknown));
   // Fiche admin : les baux créés avant ces questions ne sont pas bloqués (à renseigner par l'équipe).
   const teamBlocking =
+    cap.referentialUnavailable === true ||
     cap.status === "missing" ||
     (capOver && cap.validity === "in" && !accepted) ||
     (relocation.status === "over") ||

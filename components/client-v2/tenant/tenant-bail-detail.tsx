@@ -37,7 +37,7 @@ import {
 import { SubPageBar } from "../owner-tabs";
 import { TenantStepBar } from "./tenant-bail-line";
 import { TenantReconfirmCard } from "./tenant-reconfirm-card";
-import { agreementTerms } from "@/lib/bail/tenant-agreement";
+import { agreementTerms } from "@/lib/bail/agreement-terms";
 import { BAIL_TYPE_LABELS, STATUS_VIEW, STEP_INDEX, TERMINAL_STATUSES } from "./model";
 
 /* =========================================================================

@@ -301,9 +301,11 @@ export default async function PropertyDetailPage({
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  {property.inseeCode
-                    ? "Commune non soumise à l'encadrement des loyers."
-                    : "Adresse non localisée : impossible de savoir si la commune est encadrée."}
+                  {rentCap.referentialUnavailable
+                    ? "Référentiel des loyers indisponible : impossible de savoir si la commune est encadrée pour le moment."
+                    : property.inseeCode
+                      ? "Commune non soumise à l'encadrement des loyers."
+                      : "Adresse non localisée : impossible de savoir si la commune est encadrée."}
                 </p>
               )}
             </div>

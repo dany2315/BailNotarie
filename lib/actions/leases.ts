@@ -9,7 +9,6 @@ import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
-import { validateRentForProperty } from "@/lib/utils/rent-validation";
 import { assessRentRules } from "@/lib/rent-rules";
 import { assessRentCap, requiresOccupancyDeclaration } from "@/lib/rent-cap";
 import { getBailDocumentRules } from "@/lib/utils/required-fields";
@@ -360,17 +359,9 @@ export async function updateLease(data: unknown) {
 
   const propertyId = updateData.propertyId || bail.propertyId;
 
-  // Valider le loyer si il est modifié
-  if (updateData.rentAmount !== undefined) {
-    const rentValidation = await validateRentForProperty(propertyId, updateData.rentAmount);
-    if (!rentValidation.isValid && rentValidation.maxAllowed !== null) {
-      throw new Error(
-        `Le loyer de ${updateData.rentAmount} € dépasse la limite autorisée de ${rentValidation.maxAllowed.toFixed(2)} € ` +
-        `(${rentValidation.maxRentPerM2?.toFixed(2)} €/m²). ` +
-        `Veuillez ajuster le loyer pour respecter la réglementation.`
-      );
-    }
-  }
+  // Plafond de loyer : contrôlé par le moteur commun (lib/rent-rules), affiché sur la fiche du dossier et
+  // bloquant à l'envoi au notaire. L'ancien contrôle (table RentControl, jamais alimentée) est retiré : il ne
+  // vérifiait rien et laissait croire à une conformité.
 
   const updatePayload: any = {
     updatedById: user.id,

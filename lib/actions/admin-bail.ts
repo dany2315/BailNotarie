@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { HISTORICAL_PAYMENT_SELECT, isBailPaid } from "@/lib/payments/paid";
+import { RENT_REFERENTIAL_UNAVAILABLE } from "@/lib/rent-cap";
 import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
 import { revalidatePath } from "next/cache";
 import {
@@ -211,6 +212,9 @@ export async function validateAndSendToNotary(
     // Zone tendue : loyer au plus au maximum de relocation, justificatifs reçus.
     const rentRules = await assessRentRules({ property: bail.property, bail });
     const rentCap = rentRules.cap;
+    if (rentCap.referentialUnavailable) {
+      return { success: false, error: `${RENT_REFERENTIAL_UNAVAILABLE} Le dossier ne peut pas partir chez le notaire tant que les barèmes ne sont pas importés et vérifiés.` };
+    }
     if (rentCap.status === "missing") {
       return { success: false, error: `Plafond de loyer : à saisir (${rentCap.missing.join(", ")}).` };
     }

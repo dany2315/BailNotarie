@@ -6,7 +6,7 @@ import { Check, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { confirmBailTermsAsTenant } from "@/lib/actions/tenant-agreement";
-import type { AgreementTerms } from "@/lib/bail/tenant-agreement";
+import type { AgreementTerms } from "@/lib/bail/agreement-terms";
 import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { IconTile, PrimaryAction, Surface } from "../owner-ui";
 

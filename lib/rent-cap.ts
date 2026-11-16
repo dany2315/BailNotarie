@@ -73,6 +73,11 @@ export type RentCapNotConcerned =
 export interface RentCapAssessment {
   status: RentCapStatus;
   notConcerned: RentCapNotConcerned | null;
+  /**
+   * Référentiel des loyers indisponible (jamais importé, ou import commencé et pas terminé) : le contrôle
+   * est impossible. Ce n'est PAS « commune non encadrée » : rien ne permet de le dire.
+   */
+  referentialUnavailable?: boolean;
   territory: {
     id: string;
     label: string;
@@ -140,6 +145,21 @@ export function requiresOccupancyDeclaration(cap: RentCapAssessment): boolean {
   return !!cap.territory && cap.notConcerned !== "outside_perimeter" && cap.notConcerned !== "exempt";
 }
 
+/**
+ * Le référentiel des loyers est-il utilisable ? Oui si le dernier import journalisé est terminé et vérifié.
+ * Sans aucun import journalisé (référentiel chargé avant le journal), oui s'il contient des territoires.
+ * Table vide, import commencé ou interrompu : non.
+ */
+export async function rentCapReferentialAvailable(): Promise<boolean> {
+  const last = await prisma.rentCapImport.findFirst({ orderBy: { startedAt: "desc" }, select: { completedAt: true } });
+  if (last) return last.completedAt !== null;
+  return (await prisma.rentCapTerritory.count()) > 0;
+}
+
+/** Message commun quand le contrôle est impossible faute de référentiel. */
+export const RENT_REFERENTIAL_UNAVAILABLE =
+  "Référentiel des loyers indisponible : le contrôle de l'encadrement est impossible pour le moment.";
+
 /** Contrôle du loyer d'un bail au regard de l'arrêté d'encadrement en vigueur. */
 export async function assessRentCap({ property, bail }: RentCapInput): Promise<RentCapAssessment> {
   const furnished = isFurnishedBail(bail.bailType);
@@ -154,7 +174,14 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
     include: { zones: { orderBy: { code: "asc" } } },
     orderBy: { validFrom: "desc" },
   });
-  if (!territories.length) return empty(bail.rentAmount, furnished, surface, "not_regulated");
+  if (!territories.length) {
+    // Aucun arrêté trouvé pour cette commune : cela ne prouve « non encadrée » que si le référentiel est
+    // complet. Référentiel absent ou import inachevé → contrôle impossible, jamais « hors encadrement ».
+    if (!(await rentCapReferentialAvailable())) {
+      return { ...empty(bail.rentAmount, furnished, surface, null), status: "no_data", referentialUnavailable: true };
+    }
+    return empty(bail.rentAmount, furnished, surface, "not_regulated");
+  }
   const effective = parisDay(bail.effectiveDate ? new Date(bail.effectiveDate) : new Date());
   const territory =
     territories.find((t) => effective >= isoDay(t.validFrom) && effective <= isoDay(t.validTo)) ??
@@ -300,7 +327,9 @@ export async function assessRentCap({ property, bail }: RentCapInput): Promise<R
  * (sauf bail hors de la période de l'arrêté intégré : l'équipe vérifie alors à la main).
  */
 export function rentCapBlocking(cap: RentCapAssessment): boolean {
-  return cap.status === "missing" || (cap.status === "over" && !cap.supplement && cap.validity === "in");
+  // Référentiel indisponible : on ne laisse pas partir chez le notaire un dossier dont le loyer n'a pas pu
+  // être contrôlé (les brouillons et les formulaires, eux, continuent de s'enregistrer).
+  return cap.referentialUnavailable === true || cap.status === "missing" || (cap.status === "over" && !cap.supplement && cap.validity === "in");
 }
 
 const euros = (value: number) =>

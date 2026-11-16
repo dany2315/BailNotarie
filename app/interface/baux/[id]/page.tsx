@@ -897,7 +897,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                             : "Loyer non renseigné."}
                         </span>
                         <span className="text-muted-foreground">
-                          {rentCap?.notConcerned === "commercial"
+                          {rentCap?.referentialUnavailable
+                            ? "Référentiel des loyers indisponible : contrôle de l'encadrement impossible pour le moment. Le dossier ne peut pas partir chez le notaire tant que les barèmes ne sont pas importés et vérifiés."
+                            : rentCap?.notConcerned === "commercial"
                             ? "Bail commercial : l'encadrement des loyers ne s'applique pas."
                             : property?.inseeCode
                               ? "Commune non soumise à l'encadrement des loyers : pas de plafond à respecter."

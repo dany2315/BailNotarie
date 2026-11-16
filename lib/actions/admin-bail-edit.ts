@@ -19,7 +19,6 @@ import { requireRole } from "@/lib/auth-helpers";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
-import { validateRentForProperty } from "@/lib/utils/rent-validation";
 import { getStageKey } from "@/lib/utils/bail-stage";
 import { EXEMPTION_LABELS } from "@/lib/utils/rent-cap";
 import { assessRentCap } from "@/lib/rent-cap";
@@ -135,15 +134,9 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
       error: `Le dépôt de garantie ne peut pas dépasser ${isMeuble ? "2 mois" : "1 mois"} de loyer hors charges (max ${maxDeposit.toLocaleString("fr-FR")} €)${values.securityDeposit === undefined ? " : ajustez aussi le dépôt de garantie" : ""}`,
     };
   }
-  if (!isCommercial && values.rentAmount !== undefined && values.rentAmount !== bail.rentAmount) {
-    const rent = await validateRentForProperty(bail.propertyId, values.rentAmount);
-    if (!rent.isValid && rent.maxAllowed !== null) {
-      return {
-        success: false,
-        error: `Le loyer dépasse le plafond de l'encadrement : ${rent.maxAllowed.toFixed(2).replace(".", ",")} € maximum (${rent.maxRentPerM2?.toFixed(2).replace(".", ",")} €/m²)`,
-      };
-    }
-  }
+  // Plafond de loyer : contrôlé par le moteur commun (lib/rent-rules), affiché dans le bloc « Loyer » de la
+  // fiche et bloquant à l'envoi au notaire. L'ancien contrôle (table RentControl, jamais alimentée) est
+  // retiré : il ne vérifiait rien.
 
   // La modification et le sort de l'accord du locataire vont ensemble : si une condition qu'il a confirmée
   // change réellement, son accord est archivé et une nouvelle confirmation est demandée.
