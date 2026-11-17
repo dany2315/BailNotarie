@@ -66,41 +66,52 @@ const COLUMNS: Array<{ title: string; links: Array<{ label: string; href: string
   },
 ];
 
-const linkClass = "inline-flex min-h-9 items-center text-[14px] text-slate-600 transition-colors hover:text-[#4373f5]";
+const linkClass = "inline-flex min-h-9 items-center text-[14px] text-white/80 transition-colors hover:text-white";
 
 export function Footer() {
   const socials = SOCIALS.filter((social) => social.href);
   const year = new Date().getFullYear();
 
   return (
-    <footer className="lp-scene relative isolate overflow-hidden bg-gradient-to-b from-white via-[#f7f9ff] to-[#eef3ff] text-slate-900">
-      <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-slate-200" />
+    <footer className="relative isolate overflow-hidden bg-[#2b4fc9] text-white">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          backgroundImage:
+            "linear-gradient(to right, rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.07) 1px, transparent 1px)",
+          backgroundSize: "64px 64px",
+          maskImage: "radial-gradient(ellipse 70% 80% at 85% 0%, black 20%, transparent 75%)",
+          WebkitMaskImage: "radial-gradient(ellipse 70% 80% at 85% 0%, black 20%, transparent 75%)",
+        }}
+      />
 
       <div className="relative mx-auto max-w-6xl px-5 pt-16 sm:px-8 sm:pt-20">
         <div className="grid gap-12 lg:grid-cols-12 lg:gap-8">
           {/* Marque, promesse et contact */}
           <div className="lg:col-span-4">
             <Link href="/" aria-label="BailNotarie — accueil" className="-ml-2 inline-flex">
-              <Image src="/logoLarge.png" alt="BailNotarie" width={160} height={90} className="h-14 w-auto" />
+              {/* Logo du site, passé en blanc sur le fond bleu. */}
+              <Image src="/logoLarge.png" alt="BailNotarie" width={160} height={90} className="h-14 w-auto brightness-0 invert" />
             </Link>
-            <p className="mt-5 max-w-sm text-[14px] leading-relaxed text-slate-600">
+            <p className="mt-5 max-w-sm text-[14px] leading-relaxed text-white/85">
               Constitution en ligne de votre dossier de bail notarié : acte authentique, force exécutoire immédiate,
               en une semaine.
             </p>
-            <p className="mt-3 max-w-sm text-[12.5px] leading-relaxed text-slate-500">
+            <p className="mt-3 max-w-sm text-[12.5px] leading-relaxed text-white/65">
               BailNotarie n&apos;est pas un notaire : nous préparons et transmettons votre dossier à nos notaires
               partenaires.
             </p>
 
             <div className="mt-7 flex flex-col gap-1">
-              <a href="tel:0768098624" className="group inline-flex min-h-10 items-center gap-3 text-[14px] font-medium text-slate-900">
-                <span className="flex size-8 items-center justify-center rounded-full border border-slate-200 bg-white text-[#4373f5] transition-colors group-hover:border-[#4373f5]/40">
+              <a href="tel:0768098624" className="group inline-flex min-h-10 items-center gap-3 text-[14px] font-medium text-white">
+                <span className="flex size-8 items-center justify-center rounded-full border border-white/30 bg-white/10 text-white transition-colors group-hover:border-white/70">
                   <Phone className="h-3.5 w-3.5" />
                 </span>
                 <span className="tabular-nums">07 68 09 86 24</span>
               </a>
-              <a href="mailto:contact@bailnotarie.fr" className="group inline-flex min-h-10 items-center gap-3 break-all text-[14px] font-medium text-slate-900">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[#4373f5] transition-colors group-hover:border-[#4373f5]/40">
+              <a href="mailto:contact@bailnotarie.fr" className="group inline-flex min-h-10 items-center gap-3 break-all text-[14px] font-medium text-white">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/10 text-white transition-colors group-hover:border-white/70">
                   <Mail className="h-3.5 w-3.5" />
                 </span>
                 contact@bailnotarie.fr
@@ -116,7 +127,7 @@ export function Footer() {
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`${social.label} (nouvel onglet)`}
-                      className="flex size-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-[#4373f5] hover:bg-[#4373f5] hover:text-white"
+                      className="flex size-11 items-center justify-center rounded-full border border-white/30 bg-white/10 text-white transition-colors hover:border-white hover:bg-white hover:text-[#2b4fc9]"
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className="h-[18px] w-[18px]">
                         {social.icon}
@@ -132,7 +143,7 @@ export function Footer() {
           <nav aria-label="Pied de page" className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:col-span-8 lg:pl-10">
             {COLUMNS.map((column) => (
               <div key={column.title} className={column.title === "Informations" ? "col-span-2 sm:col-span-1" : undefined}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">{column.title}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">{column.title}</p>
                 <ul className={column.title === "Informations" ? "mt-4 grid grid-cols-2 gap-x-6 sm:flex sm:flex-col" : "mt-4 flex flex-col"}>
                   {column.links.map((link) => (
                     <li key={link.href}>
@@ -155,14 +166,14 @@ export function Footer() {
         </div>
 
         {/* Appel discret avant la dernière ligne. */}
-        <div className="mt-16 flex flex-col gap-4 border-t border-slate-200 py-8 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[14px] text-slate-500">Votre bail notarié commence ici.</p>
+        <div className="mt-16 flex flex-col gap-4 border-t border-white/20 py-8 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[14px] text-white/75">Votre bail notarié commence ici.</p>
           <Link
             href="/commencer"
-            className="group inline-flex min-h-11 items-center gap-2 text-[14px] font-semibold text-slate-900"
+            className="group inline-flex min-h-11 items-center gap-2 text-[14px] font-semibold text-white"
           >
             Constituer mon dossier
-            <span className="flex size-8 items-center justify-center rounded-full bg-[#4373f5] text-white transition-transform duration-300 group-hover:rotate-45">
+            <span className="flex size-8 items-center justify-center rounded-full bg-white text-[#2b4fc9] transition-transform duration-300 group-hover:rotate-45">
               <ArrowUpRight className="h-4 w-4" />
             </span>
           </Link>
@@ -170,8 +181,8 @@ export function Footer() {
 
       </div>
 
-      <div className="relative border-t border-slate-200">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-6 text-[12.5px] text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+      <div className="relative border-t border-white/20">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-6 text-[12.5px] text-white/65 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p>&copy; {year} BailNotarie. Tous droits réservés.</p>
           <p>Bail notarié en ligne, habitation et commercial.</p>
         </div>
