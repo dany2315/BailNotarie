@@ -6,7 +6,13 @@ const nextConfig: NextConfig = {
   // Les liens de prévisualisation partagés pendant sa conception continuent
   // donc d'aboutir, au lieu de tomber sur une page introuvable.
   async redirects() {
-    return [{ source: "/lptest", destination: "/", permanent: true }];
+    return [
+      { source: "/lptest", destination: "/", permanent: true },
+      // Pas d'inscription publique (voir `disableSignUp` dans lib/auth.ts) : /register mène à la connexion client,
+      // avant même l'affichage d'une page.
+      { source: "/register", destination: "/client/login", permanent: false },
+      { source: "/register/:path*", destination: "/client/login", permanent: false },
+    ];
   },
 
   async headers() {
