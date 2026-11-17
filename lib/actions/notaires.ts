@@ -161,29 +161,33 @@ export async function assignDossierToNotaire(data: unknown) {
   // Si le propriétaire n'est pas dans les parties, on l'ajoute logiquement
   const clientId = bail.property.ownerId;
 
-  // Vérifier si l'assignation existe déjà
-  const existingAssignment = await prisma.dossierNotaireAssignment.findFirst({
-    where: {
-      bailId: validated.bailId,
-      notaireId: validated.notaireId,
-    },
+  // Un dossier n'a qu'un notaire. Réassigner remplace l'assignation existante (même ligne, donc les demandes
+  // déjà faites restent attachées au dossier) : l'ancien notaire perd l'accès. Rien n'est supprimé.
+  const existingAssignments = await prisma.dossierNotaireAssignment.findMany({
+    where: { bailId: validated.bailId },
+    select: { id: true, notaireId: true },
+    orderBy: { assignedAt: "desc" },
   });
-
-  if (existingAssignment) {
+  if (existingAssignments.length > 0 && existingAssignments.every((a) => a.notaireId === validated.notaireId)) {
     throw new Error("Ce bail est déjà assigné à ce notaire");
   }
 
-  // Créer l'assignation
-  const assignment = await prisma.dossierNotaireAssignment.create({
-    data: {
-      clientId: clientId,
-      propertyId: bail.propertyId,
-      bailId: validated.bailId,
-      notaireId: validated.notaireId,
-      assignedById: user.id,
-      notes: validated.notes || null,
-    },
-    include: {
+  const assignmentData = {
+    clientId: clientId,
+    propertyId: bail.propertyId,
+    bailId: validated.bailId,
+    notaireId: validated.notaireId,
+    assignedById: user.id,
+    notes: validated.notes || null,
+  };
+  const assignment = await prisma.$transaction(async (tx) => {
+    if (existingAssignments.length > 0) {
+      await tx.dossierNotaireAssignment.updateMany({
+        where: { bailId: validated.bailId },
+        data: { ...assignmentData, assignedAt: new Date() },
+      });
+    }
+    const include = {
       client: {
         include: {
           persons: { where: { isPrimary: true }, take: 1 },
@@ -205,7 +209,10 @@ export async function assignDossierToNotaire(data: unknown) {
       notaire: {
         select: { id: true, email: true, name: true },
       },
-    },
+    } as const;
+    return existingAssignments.length > 0
+      ? tx.dossierNotaireAssignment.findFirstOrThrow({ where: { id: existingAssignments[0].id }, include })
+      : tx.dossierNotaireAssignment.create({ data: assignmentData, include });
   });
 
   await createBailAuditLog({

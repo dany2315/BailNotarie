@@ -1,14 +1,114 @@
 {
  "suite": "Corrections de la recette au navigateur",
- "createdAt": "2026-11-17T12:42:53.813Z",
- "passed": 1,
+ "createdAt": "2026-11-17T12:46:28.990Z",
+ "passed": 15,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
  "tables": 41,
  "results": [
   {
+   "name": "M3 — un client ne reçoit par l’API que son propre fil ; le notaire reçoit tout",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M3 — le notaire assigné reçoit les deux fils",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M2 — fichier du fil de l’autre partie : refusé ; fichier de son fil et pièce du bail : lisibles",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M2 — notaire et équipe lisent tous les fichiers de la messagerie",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M1 — les erreurs des actions sont renvoyées en français, sans texte technique",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M4 — étape « Locataire » : une adresse mal formée est refusée, rien n’est créé ni envoyé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M5 — changer le type de bail recalcule la date de fin ; une date de fin envoyée est ignorée",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M5 — changer la prise d’effet décale la date de fin",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M5 — une autre modification (loyer) ne touche pas à la date de fin existante",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M10 — réassigner remplace le notaire : l’ancien perd l’accès (messages, pièce qu’il avait archivée), les demandes restent au dossier",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "email": 2
+   },
+   "networkAttempts": 0
+  },
+  {
    "name": "M8 — seuls PDF, JPG, JPEG, PNG, HEIC, DOC, DOCX sont acceptés ; la route d’envoi refuse le reste",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "B2 — le schéma du locataire accepte une société sans nom commercial et reprend la raison sociale",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "B2 + B3 — enregistrement d’une société locataire : nom repris, e-mail = adresse de l’invitation",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "B3 — particulier : l’e-mail de la personne principale reste celui de l’invitation",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M2 — la page du bail du propriétaire ne liste pas les fichiers du fil du locataire",
    "passed": true,
    "error": null,
    "simulated": {},

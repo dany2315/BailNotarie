@@ -108,6 +108,35 @@ suite('Corrections de la recette au navigateur', path.join(__dirname, '../../rep
     assert.equal(ymd((await tx.bail.findUnique({ where: { id: f.bail.id } })).endDate), '2030-03-01');
   });
 
+  /* ---------- M10 : réassignation d'un notaire ---------- */
+
+  await test('M10 — réassigner remplace le notaire : l’ancien perd l’accès (messages, pièce qu’il avait archivée), les demandes restent au dossier', async (tx, r, f) => {
+    const notaire = (n) => tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', role: 'NOTAIRE', emailVerified: true, name: 'Notaire ' + n } });
+    const a = await notaire('A'), b = await notaire('B');
+    const notaires = r.load('lib/actions/notaires.ts');
+    r.state.user = f.admin;
+    await notaires.assignDossierToNotaire({ bailId: f.bail.id, notaireId: a.id });
+    const dossier = await tx.dossierNotaireAssignment.findFirstOrThrow({ where: { bailId: f.bail.id } });
+    const demande = await tx.notaireRequest.create({ data: { dossierId: dossier.id, title: 'Demande du notaire A', content: 'test', createdById: a.id } });
+    const archivee = await tx.document.create({ data: { kind: 'OTHER', label: 'archivee.pdf', fileKey: 'documents/test-arch-' + crypto.randomBytes(3).toString('hex'), archivedAt: new Date(), archivedById: a.id, archivedBailId: f.bail.id } });
+    r.state.user = a;
+    assert(await access(r).accessibleDocument(archivee.id, 'read'), 'avant réassignation, le notaire A relit sa pièce archivée');
+
+    r.state.user = f.admin;
+    await notaires.assignDossierToNotaire({ bailId: f.bail.id, notaireId: b.id });
+    const lignes = await tx.dossierNotaireAssignment.findMany({ where: { bailId: f.bail.id } });
+    assert.deepEqual([...new Set(lignes.map((l) => l.notaireId))], [b.id], 'il ne doit rester que le notaire B');
+    assert(await tx.notaireRequest.findUnique({ where: { id: demande.id } }), 'la demande déjà faite a été supprimée');
+
+    r.state.user = a;
+    await assert.rejects(() => messages(r).getBailMessages(f.bail.id), /Non autorisé/);
+    assert.equal(await access(r).accessibleDocument(archivee.id, 'read'), null, 'l’ancien notaire relit encore la pièce archivée');
+    r.state.user = b;
+    assert.equal((await messages(r).getBailMessages(f.bail.id)).length >= 0, true);
+    r.state.user = f.admin;
+    await assert.rejects(() => notaires.assignDossierToNotaire({ bailId: f.bail.id, notaireId: b.id }), /déjà assigné/);
+  });
+
   /* ---------- M8 : types de fichiers ---------- */
 
   await test('M8 — seuls PDF, JPG, JPEG, PNG, HEIC, DOC, DOCX sont acceptés ; la route d’envoi refuse le reste', async (tx, r, f) => {

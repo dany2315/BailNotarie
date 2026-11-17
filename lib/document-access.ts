@@ -30,6 +30,7 @@ const DOCUMENT_SELECT = {
   uploadedById: true,
   archivedAt: true,
   archivedById: true,
+  archivedBailId: true,
   person: { select: { clientId: true } },
   entreprise: { select: { clientId: true } },
   notaireRequest: { select: { dossier: { select: { notaireId: true, bailId: true } } } },
@@ -55,7 +56,10 @@ export async function canAccessDocument(doc: AccessDocument, mode: DocumentMode,
     const reader = await getCurrentUser();
     if (!reader) return false;
     if (STAFF_ROLES.includes(reader.role)) return true;
-    return reader.role === Role.NOTAIRE && !!doc.archivedById && doc.archivedById === reader.id;
+    if (reader.role !== Role.NOTAIRE || !doc.archivedById || doc.archivedById !== reader.id) return false;
+    // Seulement tant qu'il est le notaire du dossier (après une réassignation, l'ancien notaire n'y accède plus)
+    if (!doc.archivedBailId) return false;
+    return !!(await prisma.dossierNotaireAssignment.findFirst({ where: { bailId: doc.archivedBailId, notaireId: reader.id }, select: { id: true } }));
   }
 
   const clientId = docClientId(doc);
