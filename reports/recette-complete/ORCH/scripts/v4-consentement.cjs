@@ -11,7 +11,7 @@ async function session(appareil) {
   await s.context.route(/googletagmanager\.com|google-analytics\.com|analytics\.google\.com/, (route) => { s.google.push(route.request().url().slice(0, 60)); route.abort(); });
   return s;
 }
-const bandeau = (p) => p.getByRole('dialog', { name: "Mesure d'audience" });
+const bandeau = (p) => p.getByRole('dialog', { name: 'Vous choisissez ce que nous mesurons' });
 
 (async () => {
   for (const appareil of ['ordinateur', 'telephone']) {
