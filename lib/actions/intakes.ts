@@ -39,14 +39,39 @@ export async function createIntakeLink(data: unknown) {
   const user = await requireStaff();
   const validated = createIntakeLinkSchema.parse(data);
 
+  // Un lien doit être rattaché à un dossier et à la personne qui le remplit : c'est à son adresse que le code
+  // d'accès est envoyé. Sans client, le lien s'ouvrait sur « rattaché à aucun dossier » (recette, M13).
+  const bail = validated.leaseId
+    ? await prisma.bail.findUnique({
+        where: { id: validated.leaseId },
+        select: { id: true, propertyId: true, property: { select: { ownerId: true } }, parties: { select: { id: true, profilType: true } } },
+      })
+    : null;
+  if (validated.leaseId && !bail) throw new Error("Bail introuvable.");
+  if (bail && validated.propertyId && validated.propertyId !== bail.propertyId) {
+    throw new Error("Ce bail ne porte pas sur le bien choisi.");
+  }
+  const propertyId = bail?.propertyId ?? validated.propertyId ?? null;
+  let clientId: string | null = null;
+  if (validated.target === "TENANT") {
+    if (!bail) throw new Error("Choisissez le bail du locataire.");
+    clientId = bail.parties.find((party) => party.profilType === ProfilType.LOCATAIRE)?.id ?? null;
+    if (!clientId) throw new Error("Ce bail n'a pas encore de locataire : ajoutez-le d'abord depuis la fiche du dossier.");
+  } else {
+    if (!propertyId) throw new Error("Choisissez le bien ou le bail du propriétaire.");
+    clientId = bail?.property.ownerId ?? (await prisma.property.findUnique({ where: { id: propertyId }, select: { ownerId: true } }))?.ownerId ?? null;
+    if (!clientId) throw new Error("Bien introuvable.");
+  }
+
   const token = randomBytes(32).toString("hex");
 
   const intakeLink = await prisma.intakeLink.create({
     data: {
       token,
       target: validated.target,
-      propertyId: validated.propertyId,
-      bailId: (validated as any).bailId,
+      propertyId,
+      bailId: bail?.id ?? null,
+      clientId,
       createdById: user.id,
     },
     include: {

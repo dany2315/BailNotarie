@@ -1,3 +1,4 @@
+import { guardAction } from "@/lib/utils/action-error";
 import { createIntakeLink } from "@/lib/actions/intakes";
 import { createIntakeLinkSchema } from "@/lib/zod/intake";
 import { getProperties } from "@/lib/actions/properties";
@@ -6,6 +7,10 @@ import { IntakeLinkForm } from "@/components/intakes/intake-link-form";
 
 async function handleSubmit(data: FormData) {
   "use server";
+  return guardAction(() => handleSubmitUnguarded(data));
+}
+
+async function handleSubmitUnguarded(data: FormData) {
   
   // Convertir FormData en objet
   const formData: any = {
