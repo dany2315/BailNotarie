@@ -1,5 +1,6 @@
 "use client";
 
+import { ALLOWED_FILE_ACCEPT } from "@/lib/utils/allowed-files";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1100,7 +1101,7 @@ export function BailChatSheet({ bailId, trigger, defaultOpen = false }: BailChat
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+          accept={ALLOWED_FILE_ACCEPT}
           onChange={handleFileSelect}
           disabled={sending || uploading}
           className="hidden"

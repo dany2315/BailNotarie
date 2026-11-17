@@ -1,3 +1,4 @@
+import { ALLOWED_FILE_MESSAGE, isAllowedFileName } from "@/lib/utils/allowed-files";
 import { NextRequest, NextResponse } from "next/server";
 import { generateSignedUploadUrl, generateS3FileKey } from "@/lib/utils/s3-client";
 import { authorizeUploadTarget } from "@/lib/upload-access";
@@ -30,6 +31,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { error: "Nom de fichier manquant" },
         { status: 400 }
       );
+    }
+    // Types de fichiers acceptés : contrôle serveur (le filtre du sélecteur de fichiers se contourne)
+    if (!isAllowedFileName(fileName)) {
+      return NextResponse.json({ error: ALLOWED_FILE_MESSAGE }, { status: 400 });
     }
 
     // Accès : lien d'intake en cours (identifiants limités à ce lien) ou utilisateur connecté

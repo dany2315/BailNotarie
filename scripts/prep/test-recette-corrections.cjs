@@ -108,6 +108,18 @@ suite('Corrections de la recette au navigateur', path.join(__dirname, '../../rep
     assert.equal(ymd((await tx.bail.findUnique({ where: { id: f.bail.id } })).endDate), '2030-03-01');
   });
 
+  /* ---------- M8 : types de fichiers ---------- */
+
+  await test('M8 — seuls PDF, JPG, JPEG, PNG, HEIC, DOC, DOCX sont acceptés ; la route d’envoi refuse le reste', async (tx, r, f) => {
+    const { isAllowedFileName } = r.load('lib/utils/allowed-files.ts');
+    for (const ok of ['a.pdf', 'b.JPG', 'c.jpeg', 'd.png', 'e.heic', 'f.HEIF', 'g.doc', 'h.docx']) assert(isAllowedFileName(ok), ok);
+    for (const ko of ['a.txt', 'b.zip', 'c.exe', 'd.pdf.exe', 'e', 'f.html']) assert(!isAllowedFileName(ko), ko);
+    r.state.user = f.ownerUser;
+    const res = await r.load('app/api/blob/generate-upload-token/route.ts').POST(new Request('http://localhost:3000/api/blob/generate-upload-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName: 'statuts.zip', contentType: 'application/zip', propertyId: f.property.id }) }));
+    assert.equal(res.status, 400);
+    assert.match((await res.json()).error, /Format non accepté/);
+  });
+
   /* ---------- B2 + B3 : locataire entreprise, adresse de l'invitation ---------- */
 
   const intakeTenant = (tx, f) => tx.intakeLink.findFirstOrThrow({ where: { id: f.tenantIntake.id }, include: { client: { include: { persons: true, entreprise: true } } } });

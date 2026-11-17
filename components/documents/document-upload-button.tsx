@@ -1,5 +1,6 @@
 "use client";
 
+import { ALLOWED_FILE_ACCEPT } from "@/lib/utils/allowed-files";
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { Loader2, Plus, RefreshCw } from "lucide-react";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { attachDocumentAdmin, type DocumentTarget } from "@/lib/actions/admin-documents";
 import { cn } from "@/lib/utils";
 
-export const ACCEPT = ".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx";
+export const ACCEPT = ALLOWED_FILE_ACCEPT;
 export const MAX_SIZE = 20 * 1024 * 1024;
 
 /** Envoi direct vers S3 (URL signée), avec la progression. */

@@ -1,5 +1,6 @@
 "use client";
 
+import { ALLOWED_FILE_ACCEPT } from "@/lib/utils/allowed-files";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { deleteDocument } from "@/lib/actions/documents";
 import { Button } from "@/components/ui/button";
@@ -80,7 +81,7 @@ export function FileUpload({
   files,
   onFilesChange,
   multiple = false,
-  accept = ".pdf,.doc,.docx,.jpg,.jpeg,.png",
+  accept = ALLOWED_FILE_ACCEPT,
   disabled = false,
   required = false,
   error,
