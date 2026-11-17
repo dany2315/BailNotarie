@@ -1,5 +1,5 @@
 {
- "genereLe": "2026-11-17T13:00:05.260Z",
+ "genereLe": "2026-11-17T14:20:12.289Z",
  "totaux": {
   "cas": 1239,
   "OK": 1035,
@@ -450,7 +450,7 @@
    "gravite": "majeur",
    "origine": "staging",
    "fonctionnalite": "Geste « retour » du navigateur dans le formulaire",
-   "etat": "à décider"
+   "etat": "corrigé"
   },
   {
    "id": "PRO-M-044",

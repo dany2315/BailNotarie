@@ -164,8 +164,9 @@
   "commit": "e781167"
  },
  "PRO-M-013": {
-  "etat": "à décider",
-  "note": "M9 — non corrigé : ce comportement avait été ajouté puis retiré volontairement sur staging le 27/05 (commit cdf95c5)."
+  "etat": "corrigé",
+  "note": "M9 — choix A validé le 17/11 : le geste retour recule d’une étape. Vérifié sur Android et iPhone (formulaires locataire et propriétaire).",
+  "commit": "ace41dd"
  },
  "ADM-2-115": {
   "etat": "corrigé",

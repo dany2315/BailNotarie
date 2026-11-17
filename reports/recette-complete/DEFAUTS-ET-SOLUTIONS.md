@@ -37,7 +37,7 @@ Rien n'est encore vérifié à l'écran après correction ; chaque correction le
 | M6 | **Fausse erreur au client quand la base est lente** : il voit « Non enregistré » et un message technique, alors que sa réponse à une demande est enregistrée. | ADM-2-106 | **branche** | Sortir de la transaction de 5 secondes le calcul des pièces qui seraient demandées ensuite ; s'il échoue, la réponse reste un succès. | **Fait** (6eeb528), vérifié le 17/11 |
 | M7 | **Paiement possible alors qu'une pièce obligatoire manque** : après suppression du Kbis, « Continuer vers le paiement » ouvre quand même le paiement. | PRO-M-060 | staging | Vérifier les pièces obligatoires côté serveur avant de créer l'ordre de paiement, et relire la liste à jour côté écran. | **Fait** (d377779), vérifié le 17/11 |
 | M8 | **N'importe quel type de fichier est accepté comme pièce** (`.txt`, `.zip` enregistrés comme « Statuts »). | PRO-M-054, ADM-2-136 | staging | Liste fermée PDF, JPG, PNG, HEIC, DOC, DOCX : filtre du sélecteur de fichiers et contrôle côté serveur au moment de l'envoi. | **Fait** (e781167), vérifié le 17/11 |
-| M9 | **Le bouton « retour » du téléphone fait quitter le formulaire** au lieu de revenir à l'étape précédente. | PRO-M-013 | staging | Inscrire chaque étape dans l'historique du navigateur et réagir au retour en revenant d'une étape. | **Décision** : non corrigé. Ce comportement avait été ajouté puis retiré volontairement sur staging le 27/05 (commit cdf95c5) |
+| M9 | **Le bouton « retour » du téléphone fait quitter le formulaire** au lieu de revenir à l'étape précédente. | PRO-M-013 | staging | Inscrire chaque étape dans l'historique du navigateur et réagir au retour en revenant d'une étape. | **Fait** (ace41dd), choix A validé le 17/11, vérifié sur Android et iPhone |
 | M10 | **Réassigner un dossier à un autre notaire laisse l'accès à l'ancien** ; la fiche n'affiche que le dernier. | ADM-2-115 | staging | Remplacer l'assignation (l'ancien notaire perd l'accès) dans la même opération. Si vous voulez que l'ancien garde un accès en lecture, il faut le dire. | **Fait** (95de6df), vérifié le 17/11 |
 | M11 | **L'identité des parties reste modifiable, sans trace, sur un dossier déjà chez le notaire, et même signé.** | ADM-2-118 | staging | Verrouiller après « Signé » ; entre « Prêt pour notaire » et « Signé », garder la modification mais l'inscrire à l'historique et prévenir le notaire. | **Décision** |
 | M12 | **« Créer un notaire » avec l'adresse d'un compte existant change son rôle sans avertissement** (un client perd son accès client). | ADM-1-094, ADM-1-085 | staging | Refuser si l'adresse appartient à un compte d'un autre rôle ; si c'est déjà un notaire, le dire. | **Proposé** |
@@ -143,7 +143,7 @@ relevée trop tard par un script (COM-029) ; données créées directement en ba
 
 ## 6. État au 17/11 après les corrections
 
-Corrigées et vérifiées à l'écran : B1 à M10, sauf M9 (voir sa ligne). Tests serveur relancés. Aucun push, aucune PR, aucune fusion.
+Corrigées et vérifiées à l'écran : B1 à M10, M9 compris (choix A du 17/11). Tests serveur relancés. Aucun push, aucune PR, aucune fusion.
 Toutes les autres lignes attendent votre accord, une par une.
 
 Pour ajouter des lignes **Proposé**, dites lesquelles (« tout », ou des numéros). Pour les **Décision**, donnez
