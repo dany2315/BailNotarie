@@ -1,31 +1,32 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, Mail, Phone } from "lucide-react";
 import { openConsentBanner } from "@/components/consent/analytics-consent";
 
 /**
- * Réseaux sociaux de BailNotarie. Une adresse vide n'affiche pas l'icône : on ne publie
- * jamais de lien qui ne mène nulle part.
+ * Réseaux sociaux de BailNotarie (adresses sans paramètres de suivi). Une adresse vide
+ * n'affiche pas l'icône : on ne publie jamais de lien qui ne mène nulle part.
  */
 const SOCIALS: Array<{ label: string; href: string; icon: React.ReactNode }> = [
   {
     label: "LinkedIn",
-    href: "",
+    href: "https://www.linkedin.com/company/bailnotarie/",
     icon: (
       <path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9.75h4v11H3v-11Zm7 0h3.8v1.5h.06c.53-1 1.83-1.8 3.77-1.8 4.03 0 4.37 2.4 4.37 5.5v5.8h-4v-5.1c0-1.27-.03-2.9-1.77-2.9-1.78 0-2.05 1.38-2.05 2.8v5.2H10v-11Z" />
     ),
   },
   {
     label: "Instagram",
-    href: "",
+    href: "https://www.instagram.com/bailnotarie/",
     icon: (
       <path d="M12 2.8c2.99 0 3.35.01 4.53.07 3.04.14 4.46 1.58 4.6 4.6.06 1.18.07 1.54.07 4.53s-.01 3.35-.07 4.53c-.14 3.01-1.56 4.46-4.6 4.6-1.18.06-1.54.07-4.53.07s-3.35-.01-4.53-.07c-3.05-.14-4.46-1.6-4.6-4.6C2.81 15.35 2.8 15 2.8 12s.01-3.35.07-4.53c.14-3.02 1.56-4.46 4.6-4.6C8.65 2.81 9.01 2.8 12 2.8Zm0 4.68a4.52 4.52 0 1 0 0 9.04 4.52 4.52 0 0 0 0-9.04Zm0 7.45a2.93 2.93 0 1 1 0-5.86 2.93 2.93 0 0 1 0 5.86Zm4.7-8.69a1.06 1.06 0 1 0 0 2.12 1.06 1.06 0 0 0 0-2.12Z" />
     ),
   },
   {
     label: "Facebook",
-    href: "",
+    href: "https://www.facebook.com/share/1CTLmZiLAL/",
     icon: (
       <path d="M13.5 21.5v-7.7h2.6l.4-3h-3V8.9c0-.87.24-1.46 1.49-1.46h1.6V4.76c-.28-.04-1.22-.12-2.32-.12-2.3 0-3.87 1.4-3.87 3.98v2.22H7.8v3h2.6v7.66h3.1Z" />
     ),
@@ -79,17 +80,17 @@ export function Footer() {
         <div className="grid gap-12 lg:grid-cols-12 lg:gap-8">
           {/* Marque, promesse et contact */}
           <div className="lg:col-span-4">
-            <Link href="/" aria-label="BailNotarie — accueil" className="inline-flex items-center gap-2.5 text-[1.6rem] font-semibold leading-none tracking-[-0.04em]">
-              <span aria-hidden className="size-2.5 rounded-full bg-[#4373f5]" />
-              BailNotarie
+            <Link href="/" aria-label="BailNotarie — accueil" className="-ml-2 inline-flex">
+              {/* Logo du site, passé en blanc sur le fond sombre. */}
+              <Image src="/logoLarge.png" alt="BailNotarie" width={160} height={90} className="h-14 w-auto brightness-0 invert" />
             </Link>
             <p className="mt-5 max-w-sm text-[14px] leading-relaxed text-slate-400">
               Constitution en ligne de votre dossier de bail notarié : acte authentique, force exécutoire immédiate,
               en une semaine.
             </p>
             <p className="mt-3 max-w-sm text-[12.5px] leading-relaxed text-slate-500">
-              BailNotarie n&apos;est pas un notaire : nous préparons et transmettons votre dossier à notre notaire
-              partenaire.
+              BailNotarie n&apos;est pas un notaire : nous préparons et transmettons votre dossier à nos notaires
+              partenaires.
             </p>
 
             <div className="mt-7 flex flex-col gap-1">

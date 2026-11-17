@@ -70,7 +70,7 @@ export function LpFinalCta() {
 
             <div className="mt-10 grid gap-8 lg:mt-14 lg:grid-cols-12 lg:items-end">
               <p className="max-w-md text-[16px] leading-relaxed text-white/60 sm:text-[17px] lg:col-span-6">
-                Constituez votre dossier en ligne en quelques minutes. Notre notaire partenaire s&apos;occupe de
+                Constituez votre dossier en ligne en quelques minutes. Nos notaires partenaires s&apos;occupent de
                 l&apos;acte, vous signez à distance.
               </p>
 
