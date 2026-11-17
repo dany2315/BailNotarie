@@ -305,7 +305,7 @@ export function ContactForm() {
             label="Téléphone"
             value="07 68 09 86 24"
             hint="Lun-Ven 9h-18h"
-            onClick={() => window.open("tel:0768098624", "_blank")}
+            onClick={() => (window.location.href = "tel:0768098624")}
           />
           <Voie
             icon={Mail}
@@ -313,7 +313,7 @@ export function ContactForm() {
             label="Email"
             value="contact@bailnotarie.fr"
             hint="Réponse sous 24h"
-            onClick={() => window.open("mailto:contact@bailnotarie.fr", "_blank")}
+            onClick={() => (window.location.href = "mailto:contact@bailnotarie.fr")}
           />
         </ul>
 

@@ -64,7 +64,7 @@ export default function Home() {
         </div>
       </main>
 
-      <div data-lp-chrome="#0a0f1f">
+      <div data-lp-chrome="#f7f9ff">
         <Footer />
       </div>
     </div>

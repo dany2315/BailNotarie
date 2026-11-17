@@ -338,7 +338,7 @@ export function Header() {
                             variant="outline" 
                             className="w-full flex items-center justify-start space-x-3 text-left h-auto py-3"
                             onClick={() => {
-                              window.open("mailto:contact@bailnotarie.fr", "_blank");
+                              (window.location.href = "mailto:contact@bailnotarie.fr");
                             }}
                           >
                             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -355,7 +355,7 @@ export function Header() {
                             variant="outline" 
                             className="w-full flex items-center justify-start space-x-3 text-left h-auto py-3"
                             onClick={() => {
-                              window.open("tel:0768098624", "_blank");
+                              (window.location.href = "tel:0768098624");
                             }}
                           >
                             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
