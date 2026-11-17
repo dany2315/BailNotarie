@@ -52,16 +52,16 @@ Mis à jour le 17/11/2026 au soir. Le récapitulatif de ce qui est fait et de ce
 
 | # | Défaut | Constats | Origine | Solution proposée | Plan |
 |---|---|---|---|---|---|
-| m1 | Jour de paiement 31 accepté alors que le champ annonce 1 à 28 ; jour 0 → erreur en anglais. | PRO-D-051, COM-026 | **branche** | Borner à 1-28 côté écran et serveur, avec un message clair. | **À valider** |
-| m2 | Date de prise d'effet dans le passé (2020, 2021) acceptée sans avertissement. | PRO-D-051, PRO-M-050, COM-028 | branche / staging | Votre choix du 17/11 : refuser toute date passée (aujourd'hui accepté, heure de Paris). Contrôle côté serveur partout où la date se saisit ; jours passés grisés au calendrier et message sous le champ. Une date déjà enregistrée n'est jamais refusée, pour ne pas bloquer les dossiers en cours. | **Fait** (e3c711f), vérifié à l'écran (fiche de l'équipe, « Nouveau client complet ») et par 4 tests serveur. Pas encore sur staging |
-| m3 | Date de naissance future ou d'un mineur acceptée. | LOC-018, LOC-112, PRO-D-016 | staging | Refuser une date future ; refuser un âge inférieur à 18 ans. | **Proposé** |
-| m4 | Téléphones incomplets ou inexistants acceptés (« +33 6 12 », « +33 12 »). | LOC-013, PRO-M-022, ADM-1-038, ADM-2-057 | staging | Valider avec la bibliothèque de numéros déjà utilisée par le champ (numéro réellement possible pour le pays). | **Proposé** |
-| m5 | E-mail et téléphone du syndic non contrôlés. | PRO-D-035, PRO-M-035, COM-010 | staging | Même validation que les autres adresses et numéros. | **Proposé** |
-| m6 | Surface négative ou démesurée acceptée (-7 m², 100 000 m²). | ADM-1-098, PRO-D-030 | staging | Refuser ≤ 0 ; avertir au-delà de 10 000 m². | **Proposé** |
-| m7 | Régime matrimonial conservé en base après retour à « célibataire ». | LOC-114 | staging | Effacer le régime quand le statut n'est plus « marié ». | **Proposé** |
-| m8 | Pièces exigées selon le régime matrimonial du locataire : écart signalé, à relire. | LOC-024 | staging | Vérifier contre la règle que vous avez validée (contrat de mariage selon le régime). | **Proposé** (vérification) |
+| m1 | Jour de paiement 31 accepté alors que le champ annonce 1 à 28 ; jour 0 → erreur en anglais. | PRO-D-051, COM-026 | **branche** | Borner à 1-28 côté écran et serveur, avec un message clair. | **Fait** le 17/11 : 1 à 28 partout (formulaires, fiche de l'équipe, compléments), message « Le jour de paiement doit être compris entre 1 et 28. » ; un jour déjà enregistré (29 à 31) reste accepté pour ne pas bloquer les dossiers existants |
+| m2 | Date de prise d'effet dans le passé (2020, 2021) acceptée sans avertissement. | PRO-D-051, PRO-M-050, COM-028 | branche / staging | Votre choix du 17/11 : refuser toute date passée (aujourd'hui accepté, heure de Paris). Contrôle côté serveur partout où la date se saisit ; jours passés grisés au calendrier et message sous le champ. Une date déjà enregistrée n'est jamais refusée, pour ne pas bloquer les dossiers en cours. | **Fait** (e3c711f), vérifié à l'écran (fiche de l'équipe, « Nouveau client complet ») et par 4 tests serveur ; s'applique aussi aux réponses aux compléments |
+| m3 | Date de naissance future ou d'un mineur acceptée. | LOC-018, LOC-112, PRO-D-016 | staging | Refuser une date future ; refuser un âge inférieur à 18 ans. | **Fait** le 17/11 : date future et moins de 18 ans refusées (formulaires, fiche de l'équipe, compléments) |
+| m4 | Téléphones incomplets ou inexistants acceptés (« +33 6 12 », « +33 12 »). | LOC-013, PRO-M-022, ADM-1-038, ADM-2-057 | staging | Valider avec la bibliothèque de numéros déjà utilisée par le champ (numéro réellement possible pour le pays). | **Fait** le 17/11 : contrôle par react-phone-number-input (numéro réellement possible pour le pays), même règle partout |
+| m5 | E-mail et téléphone du syndic non contrôlés. | PRO-D-035, PRO-M-035, COM-010 | staging | Même validation que les autres adresses et numéros. | **Fait** le 17/11 : e-mail et téléphone du syndic contrôlés (formulaire, enregistrement d'étape, fiche du bien, compléments) |
+| m6 | Surface négative ou démesurée acceptée (-7 m², 100 000 m²). | ADM-1-098, PRO-D-030 | staging | Refuser ≤ 0 ; avertir au-delà de 10 000 m². | **Fait** le 17/11 : 0 et négatif refusés partout ; au-delà de 10 000 m², avertissement orange sous le champ, sans blocage |
+| m7 | Régime matrimonial conservé en base après retour à « célibataire ». | LOC-114 | staging | Effacer le régime quand le statut n'est plus « marié ». | **Fait** le 17/11 : régime effacé dès que la personne n'est plus mariée (formulaires, fiche de l'équipe) |
+| m8 | Pièces exigées selon le régime matrimonial du locataire : écart signalé, à relire. | LOC-024 | staging | Vérifier contre la règle que vous avez validée (contrat de mariage selon le régime). | **Vérifié** le 17/11 : les pièces suivent la règle validée (contrat de mariage sauf communauté réduite aux acquêts, convention de PACS) ; l'écart venait du régime conservé (m7, corrigé) |
 | m9 | E-mail du locataire principal modifiable alors qu'un verrou est prévu. | LOC-012 | staging | Lié à B3 : l'adresse de l'invitation, préremplie et grisée. | **Fait** (cbba25d), vérifié le 17/11 |
-| m10 | « Une seconde personne » : sous un e-mail vide, « Email invalide » au lieu de « L'email est requis ». | LOC-043 | staging | Message adapté. | **Proposé** |
+| m10 | « Une seconde personne » : sous un e-mail vide, « Email invalide » au lieu de « L'email est requis ». | LOC-043 | staging | Message adapté. | **Fait** le 17/11 : « L'email est requis » quand le champ est vide, « Email invalide » quand il est mal formé |
 
 ### Branche (petits défauts de notre code)
 
@@ -74,11 +74,11 @@ Mis à jour le 17/11/2026 au soir. Le récapitulatif de ce qui est fait et de ce
 
 | # | Défaut | Constats | Origine | Solution proposée | Plan |
 |---|---|---|---|---|---|
-| m13 | Codes internes affichés : CELIBATAIRE, MARIE…, APPARTEMENT, BOUTIQUE, PLEIN PROPRIETE. | PRO-D-018, LOC-008, LOC-015, PRO-M-114, ADM-1-052, COM-062, COM-092 | staging | Libellés en clair partout (« Célibataire », « Marié(e) », « Pleine propriété », « Boutique »). | **Proposé** |
-| m14 | Fautes : « Bail nue 3 ans », « Bail nue 6 ans », « Plein propriété » ; « bail nu 6 ans (SCI) » proposé à un particulier. | PRO-D-038 | staging | Corriger les libellés ; ne proposer « 6 ans » qu'à une personne morale. | **Proposé** |
-| m15 | Messages techniques en anglais : « Invalid input: expected string… », « OTP expired », messages de `/login`, « Please fill out this field ». | PUB-112, PUB-313, PUB-320, LOC-051, COM-067, COM-097 | staging | Traduire les messages de validation et de connexion. | **Proposé** |
-| m16 | Récapitulatif présenté au locataire d'un bail commercial : pas de « HT », ni périodicité, ni activité, « Type de bail » vide, vocabulaire « logement ». Info-bulle « surface habitable du logement » sur un local. | COM-061, COM-091, COM-062, COM-092, COM-045 | staging | Récapitulatif propre au bail commercial ; textes « local ». | **Proposé** |
-| m17 | Nom des fichiers téléchargés depuis la messagerie précédé d'un horodatage et d'un identifiant ; pièces libres intitulées « Autre document ». | NOT-095, NOT-119 | staging | Nom d'origine au téléchargement ; intitulé « Pièce jointe — <nom> ». | **Proposé** |
+| m13 | Codes internes affichés : CELIBATAIRE, MARIE…, APPARTEMENT, BOUTIQUE, PLEIN PROPRIETE. | PRO-D-018, LOC-008, LOC-015, PRO-M-114, ADM-1-052, COM-062, COM-092 | staging | Libellés en clair partout (« Célibataire », « Marié(e) », « Pleine propriété », « Boutique »). | **Fait** le 17/11 : libellés en clair dans les formulaires, les fiches de l'équipe et le récapitulatif du locataire |
+| m14 | Fautes : « Bail nue 3 ans », « Bail nue 6 ans », « Plein propriété » ; « bail nu 6 ans (SCI) » proposé à un particulier. | PRO-D-038 | staging | Corriger les libellés ; ne proposer « 6 ans » qu'à une personne morale. | **Fait** le 17/11 : « Bail nu », « Pleine propriété » ; « Bail nu 6 ans (société) » proposé seulement à une personne morale (ou s'il est déjà choisi) |
+| m15 | Messages techniques en anglais : « Invalid input: expected string… », « OTP expired », messages de `/login`, « Please fill out this field ». | PUB-112, PUB-313, PUB-320, LOC-051, COM-067, COM-097 | staging | Traduire les messages de validation et de connexion. | **Fait** le 17/11 : messages de Zod en français partout, message « requis » pour un champ vide, erreurs de connexion traduites (code expiré compris), plus de bulle anglaise sur /login |
+| m16 | Récapitulatif présenté au locataire d'un bail commercial : pas de « HT », ni périodicité, ni activité, « Type de bail » vide, vocabulaire « logement ». Info-bulle « surface habitable du logement » sur un local. | COM-061, COM-091, COM-062, COM-092, COM-045 | staging | Récapitulatif propre au bail commercial ; textes « local ». | **Fait** le 17/11 : « Les caractéristiques du local », « Loyer mensuel HT », paiement, TVA, activité autorisée, type et durée du bail ; info-bulle de surface propre au local |
+| m17 | Nom des fichiers téléchargés depuis la messagerie précédé d'un horodatage et d'un identifiant ; pièces libres intitulées « Autre document ». | NOT-095, NOT-119 | staging | Nom d'origine au téléchargement ; intitulé « Pièce jointe — <nom> ». | **Fait** le 17/11 : téléchargement sous le nom d'origine ; carte « Pièces » et zip du notaire : « Pièce jointe — <nom> » |
 
 ### Formulaires et espace client
 
@@ -154,8 +154,9 @@ relevée trop tard par un script (COM-029) ; données créées directement en ba
 | m9 | Corrigé avec B3, sur staging |
 | Google Analytics et bandeau de cookies | Bandeau au format standard (Tout accepter / Tout refuser / Personnaliser), choix gardé 6 mois, aucune mesure dans les espaces privés. Vérifié sur mobile et ordinateur, sur staging (e2af2dd) |
 | m2 (date de prise d'effet passée refusée) | Corrigé et vérifié, **en local seulement, pas encore sur staging** |
+| m1, m3 à m8, m10, m13 à m17 (lot du 17/11 au soir) | Corrigés (m8 vérifié conforme), 153 tests serveur au vert, vérifiés à l'écran sur /login, « Nouveau client complet » et le formulaire du locataire commercial ; **en local seulement, pas encore sur staging** |
 
-141 tests serveur au vert. Aucune PR, aucune fusion vers main, aucune migration, rien en production.
+153 tests serveur au vert. Aucune PR, aucune fusion vers main, aucune migration, rien en production.
 
 ### Ce qu'il reste à faire
 
