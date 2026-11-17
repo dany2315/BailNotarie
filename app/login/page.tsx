@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { signIn, useSession } from "@/lib/auth-client";
@@ -189,12 +188,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-4 text-center text-sm">
-            <span className="text-muted-foreground">Pas encore de compte ? </span>
-            <Link href="/register" className="text-primary hover:underline">
-              Créer un compte
-            </Link>
-          </div>
         </CardContent>
       </Card>
     </div>

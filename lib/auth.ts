@@ -15,6 +15,10 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     emailVerification: false,
+    // Pas d'inscription publique : les comptes sont créés par l'équipe ou à l'ouverture d'un dossier.
+    // Sans cette option, POST /api/auth/sign-up/email créait un compte au rôle par défaut du schéma,
+    // ADMINISTRATEUR, avec une session ouverte d'office.
+    disableSignUp: true,
   },
   trustedOrigins: [
     "http://localhost:3000",
