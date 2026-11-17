@@ -84,14 +84,14 @@ Mis à jour le 17/11/2026 au soir. Le récapitulatif de ce qui est fait et de ce
 
 | # | Défaut | Constats | Origine | Solution proposée | Plan |
 |---|---|---|---|---|---|
-| m18 | Reprise du formulaire propriétaire : l'étape « Type de contrat » est sautée, bail nu 3 ans retenu d'office. | PRO-D-039 | staging | Ne pas considérer la valeur par défaut comme une réponse. | **Proposé** |
-| m19 | Formulaire locataire repris toujours à l'étape 1. | LOC-021 | staging | Reprendre à la première étape incomplète. | **Proposé** |
-| m20 | Étape « Le loyer » : il faut parfois toucher deux fois « Continuer ». | PRO-M-119 | staging | Un seul appui valide la question en cours et avance. | **Proposé** |
-| m21 | Pièce supprimée sans confirmation ; boutons de 32 px sans intitulé ; suppression d'un fichier parfois sans effet. | PRO-M-058, PRO-M-059, PRO-D-056 | staging | Confirmation avant suppression, boutons de 44 px avec intitulé ; revérifier la suppression sans effet. | **Proposé** |
-| m22 | Erreur React n° 418 à l'ouverture de plusieurs pages (date calculée dans le fuseau du serveur, puis du navigateur). | PRO-D-079, LOC-070, LOC-085, LOC-099, PRO-M-076 | staging | Formater toutes les dates dans le fuseau Europe/Paris. | **Proposé** |
-| m23 | La bulle « Support » recouvre le bouton principal sur iPhone et petit écran (accueil, `/commencer`, menu, fenêtre « Demander »). | PUB-543, 544, 554, PRO-M-132, 168, NOT-177 | staging | La remonter au-dessus du bouton principal, ou la masquer sur les formulaires en petit écran. | **Proposé** |
-| m24 | Connecté, deux liens de l'accueil renvoient encore vers la saisie de l'e-mail. | PUB-105, 125, 145 | staging | Les faire pointer vers l'espace client. | **Proposé** |
-| m25 | « Mes informations » est en lecture seule ; « Mes dossiers » sans filtre. | PRO-D-078, PRO-D-071 | staging | Fonctionnalités absentes, pas des défauts : à décider pour plus tard. | **Décision** |
+| m18 | Reprise du formulaire propriétaire : l'étape « Type de contrat » est sautée, bail nu 3 ans retenu d'office. | PRO-D-039 | staging | Ne pas considérer la valeur par défaut comme une réponse. | **Fait** le 18/11 : tant que le loyer n'est pas enregistré, la reprise se fait sur « Type de contrat », le choix par défaut présélectionné |
+| m19 | Formulaire locataire repris toujours à l'étape 1. | LOC-021 | staging | Reprendre à la première étape incomplète. | **Fait** le 18/11 : reprise sur la première étape incomplète ; le récapitulatif n'est montré d'office qu'à un locataire qui n'a rien saisi |
+| m20 | Étape « Le loyer » : il faut parfois toucher deux fois « Continuer ». | PRO-M-119 | staging | Un seul appui valide la question en cours et avance. | **Fait** le 18/11 : dernière question du loyer, réponse acceptée : le même appui passe à « Charges & dépôt » (non rejoué à l'écran) |
+| m21 | Pièce supprimée sans confirmation ; boutons de 32 px sans intitulé ; suppression d'un fichier parfois sans effet. | PRO-M-058, PRO-M-059, PRO-D-056 | staging | Confirmation avant suppression, boutons de 44 px avec intitulé ; revérifier la suppression sans effet. | **Fait** le 18/11 : confirmation « Supprimer cette pièce ? » ; boutons de 44 px au doigt avec intitulé ; suppression sans effet non reproduite |
+| m22 | Erreur React n° 418 à l'ouverture de plusieurs pages (date calculée dans le fuseau du serveur, puis du navigateur). | PRO-D-079, LOC-070, LOC-085, LOC-099, PRO-M-076 | staging | Formater toutes les dates dans le fuseau Europe/Paris. | **Fait** le 18/11 : heures dans le fuseau de la personne qui regarde, fuseau indiqué à côté (« 22:50 (UTC+2) »), espace client, notaire et équipe ; plus d'erreur n° 418 (vérifié depuis Israël) |
+| m23 | La bulle « Support » recouvre le bouton principal sur iPhone et petit écran (accueil, `/commencer`, menu, fenêtre « Demander »). | PUB-543, 544, 554, PRO-M-132, 168, NOT-177 | staging | La remonter au-dessus du bouton principal, ou la masquer sur les formulaires en petit écran. | **Fait** le 18/11 (votre choix) : bulle toujours réduite à l'arrivée sur le site, dépliée seulement sur demande |
+| m24 | Connecté, deux liens de l'accueil renvoient encore vers la saisie de l'e-mail. | PUB-105, 125, 145 | staging | Les faire pointer vers l'espace client. | **Fait** le 18/11 : connecté, les deux cartes mènent à l'espace client |
+| m25 | « Mes informations » est en lecture seule ; « Mes dossiers » sans filtre. | PRO-D-078, PRO-D-071 | staging | Fonctionnalités absentes, pas des défauts : à décider pour plus tard. | **Laissé tel quel** pour l'instant (votre choix du 18/11) |
 
 ### Espace de l'équipe
 
@@ -108,23 +108,23 @@ Mis à jour le 17/11/2026 au soir. Le récapitulatif de ce qui est fait et de ce
 
 | # | Défaut | Constats | Origine | Solution proposée | Plan |
 |---|---|---|---|---|---|
-| m32 | Le notaire n'est prévenu de rien quand le client répond à sa demande. | NOT-075 | staging | Notification visible dans son espace et e-mail. | **Décision** |
-| m33 | Recherche sensible aux accents et limitée à l'onglet affiché ; pas de tri ; lien direct invalide sans message. | NOT-029, NOT-027, NOT-032 | staging | Recherche sans accents sur tous les onglets ; tri par date ; message « dossier introuvable ». | **Proposé** |
+| m32 | Le notaire n'est prévenu de rien quand le client répond à sa demande. | NOT-075 | staging | Notification visible dans son espace et e-mail. | **Fait** le 18/11 (votre choix) : cloche de notifications dans l'espace notaire et e-mail « Réponse reçue » au notaire |
+| m33 | Recherche sensible aux accents et limitée à l'onglet affiché ; pas de tri ; lien direct invalide sans message. | NOT-029, NOT-027, NOT-032 | staging | Recherche sans accents sur tous les onglets ; tri par date ; message « dossier introuvable ». | **Fait** le 18/11 : recherche sans accents dans tous les onglets, tri récents/anciens, message « Dossier introuvable » |
 
 ### Site public et routes d'API
 
 | # | Défaut | Constats | Origine | Solution proposée | Plan |
 |---|---|---|---|---|---|
-| m34 | Page de maquette `/testFiches` publique et indexable. | PUB-017, 035, 053 | staging | La supprimer ou la réserver à l'équipe. | **Proposé** |
-| m35 | Lien « Processus » du pied de page vers une ancre inexistante (`/#process`). | PUB-110, 130, 150, 505 | staging | Pointer vers `/#processus`. | **Proposé** |
-| m36 | Bouton « S'abonner » du blog sans effet. | PUB-231, 271, 281 | staging | Brancher l'inscription, ou retirer l'encart. | **Décision** |
-| m37 | Image absente dans l'article « Bail notarié ou bail classique ». | PUB-252, 267, 274, 284 | staging | Remettre le fichier. | **Proposé** |
-| m38 | Simulateur : montants négatifs ou nuls donnent des résultats négatifs ; textes sans accents. | PUB-203, 209, 215, 205 | staging | Refuser ≤ 0 ; corriger les textes. | **Proposé** |
-| m39 | Une page privée ou de tunnel reste indexable ; quelques titres trop longs. | PUB-503, PUB-502 | staging | `noindex` sur toutes les pages privées et de tunnel. | **Proposé** |
-| m40 | Routes d'API : refus renvoyés en 500 au lieu de 401/403. Aucune donnée ne fuit. | PUB-401 à 405, PUB-423 | staging | Renvoyer 401/403. | **Proposé** |
-| m41 | `check-user` et `prepare-login` disent publiquement si une adresse est cliente ou notaire (annuaire). | PUB-425 | staging | Réponse identique quelle que soit l'adresse. | **Proposé** |
-| m42 | Anciennes routes de connexion par code encore exposées (sans effet pour se connecter). | PUB-426 | staging | Les supprimer. | **Proposé** |
-| m43 | `create-payment-intent-bail` délivre un ordre de paiement à un notaire ou à l'équipe. | PUB-420 | staging | Réserver aux clients propriétaires du dossier. | **Proposé** |
+| m34 | Page de maquette `/testFiches` publique et indexable. | PUB-017, 035, 053 | staging | La supprimer ou la réserver à l'équipe. | **Fait** le 18/11 : page de maquette supprimée (404) |
+| m35 | Lien « Processus » du pied de page vers une ancre inexistante (`/#process`). | PUB-110, 130, 150, 505 | staging | Pointer vers `/#processus`. | **Fait** le 18/11 : lien vers `/#processus` |
+| m36 | Bouton « S'abonner » du blog sans effet. | PUB-231, 271, 281 | staging | Brancher l'inscription, ou retirer l'encart. | **Fait** le 18/11 (votre choix) : encart d'abonnement retiré |
+| m37 | Image absente dans l'article « Bail notarié ou bail classique ». | PUB-252, 267, 274, 284 | staging | Remettre le fichier. | **Fait** le 18/11 : photo de l'article (balance de la justice) servie comme les autres visuels du blog |
+| m38 | Simulateur : montants négatifs ou nuls donnent des résultats négatifs ; textes sans accents. | PUB-203, 209, 215, 205 | staging | Refuser ≤ 0 ; corriger les textes. | **Fait** le 18/11 : loyer ≤ 0 refusé avec message, procurations 0 à 10, personnes 1 à 20 ; textes accentués |
+| m39 | Une page privée ou de tunnel reste indexable ; quelques titres trop longs. | PUB-503, PUB-502 | staging | `noindex` sur toutes les pages privées et de tunnel. | **Fait** le 18/11 : balise `noindex` sur les espaces privés et les pages de tunnel, comme l'en-tête (titres longs non traités) |
+| m40 | Routes d'API : refus renvoyés en 500 au lieu de 401/403. Aucune donnée ne fuit. | PUB-401 à 405, PUB-423 | staging | Renvoyer 401/403. | **Fait** le 18/11 : refus en 401/403/404 sur les routes d'API concernées |
+| m41 | `check-user` et `prepare-login` disent publiquement si une adresse est cliente ou notaire (annuaire). | PUB-425 | staging | Réponse identique quelle que soit l'adresse. | **Fait** le 18/11 : même réponse pour toute adresse ; écrans : « Si un compte existe pour cette adresse, un code vient d'y être envoyé » |
+| m42 | Anciennes routes de connexion par code encore exposées (sans effet pour se connecter). | PUB-426 | staging | Les supprimer. | **Fait** le 18/11 : anciennes routes de code supprimées (client et notaire) |
+| m43 | `create-payment-intent-bail` délivre un ordre de paiement à un notaire ou à l'équipe. | PUB-420 | staging | Réserver aux clients propriétaires du dossier. | **Fait** le 18/11 : ordre de paiement réservé au client propriétaire (403 sinon) |
 
 ## 4. Observation importante, hors défauts
 
@@ -141,49 +141,41 @@ Images du blog non chargées sous la charge des huit agents (PUB-230, 232, 236, 
 relevée trop tard par un script (COM-029) ; données créées directement en base sans répartition des charges
 (COM-071) ; vérifications de lecture (COM-040, COM-100) ; COM-034 traité plus haut (M16).
 
-## 6. Récapitulatif au 17/11 au soir
+## 6. Récapitulatif au 18/11
 
-### Ce qui est fait (19 défauts corrigés, plus le bandeau de cookies)
+### Ce qui est fait
 
 | Point | Où il en est |
 |---|---|
-| B1, B2, B3 (bloquants) | Corrigés, vérifiés, sur staging (da5b701) |
-| M1 à M10 (majeurs) | Corrigés, vérifiés, sur staging (da5b701) |
-| M12, M13, M14, M15 | Corrigés selon vos choix du 17/11, vérifiés, sur staging (e2af2dd) |
-| M16 | Rejoué seul : non reproduit, dû à la surcharge du montage. Rien à corriger |
-| m9 | Corrigé avec B3, sur staging |
-| Google Analytics et bandeau de cookies | Bandeau au format standard (Tout accepter / Tout refuser / Personnaliser), choix gardé 6 mois, aucune mesure dans les espaces privés. Vérifié sur mobile et ordinateur, sur staging (e2af2dd) |
-| m2 (date de prise d'effet passée refusée) | Corrigé et vérifié, **en local seulement, pas encore sur staging** |
-| m1, m3 à m8, m10, m13 à m17 (lot du 17/11 au soir) | Corrigés (m8 vérifié conforme), 153 tests serveur au vert, vérifiés à l'écran sur /login, « Nouveau client complet » et le formulaire du locataire commercial ; **en local seulement, pas encore sur staging** |
+| B1, B2, B3 (bloquants) | Corrigés, vérifiés, sur staging |
+| M1 à M10, M12 à M15 (majeurs) | Corrigés, vérifiés, sur staging. M16 non reproduit |
+| Google Analytics et bandeau de cookies | Sur staging |
+| m1 à m10, m13 à m17 | Corrigés, sur staging (f8d98fa) |
+| m18 à m24, m32 à m43 (lot du 18/11) | Corrigés, 157 tests serveur au vert, vérifiés à l'écran (site public, routes d'API, heure depuis Israël, espace notaire, connexion client) ; **en local seulement, pas encore sur staging** |
+| Section finale de l'accueil | Rendue plus sobre (bleu nuit uni, un bouton, prix et téléphone en petit) ; **en local seulement** |
+| m25 | Laissé tel quel pour l'instant |
 
-153 tests serveur au vert. Aucune PR, aucune fusion vers main, aucune migration, rien en production.
+157 tests serveur au vert. Aucune PR, aucune fusion vers main, aucune migration, rien en production.
 
 ### Ce qu'il reste à faire
 
-**1. Tout de suite, votre accord**
-- Pousser m2 sur staging.
-
-**2. Défauts de notre propre branche, à corriger avant la PR (je recommande oui)**
-- m1 : jour de paiement limité à 1-28.
+**1. Défauts de notre propre branche, à corriger avant la PR (je recommande oui)**
 - m11 : l'archivage d'une « autre pièce » ne doit pas proposer les fichiers de la messagerie.
 - m12 : « Nouveau bail » de l'équipe : ajouter la date de prise d'effet et le jour de paiement quand un locataire est choisi.
 
-**3. Vos décisions (choix métier)**
+**2. Vos décisions (choix métier)**
 - M11 : identité des parties modifiable sur un dossier chez le notaire ou signé.
-- m25 : « Mes informations » modifiable ? Filtre dans « Mes dossiers » ?
 - m27 : deux boutons « Nouveau dossier » qui mènent à deux écrans.
-- m32 : prévenir le notaire quand le client répond à sa demande.
-- m36 : bouton « S'abonner » du blog (le brancher ou le retirer).
 
-**4. Défauts mineurs proposés (déjà présents sur staging et en production)**
-m3 à m8, m10, m13 à m24, m26, m28 à m31, m33 à m35, m37 à m43 : 34 points. Dites « tout » ou donnez les numéros.
+**3. Défauts mineurs proposés, pas encore traités**
+m26, m28 à m31 (espace de l'équipe).
 
-**5. Plus tard, uniquement sur votre demande explicite (mise en production)**
+**4. Plus tard, uniquement sur votre demande explicite (mise en production)**
 - PR vers main, avec revue de l'impact sur les données existantes : 23 migrations, dont une qui modifie des données (`intake_form_tracking`).
 - Import des barèmes de loyers en production.
 - Clé OpenAI en production.
 - Migration du rôle par défaut des comptes à `UTILISATEUR` (sans effet sur les comptes existants).
 - De votre côté : vérifier la liste des administrateurs en production (lié à B1).
 
-**6. Rangement en fin de recette**
+**5. Rangement en fin de recette**
 - Arrêter le serveur de recette et les doublures locales ; retirer l'entrée « recette » de `.claude/launch.json`.
