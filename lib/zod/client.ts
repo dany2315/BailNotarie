@@ -915,11 +915,12 @@ export const tenantFormSchema = z
           .trim(),
         // Société confirmée au registre : le serveur relit lui-même les données (SIREN/SIRET)
         registryConfirmed: z.boolean().optional(),
+        // Nom commercial : jamais demandé au locataire ; repris de la raison sociale s'il est vide (plus bas)
         name: z
           .string()
-          .min(1, "Le nom commercial est requis")
           .max(200, "Le nom commercial est trop long")
-          .trim(),
+          .trim()
+          .optional(),
         email: z
           .string()
           .email("Email invalide")
@@ -943,6 +944,7 @@ export const tenantFormSchema = z
           .trim()
           .optional(),
       })
+      .transform((e) => ({ ...e, name: e.name || e.legalName }))
       .optional(),
     documents: z.array(documentMetaSchema).optional(),
     // Le locataire a confirmé le loyer, les charges et la date d'entrée

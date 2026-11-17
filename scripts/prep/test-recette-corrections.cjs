@@ -61,6 +61,37 @@ suite('Corrections de la recette au navigateur', path.join(__dirname, '../../rep
     for (const d of [m.docProprio, m.docLocataire, m.docReponse]) assert(await access(r).accessibleDocument(d.id, 'read'));
   });
 
+  /* ---------- B2 + B3 : locataire entreprise, adresse de l'invitation ---------- */
+
+  const intakeTenant = (tx, f) => tx.intakeLink.findFirstOrThrow({ where: { id: f.tenantIntake.id }, include: { client: { include: { persons: true, entreprise: true } } } });
+  const entreprise = (over = {}) => ({ legalName: 'SAS Essai', registration: '123 456 789 00012', registryConfirmed: false, email: 'autre-adresse@example.invalid', phone: '+33612345678', fullAddress: '3 rue de l’Essai 23000 Guéret', ...over });
+
+  await test('B2 — le schéma du locataire accepte une société sans nom commercial et reprend la raison sociale', async (tx, r, f) => {
+    const { tenantFormSchema } = r.load('lib/zod/client.ts');
+    const res = tenantFormSchema.safeParse({ clientId: f.tenant.id, email: 'locataire@example.invalid', type: 'PERSONNE_MORALE', entreprise: entreprise(), persons: [] });
+    assert(res.success, 'refusé : ' + JSON.stringify(res.error?.issues?.map((i) => i.path.join('.') + ' ' + i.message)));
+    assert.equal(res.data.entreprise.name, 'SAS Essai');
+  });
+
+  await test('B2 + B3 — enregistrement d’une société locataire : nom repris, e-mail = adresse de l’invitation', async (tx, r, f) => {
+    f.tenantIntake = await tx.intakeLink.create({ data: { token: crypto.randomUUID(), target: 'TENANT', clientId: f.tenant.id, propertyId: f.property.id, bailId: f.bail.id, status: 'PENDING' } });
+    const invitation = (await tx.person.findFirst({ where: { clientId: f.tenant.id, isPrimary: true } })).email;
+    const handlers = r.load('lib/actions/intake-handlers.ts');
+    await handlers.handleTenantClientInfoStep(await intakeTenant(tx, f), { type: 'PERSONNE_MORALE', email: 'autre-adresse@example.invalid', entreprise: entreprise(), persons: [] }, f.tenant.id);
+    const saved = await tx.entreprise.findUnique({ where: { clientId: f.tenant.id } });
+    assert(saved, 'société non enregistrée');
+    assert.equal(saved.email, invitation, 'l’e-mail de la société doit être l’adresse de l’invitation');
+    assert.equal(saved.name, 'SAS Essai');
+  });
+
+  await test('B3 — particulier : l’e-mail de la personne principale reste celui de l’invitation', async (tx, r, f) => {
+    f.tenantIntake = await tx.intakeLink.create({ data: { token: crypto.randomUUID(), target: 'TENANT', clientId: f.tenant.id, propertyId: f.property.id, bailId: f.bail.id, status: 'PENDING' } });
+    const person = await tx.person.findFirst({ where: { clientId: f.tenant.id, isPrimary: true } });
+    const handlers = r.load('lib/actions/intake-handlers.ts');
+    await handlers.handleTenantClientInfoStep(await intakeTenant(tx, f), { type: 'PERSONNE_PHYSIQUE', email: 'changee@example.invalid', persons: [{ firstName: 'Test', lastName: 'Locataire', email: 'changee@example.invalid', isPrimary: true }] }, f.tenant.id);
+    assert.equal((await tx.person.findUnique({ where: { id: person.id } })).email, person.email);
+  });
+
   await test('M2 — la page du bail du propriétaire ne liste pas les fichiers du fil du locataire', async (tx, r, f) => {
     const m = await messagerie(tx, f);
     r.state.user = f.ownerUser;

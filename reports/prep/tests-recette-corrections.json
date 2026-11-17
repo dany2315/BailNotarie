@@ -1,7 +1,7 @@
 {
  "suite": "Corrections de la recette au navigateur",
- "createdAt": "2026-11-17T12:11:22.850Z",
- "passed": 5,
+ "createdAt": "2026-11-17T12:16:55.201Z",
+ "passed": 8,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
@@ -30,6 +30,27 @@
   },
   {
    "name": "M2 — notaire et équipe lisent tous les fichiers de la messagerie",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "B2 — le schéma du locataire accepte une société sans nom commercial et reprend la raison sociale",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "B2 + B3 — enregistrement d’une société locataire : nom repris, e-mail = adresse de l’invitation",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "B3 — particulier : l’e-mail de la personne principale reste celui de l’invitation",
    "passed": true,
    "error": null,
    "simulated": {},

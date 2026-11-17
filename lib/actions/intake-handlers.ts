@@ -142,7 +142,18 @@ export async function handleTenantClientInfoStep(
   payload: any,
   clientId: string,
 ) {
-  const effectivePayload = payload;
+  const effectivePayload = { ...payload };
+
+  // Adresse de l'invitation (saisie par le propriétaire) = adresse de connexion du locataire : elle ne change
+  // pas, et devient aussi l'e-mail de la société s'il choisit « Entreprise ». Écran et serveur appliquent la même règle.
+  const invitationEmail = tenantInvitationEmail(intakeLink);
+  if (invitationEmail) {
+    effectivePayload.email = invitationEmail;
+    if (Array.isArray(effectivePayload.persons) && effectivePayload.persons[0]) {
+      effectivePayload.persons = [{ ...effectivePayload.persons[0], email: invitationEmail }, ...effectivePayload.persons.slice(1)];
+    }
+    if (effectivePayload.entreprise) effectivePayload.entreprise = { ...effectivePayload.entreprise, email: invitationEmail };
+  }
 
   // Vérifications d'email avant la transaction
   await validateTenantEmails(intakeLink, effectivePayload, clientId);
@@ -784,6 +795,14 @@ export async function handleOwnerLegacySave(
 // ============================================================================
 // FONCTIONS HELPER POUR TENANT
 // ============================================================================
+
+/** Adresse connue du locataire à l'ouverture de son formulaire (celle de l'invitation), ou null. */
+function tenantInvitationEmail(intakeLink: any): string | null {
+  const client = intakeLink?.client;
+  const email =
+    client?.persons?.find((p: any) => p.isPrimary)?.email || client?.persons?.[0]?.email || client?.entreprise?.email || null;
+  return email ? String(email).trim().toLowerCase() : null;
+}
 
 async function validateTenantEmails(intakeLink: any, payload: any, clientId: string) {
   const currentClient = intakeLink.client;

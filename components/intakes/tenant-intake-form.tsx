@@ -63,6 +63,17 @@ import { AlertCircle, Trash2 } from "lucide-react";
 
 type TenantFormData = z.infer<typeof tenantFormSchema>;
 
+/** Messages des erreurs de validation, à plat (champs imbriqués et listes compris). */
+function collectErrorMessages(errors: any, out: string[] = []): string[] {
+  if (!errors || typeof errors !== "object") return out;
+  if (typeof errors.message === "string" && errors.message) out.push(errors.message);
+  for (const [key, value] of Object.entries(errors)) {
+    if (key === "message" || key === "ref" || key === "type") continue;
+    collectErrorMessages(value, out);
+  }
+  return [...new Set(out)];
+}
+
 type PersonForm = {
   firstName: string;
   lastName: string;
@@ -304,6 +315,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const [clientType, setClientType] = useState<ClientType | "">(
     defaultValues.type || ClientType.PERSONNE_PHYSIQUE
   );
+
+  // Adresse de l'invitation (saisie par le propriétaire) : c'est l'adresse de connexion du locataire. Connue à
+  // l'ouverture, elle est préremplie et grisée partout (personne principale, et e-mail de la société s'il
+  // choisit « Entreprise »). Le verrou se décide ici, une fois : jamais sur la valeur en cours de frappe.
+  const [lockedEmail] = useState<string>(() => ((defaultValues as any).email || "").trim());
+  const [lockedPhone] = useState<string>(() => ((defaultValues as any).phone || "").trim());
 
   // On garde une photo des dernières valeurs sauvegardées
   const lastSavedValues = useRef<FormWithPersons>(defaultValues);
@@ -1278,7 +1295,14 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       } else {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
-        if (!valid) return;
+        if (!valid) {
+          // Une erreur sur un champ absent de l'écran ne doit jamais laisser « Continuer » sans réponse.
+          const messages = collectErrorMessages(form.formState.errors);
+          toast.error("Certaines informations sont à compléter", {
+            description: messages.slice(0, 3).join(" · ") || undefined,
+          });
+          return;
+        }
         // Réponses qui dépendent des autres (bail commercial : représentant légal et immatriculation
         // de la société) : règles dans lib/rules/dossier-rules.ts
         if (stepId === "clientInfo") {
@@ -1967,6 +1991,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 onClick={() => {
                   field.onChange(ClientType.PERSONNE_MORALE);
                   setClientType(ClientType.PERSONNE_MORALE);
+                  if (lockedEmail) form.setValue("entreprise.email" as any, lockedEmail, { shouldDirty: true });
                 }}
                 className={cn(
                   "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
@@ -2000,8 +2025,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     const primaryPerson = personsWatch?.find((person) => person.isPrimary);
     const rootEmail = entrepriseWatch?.email || primaryPerson?.email || "";
     const rootPhone = entrepriseWatch?.phone || primaryPerson?.phone || "";
-    const isEmailLocked = !!rootEmail;
-    const isPhoneLocked = !rootEmail && !!rootPhone;
+    const isEmailLocked = !!lockedEmail;
+    const isPhoneLocked = !lockedEmail && !!lockedPhone;
     const watchedFamilyStatuses = personFields.map((_, index) => 
       form.watch(`persons.${index}.familyStatus` as any)
     );
@@ -2045,7 +2070,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               token={intakeLink.token}
               showRepresentative={intakeLink.bail?.bailFamily === "COMMERCIAL"}
               allowUnregistered={intakeLink.bail?.bailFamily === "COMMERCIAL"}
-              syncTradeName={false}
+              syncTradeName
             />
             <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
@@ -2076,12 +2101,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 <Input
                   id="entreprise.email"
                   type="email"
-                  className="h-11"
                   {...form.register("entreprise.email", {
                     required: "L'email est requis",
                   })}
-                  disabled={isEmailLocked}
+                  readOnly={isEmailLocked}
+                  className={`h-11 ${isEmailLocked ? "bg-muted cursor-not-allowed" : ""}`}
                 />
+                {isEmailLocked && (
+                  <p className="text-sm text-muted-foreground">L&apos;email ne peut pas être modifié</p>
+                )}
                 {form.formState.errors.entreprise?.email && (
                   <div className="text-sm text-destructive">
                     <p>{form.formState.errors.entreprise.email.message}</p>
@@ -2237,7 +2265,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           {...form.register(`persons.${index}.email` as any, {
                             required: "L'email est requis",
                           })}
-                          disabled={isEmailLocked && index === 0}
+                          readOnly={isEmailLocked && index === 0}
                           className={`h-11 ${isEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}`}
                         />
                         {isEmailLocked && index === 0 && (
