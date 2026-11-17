@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -52,7 +53,7 @@ export function NotaireCreateDialog({ open, onOpenChange }: NotaireCreateDialogP
   const onSubmit = async (data: CreateNotaireFormData) => {
     setIsLoading(true);
     try {
-      await createNotaire(data);
+      await unwrapAction(createNotaire(data));
       toast.success("Notaire créé avec succès");
       reset();
       onOpenChange(false);

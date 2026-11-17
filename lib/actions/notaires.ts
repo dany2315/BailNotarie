@@ -1,5 +1,6 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
@@ -51,6 +52,10 @@ const createNotaireRequestSchema = z.object({
  * Créer un nouveau notaire
  */
 export async function createNotaire(data: unknown) {
+  return guardAction(() => createNotaireUnguarded(data));
+}
+
+async function createNotaireUnguarded(data: unknown) {
   const user = await requireRole([Role.ADMINISTRATEUR]);
   const validated = createNotaireSchema.parse(data);
 
@@ -61,19 +66,22 @@ export async function createNotaire(data: unknown) {
     where: { email },
   });
 
+  // Une adresse déjà utilisée n'est jamais transformée en compte notaire : un client (ou un membre de l'équipe)
+  // perdrait l'accès à son espace sans le savoir (recette du 17/11, M12).
   if (existingUser) {
-    // Si l'utilisateur existe, mettre à jour son rôle en NOTAIRE
-    if (existingUser.role !== Role.NOTAIRE) {
-      await prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          role: Role.NOTAIRE,
-          name: validated.name || existingUser.name,
-        },
-      });
-    }
-    revalidatePath("/interface/notaires");
-    return existingUser;
+    if (existingUser.role === Role.NOTAIRE) throw new Error("Ce notaire existe déjà.");
+    throw new Error(
+      existingUser.role === Role.UTILISATEUR
+        ? "Cette adresse appartient déjà à un compte client. Utilisez une autre adresse pour le notaire."
+        : "Cette adresse appartient déjà à un compte de l'équipe. Utilisez une autre adresse pour le notaire.",
+    );
+  }
+  const [clientPerson, clientEntreprise] = await Promise.all([
+    prisma.person.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } }),
+    prisma.entreprise.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } }),
+  ]);
+  if (clientPerson || clientEntreprise) {
+    throw new Error("Cette adresse appartient déjà à un client. Utilisez une autre adresse pour le notaire.");
   }
 
   // Créer un nouvel utilisateur avec le rôle NOTAIRE
