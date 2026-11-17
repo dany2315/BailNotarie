@@ -17,39 +17,39 @@ const PROCURATION_UNIT_HT = 20;
 
 const SIMULATOR_HIGHLIGHTS = [
   {
-    title: "Base d'emoluments",
-    description: "Le calcul part d'une base egale a 50% du loyer mensuel hors charges.",
+    title: "Base d'émoluments",
+    description: "Le calcul part d'une base égale à 50 % du loyer mensuel hors charges.",
   },
   {
     title: "Procurations",
-    description: `Chaque procuration ajoute ${PROCURATION_UNIT_HT} EUR HT au montant estime.`,
+    description: `Chaque procuration ajoute ${PROCURATION_UNIT_HT} € HT au montant estimé.`,
   },
   {
     title: "TVA",
-    description: "La TVA de 20% est appliquee au total HT obtenu par le simulateur.",
+    description: "La TVA de 20 % est appliquée au total HT obtenu par le simulateur.",
   },
 ];
 
 const SIMULATOR_FAQS = [
   {
-    question: "Quel est le prix d'un bail notarie ?",
+    question: "Quel est le prix d'un bail notarié ?",
     answer:
-      "Le prix depend surtout du loyer hors charges et des procurations. Cette page donne une estimation TTC immediate pour un bail notarie d'habitation.",
+      "Le prix dépend surtout du loyer hors charges et des procurations. Cette page donne une estimation TTC immédiate pour un bail notarié d'habitation.",
   },
   {
-    question: "Combien coute un bail de location chez un notaire ?",
+    question: "Combien coûte un bail de location chez un notaire ?",
     answer:
-      "Pour une location d'habitation, on raisonne souvent a partir d'une base proche d'un demi-loyer hors charges, a laquelle s'ajoutent ici les procurations et la TVA.",
+      "Pour une location d'habitation, on raisonne souvent à partir d'une base proche d'un demi-loyer hors charges, à laquelle s'ajoutent ici les procurations et la TVA.",
   },
   {
     question: "Et pour un bail commercial ?",
     answer:
-      "Le tarif reglemente des notaires ne couvre que le bail d'habitation. Pour un bail commercial, les honoraires sont libres : le notaire les fixe selon le dossier et les communique avant la signature. Les frais de dossier BailNotarie sont de 59,90 EUR TTC.",
+      "Le tarif réglementé des notaires ne couvre que le bail d'habitation. Pour un bail commercial, les honoraires sont libres : le notaire les fixe selon le dossier et les communique avant la signature. Les frais de dossier BailNotarie sont de 59,90 € TTC.",
   },
   {
-    question: "Comment est calcule le tarif du bail notarie ?",
+    question: "Comment est calculé le tarif du bail notarié ?",
     answer:
-      "Le simulateur affiche la base d'emoluments, le cout des procurations, la TVA et le total TTC. Il ne rajoute pas de frais de dossier dans ce calcul.",
+      "Le simulateur affiche la base d'émoluments, le coût des procurations, la TVA et le total TTC. Il ne rajoute pas de frais de dossier dans ce calcul.",
   },
 ];
 
@@ -111,6 +111,17 @@ function CommercialNotice() {
   );
 }
 
+const MAX_PROCURATIONS = 10;
+const MAX_PEOPLE = 20;
+const RENT_INVALID = "Indiquez un loyer supérieur à 0 €.";
+
+/** Nombre saisi ramené entre deux bornes (vide ou illisible : la borne basse). */
+function clampInput(value: string, min: number, max: number) {
+  const n = Math.trunc(Number(value));
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, n));
+}
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -125,9 +136,12 @@ export function PriceSimulatorPage() {
   const [showMobileResult, setShowMobileResult] = useState(false);
   const [usage, setUsage] = useState<Usage>("HABITATION");
   const isCommercial = usage === "COMMERCIAL";
+  // Un loyer nul ou négatif ne donne pas de prix : on l'indique au lieu d'afficher un montant négatif.
+  const rentInvalid = !(rent > 0);
+  const money = (value: number) => (rentInvalid ? "—" : formatCurrency(value));
 
   const simulation = useMemo(() => {
-    const baseEmoluments = rent * 0.5;
+    const baseEmoluments = Math.max(0, rent) * 0.5;
     const procurationCost = procurations * PROCURATION_UNIT_HT;
     const subtotalHt = baseEmoluments + procurationCost;
     const tva = subtotalHt * TVA_RATE;
@@ -160,14 +174,14 @@ export function PriceSimulatorPage() {
           </nav>
 
           <div className="mb-8 text-center md:mb-10">
-            <Badge className="border-blue-200 bg-blue-100 text-blue-700">Estimation en ligne • Cout TTC</Badge>
+            <Badge className="border-blue-200 bg-blue-100 text-blue-700">Estimation en ligne • Coût TTC</Badge>
             <h1 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl md:text-5xl">
-              Simulateur prix bail notarie d&apos;habitation
+              Simulateur de prix du bail notarié d&apos;habitation
             </h1>
             <p className="mx-auto mt-4 max-w-3xl text-sm text-slate-600 sm:text-base md:text-lg">
-              Estimez le cout d&apos;un bail notarie selon le <strong>loyer hors charges</strong>, le
+              Estimez le coût d&apos;un bail notarié selon le <strong>loyer hors charges</strong>, le
               <strong> nombre de procurations</strong> et le <strong>nombre de personnes au bail</strong>.
-              Vous obtenez immediatement une estimation du prix TTC, de la base d&apos;emoluments et du cout moyen par signataire.
+              Vous obtenez immédiatement une estimation du prix TTC, de la base d&apos;émoluments et du coût moyen par signataire.
             </p>
           </div>
 
@@ -177,11 +191,11 @@ export function PriceSimulatorPage() {
                 <CardTitle className="flex items-center gap-2 text-lg text-slate-900 sm:text-xl">
                   {showMobileResult ? (
                     <>
-                      <Euro className="h-5 w-5 text-blue-600" /> Resultat estime
+                      <Euro className="h-5 w-5 text-blue-600" /> Résultat estimé
                     </>
                   ) : (
                     <>
-                      <Calculator className="h-5 w-5 text-blue-600" /> Parametres
+                      <Calculator className="h-5 w-5 text-blue-600" /> Paramètres
                     </>
                   )}
                 </CardTitle>
@@ -203,7 +217,7 @@ export function PriceSimulatorPage() {
                   <div className="space-y-4 sm:space-y-5">
                     <UsageToggle usage={usage} onChange={setUsage} />
                     <div className="space-y-2">
-                      <Label htmlFor="rent-mobile">Montant du loyer mensuel hors charges (EUR)</Label>
+                      <Label htmlFor="rent-mobile">Montant du loyer mensuel hors charges (€)</Label>
                       <Input
                         id="rent-mobile"
                         type="number"
@@ -211,8 +225,11 @@ export function PriceSimulatorPage() {
                         inputMode="decimal"
                         value={rent}
                         onChange={(e) => setRent(Number(e.target.value) || 0)}
+                        aria-invalid={rentInvalid}
                         className="h-11 text-base"
                       />
+                      {rentInvalid && <p className="text-sm text-destructive">{RENT_INVALID}</p>}
+                      <p className="text-xs text-slate-500">De 0 à {MAX_PROCURATIONS} procurations, de 1 à {MAX_PEOPLE} personnes.</p>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -222,9 +239,9 @@ export function PriceSimulatorPage() {
                           id="procurations-mobile"
                           type="number"
                           min={0}
-                          max={10}
+                          max={MAX_PROCURATIONS}
                           value={procurations}
-                          onChange={(e) => setProcurations(Number(e.target.value) || 0)}
+                          onChange={(e) => setProcurations(clampInput(e.target.value, 0, MAX_PROCURATIONS))}
                           className="h-11 text-base"
                         />
                       </div>
@@ -235,19 +252,19 @@ export function PriceSimulatorPage() {
                           id="people-mobile"
                           type="number"
                           min={1}
-                          max={20}
+                          max={MAX_PEOPLE}
                           value={peopleOnLease}
-                          onChange={(e) => setPeopleOnLease(Math.max(1, Number(e.target.value) || 1))}
+                          onChange={(e) => setPeopleOnLease(clampInput(e.target.value, 1, MAX_PEOPLE))}
                           className="h-11 text-base"
                         />
                       </div>
                     </div>
 
                     <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                      Cette estimation repose sur le loyer, les procurations et la TVA. Le montant final reste confirme au moment du traitement notarial.
+                      Cette estimation repose sur le loyer, les procurations et la TVA. Le montant final reste confirmé au moment du traitement notarial.
                     </div>
 
-                    <Button className="h-11 w-full" onClick={() => setShowMobileResult(true)}>
+                    <Button className="h-11 w-full" disabled={rentInvalid} onClick={() => setShowMobileResult(true)}>
                       Voir mon estimation
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
@@ -259,39 +276,39 @@ export function PriceSimulatorPage() {
                       size="icon"
                       className="-ml-2 h-8 w-8"
                       onClick={() => setShowMobileResult(false)}
-                      aria-label="Retour aux parametres"
+                      aria-label="Retour aux paramètres"
                     >
                       <ArrowLeft className="h-4 w-4" />
                     </Button>
 
                     <div className="rounded-2xl bg-slate-900 p-4 text-white">
                       <p className="text-xs uppercase tracking-wide text-blue-100">Prix estimatif TTC</p>
-                      <p className="mt-1 text-3xl font-bold">{formatCurrency(simulation.totalTtc)}</p>
+                      <p className="mt-1 text-3xl font-bold">{money(simulation.totalTtc)}</p>
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="rounded-xl border p-3">
-                        <p className="text-xs text-slate-500">Base emoluments</p>
-                        <p className="font-semibold text-slate-900">{formatCurrency(simulation.baseEmoluments)}</p>
+                        <p className="text-xs text-slate-500">Base d'émoluments</p>
+                        <p className="font-semibold text-slate-900">{money(simulation.baseEmoluments)}</p>
                       </div>
                       <div className="rounded-xl border p-3">
                         <p className="text-xs text-slate-500">
-                          Procurations ({procurations} × {PROCURATION_UNIT_HT} EUR HT)
+                          Procurations ({procurations} × {PROCURATION_UNIT_HT} € HT)
                         </p>
-                        <p className="font-semibold text-slate-900">{formatCurrency(simulation.procurationCost)}</p>
+                        <p className="font-semibold text-slate-900">{money(simulation.procurationCost)}</p>
                       </div>
                       <div className="rounded-xl border p-3">
-                        <p className="text-xs text-slate-500">TVA (20%)</p>
-                        <p className="font-semibold text-slate-900">{formatCurrency(simulation.tva)}</p>
+                        <p className="text-xs text-slate-500">TVA (20 %)</p>
+                        <p className="font-semibold text-slate-900">{money(simulation.tva)}</p>
                       </div>
                     </div>
 
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <p className="flex items-center gap-2 text-sm font-medium text-slate-800">
                         <Users className="h-4 w-4 text-blue-600" />
-                        Cout moyen par personne au bail
+                        Coût moyen par personne au bail
                       </p>
-                      <p className="mt-2 text-xl font-bold text-slate-900">{formatCurrency(simulation.splitPerPerson)}</p>
+                      <p className="mt-2 text-xl font-bold text-slate-900">{money(simulation.splitPerPerson)}</p>
                     </div>
 
                     <Button asChild className="h-11 w-full">
@@ -308,7 +325,7 @@ export function PriceSimulatorPage() {
             <Card className="hidden border-blue-100 shadow-sm lg:block">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg text-slate-900 sm:text-xl">
-                  <Calculator className="h-5 w-5 text-blue-600" /> Parametres
+                  <Calculator className="h-5 w-5 text-blue-600" /> Paramètres
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 sm:space-y-5">
@@ -316,7 +333,7 @@ export function PriceSimulatorPage() {
                 {!isCommercial && (
                 <>
                 <div className="space-y-2">
-                  <Label htmlFor="rent">Montant du loyer mensuel hors charges (EUR)</Label>
+                  <Label htmlFor="rent">Montant du loyer mensuel hors charges (€)</Label>
                   <Input
                     id="rent"
                     type="number"
@@ -324,8 +341,11 @@ export function PriceSimulatorPage() {
                     inputMode="decimal"
                     value={rent}
                     onChange={(e) => setRent(Number(e.target.value) || 0)}
+                        aria-invalid={rentInvalid}
                     className="h-11 text-base"
                   />
+                  {rentInvalid && <p className="text-sm text-destructive">{RENT_INVALID}</p>}
+                  <p className="text-xs text-slate-500">De 0 à {MAX_PROCURATIONS} procurations, de 1 à {MAX_PEOPLE} personnes.</p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -335,9 +355,9 @@ export function PriceSimulatorPage() {
                       id="procurations"
                       type="number"
                       min={0}
-                      max={10}
+                      max={MAX_PROCURATIONS}
                       value={procurations}
-                      onChange={(e) => setProcurations(Number(e.target.value) || 0)}
+                      onChange={(e) => setProcurations(clampInput(e.target.value, 0, MAX_PROCURATIONS))}
                       className="h-11 text-base"
                     />
                   </div>
@@ -348,16 +368,16 @@ export function PriceSimulatorPage() {
                       id="people"
                       type="number"
                       min={1}
-                      max={20}
+                      max={MAX_PEOPLE}
                       value={peopleOnLease}
-                      onChange={(e) => setPeopleOnLease(Math.max(1, Number(e.target.value) || 1))}
+                      onChange={(e) => setPeopleOnLease(clampInput(e.target.value, 1, MAX_PEOPLE))}
                       className="h-11 text-base"
                     />
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                  Cette estimation repose sur le loyer, les procurations et la TVA. Le montant final reste confirme au moment du traitement notarial.
+                  Cette estimation repose sur le loyer, les procurations et la TVA. Le montant final reste confirmé au moment du traitement notarial.
                 </div>
                 </>
                 )}
@@ -372,7 +392,7 @@ export function PriceSimulatorPage() {
             <Card className="hidden border-blue-100 bg-white shadow-sm lg:block">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg text-slate-900 sm:text-xl">
-                  <Euro className="h-5 w-5 text-blue-600" /> Resultat estime
+                  <Euro className="h-5 w-5 text-blue-600" /> Résultat estimé
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -382,37 +402,37 @@ export function PriceSimulatorPage() {
                 <>
                 <div className="rounded-2xl bg-slate-900 p-4 text-white sm:p-5">
                   <p className="text-xs uppercase tracking-wide text-blue-100">Prix estimatif TTC</p>
-                  <p className="mt-1 text-3xl font-bold sm:text-4xl">{formatCurrency(simulation.totalTtc)}</p>
+                  <p className="mt-1 text-3xl font-bold sm:text-4xl">{money(simulation.totalTtc)}</p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border p-3">
-                    <p className="text-xs text-slate-500">Base emoluments</p>
-                    <p className="font-semibold text-slate-900">{formatCurrency(simulation.baseEmoluments)}</p>
+                    <p className="text-xs text-slate-500">Base d'émoluments</p>
+                    <p className="font-semibold text-slate-900">{money(simulation.baseEmoluments)}</p>
                   </div>
                   <div className="rounded-xl border p-3">
                     <p className="text-xs text-slate-500">
-                      Procurations ({procurations} × {PROCURATION_UNIT_HT} EUR HT)
+                      Procurations ({procurations} × {PROCURATION_UNIT_HT} € HT)
                     </p>
-                    <p className="font-semibold text-slate-900">{formatCurrency(simulation.procurationCost)}</p>
+                    <p className="font-semibold text-slate-900">{money(simulation.procurationCost)}</p>
                   </div>
                   <div className="rounded-xl border p-3">
-                    <p className="text-xs text-slate-500">TVA (20%)</p>
-                    <p className="font-semibold text-slate-900">{formatCurrency(simulation.tva)}</p>
+                    <p className="text-xs text-slate-500">TVA (20 %)</p>
+                    <p className="font-semibold text-slate-900">{money(simulation.tva)}</p>
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <p className="flex items-center gap-2 text-sm font-medium text-slate-800">
                     <Users className="h-4 w-4 text-blue-600" />
-                    Cout moyen par personne au bail
+                    Coût moyen par personne au bail
                   </p>
-                  <p className="mt-2 text-xl font-bold text-slate-900">{formatCurrency(simulation.splitPerPerson)}</p>
+                  <p className="mt-2 text-xl font-bold text-slate-900">{money(simulation.splitPerPerson)}</p>
                 </div>
 
                 <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   <FileCheck2 className="mt-0.5 h-5 w-5 shrink-0" />
-                  Estimation indicative calculee automatiquement. Le montant exact est confirme au moment du traitement notarial.
+                  Estimation indicative calculée automatiquement. Le montant exact est confirmé au moment du traitement notarial.
                 </div>
                 </>
                 )}
@@ -430,12 +450,12 @@ export function PriceSimulatorPage() {
           <section className="mt-10 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
             <Card className="border-blue-100 shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-xl text-slate-900">Comment est calcule le prix d&apos;un bail notarie ?</CardTitle>
+                <CardTitle className="text-xl text-slate-900">Comment est calculé le prix d&apos;un bail notarié ?</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5 text-sm text-slate-700 sm:text-base">
                 <p>
-                  Le simulateur vise une lecture immediate du cout d&apos;un bail notarie d&apos;habitation.
-                  Il met en avant les postes que l&apos;utilisateur cherche le plus souvent a comprendre avant de lancer son dossier.
+                  Le simulateur vise une lecture immédiate du coût d&apos;un bail notarié d&apos;habitation.
+                  Il met en avant les postes que l&apos;utilisateur cherche le plus souvent à comprendre avant de lancer son dossier.
                 </p>
 
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -448,12 +468,12 @@ export function PriceSimulatorPage() {
                 </div>
 
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-                  <p className="text-sm font-semibold text-slate-900">Formule utilisee</p>
+                  <p className="text-sm font-semibold text-slate-900">Formule utilisée</p>
                   <p className="mt-2 text-sm text-slate-700 sm:text-base">
-                    Prix estime TTC = (0,5 x loyer mensuel hors charges + procurations) + TVA.
+                    Prix estimé TTC = (0,5 × loyer mensuel hors charges + procurations) + TVA.
                   </p>
                   <p className="mt-2 text-sm text-slate-700 sm:text-base">
-                    Cette estimation ne rajoute pas de frais de dossier et reste indicative jusqu&apos;a validation finale du dossier notarial.
+                    Cette estimation ne rajoute pas de frais de dossier et reste indicative jusqu&apos;à validation finale du dossier notarial.
                   </p>
                 </div>
               </CardContent>
@@ -465,8 +485,8 @@ export function PriceSimulatorPage() {
               </CardHeader>
               <CardContent className="space-y-4 text-sm text-slate-700 sm:text-base">
                 <p>
-                  Si vous voulez aller au-dela de la simulation, vous pouvez consulter le detail
-                  du cout d&apos;un bail notarie puis lancer directement la constitution du dossier.
+                  Si vous voulez aller au-delà de la simulation, vous pouvez consulter le détail
+                  du coût d&apos;un bail notarié puis lancer directement la constitution du dossier.
                 </p>
 
                 <div className="space-y-3">
@@ -474,7 +494,7 @@ export function PriceSimulatorPage() {
                     href="/blog/cout-dun-bail-de-location-notarie-tarifs-partage-des-frais-et-exemples-concrets"
                     className="block rounded-xl border border-slate-200 p-4 transition-colors hover:border-blue-200 hover:bg-blue-50"
                   >
-                    <p className="font-semibold text-slate-900">Voir le detail du prix d&apos;un bail notarie</p>
+                    <p className="font-semibold text-slate-900">Voir le détail du prix d&apos;un bail notarié</p>
                     <p className="mt-1 text-sm text-slate-600">Tarifs, partage des frais et exemples concrets.</p>
                   </Link>
 
@@ -482,8 +502,8 @@ export function PriceSimulatorPage() {
                     href="/blog/les-etapes-pour-etablir-un-bail-notarie-guide-complet"
                     className="block rounded-xl border border-slate-200 p-4 transition-colors hover:border-blue-200 hover:bg-blue-50"
                   >
-                    <p className="font-semibold text-slate-900">Comprendre les etapes du bail notarie</p>
-                    <p className="mt-1 text-sm text-slate-600">Checklist, verification du dossier et signature.</p>
+                    <p className="font-semibold text-slate-900">Comprendre les étapes du bail notarié</p>
+                    <p className="mt-1 text-sm text-slate-600">Liste des pièces, vérification du dossier et signature.</p>
                   </Link>
                 </div>
 
@@ -500,10 +520,10 @@ export function PriceSimulatorPage() {
           <section className="mt-6">
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                Questions frequentes sur le cout du bail notarie
+                Questions fréquentes sur le coût du bail notarié
               </h2>
               <p className="mx-auto mt-3 max-w-3xl text-sm text-slate-600 sm:text-base">
-                Reponses rapides pour les recherches les plus courantes autour du prix, du cout et du tarif du bail notarie.
+                Réponses rapides aux questions les plus courantes sur le prix, le coût et le tarif du bail notarié.
               </p>
             </div>
 

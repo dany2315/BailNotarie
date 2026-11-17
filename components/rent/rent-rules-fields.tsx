@@ -614,7 +614,13 @@ export function RentGuide({ rules }: { rules: RentRules }) {
   };
   advance.current = () => {
     if (active) {
-      if (Date.now() - shownAt.current > 500) submit();
+      if (Date.now() - shownAt.current <= 500) return true;
+      const accepted = !!active.answer && !active.blocked;
+      submit();
+      // Dernière question ouverte, réponse acceptée et calcul à jour : le même appui sur
+      // « Continuer » passe aussi à l'étape suivante, au lieu d'en demander un second (m20).
+      const othersOpen = list.some((item) => item.key !== active.key && !item.answer);
+      if (accepted && !othersOpen && !rules.loading) return false;
       return true;
     }
     // Calcul en cours après la dernière réponse : le résultat arrive.

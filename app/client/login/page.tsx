@@ -157,8 +157,8 @@ export default function ClientLoginPage() {
 
       setEmail(emailNormalized);
       setStep("otp");
-      toast.success("Code OTP envoyé par email", {
-        description: "Vérifiez votre boîte de réception",
+      toast.success("Demande envoyée", {
+        description: "Si un compte client existe pour cette adresse, un code vient d'y être envoyé.",
       });
     } catch (error: any) {
       console.error("Erreur lors de l'envoi de l'OTP:", error);

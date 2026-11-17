@@ -2,6 +2,14 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DocumentViewer } from "@/components/leases/document-viewer";
 import { useDownloadFile } from "@/hooks/use-download-file";
 import { documentKindLabels } from "@/lib/utils/document-labels";
@@ -70,6 +78,9 @@ function getDocumentIcon(document: StackDocument) {
   return <File className="size-4 text-muted-foreground" />;
 }
 
+/** Boutons d'une pièce : 44 px au doigt, 36 px à la souris. */
+const ACTION_BUTTON = "h-11 w-11 sm:h-9 sm:w-9";
+
 export function DocumentStackList({
   documents,
   onDelete,
@@ -80,6 +91,8 @@ export function DocumentStackList({
 }: DocumentStackListProps) {
   const { downloadFile, isDownloading } = useDownloadFile(token);
   const [isStackExpanded, setIsStackExpanded] = useState(false);
+  // Pièce dont la suppression attend une confirmation (m21).
+  const [pendingDelete, setPendingDelete] = useState<StackDocument | null>(null);
 
   if (documents.length === 0) {
     return null;
@@ -168,7 +181,7 @@ export function DocumentStackList({
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-1">
                     <DocumentViewer
                       document={document}
                       documentKindLabels={documentKindLabels}
@@ -178,7 +191,9 @@ export function DocumentStackList({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className={cn(compact ? "h-7 w-7" : "h-8 w-8")}
+                        className={ACTION_BUTTON}
+                        aria-label="Voir la pièce"
+                        title="Voir"
                       >
                         <Eye className="size-4" />
                       </Button>
@@ -187,7 +202,9 @@ export function DocumentStackList({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className={cn(compact ? "h-7 w-7" : "h-8 w-8")}
+                      className={ACTION_BUTTON}
+                      aria-label="Télécharger la pièce"
+                      title="Télécharger"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -206,12 +223,14 @@ export function DocumentStackList({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className={cn(compact ? "h-7 w-7" : "h-8 w-8", "text-destructive hover:text-destructive")}
+                        className={cn(ACTION_BUTTON, "text-destructive hover:text-destructive")}
+                        aria-label="Supprimer la pièce"
+                        title="Supprimer"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           e.nativeEvent.stopImmediatePropagation();
-                          onDelete(document.id);
+                          setPendingDelete(document);
                         }}
                         disabled={isDeleting}
                       >
@@ -225,6 +244,36 @@ export function DocumentStackList({
           </div>
         );
       })}
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Supprimer cette pièce ?</DialogTitle>
+            <DialogDescription>
+              {pendingDelete
+                ? `${documentKindLabels[pendingDelete.kind] || pendingDelete.kind}${pendingDelete.label ? ` — ${pendingDelete.label}` : ""}. `
+                : ""}
+              Il faudra la déposer de nouveau si vous en avez encore besoin.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={() => setPendingDelete(null)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="h-11 sm:h-9"
+              onClick={() => {
+                const target = pendingDelete;
+                setPendingDelete(null);
+                if (target && onDelete) void onDelete(target.id);
+              }}
+            >
+              Supprimer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

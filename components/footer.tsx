@@ -31,7 +31,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-gray-400">
               <li><Link href="/" className="hover:text-white transition-colors">Accueil</Link></li>
               <li><Link href="/commencer" className="hover:text-white transition-colors">Créer un bail notarié</Link></li>
-              <li><Link href="/#process" className="hover:text-white transition-colors">Processus</Link></li>
+              <li><Link href="/#processus" className="hover:text-white transition-colors">Processus</Link></li>
               {/*<li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>*/}
               <li><Link href="/#avantages" className="hover:text-white transition-colors">Nos avantages</Link></li>
               <li><Link href="/#contact" className="hover:text-white transition-colors">Contact</Link></li>

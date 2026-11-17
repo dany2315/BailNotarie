@@ -15,7 +15,10 @@ export default async function NotaireDossiersPage({ searchParams }: { searchPara
   if (!user) return null;
   const { dossierId } = await searchParams;
   const list = await notaireDossierList(user.id);
-  const selectedId = dossierId && list.some((d) => d.id === dossierId) ? dossierId : defaultDossierId(list);
+  // Lien vers un dossier inconnu ou confié à un autre notaire : on le dit, au lieu d'ouvrir
+  // un autre dossier sans prévenir (m33).
+  const unknownLink = !!dossierId && !list.some((d) => d.id === dossierId);
+  const selectedId = unknownLink ? null : dossierId || defaultDossierId(list);
   const view = selectedId ? await loadNotaireDossier(selectedId) : null;
   const requests = view?.bailId ? await getNotaireComplementRequests(view.bailId) : [];
   const archived = view?.bailId ? await getNotaireArchivedDocuments(view.bailId) : [];
@@ -27,9 +30,15 @@ export default async function NotaireDossiersPage({ searchParams }: { searchPara
           <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <FileText className="size-5" />
           </span>
-          <p className="mt-4 text-[15px] font-semibold">{list.length === 0 ? "Aucun dossier pour le moment" : "Ce dossier n'est pas accessible"}</p>
+          <p className="mt-4 text-[15px] font-semibold">
+            {unknownLink ? "Dossier introuvable" : list.length === 0 ? "Aucun dossier pour le moment" : "Ce dossier n'est pas accessible"}
+          </p>
           <p className="mt-1 text-[13.5px] text-muted-foreground">
-            {list.length === 0 ? "Les dossiers qui vous sont confiés apparaîtront ici." : "Choisissez un dossier dans le menu."}
+            {unknownLink
+              ? "Ce lien ne correspond à aucun dossier qui vous est confié. Choisissez un dossier dans le menu."
+              : list.length === 0
+                ? "Les dossiers qui vous sont confiés apparaîtront ici."
+                : "Choisissez un dossier dans le menu."}
           </p>
           <Link href="/notaire" className="mt-4 inline-block text-[13.5px] font-medium text-primary hover:underline">
             Tableau de bord

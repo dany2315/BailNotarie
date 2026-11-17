@@ -17,7 +17,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils/formatters";
+import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
 import { cn } from "@/lib/utils";
 import { FileStack } from "@/components/documents/file-stack";
@@ -39,6 +39,7 @@ import { TenantStepBar } from "./tenant-bail-line";
 import { TenantReconfirmCard } from "./tenant-reconfirm-card";
 import { agreementTerms } from "@/lib/bail/agreement-terms";
 import { BAIL_TYPE_LABELS, RECONFIRM_VIEW, STATUS_VIEW, STEP_INDEX, TERMINAL_STATUSES, needsTenantReconfirmation } from "./model";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 /* =========================================================================
    La page d'un bail, côté locataire — rendu seul.
@@ -441,7 +442,7 @@ export function TenantBailDetail({
                         </span>
                       </div>
                       <span className="shrink-0 text-[11.5px] tabular-nums text-slate-400">
-                        {formatDateTime(doc.createdAt)}
+                        <LocalDateTime value={doc.createdAt} />
                       </span>
                     </div>
                   ));

@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getBailAuditLogs } from "@/lib/actions/bail-audit-log";
 import { getBailStatusLabel } from "@/lib/utils/bails-labels";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { BailAuditEventType, type BailAuditLog } from "@prisma/client";
 import { CheckCircle2, CircleDollarSign, FileCheck2, History, Landmark, UserPlus } from "lucide-react";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 type BailAuditTimelineProps = {
   bailId: string;
@@ -64,7 +64,7 @@ export async function BailAuditTimeline({ bailId, bare = false }: BailAuditTimel
                   className="grid grid-cols-[minmax(8.5rem,11rem)_1.75rem_1fr] items-center gap-3 text-sm"
                 >
                   <time className="text-xs text-muted-foreground" dateTime={log.createdAt.toISOString()}>
-                    {formatDateTime(log.createdAt)}
+                    <LocalDateTime value={log.createdAt} />
                   </time>
                   <div className="relative flex h-full min-h-10 items-center justify-center">
                     <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-border" />

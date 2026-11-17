@@ -88,7 +88,7 @@ export default function NotFound() {
               </Link>
               
               <Link 
-                href="/#process" 
+                href="/#processus" 
                 className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"
               >
                 <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">

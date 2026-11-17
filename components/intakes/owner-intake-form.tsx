@@ -789,7 +789,12 @@ const findFirstIncompleteStep = (
   const hasTenant =
     intakeLink?.bail?.parties?.some((party: any) => party.profilType === ProfilType.LOCATAIRE) ?? false;
   const issues = ownerFieldIssues(values, { isTightZone: (intakeLink as any).property?.isTightZone, hasTenant });
-  const incompleteStep = firstIncompleteStep(issues, OWNER_STEP_ORDER);
+  let incompleteStep = firstIncompleteStep(issues, OWNER_STEP_ORDER);
+  // Le bail est créé dès l'étape du bien, avec « bail nu 3 ans » par défaut : ce type n'est
+  // une réponse qu'une fois l'étape suivante (le loyer) enregistrée. Avant, on reprend sur
+  // « Type de contrat », le choix par défaut présélectionné (m18).
+  const rentSaved = intakeLink.bail?.rentAmount !== null && intakeLink.bail?.rentAmount !== undefined && intakeLink.bail?.rentAmount !== "";
+  if (incompleteStep === "bailRent" && !rentSaved) incompleteStep = "bailType";
   if (incompleteStep) return STEPS.findIndex((s) => s.id === incompleteStep);
 
   // Pièces : celles qui bloquent l'envoi, selon les réponses

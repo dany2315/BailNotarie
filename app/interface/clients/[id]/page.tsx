@@ -14,9 +14,10 @@ import { InternalNotes } from "@/components/comments/internal-notes";
 import { StateChip } from "@/components/admin/check-list";
 import { describeMissingItems } from "@/lib/utils/missing-items";
 import { intakeSummary } from "@/lib/utils/intake-summary";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils/formatters";
+import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { getNextAction, getStage, isActiveStage } from "@/lib/utils/bail-stage";
 import { cn } from "@/lib/utils";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 const PROFIL_LABELS: Record<string, string> = { PROPRIETAIRE: "Propriétaire", LOCATAIRE: "Locataire", LEAD: "Prospect" };
 const BAIL_TYPE_LABELS: Record<string, string> = {
@@ -324,10 +325,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             <h2 className="text-base font-semibold">Détails</h2>
             <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-2 text-[13.5px]">
               <KV label="Créé le">
-                {formatDateTime(client.createdAt)} · {client.createdBy ? `par ${client.createdBy.name || client.createdBy.email}` : "via le formulaire"}
+                <LocalDateTime value={client.createdAt} /> · {client.createdBy ? `par ${client.createdBy.name || client.createdBy.email}` : "via le formulaire"}
               </KV>
               <KV label="Modifié le">
-                {formatDateTime(client.updatedAt)}
+                <LocalDateTime value={client.updatedAt} />
                 {client.updatedBy ? ` par ${client.updatedBy.name || client.updatedBy.email}` : ""}
               </KV>
               <KV label="Identifiant">

@@ -4,11 +4,11 @@ import * as React from "react";
 import { Column } from "@/components/data-table/data-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { User } from "@prisma/client";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { FileText } from "lucide-react";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 interface NotaireWithCount extends User {
   _count: {
@@ -86,7 +86,7 @@ export function NotairesTable({ notaires }: NotairesTableProps) {
       header: "Créé le",
       cell: ({ row }: { row: NotaireWithCount }) => (
         <div className="text-sm text-muted-foreground">
-          {formatDateTime(row.createdAt)}
+          <LocalDateTime value={row.createdAt} />
         </div>
       ),
     },

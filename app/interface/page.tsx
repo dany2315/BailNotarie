@@ -6,11 +6,10 @@ import { DashboardActionButtons } from "@/components/dashboard/dashboard-action-
 import { WorkQueue } from "@/components/dashboard/work-queue";
 import { STAGES, STAGE_ORDER, STATUS_LABELS, type BailStatusValue } from "@/lib/utils/bail-stage";
 import { cn } from "@/lib/utils";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 export const dynamic = "force-dynamic";
 
-const timeFmt = (iso: string) =>
-  new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
 const dateFmt = (iso: string) =>
   new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: "Europe/Paris" });
 
@@ -157,7 +156,7 @@ export default async function InterfacePage() {
                         {form.name || "Client"} ({form.target === "TENANT" ? "locataire" : "propriétaire"})
                       </span>
                     )}
-                    <span className="whitespace-nowrap text-muted-foreground">{timeFmt(form.submittedAt)}</span>
+                    <span className="whitespace-nowrap text-muted-foreground"><LocalDateTime value={form.submittedAt} mode="time" /></span>
                   </li>
                 ))}
               </ul>

@@ -532,17 +532,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   // Initialiser currentStep avec la première étape incomplète
   useEffect(() => {
     lastSavedValues.current = defaultValues as FormWithPersons;
-    let firstIncompleteStep = getFirstIncompleteStep();
-    
-    // Si le bien ou le bail existe, commencer par l'étape overview
-    if (intakeLink.property || intakeLink.bail) {
-      const overviewIndex = STEPS.findIndex((s) => s.id === "overview");
-      if (overviewIndex !== -1) {
-        firstIncompleteStep = overviewIndex;
-      }
-    }
-    
-    setCurrentStep(firstIncompleteStep);
+    // Première étape incomplète. Le récapitulatif du bail n'est montré d'office qu'à un
+    // locataire qui n'a encore rien saisi (getFirstIncompleteStep s'en charge) : une reprise
+    // repart de là où il s'était arrêté (m19).
+    setCurrentStep(getFirstIncompleteStep());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

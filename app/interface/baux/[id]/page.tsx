@@ -35,7 +35,7 @@ import { DiagnosticsLegend } from "@/components/documents/diagnostics-legend";
 import { buildChecklistRows, toChecklistDocument } from "@/lib/utils/document-checklist";
 import { getBailDocumentRules, getRequiredPropertyFields } from "@/lib/utils/required-fields";
 import { requiresOccupancyDeclaration } from "@/lib/rent-cap";
-import { formatCurrency, formatDate, formatDateTime, formatSurface } from "@/lib/utils/formatters";
+import { formatCurrency, formatDate, formatSurface } from "@/lib/utils/formatters";
 import {
   ACTOR_LABELS,
   STAGES,
@@ -73,6 +73,8 @@ import { dpeDateValue } from "@/components/admin/dpe-summary";
 import { DiagnosticsPanel } from "@/components/admin/diagnostics-analysis";
 import { isDiagnosticAnalysisConfigured } from "@/lib/diagnostics/openai";
 import { loadDiagnosticState } from "@/lib/diagnostics/state";
+import { LocalDateTime } from "@/components/shared/local-date-time";
+import { formatDateTime } from "@/lib/utils/formatters";
 
 export const dynamic = "force-dynamic";
 // « Analyser les diagnostics » lit les fichiers après la réponse : jusqu'à 2 minutes pour un gros dossier.
@@ -1285,7 +1287,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         "Non payés : le dossier ne peut pas partir chez le notaire.",
                         ...openPayments.map((payment) =>
                           payment.status === "SUCCEEDED"
-                            ? `Paiement Stripe ${payment.stripePaymentIntentId.slice(0, 8)}…${payment.stripePaymentIntentId.slice(-6)} confirmé${payment.stripePaidAt ? ` le ${formatDateTime(payment.stripePaidAt)}` : ""} : en attente de l'envoi du formulaire par le propriétaire (il ne repaiera pas).${payment.lastError ? ` ${payment.lastError}` : ""}`
+                            ? `Paiement Stripe ${payment.stripePaymentIntentId.slice(0, 8)}…${payment.stripePaymentIntentId.slice(-6)} confirmé${payment.stripePaidAt ? ` le ${formatDateTime(payment.stripePaidAt)} (heure de Paris)` : ""} : en attente de l'envoi du formulaire par le propriétaire (il ne repaiera pas).${payment.lastError ? ` ${payment.lastError}` : ""}`
                             : `Paiement Stripe ${payment.stripePaymentIntentId.slice(0, 8)}…${payment.stripePaymentIntentId.slice(-6)} en cours de vérification : aucune nouvelle tentative n'est proposée au client tant que son résultat n'est pas connu.`,
                         ),
                       ].join("\n")
@@ -1293,7 +1295,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               >
                 {lease.paidAt
                   ? [
-                      `${formatDossierFee(lease.bailFamily)} payés le ${formatDateTime(lease.paidAt as Date)}`,
+                      `${formatDossierFee(lease.bailFamily)} payés le ${formatDateTime(lease.paidAt as Date)} (heure de Paris)`,
                       lease.stripePaymentIntentId ? `Paiement Stripe ${lease.stripePaymentIntentId.slice(0, 8)}…${lease.stripePaymentIntentId.slice(-6)}` : null,
                     ]
                       .filter(Boolean)
@@ -1552,11 +1554,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   <span className="break-all font-mono text-xs">{lease.id}</span>
                 </KV>
                 <KV label="Créé le">
-                  {formatDateTime(lease.createdAt)}
+                  <LocalDateTime value={lease.createdAt} />
                   {lease.createdBy ? ` par ${lease.createdBy.name || lease.createdBy.email}` : " · via le formulaire propriétaire"}
                 </KV>
                 <KV label="Modifié le">
-                  {formatDateTime(lease.updatedAt)}
+                  <LocalDateTime value={lease.updatedAt} />
                   {lease.updatedBy ? ` par ${lease.updatedBy.name || lease.updatedBy.email}` : ""}
                 </KV>
                 <KV label="Adresse normalisée">

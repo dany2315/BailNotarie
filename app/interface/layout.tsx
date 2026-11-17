@@ -3,6 +3,9 @@ import { AppShell } from "@/components/shell/app-shell";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { getCurrentUser } from "@/lib/auth-helpers"; // ton helper
 import { Role } from "@prisma/client";
+import { NO_INDEX_METADATA } from "@/lib/seo/no-index";
+
+export const metadata = NO_INDEX_METADATA;
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";

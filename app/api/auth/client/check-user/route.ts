@@ -1,77 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { Role } from "@prisma/client";
 
+/**
+ * Ancienne vérification d'adresse avant l'envoi du code. Elle disait si une
+ * adresse était celle d'un client, d'un notaire ou de l'équipe : n'importe qui
+ * pouvait s'en servir d'annuaire. Elle répond désormais la même chose pour
+ * toute adresse ; l'écran de connexion ne s'en sert plus (m41).
+ */
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { email } = body;
-
-    if (!email || typeof email !== "string") {
-      return NextResponse.json(
-        { error: "Email requis", exists: false, isClient: false },
-        { status: 400 }
-      );
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-
-    // Vérifier si un User existe avec cet email
-    const user = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
-      select: { id: true, email: true, role: true },
-    });
-
-    if (user && user.role === Role.UTILISATEUR) {
-      return NextResponse.json({
-        exists: true,
-        isClient: true,
-      });
-    }
-
-    // Si pas de User, chercher dans Person.email
-    const person = await prisma.person.findUnique({
-      where: { email: normalizedEmail },
-      select: { id: true, clientId: true },
-    });
-
-    if (person) {
-      return NextResponse.json({
-        exists: true,
-        isClient: true,
-      });
-    }
-
-    // Chercher dans Entreprise.email
-    const entreprise = await prisma.entreprise.findUnique({
-      where: { email: normalizedEmail },
-      select: { id: true, clientId: true },
-    });
-
-    if (entreprise) {
-      return NextResponse.json({
-        exists: true,
-        isClient: true,
-      });
-    }
-
-    return NextResponse.json(
-      { exists: false, isClient: false },
-      { status: 200 }
-    );
-  } catch (error: any) {
-    console.error("Erreur lors de la vérification de l'utilisateur:", error);
-    return NextResponse.json(
-      { error: "Erreur lors de la vérification", exists: false, isClient: false },
-      { status: 500 }
-    );
+  const body = await request.json().catch(() => null);
+  const email = body?.email;
+  if (!email || typeof email !== "string") {
+    return NextResponse.json({ error: "Email requis" }, { status: 400 });
   }
+  return NextResponse.json({ success: true });
 }
-
-
-
-
-
-
-
-

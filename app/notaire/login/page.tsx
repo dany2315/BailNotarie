@@ -100,37 +100,8 @@ export default function NotaireLoginPage() {
     try {
       const emailNormalized = data.email.toLowerCase().trim();
       
-      // Vérifier d'abord si l'utilisateur existe et est un notaire
-      // avant d'appeler better-auth pour éviter la création d'OTP inutile
-      try {
-        const checkResponse = await fetch("/api/auth/notaire/check-user", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email: emailNormalized }),
-        });
-
-        const checkData = await checkResponse.json();
-
-        if (!checkResponse.ok || !checkData.exists || !checkData.isNotaire) {
-          let errorMessage = "Aucun compte trouvé pour cet email";
-          if (checkData.exists && !checkData.isNotaire) {
-            errorMessage = "Cet email n'est pas associé à un compte notaire";
-          }
-          toast.error("Erreur", {
-            description: errorMessage,
-          });
-          return;
-        }
-      } catch (checkError: any) {
-        console.error("Erreur lors de la vérification de l'utilisateur:", checkError);
-        toast.error("Erreur", {
-          description: "Erreur lors de la vérification. Veuillez réessayer",
-        });
-        return;
-      }
-
+      // Pas de vérification préalable de l'adresse : la réponse serait un
+      // annuaire des notaires (m41). Better Auth n'envoie un code qu'à un compte existant.
       // Si l'utilisateur est valide, envoyer l'OTP via better-auth
       const { data: result, error } = await authClient.emailOtp.sendVerificationOtp({
         email: emailNormalized,
@@ -149,8 +120,8 @@ export default function NotaireLoginPage() {
 
       setEmail(emailNormalized);
       setStep("otp");
-      toast.success("Code OTP envoyé par email", {
-        description: "Vérifiez votre boîte de réception",
+      toast.success("Demande envoyée", {
+        description: "Si un compte notaire existe pour cette adresse, un code vient d'y être envoyé.",
       });
     } catch (error: any) {
       console.error("Erreur lors de l'envoi de l'OTP:", error);

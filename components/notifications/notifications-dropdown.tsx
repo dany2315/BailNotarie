@@ -111,6 +111,8 @@ function getNotificationLink(notification: Notification): string | null {
       return `/interface/baux/${notification.targetId}`;
     case "INTAKE":
       return `/interface/intakes`;
+    case "NOTAIRE_DOSSIER":
+      return `/notaire/dossiers?dossierId=${notification.targetId}`;
     case "COMMENT":
       // Les commentaires sont sur la page de l'entité concernée
       return null;
@@ -119,7 +121,12 @@ function getNotificationLink(notification: Notification): string | null {
   }
 }
 
-export function NotificationsDropdown() {
+export function NotificationsDropdown({
+  allHref = "/interface/notifications",
+}: {
+  /** Page de toutes les notifications ; null dans un espace qui n'en a pas (notaire). */
+  allHref?: string | null;
+} = {}) {
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -187,7 +194,7 @@ export function NotificationsDropdown() {
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative" aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} non lue${unreadCount > 1 ? "s" : ""}` : "Notifications"}>
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <Badge
@@ -274,10 +281,10 @@ export function NotificationsDropdown() {
             </div>
           )}
         </ScrollArea>
-        {notifications.length > 0 && (
+        {notifications.length > 0 && allHref && (
           <div className="p-2 border-t">
             <Link
-              href="/interface/notifications"
+              href={allHref}
               className="block text-center text-sm text-muted-foreground hover:text-foreground"
               onClick={() => setIsOpen(false)}
             >

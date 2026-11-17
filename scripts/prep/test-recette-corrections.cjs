@@ -470,4 +470,70 @@ suite('Corrections de la recette au navigateur', path.join(__dirname, '../../rep
     await assert.rejects(() => handlers.handleOwnerPropertyStep(f.intake, { propertySurfaceM2: '-7' }, f.owner.id), /supérieure à 0/);
     assert.equal(String((await tx.property.findUnique({ where: { id: f.property.id } })).surfaceM2), String(avant));
   });
+
+  /* ---------- Lot m18 à m43 (18/11) ---------- */
+
+  await test('m40 — refus d’accès : 401, 403 ou 404, plus 500', async (tx, r, f) => {
+    const { errorStatus } = r.load('lib/api/error-response.ts');
+    assert.equal(errorStatus(new Error('Unauthorized')), 401);
+    assert.equal(errorStatus(new Error('Non authentifié')), 401);
+    assert.equal(errorStatus(new Error('Forbidden - Accès réservé aux clients')), 403);
+    assert.equal(errorStatus(new Error('Non autorisé')), 403);
+    assert.equal(errorStatus(new Error('Demande introuvable')), 404);
+    assert.equal(errorStatus(new Error('connexion perdue')), 500);
+    const route = r.load('app/api/clients/[id]/route.ts');
+    r.state.user = f.ownerUser;
+    const res = await route.GET(new Request('http://localhost:3000/api/clients/' + f.owner.id), { params: Promise.resolve({ id: f.owner.id }) });
+    assert.equal(res.status, 403, 'un client qui lit une fiche client');
+    r.state.user = null;
+    const anonyme = await route.GET(new Request('http://localhost:3000/api/clients/' + f.owner.id), { params: Promise.resolve({ id: f.owner.id }) });
+    assert.equal(anonyme.status, 401, JSON.stringify(await anonyme.clone().json()));
+  });
+
+  await test('m41 — préparation de la connexion : même réponse pour un client, un notaire, l’équipe ou une adresse inconnue', async (tx, r, f) => {
+    const notaire = await tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', role: 'NOTAIRE', emailVerified: true } });
+    // Client sans compte de connexion : le compte est créé, la réponse ne change pas.
+    const sansCompte = await tx.client.create({ data: { type: 'PERSONNE_PHYSIQUE', profilType: 'PROPRIETAIRE', persons: { create: { firstName: 'Sans', lastName: 'Compte', email: crypto.randomUUID() + '@example.invalid', isPrimary: true } } }, include: { persons: true } });
+    const prepare = r.load('app/api/auth/client/prepare-login/route.ts');
+    const call = async (email) => { const res = await prepare.POST(new Request('http://localhost:3000/x', { method: 'POST', body: JSON.stringify({ email }) })); return res.status + ' ' + JSON.stringify(await res.json()); };
+    const answers = [await call(f.ownerUser.email), await call(notaire.email), await call(f.admin.email), await call('inconnu-' + crypto.randomUUID() + '@example.invalid'), await call(sansCompte.persons[0].email)];
+    assert.equal(new Set(answers).size, 1, answers.join(' | '));
+    assert.equal(answers[0], '200 {"success":true}');
+    assert(await tx.user.findUnique({ where: { email: sansCompte.persons[0].email } }), 'le compte du client n’a pas été préparé');
+    for (const kind of ['client', 'notaire']) {
+      const check = r.load(`app/api/auth/${kind}/check-user/route.ts`);
+      const one = async (email) => JSON.stringify(await (await check.POST(new Request('http://localhost:3000/x', { method: 'POST', body: JSON.stringify({ email }) }))).json());
+      assert.equal(new Set([await one(notaire.email), await one(f.ownerUser.email), await one('inconnu@example.invalid')]).size, 1, kind);
+    }
+  });
+
+  await test('m43 — ordre de paiement d’un bail : refusé à un notaire et à l’équipe, accordé au propriétaire', async (tx, r, f) => {
+    const notaire = await tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', role: 'NOTAIRE', emailVerified: true } });
+    const route = r.load('app/api/stripe/create-payment-intent-bail/route.ts');
+    const post = () => route.POST(new Request('http://localhost:3000/x', { method: 'POST', body: '{}' }));
+    for (const user of [notaire, f.admin, f.tenantUser]) {
+      r.state.user = user;
+      assert.equal((await post()).status, 403, user.role);
+    }
+    assert.equal(await tx.dossierPayment.count({ where: { userId: { in: [notaire.id, f.admin.id, f.tenantUser.id] } } }), 0, 'paiement enregistré pour un non-propriétaire');
+    r.state.user = f.ownerUser;
+    const ok = await post();
+    assert.equal(ok.status, 200);
+    assert((await ok.json()).clientSecret);
+  });
+
+  await test('m32 — réponse du client à une demande du notaire : notification et e-mail au notaire', async (tx, r, f) => {
+    const notaire = await tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', role: 'NOTAIRE', emailVerified: true, name: 'Me Essai' } });
+    const assignment = await tx.dossierNotaireAssignment.create({ data: { clientId: f.owner.id, propertyId: f.property.id, bailId: f.bail.id, notaireId: notaire.id, assignedById: f.admin.id } });
+    const req = await tx.complementRequest.create({ data: { bailId: f.bail.id, clientId: f.owner.id, target: 'OWNER', origin: 'NOTAIRE', recipientEmail: 'test@example.invalid', createdByName: 'Me Essai', createdById: notaire.id } });
+    const item = await tx.complementRequestItem.create({ data: { requestId: req.id, kind: 'DOCUMENT', label: 'Autre document', documentKind: 'OTHER', reason: 'ILLEGIBLE', bailId: f.bail.id, status: 'PROVIDED', providedAt: new Date() } });
+    await tx.document.create({ data: { kind: 'OTHER', label: 'reponse.pdf', fileKey: 'documents/test-rep-' + crypto.randomBytes(3).toString('hex'), bailId: f.bail.id, complementItemId: item.id, uploadedById: f.ownerUser.id } });
+    r.state.user = f.ownerUser;
+    const avant = r.state.suppressed.email || 0;
+    const sent = await r.load('lib/actions/complement-requests.ts').submitComplementRequest({ requestId: req.id });
+    assert(sent.success, sent.error);
+    assert.equal((r.state.suppressed.email || 0) - avant, 1, 'aucun e-mail au notaire');
+    assert(r.state.suppressed.createNotificationForUser >= 1, 'pas de notification au notaire');
+    assert(assignment.id);
+  });
 });

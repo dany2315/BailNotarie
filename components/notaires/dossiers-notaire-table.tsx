@@ -4,13 +4,13 @@ import * as React from "react";
 import { Column } from "@/components/data-table/data-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/utils/formatters";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Eye, Trash2 } from "lucide-react";
 import { revokeAssignment } from "@/lib/actions/notaires";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 interface Dossier {
   id: string;
@@ -150,7 +150,7 @@ export function DossiersNotaireTable({ dossiers }: DossiersNotaireTableProps) {
       header: "Assigné le",
       cell: ({ row }: { row: Dossier }) => (
         <div className="text-sm text-muted-foreground">
-          {formatDateTime(row.assignedAt)}
+          <LocalDateTime value={row.assignedAt} />
         </div>
       ),
     },

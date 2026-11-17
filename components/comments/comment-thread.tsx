@@ -5,10 +5,10 @@ import { getComments, createComment } from "@/lib/actions/comments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { toast } from "sonner";
 import { Send } from "lucide-react";
 import { LoadingScreen } from "@/components/ui/loading-screen";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 interface CommentThreadProps {
   target: "PARTY" | "PROPERTY" | "LEASE" | "DOCUMENT" | "INTAKE";
@@ -85,7 +85,7 @@ export function CommentThread({ target, targetId }: CommentThreadProps) {
                         {comment.createdBy ? (comment.createdBy.name || comment.createdBy.email) : "via formulaire"}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {formatDateTime(comment.createdAt)}
+                        <LocalDateTime value={comment.createdAt} />
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{comment.body}</p>

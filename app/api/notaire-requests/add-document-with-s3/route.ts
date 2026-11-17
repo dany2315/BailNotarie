@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addDocumentToNotaireRequestWithS3Urls } from "@/lib/actions/bail-messages";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 /**
  * Route API pour ajouter des documents à une demande avec fichiers uploadés directement vers S3
@@ -42,10 +43,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("[notaire-requests/add-document-with-s3] Erreur:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de l'ajout du document" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de l'ajout du document");
   }
 }
 

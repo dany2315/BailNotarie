@@ -28,11 +28,10 @@ import { formatPhone } from "@/lib/utils/phone-format";
 import { relanceEmailContent } from "@/lib/utils/relance-content";
 import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/components/emails/email-preview-frame";
 import { cn } from "@/lib/utils";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Paris" });
-const fmtDateTime = (iso: string) =>
-  new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
 
 type SendKey = `${ReminderTargetValue}:${ReminderReasonValue}`;
 const keyOf = (target: ReminderTargetValue, reason: ReminderReasonValue) => `${target}:${reason}` as SendKey;
@@ -461,7 +460,7 @@ export function ReminderHistoryList({ history, limit }: { history: ReminderPanel
             <span className="font-semibold">
               {CHANNEL_LABELS[item.channel]} · {TARGET_LABELS[item.target].toLowerCase()}
             </span>
-            <span className="text-muted-foreground">{fmtDateTime(item.createdAt)}</span>
+            <span className="text-muted-foreground"><LocalDateTime value={item.createdAt} /></span>
           </span>
           <span className="text-foreground/80">
             {REASON_LABELS[item.reason]}

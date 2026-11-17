@@ -2,6 +2,7 @@ import { ALLOWED_FILE_MESSAGE, isAllowedFileName } from "@/lib/utils/allowed-fil
 import { NextRequest, NextResponse } from "next/server";
 import { generateSignedUploadUrl, generateS3FileKey } from "@/lib/utils/s3-client";
 import { authorizeUploadTarget } from "@/lib/upload-access";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 /**
  * Route API pour générer une URL signée S3 pour upload direct côté client
@@ -58,10 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
   } catch (error: any) {
     console.error("[generate-upload-token] Erreur:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la génération de l'URL signée" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la génération de l'URL signée");
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/lib/actions/clients";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 export async function GET(
   request: NextRequest,
@@ -30,10 +31,7 @@ export async function GET(
     return NextResponse.json(serializedClient);
   } catch (error: any) {
     console.error("Erreur lors de la récupération du client:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la récupération du client" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la récupération du client");
   }
 }
 

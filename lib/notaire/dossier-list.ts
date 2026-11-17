@@ -9,6 +9,8 @@ export interface DossierListItem {
   tenant: string | null;
   address: string;
   status: string;
+  /** Date à laquelle le dossier a été confié au notaire (ISO), pour le tri. */
+  assignedAt: string | null;
 }
 
 const personName = (p: { firstName?: string | null; lastName?: string | null } | undefined) =>
@@ -30,6 +32,7 @@ export async function notaireDossierList(userId: string): Promise<DossierListIte
       tenant: partyName(parties.find((p) => p.profilType === "LOCATAIRE")) || null,
       address: d.bail?.property?.fullAddress || d.property?.fullAddress || "",
       status: d.bail?.status || "READY_FOR_NOTARY",
+      assignedAt: d.assignedAt ? new Date(d.assignedAt).toISOString() : null,
     };
   });
 }

@@ -108,8 +108,9 @@ export const auth = betterAuth({
             return;
           }
           
-          // 2c. Autres rôles → erreur
-          throw new Error("Cet email n'est pas associé à un compte valide");
+          // 2c. Autres rôles (équipe) : aucun code, mais pas d'erreur non plus,
+          // pour que la réponse soit la même que pour une adresse inconnue (m41).
+          return;
         }
 
         // 3. Si aucun User n'existe, chercher un Client correspondant

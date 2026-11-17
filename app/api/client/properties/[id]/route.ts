@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 export async function GET(
   request: NextRequest,
@@ -61,10 +62,7 @@ export async function GET(
     return NextResponse.json(serializedProperty);
   } catch (error: any) {
     console.error("Erreur lors de la récupération du bien:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la récupération du bien" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la récupération du bien");
   }
 }
 

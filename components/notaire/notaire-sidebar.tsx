@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FileText, LayoutDashboard, Menu, Search } from "lucide-react";
+import { ArrowDownUp, FileText, LayoutDashboard, Menu, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/utils/bails-labels";
 import type { DossierListItem } from "@/lib/notaire/dossier-list";
 import { NotaireAccount } from "./notaire-account";
+import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown";
 import { cn } from "@/lib/utils";
 
 const STATUS_DOT: Record<string, string> = {
@@ -43,6 +44,10 @@ const NOTAIRE_MENU: Array<{
   { href: "/notaire", label: "Tableau de bord", icon: LayoutDashboard },
   { href: "/notaire/dossiers", label: "Dossiers", icon: FileText },
 ];
+
+/** Texte comparable : minuscules, sans accents (« Inès » se trouve en tapant « ines »). */
+const plain = (text: string | null | undefined) =>
+  (text ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 const tabOf = (status: string): DossierFilterTab =>
   (Object.keys(DOSSIER_TAB_STATUSES) as DossierFilterTab[]).find((tab) =>
@@ -68,7 +73,7 @@ export function NotaireSidebar(props: SidebarProps) {
   return (
     <>
       <aside className="hidden w-[300px] shrink-0 flex-col border-r bg-background lg:flex">
-        <SidebarContent {...props} />
+        <SidebarContent {...props} headerAction={<NotificationsDropdown allHref={null} />} />
       </aside>
 
       {/* Téléphone : barre avec le bouton menu */}
@@ -84,6 +89,9 @@ export function NotaireSidebar(props: SidebarProps) {
         <span className="text-[15px] font-semibold">
           {onDossiers ? "Dossier" : "Tableau de bord"}
         </span>
+        <div className="ml-auto lg:hidden">
+          <NotificationsDropdown allHref={null} />
+        </div>
       </div>
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent
@@ -106,7 +114,8 @@ function SidebarContent({
   defaultId,
   user,
   onNavigate,
-}: SidebarProps & { onNavigate?: () => void }) {
+  headerAction,
+}: SidebarProps & { onNavigate?: () => void; headerAction?: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -119,6 +128,8 @@ function SidebarContent({
     selected ? tabOf(selected.status) : "en_cours",
   );
   const [search, setSearch] = React.useState("");
+  // Tri par date d'attribution : les plus récents d'abord, ou les plus anciens (m33).
+  const [newestFirst, setNewestFirst] = React.useState(true);
 
   const counts = Object.fromEntries(
     DOSSIER_FILTER_TABS.map((t) => [
@@ -126,15 +137,18 @@ function SidebarContent({
       list.filter((d) => tabOf(d.status) === t.value).length,
     ]),
   ) as Record<DossierFilterTab, number>;
-  const query = search.trim().toLowerCase();
-  const shown = list.filter(
-    (d) =>
-      tabOf(d.status) === tab &&
-      (!query ||
-        [d.owner, d.tenant, d.address].some((text) =>
-          text?.toLowerCase().includes(query),
-        )),
-  );
+  const query = plain(search.trim());
+  // Recherche : sans accents, dans tous les onglets (le statut de chaque dossier reste affiché).
+  const shown = list
+    .filter((d) =>
+      query
+        ? [d.owner, d.tenant, d.address].some((text) => plain(text).includes(query))
+        : tabOf(d.status) === tab,
+    )
+    .sort((a, b) => {
+      const diff = (Date.parse(b.assignedAt ?? "") || 0) - (Date.parse(a.assignedAt ?? "") || 0);
+      return newestFirst ? diff : -diff;
+    });
 
   const nav = NOTAIRE_MENU.map((item) => ({
     ...item,
@@ -146,9 +160,12 @@ function SidebarContent({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="px-4 pb-2 pt-4">
-        <p className="text-[15px] font-bold tracking-tight">BailNotarie</p>
-        <p className="text-[12px] text-muted-foreground">Espace notaire</p>
+      <div className="flex items-start justify-between gap-2 px-4 pb-2 pt-4">
+        <div>
+          <p className="text-[15px] font-bold tracking-tight">BailNotarie</p>
+          <p className="text-[12px] text-muted-foreground">Espace notaire</p>
+        </div>
+        {headerAction}
       </div>
 
       <nav aria-label="Menu" className="flex flex-col gap-0.5 px-2 pb-2">
@@ -190,11 +207,14 @@ function SidebarContent({
                   key={t.value}
                   type="button"
                   role="tab"
-                  aria-selected={tab === t.value}
-                  onClick={() => setTab(t.value)}
+                  aria-selected={!query && tab === t.value}
+                  onClick={() => {
+                    setTab(t.value);
+                    setSearch("");
+                  }}
                   className={cn(
                     "flex h-7 items-center justify-center gap-1 rounded-md text-[12.5px] font-medium transition-colors",
-                    tab === t.value
+                    !query && tab === t.value
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
                   )}
@@ -206,16 +226,33 @@ function SidebarContent({
                 </button>
               ))}
             </div>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Nom ou adresse"
-                aria-label="Rechercher un dossier"
-                className="h-9 pl-9"
-              />
+            <div className="flex items-center gap-1.5">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Nom ou adresse, tous statuts"
+                  aria-label="Rechercher un dossier dans tous les statuts"
+                  className="h-9 pl-9"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewestFirst((value) => !value)}
+                title={newestFirst ? "Plus récents d'abord" : "Plus anciens d'abord"}
+                aria-label={newestFirst ? "Tri : plus récents d'abord. Passer aux plus anciens d'abord" : "Tri : plus anciens d'abord. Passer aux plus récents d'abord"}
+                className="flex h-9 shrink-0 items-center gap-1 rounded-md border px-2 text-[12px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <ArrowDownUp className="size-3.5" />
+                {newestFirst ? "Récents" : "Anciens"}
+              </button>
             </div>
+            {query && (
+              <p className="text-[12px] text-muted-foreground">
+                {shown.length} résultat{shown.length > 1 ? "s" : ""} dans tous les statuts
+              </p>
+            )}
           </div>
 
           <div

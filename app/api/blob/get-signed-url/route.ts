@@ -3,6 +3,7 @@ import { generateSignedDownloadUrl, extractS3KeyFromUrl } from "@/lib/utils/s3-c
 import { readableDocumentForFileKey } from "@/lib/document-access";
 import { documentDownloadName } from "@/lib/document-download-name";
 import { contentDisposition } from "@/lib/utils/document-filename";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 /**
  * Route API pour générer une URL signée S3 pour la lecture/téléchargement de fichiers
@@ -55,9 +56,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
   } catch (error: any) {
     console.error("[get-signed-url] Erreur:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la génération de l'URL signée" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la génération de l'URL signée");
   }
 }

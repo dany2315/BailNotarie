@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBailMessages, sendBailMessage } from "@/lib/actions/bail-messages";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 export async function GET(
   request: NextRequest,
@@ -23,10 +24,7 @@ export async function GET(
     return NextResponse.json(messages);
   } catch (error: any) {
     console.error("Erreur lors de la récupération des messages:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la récupération des messages" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la récupération des messages");
   }
 }
 
@@ -60,10 +58,7 @@ export async function POST(
     return NextResponse.json(message, { status: 201 });
   } catch (error: any) {
     console.error("Erreur lors de l'envoi du message:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de l'envoi du message" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de l'envoi du message");
   }
 }
 

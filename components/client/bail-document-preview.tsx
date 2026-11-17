@@ -12,9 +12,9 @@ import {
 import { FileText, Download, Eye, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 import { fetchSignedFileUrl } from "@/lib/utils/signed-file-url";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 interface BailDocumentPreviewProps {
   document: {
@@ -153,7 +153,7 @@ export function BailDocumentPreview({ document }: BailDocumentPreviewProps) {
               </p>
               {document.createdAt && (
                 <p className="text-xs text-muted-foreground truncate max-w-full">
-                  Ajouté le {formatDateTime(document.createdAt)}
+                  Ajouté le <LocalDateTime value={document.createdAt} />
                 </p>
               )}
             </div>

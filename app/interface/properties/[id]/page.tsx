@@ -13,7 +13,7 @@ import {
 } from "@/components/shared/status-badge";
 import { CompletionChip } from "@/components/shared/completion-chip";
 import { CompletionStatusDialogButton } from "@/components/shared/completion-status-dialog";
-import { formatDate, formatCurrency, formatSurface, formatDateTime } from "@/lib/utils/formatters";
+import { formatDate, formatCurrency, formatSurface } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ClientType, BailStatus, ProfilType } from "@prisma/client";
@@ -28,6 +28,7 @@ import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
 import { assessRentCap, describeRentCapZone } from "@/lib/rent-cap";
 import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { RentCapEditor } from "@/components/admin/rent-cap-editor";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 // Diagnostics envoyés depuis cette page : leur lecture par l'IA continue après la réponse.
 export const maxDuration = 300;
@@ -630,11 +631,11 @@ export default async function PropertyDetailPage({
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 text-sm">
             <div>
               <p className="text-muted-foreground">Créé le</p>
-              <p className="font-medium">{formatDateTime(property.createdAt)}</p>
+              <p className="font-medium"><LocalDateTime value={property.createdAt} /></p>
             </div>
             <div>
               <p className="text-muted-foreground">Modifié le</p>
-              <p className="font-medium">{formatDateTime(property.updatedAt)}</p>
+              <p className="font-medium"><LocalDateTime value={property.updatedAt} /></p>
             </div>
             <div>
               <p className="text-muted-foreground">Créé par</p>

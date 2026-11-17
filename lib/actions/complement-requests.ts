@@ -21,6 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientFromUser, requireAuth, requireRole } from "@/lib/auth-helpers";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailComplement from "@/emails/mail-complement";
+import MailNotaireComplementAnswered from "@/emails/mail-notaire-complement-answered";
 import { getActorName, getClientDisplayName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
 import { deleteDocumentFromDB } from "@/lib/document-storage";
 import { queueDiagnosticReading } from "@/lib/diagnostics/run";
@@ -1597,13 +1598,37 @@ export async function submitComplementRequest(data: unknown): Promise<{ success:
     await prisma.complementRequest.update({ where: { id: request.id }, data: { status: ComplementRequestStatus.SUBMITTED, submittedAt: new Date() } });
     if (request.origin === ComplementOrigin.NOTAIRE) {
       // Le notaire qui a fait la demande est prévenu de la réponse.
-      const assignment = await prisma.dossierNotaireAssignment.findFirst({ where: { bailId: request.bailId }, orderBy: { assignedAt: "desc" }, select: { id: true, notaireId: true } });
+      const assignment = await prisma.dossierNotaireAssignment.findFirst({
+        where: { bailId: request.bailId },
+        orderBy: { assignedAt: "desc" },
+        select: { id: true, notaireId: true, notaire: { select: { email: true, name: true } } },
+      });
       if (assignment) {
+        const clientName = getClientDisplayName(client as any) || "Votre client";
         await createNotificationForUser(NotificationType.COMPLEMENT_SUBMITTED, assignment.notaireId, "NOTAIRE_DOSSIER", assignment.id, user.id, {
-          clientName: getClientDisplayName(client as any),
+          clientName,
           propertyLabel: request.bail.property?.label || request.bail.property?.fullAddress || null,
           count: request.items.length,
         }).catch((error) => console.error("[complement-requests] notification notaire", error));
+        // Et un e-mail : la notification seule ne se voit qu'en ouvrant l'espace notaire (m32).
+        if (assignment.notaire?.email) {
+          await resendSendEmail({
+            from: FROM,
+            to: assignment.notaire.email,
+            subject: `Réponse reçue de ${clientName} - BailNotarie`,
+            react: MailNotaireComplementAnswered({
+              notaireName: assignment.notaire.name,
+              clientName,
+              itemLabels: request.items.map((item) => item.label),
+              bailAddress: request.bail.property?.fullAddress || request.bail.property?.label || null,
+              dossierUrl: `${BASE_URL()}/notaire/dossiers?dossierId=${assignment.id}`,
+            }),
+          })
+            .then((result) => {
+              if (result?.error) console.error("[complement-requests] e-mail notaire", result.error);
+            })
+            .catch((error) => console.error("[complement-requests] e-mail notaire", error));
+        }
       }
     }
     await createNotificationForAllUsers(NotificationType.COMPLEMENT_SUBMITTED, "BAIL", request.bailId, user.id, {

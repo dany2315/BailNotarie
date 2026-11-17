@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 const CONTACT_PHONE = "0768098624";
 const CONTACT_PHONE_DISPLAY = "07 68 09 86 24";
 const CONTACT_EMAIL = "contact@bailnotarie.fr";
-const MIN_KEY = "bn-contact-bubble-minimized";
 const POS_KEY = "bn-contact-bubble-pos";
 // Seuil en pixels au-delà duquel un mouvement est considéré comme un drag (et pas un clic)
 const DRAG_THRESHOLD = 6;
@@ -26,7 +25,9 @@ type Pos = { x: number; y: number };
 export function ContactBubble() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [minimized, setMinimized] = useState(false);
+  // Toujours réduite à l'arrivée sur le site (petit point) : elle ne recouvre aucun bouton
+  // tant qu'on ne l'a pas ouverte. Dépliée, elle le reste jusqu'au prochain chargement (m23).
+  const [minimized, setMinimized] = useState(true);
   const [pos, setPos] = useState<Pos | null>(null);
   const [dragging, setDragging] = useState(false);
   // true = bulle collée au bord gauche, false = bord droit (ou fallback right par défaut)
@@ -49,7 +50,6 @@ export function ContactBubble() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      setMinimized(window.localStorage.getItem(MIN_KEY) === "1");
       const raw = window.localStorage.getItem(POS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Pos;
@@ -123,12 +123,6 @@ export function ContactBubble() {
 
   const persistMinimized = (value: boolean) => {
     setMinimized(value);
-    try {
-      if (value) window.localStorage.setItem(MIN_KEY, "1");
-      else window.localStorage.removeItem(MIN_KEY);
-    } catch {
-      // ignore
-    }
   };
 
   const persistPos = (p: Pos) => {

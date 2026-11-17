@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ProfilType, Role } from "@prisma/client";
 import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 import { FEE_CURRENCY, feeIdempotencyKey, lookupIntent, recordIntent } from "@/lib/payments/dossier-payment";
 
@@ -23,6 +24,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
     const userId = session.user.id;
+
+    // Réservé à un client propriétaire (seul payeur d'un bail créé depuis son espace) :
+    // un notaire ou un membre de l'équipe ne doit pas obtenir d'ordre de paiement (m43).
+    const payer = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, client: { select: { profilType: true } } },
+    });
+    if (payer?.role !== Role.UTILISATEUR || payer.client?.profilType !== ProfilType.PROPRIETAIRE) {
+      return NextResponse.json({ error: "Paiement réservé au propriétaire du dossier" }, { status: 403 });
+    }
 
     // Espace client : bail d'habitation (le commercial passe par le formulaire propriétaire)
     const amount = dossierFeeCents("HABITATION");

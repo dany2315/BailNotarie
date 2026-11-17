@@ -8,6 +8,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { authorizeUploadTarget, isValidUploadKey } from "@/lib/upload-access";
 import { queueDiagnosticReading } from "@/lib/diagnostics/run";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 // Diagnostics reçus : leur lecture par l'IA continue après la réponse (jusqu'à 2 minutes pour un gros dossier).
 export const maxDuration = 300;
@@ -297,10 +298,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("[documents/create] Erreur:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la création du document" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la création du document");
   }
 }
 

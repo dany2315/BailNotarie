@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Send, FileText, MessageSquare, User, Scale, Plus, AlertCircle, Loader2, Download } from "lucide-react";
 import { getBailMessages, getBailMessagesAndRequests, sendBailMessage, getNotaireRequestsByBail } from "@/lib/actions/bail-messages";
 import { createNotaireRequest } from "@/lib/actions/notaires";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { Role, BailMessageType, NotaireRequestStatus } from "@prisma/client";
 import { useSession } from "@/lib/auth-client";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
@@ -36,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useSendLock } from "@/hooks/use-send-lock";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 const messageSchema = z.object({
   content: z.string().min(1, "Le message ne peut pas être vide"),
@@ -345,7 +345,7 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
                         {message.sender.name || message.sender.email}
                       </span>
                       <span className="text-xs opacity-70">
-                        {formatDateTime(message.createdAt)}
+                        <LocalDateTime value={message.createdAt} />
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -420,7 +420,7 @@ export function NotaireBailChat({ bailId, dossierId, bailParties, selectedPartyI
                       <p>
                         De : {request.createdBy.name || request.createdBy.email}
                       </p>
-                      <p>{formatDateTime(request.createdAt)}</p>
+                      <p><LocalDateTime value={request.createdAt} /></p>
                       <div className="flex gap-2 mt-1">
                         {request.targetProprietaire && (
                           <Badge variant="outline" className="text-xs">

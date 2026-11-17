@@ -1,109 +1,78 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Clock, Phone, ShieldCheck, Sparkles } from "lucide-react";
-import { motion, useReducedMotion, useTransform } from "motion/react";
-import { AuroraBackdrop, NoiseOverlay, Reveal, usePointerParallax } from "./ui/lp-primitives";
-import { FloatingDelayCard, FloatingNotification, FloatingPriceCard } from "./ui/lp-product-mockups";
+import { ArrowRight, Phone } from "lucide-react";
+import { Reveal } from "./ui/lp-primitives";
 import { WithDossierCta } from "./lp-user-menu";
 
-export function LpFinalCta() {
-  const reduce = useReducedMotion();
-  const parallax = usePointerParallax(1);
-  const leftX = useTransform(parallax.x, (value) => value * -22);
-  const leftY = useTransform(parallax.y, (value) => value * -14);
-  const rightX = useTransform(parallax.x, (value) => value * 24);
-  const rightY = useTransform(parallax.y, (value) => value * 16);
+/** Fond de la section : un bleu nuit teinté de la couleur de la marque (même valeur pour la barre du haut). */
+const NIGHT = "#0f1d45";
 
+/**
+ * Dernier appel avant le pied de page. Sobre : un fond uni bleu nuit, une seule lumière douce,
+ * un titre, une phrase, un bouton ; le prix, le téléphone et les garanties en petit dessous.
+ */
+export function LpFinalCta() {
   return (
     <section
       aria-labelledby="lp-final-title"
-      data-lp-chrome="#4373f5"
-      className="lp-scene relative overflow-hidden bg-gradient-to-br from-[#3563e9] via-[#4373f5] to-[#6d8ff9] py-24 text-white sm:py-32"
+      data-lp-chrome={NIGHT}
+      className="relative overflow-hidden py-20 text-white sm:py-28"
+      style={{ backgroundColor: NIGHT }}
     >
-      <div aria-hidden className="lp-grid-dark absolute inset-0 opacity-70" />
-      <AuroraBackdrop tone="dark" />
-      <NoiseOverlay opacity={0.06} />
+      {/* Une seule lumière, venue du haut, dans le bleu de la marque. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(60% 55% at 50% 0%, rgba(67,115,245,0.28), transparent 70%)" }}
+      />
+      <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-white/10" />
 
-      {/* Satellites en profondeur */}
-      <motion.div
-        style={reduce ? undefined : { x: leftX, y: leftY }}
-        className="lp-anim-float-slow pointer-events-none absolute left-[6%] top-[18%] hidden xl:block"
-      >
-        <div className="rotate-[-8deg] opacity-95">
-          <FloatingNotification />
-        </div>
-      </motion.div>
-
-      <motion.div
-        style={reduce ? undefined : { x: rightX, y: rightY }}
-        className="lp-anim-float pointer-events-none absolute right-[7%] top-[22%] hidden xl:block"
-      >
-        <div className="rotate-[7deg] opacity-95">
-          <FloatingPriceCard />
-        </div>
-      </motion.div>
-
-      <motion.div
-        style={reduce ? undefined : { x: leftX, y: rightY }}
-        className="lp-anim-float pointer-events-none absolute bottom-[14%] right-[14%] hidden [animation-delay:-3s] xl:block"
-      >
-        <div className="rotate-[-5deg] opacity-95">
-          <FloatingDelayCard />
-        </div>
-      </motion.div>
-
-      <div className="relative mx-auto max-w-4xl px-5 text-center sm:px-8">
+      <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
         <Reveal>
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[13px] font-medium text-blue-50 backdrop-blur">
-            <Sparkles className="h-3.5 w-3.5" />
-            Dossier constitué en quelques minutes
-          </span>
+          <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-[#9db5fb]">Bail notarié en ligne</p>
 
-          <h2 id="lp-final-title" className="lp-title lp-balance mt-7 text-4xl font-bold sm:text-[3.5rem]">
+          <h2 id="lp-final-title" className="lp-title lp-balance mt-4 text-[2rem] font-semibold leading-tight sm:text-5xl">
             Prêt à sécuriser votre location ?
           </h2>
 
-          <p className="lp-balance mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-blue-50/90">
-            Rejoignez les propriétaires qui ont choisi la tranquillité d&apos;esprit avec un bail notarié. Constituez
-            votre dossier en ligne, nous nous occupons du reste avec notre notaire partenaire.
+          <p className="lp-balance mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
+            Constituez votre dossier en ligne, en quelques minutes. Nous nous occupons du reste avec notre notaire
+            partenaire.
           </p>
 
-          <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div className="mt-9 flex flex-col items-center gap-4">
             <WithDossierCta>
               {(cta) => (
-              <Link
-                href={cta.href}
-                className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-8 py-4 text-base font-semibold text-[#1e3a8a] shadow-[0_20px_50px_-20px_rgba(2,6,23,0.6)] transition-transform duration-300 hover:-translate-y-0.5"
-              >
-                {cta.connected ? cta.label : "Constituer mon dossier — dès 39,90 € TTC"}
-                <ArrowRight className="h-4.5 w-4.5 transition-transform duration-300 group-hover:translate-x-1" />
-              </Link>
+                <Link
+                  href={cta.href}
+                  className="group inline-flex h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-[#4373f5] px-7 text-[15px] font-semibold text-white shadow-[0_10px_30px_-12px_rgba(67,115,245,0.8)] transition-colors duration-200 hover:bg-[#3563e9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1d45] sm:w-auto"
+                >
+                  {cta.connected ? cta.label : "Constituer mon dossier"}
+                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                </Link>
               )}
             </WithDossierCta>
+
+            <p className="text-[14px] text-slate-400">
+              À partir de <span className="font-medium text-slate-200">39,90 € TTC</span>, remboursé si le dossier
+              n&apos;aboutit pas*
+            </p>
+
             <a
               href="tel:0768098624"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-8 py-4 text-base font-semibold text-white backdrop-blur transition-colors hover:bg-white/20"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-[14px] text-slate-300 transition-colors hover:text-white"
             >
-              <Phone className="h-4.5 w-4.5" />
-              07 68 09 86 24
+              <Phone className="h-4 w-4" />
+              Ou par téléphone : <span className="font-medium text-white underline decoration-white/30 underline-offset-4">07 68 09 86 24</span>
             </a>
           </div>
 
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[14px] text-blue-50/85">
-            <span className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" />
-              Sécurité juridique maximale
-            </span>
-            <span className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Bail notarié en 1 semaine
-            </span>
-            <span className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              Remboursé si le dossier n&apos;aboutit pas*
-            </span>
-          </div>
+          <ul className="mx-auto mt-10 flex max-w-xl flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-white/10 pt-6 text-[13px] text-slate-400">
+            <li>Sécurité juridique maximale</li>
+            <li aria-hidden className="hidden h-1 w-1 rounded-full bg-slate-600 sm:block" />
+            <li>Bail notarié en 1 semaine</li>
+          </ul>
         </Reveal>
       </div>
     </section>

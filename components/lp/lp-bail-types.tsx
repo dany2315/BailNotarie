@@ -138,6 +138,9 @@ const FAMILIES = [
 ];
 
 export function LpBailFamilies() {
+  // Déjà connecté : les cartes mènent à l'espace client, comme les pastilles du haut (m24).
+  const session = useClientSession();
+  const connected = session.status === "client";
   return (
     <section id="baux" aria-labelledby="lp-baux-title" data-lp-chrome="#ffffff" className="relative scroll-mt-24 overflow-hidden bg-white py-20 sm:py-24">
       <div className="relative mx-auto max-w-6xl px-5 sm:px-8">
@@ -187,7 +190,7 @@ export function LpBailFamilies() {
                       <span className="text-[13px] text-slate-500">TTC, hors frais de notaire</span>
                     </div>
                     <a
-                      href={family.href}
+                      href={connected ? "/client" : family.href}
                       className={cn(
                         "group mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-center text-[15px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5",
                         family.commercial

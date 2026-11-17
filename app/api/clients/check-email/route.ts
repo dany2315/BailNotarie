@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ProfilType } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { hasIntakeSession } from "@/lib/intake-session";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,10 +50,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ exists: false });
   } catch (error: any) {
     console.error("Erreur lors de la vérification de l'email:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la vérification de l'email" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la vérification de l'email");
   }
 }
 
