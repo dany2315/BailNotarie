@@ -8,12 +8,12 @@ Origine : **branche** = code ajouté par `codex/prep-pr-main` ; **staging** = d�
 de main ou présent aussi en production selon le cas) ; **montage** = dû à l'environnement de test.
 
 Colonne « Plan » :
-- **Prévu** : fait partie des corrections programmées pour la reprise automatique de 14 h 07.
+- **Fait** : corrigé et vérifié (à l'écran et par les tests serveur).
+- **À valider** : défaut de notre propre branche ; je propose de le corriger, j'attends votre oui.
 - **Proposé** : je propose de le corriger ; à ajouter si vous êtes d'accord.
 - **Décision** : il faut d'abord votre choix, la bonne solution dépend du métier.
-- **Fait** : déjà corrigé sur la branche (commit local, rien de poussé).
 
-Rien n'est encore vérifié à l'écran après correction ; chaque correction le sera.
+Mis à jour le 17/11/2026 au soir. Le récapitulatif de ce qui est fait et de ce qu'il reste à faire est en section 6.
 
 ---
 
@@ -52,8 +52,8 @@ Rien n'est encore vérifié à l'écran après correction ; chaque correction le
 
 | # | Défaut | Constats | Origine | Solution proposée | Plan |
 |---|---|---|---|---|---|
-| m1 | Jour de paiement 31 accepté alors que le champ annonce 1 à 28 ; jour 0 → erreur en anglais. | PRO-D-051, COM-026 | **branche** | Borner à 1-28 côté écran et serveur, avec un message clair. | **Prévu** |
-| m2 | Date de prise d'effet dans le passé (2020, 2021) acceptée sans avertissement. | PRO-D-051, PRO-M-050, COM-028 | branche / staging | Avertir sans bloquer pour une date passée (un bail peut déjà avoir commencé), refuser au-delà d'un an dans le passé. | **Fait**, vérifié à l'écran le 17/11 : une nouvelle date de prise d'effet passée est refusée partout (formulaires, fiche de l'équipe) ; une date déjà enregistrée n'est pas touchée |
+| m1 | Jour de paiement 31 accepté alors que le champ annonce 1 à 28 ; jour 0 → erreur en anglais. | PRO-D-051, COM-026 | **branche** | Borner à 1-28 côté écran et serveur, avec un message clair. | **À valider** |
+| m2 | Date de prise d'effet dans le passé (2020, 2021) acceptée sans avertissement. | PRO-D-051, PRO-M-050, COM-028 | branche / staging | Votre choix du 17/11 : refuser toute date passée (aujourd'hui accepté, heure de Paris). Contrôle côté serveur partout où la date se saisit ; jours passés grisés au calendrier et message sous le champ. Une date déjà enregistrée n'est jamais refusée, pour ne pas bloquer les dossiers en cours. | **Fait** (e3c711f), vérifié à l'écran (fiche de l'équipe, « Nouveau client complet ») et par 4 tests serveur. Pas encore sur staging |
 | m3 | Date de naissance future ou d'un mineur acceptée. | LOC-018, LOC-112, PRO-D-016 | staging | Refuser une date future ; refuser un âge inférieur à 18 ans. | **Proposé** |
 | m4 | Téléphones incomplets ou inexistants acceptés (« +33 6 12 », « +33 12 »). | LOC-013, PRO-M-022, ADM-1-038, ADM-2-057 | staging | Valider avec la bibliothèque de numéros déjà utilisée par le champ (numéro réellement possible pour le pays). | **Proposé** |
 | m5 | E-mail et téléphone du syndic non contrôlés. | PRO-D-035, PRO-M-035, COM-010 | staging | Même validation que les autres adresses et numéros. | **Proposé** |
@@ -67,8 +67,8 @@ Rien n'est encore vérifié à l'écran après correction ; chaque correction le
 
 | # | Défaut | Constats | Origine | Solution proposée | Plan |
 |---|---|---|---|---|---|
-| m11 | En acceptant une « autre pièce », la fenêtre d'archivage propose les fichiers de la messagerie, sans rapport. | NOT-117 | **branche** | Exclure les fichiers de messagerie (et ne rien proposer pour une pièce libre). | **Prévu** |
-| m12 | « Nouveau bail » côté équipe : locataire sans jour de paiement refusé sans explication (le champ manque à l'écran). | ADM-1-064 | **branche** | Ajouter la date de prise d'effet et le jour de paiement au formulaire quand un locataire est choisi. | **Prévu** |
+| m11 | En acceptant une « autre pièce », la fenêtre d'archivage propose les fichiers de la messagerie, sans rapport. | NOT-117 | **branche** | Exclure les fichiers de messagerie (et ne rien proposer pour une pièce libre). | **À valider** |
+| m12 | « Nouveau bail » côté équipe : locataire sans jour de paiement refusé sans explication (le champ manque à l'écran). | ADM-1-064 | **branche** | Ajouter la date de prise d'effet et le jour de paiement au formulaire quand un locataire est choisi. | **À valider** |
 
 ### Libellés et textes
 
@@ -141,10 +141,48 @@ Images du blog non chargées sous la charge des huit agents (PUB-230, 232, 236, 
 relevée trop tard par un script (COM-029) ; données créées directement en base sans répartition des charges
 (COM-071) ; vérifications de lecture (COM-040, COM-100) ; COM-034 traité plus haut (M16).
 
-## 6. État au 17/11 après les corrections
+## 6. Récapitulatif au 17/11 au soir
 
-Corrigées et vérifiées à l'écran : B1 à M10 (M9 compris, choix A du 17/11), puis M12 à M15 selon vos choix du 17/11 et le consentement à Google Analytics. 137 tests serveur au vert. B1 à M10 sont sur staging depuis da5b701 ; le bandeau de cookies et M12 à M15 depuis e2af2dd (17/11). Aucune PR, aucune fusion, rien en production.
-Toutes les autres lignes attendent votre accord, une par une.
+### Ce qui est fait (19 défauts corrigés, plus le bandeau de cookies)
 
-Pour ajouter des lignes **Proposé**, dites lesquelles (« tout », ou des numéros). Pour les **Décision**, donnez
-votre choix ; sans réponse, elles restent dans le rapport comme points ouverts.
+| Point | Où il en est |
+|---|---|
+| B1, B2, B3 (bloquants) | Corrigés, vérifiés, sur staging (da5b701) |
+| M1 à M10 (majeurs) | Corrigés, vérifiés, sur staging (da5b701) |
+| M12, M13, M14, M15 | Corrigés selon vos choix du 17/11, vérifiés, sur staging (e2af2dd) |
+| M16 | Rejoué seul : non reproduit, dû à la surcharge du montage. Rien à corriger |
+| m9 | Corrigé avec B3, sur staging |
+| Google Analytics et bandeau de cookies | Bandeau au format standard (Tout accepter / Tout refuser / Personnaliser), choix gardé 6 mois, aucune mesure dans les espaces privés. Vérifié sur mobile et ordinateur, sur staging (e2af2dd) |
+| m2 (date de prise d'effet passée refusée) | Corrigé et vérifié, **en local seulement, pas encore sur staging** |
+
+141 tests serveur au vert. Aucune PR, aucune fusion vers main, aucune migration, rien en production.
+
+### Ce qu'il reste à faire
+
+**1. Tout de suite, votre accord**
+- Pousser m2 sur staging.
+
+**2. Défauts de notre propre branche, à corriger avant la PR (je recommande oui)**
+- m1 : jour de paiement limité à 1-28.
+- m11 : l'archivage d'une « autre pièce » ne doit pas proposer les fichiers de la messagerie.
+- m12 : « Nouveau bail » de l'équipe : ajouter la date de prise d'effet et le jour de paiement quand un locataire est choisi.
+
+**3. Vos décisions (choix métier)**
+- M11 : identité des parties modifiable sur un dossier chez le notaire ou signé.
+- m25 : « Mes informations » modifiable ? Filtre dans « Mes dossiers » ?
+- m27 : deux boutons « Nouveau dossier » qui mènent à deux écrans.
+- m32 : prévenir le notaire quand le client répond à sa demande.
+- m36 : bouton « S'abonner » du blog (le brancher ou le retirer).
+
+**4. Défauts mineurs proposés (déjà présents sur staging et en production)**
+m3 à m8, m10, m13 à m24, m26, m28 à m31, m33 à m35, m37 à m43 : 34 points. Dites « tout » ou donnez les numéros.
+
+**5. Plus tard, uniquement sur votre demande explicite (mise en production)**
+- PR vers main, avec revue de l'impact sur les données existantes : 23 migrations, dont une qui modifie des données (`intake_form_tracking`).
+- Import des barèmes de loyers en production.
+- Clé OpenAI en production.
+- Migration du rôle par défaut des comptes à `UTILISATEUR` (sans effet sur les comptes existants).
+- De votre côté : vérifier la liste des administrateurs en production (lié à B1).
+
+**6. Rangement en fin de recette**
+- Arrêter le serveur de recette et les doublures locales ; retirer l'entrée « recette » de `.claude/launch.json`.
