@@ -188,4 +188,104 @@ suite('Corrections de la recette au navigateur', path.join(__dirname, '../../rep
     assert(!ids.includes(m.docLocataire.id), 'fichier du fil du locataire listé chez le propriétaire');
     assert(ids.includes(m.docProprio.id) && ids.includes(m.docReponse.id) && ids.includes(m.piece.id));
   });
+
+  /* ---------- M12 : créer un notaire avec une adresse déjà utilisée ---------- */
+
+  await test('M12 — adresse d’un compte client, d’un notaire ou d’une fiche client : refus avec message, aucun rôle changé', async (tx, r, f) => {
+    const notaires = r.load('lib/actions/notaires.ts');
+    r.state.user = f.admin;
+    const res = await notaires.createNotaire({ email: f.tenantUser.email, name: 'Me Essai' });
+    assert.match(res.__actionError || '', /compte client/);
+    assert.equal((await tx.user.findUnique({ where: { id: f.tenantUser.id } })).role, 'UTILISATEUR', 'le rôle du client a changé');
+    const existant = await tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', role: 'NOTAIRE', emailVerified: true } });
+    assert.match((await notaires.createNotaire({ email: existant.email.toUpperCase(), name: 'Me Essai' })).__actionError || '', /existe déjà/);
+    const fiche = (await tx.person.findFirst({ where: { clientId: f.owner.id } })).email;
+    assert.match((await notaires.createNotaire({ email: fiche, name: 'Me Essai' })).__actionError || '', /appartient déjà à un client/);
+  });
+
+  await test('M12 — une adresse nouvelle crée bien le notaire', async (tx, r, f) => {
+    r.state.user = f.admin;
+    const email = crypto.randomUUID() + '@example.invalid';
+    const res = await r.load('lib/actions/notaires.ts').createNotaire({ email, name: 'Me Nouveau' });
+    assert(!res.__actionError, res.__actionError);
+    assert.equal((await tx.user.findUnique({ where: { email } })).role, 'NOTAIRE');
+  });
+
+  /* ---------- M13 : lien de formulaire créé par l'équipe ---------- */
+
+  await test('M13 — lien locataire : rattaché au bail choisi, au bien et au locataire du bail', async (tx, r, f) => {
+    r.state.user = f.admin;
+    const lien = await r.load('lib/actions/intakes.ts').createIntakeLink({ target: 'TENANT', leaseId: f.bail.id });
+    assert.equal(lien.bailId, f.bail.id);
+    assert.equal(lien.propertyId, f.property.id);
+    assert.equal(lien.clientId, f.tenant.id);
+  });
+
+  await test('M13 — lien propriétaire depuis le bien seul : rattaché au propriétaire du bien', async (tx, r, f) => {
+    r.state.user = f.admin;
+    const lien = await r.load('lib/actions/intakes.ts').createIntakeLink({ target: 'OWNER', propertyId: f.property.id });
+    assert.equal(lien.clientId, f.owner.id);
+    assert.equal(lien.bailId, null);
+  });
+
+  await test('M13 — refus clairs : locataire sans bail, bail sans locataire, bail d’un autre bien', async (tx, r, f) => {
+    r.state.user = f.admin;
+    const intakes = r.load('lib/actions/intakes.ts');
+    const avant = await tx.intakeLink.count();
+    await assert.rejects(() => intakes.createIntakeLink({ target: 'TENANT', propertyId: f.property.id }), /bail du locataire/);
+    const seul = await tx.bail.create({ data: { propertyId: f.property.id, rentAmount: 500, monthlyCharges: 0, securityDeposit: 500, paymentDay: 5, status: 'DRAFT', parties: { connect: [{ id: f.owner.id }] } } });
+    await assert.rejects(() => intakes.createIntakeLink({ target: 'TENANT', leaseId: seul.id }), /pas encore de locataire/);
+    const autre = await tx.property.create({ data: { ownerId: f.owner.id, fullAddress: 'TEST — autre bien', surfaceM2: 20, type: 'APPARTEMENT' } });
+    await assert.rejects(() => intakes.createIntakeLink({ target: 'OWNER', propertyId: autre.id, leaseId: f.bail.id }), /ne porte pas sur le bien/);
+    assert.equal(await tx.intakeLink.count(), avant, 'un lien a été créé malgré le refus');
+  });
+
+  /* ---------- M14 : « Nouveau client complet » créé par l'équipe ---------- */
+
+  await test('M14 — client complet par l’équipe : prénom, nom et e-mail suffisent ; prénom manquant refusé', async (tx, r) => {
+    const z = r.load('lib/zod/client.ts');
+    const base = { type: 'PERSONNE_PHYSIQUE', profilType: 'PROPRIETAIRE', email: 'equipe@example.invalid' };
+    const ok = z.createOwnerPhysicalClientSchema.safeParse({ ...base, persons: [{ firstName: 'Léa', lastName: 'Martin', email: 'equipe@example.invalid', isPrimary: true }] });
+    assert(ok.success, 'refusé : ' + JSON.stringify(ok.error?.issues?.map((i) => i.path.join('.') + ' ' + i.message)));
+    const ko = z.createOwnerPhysicalClientSchema.safeParse({ ...base, persons: [{ lastName: 'Martin', email: 'equipe@example.invalid', isPrimary: true }] });
+    assert(!ko.success, 'un prénom manquant est accepté');
+    const morale = z.createOwnerLegalClientSchema.safeParse({ type: 'PERSONNE_MORALE', profilType: 'PROPRIETAIRE', email: 'societe@example.invalid', legalName: 'SAS Essai', persons: [{ firstName: 'Léa', lastName: 'Martin' }] });
+    assert(!morale.error?.issues?.some((i) => i.path[0] === 'persons'), 'personne de la société refusée : ' + JSON.stringify(morale.error?.issues?.map((i) => i.path.join('.'))));
+  });
+
+  /* ---------- M15 : un seul e-mail au locataire quand ses conditions changent ---------- */
+
+  const accordDonne = (tx, f) => tx.bail.update({ where: { id: f.bail.id }, data: { tenantConfirmedTermsAt: new Date('2026-11-10T10:00:00Z'), tenantConfirmedById: f.tenant.id, bailType: 'BAIL_NU_3_ANS', effectiveDate: new Date('2027-02-01T00:00:00Z') } });
+
+  await test('M15 — loyer modifié après l’accord : un seul e-mail déclenché, même après une seconde modification', async (tx, r, f) => {
+    await accordDonne(tx, f);
+    r.state.user = f.admin;
+    assert((await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { rentAmount: '640' } })).success);
+    const bail = await tx.bail.findUnique({ where: { id: f.bail.id } });
+    assert(bail.tenantReconfirmationRequestedAt && !bail.tenantConfirmedTermsAt, 'reconfirmation non demandée');
+    assert.equal(r.state.suppressed.triggerTenantReconfirmationEmail || 0, 1, 'e-mail de reconfirmation non déclenché');
+    assert((await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { monthlyCharges: '70' } })).success);
+    assert.equal(r.state.suppressed.triggerTenantReconfirmationEmail, 1, 'second e-mail déclenché alors que la demande est déjà en cours');
+  });
+
+  await test('M15 — envoi seulement si la demande est toujours en cours', async (tx, r, f) => {
+    const { sendTenantReconfirmationEmail } = r.load('lib/bail/tenant-reconfirmation-email.ts');
+    const at = new Date('2026-11-17T09:00:00Z');
+    await tx.bail.update({ where: { id: f.bail.id }, data: { tenantConfirmedTermsAt: null, tenantReconfirmationRequestedAt: at } });
+    const data = { bailId: f.bail.id, requestedAt: at.toISOString(), changedLabels: ['Loyer'] };
+    assert.equal((await sendTenantReconfirmationEmail(data)).sent, true, 'non envoyé alors que la demande est en cours');
+    assert.equal(r.state.suppressed.email, 1);
+    assert.equal((await sendTenantReconfirmationEmail({ ...data, requestedAt: '2026-11-16T09:00:00.000Z' })).sent, false, 'envoyé pour une demande remplacée');
+    await tx.bail.update({ where: { id: f.bail.id }, data: { tenantConfirmedTermsAt: new Date(), tenantReconfirmationRequestedAt: null } });
+    assert.equal((await sendTenantReconfirmationEmail(data)).sent, false, 'envoyé alors que le locataire a reconfirmé');
+    assert.equal(r.state.suppressed.email, 1);
+  });
+
+  await test('M15 — sauvegarde sans changement réel : ni reconfirmation ni e-mail', async (tx, r, f) => {
+    await accordDonne(tx, f);
+    r.state.user = f.admin;
+    assert((await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { rentAmount: '600' } })).success);
+    assert((await tx.bail.findUnique({ where: { id: f.bail.id } })).tenantConfirmedTermsAt, 'accord retiré sans changement');
+    assert.equal(r.state.suppressed.triggerTenantReconfirmationEmail || 0, 0);
+  });
 });

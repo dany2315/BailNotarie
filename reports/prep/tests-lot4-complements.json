@@ -1,6 +1,6 @@
 {
  "suite": "Lot 4 — compléments et archivage",
- "createdAt": "2026-11-17T13:09:15.095Z",
+ "createdAt": "2026-11-17T15:09:10.500Z",
  "passed": 19,
  "failed": 0,
  "networkAttempts": 0,
@@ -34,7 +34,9 @@
    "name": "Acceptation d’une condition confirmée par le locataire : son accord est archivé et redemandé",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {

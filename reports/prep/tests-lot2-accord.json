@@ -1,6 +1,6 @@
 {
  "suite": "Lot 2 — accord du locataire",
- "createdAt": "2026-11-17T13:04:20.568Z",
+ "createdAt": "2026-11-17T15:12:46.962Z",
  "passed": 18,
  "failed": 0,
  "networkAttempts": 0,
@@ -11,7 +11,9 @@
    "name": "Modifier les charges invalide l’accord, l’archive et demande une nouvelle confirmation",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {
@@ -32,28 +34,36 @@
    "name": "Changement de loyer : accord invalidé",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {
    "name": "Changement de dépôt de garantie : accord invalidé",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {
    "name": "Changement de date de prise d’effet : accord invalidé",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {
    "name": "Changement de type de bail : accord invalidé",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {
@@ -67,7 +77,9 @@
    "name": "Accord ancien sans conditions enregistrées : archivé sans contenu inventé",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {
@@ -88,14 +100,18 @@
    "name": "Nouvelle confirmation par le locataire : enregistrée avec les conditions vues",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {
    "name": "Confirmation sur des conditions périmées : refusée",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {
@@ -116,14 +132,18 @@
    "name": "Formulaire admin complet (updateLease) : changement de loyer invalide aussi l’accord",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {
    "name": "Deux modifications successives : un seul accord archivé, pas de doublon",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   },
   {

@@ -1,7 +1,7 @@
 {
  "suite": "Corrections de la recette au navigateur",
- "createdAt": "2026-11-17T13:10:51.705Z",
- "passed": 15,
+ "createdAt": "2026-11-17T15:11:17.256Z",
+ "passed": 24,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
@@ -109,6 +109,75 @@
   },
   {
    "name": "M2 — la page du bail du propriétaire ne liste pas les fichiers du fil du locataire",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M12 — adresse d’un compte client, d’un notaire ou d’une fiche client : refus avec message, aucun rôle changé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M12 — une adresse nouvelle crée bien le notaire",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "triggerNotaireWelcomeEmail": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "M13 — lien locataire : rattaché au bail choisi, au bien et au locataire du bail",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M13 — lien propriétaire depuis le bien seul : rattaché au propriétaire du bien",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M13 — refus clairs : locataire sans bail, bail sans locataire, bail d’un autre bien",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M14 — client complet par l’équipe : prénom, nom et e-mail suffisent ; prénom manquant refusé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M15 — loyer modifié après l’accord : un seul e-mail déclenché, même après une seconde modification",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "M15 — envoi seulement si la demande est toujours en cours",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "email": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "M15 — sauvegarde sans changement réel : ni reconfirmation ni e-mail",
    "passed": true,
    "error": null,
    "simulated": {},

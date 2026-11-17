@@ -1,6 +1,6 @@
 {
  "suite": "Lot 3 — dates conditionnées au locataire",
- "createdAt": "2026-11-17T13:06:52.108Z",
+ "createdAt": "2026-11-17T15:06:50.502Z",
  "passed": 26,
  "failed": 0,
  "networkAttempts": 0,
@@ -234,7 +234,9 @@
    "name": "Accord du locataire : une date d’effet saisie après son accord le rend à renouveler",
    "passed": true,
    "error": null,
-   "simulated": {},
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
    "networkAttempts": 0
   }
  ]
