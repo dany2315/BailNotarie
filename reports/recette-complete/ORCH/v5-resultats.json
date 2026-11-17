@@ -1,0 +1,27 @@
+[
+ {
+  "id": "M12-compte-client",
+  "ok": true,
+  "detail": "message « Erreur lors de la création du notaire Cette adresse appartient déjà à un compte client. Utilisez une autre adresse pour le notaire. » ; rôle du compte après : UTILISATEUR"
+ },
+ {
+  "id": "M12-adresse-neuve",
+  "ok": true,
+  "detail": "message « Erreur lors de la création du notaire Cette adresse appartient déjà à un compte client. Utilisez une autre adresse pour le notaire. » ; compte créé : NOTAIRE"
+ },
+ {
+  "id": "M13",
+  "ok": true,
+  "detail": "message « Lien d'intake créé avec succès » ; lien : bail choisi, locataire du bail rattaché ; ouverture par le locataire : oui, le formulaire du locataire s’affiche"
+ },
+ {
+  "id": "M14",
+  "ok": true,
+  "detail": "message « Client créé avec succès » ; client créé : oui (profession, téléphone vides, à compléter par le client) ; bien créé : oui ; réponses 5xx : 0"
+ },
+ {
+  "id": "M15",
+  "ok": true,
+  "detail": "boutons : Modifier\n: Type et durée | Modifier\n: Loyer et charges | Modifier\n: Dépôt de garantie ; loyer 600 → 615, message « Loyer hors charges enregistré » ; accord du locataire retiré : true ; événements « e-mail de reconfirmation » après deux modifications : 1 [{\"id\":\"evt_c2995576cd02\",\"data\":{\"bailId\":\"cmwjndvy90028x12k2wa2w6zs\",\"requestedAt\":\"2026-11-17T15:15:18.967Z\",\"changedLabels\":[\"Loyer\"]}}]"
+ }
+]

@@ -1,5 +1,5 @@
 {
- "genereLe": "2026-11-17T14:20:12.289Z",
+ "genereLe": "2026-11-17T15:22:14.720Z",
  "totaux": {
   "cas": 1239,
   "OK": 1035,
@@ -261,7 +261,7 @@
    "gravite": "majeur",
    "origine": "staging",
    "fonctionnalite": "Ouverture d'un lien de formulaire : valide, périmé (jeton régénéré), révoqué",
-   "etat": "à examiner"
+   "etat": "corrigé"
   },
   {
    "id": "ADM-1-063",
@@ -270,7 +270,7 @@
    "gravite": "majeur",
    "origine": "staging",
    "fonctionnalite": "Nouveau client complet : seuls les champs marqués obligatoires sont remplis",
-   "etat": "à décider"
+   "etat": "corrigé"
   },
   {
    "id": "ADM-1-094",
@@ -279,7 +279,7 @@
    "gravite": "majeur",
    "origine": "staging",
    "fonctionnalite": "« Créer un notaire » avec l'e-mail d'un compte client existant",
-   "etat": "à examiner"
+   "etat": "corrigé"
   },
   {
    "id": "ADM-2-049",
@@ -351,7 +351,7 @@
    "gravite": "majeur",
    "origine": "montage",
    "fonctionnalite": "Paiement accepté par Stripe mais dossier non soumis pendant plusieurs essais (réponses 500 passagères)",
-   "etat": "à décider"
+   "etat": "non reproduit"
   },
   {
    "id": "LOC-045",
@@ -369,7 +369,7 @@
    "gravite": "majeur",
    "origine": "branche",
    "fonctionnalite": "Le locataire est prévenu par e-mail qu'il doit reconfirmer",
-   "etat": "à examiner"
+   "etat": "corrigé"
   },
   {
    "id": "NOT-093",
@@ -576,7 +576,7 @@
    "gravite": "mineur",
    "origine": "staging",
    "fonctionnalite": "Nouveau lien de formulaire : le bail choisi est enregistré",
-   "etat": "à examiner"
+   "etat": "corrigé"
   },
   {
    "id": "ADM-1-085",
@@ -585,7 +585,7 @@
    "gravite": "mineur",
    "origine": "staging",
    "fonctionnalite": "Création d'un notaire : adresse déjà utilisée",
-   "etat": "à examiner"
+   "etat": "corrigé"
   },
   {
    "id": "ADM-1-098",
