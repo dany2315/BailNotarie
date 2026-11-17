@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Scale, Mail, Phone, MapPin } from "lucide-react";
 import { Button } from "./ui/button";
 import Image from "next/image";
+import { openConsentBanner } from "@/components/consent/analytics-consent";
 
 export function Footer() {
   return (
@@ -43,6 +44,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-gray-400">
               <li><Link href="/mentions-legales" className="hover:text-white transition-colors">Mentions légales</Link></li>
               <li><Link href="/politique-confidentialite" className="hover:text-white transition-colors">Politique de confidentialité</Link></li>
+              <li><button type="button" onClick={openConsentBanner} className="hover:text-white transition-colors">Gérer les cookies</button></li>
               <li><Link href="/cgu" className="hover:text-white transition-colors">CGU</Link></li>
               <li><Link href="/cgv" className="hover:text-white transition-colors">CGV</Link></li>
               <li><Link href="/#faq" className="hover:text-white transition-colors">FAQ</Link></li>

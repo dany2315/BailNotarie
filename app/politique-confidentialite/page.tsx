@@ -184,6 +184,19 @@ export default function PolitiqueConfidentialitePage() {
                 </p>
               </section>
 
+              <section id="mesure-audience">
+                <h3 className="mt-2 mb-2 text-lg font-semibold text-gray-900">
+                  Mesure d&apos;audience et cookies
+                </h3>
+                <p>
+                  Avec votre accord seulement, le site public utilise Google Analytics pour mesurer son audience (pages
+                  vues, provenance des visites). Sans accord, rien n&apos;est chargé. Aucune mesure n&apos;a lieu dans
+                  votre espace client, dans l&apos;espace notaire ni dans les formulaires de votre dossier. Vous pouvez
+                  changer votre choix à tout moment avec le lien « Gérer les cookies » en bas de page. La mesure
+                  d&apos;audience de notre hébergeur (Vercel) fonctionne sans cookie.
+                </p>
+              </section>
+
               <section>
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">
                   8. Durée de conservation

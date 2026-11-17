@@ -1,0 +1,52 @@
+[
+ {
+  "id": "GA-bandeau-ordinateur",
+  "ok": true,
+  "detail": "bandeau affiché true ; requêtes Google avant choix : 0 ; largeur bandeau 1440 / écran 1440"
+ },
+ {
+  "id": "GA-refus-ordinateur",
+  "ok": true,
+  "detail": "après refus et rechargement : bandeau false, requêtes Google 0"
+ },
+ {
+  "id": "GA-accord-ordinateur",
+  "ok": true,
+  "detail": "« Gérer les cookies » rouvre le bandeau : true ; après accord, requêtes Google tentées : 1"
+ },
+ {
+  "id": "GA-pages-privees-ordinateur",
+  "ok": true,
+  "detail": "[{\"chemin\":\"/client/login\",\"adresse\":\"/client/login\",\"google\":0,\"bandeau\":false,\"desactive\":true},{\"chemin\":\"/intakes/00000000-0000-0000-0000-000000000000\",\"adresse\":\"/intakes/00000000-0000-0000-0000-000000000000\",\"google\":0,\"bandeau\":false,\"desactive\":true},{\"chemin\":\"/commencer/proprietaire/jeton-de-test\",\"adresse\":\"/commencer/proprietaire/jeton-de-test\",\"google\":0,\"bandeau\":false,\"desactive\":true},{\"chemin\":\"/interface\",\"adresse\":\"/login\",\"google\":0,\"bandeau\":false,\"desactive\":true},{\"chemin\":\"/notaire/login\",\"adresse\":\"/notaire/login\",\"google\":0,\"bandeau\":false,\"desactive\":true}]"
+ },
+ {
+  "id": "GA-navigation-ordinateur",
+  "ok": true,
+  "detail": "arrivée sur /client/login (sans rechargement : true) ; mesure désactivée : true (requêtes Google sur la page publique : 1)"
+ },
+ {
+  "id": "GA-bandeau-telephone",
+  "ok": true,
+  "detail": "bandeau affiché true ; requêtes Google avant choix : 0 ; largeur bandeau 412 / écran 412"
+ },
+ {
+  "id": "GA-refus-telephone",
+  "ok": true,
+  "detail": "après refus et rechargement : bandeau false, requêtes Google 0"
+ },
+ {
+  "id": "GA-accord-telephone",
+  "ok": true,
+  "detail": "« Gérer les cookies » rouvre le bandeau : true ; après accord, requêtes Google tentées : 1"
+ },
+ {
+  "id": "GA-pages-privees-telephone",
+  "ok": true,
+  "detail": "[{\"chemin\":\"/client/login\",\"adresse\":\"/client/login\",\"google\":0,\"bandeau\":false,\"desactive\":true},{\"chemin\":\"/intakes/00000000-0000-0000-0000-000000000000\",\"adresse\":\"/intakes/00000000-0000-0000-0000-000000000000\",\"google\":0,\"bandeau\":false,\"desactive\":true},{\"chemin\":\"/commencer/proprietaire/jeton-de-test\",\"adresse\":\"/commencer/proprietaire/jeton-de-test\",\"google\":0,\"bandeau\":false,\"desactive\":true},{\"chemin\":\"/interface\",\"adresse\":\"/login\",\"google\":0,\"bandeau\":false,\"desactive\":true},{\"chemin\":\"/notaire/login\",\"adresse\":\"/notaire/login\",\"google\":0,\"bandeau\":false,\"desactive\":true}]"
+ },
+ {
+  "id": "GA-navigation-telephone",
+  "ok": true,
+  "detail": "arrivée sur /client/login (sans rechargement : true) ; mesure désactivée : true (requêtes Google sur la page publique : 1)"
+ }
+]
