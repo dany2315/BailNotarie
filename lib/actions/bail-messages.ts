@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { assertFreshFileKeys } from "@/lib/document-access";
 import { requireAuth, canAccessBail } from "@/lib/auth-helpers";
+import { clientThreadWhere } from "@/lib/messaging-privacy";
 import { Role, BailMessageType, NotaireRequestStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { isUserOnlineInChannel, pusherServer } from "@/lib/pusher";
@@ -14,12 +15,16 @@ import { triggerChatMessageNotificationEmail, triggerDocumentReceivedEmail } fro
 export async function getBailMessages(bailId: string) {
   const user = await requireAuth();
 
-  // Vérifier les permissions
+  // Vérifier les permissions. Un client ne reçoit que son propre fil avec le notaire.
+  let threadWhere: ReturnType<typeof clientThreadWhere> | null = null;
   if (user.role === Role.UTILISATEUR) {
     const hasAccess = await canAccessBail(user.id, bailId);
     if (!hasAccess) {
       throw new Error("Non autorisé");
     }
+    const own = await prisma.user.findUnique({ where: { id: user.id }, select: { clientId: true } });
+    if (!own?.clientId) throw new Error("Non autorisé");
+    threadWhere = clientThreadWhere(own.clientId);
   } else if (user.role === Role.NOTAIRE) {
     // Vérifier que le notaire est assigné à ce bail
     const assignment = await prisma.dossierNotaireAssignment.findFirst({
@@ -36,7 +41,7 @@ export async function getBailMessages(bailId: string) {
   }
 
   const messages = await prisma.bailMessage.findMany({
-    where: { bailId },
+    where: threadWhere ? { bailId, ...threadWhere } : { bailId },
     include: {
       sender: {
         select: {

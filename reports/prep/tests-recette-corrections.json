@@ -1,0 +1,46 @@
+{
+ "suite": "Corrections de la recette au navigateur",
+ "createdAt": "2026-11-17T12:11:22.850Z",
+ "passed": 5,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "M3 — un client ne reçoit par l’API que son propre fil ; le notaire reçoit tout",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M3 — le notaire assigné reçoit les deux fils",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M2 — fichier du fil de l’autre partie : refusé ; fichier de son fil et pièce du bail : lisibles",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M2 — notaire et équipe lisent tous les fichiers de la messagerie",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M2 — la page du bail du propriétaire ne liste pas les fichiers du fil du locataire",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

@@ -2,6 +2,7 @@ import { IntakeStatus, IntakeTarget, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, STAFF_ROLES } from "@/lib/auth-helpers";
 import { hasIntakeSession } from "@/lib/intake-session";
+import { messageDocumentVisibleTo } from "@/lib/messaging-privacy";
 
 /**
  * Accès à une pièce (lecture : URL de téléchargement ; suppression).
@@ -32,6 +33,8 @@ const DOCUMENT_SELECT = {
   person: { select: { clientId: true } },
   entreprise: { select: { clientId: true } },
   notaireRequest: { select: { dossier: { select: { notaireId: true, bailId: true } } } },
+  // Pièce jointe à un message : seul le fil concerné y a accès côté client
+  bailMessages: { select: { recipientPartyId: true, sender: { select: { clientId: true } } } },
 } as const;
 
 type AccessDocument = NonNullable<Awaited<ReturnType<typeof findDocument>>>;
@@ -97,6 +100,8 @@ export async function canAccessDocument(doc: AccessDocument, mode: DocumentMode,
   const ownClientId = own?.clientId;
   if (!ownClientId) return false;
   if (clientId === ownClientId) return true;
+  // Fichier échangé dans la messagerie : réservé au fil du client (jamais celui de l'autre partie).
+  if (!messageDocumentVisibleTo(doc.bailMessages, ownClientId)) return false;
 
   // Bien : le propriétaire ; en lecture, aussi le locataire d'un bail sur ce bien.
   if (doc.propertyId) {

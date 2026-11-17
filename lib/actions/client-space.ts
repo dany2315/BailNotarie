@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { clientVisibleDocumentWhere } from "@/lib/messaging-privacy";
 import { requireClientAuth, requireProprietaireAuth, requireLocataireAuth, getClientFromUser, requireClientAccess, requireAuth, STAFF_ROLES } from "@/lib/auth-helpers";
 import { ProfilType, BailStatus, IntakeTarget, BailFamille } from "@prisma/client";
 import { randomBytes } from "crypto";
@@ -650,7 +651,9 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
         },
         take: 1,
       },
+      // Fichiers de la messagerie : seulement ceux du fil de ce client (jamais ceux de l'autre partie)
       documents: {
+        where: clientVisibleDocumentWhere(clientId),
         orderBy: {
           createdAt: "desc",
         },

@@ -1,6 +1,7 @@
 import { requireLocataireAuth } from "@/lib/auth-helpers";
 import { canAccessBail } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { clientVisibleDocumentWhere } from "@/lib/messaging-privacy";
 import { notFound } from "next/navigation";
 import { BailStatus, ProfilType } from "@prisma/client";
 
@@ -84,6 +85,8 @@ export default async function LocataireBailDetailPage({
             { clientId: client.id },
             { clientId: null },
           ],
+          // Fichiers de la messagerie : seulement ceux de son propre fil avec le notaire
+          AND: [clientVisibleDocumentWhere(client.id)],
         },
         orderBy: {
           createdAt: "desc",
