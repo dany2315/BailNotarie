@@ -1,79 +1,145 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Phone } from "lucide-react";
+import { ArrowUpRight, Phone } from "lucide-react";
 import { Reveal } from "./ui/lp-primitives";
 import { WithDossierCta } from "./lp-user-menu";
 
-/** Fond de la section : un bleu nuit teinté de la couleur de la marque (même valeur pour la barre du haut). */
-const NIGHT = "#0f1d45";
+/** Encre de la dalle (et de la barre du haut quand elle la survole). */
+const INK = "#0a0f1f";
+
+const STEPS = [
+  { n: "01", title: "Votre dossier en ligne", note: "Quelques minutes, sauvegarde automatique" },
+  { n: "02", title: "L'acte rédigé par le notaire", note: "Sécurité juridique maximale" },
+  { n: "03", title: "Signature à distance", note: "Bail notarié en 1 semaine" },
+];
+
+const WORDS = ["Acte authentique", "Force exécutoire", "100 % en ligne", "Habitation", "Commercial"];
 
 /**
- * Dernier appel avant le pied de page. Sobre : un fond uni bleu nuit, une seule lumière douce,
- * un titre, une phrase, un bouton ; le prix, le téléphone et les garanties en petit dessous.
+ * Dernier appel avant le contact : une dalle sombre posée dans la page, un très grand titre,
+ * le bouton, trois étapes sur une ligne, et une bande de mots qui défile en bas.
  */
 export function LpFinalCta() {
+  const band = [...WORDS, ...WORDS];
   return (
-    <section
-      aria-labelledby="lp-final-title"
-      data-lp-chrome={NIGHT}
-      className="relative overflow-hidden py-20 text-white sm:py-28"
-      style={{ backgroundColor: NIGHT }}
-    >
-      {/* Une seule lumière, venue du haut, dans le bleu de la marque. */}
+    <section aria-labelledby="lp-final-title" data-lp-chrome="#ffffff" className="bg-white px-3 py-3 sm:px-5 sm:py-5">
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ background: "radial-gradient(60% 55% at 50% 0%, rgba(67,115,245,0.28), transparent 70%)" }}
-      />
-      <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-white/10" />
+        data-lp-chrome={INK}
+        className="relative isolate overflow-hidden rounded-[28px] text-white sm:rounded-[40px]"
+        style={{ backgroundColor: INK }}
+      >
+        {/* Une lumière bleue dans l'angle et une trame de points très légère. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-40 -top-40 -z-10 h-[34rem] w-[34rem] rounded-full blur-3xl"
+          style={{ background: "radial-gradient(closest-side, rgba(67,115,245,0.55), transparent)" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 opacity-[0.18]"
+          style={{
+            backgroundImage: "radial-gradient(rgba(255,255,255,0.35) 1px, transparent 1px)",
+            backgroundSize: "22px 22px",
+            maskImage: "linear-gradient(to bottom, black, transparent 75%)",
+            WebkitMaskImage: "linear-gradient(to bottom, black, transparent 75%)",
+          }}
+        />
 
-      <div className="relative mx-auto max-w-3xl px-5 text-center sm:px-8">
-        <Reveal>
-          <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-[#9db5fb]">Bail notarié en ligne</p>
+        <div className="mx-auto max-w-6xl px-6 pb-14 pt-14 sm:px-10 sm:pt-20 lg:px-12 lg:pt-24">
+          <Reveal>
+            <div className="flex items-center justify-between gap-4 text-[12px] font-medium uppercase tracking-[0.18em] text-white/50">
+              <span className="flex items-center gap-2.5">
+                <span className="relative flex size-2">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-[#4373f5] opacity-60 motion-reduce:animate-none" />
+                  <span className="relative size-2 rounded-full bg-[#4373f5]" />
+                </span>
+                Bail notarié en ligne
+              </span>
+              <span className="hidden sm:inline">Habitation · Commercial</span>
+            </div>
 
-          <h2 id="lp-final-title" className="lp-title lp-balance mt-4 text-[2rem] font-semibold leading-tight sm:text-5xl">
-            Prêt à sécuriser votre location ?
-          </h2>
+            <h2
+              id="lp-final-title"
+              className="mt-8 text-[clamp(2.75rem,9vw,7.25rem)] font-semibold leading-[0.92] tracking-[-0.055em]"
+            >
+              Sécurisez
+              <br />
+              votre <span className="text-[#6f93ff]">location.</span>
+            </h2>
 
-          <p className="lp-balance mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
-            Constituez votre dossier en ligne, en quelques minutes. Nous nous occupons du reste avec notre notaire
-            partenaire.
-          </p>
+            <div className="mt-10 grid gap-8 lg:mt-14 lg:grid-cols-12 lg:items-end">
+              <p className="max-w-md text-[16px] leading-relaxed text-white/60 sm:text-[17px] lg:col-span-6">
+                Constituez votre dossier en ligne en quelques minutes. Notre notaire partenaire s&apos;occupe de
+                l&apos;acte, vous signez à distance.
+              </p>
 
-          <div className="mt-9 flex flex-col items-center gap-4">
-            <WithDossierCta>
-              {(cta) => (
-                <Link
-                  href={cta.href}
-                  className="group inline-flex h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-[#4373f5] px-7 text-[15px] font-semibold text-white shadow-[0_10px_30px_-12px_rgba(67,115,245,0.8)] transition-colors duration-200 hover:bg-[#3563e9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1d45] sm:w-auto"
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:col-span-6 lg:justify-end">
+                <WithDossierCta>
+                  {(cta) => (
+                    <Link
+                      href={cta.href}
+                      className="group inline-flex h-14 items-center justify-between gap-6 rounded-full bg-white pl-7 pr-2 text-[15px] font-semibold text-[#0a0f1f] transition-colors duration-300 hover:bg-[#dfe7ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0f1f]"
+                    >
+                      {cta.connected ? cta.label : "Constituer mon dossier"}
+                      <span className="flex size-10 items-center justify-center rounded-full bg-[#4373f5] text-white transition-transform duration-300 group-hover:rotate-45">
+                        <ArrowUpRight className="h-[18px] w-[18px]" />
+                      </span>
+                    </Link>
+                  )}
+                </WithDossierCta>
+                <a
+                  href="tel:0768098624"
+                  className="inline-flex h-14 items-center justify-center gap-2.5 rounded-full border border-white/15 px-6 text-[15px] font-medium text-white transition-colors hover:border-white/40 hover:bg-white/[0.06]"
                 >
-                  {cta.connected ? cta.label : "Constituer mon dossier"}
-                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                </Link>
-              )}
-            </WithDossierCta>
+                  <Phone className="h-4 w-4 text-white/60" />
+                  <span className="tabular-nums">07 68 09 86 24</span>
+                </a>
+              </div>
+            </div>
 
-            <p className="text-[14px] text-slate-400">
-              À partir de <span className="font-medium text-slate-200">39,90 € TTC</span>, remboursé si le dossier
+            {/* Trois étapes sur une ligne, séparées par un filet. */}
+            <ol className="mt-14 grid border-t border-white/10 sm:grid-cols-3 lg:mt-20">
+              {STEPS.map((step) => (
+                <li
+                  key={step.n}
+                  className="flex gap-4 border-b border-white/10 py-5 sm:block sm:border-b-0 sm:border-r sm:py-6 sm:pr-6 sm:last:border-r-0 sm:[&:not(:first-child)]:pl-6"
+                >
+                  <span className="text-[13px] font-medium tabular-nums text-[#6f93ff]">{step.n}</span>
+                  <span className="sm:mt-3 sm:block">
+                    <span className="block text-[15px] font-semibold">{step.title}</span>
+                    <span className="mt-1 block text-[13px] text-white/45">{step.note}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            <p className="mt-6 text-[13px] text-white/45">
+              Frais de dossier dès <span className="font-semibold text-white">39,90 € TTC</span>, remboursés si le dossier
               n&apos;aboutit pas*
             </p>
+          </Reveal>
+        </div>
 
-            <a
-              href="tel:0768098624"
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-[14px] text-slate-300 transition-colors hover:text-white"
-            >
-              <Phone className="h-4 w-4" />
-              Ou par téléphone : <span className="font-medium text-white underline decoration-white/30 underline-offset-4">07 68 09 86 24</span>
-            </a>
+        {/* Bande de mots qui défile, en contour. */}
+        <div aria-hidden className="relative overflow-hidden border-t border-white/10 py-6 sm:py-8">
+          <div
+            className="flex w-max items-center gap-8 whitespace-nowrap motion-reduce:animate-none sm:gap-12"
+            style={{ animation: "lp-marquee-x 36s linear infinite" }}
+          >
+            {band.map((word, index) => (
+              <span key={`${word}-${index}`} className="flex items-center gap-8 sm:gap-12">
+                <span
+                  className="text-[2.75rem] font-semibold tracking-[-0.04em] text-transparent sm:text-[4.5rem]"
+                  style={{ WebkitTextStroke: "1px rgba(255,255,255,0.28)" }}
+                >
+                  {word}
+                </span>
+                <span className="size-2.5 rounded-full bg-[#4373f5] sm:size-3" />
+              </span>
+            ))}
           </div>
-
-          <ul className="mx-auto mt-10 flex max-w-xl flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-white/10 pt-6 text-[13px] text-slate-400">
-            <li>Sécurité juridique maximale</li>
-            <li aria-hidden className="hidden h-1 w-1 rounded-full bg-slate-600 sm:block" />
-            <li>Bail notarié en 1 semaine</li>
-          </ul>
-        </Reveal>
+        </div>
       </div>
     </section>
   );
