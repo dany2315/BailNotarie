@@ -5,20 +5,22 @@ import Link from "next/link";
 import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Cookie, X } from "lucide-react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 /**
- * Mesure d'audience Google Analytics, avec consentement (décision de l'utilisateur du 17/11/2026, recette).
+ * Bandeau de cookies et mesure d'audience Google Analytics (décisions de l'utilisateur du 17/11/2026).
  *
- * - Rien n'est chargé tant que le visiteur n'a pas accepté.
- * - Jamais de mesure dans les espaces privés ni dans les formulaires, dont les adresses contiennent un jeton ou
- *   un identifiant de dossier : /interface, /client, /notaire, /intakes, /commencer/… (sauf l'entrée /commencer).
- * - « Refuser » et « Accepter » ont exactement le même poids (recommandation CNIL : refuser aussi simplement
- *   qu'accepter). Le choix est gardé dans ce navigateur ; « Gérer les cookies » (pied de page) le rouvre.
+ * Format standard des bandeaux de cookies : « Tout refuser », « Personnaliser », « Tout accepter », puis un panneau
+ * de préférences par catégorie. Conforme aux recommandations de la CNIL :
+ * - rien n'est chargé avant l'accord ; refuser est aussi simple qu'accepter ;
+ * - le choix est gardé 6 mois, puis redemandé ; « Gérer les cookies » (pied de page) permet de le changer ;
+ * - aucune mesure dans les espaces privés ni dans les formulaires (adresses avec jeton ou identifiant de dossier).
  */
 
 const GA_ID = "G-TZ7DF5J0XW";
 const STORAGE_KEY = "bn-consentement-mesure";
+const DUREE_MS = 182 * 24 * 60 * 60 * 1000; // 6 mois
 export const OPEN_CONSENT_EVENT = "bn:gerer-cookies";
 
 type Choix = "accepte" | "refuse" | null;
@@ -26,7 +28,10 @@ type Choix = "accepte" | "refuse" | null;
 /** Pages où rien n'est jamais mesuré (données personnelles, jetons et identifiants dans l'adresse). */
 export function isPrivatePath(pathname: string | null): boolean {
   if (!pathname) return true;
-  if (/^\/(interface|client|notaire|intakes|login|register)(\/|$)/.test(pathname)) return true;
+  if (
+    /^\/(interface|client|notaire|intakes|login|register)(\/|$)/.test(pathname)
+  )
+    return true;
   // Le tunnel d'ouverture de dossier : seule la page d'entrée /commencer est publique
   if (/^\/commencer\/.+/.test(pathname)) return true;
   return false;
@@ -34,8 +39,14 @@ export function isPrivatePath(pathname: string | null): boolean {
 
 function lireChoix(): Choix {
   try {
-    const v = window.localStorage.getItem(STORAGE_KEY);
-    return v === "accepte" || v === "refuse" ? v : null;
+    const brut = window.localStorage.getItem(STORAGE_KEY);
+    if (!brut) return null;
+    // Ancien format (simple texte) : encore valable, il sera réenregistré avec sa date au prochain choix.
+    if (brut === "accepte" || brut === "refuse") return brut;
+    const { choix, le } = JSON.parse(brut) as { choix?: string; le?: number };
+    if ((choix !== "accepte" && choix !== "refuse") || typeof le !== "number")
+      return null;
+    return Date.now() - le > DUREE_MS ? null : choix;
   } catch {
     return null;
   }
@@ -43,36 +54,83 @@ function lireChoix(): Choix {
 
 function ecrireChoix(choix: Exclude<Choix, null>) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, choix);
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ choix, le: Date.now() }),
+    );
   } catch {
     /* navigation privée : le choix vaut pour cette page seulement */
   }
 }
 
-/** Ouvre le bandeau pour changer son choix (lien « Gérer les cookies »). */
+/** Ouvre les préférences de cookies (lien « Gérer les cookies » du pied de page). */
 export function openConsentBanner() {
   window.dispatchEvent(new Event(OPEN_CONSENT_EVENT));
 }
 
-/** Courbe « expo » : départ franc, arrivée très douce. */
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
+
+const btnBase =
+  "inline-flex h-11 min-w-[9.5rem] items-center justify-center rounded-lg px-5 text-[15px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/50 focus-visible:ring-offset-2";
+const btnPrincipal = `${btnBase} bg-[#4373f5] text-white hover:bg-[#3563e9] active:bg-[#2a4fd4]`;
+const btnSecondaire = `${btnBase} border border-[#4373f5] bg-white text-[#2a4fd4] hover:bg-[#f5f7ff]`;
+const btnDiscret = `${btnBase} border border-[#cbd5e1] bg-white text-[#0b1224] hover:bg-[#f8fafc]`;
+
+/** Interrupteur accessible (rôle « switch »). */
+function Interrupteur({
+  actif,
+  onChange,
+  id,
+  desactive,
+}: {
+  actif: boolean;
+  onChange?: (v: boolean) => void;
+  id: string;
+  desactive?: boolean;
+}) {
+  return (
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={actif}
+      disabled={desactive}
+      onClick={() => onChange?.(!actif)}
+      className={[
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/50 focus-visible:ring-offset-2",
+        actif ? "bg-[#4373f5]" : "bg-[#cbd5e1]",
+        desactive ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+      ].join(" ")}
+    >
+      <span
+        aria-hidden
+        className={`inline-block size-5 rounded-full bg-white shadow-sm transition-transform ${actif ? "translate-x-[22px]" : "translate-x-0.5"}`}
+      />
+    </button>
+  );
+}
 
 export function AnalyticsConsent() {
   const pathname = usePathname();
   const reduce = useReducedMotion();
   const titreId = useId();
   const texteId = useId();
-  const detailId = useId();
+  const mesureId = useId();
   const [choix, setChoix] = useState<Choix>(null);
   const [pret, setPret] = useState(false);
-  const [ouvert, setOuvert] = useState(false);
-  const [detail, setDetail] = useState(false);
+  const [preferences, setPreferences] = useState(false);
+  const [mesure, setMesure] = useState(false);
   const prive = isPrivatePath(pathname);
 
   useEffect(() => {
-    setChoix(lireChoix());
+    const lu = lireChoix();
+    setChoix(lu);
     setPret(true);
-    const ouvrir = () => setOuvert(true);
+    const ouvrir = () => {
+      setMesure(lireChoix() === "accepte");
+      setPreferences(true);
+    };
     window.addEventListener(OPEN_CONSENT_EVENT, ouvrir);
     return () => window.removeEventListener(OPEN_CONSENT_EVENT, ouvrir);
   }, []);
@@ -85,21 +143,21 @@ export function AnalyticsConsent() {
   const decider = (c: Exclude<Choix, null>) => {
     ecrireChoix(c);
     setChoix(c);
-    setOuvert(false);
-    setDetail(false);
+    setPreferences(false);
     if (c === "refuse") (window as any)[`ga-disable-${GA_ID}`] = true;
   };
 
   const charger = choix === "accepte" && !prive;
-  const afficherBandeau = pret && !prive && (choix === null || ouvert);
-  // Bandeau rouvert depuis « Gérer les cookies » : on rappelle le choix en cours et on permet de fermer sans changer.
-  const reouvert = choix !== null;
+  const afficherBandeau = pret && !prive && choix === null && !preferences;
 
   return (
     <>
       {charger && (
         <>
-          <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
+          <Script
+            src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+            strategy="afterInteractive"
+          />
           <Script id="ga4-init" strategy="afterInteractive">
             {`
               window.dataLayer = window.dataLayer || [];
@@ -114,131 +172,92 @@ export function AnalyticsConsent() {
       <AnimatePresence>
         {afficherBandeau && (
           <motion.section
-            key="bandeau-consentement"
+            key="bandeau-cookies"
             role="dialog"
             aria-modal="false"
             aria-labelledby={titreId}
             aria-describedby={texteId}
-            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 28 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: reduce ? 0.2 : 0.7, ease: EASE_OUT_EXPO, delay: reouvert ? 0 : 0.6 } }}
-            exit={reduce ? { opacity: 0, transition: { duration: 0.15 } } : { opacity: 0, y: 16, transition: { duration: 0.25, ease: [0.4, 0, 1, 1] } }}
-            className={[
-              // Au-dessus de la bulle « Support » (z-60) : sur téléphone, elle masquait le texte du bandeau.
-              "fixed z-[70] font-sans text-[#0b1224]",
-              // Téléphone : feuille posée en bas de l'écran, au-dessus de la zone du geste système.
-              "inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]",
-              // Ordinateur : carte discrète en bas à gauche, qui laisse la page lisible.
-              "sm:inset-x-auto sm:left-6 sm:bottom-6 sm:w-[25.5rem]",
-            ].join(" ")}
+            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 24 }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              transition: {
+                duration: reduce ? 0.2 : 0.6,
+                ease: EASE_OUT_EXPO,
+                delay: 0.5,
+              },
+            }}
+            exit={
+              reduce
+                ? { opacity: 0, transition: { duration: 0.15 } }
+                : {
+                    opacity: 0,
+                    y: 16,
+                    transition: { duration: 0.22, ease: [0.4, 0, 1, 1] },
+                  }
+            }
+            // Au-dessus de la bulle « Support » (z-60).
+            className="fixed inset-x-0 bottom-0 z-[70] font-sans text-[#0b1224]"
           >
-            <div
-              className={[
-                "relative overflow-hidden rounded-2xl bg-[#fcfdff]",
-                "border border-[color-mix(in_oklab,#4373f5_14%,#e2e8f0)]",
-                "shadow-[0_2px_6px_rgba(15,23,42,0.06),0_28px_64px_-28px_rgba(67,115,245,0.45)]",
-              ].join(" ")}
-            >
-              {/* Filet de couleur en tête de carte : la seule touche de bleu en dehors du bouton. */}
-              <div aria-hidden className="h-1 w-full bg-[#4373f5]" />
-
-              <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4373f5]">Confidentialité</p>
-                    <h2 id={titreId} className="mt-1.5 text-[17px] font-semibold leading-snug tracking-[-0.01em] sm:text-[18px]">
-                      Vous choisissez ce que nous mesurons
-                    </h2>
-                  </div>
-                  {reouvert && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOuvert(false);
-                        setDetail(false);
-                      }}
-                      aria-label="Fermer sans changer mon choix"
-                      className="-mr-2 -mt-1 grid size-10 shrink-0 place-items-center rounded-full text-[#64748b] transition-colors hover:bg-[#eef2ff] hover:text-[#0b1224] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/50"
-                    >
-                      <X className="size-[18px]" aria-hidden />
-                    </button>
-                  )}
-                </div>
-
-                <p id={texteId} className="mt-2.5 text-[15px] leading-[1.55] text-[#475569] sm:text-[14.5px]">
-                  Avec votre accord, nous comptons les visites du site avec Google Analytics pour l&apos;améliorer. Votre
-                  espace et vos formulaires de dossier ne sont jamais mesurés.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() => setDetail((d) => !d)}
-                  aria-expanded={detail}
-                  aria-controls={detailId}
-                  className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-md text-[14px] font-medium text-[#2a4fd4] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/50"
-                >
-                  Ce qui est mesuré, et ce qui ne l&apos;est jamais
-                  <ChevronDown
-                    className={`size-4 transition-transform duration-300 ${detail ? "rotate-180" : ""}`}
+            <div className="rounded-t-2xl border-t border-[#e2e8f0] bg-white shadow-[0_-12px_40px_-12px_rgba(15,23,42,0.18)] sm:rounded-none">
+              <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 sm:px-8 sm:py-5 lg:flex-row lg:items-center lg:gap-10">
+                <div className="flex min-w-0 flex-1 gap-4">
+                  <span
                     aria-hidden
-                  />
-                </button>
-
-                {/* Dépliage par grid-template-rows : pas d'animation de hauteur. */}
-                <div
-                  id={detailId}
-                  className={`grid transition-[grid-template-rows] duration-300 ease-out ${detail ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-                >
-                  <div className="overflow-hidden" inert={!detail}>
-                    <ul className="mt-2 grid gap-2.5 rounded-xl bg-[#f5f7ff] p-3.5 text-[13.5px] leading-snug">
-                      <li className="flex gap-2.5">
-                        <Check className="mt-px size-4 shrink-0 text-[#2a4fd4]" aria-hidden />
-                        <span className="text-[#334155]">
-                          <span className="font-medium text-[#0b1224]">Avec votre accord :</span> pages vues et provenance
-                          des visites, sur le site public uniquement.
-                        </span>
-                      </li>
-                      <li className="flex gap-2.5">
-                        <X className="mt-px size-4 shrink-0 text-[#64748b]" aria-hidden />
-                        <span className="text-[#334155]">
-                          <span className="font-medium text-[#0b1224]">Jamais :</span> votre espace client, vos formulaires,
-                          vos documents, l&apos;espace notaire.
-                        </span>
-                      </li>
-                    </ul>
-                    <p className="mt-2.5 text-[13px] text-[#64748b]">
-                      Vous pourrez changer d&apos;avis avec « Gérer les cookies », en bas de chaque page.{" "}
+                    className="hidden size-11 shrink-0 place-items-center rounded-full bg-[#eef2ff] text-[#4373f5] sm:grid"
+                  >
+                    <Cookie className="size-[22px]" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2
+                      id={titreId}
+                      className="text-[16px] font-semibold leading-snug"
+                    >
+                      Ce site utilise des cookies
+                    </h2>
+                    <p
+                      id={texteId}
+                      className="mt-1 max-w-[70ch] text-[14px] leading-relaxed text-[#475569]"
+                    >
+                      Nous utilisons des cookies pour mesurer l&apos;audience de
+                      notre site et améliorer votre expérience. Vous pouvez
+                      accepter, refuser ou personnaliser vos choix, et les
+                      modifier à tout moment via « Gérer les cookies » en bas de
+                      page.{" "}
                       <Link
                         href="/politique-confidentialite#mesure-audience"
-                        className="font-medium text-[#2a4fd4] underline underline-offset-2"
+                        className="font-medium text-[#2a4fd4] underline underline-offset-2 hover:text-[#4373f5]"
                       >
-                        Politique de confidentialité
+                        En savoir plus
                       </Link>
                     </p>
                   </div>
                 </div>
 
-                {reouvert && (
-                  <p className="mt-3 text-[13px] text-[#64748b]">
-                    Choix actuel :{" "}
-                    <span className="font-medium text-[#0b1224]">{choix === "accepte" ? "mesure acceptée" : "mesure refusée"}</span>
-                  </p>
-                )}
-
-                {/* Deux boutons de même taille et de même poids : refuser est aussi simple qu'accepter. */}
-                <div className="mt-4 grid grid-cols-2 gap-2.5">
+                <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMesure(false);
+                      setPreferences(true);
+                    }}
+                    className={`${btnDiscret} col-span-2 sm:col-span-1`}
+                  >
+                    Personnaliser
+                  </button>
                   <button
                     type="button"
                     onClick={() => decider("refuse")}
-                    className="h-12 rounded-xl border border-[#cbd5e1] bg-white px-4 text-[15px] font-semibold text-[#0b1224] transition-colors hover:border-[#94a3b8] hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/50 focus-visible:ring-offset-2 sm:h-11"
+                    className={btnSecondaire}
                   >
-                    Refuser
+                    Tout refuser
                   </button>
                   <button
                     type="button"
                     onClick={() => decider("accepte")}
-                    className="h-12 rounded-xl bg-[#4373f5] px-4 text-[15px] font-semibold text-white shadow-[0_1px_2px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.18)] transition-colors hover:bg-[#3563e9] active:bg-[#2a4fd4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/50 focus-visible:ring-offset-2 sm:h-11"
+                    className={btnPrincipal}
                   >
-                    Accepter
+                    Tout accepter
                   </button>
                 </div>
               </div>
@@ -246,6 +265,102 @@ export function AnalyticsConsent() {
           </motion.section>
         )}
       </AnimatePresence>
+
+      <DialogPrimitive.Root open={preferences} onOpenChange={setPreferences}>
+        <DialogPrimitive.Portal>
+          {/* Voile et fenêtre au-dessus de la bulle « Support » (z-60). */}
+          <DialogPrimitive.Overlay className="fixed inset-0 z-[75] bg-[#0b1224]/45 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+          <DialogPrimitive.Content
+            className={[
+              "fixed z-[80] grid gap-5 bg-white font-sans text-[#0b1224] shadow-[0_24px_64px_-16px_rgba(15,23,42,0.35)]",
+              "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+              // Téléphone : feuille qui monte du bas de l'écran ; ordinateur : fenêtre centrée.
+              "inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-2xl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6",
+              "data-[state=open]:slide-in-from-bottom-8",
+              "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-7",
+              "sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=open]:zoom-in-95",
+            ].join(" ")}
+          >
+            <div className="pr-8">
+              <DialogPrimitive.Title className="text-[18px] font-semibold leading-snug">
+                Paramètres des cookies
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Description className="mt-1.5 text-[14px] leading-relaxed text-[#475569]">
+                Choisissez les cookies que vous acceptez. Votre choix est
+                conservé 6 mois et vous pouvez le modifier à tout moment.
+              </DialogPrimitive.Description>
+            </div>
+            <DialogPrimitive.Close
+              aria-label="Fermer"
+              className="absolute right-3 top-3 grid size-10 place-items-center rounded-full text-[#64748b] transition-colors hover:bg-[#f1f5f9] hover:text-[#0b1224] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4373f5]/50"
+            >
+              <X className="size-[18px]" aria-hidden />
+            </DialogPrimitive.Close>
+
+            <div className="divide-y divide-[#e2e8f0] rounded-xl border border-[#e2e8f0]">
+              <div className="flex items-start justify-between gap-4 p-4">
+                <div>
+                  <p className="text-[15px] font-semibold">
+                    Cookies strictement nécessaires
+                  </p>
+                  <p className="mt-1 text-[13.5px] leading-relaxed text-[#64748b]">
+                    Indispensables au fonctionnement du site (sécurité,
+                    connexion à votre espace, mémorisation de vos choix). Ils ne
+                    peuvent pas être désactivés.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#eef2ff] px-2.5 py-1 text-[12px] font-medium text-[#2a4fd4]">
+                  Toujours actifs
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-4 p-4">
+                <label htmlFor={mesureId} className="cursor-pointer">
+                  <span className="block text-[15px] font-semibold">
+                    Mesure d&apos;audience
+                  </span>
+                  <span className="mt-1 block text-[13.5px] leading-relaxed text-[#64748b]">
+                    Nous permettent de connaître la fréquentation du site et
+                    d&apos;en améliorer les contenus (Google Analytics).
+                  </span>
+                </label>
+                <Interrupteur
+                  id={mesureId}
+                  actif={mesure}
+                  onChange={setMesure}
+                />
+              </div>
+            </div>
+
+            <p className="text-[13px] text-[#64748b]">
+              Pour en savoir plus, consultez notre{" "}
+              <Link
+                href="/politique-confidentialite#mesure-audience"
+                className="font-medium text-[#2a4fd4] underline underline-offset-2"
+              >
+                politique de confidentialité
+              </Link>
+              .
+            </p>
+
+            <div className="grid grid-cols-2 gap-2.5 sm:flex sm:justify-end">
+              <button
+                type="button"
+                onClick={() => decider("refuse")}
+                className={btnSecondaire}
+              >
+                Tout refuser
+              </button>
+              <button
+                type="button"
+                onClick={() => decider(mesure ? "accepte" : "refuse")}
+                className={btnPrincipal}
+              >
+                Enregistrer
+              </button>
+            </div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </>
   );
 }

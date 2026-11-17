@@ -192,7 +192,8 @@ export default function PolitiqueConfidentialitePage() {
                   Avec votre accord seulement, le site public utilise Google Analytics pour mesurer son audience (pages
                   vues, provenance des visites). Sans accord, rien n&apos;est chargé. Aucune mesure n&apos;a lieu dans
                   votre espace client, dans l&apos;espace notaire ni dans les formulaires de votre dossier. Vous pouvez
-                  changer votre choix à tout moment avec le lien « Gérer les cookies » en bas de page. La mesure
+                  changer votre choix à tout moment avec le lien « Gérer les cookies » en bas de page ; il est
+                  conservé 6 mois, après quoi nous vous le redemandons. La mesure
                   d&apos;audience de notre hébergeur (Vercel) fonctionne sans cookie.
                 </p>
               </section>
