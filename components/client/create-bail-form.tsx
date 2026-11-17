@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -291,7 +292,7 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
         leaseType: "HABITATION",
         status: BailStatus.DRAFT,
       };
-      const bail = await createLease(bailData);
+      const bail = await unwrapAction(createLease(bailData));
       toast.success("Bail créé avec succès");
       
       // Si onBailCreated est fourni, l'appeler au lieu de rediriger

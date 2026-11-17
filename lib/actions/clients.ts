@@ -1,5 +1,6 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { requireIntakeSession } from "@/lib/intake-session";
@@ -53,6 +54,10 @@ import { computeBailEndDate } from "@/lib/utils/bail-duration";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
+  return guardAction(() => createBasicClientUnguarded(data));
+}
+
+async function createBasicClientUnguarded(data: unknown) {
   const user = await requireStaff();
   const validated = createBasicClientSchema.parse(data);
 

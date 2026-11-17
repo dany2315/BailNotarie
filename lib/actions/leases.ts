@@ -1,5 +1,6 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole, requireProprietaireAuth, requireStaff, requireClientAccess, STAFF_ROLES } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
@@ -98,6 +99,10 @@ async function assertNewBailAllowed(propertyId: string, excludeBailId?: string |
 }
 
 export async function createLease(data: unknown, paymentIntentId?: string, draftBailId?: string) {
+  return guardAction(() => createLeaseUnguarded(data, paymentIntentId, draftBailId));
+}
+
+async function createLeaseUnguarded(data: unknown, paymentIntentId?: string, draftBailId?: string) {
   const user = await requireAuth();
   const validated = createLeaseSchema.parse(data);
   // Seuls l'équipe et les propriétaires créent un bail.
@@ -1023,6 +1028,10 @@ export async function getBailTenantDates(bailId: string): Promise<{ effectiveDat
 
 // Créer un locataire pour un bail existant (e-mail, et date d'effet + jour de paiement s'ils manquent)
 export async function createTenantForLease(data: unknown) {
+  return guardAction(() => createTenantForLeaseUnguarded(data));
+}
+
+async function createTenantForLeaseUnguarded(data: unknown) {
   const user = await requireAuth();
   const validated = createTenantForLeaseSchema.parse(data);
 

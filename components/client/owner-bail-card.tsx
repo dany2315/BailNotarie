@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -253,7 +254,7 @@ export function OwnerBailCard({
     }
     try {
       setIsAddingTenant(true);
-      await createTenantForLease({ bailId: bail.id, email: tenantEmail });
+      await unwrapAction(createTenantForLease({ bailId: bail.id, email: tenantEmail }));
       toast.success("Locataire ajouté — un email lui a été envoyé");
       setTenantDialogOpen(false);
       setTenantEmail("");

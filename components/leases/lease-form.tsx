@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, useWatch } from "react-hook-form";
@@ -127,7 +128,7 @@ const SecurityDepositValidation = ({ control }: { control: any }) => {
 };
 
 interface LeaseFormProps {
-  onSubmit: (data: FormData) => Promise<void>;
+  onSubmit: (data: FormData) => Promise<unknown>;
   initialData?: any;
   properties: any[];
   parties: any[];
@@ -188,7 +189,7 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
       formData.append("securityDeposit", data.securityDeposit || "0");
       if (data.paymentDay) formData.append("paymentDay", data.paymentDay);
 
-      await onSubmit(formData);
+      await unwrapAction(Promise.resolve(onSubmit(formData) as any));
       toast.success(initialData?.id ? "Bail modifié avec succès" : "Bail créé avec succès");
 
       if (onSuccess) {

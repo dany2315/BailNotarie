@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -44,7 +45,7 @@ export function BasicClientDialog({ open, onOpenChange }: BasicClientDialogProps
   const handleSubmit = async (data: BasicClientFormData) => {
     setIsLoading(true);
     try {
-      await createBasicClient(data);
+      await unwrapAction(createBasicClient(data));
       toast.success("Client créé avec succès. Un email a été envoyé au client.");
       form.reset();
       onOpenChange(false);

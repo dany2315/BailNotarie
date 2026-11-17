@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import React from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1199,11 +1200,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
       
       // Sauvegarder les données avec le stepId
-      await savePartialIntake({
+      await unwrapAction(savePartialIntake({
         token: intakeLink.token,
         payload,
         stepId: stepId, // Envoyer l'ID de l'étape pour que le backend sache quelle étape traiter
-      });
+      }));
 
       // Rafraîchir les données pour obtenir les valeurs réellement sauvegardées
       const refreshed = await refreshIntakeLinkData();

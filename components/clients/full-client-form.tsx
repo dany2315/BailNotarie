@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
@@ -57,7 +58,7 @@ const BailSecurityDepositValidation = ({ control }: { control: any }) => {
 };
 
 interface FullClientFormProps {
-  onSubmit: (data: FormData) => Promise<void>;
+  onSubmit: (data: FormData) => Promise<unknown>;
 }
 
 // Valeurs par défaut du formulaire
@@ -259,7 +260,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
         formData.append("persons", JSON.stringify(personsPayload));
       }
 
-      await onSubmit(formData);
+      await unwrapAction(Promise.resolve(onSubmit(formData) as any));
       toast.success("Client créé avec succès");
       router.push("/interface/clients");
     } catch (error: any) {

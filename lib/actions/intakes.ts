@@ -1,5 +1,6 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma  } from "@/lib/prisma";
 import { verifyFeePayment } from "@/lib/payments/dossier-payment";
 import { requireAuth, requireStaff } from "@/lib/auth-helpers";
@@ -382,6 +383,10 @@ export async function getIntakeLinks(params: {
 // Sauvegarder partiellement les données du formulaire (sans validation complète)
 // Sauvegarde directement en base de données pour optimiser les performances
 export async function savePartialIntake(data: unknown) {
+  return guardAction(() => savePartialIntakeUnguarded(data));
+}
+
+async function savePartialIntakeUnguarded(data: unknown) {
   const validated = submitIntakeSchema.parse(data);
   const { token, payload, stepId } = validated as { token: string; payload: any; stepId?: string };
 

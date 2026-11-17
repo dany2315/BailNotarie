@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import React, {
   useEffect,
   useMemo,
@@ -969,11 +970,11 @@ useEffect(() => {
     // Sauvegarder immédiatement les données mises à jour
     try {
       const payload = mapPersonsToOwnerPayload(getValues() as FormWithPersons);
-      await savePartialIntake({
+      await unwrapAction(savePartialIntake({
         token: intakeLink.token,
         payload,
         stepId: "clientInfo", // La suppression d'une personne concerne toujours l'étape clientInfo
-      });
+      }));
       
       // ✓ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
       const refreshed = await refreshIntakeLinkData();
@@ -1887,11 +1888,11 @@ useEffect(() => {
           ? "bail"
           : stepId;
 
-      await savePartialIntake({
+      await unwrapAction(savePartialIntake({
         token: intakeLink.token,
         payload,
         stepId: backendStepId,
-      });
+      }));
 
       // ✓ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
       const refreshed = await refreshIntakeLinkData();

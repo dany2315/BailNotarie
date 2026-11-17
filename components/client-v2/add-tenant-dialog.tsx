@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, UserPlus } from "lucide-react";
@@ -55,11 +56,11 @@ export function AddTenantDialog({
       setSaving(true);
       if (demo) await new Promise((resolve) => setTimeout(resolve, 450));
       else
-        await createTenantForLease({
+        await unwrapAction(createTenantForLease({
           bailId,
           email,
           ...(dates.needed ? { effectiveDate: dates.effectiveDate, paymentDay: dates.paymentDay } : {}),
-        });
+        }));
       toast.success("Locataire ajouté — un email lui a été envoyé");
       onOpenChange(false);
       setEmail("");

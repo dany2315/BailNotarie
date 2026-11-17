@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -57,11 +58,11 @@ export function TenantCreateDialog({ open, onOpenChange, bailId }: TenantCreateD
     }
     setIsLoading(true);
     try {
-      await createTenantForLease({
+      await unwrapAction(createTenantForLease({
         bailId,
         email: data.email,
         ...(dates.needed ? { effectiveDate: dates.effectiveDate, paymentDay: dates.paymentDay } : {}),
-      });
+      }));
       toast.success("Locataire créé avec succès. Un email a été envoyé au locataire.");
       form.reset();
       onOpenChange(false);

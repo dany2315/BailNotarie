@@ -1,3 +1,4 @@
+import { guardAction, unwrapAction } from "@/lib/utils/action-error";
 import { createLease } from "@/lib/actions/leases";
 import { createLeaseSchema } from "@/lib/zod/lease";
 import { getProperties } from "@/lib/actions/properties";
@@ -6,6 +7,10 @@ import { LeaseForm } from "@/components/leases/lease-form";
 
 async function handleSubmit(data: FormData) {
   "use server";
+  return guardAction(() => handleSubmitUnguarded(data));
+}
+
+async function handleSubmitUnguarded(data: FormData) {
   
   // Convertir FormData en objet
   const formData: any = {
@@ -53,7 +58,7 @@ async function handleSubmit(data: FormData) {
   // Validation avec Zod avant d'appeler createLease
   try {
     createLeaseSchema.parse(formData);
-    await createLease(formData);
+    await unwrapAction(createLease(formData));
   } catch (error: any) {
     throw error;
   }

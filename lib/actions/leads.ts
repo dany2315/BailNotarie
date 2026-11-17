@@ -1,5 +1,6 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
@@ -99,6 +100,10 @@ const createLeadSchema = z.object({
 
 // Créer un lead et envoyer un email avec lien de conversion (si email fourni)
 export async function createLead(data: unknown) {
+  return guardAction(() => createLeadUnguarded(data));
+}
+
+async function createLeadUnguarded(data: unknown) {
   try {
     const user = await requireStaff();
     const validated = createLeadSchema.parse(data);

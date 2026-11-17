@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -243,7 +244,7 @@ export function CreateBailDrawer({
       if (!pendingFormData) return;
       try {
         setIsSubmitting(true);
-        const bail = await createLease(
+        const bail = await unwrapAction(createLease(
           {
             ...pendingFormData,
             securityDeposit: pendingFormData.securityDeposit || "0",
@@ -251,7 +252,7 @@ export function CreateBailDrawer({
             status: BailStatus.DRAFT,
           },
           paymentIntentId
-        );
+        ));
         toast.success("Bail créé avec succès");
         onBailCreatedRef.current?.(bail);
         onOpenChangeRef.current(false);
