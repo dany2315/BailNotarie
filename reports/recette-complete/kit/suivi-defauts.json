@@ -1,0 +1,179 @@
+{
+ "PUB-330": {
+  "etat": "corrigé",
+  "note": "B1 — inscription publique coupée côté serveur, /register mène à /client/login. Vérifié à l’écran le 17/11.",
+  "commit": "ca67e38, c66a537"
+ },
+ "PUB-331": {
+  "etat": "corrigé",
+  "note": "B1 — inscription publique coupée côté serveur, /register mène à /client/login. Vérifié à l’écran le 17/11.",
+  "commit": "ca67e38, c66a537"
+ },
+ "PUB-332": {
+  "etat": "corrigé",
+  "note": "B1 — inscription publique coupée côté serveur, /register mène à /client/login. Vérifié à l’écran le 17/11.",
+  "commit": "ca67e38, c66a537"
+ },
+ "LOC-056": {
+  "etat": "corrigé",
+  "note": "B2 — nom commercial repris de la raison sociale ; l’étape « entreprise » passe. Vérifié à l’écran.",
+  "commit": "cbba25d"
+ },
+ "COM-063": {
+  "etat": "corrigé",
+  "note": "B2 — nom commercial repris de la raison sociale ; l’étape « entreprise » passe. Vérifié à l’écran.",
+  "commit": "cbba25d"
+ },
+ "COM-093": {
+  "etat": "corrigé",
+  "note": "B2 — nom commercial repris de la raison sociale ; l’étape « entreprise » passe. Vérifié à l’écran.",
+  "commit": "cbba25d"
+ },
+ "LOC-055": {
+  "etat": "corrigé",
+  "note": "B3 / m9 — adresse de l’invitation préremplie et en lecture seule, y compris pour la société. Vérifié à l’écran.",
+  "commit": "cbba25d"
+ },
+ "LOC-012": {
+  "etat": "corrigé",
+  "note": "B3 / m9 — adresse de l’invitation préremplie et en lecture seule, y compris pour la société. Vérifié à l’écran.",
+  "commit": "cbba25d"
+ },
+ "PRO-D-023": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "PRO-D-027": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "PRO-D-049": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "PRO-D-082": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "PRO-M-044": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "PRO-M-045": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "PRO-M-078": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "LOC-045": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "ADM-1-019": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "ADM-1-022": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "ADM-1-053": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "COM-024": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "COM-025": {
+  "etat": "corrigé",
+  "note": "M1 — refus du serveur affichés en français. Vérifié à l’écran (ajout d’un locataire).",
+  "commit": "1eab42d"
+ },
+ "ADM-1-063": {
+  "etat": "à décider",
+  "note": "Message désormais en français (M1), mais le formulaire exige toujours des champs non marqués : décision M14.",
+  "commit": "1eab42d"
+ },
+ "ADM-1-064": {
+  "etat": "à décider",
+  "note": "Message en français (M1) ; champ « jour de paiement » à ajouter à l’écran : m12, à valider."
+ },
+ "NOT-093": {
+  "etat": "corrigé",
+  "note": "M2 — fichiers de la messagerie limités au fil de chaque partie. Vérifié à l’écran.",
+  "commit": "a70ef68"
+ },
+ "NOT-094": {
+  "etat": "corrigé",
+  "note": "M2 — fichiers de la messagerie limités au fil de chaque partie. Vérifié à l’écran.",
+  "commit": "a70ef68"
+ },
+ "NOT-097": {
+  "etat": "corrigé",
+  "note": "M3 — la route des messages ne renvoie que le fil du client. Vérifié à l’écran.",
+  "commit": "a70ef68"
+ },
+ "PRO-D-048": {
+  "etat": "corrigé",
+  "note": "M4 — adresse mal formée refusée avant tout enregistrement (test serveur).",
+  "commit": "b5cefa5"
+ },
+ "ADM-2-049": {
+  "etat": "corrigé",
+  "note": "M5 — date de fin recalculée, plus saisie. Vérifié à l’écran.",
+  "commit": "64f8d18"
+ },
+ "ADM-2-066": {
+  "etat": "corrigé",
+  "note": "M5 — date de fin recalculée, plus saisie. Vérifié à l’écran.",
+  "commit": "64f8d18"
+ },
+ "ADM-2-106": {
+  "etat": "corrigé",
+  "note": "M6 — la réponse reste enregistrée même si le calcul des pièces induites échoue (non reproductible en test).",
+  "commit": "6eeb528"
+ },
+ "PRO-M-060": {
+  "etat": "corrigé",
+  "note": "M7 — pas d’ordre de paiement tant qu’une pièce obligatoire manque (tests serveur).",
+  "commit": "d377779"
+ },
+ "PRO-M-054": {
+  "etat": "corrigé",
+  "note": "M8 — seuls PDF, JPG, PNG, HEIC, DOC, DOCX acceptés, contrôle serveur. Vérifié à l’écran.",
+  "commit": "e781167"
+ },
+ "ADM-2-136": {
+  "etat": "corrigé",
+  "note": "M8 — seuls PDF, JPG, PNG, HEIC, DOC, DOCX acceptés, contrôle serveur. Vérifié à l’écran.",
+  "commit": "e781167"
+ },
+ "PRO-M-013": {
+  "etat": "à décider",
+  "note": "M9 — non corrigé : ce comportement avait été ajouté puis retiré volontairement sur staging le 27/05 (commit cdf95c5)."
+ },
+ "ADM-2-115": {
+  "etat": "corrigé",
+  "note": "M10 — la réassignation remplace le notaire, l’ancien perd l’accès. Vérifié à l’écran.",
+  "commit": "95de6df"
+ },
+ "COM-034": {
+  "etat": "à décider",
+  "note": "M16 — probablement dû à la surcharge du montage ; à rejouer seul si vous le souhaitez."
+ }
+}

@@ -1,0 +1,19 @@
+8511a8f 2026-11-16 docs(prep): recette complète au navigateur — outils, résultats et bilan à jour
+ec6bbe5 2026-11-16 fix(compléments): plus de faux « dossier modifié depuis la réponse » sur une information à plusieurs champs
+1a996a7 2026-11-16 fix(espace locataire): la confirmation à renouveler apparaît dans « À faire » et sur la ligne du bail
+eff1ba1 2026-11-16 feat(compléments): le notaire archive lui-même les anciennes pièces sur ses propres demandes
+dfc07ad 2026-11-16 docs(prep): liste de recette manuelle par espace (propriétaire, locataire, équipe, notaire, main)
+934493b 2026-11-16 docs(prep): bilan, nombres de migrations corrigés
+e517077 2026-11-16 docs(prep): bilan à jour (109 tests, date de fin calculée par le serveur)
+64b94cc 2026-11-16 fix(dates du bail): la date de fin est calculée par le serveur dans tous les parcours
+0dddeb2 2026-11-16 fix(espace client): pas de date de fin calculée quand la date de début est vide ; bilan des écrans vérifiés
+7d0029d 2026-11-16 docs(prep): bilan à jour (Lot 3, décisions du 16/11) et données de vérification de l'espace propriétaire
+1f9e60b 2026-11-16 feat(dates du bail): date de prise d'effet et jour de paiement demandés avec le locataire
+2d86122 2026-11-16 wip(lot 3): date d'effet facultative et règles serveur « dates exigées avec un locataire » (écrans non faits)
+9151fca 2026-11-16 docs(prep): bilan de préparation de la PR vers main (état par lot, impacts, décisions, déroulé de bascule)
+59686a2 2026-11-16 chore(prep): build et serveur de vérification isolés, rafraîchissement après décision sur un paiement historique
+15449af 2026-11-16 fix(paiements): un dossier non payé ne passe plus tout seul à « prêt pour notaire »
+706bf24 2026-11-16 feat(loyers): référentiel indisponible = contrôle impossible, import des barèmes vérifié et journalisé
+ad1e083 2026-11-16 feat(compléments, pièces): la réponse du client reste une proposition, les pièces remplacées sont archivées
+8297171 2026-11-16 feat(paiements): anciens paiements vérifiés à la main (liste fermée), reprise après envoi interrompu, concurrence
+45a1580 2026-11-16 feat(paiements, accord locataire): vérification serveur commune, webhook Stripe et accord invalidé quand les conditions changent

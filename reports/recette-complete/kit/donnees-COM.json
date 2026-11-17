@@ -1,0 +1,149 @@
+{
+ "code": "COM",
+ "creeLe": "2026-11-16T19:21:21.201Z",
+ "comptes": {
+  "admin": "recette-com-admin@example.invalid",
+  "notaires": [
+   "recette-com-notaire1@example.invalid"
+  ]
+ },
+ "dossiers": [
+  {
+   "n": 1,
+   "bailId": "cmwjng61s000nx1m0smgywu5n",
+   "statut": "PENDING_VALIDATION",
+   "famille": "COMMERCIAL",
+   "adresse": "1 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjng3yb000ax1m0g3xovvst",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-com-proprio1@example.invalid",
+    "clientId": "cmwjng2et0003x1m076bz1uto",
+    "formulaire": "/commencer/proprietaire/65073388b7d928adf789773a640721988fa27cfb8632a6d894133100dba6b77d"
+   },
+   "locataire": {
+    "email": "recette-com-locataire1@example.invalid",
+    "clientId": "cmwjng4up000gx1m0g720qzho",
+    "rempli": true,
+    "societe": true,
+    "aUnCompte": true,
+    "formulaire": "/intakes/3f8e962b-b775-47cd-8c9e-98f2d3c8c8fd"
+   },
+   "notaire": null,
+   "particularites": []
+  },
+  {
+   "n": 2,
+   "bailId": "cmwjngagj001gx1m07710fij2",
+   "statut": "PENDING_VALIDATION",
+   "famille": "COMMERCIAL",
+   "adresse": "2 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjng9970013x1m0w3ypyb2s",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-com-proprio2@example.invalid",
+    "clientId": "cmwjng82k000wx1m0aba9vk6j",
+    "formulaire": "/commencer/proprietaire/63642eefc93ef146d5e59fff16e1d9a69fdd3e48eb213a3c10cb69c47babeb3f"
+   },
+   "locataire": {
+    "email": "recette-com-locataire2@example.invalid",
+    "clientId": "cmwjng9l00019x1m08wm19sew",
+    "rempli": true,
+    "societe": true,
+    "aUnCompte": true,
+    "formulaire": "/intakes/95302d7a-3fac-4935-993e-3c38045c7565"
+   },
+   "notaire": null,
+   "particularites": []
+  },
+  {
+   "n": 3,
+   "bailId": "cmwjngdno0025x1m0fif8ldk3",
+   "statut": "AWAITING_TENANT_FORM",
+   "famille": "COMMERCIAL",
+   "adresse": "3 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjngcfw001wx1m0zuj5nint",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-com-proprio3@example.invalid",
+    "clientId": "cmwjngbk2001px1m0jn0sc3e9",
+    "formulaire": "/commencer/proprietaire/29a355591ddc5733751bdcd43d941b9ba39a0161d0aab76c28de5784ac06a801"
+   },
+   "locataire": {
+    "email": "recette-com-locataire3@example.invalid",
+    "clientId": "cmwjngcs80022x1m0zi1dqobp",
+    "rempli": false,
+    "societe": false,
+    "aUnCompte": false,
+    "formulaire": "/intakes/94bd78b6-3067-4fea-8c19-f12b0084c7d2"
+   },
+   "notaire": null,
+   "particularites": []
+  },
+  {
+   "n": 4,
+   "bailId": "cmwjnggst002ux1m0167w1r87",
+   "statut": "AWAITING_TENANT_FORM",
+   "famille": "COMMERCIAL",
+   "adresse": "4 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjngfsl002lx1m0antl9bp2",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-com-proprio4@example.invalid",
+    "clientId": "cmwjngevv002ex1m04mfvapn1",
+    "formulaire": "/commencer/proprietaire/31006da1ecd7c2c285eed8fcf6fec00acbb373a4ec85410d156c32e86739b18f"
+   },
+   "locataire": {
+    "email": "recette-com-locataire4@example.invalid",
+    "clientId": "cmwjngg58002rx1m0pqq3qygb",
+    "rempli": false,
+    "societe": false,
+    "aUnCompte": false,
+    "formulaire": "/intakes/2e473e51-9639-4ff1-b51a-da890e0351de"
+   },
+   "notaire": null,
+   "particularites": []
+  },
+  {
+   "n": 5,
+   "bailId": "cmwjngjeb003gx1m087ash9ta",
+   "statut": "AWAITING_TENANT",
+   "famille": "COMMERCIAL",
+   "adresse": "5 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjngj2c003ax1m0ct8y7nr9",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-com-proprio5@example.invalid",
+    "clientId": "cmwjngi6b0033x1m0ppv7306w",
+    "formulaire": "/commencer/proprietaire/e7eed17c0f5158d0edef7cc174108c3836e879a12c187ce5dad34f4cff4b5f6c"
+   },
+   "locataire": null,
+   "notaire": null,
+   "particularites": []
+  },
+  {
+   "n": 6,
+   "bailId": "cmwjngmp70047x1m0ig77feev",
+   "statut": "READY_FOR_NOTARY",
+   "famille": "COMMERCIAL",
+   "adresse": "6 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjnglha003ux1m0yz2tl9e0",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-com-proprio6@example.invalid",
+    "clientId": "cmwjngkm1003nx1m0vlqxg77q",
+    "formulaire": "/commencer/proprietaire/09a561421e8df23da1271e832113484daf84b74039412277dad05e0daa31fd95"
+   },
+   "locataire": {
+    "email": "recette-com-locataire6@example.invalid",
+    "clientId": "cmwjnglt70040x1m05lspp2zk",
+    "rempli": true,
+    "societe": true,
+    "aUnCompte": true,
+    "formulaire": "/intakes/a962eb49-ccfe-4480-9066-382e9fe9e864"
+   },
+   "notaire": "recette-com-notaire1@example.invalid",
+   "particularites": []
+  }
+ ]
+}

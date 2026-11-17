@@ -1,0 +1,7 @@
+[
+ {
+  "id": "M10",
+  "ok": true,
+  "detail": "avant : [\"recette-adm1-notaire1@example.invalid\"] ; message « Dossier assigné avec succès » ; après : [\"recette-adm1-notaire2@example.invalid\"] (même ligne : true) ; l'ancien notaire voit encore le dossier : false ; archive zip pour lui : 403"
+ }
+]

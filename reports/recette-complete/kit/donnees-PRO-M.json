@@ -1,0 +1,81 @@
+{
+ "code": "PRO-M",
+ "creeLe": "2026-11-16T19:18:35.795Z",
+ "comptes": {
+  "admin": "recette-prom-admin@example.invalid",
+  "notaires": [
+   "recette-prom-notaire1@example.invalid"
+  ]
+ },
+ "dossiers": [
+  {
+   "n": 1,
+   "bailId": "cmwjncmg6000nx19433pjarrr",
+   "statut": "READY_FOR_NOTARY",
+   "famille": "HABITATION",
+   "adresse": "1 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjnckc8000ax194tw2xggqz",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-prom-proprio1@example.invalid",
+    "clientId": "cmwjncisx0003x194bf2u9sc3",
+    "formulaire": "/commencer/proprietaire/c91dc3b6d127f5109721115c79af748b7c37ff9aee9ffaa4536326891112cd9b"
+   },
+   "locataire": {
+    "email": "recette-prom-locataire1@example.invalid",
+    "clientId": "cmwjncl8b000gx194mpy0xvqp",
+    "rempli": true,
+    "societe": false,
+    "aUnCompte": true,
+    "formulaire": "/intakes/8fdbf674-b048-40e7-921b-b0d135294119"
+   },
+   "notaire": "recette-prom-notaire1@example.invalid",
+   "particularites": []
+  },
+  {
+   "n": 2,
+   "bailId": "cmwjncosb0013x194x3n60j4b",
+   "statut": "AWAITING_TENANT",
+   "famille": "HABITATION",
+   "adresse": "2 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjncog7000xx1946lbt31s1",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-prom-proprio1@example.invalid",
+    "clientId": "cmwjncisx0003x194bf2u9sc3",
+    "formulaire": "/commencer/proprietaire/18fa55b9d8e63ed1f1a78ba344c5643b3d1b9d0f73cf3a558f9220bfba0ec1ea"
+   },
+   "locataire": null,
+   "notaire": null,
+   "particularites": [
+    "même propriétaire que le dossier 1"
+   ]
+  },
+  {
+   "n": 3,
+   "bailId": "cmwjncrk1001mx19457f0zop5",
+   "statut": "PENDING_VALIDATION",
+   "famille": "COMMERCIAL",
+   "adresse": "3 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjncpzl0019x1948u7fxpve",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-prom-proprio1@example.invalid",
+    "clientId": "cmwjncisx0003x194bf2u9sc3",
+    "formulaire": "/commencer/proprietaire/50b552a377395cd91c0df33d466ce9113d8eb7a7fd081373e75d5676ea66c581"
+   },
+   "locataire": {
+    "email": "recette-prom-locataire3@example.invalid",
+    "clientId": "cmwjncqbp001fx19405mmsb7c",
+    "rempli": true,
+    "societe": true,
+    "aUnCompte": true,
+    "formulaire": "/intakes/76f9d7ec-cdf4-4598-9152-c1c89f0730e9"
+   },
+   "notaire": null,
+   "particularites": [
+    "même propriétaire que le dossier 1"
+   ]
+  }
+ ]
+}

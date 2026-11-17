@@ -1,0 +1,371 @@
+6c49ac1 2026-11-16 feat(accueil): les badges des deux baux ouvrent « Commencer » avec le bon bail, ou l'espace client si connecté
+a9840df 2026-11-16 feat(accueil): les deux baux juste sous le champ e-mail
+80ae32f 2026-11-16 feat(accueil): le texte repasse au-dessus du champ, les deux baux côte à côte en dessous
+ffbfa70 2026-11-16 fix(espace client): la fenêtre d'aperçu garde la largeur de l'écran sur téléphone
+17a7153 2026-11-16 fix(espace client): l'aperçu d'un fichier au nom long ne s'élargit plus, le nom est tronqué
+18ec4c7 2026-11-16 feat(accueil): le champ « Ouvrez votre dossier » monte sous le titre, texte raccourci
+090fbcf 2026-11-16 feat(accueil): le bail commercial mis en avant à côté du bail d'habitation
+5023ea0 2026-11-13 feat(notaire): un seul menu latéral avec tous les menus, tableau de bord remis
+c26d479 2026-11-13 feat(notaire): un seul menu latéral, la liste des dossiers
+88940c0 2026-11-13 feat(notaire): chaque donnée se copie seule, avec une icône de copie sur chaque ligne
+dbbd495 2026-11-13 feat(notaire, demandes): espace dossier du notaire refait, le notaire demande pièces et informations, « Demander » par ligne et zone tendue
+65c0039 2026-11-13 feat(demandes d'informations): l'équipe demande aussi des informations, le client les complète avec les règles du formulaire
+e1f93c9 2026-11-12 feat(relances, dossiers): e-mails adressés au bon nom, bouton et fenêtre qui disent à qui, filtres de la liste simplifiés
+4a1505b 2026-11-12 feat(relances): la fenêtre « Relancer » montre l'e-mail et l'envoie, sans liste à cocher
+6881ee4 2026-11-12 feat(demandes de pièces): une seule fenêtre pour demander les pièces, message de relance toujours juste
+57d4339 2026-11-12 feat(demandes de pièces): l'équipe redemande des pièces, le client les envoie depuis son espace
+85f0d7e 2026-11-12 refactor(règles du dossier): pièces et données attendues réunies dans un seul module
+5636177 2026-11-12 fix(formulaire propriétaire): pièces obligatoires revérifiées par le serveur à l'envoi
+3946860 2026-11-12 fix(bail commercial): sans rappel L145-5, crayon sur la ligne en mobile
+822ba55 2026-11-12 feat(dossiers): type de bail (habitation / commercial) affiché et filtrable
+32fed51 2026-11-12 feat(bail commercial): conditions commerciales modifiables ligne par ligne
+b9bfeec 2026-11-12 feat(diagnostics): classe du fichier dans la fiche, base ADEME pour avertir
+01e918c 2026-11-12 feat(diagnostics): classe indiquée par la base officielle de l'ADEME toujours écrite
+1bfed10 2026-11-12 fix(diagnostics): vérification ADEME affichée en entier
+c1d50de 2026-11-12 feat(diagnostics): DPE introuvable à l'ADEME ou sans numéro « à vérifier »
+e88e650 2026-11-12 feat(diagnostics): DPE « Non reconnu » hors base ADEME, noms de fichiers sur une ligne
+a8f68b2 2026-11-12 feat(diagnostics): DPE vérifié dans la base officielle de l'ADEME
+ff16f82 2026-11-12 feat(diagnostics): étiquettes du DPE et « Modifier le DPE » dans la ligne DPE
+011def2 2026-11-12 feat(diagnostics): DPE reporté automatiquement, plus de ligne « Classe DPE »
+193c83a 2026-11-12 feat(diagnostics): lettre du DPE recalculée à partir de ses valeurs
+76c175d 2026-11-12 feat(diagnostics): seulement la présence et la validité des diagnostics obligatoires
+56aa68e 2026-11-10 feat(diagnostics): notification « diagnostics à régler » aussi par e-mail aux administrateurs
+77886e9 2026-11-10 feat(diagnostics): une ligne par diagnostic, lecture automatique, décisions visibles du notaire
+fa305fe 2026-11-10 feat(diagnostics): résultat de l'analyse rangé par action
+a9de406 2026-11-10 feat(diagnostics): seuls les diagnostics obligatoires à la location, avec leur validité
+6c5aadc 2026-11-10 fix(pièces): suppression d'un fichier empilé, état « suppression en cours »
+b3d0ebb 2026-11-10 fix(diagnostics): la fiche dossier s'affiche même si la table d'analyse manque
+6f10550 2026-11-10 feat(diagnostics): analyse IA des diagnostics depuis la fiche dossier
+8c0e6fa 2026-11-10 docs(confidentialité): analyse automatisée des documents par OpenAI
+9c06a88 2026-11-10 feat(conformité): règles du bail commercial plus claires et plus compactes
+74a3731 2026-11-10 feat(conformité): validation des règles manuelles par la pastille
+ee4746d 2026-11-10 feat(fiche-bail): pastille de validation, suppression des pièces, conformité légale en tête
+f40db88 2026-11-05 feat(conformité): règles commerciales vérifiées automatiquement, mêmes contrôles que le formulaire
+599dfc1 2026-11-05 feat(pièces): fichiers d'une même pièce empilés dans l'admin et l'espace client
+d83711e 2026-11-05 fix(espace-client): retirer le lien « Ajouter ou remplacer une pièce du bien » de la fiche bail
+666fdf9 2026-11-05 feat(commercial): conformité légale du bail commercial, registre côté admin, pièces du dossier
+f4ccc0f 2026-11-04 feat(tarifs): frais de dossier à 59,90 € pour un bail commercial
+cf99947 2026-11-04 docs(site): pièces à fournir à jour dans la FAQ et le guide des étapes
+4c1d1a3 2026-11-04 feat(affichage): bail commercial dans les trois espaces et corrections de l'équipe
+1fcde29 2026-11-03 feat(intakes): code par e-mail avant d'ouvrir un formulaire
+bb6ebc1 2026-11-03 feat(commercial): représentant légal désigné, icônes et situation du local
+f294489 2026-11-03 feat(commercial): parcours bail commercial et sociétés retrouvées par SIREN
+9f9b3da 2026-11-03 fix(intakes): pièces d'un lien clos inaccessibles, handlers non exposés
+0bd8b04 2026-11-03 feat(documents): noms de fichiers lisibles au téléchargement
+b9139f9 2026-11-03 feat(emails): code OTP dans la notification et e-mails de test marqués
+ac57eff 2026-11-03 fix(emails): retirer shlomi des alertes contact et blog, ajouter laetitia
+6d51df8 2026-11-03 feat(habitation): pièces alignées sur la liste du notaire
+9d04627 2026-11-02 feat(loyer): un seul bouton « Continuer » et modification des réponses à leur place
+96d9b5a 2026-11-02 fix(loyer): refus serveur dans l'espace client et justificatifs conformes aux textes
+0ab6c4d 2026-10-29 feat(loyer): étape « Le loyer » guidée, une question à la fois
+c7f4939 2026-10-29 feat(loyer): questions sur le loyer en champs ordinaires, posées seulement si utiles
+225c7d0 2026-10-28 feat(loyer): contrôle du loyer guidé et en langage simple dans les formulaires propriétaire
+1ba15c0 2026-10-28 feat(interface): fiche dossier sans redondance, relance unique et conformité légale
+84771e9 2026-10-28 fix(sécurité): contrôle d'accès sur les pièces, les actions serveur et les routes API
+ba5b42a 2026-10-28 feat(blog): sous-location illégale et nouveau bail de location 2026
+689589a 2026-10-28 feat(loyer): encadrement et relocation en zone tendue contrôlés dans les formulaires
+f65fa62 2026-10-28 fix(bail): la reprise d'un formulaire ne saute plus l'étape du loyer
+26247d5 2026-10-27 feat(interface): le bien se modifie depuis la fiche du dossier
+0b62492 2026-10-27 feat(encadrement): un bail est contrôlé avec l'arrêté en vigueur à sa date
+75e4925 2026-10-27 fix: un seul envoi par clic dans les chats, procuration sur la page d'accueil
+a29b104 2026-10-27 feat(client): un seul bail à la fois par bien, et le locataire à ajouter dans « À faire »
+b6bf318 2026-10-27 refactor(interface): la liste « Biens » quitte le menu de l'espace admin
+fe81ae8 2026-10-22 feat(intake): pièces principales et époque de construction demandées au propriétaire
+cac3473 2026-10-22 feat(data): zonage officiel de la DDTM du Nord pour Lille, simulateurs officiels
+b9af64d 2026-10-22 feat(interface): zones d'encadrement automatiques partout, adresse du bien toujours localisée
+bc6a359 2026-10-21 feat(interface): plafond de loyer automatique à Bordeaux, Grenoble et au Pays basque
+300089a 2026-10-21 feat(interface): contrôle automatique du plafond de loyer (encadrement des loyers)
+f25da13 2026-10-21 feat(interface): relances tracées, paiement bloquant, fin de l'ancienne page d'édition
+8cbe235 2026-10-21 feat(blog): guides congé pour reprise et choix du locataire
+1ca597a 2026-10-20 Staging : appliquer uniquement les corrections SEO du blog (#123)
+1423679 2026-10-18 chore: nouveau numéro de téléphone 07 68 09 86 24
+cf32fa5 2026-10-12 fix(blog): le champ date des calculateurs ne déborde plus sur mobile
+00560c4 2026-10-12 feat(blog): quatre guides fin de bail et loyer avec outils interactifs
+7a06012 2026-10-12 feat(interface): conditions du bail modifiables depuis la fiche, changement de locataire
+bc9641a 2026-10-12 feat(interface): saisie manuelle du DPE d'un bien par l'administrateur
+3063d66 2026-10-11 feat(interface): pièces ajoutées ou remplacées depuis la fiche, situation familiale requise
+79450e2 2026-10-09 feat(interface): vérification point par point, liste Clients, téléphone avec indicatif
+2d3e326 2026-10-08 feat(interface): refonte À traiter, Dossiers, fiche dossier et fiche client
+4de9a5a 2026-10-08 feat(interface): aide-mémoire de validité des diagnostics (location)
+1fe80a0 2026-10-08 fix(intakes): nouveaux champs date et uploads plus fluides
+a097d02 2026-10-08 feat(dates): un seul champ date, saisie JJ/MM/AAAA et calendrier
+5c4a57b 2026-10-08 fix(navbar): la barre suit la connexion OTP sans rechargement
+8ff583e 2026-10-01 Merge pull request #120 from dany2315/claude/landing-page-3d-redesign-tfyfev
+7968d19 2026-10-01 Accueil : la section contact rejoint la direction artistique du site
+a3affa4 2026-10-01 Merge pull request #119 from dany2315/claude/landing-page-3d-redesign-tfyfev
+67d1185 2026-10-01 Accueil : le fond des sections ne se decolore plus, pastille de support reduite
+1ea9b11 2026-10-01 Merge pull request #118 from dany2315/claude/landing-page-3d-redesign-tfyfev
+87ea0b3 2026-09-30 Accueil : retour en haut, coin bas droit ordonne, rail a droite
+f4490a3 2026-09-30 Merge pull request #117 from dany2315/claude/landing-page-3d-redesign-tfyfev
+820b7fc 2026-09-30 Accueil : bulle de support reparee, maquettes nettes, hero resserre
+4182aa0 2026-09-30 Accueil : l'avancement de la visite guidee se lit de haut en bas
+1573e99 2026-09-30 Merge pull request #116 from dany2315/claude/landing-page-3d-redesign-tfyfev
+30c8271 2026-09-30 Merge branch 'staging' into claude/landing-page-3d-redesign-tfyfev
+18ce7f8 2026-09-30 chore: retire les maquettes /testEspaceclient et /testChat
+ec95c63 2026-09-30 Baux : la messagerie se voit, et le notaire porte un nom
+ba25408 2026-09-30 fix(footer): compose le vrai numéro dans le bouton téléphone
+8411139 2026-09-29 Page du bien : la carte ne répète plus le haut de page
+3963562 2026-09-29 Sous-pages : le fondu retrouve sa couleur, et le bail ses actions
+9910b56 2026-09-28 Espace client : les sous-pages entrent dans la navigation, au lieu de s'y superposer
+3ef6f03 2026-09-28 Sous-pages : la barre du site ne recouvre plus le haut de la page
+f6aba9e 2026-09-28 Sous-pages : Feuille pour le bien, Rail pour le bail
+433b490 2026-09-28 Maquette des sous-pages : dire ce qu'on regarde
+7b45daa 2026-09-28 Maquette : quatre mises en page pour les sous-pages du bien et du bail
+60ac960 2026-09-28 Espace locataire : la page du bail dit ce qu'il faut savoir du logement
+498f01c 2026-09-28 Espace client : le bien et le bail deviennent des pages
+8794444 2026-09-28 Messagerie : la croix répondait dans le vide au-dessus d'un tiroir
+7b0afd1 2026-09-28 Maquette : la croix ferme la conversation
+8bed514 2026-09-28 Messagerie : la conversation quitte le tiroir
+8e7d037 2026-09-28 Messagerie : une bulle posée sur la page, sur grand écran
+8086a0a 2026-09-28 Messagerie : la nouvelle conversation branchée sur les trois espaces
+9066617 2026-09-28 Messagerie : les boutons du composeur se centrent sur une ligne
+58ad3f3 2026-09-28 Messagerie : l'accusé de lecture se lit après l'heure
+24e26b6 2026-09-28 Messagerie : parité complète avec les deux chats existants
+77839cd 2026-09-28 Messagerie : la barre d'écriture du notaire, et un champ qui ne fait plus zoomer
+5dfc76a 2026-09-28 Outillage : déclaration du serveur MCP shadcn
+b44bd0b 2026-09-28 Messagerie : aperçu d'une nouvelle conversation, en maquette
+f20c35f 2026-09-28 Intakes : les pages d'état passent dans la direction artistique du site
+70ebabd 2026-09-28 Espace locataire : page d'un bail rendue vérifiable, et chemins réels testés
+9c9c140 2026-09-28 Espace locataire : page d'un bail refondue, et parité vérifiée
+f90cf7f 2026-09-28 Espace locataire : même refonte, écrite de son côté du bail
+82d8f9f 2026-09-28 Espace client : la barre du site flotte enfin en fondu
+3c12a83 2026-09-27 Espace propriétaire : parité fonctionnelle vérifiée et rendue robuste
+b0d5c9e 2026-09-27 Espace propriétaire : mise en service de la refonte
+0396909 2026-09-27 Maquette : plusieurs baux par bien dans les données, et ordre d'affichage
+8e9a3a6 2026-09-27 Maquette : corriger un état impossible dans les données de démonstration
+57df407 2026-09-27 Maquette : l'option Fiches retenue, baux distingués du bien et lignes sobres
+fbaa6cd 2026-09-27 Maquette : quatre compositions de « Mes dossiers », au choix
+87898b0 2026-09-27 Maquette : la carte d'un dossier se réduit à une question et sa réponse
+07c28e6 2026-09-27 Maquette : « Mes dossiers » devient une seule liste groupée par bien
+e9f419b 2026-09-27 Maquette /testEspaceclient : refonte des trois pages propriétaire
+d707597 2026-09-27 feat(navbar): le menu de l'avatar ne sert plus qu'à se déconnecter
+629ea76 2026-09-27 perf(accueil): le premier appui ne recalcule plus la mise en page du document
+36b0da8 2026-09-27 perf(accueil): l'arrivée de la session ne fait plus re-rendre les grosses sections
+fd451d5 2026-09-27 feat(navbar): le menu déroulant se limite à la navigation
+e0e06d9 2026-09-27 feat(accueil): les appels à l'action mènent à l'espace client quand on est connecté
+51cc23f 2026-09-27 redesign(connexion client): même scène minimale que l'accueil
+69147be 2026-09-27 fix(navbar): la déconnexion met à jour la barre sans recharger la page
+ef2bf16 2026-09-27 fix(accueil): la pastille e-mail ne passe plus sous le champ
+87560cc 2026-09-27 feat(commencer): le repère d'avancement compte le parcours réellement suivi
+476c78a 2026-09-27 feat(accueil): le dossier s'ouvre depuis le hero, une étape en moins
+54085e4 2026-09-27 fix(commencer): la barre flotte sur la scène, comme partout ailleurs
+811d929 2026-09-27 redesign(commencer): l'écran d'entrée se limite au formulaire
+fd94582 2026-09-27 redesign(commencer): le parcours d'entrée passe au design de l'accueil
+d257a8c 2026-09-27 fix(blog, pages légales): la marge de la barre prend la couleur de la section
+fc8e8ed 2026-09-27 fix: une seule toile de fond pour toute l'application
+8388f22 2026-09-27 fix: la pastille flotte sur toutes les pages, plus seulement sur l'accueil
+0ac1ae1 2026-09-27 fix: plus de bande bleue autour de la barre hors de l'accueil
+fedb213 2026-09-27 feat: le nouveau design devient la page d'accueil, sa barre sert tout le site
+bb32314 2026-09-27 copy(lptest): « Visite guidée » remplace « L'interface » dans la navigation
+d083584 2026-09-27 feat(lptest): le blog dans la navigation, l'espace client dans la barre mobile
+0c14596 2026-09-27 fix(lptest): dans la visio, « Vous » regarde l'objectif
+ba56cc1 2026-09-27 feat(lptest): la visio se lit comme un appel en cours, notaire en train de parler
+f6b4928 2026-09-27 fix(lptest): le fond sombre arrive avec son décor, pas après
+6f78fb6 2026-09-27 feat(lptest): la visio de signature montre de vraies personnes
+f92660c 2026-09-27 perf(lptest): plus de section vide quand on défile vite
+6ea1a09 2026-09-27 feat(landing): un rechargement repart du haut de la page
+a5b4250 2026-09-27 copy(lptest): retire l'incitation au scroll dans la section interface
+d74870d 2026-09-27 feat(lptest): étapes nommées, section interface réécrite, tarif reformulé
+de5af7c 2026-09-18 fix(lptest): supprime l'état intermédiaire délavé au chargement
+5db9777 2026-09-18 redesign(lptest): le tarif se lit comme une addition, plus comme un choix
+92878b5 2026-09-18 perf(lptest): contenu visible au premier rendu, sans attendre le JS
+5f529cb 2026-09-18 fix(lptest): fond continu sur la section interface
+cfc9b86 2026-09-18 fix(lptest): les onglets ne passent plus sous la barre sur mobile
+72b0f2d 2026-09-18 fix(lptest): défilement écran par écran fiable sur mobile
+41e0d1d 2026-09-18 feat(lptest): la section interface défile écran par écran au scroll
+98a0e8a 2026-09-18 refactor(lptest): navbar allégée, section interface repensée pour mobile
+a9904dd 2026-09-17 feat(lptest): espace client dans la navigation, au design de la landing
+a79689c 2026-09-17 fix(lptest): retire le CTA de la navbar mobile
+fc8eef1 2026-09-17 feat(lptest): nouvelle landing page premium avec scène produit 3D
+2ca90cc 2026-09-18 Merge pull request #113 from dany2315/claude/document-upload-bug-staging-y8nd0z
+76e50eb 2026-09-17 fix(upload): un seul champ fichier par zone d'upload, le selecteur visait le mauvais input
+1119501 2026-08-23 revert(ui): retablit la taille d'origine des logos
+919cd5e 2026-08-23 perf(images): reduit fortement le nombre de transformations facturees
+a496c4b 2026-08-23 fix(ui): corrige le rapport declare des logos et restaure les fichiers d'origine
+c7ca5dc 2026-08-23 revert(images): retablit l'optimiseur next/image standard
+58c5a05 2026-08-23 fix(images): contourne l'optimiseur Vercel, dont le quota est epuise
+2c65614 2026-08-23 feat(blog): visuels Unsplash, une photo distincte par article
+f8a6a35 2026-08-23 revert: retire la declaration du serveur MCP Unsplash
+565d8d3 2026-08-23 feat(blog): rend l'affichage tolerant a toute source d'image indisponible
+fb56cc8 2026-08-23 chore: declare le serveur MCP Unsplash dans la configuration du projet
+ddb61b9 2026-08-23 feat(blog): visuels d'articles heberges localement, fin de la dependance externe
+b0f8a20 2026-08-23 fix(blog): plus d'image cassee dans "Pour aller plus loin"
+ec56602 2026-08-23 refactor(blog): "Pour aller plus loin" reprend le design des articles lies
+f7232a9 2026-08-23 feat(seo): investit le cluster bail commercial — architecture et profondeur
+26f6f20 2026-08-23 fix(seo): retire "prix" du titre du bail authentique (risque de cannibalisation)
+ce6ab09 2026-08-23 feat(seo): cible les pages au CTR casse et reconstruit le maillage interne
+80f908c 2026-08-23 revert(seo): restaure le titre de l'article cout, corrige celui du bail commercial
+6b1f732 2026-08-22 perf(seo): ISR sur les articles, dates de revision reelles, fil d'Ariane
+5b921ef 2026-08-22 fix(seo): supprime le balisage frauduleux, corrige les canonicals et le sitemap
+3f73b0a 2026-07-20 Merge pull request #111 from dany2315/claude/blog-integration-staging-main-b1mv59
+0738be3 2026-07-19 feat(blog): renforce le SEO et l'UX de l'article location meublée/nue
+17b2c52 2026-07-19 feat(blog): ajout de l'article location meublée ou location nue
+0d29c43 2026-07-17 Merge pull request #108 from dany2315/claude/main-prod-differences-q0ksor
+e41f6f8 2026-07-17 Merge pull request #109 from dany2315/claude/main-prod-differences-q0ksor
+6a1e59a 2026-07-17 fix(baux): dépôt de garantie meublé = 2 mois dans l'interface admin
+478756c 2026-06-29 Merge pull request #107 from dany2315/staging
+62f260a 2026-06-29 Merge pull request #106 from dany2315/claude/lease-status-selector-admin-6tppih
+38a715a 2026-06-29 chore: redeploy – retry after neon db connectivity issue
+5634dfe 2026-06-29 feat: add lease status selector in admin bail detail page
+56bc180 2026-06-26 Merge pull request #105 from dany2315/staging
+9651ae4 2026-06-26 Merge pull request #104 from dany2315/claude/tenant-form-submission-check-bk4l0e
+c239b21 2026-06-26 fix: block tenant form submission when required documents are missing
+9bfc24d 2026-06-26 Merge remote-tracking branch 'origin/staging' into claude/tenant-form-submission-check-bk4l0e
+6be568f 2026-06-25 feat: add lease payment tabs
+4307fd9 2026-06-25 fix: improve admin client filters
+50aa27e 2026-06-25 fix: require tenant rib before intake submission
+84f53eb 2026-06-25 fix: include tenant-form bails in completion status update
+6f5230d 2026-06-25 fix: update bail status after tenant submission
+45e9153 2026-06-25 fix: track tenant form email sends
+e44b17f 2026-06-25 fix: render bail audit timeline accents
+fa9133e 2026-06-25 fix: use direct url for prisma migrations
+22977a6 2026-06-25 feat: add bail audit timeline
+230bc4a 2026-06-24 Merge pull request #103 from dany2315/staging
+7d7710d 2026-06-23 feat: harmoniser les cartes proprietaire
+7af55eb 2026-06-22 fix: improve locked bail wording, update AWAITING_TENANT_FORM message, remove Euro icons from rent chips
+39891a8 2026-06-22 fix: hide "Aucun bail" message when draft card is displayed
+dc1cc4a 2026-06-22 feat: block duplicate bail creation per property + show draft card + fix rentAmount 0 display
+9671216 2026-06-22 fix: use next/server after() instead of Promise.resolve().then() for post-response emails
+8adcde1 2026-06-22 feat: add AWAITING_TENANT_FORM status, fix atomic Stripe payment, optimize admin emails
+9e8a105 2026-06-11 Merge staging into main: fix nationality select (static list + accent-insensitive search)
+88bff14 2026-06-11 fix(nationality): switch to a static built-in list, drop the external API
+3065598 2026-06-11 fix(nationality-select): make search accent-insensitive
+c1de8dc 2026-06-10 Merge staging into main: paiement unifié + AWAITING_TENANT + nouveaux champs Bail/IntakeLink
+386f94d 2026-06-10 style(payment): rename pill to "À régler à la signature" and add asterisk
+bae13ce 2026-06-07 style(payment): rename "Avant la signature" pill to "Le jour de la signature"
+20fc064 2026-06-07 style(payment): clarify "Plus tard" pill is paid before the signing
+44b2e6d 2026-06-03 style(payment): merge "to pay now" and "later at notary" into one card
+88b7091 2026-06-03 feat: add CLAUDE.md for project guidance and update documentation
+994752d 2026-06-03 feat: add AWAITING_TENANT status and update related logic
+cd94746 2026-06-02 Merge pull request #102 from dany2315/claude/git-workflow-question-RoxV8
+9833560 2026-06-01 feat(contact-bubble): hide on /interface back-office routes
+7c0a40b 2026-05-31 fix(contact-bubble): restore previous drag logic, re-snap on minimize toggle
+5c1ea32 2026-05-31 revert+fix(contact-bubble): bring back always-visible Support pill, right-anchor it when snapped to the right edge
+2ca2aea 2026-05-31 fix(contact-bubble): keep Support pill visible when bubble is on the right edge
+ca7636f 2026-05-31 feat(contact-bubble): icon-only when idle, expands into × + Support pill on click
+607003a 2026-05-31 fix(contact-bubble): Support button grows away from the screen edge
+f7b251f 2026-05-31 style(intake/tenant): mirror owner form refactor for tenant intake
+a404637 2026-05-31 style(contact-bubble): move × close button to the right of the pill
+9bec334 2026-05-31 feat(contact-bubble): snap to nearest side after drag
+dd7afb1 2026-05-31 fix(contact-bubble): drag works freely on mobile (non-passive listeners)
+55f4b9b 2026-05-31 fix(contact-bubble): make the bubble actually draggable on mobile
+0c3d550 2026-05-31 style(contact-bubble): raise default position so it isn't flush with the bottom edge
+9be9cc7 2026-05-31 feat(contact-bubble): draggable anywhere on screen, position persisted
+2b16c5c 2026-05-31 feat(ui): floating "Support" bubble available on every page
+0f63467 2026-05-31 style(number-input-group): unit as a rounded pill with inset spacing
+bc697bb 2026-05-31 style(number-input-group): cleaner unit display, drop colored addon block
+4cb8af0 2026-05-31 fix(intake): don't block bailType step on furniture cross-validation
+3f1a218 2026-05-31 style(bail): inline "Le bail se terminera le ..." under the start date
+1ef2d3f 2026-05-31 fix+style(intake): unify input heights to h-11 and fix empty page on person delete
+9a45a6c 2026-05-31 style(intake): stack Loyer & charges fields full-width
+1240cfe 2026-05-31 style+fix(intake): card selection for property type, full-width fields, force per-step save on Continuer
+d89cc03 2026-05-31 fix(intake): reset active person after deletion to the previous index
+3258479 2026-05-31 feat(bail): auto-compute end date from start date + bail type
+a612045 2026-05-31 fix(intake): plug new sub-steps into existing save and resume logic
+48c72ce 2026-05-31 feat(intake): sequential person-by-person flow inside clientInfo step
+6c068ee 2026-05-31 feat(intake): split property and bail steps into smaller sequential sub-steps
+cdf95c5 2026-05-27 revert(forms): remove swipe-back to step-back interception
+1f88680 2026-05-27 style(intake): cleaner sub-sections and per-person framing in owner form
+a1235b2 2026-05-27 feat(forms): intercept mobile swipe-back to step back in multi-step forms
+efeeb32 2026-05-27 style(intake): adopt CreateBailPageClient look for client/property/bail steps
+9bcca8c 2026-05-27 fix(commencer): revert /commencer to a normal scrolling page
+ea3a206 2026-05-27 fix(layout): add h-screen-safe utility with 100vh fallback for 100dvh
+5b0cd1c 2026-05-27 fix(commencer): simpler scrollable layout, drop fragile min-h-full centering
+5b944ea 2026-05-27 fix(commencer): keep form scrollable when taller than viewport
+70f6737 2026-05-27 feat(client/baux/new): restore missing form logic, compact payment top
+768d7c6 2026-05-27 fix(layout): use 100dvh instead of 100vh for owner form viewports
+89676f8 2026-05-27 feat(payment): auto-compute people count for notary cost estimate
+d2bc559 2026-05-27 refactor(bail-cost-estimate): minimal 2-line design without card frame
+3867d5a 2026-05-27 feat(payment): show notary cost estimate on payment steps
+debacc0 2026-05-27 fix(commencer): cap page at viewport so header and footer stay sticky
+d77abad 2026-05-27 fix(auth): use flat wildcard for Vercel preview URLs in trustedOrigins
+1e58bf4 2026-05-27 feat(bail): add notary cost estimate to owner and notary lease forms
+94d4f03 2026-05-27 feat(ui): refactor OwnerFormPage and improve layout for better user experience feat(payment): enhance payment step UI with compact summary and warnings fix(s3): update S3 public URL hook to support environment variables chore(sitemap): update sitemap with new blog post URLs and last modified dates
+b920a24 2026-05-26 Refactor UI components and enhance functionality
+96ef041 2026-05-25 feat(payment): unify Stripe payment flow on Bail   model
+6600c51 2026-05-20 feat(payment): integrate Stripe payment processing in the intake flow
+d6f0bd7 2026-04-16 Merge pull request #101 from dany2315/staging
+97a1255 2026-04-16 Merge pull request #100 from dany2315/integration-layout-client
+fb25b8f 2026-04-16 Merge pull request #99 from dany2315/claude/notary-dashboard-filters-XeHEY
+b5f2fa8 2026-04-16 feat: enhance DossiersSidebar with mobile detail view and improved status handling
+51128b0 2026-04-13 fix: corriger la notation de la règle des 3-6-9 en 3/6/9 dans le contenu du blog et les métadonnées
+ef45e99 2026-04-02 feat(notaire): ajouter filtres par statut et classement des dossiers
+a0edf17 2026-03-31 Merge pull request #98 from dany2315/staging
+787cac6 2026-03-31 Merge pull request #97 from dany2315/integration-layout-client
+eea96ba 2026-03-31 feat: ajouter la gestion du locataire dans le bouton de suppression de bail et le dialogue de confirmation
+98b0c6b 2026-03-31 Merge pull request #96 from dany2315/staging
+fe43fa3 2026-03-31 Merge pull request #95 from dany2315/integration-layout-client
+2a5b441 2026-03-31 Refactor lease management forms and validation
+081ba22 2026-03-25 Merge pull request #94 from dany2315/staging
+4c9fe71 2026-03-25 Merge pull request #93 from dany2315/integration-layout-client
+485797b 2026-03-25 feat: add Blog15 content and update blog page to include it
+b97ecd4 2026-03-17 Merge pull request #92 from dany2315/staging
+56b8bbe 2026-03-17 Merge pull request #91 from dany2315/integration-layout-client
+d70ad42 2026-03-17 Refactor OTP input handling across login pages and introduce OtpCodeInput component
+32998bc 2026-03-17 Refactor intake success page and enhance email notifications
+f3ddfc4 2026-03-17 Merge pull request #90 from dany2315/integration-layout-client
+5d14d9d 2026-03-17 Enhance document handling in intake forms and improve validation logic
+0c0817c 2026-03-17 Merge pull request #89 from dany2315/integration-layout-client
+0150aa8 2026-03-17 Update sender address in notification email function for improved clarity
+552e997 2026-03-17 Merge pull request #88 from dany2315/integration-layout-client
+195c097 2026-03-17 Refactor notification handling and update header links for improved user experience
+1bddc05 2026-03-16 Merge pull request #87 from dany2315/integration-layout-client
+b5eed28 2026-03-16 Enhance notification handling and update sitemap for improved user experience
+499f93b 2026-03-16 Merge pull request #86 from dany2315/integration-layout-client
+fc7d815 2026-03-16 Update metadata, enhance layout, and add new components for improved user experience
+1e08999 2026-03-09 Merge pull request #85 from dany2315/staging
+21b83bb 2026-03-09 Merge pull request #84 from dany2315/integration-layout-client
+c892c71 2026-03-09 Add FAQ schema and dynamic rendering in structured data component
+b288416 2026-03-09 Merge pull request #83 from dany2315/staging
+fe466a1 2026-03-09 Merge pull request #82 from dany2315/integration-layout-client
+715ec26 2026-03-09 Refactor structured data component and update robots.txt and sitemap.xml for improved SEO
+d105839 2026-03-08 Merge pull request #81 from dany2315/staging
+d2d1e8d 2026-03-08 Merge pull request #80 from dany2315/integration-layout-client
+caef417 2026-03-08 Enhance price simulator page with improved metadata and SEO features
+56c00cf 2026-03-08 Merge pull request #79 from dany2315/codex/create-lease-simulation-page-with-design
+77c247d 2026-03-08 Ajoute une transition mobile entre formulaire et résultat
+426ffc8 2026-03-08 Merge pull request #78 from dany2315/integration-layout-client
+7a2eefe 2026-03-08 Update call-to-action labels in blog components for consistency and clarity
+6b69cdb 2026-03-08 Merge pull request #77 from dany2315/integration-layout-client
+7ea5584 2026-03-08 Enhance blog components and styles for improved user experience
+104ac80 2026-03-08 Merge pull request #76 from dany2315/integration-layout-client
+8dfaba3 2026-03-08 Add FAQ content and enhance blog components for improved user engagement
+e0beb3f 2026-03-05 Merge pull request #75 from dany2315/staging
+cd8f0c5 2026-03-05 Merge pull request #74 from dany2315/integration-layout-client
+1c9d456 2026-03-05 Update sitemap and metadata configurations for improved SEO and user experience
+de9af80 2026-03-05 Merge pull request #73 from dany2315/staging
+34e44c5 2026-03-05 Merge pull request #72 from dany2315/integration-layout-client
+c9171b2 2026-03-05 Add CGU page and remove CGV page for updated user guidance
+855914a 2026-03-02 Merge pull request #71 from dany2315/integration-layout-client
+e8a0f98 2026-03-02 Update client components for improved terminology and layout consistency
+ff882ef 2026-03-02 Merge pull request #70 from dany2315/integration-layout-client
+ce02106 2026-03-02 Add PDF preview enhancements and refactor client components for improved usability
+ffe5b01 2026-03-01 Merge pull request #69 from dany2315/integration-layout-client
+5b54add 2026-03-01 Enhance document preview functionality and improve drawer component layouts
+c491a2f 2026-03-01 Merge pull request #68 from dany2315/integration-layout-client
+33f6421 2026-03-01 Update header component to include User icon from lucide-react
+ead5999 2026-03-01 Refactor components and enhance UI for improved user experience
+0b4dbaa 2026-02-22 Merge pull request #66 from dany2315/integration-layout-client
+e1b9295 2026-02-22 Add new API routes for bail and property details, and refactor related components
+ccc4249 2026-02-19 Merge pull request #65 from dany2315/staging
+ec18a6c 2026-02-19 Merge pull request #64 from dany2315/integration-layout-client
+72fd9b1 2026-02-19 Enhance locataire components with improved null handling and type safety
+0bbcc6b 2026-02-19 Add new API route for checking tight zones and enhance property and lease components
+bfce7c7 2026-02-17 Add blank lines for improved readability across multiple files
+80e8cf4 2026-02-16 Merge pull request #63 from dany2315/staging
+4517e26 2026-02-16 Merge branch 'main' into staging
+d57c195 2026-02-16 Merge pull request #62 from dany2315/integration-layout-client
+3568fb7 2026-02-16 Implement S3-based file upload and migration logging system
+c4b219b 2026-02-05 Merge pull request #61 from dany2315/integration-layout-client
+47191ed 2026-02-05 Add vaul dependency and enhance UI components
+dc255d6 2026-01-29 Refactor document handling and improve type safety in API routes
+af363e5 2026-01-29 Refactor file upload system and deprecate old endpoints
+a0372c5 2026-01-26 Add Blog10Content component and update blog data
+38a2146 2026-01-26 Implement S3-based file upload and document handling in bail messaging system
+2c98b4a 2026-01-22 Refactor authentication handling in bail profile route and update sitemap with new last modified dates
+af24acd 2026-01-22 Implement AWS S3 integration for file uploads and updates to related components
+866bb2d 2026-01-20 Refactor Blog9Content component to improve diagnostics handling and rendering
+4515729 2026-01-20 Add Blog8Content and Blog9Content components, update blog data
+56e70c5 2026-01-20 Refactor Blog9Content component to conditionally render DPE section based on diagnostics availability
+ff5534a 2026-01-19 Update documentation and API routes with additional line breaks for improved readability
+cea8c82 2026-01-18 Update package dependencies and enhance Notaire functionality

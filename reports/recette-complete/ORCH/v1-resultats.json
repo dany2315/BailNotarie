@@ -1,0 +1,32 @@
+[
+ {
+  "id": "B1-api",
+  "ok": true,
+  "detail": "POST /api/auth/sign-up/email → 400 ; compte créé : 0"
+ },
+ {
+  "id": "B1-register",
+  "ok": true,
+  "detail": "/register mène à /client/login"
+ },
+ {
+  "id": "B1-login",
+  "ok": false,
+  "detail": "/login : champ mot de passe true, lien « Créer un compte » absent true, connexion par mot de passe (compte inconnu) → 403"
+ },
+ {
+  "id": "B3-societe",
+  "ok": true,
+  "detail": "e-mail de la société prérempli « recette-adm2-locataire7@example.invalid » (invitation « recette-adm2-locataire7@example.invalid »), en lecture seule true, après une frappe « recette-adm2-locataire7@example.invalid », mention affichée true"
+ },
+ {
+  "id": "B2-continuer",
+  "ok": true,
+  "detail": "passage à l'étape 4 : true ; société en base : nom « Recette Orchestration SAS », raison sociale « Recette Orchestration SAS », e-mail « recette-adm2-locataire7@example.invalid » ; messages : [\"Données enregistrées avec succès\"]"
+ },
+ {
+  "id": "M8-pieces",
+  "ok": true,
+  "detail": ".txt : « recette-statuts.txt: Format non accepté : envoyez un PDF, une photo (JPG, PNG, HEIC) ou un document Word (DOC, DOCX). », pièces en base 0 → 0 ; .pdf accepté : true"
+ }
+]
