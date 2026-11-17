@@ -11,7 +11,7 @@ async function session(appareil) {
   await s.context.route(/googletagmanager\.com|google-analytics\.com|analytics\.google\.com/, (route) => { s.google.push(route.request().url().slice(0, 60)); route.abort(); });
   return s;
 }
-const bandeau = (p) => p.getByRole('dialog', { name: 'Vous choisissez ce que nous mesurons' });
+const bandeau = (p) => p.getByRole('dialog', { name: 'Ce site utilise des cookies' });
 
 (async () => {
   for (const appareil of ['ordinateur', 'telephone']) {
@@ -28,15 +28,16 @@ const bandeau = (p) => p.getByRole('dialog', { name: 'Vous choisissez ce que nou
       `bandeau affiché ${visible} ; requêtes Google avant choix : ${s.google.length} ; largeur bandeau ${boite && Math.round(boite.width)} / écran ${ecran.width}`);
 
     // 2. Refuser : plus de bandeau, rien de chargé, même après rechargement
-    await p.getByRole('button', { name: 'Refuser' }).click(); await R.attendre(1000);
+    await p.getByRole('button', { name: 'Tout refuser' }).click(); await R.attendre(1000);
     await p.reload({ waitUntil: 'domcontentloaded' }); await R.attendre(4000);
     note('GA-refus-' + appareil, !(await bandeau(p).isVisible().catch(() => false)) && s.google.length === 0, `après refus et rechargement : bandeau ${await bandeau(p).isVisible().catch(() => false)}, requêtes Google ${s.google.length}`);
 
     // 3. « Gérer les cookies » rouvre le bandeau ; accepter charge la mesure
     const lien = p.getByRole('button', { name: 'Gérer les cookies' });
     await lien.scrollIntoViewIfNeeded(); await lien.click();
-    const rouvert = await bandeau(p).waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
-    await p.getByRole('button', { name: 'Accepter' }).click(); await R.attendre(4000);
+    const panneau = p.getByRole('dialog', { name: 'Paramètres des cookies' });
+    const rouvert = await panneau.waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+    await panneau.getByRole('switch').click(); await panneau.getByRole('button', { name: 'Enregistrer' }).click(); await R.attendre(4000);
     note('GA-accord-' + appareil, rouvert && s.google.length > 0, `« Gérer les cookies » rouvre le bandeau : ${rouvert} ; après accord, requêtes Google tentées : ${s.google.length}`);
 
     // 4. Accord donné, pages privées : rien n'est chargé, mesure désactivée
@@ -44,7 +45,7 @@ const bandeau = (p) => p.getByRole('dialog', { name: 'Vous choisissez ce que nou
     const resultats = [];
     for (const chemin of ['/client/login', '/intakes/00000000-0000-0000-0000-000000000000', '/commencer/proprietaire/jeton-de-test', '/interface', '/notaire/login']) {
       const s2 = await session(appareil);
-      await s2.context.addInitScript(() => { try { localStorage.setItem('bn-consentement-mesure', 'accepte'); } catch {} });
+      await s2.context.addInitScript(() => { try { localStorage.setItem('bn-consentement-mesure', JSON.stringify({ choix: 'accepte', le: Date.now() })); } catch {} });
       await s2.page.goto(R.BASE + chemin, { waitUntil: 'domcontentloaded' }).catch(() => {}); await R.attendre(4000);
       const desactive = await s2.page.evaluate(() => window['ga-disable-G-TZ7DF5J0XW']).catch(() => null);
       resultats.push({ chemin, adresse: new URL(s2.page.url()).pathname, google: s2.google.length, bandeau: await bandeau(s2.page).isVisible().catch(() => false), desactive });
