@@ -15,6 +15,7 @@ import {
   Role,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { computeBailEndDate } from "@/lib/utils/bail-duration";
 import { requireRole } from "@/lib/auth-helpers";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
@@ -98,7 +99,7 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
 
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
-    select: { id: true, status: true, propertyId: true, bailType: true, bailFamily: true, rentAmount: true, securityDeposit: true, effectiveDate: true, endDate: true },
+    select: { id: true, status: true, propertyId: true, bailType: true, bailFamily: true, rentAmount: true, securityDeposit: true, effectiveDate: true, endDate: true, commercialTerms: { select: { derogatoryMonths: true } } },
   });
   if (!bail) return { success: false, error: "Dossier introuvable" };
   // Bail commercial : ni limite légale du dépôt de garantie, ni encadrement des loyers.
@@ -110,11 +111,14 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
   const rentAmount = values.rentAmount ?? bail.rentAmount;
   const securityDeposit = values.securityDeposit ?? bail.securityDeposit;
   const effectiveDate = values.effectiveDate ? utcDate(values.effectiveDate) : bail.effectiveDate;
-  const endDate = values.endDate === undefined ? bail.endDate : values.endDate === "" ? null : utcDate(values.endDate);
-
-  if (endDate && effectiveDate && endDate <= effectiveDate) {
-    return { success: false, error: "La date de fin doit suivre la date de prise d'effet" };
-  }
+  // Date de fin : toujours calculée à partir du type de bail et de la prise d'effet (durée du bail dérogatoire
+  // comprise), jamais saisie. Une date de fin envoyée par l'écran est ignorée. Recalculée seulement quand le
+  // type ou la prise d'effet change, pour ne pas toucher aux dossiers existants lors d'une autre modification.
+  const recompute =
+    (values.bailType !== undefined && values.bailType !== bail.bailType) ||
+    (values.effectiveDate !== undefined && (effectiveDate?.getTime() ?? null) !== (bail.effectiveDate?.getTime() ?? null));
+  const endDate = recompute ? computeBailEndDate(effectiveDate, bailType, bail.commercialTerms?.derogatoryMonths ?? null) : bail.endDate;
+  const endDateChanged = (endDate?.getTime() ?? null) !== (bail.endDate?.getTime() ?? null);
   // Usage et type vont ensemble, comme dans le formulaire : 3-6-9 ou dérogatoire pour un local
   // commercial, bail nu ou meublé pour un logement.
   if (isCommercial !== COMMERCIAL_TYPES.includes(bailType)) {
@@ -148,7 +152,7 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
         ...(values.bailType !== undefined && { bailType: values.bailType }),
         ...(values.bailFamily !== undefined && { bailFamily: values.bailFamily }),
         ...(values.effectiveDate !== undefined && { effectiveDate }),
-        ...(values.endDate !== undefined && { endDate }),
+        ...(endDateChanged && { endDate }),
         ...(values.rentAmount !== undefined && { rentAmount: values.rentAmount }),
         ...(values.monthlyCharges !== undefined && { monthlyCharges: values.monthlyCharges }),
         ...(values.securityDeposit !== undefined && { securityDeposit: values.securityDeposit }),

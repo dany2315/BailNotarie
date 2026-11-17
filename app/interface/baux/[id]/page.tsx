@@ -394,7 +394,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         { field: "bailType", label: "Type de bail", value: lease.bailType },
         { field: "bailFamily", label: "Usage", value: lease.bailFamily },
         { field: "effectiveDate", label: "Date de prise d'effet", value: dateValue(lease.effectiveDate), missing: bailMissing.has("effectiveDate") },
-        { field: "endDate", label: "Date de fin (facultative)", value: dateValue(lease.endDate), optional: true },
       ] as BailTermInput[],
       text: [
         `${BAIL_TYPE_LABELS[lease.bailType] || lease.bailType} · ${BAIL_FAMILY_LABELS[lease.bailFamily] || lease.bailFamily}`,

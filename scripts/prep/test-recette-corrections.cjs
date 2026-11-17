@@ -84,6 +84,30 @@ suite('Corrections de la recette au navigateur', path.join(__dirname, '../../rep
     assert.equal(r.state.suppressed.email || 0, 0, 'une invitation a été déclenchée');
   });
 
+  /* ---------- M5 : date de fin toujours calculée depuis la fiche de l'équipe ---------- */
+
+  const terms = (r) => r.load('lib/actions/admin-bail-edit.ts');
+  const ymd = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+
+  await test('M5 — changer le type de bail recalcule la date de fin ; une date de fin envoyée est ignorée', async (tx, r, f) => {
+    await tx.bail.update({ where: { id: f.bail.id }, data: { bailType: 'BAIL_NU_3_ANS', effectiveDate: new Date('2027-02-01T00:00:00Z'), endDate: new Date('2030-02-01T00:00:00Z'), securityDeposit: 600 } });
+    const res = await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { bailType: 'BAIL_MEUBLE_9_MOIS', endDate: '2035-01-01' } });
+    assert(res.success, res.error);
+    assert.equal(ymd((await tx.bail.findUnique({ where: { id: f.bail.id } })).endDate), '2027-11-01');
+  });
+
+  await test('M5 — changer la prise d’effet décale la date de fin', async (tx, r, f) => {
+    await tx.bail.update({ where: { id: f.bail.id }, data: { bailType: 'BAIL_NU_3_ANS', effectiveDate: new Date('2027-02-01T00:00:00Z'), endDate: new Date('2030-02-01T00:00:00Z') } });
+    assert((await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { effectiveDate: '2027-04-15' } })).success);
+    assert.equal(ymd((await tx.bail.findUnique({ where: { id: f.bail.id } })).endDate), '2030-04-15');
+  });
+
+  await test('M5 — une autre modification (loyer) ne touche pas à la date de fin existante', async (tx, r, f) => {
+    await tx.bail.update({ where: { id: f.bail.id }, data: { bailType: 'BAIL_NU_3_ANS', effectiveDate: new Date('2027-02-01T00:00:00Z'), endDate: new Date('2030-03-01T00:00:00Z') } });
+    assert((await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { rentAmount: '610' } })).success);
+    assert.equal(ymd((await tx.bail.findUnique({ where: { id: f.bail.id } })).endDate), '2030-03-01');
+  });
+
   /* ---------- B2 + B3 : locataire entreprise, adresse de l'invitation ---------- */
 
   const intakeTenant = (tx, f) => tx.intakeLink.findFirstOrThrow({ where: { id: f.tenantIntake.id }, include: { client: { include: { persons: true, entreprise: true } } } });

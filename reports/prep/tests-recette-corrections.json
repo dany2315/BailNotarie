@@ -1,21 +1,28 @@
 {
  "suite": "Corrections de la recette au navigateur",
- "createdAt": "2026-11-17T12:21:04.219Z",
- "passed": 2,
+ "createdAt": "2026-11-17T12:23:10.918Z",
+ "passed": 3,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
  "tables": 41,
  "results": [
   {
-   "name": "M1 — les erreurs des actions sont renvoyées en français, sans texte technique",
+   "name": "M5 — changer le type de bail recalcule la date de fin ; une date de fin envoyée est ignorée",
    "passed": true,
    "error": null,
    "simulated": {},
    "networkAttempts": 0
   },
   {
-   "name": "M4 — étape « Locataire » : une adresse mal formée est refusée, rien n’est créé ni envoyé",
+   "name": "M5 — changer la prise d’effet décale la date de fin",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "M5 — une autre modification (loyer) ne touche pas à la date de fin existante",
    "passed": true,
    "error": null,
    "simulated": {},

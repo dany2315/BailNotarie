@@ -55,7 +55,6 @@ suite('Lot 2 — accord du locataire', path.join(__dirname, '../../reports/prep/
     ['loyer', { rentAmount: '620' }, 'rentAmount'],
     ['dépôt de garantie', { securityDeposit: '500' }, 'securityDeposit'],
     ['date de prise d’effet', { effectiveDate: '2026-12-15' }, 'effectiveDate'],
-    ['date de fin', { endDate: '2029-12-01' }, 'endDate'],
     ['type de bail', { bailType: 'BAIL_MEUBLE_1_ANS' }, 'bailType'],
   ]) {
     await test(`Changement de ${label} : accord invalidé`, async (tx, r, f) => {
@@ -68,6 +67,15 @@ suite('Lot 2 — accord du locataire', path.join(__dirname, '../../reports/prep/
       assert.equal(rows[0].changes[0].field, field);
     });
   }
+
+  // La date de fin n'est plus saisie (M5, recette du 17/11) : elle suit le type et la prise d'effet.
+  await test('Date de fin envoyée seule : ignorée, accord conservé', async (tx, r, f) => {
+    await confirm(tx, r, f);
+    const res = await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { endDate: '2029-12-01' } });
+    assert(res.success, res.error);
+    assert((await bailOf(tx, f)).tenantConfirmedTermsAt, 'accord retiré pour une date de fin qui ne se saisit plus');
+    assert.equal((await history(tx, f)).length, 0);
+  });
 
   await test('Accord ancien sans conditions enregistrées : archivé sans contenu inventé', async (tx, r, f) => {
     await legacyConfirm(tx, f);

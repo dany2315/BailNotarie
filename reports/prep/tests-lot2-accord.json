@@ -1,6 +1,6 @@
 {
  "suite": "Lot 2 — accord du locataire",
- "createdAt": "2026-11-16T16:04:22.325Z",
+ "createdAt": "2026-11-17T12:26:13.853Z",
  "passed": 18,
  "failed": 0,
  "networkAttempts": 0,
@@ -50,14 +50,14 @@
    "networkAttempts": 0
   },
   {
-   "name": "Changement de date de fin : accord invalidé",
+   "name": "Changement de type de bail : accord invalidé",
    "passed": true,
    "error": null,
    "simulated": {},
    "networkAttempts": 0
   },
   {
-   "name": "Changement de type de bail : accord invalidé",
+   "name": "Date de fin envoyée seule : ignorée, accord conservé",
    "passed": true,
    "error": null,
    "simulated": {},
