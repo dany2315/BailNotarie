@@ -1,5 +1,6 @@
 "use server";
 
+import { actionErrorMessage } from "@/lib/utils/action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -1432,7 +1433,7 @@ async function missingDocumentsIfAccepted(bailId: string, target: ReminderTarget
       }
       rows = await missingBlockingDocuments(bailId, target, tx);
       throw new SimulationRollback();
-    });
+    }, { timeout: 20000, maxWait: 10000 }); // simulation : plusieurs lectures, base parfois lente
   } catch (error) {
     if (!(error instanceof SimulationRollback)) throw error;
   }
@@ -1479,6 +1480,28 @@ export async function answerComplementField(
       },
     });
 
+    // La réponse est enregistrée. La suite (pièces que cette réponse rendrait obligatoires) est un complément :
+    // si elle échoue (base lente), la réponse reste un succès et la liste sera recalculée à la réponse suivante
+    // ou à l'envoi. Le client ne doit jamais lire « Non enregistré » pour une réponse enregistrée.
+    let added: { label: string }[] = [];
+    try {
+      added = await addDocumentsRequiredByAnswers(item, ref, before);
+    } catch (error) {
+      console.error("[complement-requests] pièces induites par la réponse, recalcul reporté", error);
+    }
+
+    revalidateClient(item.requestId);
+    revalidateBail(item.request.bailId);
+    return { success: true, data: { addedDocuments: added.map((row) => row.label) } };
+  } catch (error: any) {
+    console.error("[complement-requests] réponse", error);
+    return { success: false, error: actionErrorMessage(error) };
+  }
+}
+
+/** Pièces que les réponses en attente d'une demande rendraient obligatoires : ajoutées, ou retirées si inutiles. */
+async function addDocumentsRequiredByAnswers(item: any, ref: QuestionRef, before: Map<string, unknown>) {
+  {
     // Pièces que cette réponse (et les autres réponses en attente de la demande) rendrait obligatoires :
     // ajoutées à la demande, déjà rattachées au bon endroit.
     const lines = await prisma.complementRequestItem.findMany({
@@ -1513,13 +1536,7 @@ export async function answerComplementField(
         !after.has(complementItemKey(line)),
     );
     if (obsolete.length > 0) await prisma.complementRequestItem.deleteMany({ where: { id: { in: obsolete.map((line) => line.id) } } });
-
-    revalidateClient(item.requestId);
-    revalidateBail(item.request.bailId);
-    return { success: true, data: { addedDocuments: added.map((row) => row.label) } };
-  } catch (error: any) {
-    console.error("[complement-requests] réponse", error);
-    return { success: false, error: error?.message || "Enregistrement impossible" };
+    return added;
   }
 }
 
