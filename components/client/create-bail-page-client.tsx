@@ -1,5 +1,6 @@
 "use client";
 
+import { useStepBackGesture } from "@/hooks/use-step-back-gesture";
 import { unwrapAction } from "@/lib/utils/action-error";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -322,6 +323,9 @@ export function CreateBailPageClient({
       router.back();
     }
   }, [step, router, bailPart, watch]);
+
+  // Geste « retour » du téléphone : recule d'une étape comme la flèche (M9, validé le 17/11/2026)
+  useStepBackGesture(`${step}:${bailPart}`, step > 0 || bailPart === "charges", handleBack);
 
   const startCommercial = async () => {
     setIsStartingCommercial(true);

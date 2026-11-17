@@ -1,5 +1,6 @@
 "use client";
 
+import { useStepBackGesture } from "@/hooks/use-step-back-gesture";
 import { unwrapAction } from "@/lib/utils/action-error";
 import React from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
@@ -1387,6 +1388,9 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return target;
     });
   };
+
+  // Geste « retour » du téléphone : recule d'une étape comme la flèche (M9, validé le 17/11/2026)
+  useStepBackGesture(`${currentStep}:${clientInfoPersonIdx}`, currentStep > 0 || clientInfoPersonIdx > 0, handlePrevious);
 
   const handleManualSave = async () => {
     try {

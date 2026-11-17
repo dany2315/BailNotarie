@@ -1,5 +1,6 @@
 "use client";
 
+import { useStepBackGesture } from "@/hooks/use-step-back-gesture";
 import { unwrapAction } from "@/lib/utils/action-error";
 import React, {
   useEffect,
@@ -2204,6 +2205,9 @@ useEffect(() => {
       return target;
     });
   };
+
+  // Geste « retour » du téléphone : recule d'une étape comme la flèche (M9, validé le 17/11/2026)
+  useStepBackGesture(`${currentStep}:${clientInfoPersonIdx}`, currentStep > 0 || clientInfoPersonIdx > 0, handlePrevious);
 
   const handleManualSave = async () => {
     const stepId = STEPS[currentStep].id;
