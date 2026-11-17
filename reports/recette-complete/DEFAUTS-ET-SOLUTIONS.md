@@ -132,8 +132,8 @@ Rien n'est encore vérifié à l'écran après correction ; chaque correction le
 dans l'espace de l'équipe ; l'identifiant du dossier figure dans les adresses envoyées à Google (PUB, ADM-2).
 Conséquences : les navigateurs de test ont envoyé des pages vues à Google pendant la recette (visites sur
 `localhost`, comptes fictifs), et en production les vrais visiteurs sont mesurés sans consentement.
-Solution proposée : bandeau de consentement avant tout chargement, et aucune mesure dans `/interface`,
-`/client`, `/notaire` et les formulaires. **Décision.**
+**Fait le 17/11** (décision validée) : bandeau de consentement avant tout chargement, aucune mesure dans
+`/interface`, `/client`, `/notaire`, `/intakes`, `/login` et le tunnel `/commencer/…`, lien « Gérer les cookies ». Vérifié à l'écran.
 
 ## 5. Dus au montage de test (non retenus)
 
