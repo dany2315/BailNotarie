@@ -149,6 +149,32 @@ const personsArraySchema = z.preprocess(
   z.array(z.object(personFieldsSchema)).optional()
 );
 
+/**
+ * Personnes d'un client créé par l'équipe (« Nouveau client complet ») : seuls le nom, le prénom et l'e-mail sont
+ * exigés ; le client complète le reste dans son formulaire (décision de l'utilisateur du 17/11/2026, M14).
+ * Les formulaires du propriétaire et du locataire gardent leurs exigences (personsArraySchema).
+ */
+const teamPersonsArraySchema = z.preprocess(
+  (val) => {
+    if (typeof val === "string") {
+      try {
+        return JSON.parse(val);
+      } catch (error) {
+        return [];
+      }
+    }
+    return val;
+  },
+  z
+    .array(
+      z.object(personFieldsSchema).partial().extend({
+        firstName: personFieldsSchema.firstName,
+        lastName: personFieldsSchema.lastName,
+      }),
+    )
+    .optional()
+);
+
 // Schéma pour les champs de contact avec email requis
 const contactFieldsSchemaWithRequiredEmail = {
   phone: z.string()
@@ -513,7 +539,7 @@ export const createOwnerPhysicalClientSchema = z.object({
   profilType: z.literal(ProfilType.PROPRIETAIRE).default(ProfilType.PROPRIETAIRE),
   ...physicalPersonFieldsSchema,
   ...contactFieldsSchemaWithRequiredEmail,
-  persons: personsArraySchema,
+  persons: teamPersonsArraySchema,
 });
 
 // Schéma pour client personne morale PROPRIETAIRE complet
@@ -522,7 +548,7 @@ export const createOwnerLegalClientSchema = z.object({
   profilType: z.literal(ProfilType.PROPRIETAIRE),
   ...legalPersonFieldsSchema,
   ...contactFieldsSchemaWithRequiredEmail,
-  persons: personsArraySchema,
+  persons: teamPersonsArraySchema,
 });
 
 // Schéma pour client LOCATAIRE (minimum requis)
