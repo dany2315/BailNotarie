@@ -2,6 +2,7 @@
 // ne sont appelées que depuis savePartialIntake (lib/actions/intakes.ts), qui a déjà validé le
 // lien ; exposées en server actions, elles seraient appelables depuis le navigateur.
 
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ClientType, ProfilType, CompletionStatus, BailType, BailFamille, BailStatus, PropertyStatus, EnergyClass } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -1118,6 +1119,11 @@ async function validateOwnerEmails(intakeLink: any, payload: any, clientId: stri
 async function validateTenantEmailForOwner(intakeLink: any, payload: any, clientId: string) {
   const tenantEmailToCheck = payload.tenantEmail.trim().toLowerCase();
   const ownerEmail = payload.email?.trim().toLowerCase();
+
+  // Adresse mal formée : refusée avant tout enregistrement, donc avant toute invitation
+  if (!z.string().email().safeParse(tenantEmailToCheck).success) {
+    throw new Error("L'adresse e-mail du locataire n'est pas valide. Vérifiez-la, par exemple prenom.nom@exemple.fr.");
+  }
 
   if (ownerEmail === tenantEmailToCheck) {
     throw new Error(

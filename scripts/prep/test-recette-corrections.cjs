@@ -61,6 +61,29 @@ suite('Corrections de la recette au navigateur', path.join(__dirname, '../../rep
     for (const d of [m.docProprio, m.docLocataire, m.docReponse]) assert(await access(r).accessibleDocument(d.id, 'read'));
   });
 
+  /* ---------- M1 + M4 : erreurs lisibles, e-mail du locataire contrôlé ---------- */
+
+  await test('M1 — les erreurs des actions sont renvoyées en français, sans texte technique', async (tx, r) => {
+    const { actionErrorMessage, guardAction } = r.load('lib/utils/action-error.ts');
+    assert.equal(actionErrorMessage(new Error('Cet email est déjà utilisé.')), 'Cet email est déjà utilisé.');
+    const prisma = Object.assign(new Error('Invalid `prisma.bail.findUnique()` invocation: Transaction API error'), { name: 'PrismaClientKnownRequestError', code: 'P2028' });
+    assert(!/prisma|invocation/i.test(actionErrorMessage(prisma)), 'texte technique transmis');
+    assert.equal(actionErrorMessage({ issues: [{ message: 'Le jour de paiement est requis' }, { message: 'Invalid input: expected string, received undefined' }] }), 'Le jour de paiement est requis');
+    const res = await guardAction(async () => { throw new Error('Refus clair'); });
+    assert.equal(res.__actionError, 'Refus clair');
+  });
+
+  await test('M4 — étape « Locataire » : une adresse mal formée est refusée, rien n’est créé ni envoyé', async (tx, r, f) => {
+    const handlers = r.load('lib/actions/intake-handlers.ts');
+    const avant = await tx.client.count();
+    await assert.rejects(
+      () => handlers.handleOwnerTenantStep(f.intake, { tenantEmail: 'pas-un-mail', email: 'proprio@example.invalid', bailEffectiveDate: '2027-02-01', bailPaymentDay: '5' }, f.owner.id),
+      /n'est pas valide/,
+    );
+    assert.equal(await tx.client.count(), avant, 'un locataire a été créé');
+    assert.equal(r.state.suppressed.email || 0, 0, 'une invitation a été déclenchée');
+  });
+
   /* ---------- B2 + B3 : locataire entreprise, adresse de l'invitation ---------- */
 
   const intakeTenant = (tx, f) => tx.intakeLink.findFirstOrThrow({ where: { id: f.tenantIntake.id }, include: { client: { include: { persons: true, entreprise: true } } } });
