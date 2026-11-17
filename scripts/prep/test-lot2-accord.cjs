@@ -128,7 +128,8 @@ suite('Lot 2 — accord du locataire', path.join(__dirname, '../../reports/prep/
     assert.equal(bail.tenantConfirmedById, f.tenant.id);
     assert.equal(bail.tenantReconfirmationRequestedAt, null);
     assert.equal((await history(tx, f)).length, 1, 'l’ancien accord doit rester consultable');
-    assert.deepEqual(r.state.suppressed, {}, 'aucun e-mail ni notification ne doit partir');
+    // M15 (décision du 17/11/2026) : un seul e-mail au locataire, déclenché par la modification ; sa confirmation n'envoie rien.
+    assert.equal(JSON.stringify(r.state.suppressed), JSON.stringify({ triggerTenantReconfirmationEmail: 1 }), 'seul l’e-mail unique de reconfirmation doit partir');
   });
 
   await test('Confirmation sur des conditions périmées : refusée', async (tx, r, f) => {

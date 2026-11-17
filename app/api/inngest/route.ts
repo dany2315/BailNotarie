@@ -15,6 +15,7 @@ import {
 } from "@/lib/inngest/functions/completion-status";
 import { sendCompletionStatusEmail } from "@/lib/inngest/functions/completion-status-email";
 import { syncIrl } from "@/lib/inngest/functions/irl";
+import { sendTenantReconfirmation } from "@/lib/inngest/functions/tenant-reconfirmation";
 import { NextRequest } from "next/server";
 
 const handler = serve({
@@ -39,6 +40,7 @@ const handler = serve({
     calculateCompletionStatuses,
     sendCompletionStatusEmail,
     syncIrl,
+    sendTenantReconfirmation,
   ],
 });
 

@@ -23,7 +23,8 @@ export {
   type AgreementField,
   type AgreementTerms,
 } from "@/lib/bail/agreement-terms";
-import { agreementChanges, agreementTerms, type AgreementChange, type AgreementTerms } from "@/lib/bail/agreement-terms";
+import { AGREEMENT_FIELD_LABELS, agreementChanges, agreementTerms, type AgreementChange, type AgreementTerms } from "@/lib/bail/agreement-terms";
+import { triggerTenantReconfirmationEmail } from "@/lib/inngest/helpers";
 
 const AGREEMENT_SELECT = {
   id: true,
@@ -135,6 +136,7 @@ export async function settleTenantAgreement(
       invalidatedByName: actor.name,
     },
   });
+  const requestedAt = after.tenantId ? new Date() : null;
   await tx.bail.update({
     where: { id: bailId },
     data: {
@@ -142,9 +144,20 @@ export async function settleTenantAgreement(
       tenantConfirmedTerms: Prisma.DbNull,
       tenantConfirmedById: null,
       // Sans locataire sur le dossier, il n'y a personne à qui redemander pour l'instant.
-      tenantReconfirmationRequestedAt: after.tenantId ? new Date() : null,
+      tenantReconfirmationRequestedAt: requestedAt,
     },
   });
+  // Un seul e-mail au locataire, sans relance (M15). Seulement quand les conditions changent : un nouveau
+  // locataire reçoit déjà son invitation à remplir le formulaire. La tâche de fond vérifie, une minute plus
+  // tard, que la demande est toujours en cours (modification annulée, déjà reconfirmée → rien n'est envoyé).
+  // Un échec d'envoi ne bloque jamais la modification.
+  if (requestedAt && reason === TenantAgreementEndReason.TERMS_CHANGED) {
+    await triggerTenantReconfirmationEmail({
+      bailId,
+      requestedAt: requestedAt.toISOString(),
+      changedLabels: changes.map((change) => AGREEMENT_FIELD_LABELS[change.field]),
+    }).catch((error) => console.error("[tenant-agreement] e-mail de reconfirmation", error));
+  }
   return { invalidated: true, reason, changes };
 }
 

@@ -53,6 +53,18 @@ export async function triggerContactNotificationEmail(data: {
 }
 
 /**
+ * E-mail unique au locataire : ses conditions ont changé, il doit les reconfirmer (M15). L'identifiant
+ * d'événement empêche un double envoi pour la même demande.
+ */
+export async function triggerTenantReconfirmationEmail(data: { bailId: string; requestedAt: string; changedLabels: string[] }) {
+  await inngest.send({
+    id: `tenant-reconfirmation-${data.bailId}-${data.requestedAt}`,
+    name: "email/tenant-reconfirmation.send",
+    data,
+  });
+}
+
+/**
  * Déclenche l'envoi d'un email de notification
  */
 export async function triggerNotificationEmail(data: {
