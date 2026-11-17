@@ -1,7 +1,7 @@
 {
  "suite": "Corrections de la recette au navigateur",
- "createdAt": "2026-11-17T15:11:17.256Z",
- "passed": 24,
+ "createdAt": "2026-11-17T16:45:59.820Z",
+ "passed": 28,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
@@ -178,6 +178,34 @@
   },
   {
    "name": "M15 — sauvegarde sans changement réel : ni reconfirmation ni e-mail",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "m2 — règle : hier refusé ; aujourd’hui et demain acceptés ; date déjà enregistrée inchangée acceptée",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "m2 — fiche de l’équipe : nouvelle date passée refusée ; un autre champ se modifie sur un bail déjà commencé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "m2 — formulaire propriétaire, étape « Locataire » : date passée refusée, rien n’est créé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "m2 — nouveau client complet de l’équipe : date passée refusée avant toute création",
    "passed": true,
    "error": null,
    "simulated": {},

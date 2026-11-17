@@ -288,4 +288,52 @@ suite('Corrections de la recette au navigateur', path.join(__dirname, '../../rep
     assert((await tx.bail.findUnique({ where: { id: f.bail.id } })).tenantConfirmedTermsAt, 'accord retiré sans changement');
     assert.equal(r.state.suppressed.triggerTenantReconfirmationEmail || 0, 0);
   });
+
+  /* ---------- m2 : date de prise d'effet dans le passé refusée ---------- */
+
+  const jour = (decalage) => new Date(Date.now() + decalage * 86400000).toISOString().slice(0, 10);
+
+  await test('m2 — règle : hier refusé ; aujourd’hui et demain acceptés ; date déjà enregistrée inchangée acceptée', async (tx, r) => {
+    const { effectiveDateInPast, todayInFrance } = r.load('lib/bail/dates.ts');
+    const auj = todayInFrance();
+    const veille = new Date(new Date(auj + 'T00:00:00Z').getTime() - 86400000).toISOString().slice(0, 10);
+    assert.equal(effectiveDateInPast(veille), true, 'la veille est acceptée');
+    assert.equal(effectiveDateInPast(auj), false, 'aujourd’hui est refusé');
+    assert.equal(effectiveDateInPast(jour(30)), false);
+    assert.equal(effectiveDateInPast('2021-05-01', new Date('2021-05-01T00:00:00Z')), false, 'date ancienne inchangée refusée');
+    assert.equal(effectiveDateInPast('2021-06-01', new Date('2021-05-01T00:00:00Z')), true, 'nouvelle date passée acceptée');
+  });
+
+  await test('m2 — fiche de l’équipe : nouvelle date passée refusée ; un autre champ se modifie sur un bail déjà commencé', async (tx, r, f) => {
+    await tx.bail.update({ where: { id: f.bail.id }, data: { bailType: 'BAIL_NU_3_ANS', effectiveDate: new Date('2025-02-01T00:00:00Z'), endDate: new Date('2028-02-01T00:00:00Z') } });
+    r.state.user = f.admin;
+    const refus = await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { effectiveDate: '2025-03-01' } });
+    assert.equal(refus.success, false);
+    assert.match(refus.error, /ne peut pas être dans le passé/);
+    assert.equal(ymd((await tx.bail.findUnique({ where: { id: f.bail.id } })).effectiveDate), '2025-02-01', 'la date a changé malgré le refus');
+    const loyer = await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { rentAmount: '620' } });
+    assert(loyer.success, loyer.error);
+    const avenir = await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { effectiveDate: jour(20) } });
+    assert(avenir.success, avenir.error);
+  });
+
+  await test('m2 — formulaire propriétaire, étape « Locataire » : date passée refusée, rien n’est créé', async (tx, r, f) => {
+    const handlers = r.load('lib/actions/intake-handlers.ts');
+    const avant = await tx.client.count();
+    await assert.rejects(
+      () => handlers.handleOwnerTenantStep(f.intake, { tenantEmail: crypto.randomUUID() + '@example.invalid', bailEffectiveDate: '2024-01-15', bailPaymentDay: '5' }, f.owner.id),
+      /ne peut pas être dans le passé/,
+    );
+    assert.equal(await tx.client.count(), avant, 'un locataire a été créé');
+  });
+
+  await test('m2 — nouveau client complet de l’équipe : date passée refusée avant toute création', async (tx, r) => {
+    const clients = r.load('lib/actions/clients.ts');
+    const avant = await tx.client.count();
+    await assert.rejects(
+      () => clients.createFullClient({ type: 'PERSONNE_PHYSIQUE', profilType: 'PROPRIETAIRE', firstName: 'Léa', lastName: 'Martin', email: crypto.randomUUID() + '@example.invalid', propertyFullAddress: 'TEST — 1 rue de l’Essai', bailRentAmount: '650', bailMonthlyCharges: '50', bailSecurityDeposit: '650', bailEffectiveDate: '2023-04-01' }),
+      /ne peut pas être dans le passé/,
+    );
+    assert.equal(await tx.client.count(), avant, 'un client a été créé');
+  });
 });
