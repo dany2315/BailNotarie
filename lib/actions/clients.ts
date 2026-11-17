@@ -2,6 +2,7 @@
 
 import { guardAction } from "@/lib/utils/action-error";
 import { prisma } from "@/lib/prisma";
+import { ownerMissingDocumentLabels } from "@/lib/owner-documents";
 import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { requireIntakeSession } from "@/lib/intake-session";
 import { 
@@ -612,41 +613,20 @@ async function assertOwnerDocuments(input: {
   subdivisionOver10Years?: string | null;
   inShoppingCenter?: string | null;
 }) {
-  const client = await prisma.client.findUnique({
-    where: { id: input.clientId },
-    include: {
-      persons: { orderBy: { isPrimary: "desc" }, include: { documents: { select: { kind: true } } } },
-      entreprise: { include: { documents: { select: { kind: true } } } },
-      documents: { select: { kind: true } },
-    },
-  });
-  if (!client) throw new Error("Client introuvable.");
-  const [propertyDocs, bailDocs] = await Promise.all([
-    input.propertyId ? prisma.document.findMany({ where: { propertyId: input.propertyId }, select: { kind: true } }) : [],
-    input.bailId ? prisma.document.findMany({ where: { bailId: input.bailId }, select: { kind: true } }) : [],
-  ]);
   const shoppingCenter = shoppingCenterFromAnswer(input.inShoppingCenter);
-  const rules = ownerDocumentRequirements({
-    clientType: client.type,
-    persons: client.persons,
-    entreprise: client.entreprise,
+  // Même règle que la création de l'ordre de paiement (lib/owner-documents.ts)
+  const missing = await ownerMissingDocumentLabels({
+    clientId: input.clientId,
+    propertyId: input.propertyId,
+    bailId: input.bailId,
     bailFamily: input.bailFamily,
     property: {
       legalStatus: input.legalStatus,
       subdivisionOver10Years: input.subdivisionOver10Years,
-      // Seule la pièce obligatoire du bail commercial compte ici : le règlement du centre commercial.
       inShoppingCenter: shoppingCenter.inShoppingCenter,
       complexType: shoppingCenter.complexType,
     },
   });
-  const provided = {
-    persons: client.persons.map((person) => person.documents),
-    client: client.documents,
-    entreprise: client.entreprise?.documents ?? [],
-    property: propertyDocs,
-    bail: bailDocs,
-  };
-  const missing = missingDocuments(rules, (rule) => isDocumentProvided(rule, provided)).map((rule) => rule.label);
 
   if (missing.length > 0) {
     throw new Error(`Pièces manquantes : ${missing.join(", ")}. Ajoutez-les avant d'envoyer le formulaire.`);

@@ -1,7 +1,7 @@
 {
  "suite": "Lot 1 — paiements",
- "createdAt": "2026-11-16T16:02:05.918Z",
- "passed": 30,
+ "createdAt": "2026-11-17T12:37:10.801Z",
+ "passed": 32,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
@@ -41,6 +41,24 @@
    "error": null,
    "simulated": {
     "stripe.retrieve": 2
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Pièce obligatoire manquante : aucun ordre créé ni remis à régler, message qui la nomme",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Pièce manquante mais paiement déjà réussi : jamais bloqué (l’envoi revérifie les pièces)",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1
    },
    "networkAttempts": 0
   },

@@ -1,13 +1,22 @@
 // Lot 1 — paiements : vérification serveur, erreurs et interruptions, webhook, réutilisation, reprise.
 // Stripe est simulé (harness.cjs) : aucun appel réel, aucun débit.
 const path = require('path');
-const { test, suite, assert, crypto } = require('./harness.cjs');
+const { strict, test, suite, assert, crypto } = require('./harness.cjs');
 
 const HAB = 3990, COM = 5990;
-const route = async (r, token) =>
+/** Pièces obligatoires du propriétaire (fichiers fictifs) : exigées avant tout ordre de paiement (M7). */
+async function ownerPieces(r, token) {
+  const link = await r.db.intakeLink.findUnique({ where: { token }, select: { clientId: true, propertyId: true, target: true } });
+  if (!link || link.target !== 'OWNER') return;
+  const person = await r.db.person.findFirst({ where: { clientId: link.clientId } });
+  const has = async (where) => (await r.db.document.count({ where })) > 0;
+  if (person && !(await has({ personId: person.id, kind: 'ID_IDENTITY' }))) await r.db.document.create({ data: { kind: 'ID_IDENTITY', fileKey: 'documents/test-id', personId: person.id } });
+  for (const kind of ['DIAGNOSTICS', 'TITLE_DEED']) if (link.propertyId && !(await has({ propertyId: link.propertyId, kind }))) await r.db.document.create({ data: { kind, fileKey: 'documents/test-' + kind, propertyId: link.propertyId } });
+}
+const route = async (r, token, { pieces = true } = {}) => (pieces && (await ownerPieces(r, token)),
   r.load('app/api/stripe/create-payment-intent/route.ts').POST(
     new Request('http://localhost:3000/api/stripe/create-payment-intent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }),
-  );
+  ));
 const bailRoute = async (r) =>
   r.load('app/api/stripe/create-payment-intent-bail/route.ts').POST(new Request('http://localhost:3000/api/stripe/create-payment-intent-bail', { method: 'POST' }));
 const pay = (r) => r.load('lib/payments/dossier-payment.ts');
@@ -82,6 +91,25 @@ suite('Lot 1 — paiements', path.join(__dirname, '../../reports/prep/tests-lot1
     r.state.stripe.failRetrieve = true;
     await route(r, f.intake.token);
     assert.equal((await tx.dossierPayment.findUnique({ where: { stripePaymentIntentId: it.id } })).status, 'SUCCEEDED');
+  });
+
+  // M7 (recette du 17/11) : une pièce supprimée après l'étape « Documents » ne doit pas mener au paiement.
+  await test('Pièce obligatoire manquante : aucun ordre créé ni remis à régler, message qui la nomme', async (tx, r, f) => {
+    const res = await route(r, f.intake.token, { pieces: false });
+    assert.equal(res.status, 400);
+    assert.match((await res.json()).error, /Pièces manquantes/);
+    assert.equal(r.state.stripe.created, 0);
+    const it = intent(r, f, { status: 'requires_payment_method' });
+    await linkIntake(tx, f, it.id);
+    const again = await route(r, f.intake.token, { pieces: false });
+    assert.equal(again.status, 400, 'un ordre existant non payé ne doit pas être remis à régler');
+  });
+
+  await test('Pièce manquante mais paiement déjà réussi : jamais bloqué (l’envoi revérifie les pièces)', async (tx, r, f) => {
+    const it = intent(r, f, { status: 'succeeded', amount_received: HAB });
+    await linkIntake(tx, f, it.id);
+    const body = await (await route(r, f.intake.token, { pieces: false })).json();
+    assert.equal(body.alreadyPaid, true);
   });
 
   await test('Ordre non payé, même montant : repris tel quel, rien de créé', async (tx, r, f) => {
@@ -235,7 +263,7 @@ suite('Lot 1 — paiements', path.join(__dirname, '../../reports/prep/tests-lot1
 
   await test('createLease appelée directement avec le paiement d’un autre compte, non réglé ou inventé : refus, rien de payé', async (tx, r, f) => {
     r.state.user = f.ownerUser;
-    const leases = r.load('lib/actions/leases.ts');
+    const leases = strict(r, 'lib/actions/leases.ts');
     const data = { propertyId: f.property.id, leaseType: 'HABITATION', bailType: 'BAIL_NU_3_ANS', rentAmount: '600', monthlyCharges: '50', securityDeposit: '600', effectiveDate: '2027-02-01', paymentDay: '5', status: 'DRAFT' };
     await tx.bail.update({ where: { id: f.bail.id }, data: { status: 'TERMINATED', endDate: new Date('2026-01-01') } });
     const before = await tx.bail.count();
@@ -248,7 +276,7 @@ suite('Lot 1 — paiements', path.join(__dirname, '../../reports/prep/tests-lot1
 
   await test('createLease avec paiement valide : bail payé, historique unique ; rejeu du même paiement : refus sans second bail', async (tx, r, f) => {
     r.state.user = f.ownerUser;
-    const leases = r.load('lib/actions/leases.ts');
+    const leases = strict(r, 'lib/actions/leases.ts');
     const data = { propertyId: f.property.id, leaseType: 'HABITATION', bailType: 'BAIL_NU_3_ANS', rentAmount: '600', monthlyCharges: '50', securityDeposit: '600', effectiveDate: '2027-02-01', paymentDay: '5', status: 'DRAFT' };
     await tx.bail.update({ where: { id: f.bail.id }, data: { status: 'TERMINATED', endDate: new Date('2026-01-01') } });
     const it = userIntent(r, f, f.ownerUser);

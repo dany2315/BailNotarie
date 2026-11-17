@@ -4,6 +4,7 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { dossierFeeCents, formatDossierFee } from "@/lib/utils/dossier-fee";
 import { FEE_CURRENCY, feeIdempotencyKey, lookupIntent, recordIntent } from "@/lib/payments/dossier-payment";
+import { ownerMissingDocumentLabels } from "@/lib/owner-documents";
 
 /** Le paiement existe mais son résultat n'est pas encore connu : on attend, sans rien créer. */
 const PENDING_VERIFICATION =
@@ -30,9 +31,13 @@ export async function POST(req: NextRequest) {
         id: true,
         status: true,
         clientId: true,
+        target: true,
+        propertyId: true,
+        bailId: true,
         stripePaymentIntentId: true,
         bailFamilyPreference: true,
         bail: { select: { bailFamily: true } },
+        property: { select: { legalStatus: true, subdivisionOver10Years: true, inShoppingCenter: true, complexType: true } },
         client: {
           select: {
             persons: { select: { email: true, firstName: true, lastName: true }, take: 1 },
@@ -64,6 +69,25 @@ export async function POST(req: NextRequest) {
     const amount = dossierFeeCents(bailFamily);
     const link = { intakeLinkId: intakeLink.id };
     const previousId = intakeLink.stripePaymentIntentId;
+
+    // Pièces obligatoires relues en base avant de remettre un ordre de paiement à régler : une pièce supprimée
+    // après l'étape « Documents » (page restée sur l'ancienne liste) ne doit pas mener au paiement.
+    // Un paiement déjà fait n'est jamais bloqué ici : l'envoi du formulaire revérifie les pièces.
+    const missingDocuments =
+      intakeLink.target === "OWNER" && intakeLink.clientId
+        ? await ownerMissingDocumentLabels({
+            clientId: intakeLink.clientId,
+            propertyId: intakeLink.propertyId,
+            bailId: intakeLink.bailId,
+            bailFamily,
+            property: intakeLink.property ?? {},
+          })
+        : [];
+    const missingDocumentsResponse = () =>
+      NextResponse.json(
+        { error: `Pièces manquantes : ${missingDocuments.join(", ")}. Revenez à l'étape « Documents » pour les ajouter avant de payer.` },
+        { status: 400 },
+      );
 
     if (previousId) {
       const lookup = await lookupIntent(previousId);
@@ -99,6 +123,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (existing.status !== "canceled") {
+          if (missingDocuments.length > 0) return missingDocumentsResponse();
           // Pas encore payé (moyen de paiement ou confirmation attendus) : on reprend le même ordre,
           // au montant du type de bail actuel (le propriétaire a pu passer d'habitation à commercial).
           const changes: { receipt_email?: string; amount?: number } = {};
@@ -126,6 +151,8 @@ export async function POST(req: NextRequest) {
       }
       // « missing » : la référence ne correspond à aucun paiement chez Stripe, on repart d'un nouvel ordre.
     }
+
+    if (missingDocuments.length > 0) return missingDocumentsResponse();
 
     // Nouvel ordre de paiement. La clé d'idempotence fait que deux requêtes identiques (double clic,
     // onglets, nouvel essai après coupure) reçoivent le même ordre au lieu d'en créer deux.
