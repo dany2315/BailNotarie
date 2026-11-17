@@ -31,6 +31,33 @@ export function effectiveDateGiven(bail: { effectiveDate?: MaybeDate; paymentDay
   return day(bail.effectiveDate) !== day(bail.createdAt);
 }
 
+/** Message commun : date de prise d'effet antérieure à aujourd'hui (décision de l'utilisateur du 17/11/2026, m2). */
+export const EFFECTIVE_DATE_IN_PAST = "La date de prise d'effet ne peut pas être dans le passé : choisissez aujourd'hui ou une date à venir.";
+
+/** Jour d'aujourd'hui en France, au format AAAA-MM-JJ (celui des champs de date). */
+export function todayInFrance(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+/**
+ * La date de prise d'effet saisie est-elle dans le passé ? Aujourd'hui est accepté.
+ *
+ * Seule une date nouvelle ou modifiée est refusée : avec `previous` (la date déjà enregistrée), une date
+ * inchangée passe toujours, pour ne jamais bloquer un dossier existant dont la date est entre-temps passée
+ * (bail déjà en cours, modification d'un autre champ par l'équipe…).
+ */
+export function effectiveDateInPast(value: MaybeDate, previous?: MaybeDate, now: Date = new Date()): boolean {
+  const given = day(value);
+  if (!given) return false;
+  if (previous !== undefined && given === day(previous)) return false;
+  return given < todayInFrance(now);
+}
+
+/** Même contrôle, qui lève l'erreur à afficher. */
+export function assertEffectiveDateNotPast(value: MaybeDate, previous?: MaybeDate): void {
+  if (effectiveDateInPast(value, previous)) throw new Error(EFFECTIVE_DATE_IN_PAST);
+}
+
 export const DATES_REQUIRED_WITH_TENANT = "Avec un locataire, indiquez la date de prise d'effet et le jour de paiement.";
 
 /** Ce qu'il manque quand un locataire est connu (liste vide = rien ne manque). */

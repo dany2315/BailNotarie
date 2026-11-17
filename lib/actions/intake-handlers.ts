@@ -17,7 +17,7 @@ import { euros } from "@/lib/utils/rent-relocation";
 import { commercialTermsFromForm, entrepriseCommercialFields } from "@/lib/utils/commercial-terms";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
-import { DATES_REQUIRED_WITH_TENANT, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
+import { DATES_REQUIRED_WITH_TENANT, assertEffectiveDateNotPast, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
 import { computeBailEndDate } from "@/lib/utils/bail-duration";
 
 /**
@@ -450,7 +450,10 @@ export async function handleOwnerBailStep(
       if (monthlyCharges !== undefined) updateData.monthlyCharges = monthlyCharges;
       const securityDeposit = toInt(payload.bailSecurityDeposit);
       if (securityDeposit !== undefined) updateData.securityDeposit = securityDeposit;
-      if (payload.bailEffectiveDate) updateData.effectiveDate = new Date(payload.bailEffectiveDate);
+      if (payload.bailEffectiveDate) {
+        updateData.effectiveDate = new Date(payload.bailEffectiveDate);
+        assertEffectiveDateNotPast(updateData.effectiveDate, intakeLink.bail.effectiveDate ?? null);
+      }
       if (payload.bailEndDate) updateData.endDate = new Date(payload.bailEndDate);
       if (payload.bailPaymentDay !== undefined) {
         updateData.paymentDay = typeof payload.bailPaymentDay === 'string'
@@ -471,6 +474,7 @@ export async function handleOwnerBailStep(
       if (!propertyId) {
         throw new Error("PropertyId manquant pour créer le bail");
       }
+      if (payload.bailEffectiveDate) assertEffectiveDateNotPast(new Date(payload.bailEffectiveDate));
 
       const newBail = await tx.bail.create({
         data: {
@@ -557,6 +561,7 @@ export async function handleOwnerTenantStep(
   if (missingTenantDates({ effectiveDate: tenantEffectiveDate, paymentDay: tenantPaymentDay }).length > 0) {
     throw new Error(DATES_REQUIRED_WITH_TENANT);
   }
+  assertEffectiveDateNotPast(tenantEffectiveDate, intakeLink.bail?.effectiveDate ?? null);
   // Date de fin : celle calculée par l'écran, sinon recalculée ici (type de bail + date de prise d'effet).
   const sentEndDate = payload.bailEndDate ? new Date(payload.bailEndDate) : null;
   const tenantEndDate =

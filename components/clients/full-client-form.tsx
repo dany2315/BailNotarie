@@ -28,6 +28,7 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
 
+import { todayInFrance } from "@/lib/bail/dates";
 // Composant séparé pour la validation du dépôt de garantie (évite les re-renders)
 const BailSecurityDepositValidation = ({ control }: { control: any }) => {
   const bailType = useWatch({ control, name: "bailType" });
@@ -844,6 +845,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                       value={field.value as string | undefined}
                       onChange={field.onChange}
                       onBlur={field.onBlur}
+                      minDate={todayInFrance()}
                       disabled={isLoading}
                       aria-invalid={!!form.formState.errors.bailEffectiveDate}
                     />

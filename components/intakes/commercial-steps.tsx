@@ -21,6 +21,7 @@ import { DateInput } from "@/components/ui/date-picker";
 import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentUploaded } from "./document-uploaded";
 import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
+import { todayInFrance } from "@/lib/bail/dates";
 import {
   CHARGE_ITEMS,
   CLAUSE_OPTIONS,
@@ -350,6 +351,7 @@ export function CommercialDurationStep({
               value={field.value ? dateValue(field.value) : undefined}
               onChange={(val) => field.onChange(val || "")}
               onBlur={field.onBlur}
+              minDate={todayInFrance()}
               aria-invalid={!!form.formState.errors.bailEffectiveDate}
             />
           )}

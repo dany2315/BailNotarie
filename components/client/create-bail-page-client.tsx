@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { todayInFrance } from "@/lib/bail/dates";
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 const schema = z.object({
@@ -891,6 +892,7 @@ export function CreateBailPageClient({
                     value={field.value}
                     onChange={field.onChange}
                     onBlur={field.onBlur}
+                    minDate={todayInFrance()}
                     className="h-11"
                     aria-invalid={!!errors.effectiveDate}
                   />

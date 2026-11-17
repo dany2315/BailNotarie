@@ -19,7 +19,7 @@ import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/ac
 import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
 import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
 import { HISTORICAL_PAYMENT_SELECT, PAID_WHERE, UNPAID_WHERE, isBailPaid, paymentKind } from "@/lib/payments/paid";
-import { DATES_REQUIRED_WITH_TENANT, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
+import { DATES_REQUIRED_WITH_TENANT, assertEffectiveDateNotPast, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
 import { computeBailEndDate } from "@/lib/utils/bail-duration";
 import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
 
@@ -107,6 +107,11 @@ async function createLeaseUnguarded(data: unknown, paymentIntentId?: string, dra
   const validated = createLeaseSchema.parse(data);
   // Seuls l'équipe et les propriétaires créent un bail.
   if (!STAFF_ROLES.includes(user.role)) await requireProprietaireAuth();
+  // Date de prise d'effet passée refusée (sauf date déjà enregistrée sur le brouillon), avant tout autre effet.
+  const draftDate = draftBailId
+    ? (await prisma.bail.findUnique({ where: { id: draftBailId }, select: { effectiveDate: true } }))?.effectiveDate ?? null
+    : undefined;
+  assertEffectiveDateNotPast(validated.effectiveDate, draftDate);
   const paidIntent = paymentIntentId ? await assertBailPayment(paymentIntentId, user.id, draftBailId) : null;
 
   // Récupérer le propriétaire du bien
@@ -365,6 +370,7 @@ export async function updateLease(data: unknown) {
   if (!bail) {
     throw new Error("Bail introuvable");
   }
+  if (updateData.effectiveDate) assertEffectiveDateNotPast(updateData.effectiveDate, bail.effectiveDate);
 
   const propertyId = updateData.propertyId || bail.propertyId;
 
@@ -1069,6 +1075,7 @@ async function createTenantForLeaseUnguarded(data: unknown) {
   if (missingTenantDates({ effectiveDate: tenantEffectiveDate, paymentDay: tenantPaymentDay }).length > 0) {
     throw new Error(DATES_REQUIRED_WITH_TENANT);
   }
+  assertEffectiveDateNotPast(tenantEffectiveDate, bail.effectiveDate);
 
   // Chercher une personne existante avec cet email (toutes profils confondus)
   const existingPerson = await prisma.person.findUnique({
@@ -1608,6 +1615,10 @@ export async function saveBailDraft(data: {
   const securityDeposit = data.securityDeposit ? (parseInt(data.securityDeposit, 10) || 0) : 0;
   // Sans date saisie, la date d'effet reste vide (jamais la date du jour).
   const effectiveDate = data.effectiveDate ? new Date(data.effectiveDate) : null;
+  const draftDate = data.draftBailId
+    ? (await prisma.bail.findUnique({ where: { id: data.draftBailId }, select: { effectiveDate: true } }))?.effectiveDate ?? null
+    : undefined;
+  assertEffectiveDateNotPast(effectiveDate, draftDate);
   const endDate = data.endDate ? new Date(data.endDate) : null;
   const paymentDay = data.paymentDay ? (parseInt(data.paymentDay, 10) || null) : null;
   const bailType = (data.bailType as BailType) || BailType.BAIL_NU_3_ANS;

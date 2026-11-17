@@ -26,6 +26,7 @@ import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
 
+import { todayInFrance } from "@/lib/bail/dates";
 /** Vérifie que le bien possède les 13 éléments obligatoires pour une location meublée (Décret 2015-981) */
 function isPropertyMeuble(property: any): boolean {
   if (!property) return false;
@@ -478,6 +479,7 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
                     value={field.value}
                     onChange={field.onChange}
                     onBlur={field.onBlur}
+                    minDate={initialData?.id ? undefined : todayInFrance()}
                     disabled={isLoading}
                     aria-invalid={!!form.formState.errors.effectiveDate}
                   />

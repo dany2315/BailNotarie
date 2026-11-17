@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DateInput } from "@/components/ui/date-picker";
 import { updateBailTermsAdmin } from "@/lib/actions/admin-bail-edit";
 
+import { todayInFrance } from "@/lib/bail/dates";
 export type BailTermField =
   | "bailType"
   | "bailFamily"
@@ -129,7 +130,15 @@ export function BailTermsEditor({ bailId, title, fields }: { bailId: string; tit
                     </SelectContent>
                   </Select>
                 ) : f.field === "effectiveDate" || f.field === "endDate" ? (
-                  <DateInput id={id} value={value} onChange={set} fromYear={year - 30} toYear={year + 30} />
+                  <DateInput
+                    id={id}
+                    value={value}
+                    onChange={set}
+                    fromYear={year - 30}
+                    toYear={year + 30}
+                    // Nouvelle date de prise d'effet : jamais avant aujourd'hui (la date de fin n'est pas saisie).
+                    minDate={f.field === "effectiveDate" ? todayInFrance() : undefined}
+                  />
                 ) : (
                   <div className="relative">
                     <Input

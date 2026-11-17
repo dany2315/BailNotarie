@@ -145,6 +145,9 @@ interface DateFieldCoreProps {
   /** Bornes de saisie et du calendrier (années incluses). */
   fromYear?: number
   toYear?: number
+  /** Date au plus tôt (« yyyy-MM-dd ») : jours antérieurs grisés au calendrier, message sous le champ. */
+  minDate?: string
+  minDateMessage?: string
   autoComplete?: string
   onBlur?: () => void
   "aria-invalid"?: boolean
@@ -167,6 +170,8 @@ function DateFieldCore({
   className,
   fromYear,
   toYear,
+  minDate,
+  minDateMessage = "Choisissez aujourd'hui ou une date à venir.",
   autoComplete = "off",
   onBlur,
   "aria-invalid": ariaInvalid,
@@ -200,6 +205,9 @@ function DateFieldCore({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valueKey])
 
+  const tooEarly = (p: DateParts | null) => Boolean(minDate && p && partsKey(p) < minDate)
+  const minDay = minDate ? new Date(`${minDate}T00:00:00`) : undefined
+
   const emit = (next: DateParts | null) => {
     const key = partsKey(next)
     if (key === emittedKeyRef.current) return
@@ -212,7 +220,7 @@ function DateFieldCore({
     setText(next)
     const result = parseTyped(next, minYear, maxYear)
     if (result && "parts" in result) {
-      setError(null)
+      setError(tooEarly(result.parts) ? minDateMessage : null)
       setMonth(toLocalDate(result.parts))
       emit(result.parts)
     } else {
@@ -225,7 +233,7 @@ function DateFieldCore({
 
   const handleBlur = () => {
     const result = parseTyped(text, minYear, maxYear)
-    setError(result && "error" in result ? result.error : null)
+    setError(result && "error" in result ? result.error : result && tooEarly(result.parts) ? minDateMessage : null)
     onBlur?.()
   }
 
@@ -290,6 +298,7 @@ function DateFieldCore({
               month={month}
               onMonthChange={setMonth}
               onSelect={handleSelect}
+              disabled={minDay ? { before: minDay } : undefined}
               captionLayout="dropdown"
               startMonth={new Date(minYear, 0, 1)}
               endMonth={new Date(maxYear, 11, 31)}

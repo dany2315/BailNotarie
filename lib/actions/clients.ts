@@ -50,7 +50,7 @@ import { readAgreementSnapshot, recordTenantAgreement, settleTenantAgreement } f
 import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
 import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 import { isBailPaidById } from "@/lib/payments/paid-check";
-import { DATES_REQUIRED_WITH_TENANT, missingTenantDates } from "@/lib/bail/dates";
+import { DATES_REQUIRED_WITH_TENANT, assertEffectiveDateNotPast, missingTenantDates } from "@/lib/bail/dates";
 import { computeBailEndDate } from "@/lib/utils/bail-duration";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
@@ -161,6 +161,8 @@ export async function createFullClient(data: unknown) {
   // Essayer d'abord avec le schéma complet (avec bien, bail, locataire)
   try {
     const validated = createFullClientWithPropertySchema.parse(data);
+    // Date de prise d'effet passée : refusée avant de créer quoi que ce soit (m2).
+    assertEffectiveDateNotPast(validated.bailEffectiveDate ?? null);
 
     const providedPersons = Array.isArray((validated as any).persons)
       ? ((validated as any).persons as any[])
@@ -1120,6 +1122,8 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
   if (tenantOnBail && missingTenantDates({ effectiveDate: validated.bailEffectiveDate, paymentDay: validated.bailPaymentDay }).length > 0) {
     throw new Error(DATES_REQUIRED_WITH_TENANT);
   }
+  // Date déjà enregistrée sur le bail (étapes précédentes) : acceptée telle quelle, même passée depuis.
+  assertEffectiveDateNotPast(validated.bailEffectiveDate ?? null, ownerIntakeLink?.bail ? ownerIntakeLink.bail.effectiveDate ?? null : undefined);
 
   // Utiliser le bail existant ou en créer un nouveau
   let bail;

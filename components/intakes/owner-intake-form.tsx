@@ -156,6 +156,7 @@ import {
 import { Separator } from "../ui/separator";
 import { PaymentStep } from "./payment-step";
 
+import { todayInFrance } from "@/lib/bail/dates";
 // Utiliser z.input pour obtenir le type d'entrée (avant transformation) au lieu de z.infer (après transformation)
 // Cela permet d'avoir propertyLatitude et propertyLongitude comme string dans le formulaire
 type OwnerFormData = z.input<typeof ownerFormSchema>;
@@ -4653,6 +4654,7 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, rentAdvanceR
               value={field.value ? toDateValue(field.value as any) : undefined}
               onChange={(val) => field.onChange(val || "")}
               onBlur={field.onBlur}
+              minDate={todayInFrance()}
               aria-invalid={!!form.formState.errors.bailEffectiveDate}
             />
           )}

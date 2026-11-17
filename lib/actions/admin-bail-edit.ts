@@ -16,6 +16,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { computeBailEndDate } from "@/lib/utils/bail-duration";
+import { EFFECTIVE_DATE_IN_PAST, effectiveDateInPast } from "@/lib/bail/dates";
 import { requireRole } from "@/lib/auth-helpers";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
@@ -111,6 +112,9 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
   const rentAmount = values.rentAmount ?? bail.rentAmount;
   const securityDeposit = values.securityDeposit ?? bail.securityDeposit;
   const effectiveDate = values.effectiveDate ? utcDate(values.effectiveDate) : bail.effectiveDate;
+  if (values.effectiveDate && effectiveDateInPast(effectiveDate, bail.effectiveDate)) {
+    return { success: false, error: EFFECTIVE_DATE_IN_PAST };
+  }
   // Date de fin : toujours calculée à partir du type de bail et de la prise d'effet (durée du bail dérogatoire
   // comprise), jamais saisie. Une date de fin envoyée par l'écran est ignorée. Recalculée seulement quand le
   // type ou la prise d'effet change, pour ne pas toucher aux dossiers existants lors d'une autre modification.
