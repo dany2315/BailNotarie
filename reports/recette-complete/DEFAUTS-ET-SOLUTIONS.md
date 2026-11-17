@@ -53,7 +53,7 @@ Rien n'est encore vérifié à l'écran après correction ; chaque correction le
 | # | Défaut | Constats | Origine | Solution proposée | Plan |
 |---|---|---|---|---|---|
 | m1 | Jour de paiement 31 accepté alors que le champ annonce 1 à 28 ; jour 0 → erreur en anglais. | PRO-D-051, COM-026 | **branche** | Borner à 1-28 côté écran et serveur, avec un message clair. | **Prévu** |
-| m2 | Date de prise d'effet dans le passé (2020, 2021) acceptée sans avertissement. | PRO-D-051, PRO-M-050, COM-028 | branche / staging | Avertir sans bloquer pour une date passée (un bail peut déjà avoir commencé), refuser au-delà d'un an dans le passé. | **Décision** |
+| m2 | Date de prise d'effet dans le passé (2020, 2021) acceptée sans avertissement. | PRO-D-051, PRO-M-050, COM-028 | branche / staging | Avertir sans bloquer pour une date passée (un bail peut déjà avoir commencé), refuser au-delà d'un an dans le passé. | **Non retenu** (votre décision du 17/11) : une date d'effet passée reste acceptée sans avertissement |
 | m3 | Date de naissance future ou d'un mineur acceptée. | LOC-018, LOC-112, PRO-D-016 | staging | Refuser une date future ; refuser un âge inférieur à 18 ans. | **Proposé** |
 | m4 | Téléphones incomplets ou inexistants acceptés (« +33 6 12 », « +33 12 »). | LOC-013, PRO-M-022, ADM-1-038, ADM-2-057 | staging | Valider avec la bibliothèque de numéros déjà utilisée par le champ (numéro réellement possible pour le pays). | **Proposé** |
 | m5 | E-mail et téléphone du syndic non contrôlés. | PRO-D-035, PRO-M-035, COM-010 | staging | Même validation que les autres adresses et numéros. | **Proposé** |
