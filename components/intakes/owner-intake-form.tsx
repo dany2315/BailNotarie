@@ -157,6 +157,8 @@ import { Separator } from "../ui/separator";
 import { PaymentStep } from "./payment-step";
 
 import { todayInFrance } from "@/lib/bail/dates";
+import { FAMILY_STATUS_LABELS } from "@/lib/utils/person-labels";
+import { surfaceWarning } from "@/lib/utils/surface";
 // Utiliser z.input pour obtenir le type d'entrée (avant transformation) au lieu de z.infer (après transformation)
 // Cela permet d'avoir propertyLatitude et propertyLongitude comme string dans le formulaire
 type OwnerFormData = z.input<typeof ownerFormSchema>;
@@ -3438,7 +3440,7 @@ const ClientInfoStep = ({
                           <SelectContent>
                             {Object.values(FamilyStatus).map((status) => (
                               <SelectItem key={status} value={status}>
-                                {status.replace(/_/g, " ")}
+                                {FAMILY_STATUS_LABELS[status] ?? status}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -3772,7 +3774,7 @@ const SummaryStep = ({ values, clientType }: SummaryStepProps) => {
                   <div>
                     <span className="text-muted-foreground">Statut familial</span>
                     <div className="font-medium">
-                      {person.familyStatus?.replace(/_/g, " ") || "-"}
+                      {(person.familyStatus && FAMILY_STATUS_LABELS[person.familyStatus]) || person.familyStatus || "-"}
                     </div>
                   </div>
                   {person.matrimonialRegime && (
@@ -3950,7 +3952,13 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
           <div className="flex items-center gap-2">
             <Label htmlFor="propertySurfaceM2">Surface *</Label>
             <InfoTooltip
-              content={<p>Surface habitable du logement (loi Boutin), indiquée dans les diagnostics. Elle peut être un peu inférieure à la surface loi Carrez.</p>}
+              content={
+                isCommercialFamily(form.watch("bailFamily")) ? (
+                  <p>Surface du local loué, indiquée dans les plans, le titre de propriété ou le bail précédent.</p>
+                ) : (
+                  <p>Surface habitable du logement (loi Boutin), indiquée dans les diagnostics. Elle peut être un peu inférieure à la surface loi Carrez.</p>
+                )
+              }
               className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
             >
               <button type="button" className="inline-flex items-center">
@@ -3970,6 +3978,9 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
             <p className="text-sm text-destructive">
               {form.formState.errors.propertySurfaceM2.message}
             </p>
+          )}
+          {!form.formState.errors.propertySurfaceM2 && surfaceWarning(form.watch("propertySurfaceM2")) && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">{surfaceWarning(form.watch("propertySurfaceM2"))}</p>
           )}
         </div>
         </>)}
@@ -4201,8 +4212,9 @@ const LegalStatusDetails = ({ form }: { form: any }) => {
               id="propertySyndicPhone"
               type="tel"
               className="h-11"
-              {...form.register("propertySyndicPhone", { onChange: () => form.clearErrors("propertySyndicEmail") })}
+              {...form.register("propertySyndicPhone", { onChange: () => form.clearErrors(["propertySyndicEmail", "propertySyndicPhone"]) })}
             />
+            {errors.propertySyndicPhone && <p className="text-sm text-destructive">{errors.propertySyndicPhone.message}</p>}
           </div>
         </div>
         {errors.propertySyndicEmail && <p className="text-sm text-destructive">{errors.propertySyndicEmail.message}</p>}
@@ -4569,10 +4581,11 @@ const BailStep = ({ form, propertyId, slice, token, showRentErrors, rentAdvanceR
                 <SelectValue placeholder="Sélectionner" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nue 3 ans</SelectItem>
-                <SelectItem value={BailType.BAIL_NU_6_ANS}>
-                  Bail nue 6 ans (SCI)
-                </SelectItem>
+                <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
+                {/* 6 ans : réservé aux personnes morales (SCI…). Laissé visible s'il est déjà choisi. */}
+                {(form.watch("type") === ClientType.PERSONNE_MORALE || field.value === BailType.BAIL_NU_6_ANS) && (
+                  <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nu 6 ans (société)</SelectItem>
+                )}
                 <SelectItem value={BailType.BAIL_MEUBLE_1_ANS}>
                   Bail meublé 1 an
                 </SelectItem>

@@ -15,6 +15,7 @@ import { ensurePropertyGeocoded } from "@/lib/geocode";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { updateClientCompletionStatus, updatePropertyCompletionStatus } from "@/lib/utils/completion-status";
 import { FURNITURE_KEYS, isFurnishedBail } from "@/lib/rules/dossier-rules";
+import { EFFECTIVE_DATE_IN_PAST, PAYMENT_DAY_INVALID, effectiveDateInPast, paymentDayInvalid } from "@/lib/bail/dates";
 import {
   questionErrors,
   questionPaths,
@@ -314,6 +315,15 @@ export async function checkAnswer(state: DossierState, ref: QuestionRef, answer:
   const fieldErrors = questionErrors(ref, merged, state.ctx);
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: Object.values(fieldErrors)[0], fieldErrors };
+  }
+  // Dates du bail : mêmes règles que les formulaires (m1, m2) ; les valeurs déjà enregistrées restent acceptées.
+  if (ref.id === "bail.dates" || ref.id === "commercial.duration") {
+    if (merged.bailEffectiveDate && effectiveDateInPast(merged.bailEffectiveDate, state.bail.effectiveDate ?? null)) {
+      return { ok: false, error: EFFECTIVE_DATE_IN_PAST, fieldErrors: { bailEffectiveDate: EFFECTIVE_DATE_IN_PAST } };
+    }
+    if (paymentDayInvalid(merged.bailPaymentDay, state.bail.paymentDay ?? null)) {
+      return { ok: false, error: PAYMENT_DAY_INVALID, fieldErrors: { bailPaymentDay: PAYMENT_DAY_INVALID } };
+    }
   }
   if (ref.id === "bail.rent" || ref.id === "bail.type" || ref.id === "bail.dates" || ref.id === "bail.rentRules") {
     const tooHigh = await rentTooHigh(state, merged);

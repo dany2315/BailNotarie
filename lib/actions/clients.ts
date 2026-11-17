@@ -50,8 +50,9 @@ import { readAgreementSnapshot, recordTenantAgreement, settleTenantAgreement } f
 import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
 import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 import { isBailPaidById } from "@/lib/payments/paid-check";
-import { DATES_REQUIRED_WITH_TENANT, assertEffectiveDateNotPast, missingTenantDates } from "@/lib/bail/dates";
+import { DATES_REQUIRED_WITH_TENANT, assertEffectiveDateNotPast, assertPaymentDay, missingTenantDates } from "@/lib/bail/dates";
 import { computeBailEndDate } from "@/lib/utils/bail-duration";
+import { birthDateIssue, regimeIfMarried } from "@/lib/utils/person-checks";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
@@ -163,6 +164,7 @@ export async function createFullClient(data: unknown) {
     const validated = createFullClientWithPropertySchema.parse(data);
     // Date de prise d'effet passée : refusée avant de créer quoi que ce soit (m2).
     assertEffectiveDateNotPast(validated.bailEffectiveDate ?? null);
+    assertPaymentDay(validated.bailPaymentDay);
 
     const providedPersons = Array.isArray((validated as any).persons)
       ? ((validated as any).persons as any[])
@@ -179,7 +181,7 @@ export async function createFullClient(data: unknown) {
             fullAddress: validated.fullAddress,
             nationality: validated.nationality,
             familyStatus: validated.familyStatus,
-            matrimonialRegime: validated.matrimonialRegime,
+            matrimonialRegime: regimeIfMarried(validated.familyStatus, validated.matrimonialRegime),
             birthPlace: validated.birthPlace,
             birthDate: validated.birthDate,
             isPrimary: true,
@@ -234,7 +236,7 @@ export async function createFullClient(data: unknown) {
             fullAddress: person.fullAddress ?? null,
             nationality: person.nationality ?? null,
             familyStatus: (person.familyStatus as any) ?? null,
-            matrimonialRegime: (person.matrimonialRegime as any) ?? null,
+            matrimonialRegime: regimeIfMarried(person.familyStatus, person.matrimonialRegime as any),
             birthPlace: person.birthPlace ?? null,
             birthDate: person.birthDate ? new Date(person.birthDate) : null,
             isPrimary: person.isPrimary ?? index === 0,
@@ -474,7 +476,7 @@ export async function createFullClient(data: unknown) {
               fullAddress: validated.fullAddress,
               nationality: validated.nationality,
               familyStatus: validated.familyStatus,
-              matrimonialRegime: validated.matrimonialRegime,
+              matrimonialRegime: regimeIfMarried(validated.familyStatus, validated.matrimonialRegime),
               birthPlace: validated.birthPlace,
               birthDate: validated.birthDate,
               isPrimary: true,
@@ -522,7 +524,7 @@ export async function createFullClient(data: unknown) {
                 fullAddress: person.fullAddress ?? null,
                 nationality: person.nationality ?? null,
                 familyStatus: (person.familyStatus as any) ?? null,
-                matrimonialRegime: (person.matrimonialRegime as any) ?? null,
+                matrimonialRegime: regimeIfMarried(person.familyStatus, person.matrimonialRegime as any),
                 birthPlace: person.birthPlace ?? null,
                 birthDate: person.birthDate ? new Date(person.birthDate) : null,
                 isPrimary: person.isPrimary ?? index === 0,
@@ -726,6 +728,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     if (primaryPersonData.nationality) primaryPersonDataToUpdate.nationality = primaryPersonData.nationality;
     if (primaryPersonData.familyStatus) primaryPersonDataToUpdate.familyStatus = primaryPersonData.familyStatus;
     if (primaryPersonData.matrimonialRegime) primaryPersonDataToUpdate.matrimonialRegime = primaryPersonData.matrimonialRegime;
+    if (primaryPersonData.familyStatus && primaryPersonData.familyStatus !== "MARIE") primaryPersonDataToUpdate.matrimonialRegime = null;
     if (primaryPersonData.birthPlace) primaryPersonDataToUpdate.birthPlace = primaryPersonData.birthPlace;
     if (primaryPersonData.birthDate) primaryPersonDataToUpdate.birthDate = primaryPersonData.birthDate;
 
@@ -775,7 +778,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
             },
@@ -803,7 +806,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
               isPrimary: false,
@@ -824,7 +827,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
               isPrimary: false,
@@ -1124,6 +1127,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
   }
   // Date déjà enregistrée sur le bail (étapes précédentes) : acceptée telle quelle, même passée depuis.
   assertEffectiveDateNotPast(validated.bailEffectiveDate ?? null, ownerIntakeLink?.bail ? ownerIntakeLink.bail.effectiveDate ?? null : undefined);
+  assertPaymentDay(validated.bailPaymentDay, ownerIntakeLink?.bail?.paymentDay ?? null);
 
   // Utiliser le bail existant ou en créer un nouveau
   let bail;
@@ -1589,6 +1593,7 @@ export async function submitTenantForm(data: unknown) {
     if (primaryPersonData.nationality) primaryPersonDataToUpdate.nationality = primaryPersonData.nationality;
     if (primaryPersonData.familyStatus) primaryPersonDataToUpdate.familyStatus = primaryPersonData.familyStatus;
     if (primaryPersonData.matrimonialRegime) primaryPersonDataToUpdate.matrimonialRegime = primaryPersonData.matrimonialRegime;
+    if (primaryPersonData.familyStatus && primaryPersonData.familyStatus !== "MARIE") primaryPersonDataToUpdate.matrimonialRegime = null;
     if (primaryPersonData.birthPlace) primaryPersonDataToUpdate.birthPlace = primaryPersonData.birthPlace;
     if (primaryPersonData.birthDate) primaryPersonDataToUpdate.birthDate = primaryPersonData.birthDate;
 
@@ -1638,7 +1643,7 @@ export async function submitTenantForm(data: unknown) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
             },
@@ -1666,7 +1671,7 @@ export async function submitTenantForm(data: unknown) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
               isPrimary: false,
@@ -1687,7 +1692,7 @@ export async function submitTenantForm(data: unknown) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
               isPrimary: false,
@@ -2078,6 +2083,8 @@ export async function updateClient(data: unknown) {
         ...(personData.nationality !== undefined && { nationality: personData.nationality }),
         ...(personData.familyStatus !== undefined && { familyStatus: personData.familyStatus }),
         ...(personData.matrimonialRegime !== undefined && { matrimonialRegime: personData.matrimonialRegime }),
+      // Plus marié : le régime n'est pas conservé (m7).
+      ...(personData.familyStatus !== undefined && personData.familyStatus !== "MARIE" && { matrimonialRegime: null }),
         ...(personData.birthPlace !== undefined && { birthPlace: personData.birthPlace }),
         ...(personData.birthDate !== undefined && { birthDate: personData.birthDate ? new Date(personData.birthDate) : null }),
         ...(personData.isPrimary !== undefined && { isPrimary: personData.isPrimary }),

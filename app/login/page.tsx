@@ -11,10 +11,11 @@ import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { signIn, useSession } from "@/lib/auth-client";
 import { LoadingScreen } from "@/components/ui/loading-screen";
+import { authErrorMessage } from "@/lib/auth-error-message";
 
 const loginSchema = z.object({
-  email: z.string().email("Email invalide"),
-  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
+  email: z.string().trim().min(1, "Indiquez votre adresse e-mail").email("Adresse e-mail invalide"),
+  password: z.string().min(1, "Indiquez votre mot de passe").min(6, "Le mot de passe doit contenir au moins 6 caractères"),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -106,7 +107,7 @@ export default function LoginPage() {
 
       if (error) {
         toast.error("Erreur de connexion", {
-          description: error.message || "Email ou mot de passe incorrect",
+          description: authErrorMessage(error, "Adresse e-mail ou mot de passe incorrect."),
         });
       } else {
         toast.success("Connexion réussie!");
@@ -116,7 +117,7 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       toast.error("Une erreur est survenue", {
-        description: error.message || "Erreur lors de la connexion",
+        description: "La connexion a échoué. Vérifiez votre connexion internet et réessayez.",
       });
     } finally {
       setIsLoading(false);
@@ -133,7 +134,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

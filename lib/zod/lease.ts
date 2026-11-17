@@ -1,4 +1,5 @@
 import { z } from "zod";
+import "@/lib/zod/locale";
 
 // Helper pour valider le dépôt de garantie selon le type de bail
 function validateSecurityDeposit(
@@ -77,16 +78,14 @@ const createLeaseBaseSchema = z.object({
       if (isNaN(date.getTime())) return undefined;
       return date;
     }),
+  // Hors de 1 à 31 : refusé (plus remplacé par « vide » sans le dire). La limite à 28 se contrôle dans
+  // l'action, qui laisse passer une valeur déjà enregistrée.
   paymentDay: z
     .string()
     .optional()
     .nullable()
-    .transform((val) => {
-      if (!val) return null;
-      const num = parseInt(val);
-      if (isNaN(num) || num < 1 || num > 31) return null;
-      return num;
-    }),
+    .refine((val) => !val || (/^\d{1,2}$/.test(val.trim()) && Number(val) >= 1 && Number(val) <= 31), "Le jour de paiement doit être compris entre 1 et 28.")
+    .transform((val) => (val ? Number(val) : null)),
   propertyId: z.string().cuid("ID bien invalide").min(1, "Le bien est requis"),
   tenantId: z.string().cuid("ID locataire invalide").optional().or(z.literal("")),
   // Contrôle du loyer (espace client) : réponses sur la relocation et le complément de loyer,
@@ -163,11 +162,10 @@ const updateLeaseBaseSchema = z.object({
   paymentDay: z
     .string()
     .optional()
+    .refine((val) => !val || (/^\d{1,2}$/.test(val.trim()) && Number(val) >= 1 && Number(val) <= 31), "Le jour de paiement doit être compris entre 1 et 28.")
     .transform((val) => {
       if (!val) return null;
-      const num = parseInt(val);
-      if (isNaN(num) || num < 1 || num > 31) return null;
-      return num;
+      return Number(val);
     }),
   propertyId: z.string().cuid("ID bien invalide").optional(),
   tenantId: z.string().cuid("ID locataire invalide").optional(),

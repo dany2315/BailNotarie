@@ -1,3 +1,5 @@
+import { isValidPhoneNumber } from "libphonenumber-js";
+
 /**
  * Fonction de validation de numéro de téléphone
  * Compatible côté client (utilise react-phone-number-input) et serveur (validation basique)
@@ -7,22 +9,14 @@ export function isValidPhoneNumberSafe(phoneNumber: string | undefined | null): 
     return true; // Les numéros optionnels sont valides s'ils sont vides
   }
 
-  // Côté serveur, on utilise une validation basique
-  // Côté client, react-phone-number-input sera utilisé via le composant PhoneInput
-  // Cette fonction est principalement pour la validation Zod côté serveur
-  
-  // Nettoyer le numéro (enlever espaces, tirets, points, etc.)
-  const cleaned = phoneNumber.replace(/[\s\-\(\)\.]/g, "");
-  
-  // Validation pour numéros français (format: 0X XX XX XX XX ou +33 X XX XX XX XX)
-  // Format français: commence par 0 suivi de 9 chiffres, ou +33 suivi de 9 chiffres
-  const frenchPhoneRegex = /^(?:(?:\+33|0033)[1-9]\d{8}|0[1-9]\d{8})$/;
-  
-  // Validation pour numéros internationaux (format: +[code pays][numéro])
-  // Format international: commence par + suivi de 1-3 chiffres (code pays) puis 4-14 chiffres
-  const internationalRegex = /^\+\d{1,3}\d{4,14}$/;
-  
-  return frenchPhoneRegex.test(cleaned) || internationalRegex.test(cleaned);
+  // Même bibliothèque que le champ téléphone (libphonenumber-js, moteur de react-phone-number-input) : le numéro doit être réellement
+  // possible pour son pays (« +33 6 12 » ou « +33 12 » refusés). Sans indicatif, il est lu comme français.
+  const cleaned = phoneNumber.trim().replace(/^00/, "+");
+  try {
+    return isValidPhoneNumber(cleaned, "FR");
+  } catch {
+    return false;
+  }
 }
 
 /**

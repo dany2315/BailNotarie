@@ -79,6 +79,13 @@ export function shortAddress(fullAddress: string | null | undefined): string {
 }
 
 export function buildDocumentFileName(parts: DocumentFileNameParts): string {
+  // Pièce jointe (pièce libre, fichier de la messagerie) : son nom d'origine, sans horodatage ni
+  // identifiant technique (m17).
+  if (parts.kind === "OTHER" && parts.label) {
+    const original = cleanSegment(stripExtension(parts.label), 120);
+    const extension = documentFileExtension(parts);
+    if (original) return extension ? `${original}.${extension}` : original;
+  }
   const kindLabel = parts.kind ? documentKindLabels[parts.kind] : undefined;
   const type = cleanSegment(kindLabel || (parts.label ? stripExtension(parts.label) : "") || "Document", 60) || "Document";
   const owner = cleanSegment(parts.owner, 40);

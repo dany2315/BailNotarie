@@ -223,7 +223,7 @@ export function PropertyTypeBadge({ type, className }: { type: string; className
 export function PropertyLegalStatusBadge({ status, className }: { status: string; className?: string }) {
   const configs: Record<string, { label: string; icon: React.ReactNode; variant: "default" | "secondary" | "outline" }> = {
     PLEIN_PROPRIETE: {
-      label: "Plein propriété",
+      label: "Pleine propriété",
       icon: <Shield className="size-4" />,
       variant: "default"
     },

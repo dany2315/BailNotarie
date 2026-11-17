@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
+import "@/lib/zod/locale";
 
 export const contactFormSchema = z.object({
   firstName: z.string()
@@ -17,7 +18,7 @@ export const contactFormSchema = z.object({
     .max(100, "L'email est trop long")
     .toLowerCase()
     .trim(),
-  phone: z.string()
+  phone: z.string("Le numéro de téléphone est requis")
     .min(1, "Le numéro de téléphone est requis")
     .refine((val) => isValidPhoneNumberSafe(val), {
       message: "Numéro de téléphone invalide",

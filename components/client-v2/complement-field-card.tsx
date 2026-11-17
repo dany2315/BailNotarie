@@ -818,7 +818,7 @@ function QuestionFields({ refQ, form, ctx }: { refQ: QuestionRef; form: FormLike
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <DateField form={form} path="bailEffectiveDate" label="Date de prise d'effet" />
-          <NumberField form={form} path="bailPaymentDay" label="Jour de paiement du loyer" min={1} max={31} hint="Ex. : 5 pour le 5 de chaque mois." />
+          <NumberField form={form} path="bailPaymentDay" label="Jour de paiement du loyer" min={1} max={28} hint="Entre 1 et 28. Ex. : 5 pour le 5 de chaque mois." />
         </div>
       );
     case "bail.rentRules": {

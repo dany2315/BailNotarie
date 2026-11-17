@@ -33,6 +33,8 @@ import { ClientDocumentUploaded } from "@/components/documents/client-document-u
 import { getMaritalDocumentKind, getRequiredClientFields } from "@/lib/utils/required-fields";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { useDownloadFile } from "@/hooks/use-download-file";
+import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
+import { PROFIL_TYPE_LABELS } from "@/lib/utils/property-labels";
 
 interface EditClientFormProps {
   client: any;
@@ -336,7 +338,7 @@ export function EditClientForm({ client }: EditClientFormProps) {
             <div className="space-y-2">
               <Label>Profil</Label>
               <div className="px-3 py-2 border rounded-md bg-muted/50">
-                <p className="text-sm font-medium">{client.profilType.replace(/_/g, " ")}</p>
+                <p className="text-sm font-medium">{PROFIL_TYPE_LABELS[client.profilType] ?? client.profilType}</p>
               </div>
             </div>
 
@@ -565,7 +567,7 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                   <SelectContent>
                                     {Object.values(FamilyStatus).map((status) => (
                                       <SelectItem key={status} value={status}>
-                                        {status.replace(/_/g, " ")}
+                                        {FAMILY_STATUS_LABELS[status] ?? status}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -588,7 +590,7 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                     <SelectContent>
                                       {Object.values(MatrimonialRegime).map((regime) => (
                                         <SelectItem key={regime} value={regime}>
-                                          {regime.replace(/_/g, " ")}
+                                          {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>

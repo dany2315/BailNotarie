@@ -44,6 +44,7 @@ import { getAllBails } from "@/lib/actions/leases";
 import { Controller } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/formatters";
+import { getBailTypeLabel } from "@/lib/utils/bails-labels";
 
 const assignDossierSchema = z.object({
   bailId: z.string().min(1, "Le bail est requis"),
@@ -279,7 +280,7 @@ export function AssignDossierDialog({
                                   <div className="flex items-center gap-2 flex-wrap pl-6">
                                     {bail.bailType && (
                                       <Badge variant="secondary" className="text-xs">
-                                        {bail.bailType}
+                                        {getBailTypeLabel(bail.bailType)}
                                       </Badge>
                                     )}
                                     {bail.effectiveDate && (

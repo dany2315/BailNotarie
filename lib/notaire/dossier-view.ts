@@ -412,9 +412,13 @@ function documentGroups(a: Assignment, parties: DossierParty[]): DocumentGroup[]
       documents: fresh
         .sort((x, y) => (documentKindLabels[x.doc.kind] ?? x.doc.kind).localeCompare(documentKindLabels[y.doc.kind] ?? y.doc.kind, "fr"))
         .map(({ doc, who }) => {
-          const kind = documentKindLabels[doc.kind] ?? doc.kind;
+          // Pièce libre ou fichier de la messagerie : « Pièce jointe — <nom d'origine> » plutôt que
+          // « Autre document » pour tous (m17).
+          const attachment = doc.kind === "OTHER";
+          const kind = attachment ? "Pièce jointe" : documentKindLabels[doc.kind] ?? doc.kind;
           const ext = documentFileExtension({ fileKey: doc.fileKey, label: doc.label, mimeType: doc.mimeType });
-          const base = safe([kind, who].filter(Boolean).join(" - "));
+          const originalName = attachment && doc.label ? doc.label.replace(/\.[A-Za-z0-9]{1,5}$/, "") : null;
+          const base = safe([kind, originalName ?? who].filter(Boolean).join(" - "));
           const count = (used.get(base) ?? 0) + 1;
           used.set(base, count);
           return {

@@ -29,6 +29,11 @@ import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
 
 import { todayInFrance } from "@/lib/bail/dates";
+import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
+import { getPropertyTypeLabel } from "@/lib/utils/property-labels";
+import { getPropertyLegalStatusLabel } from "@/lib/utils/legaleStatus-label";
+import { getBailTypeLabel } from "@/lib/utils/bails-labels";
+import { surfaceWarning } from "@/lib/utils/surface";
 // Composant séparé pour la validation du dépôt de garantie (évite les re-renders)
 const BailSecurityDepositValidation = ({ control }: { control: any }) => {
   const bailType = useWatch({ control, name: "bailType" });
@@ -305,7 +310,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
   };
 
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit, onError)} className="space-y-6">
+    <form onSubmit={form.handleSubmit(handleSubmit, onError)} noValidate className="space-y-6">
       <Tabs value={clientType} onValueChange={handleClientTypeChange}>
         <TabsList className="grid w-full grid-cols-2 border rounded-lg mb-6">
           <TabsTrigger value={ClientType.PERSONNE_PHYSIQUE}>Particulier</TabsTrigger>
@@ -367,7 +372,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                           <SelectContent>
                             {Object.values(FamilyStatus).map((status) => (
                               <SelectItem key={status} value={status}>
-                                {status.replace(/_/g, " ")}
+                                {FAMILY_STATUS_LABELS[status] ?? status}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -389,7 +394,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                             <SelectContent>
                               {Object.values(MatrimonialRegime).map((regime) => (
                                 <SelectItem key={regime} value={regime}>
-                                  {regime.replace(/_/g, " ")}
+                                  {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -597,7 +602,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                             <SelectContent>
                               {Object.values(FamilyStatus).map((status) => (
                                 <SelectItem key={status} value={status}>
-                                  {status.replace(/_/g, " ")}
+                                  {FAMILY_STATUS_LABELS[status] ?? status}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -619,7 +624,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                               <SelectContent>
                                 {Object.values(MatrimonialRegime).map((regime) => (
                                   <SelectItem key={regime} value={regime}>
-                                    {regime.replace(/_/g, " ")}
+                                    {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -759,7 +764,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                       <SelectContent>
                         {BienType && Object.values(BienType).map((type) => (
                           <SelectItem key={type} value={type}>
-                            {type.replace(/_/g, " ")}
+                            {getPropertyTypeLabel(type)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -769,7 +774,13 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="propertySurfaceM2">Surface (m²)</Label>
-                <Input id="propertySurfaceM2" type="number" step="0.01" {...form.register("propertySurfaceM2")} disabled={isLoading} />
+                <Input id="propertySurfaceM2" type="number" step="0.01" min="0" {...form.register("propertySurfaceM2")} disabled={isLoading} />
+                {form.formState.errors.propertySurfaceM2 && (
+                  <p className="text-sm text-destructive">{String(form.formState.errors.propertySurfaceM2.message)}</p>
+                )}
+                {surfaceWarning(form.watch("propertySurfaceM2")) && (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">{surfaceWarning(form.watch("propertySurfaceM2"))}</p>
+                )}
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -786,7 +797,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                       <SelectContent>
                         {BienLegalStatus && Object.values(BienLegalStatus).map((status) => (
                           <SelectItem key={status} value={status}>
-                            {status.replace(/_/g, " ")}
+                            {getPropertyLegalStatusLabel(status)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -817,7 +828,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                     <SelectContent>
                       {Object.values(BailType).map((type) => (
                         <SelectItem key={type} value={type}>
-                          {type.replace(/_/g, " ")}
+                          {getBailTypeLabel(type)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -876,7 +887,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bailPaymentDay">Jour de paiement</Label>
-                <NumberInputGroup field={form.register("bailPaymentDay")} min={1} max={31} disabled={isLoading} />
+                <NumberInputGroup field={form.register("bailPaymentDay")} min={1} max={28} disabled={isLoading} />
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">

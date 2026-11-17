@@ -17,7 +17,7 @@ import { euros } from "@/lib/utils/rent-relocation";
 import { commercialTermsFromForm, entrepriseCommercialFields } from "@/lib/utils/commercial-terms";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
-import { DATES_REQUIRED_WITH_TENANT, assertEffectiveDateNotPast, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
+import { DATES_REQUIRED_WITH_TENANT, assertEffectiveDateNotPast, assertPaymentDay, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
 import { computeBailEndDate } from "@/lib/utils/bail-duration";
 
 /**
@@ -55,6 +55,9 @@ function legalStatusDetails(payload: any): {
   if (payload.propertySyndicName !== undefined) out.syndicName = text(payload.propertySyndicName, 200);
   if (payload.propertySyndicEmail !== undefined) out.syndicEmail = text(payload.propertySyndicEmail, 200);
   if (payload.propertySyndicPhone !== undefined) out.syndicPhone = text(payload.propertySyndicPhone, 30);
+  // Même contrôle que les autres adresses et numéros (m5).
+  if (out.syndicEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.syndicEmail)) throw new Error("E-mail du syndic invalide");
+  if (out.syndicPhone && !isValidPhoneNumberSafe(out.syndicPhone)) throw new Error("Numéro de téléphone du syndic invalide");
   if (payload.propertySubdivisionOver10Years !== undefined) {
     out.subdivisionOver10Years = ["YES", "NO", "UNKNOWN"].includes(payload.propertySubdivisionOver10Years)
       ? payload.propertySubdivisionOver10Years
@@ -110,6 +113,9 @@ async function rentRulesUpdate(intakeLink: any, payload: any, rentAmount: number
   };
 }
 import { randomBytes } from "crypto";
+import { birthDateIssue, regimeIfMarried } from "@/lib/utils/person-checks";
+import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
+import { assertSurface } from "@/lib/utils/surface";
 
 // ============================================================================
 // HANDLERS POUR TENANT INTAKE
@@ -302,7 +308,10 @@ export async function handleOwnerPropertyStep(
       const updateData: any = {};
       if (payload.propertyLabel) updateData.label = payload.propertyLabel;
       if (payload.propertyFullAddress) updateData.fullAddress = payload.propertyFullAddress;
-      if (payload.propertySurfaceM2) updateData.surfaceM2 = new Decimal(payload.propertySurfaceM2);
+      if (payload.propertySurfaceM2) {
+        assertSurface(payload.propertySurfaceM2);
+        updateData.surfaceM2 = new Decimal(payload.propertySurfaceM2);
+      }
       if (payload.propertyType) updateData.type = payload.propertyType;
       if (payload.propertyLegalStatus) updateData.legalStatus = payload.propertyLegalStatus;
       // Jamais d'effacement : une valeur absente laisse celle déjà connue (saisie par l'équipe).
@@ -346,7 +355,7 @@ export async function handleOwnerPropertyStep(
         data: {
           label: payload.propertyLabel || "",
           fullAddress: payload.propertyFullAddress || "",
-          surfaceM2: payload.propertySurfaceM2 ? new Decimal(payload.propertySurfaceM2) : null,
+          surfaceM2: payload.propertySurfaceM2 ? (assertSurface(payload.propertySurfaceM2), new Decimal(payload.propertySurfaceM2)) : null,
           type: payload.propertyType || null,
           legalStatus: payload.propertyLegalStatus || null,
           status: payload.propertyStatus || PropertyStatus.NON_LOUER,
@@ -456,6 +465,7 @@ export async function handleOwnerBailStep(
       }
       if (payload.bailEndDate) updateData.endDate = new Date(payload.bailEndDate);
       if (payload.bailPaymentDay !== undefined) {
+        assertPaymentDay(payload.bailPaymentDay, intakeLink.bail.paymentDay ?? null);
         updateData.paymentDay = typeof payload.bailPaymentDay === 'string'
           ? parseInt(payload.bailPaymentDay, 10) || null
           : payload.bailPaymentDay || null;
@@ -475,6 +485,7 @@ export async function handleOwnerBailStep(
         throw new Error("PropertyId manquant pour créer le bail");
       }
       if (payload.bailEffectiveDate) assertEffectiveDateNotPast(new Date(payload.bailEffectiveDate));
+      assertPaymentDay(payload.bailPaymentDay);
 
       const newBail = await tx.bail.create({
         data: {
@@ -562,6 +573,7 @@ export async function handleOwnerTenantStep(
     throw new Error(DATES_REQUIRED_WITH_TENANT);
   }
   assertEffectiveDateNotPast(tenantEffectiveDate, intakeLink.bail?.effectiveDate ?? null);
+  assertPaymentDay(payload.bailPaymentDay, intakeLink.bail?.paymentDay ?? null);
   // Date de fin : celle calculée par l'écran, sinon recalculée ici (type de bail + date de prise d'effet).
   const sentEndDate = payload.bailEndDate ? new Date(payload.bailEndDate) : null;
   const tenantEndDate =
@@ -863,6 +875,8 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
   if (primaryPersonData.nationality) primaryPersonDataToUpdate.nationality = primaryPersonData.nationality;
   if (primaryPersonData.familyStatus) primaryPersonDataToUpdate.familyStatus = primaryPersonData.familyStatus;
   if (primaryPersonData.matrimonialRegime) primaryPersonDataToUpdate.matrimonialRegime = primaryPersonData.matrimonialRegime;
+  // Plus marié : le régime n'est pas conservé (m7).
+  if (primaryPersonData.familyStatus && primaryPersonData.familyStatus !== "MARIE") primaryPersonDataToUpdate.matrimonialRegime = null;
   if (primaryPersonData.birthPlace) primaryPersonDataToUpdate.birthPlace = primaryPersonData.birthPlace;
   if (primaryPersonData.birthDate) primaryPersonDataToUpdate.birthDate = new Date(primaryPersonData.birthDate);
 
@@ -905,7 +919,7 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
             fullAddress: personData.fullAddress || null,
             nationality: personData.nationality || null,
             familyStatus: personData.familyStatus || null,
-            matrimonialRegime: personData.matrimonialRegime || null,
+            matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
             birthPlace: personData.birthPlace || null,
             birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
           },
@@ -923,7 +937,7 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
             fullAddress: personData.fullAddress || null,
             nationality: personData.nationality || null,
             familyStatus: personData.familyStatus || null,
-            matrimonialRegime: personData.matrimonialRegime || null,
+            matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
             birthPlace: personData.birthPlace || null,
             birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
             isPrimary: false,
@@ -942,7 +956,7 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
           fullAddress: personData.fullAddress || null,
           nationality: personData.nationality || null,
           familyStatus: personData.familyStatus || null,
-          matrimonialRegime: personData.matrimonialRegime || null,
+          matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
           birthPlace: personData.birthPlace || null,
           birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
           isPrimary: false,

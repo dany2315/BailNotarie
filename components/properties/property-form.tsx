@@ -24,6 +24,9 @@ import { z } from "zod";
 import { BienType, BienLegalStatus, PropertyStatus, ClientType } from "@prisma/client";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import type { AddressData } from "@/lib/types/address";
+import { getPropertyTypeLabel } from "@/lib/utils/property-labels";
+import { getPropertyLegalStatusLabel } from "@/lib/utils/legaleStatus-label";
+import { SURFACE_INVALID, surfaceIssue, surfaceWarning } from "@/lib/utils/surface";
 
 // Liste des champs de mobilier obligatoire pour location meublée
 const FURNITURE_FIELDS = [
@@ -51,7 +54,7 @@ const hasAllFurniture = (values: Record<string, unknown>): boolean => {
 const propertyFormSchema = z.object({
   label: z.string().optional().or(z.literal("")),
   fullAddress: z.string().min(1, "L'adresse est requise").max(500, "L'adresse est trop longue").trim(),
-  surfaceM2: z.string().optional().or(z.literal("")),
+  surfaceM2: z.string().optional().or(z.literal("")).refine((val) => !surfaceIssue(val), SURFACE_INVALID),
   type: z.nativeEnum(BienType).optional().or(z.literal("")),
   legalStatus: z.nativeEnum(BienLegalStatus).optional().or(z.literal("")),
   status: z.nativeEnum(PropertyStatus).default(PropertyStatus.NON_LOUER),
@@ -345,7 +348,7 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
                     <SelectContent>
                       {BienType && Object.values(BienType).map((type) => (
                         <SelectItem key={type} value={type}>
-                          {type.replace(/_/g, " ")}
+                          {getPropertyTypeLabel(type)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -366,6 +369,12 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
                 disabled={isLoading}
                 placeholder="50"
               />
+              {form.formState.errors.surfaceM2 && (
+                <p className="text-sm text-destructive">{String(form.formState.errors.surfaceM2.message)}</p>
+              )}
+              {surfaceWarning(form.watch("surfaceM2")) && (
+                <p className="text-sm text-amber-700 dark:text-amber-400">{surfaceWarning(form.watch("surfaceM2"))}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="legalStatus">Statut légal</Label>
@@ -380,7 +389,7 @@ export function PropertyForm({ onSubmit, initialData }: PropertyFormProps) {
                     <SelectContent>
                       {BienLegalStatus && Object.values(BienLegalStatus).map((status) => (
                         <SelectItem key={status} value={status}>
-                          {status.replace(/_/g, " ")}
+                          {getPropertyLegalStatusLabel(status)}
                         </SelectItem>
                       ))}
                     </SelectContent>

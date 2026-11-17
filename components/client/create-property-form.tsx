@@ -539,7 +539,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                 <SelectValue placeholder="Sélectionner un statut" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={BienLegalStatus.PLEIN_PROPRIETE}>Plein propriété</SelectItem>
+                <SelectItem value={BienLegalStatus.PLEIN_PROPRIETE}>Pleine propriété</SelectItem>
                 <SelectItem value={BienLegalStatus.CO_PROPRIETE}>Co-propriété</SelectItem>
                 <SelectItem value={BienLegalStatus.LOTISSEMENT}>Lotissement</SelectItem>
               </SelectContent>

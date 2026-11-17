@@ -19,6 +19,8 @@ import {
 import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
 import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { RENT_INCREASE_LABELS } from "@/lib/utils/rent-relocation";
+import { birthDateIssue } from "@/lib/utils/person-checks";
+import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
 
 export type ComplementTarget = "OWNER" | "TENANT";
 export type QuestionScope = "person" | "entreprise" | "property" | "bail";
@@ -473,15 +475,21 @@ export function questionErrors(ref: QuestionRef, values: any, ctx: QuestionConte
     if (/\.email$|^propertySyndicEmail$|guarantorEmail$/.test(path) && !EMAIL_RE.test(String(value).trim())) set(path, "Adresse e-mail invalide");
     if (/\.birthDate$/.test(path)) {
       const date = new Date(String(value));
-      if (Number.isNaN(date.getTime()) || date > new Date()) set(path, "Date de naissance invalide");
+      if (Number.isNaN(date.getTime())) set(path, "Date de naissance invalide");
+      else {
+        const issue = birthDateIssue(String(value));
+        if (issue) set(path, issue);
+      }
     }
+    if (/\.phone$|^propertySyndicPhone$|guarantorPhone$/.test(path) && !isValidPhoneNumberSafe(String(value))) set(path, "Numéro de téléphone invalide");
     if (path === "bailEffectiveDate" && Number.isNaN(new Date(String(value)).getTime())) set(path, "Date invalide");
     if (path === "propertySurfaceM2" && !(Number(String(value).replace(",", ".")) > 0)) set(path, "Indiquez une surface supérieure à 0");
     if (path === "bailRentAmount" && !(Number(value) > 0)) set(path, "Indiquez un loyer supérieur à 0");
     if ((path === "bailMonthlyCharges" || path === "bailSecurityDeposit") && !(Number(value) >= 0)) set(path, "Indiquez un montant valide");
     if (path === "bailPaymentDay") {
       const day = Number(value);
-      if (!Number.isInteger(day) || day < 1 || day > 31) set(path, "Indiquez un jour entre 1 et 31");
+      // 29 à 31 : seulement s'il est déjà enregistré (contrôle avec la valeur du dossier dans checkAnswer).
+      if (!Number.isInteger(day) || day < 1 || day > 31) set(path, "Indiquez un jour entre 1 et 28");
     }
   }
   // Relocation en zone tendue : les réponses qui permettent de calculer le loyer maximum.

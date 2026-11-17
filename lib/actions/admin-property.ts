@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
 import { updatePropertyCompletionStatus } from "@/lib/utils/completion-status";
 import { OUTSIDE_PERIMETER, periodForTerritory } from "@/lib/utils/rent-cap";
+import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
 
 const schema = z.object({
   propertyId: z.string().min(1),
@@ -147,12 +148,17 @@ const detailsSchema = z.object({
       label: z.string().trim().max(200).nullable(),
       address: addressSchema,
       type: z.nativeEnum(BienType),
-      surfaceM2: z.number().positive("Surface invalide").max(10000, "Surface invalide"),
+      surfaceM2: z.number().positive("La surface doit être supérieure à 0 m²."),
       legalStatus: z.nativeEnum(BienLegalStatus),
       // Copropriété : syndic ; lotissement : ancienneté de l'autorisation
       syndicName: z.string().trim().max(200).nullable(),
       syndicEmail: z.union([z.literal(""), z.string().trim().email("E-mail du syndic invalide")]).nullable(),
-      syndicPhone: z.string().trim().max(40).nullable(),
+      syndicPhone: z
+        .string()
+        .trim()
+        .max(40)
+        .refine((value) => !value || isValidPhoneNumberSafe(value), "Numéro de téléphone du syndic invalide")
+        .nullable(),
       subdivisionOver10Years: z.enum(["YES", "NO", "UNKNOWN"]).nullable(),
       // Bail commercial : situation du local (NONE = immeuble ou rue) et dépendances
       complexType: z.enum(["NONE", "SHOPPING_CENTER", "ESTATE_COMPLEX"]),

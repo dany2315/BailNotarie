@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import type { AddressData } from "@/lib/types/address";
 import { updatePropertyDetailsAdmin, updatePropertyFurnitureAdmin } from "@/lib/actions/admin-property";
+import { surfaceWarning } from "@/lib/utils/surface";
 
 const TYPE_OPTIONS: Record<string, string> = { APPARTEMENT: "Appartement", MAISON: "Maison", BOUTIQUE: "Boutique", BUREAU: "Bureau", LOCAL_ACTIVITE: "Local d'activité", ENTREPOT: "Entrepôt", AUTRE_LOCAL: "Autre local" };
 const LEGAL_OPTIONS: Record<string, string> = {
@@ -111,7 +112,7 @@ export function PropertyDetailsEditor({
     if (type && type !== values.type) next.type = type;
     const surfaceValue = surface.trim() ? Number(surface.replace(",", ".")) : null;
     if (surface.trim() && (Number.isNaN(surfaceValue) || (surfaceValue ?? 0) <= 0)) {
-      toast.error("Surface invalide");
+      toast.error("La surface doit être supérieure à 0 m².");
       return;
     }
     if (surfaceValue != null && surfaceValue !== values.surfaceM2) next.surfaceM2 = surfaceValue;
@@ -214,6 +215,7 @@ export function PropertyDetailsEditor({
                 />
                 <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">m²</span>
               </div>
+              {surfaceWarning(surface) && <p className="text-xs text-amber-700 dark:text-amber-400">{surfaceWarning(surface)}</p>}
             </div>
           </div>
           <div className="flex flex-col gap-1.5">

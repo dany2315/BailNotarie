@@ -9,6 +9,7 @@ import { formatDate, formatCurrency, formatSurface } from "@/lib/utils/formatter
 import { Building2, MapPin, Calendar, Euro, Users, Home, ChevronRight, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { ClientType, ProfilType } from "@prisma/client";
+import { getBailFamilyLabel } from "@/lib/utils/bails-labels";
 
 interface Property {
   id: string;
@@ -78,8 +79,8 @@ export function PropertyBailsViewer({ properties }: PropertyBailsViewerProps) {
 
   const getBailTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      BAIL_NU_3_ANS: "Bail nue 3 ans",
-      BAIL_NU_6_ANS: "Bail nue 6 ans",
+      BAIL_NU_3_ANS: "Bail nu 3 ans",
+      BAIL_NU_6_ANS: "Bail nu 6 ans",
       BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
       BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
       COMMERCIAL_3_6_9: "Bail commercial 3-6-9",
@@ -89,7 +90,7 @@ export function PropertyBailsViewer({ properties }: PropertyBailsViewerProps) {
   };
 
   const getBailFamilyLabel = (family: string) => {
-    return family.replace(/_/g, " ");
+    return getBailFamilyLabel(family);
   };
 
   const getPartyName = (party: Party) => {

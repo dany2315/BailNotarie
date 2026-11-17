@@ -16,7 +16,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { computeBailEndDate } from "@/lib/utils/bail-duration";
-import { EFFECTIVE_DATE_IN_PAST, effectiveDateInPast } from "@/lib/bail/dates";
+import { EFFECTIVE_DATE_IN_PAST, PAYMENT_DAY_INVALID, effectiveDateInPast, paymentDayInvalid } from "@/lib/bail/dates";
 import { requireRole } from "@/lib/auth-helpers";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
@@ -76,9 +76,9 @@ const termsSchema = z.object({
       paymentDay: z
         .string()
         .trim()
-        .regex(/^\d{1,2}$/, "Jour de paiement : entre 1 et 31")
+        .regex(/^\d{1,2}$/, PAYMENT_DAY_INVALID)
         .transform(Number)
-        .refine((day) => day >= 1 && day <= 31, "Jour de paiement : entre 1 et 31"),
+        .refine((day) => day >= 1 && day <= 31, PAYMENT_DAY_INVALID),
     })
     .partial(),
   revalidate: revalidateField,
@@ -100,7 +100,7 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
 
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
-    select: { id: true, status: true, propertyId: true, bailType: true, bailFamily: true, rentAmount: true, securityDeposit: true, effectiveDate: true, endDate: true, commercialTerms: { select: { derogatoryMonths: true } } },
+    select: { id: true, status: true, propertyId: true, bailType: true, bailFamily: true, rentAmount: true, securityDeposit: true, effectiveDate: true, endDate: true, paymentDay: true, commercialTerms: { select: { derogatoryMonths: true } } },
   });
   if (!bail) return { success: false, error: "Dossier introuvable" };
   // Bail commercial : ni limite légale du dépôt de garantie, ni encadrement des loyers.
@@ -114,6 +114,9 @@ export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
   const effectiveDate = values.effectiveDate ? utcDate(values.effectiveDate) : bail.effectiveDate;
   if (values.effectiveDate && effectiveDateInPast(effectiveDate, bail.effectiveDate)) {
     return { success: false, error: EFFECTIVE_DATE_IN_PAST };
+  }
+  if (values.paymentDay !== undefined && paymentDayInvalid(values.paymentDay, bail.paymentDay)) {
+    return { success: false, error: PAYMENT_DAY_INVALID };
   }
   // Date de fin : toujours calculée à partir du type de bail et de la prise d'effet (durée du bail dérogatoire
   // comprise), jamais saisie. Une date de fin envoyée par l'écran est ignorée. Recalculée seulement quand le

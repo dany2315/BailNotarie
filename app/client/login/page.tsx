@@ -14,6 +14,7 @@ import { authClient, useSession } from "@/lib/auth-client";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { SectionLabel, AuroraBackdrop, NoiseOverlay } from "@/components/lp/ui/lp-primitives";
 import { StartCard, StartSubmit } from "@/components/start/start-card";
+import { authErrorMessage } from "@/lib/auth-error-message";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -149,7 +150,7 @@ export default function ClientLoginPage() {
 
       if (error) {
         toast.error("Erreur", {
-          description: error.message || "Impossible d'envoyer le code OTP",
+          description: authErrorMessage(error, "Impossible d'envoyer le code. Réessayez dans un instant."),
         });
         return;
       }
@@ -163,9 +164,7 @@ export default function ClientLoginPage() {
       console.error("Erreur lors de l'envoi de l'OTP:", error);
       
       let errorMessage = "Impossible d'envoyer le code OTP";
-      if (error?.message) {
-        errorMessage = error.message;
-      } else if (error?.code === "NETWORK_ERROR") {
+      if (error?.code === "NETWORK_ERROR") {
         errorMessage = "Erreur de connexion. Vérifiez votre connexion internet";
       }
 
@@ -189,19 +188,7 @@ export default function ClientLoginPage() {
 
       if (error) {
         // Gestion spécifique des erreurs better-auth
-        let errorMessage = "Code invalide ou expiré";
-        
-        if (error.code === "INVALID_OTP") {
-          errorMessage = "Le code OTP est incorrect";
-        } else if (error.code === "EXPIRED_OTP") {
-          errorMessage = "Le code OTP a expiré. Veuillez en demander un nouveau";
-        } else if (error.code === "TOO_MANY_ATTEMPTS") {
-          errorMessage = "Trop de tentatives échouées. Veuillez demander un nouveau code";
-        } else if (error.code === "USER_NOT_FOUND") {
-          errorMessage = "Aucun compte trouvé pour cet email";
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
+        const errorMessage = authErrorMessage(error, "Code invalide ou expiré");
 
         toast.error("Erreur de connexion", {
           description: errorMessage,
@@ -248,9 +235,7 @@ export default function ClientLoginPage() {
       console.error("Erreur lors de la connexion:", error);
       
       let errorMessage = "Erreur lors de la connexion";
-      if (error?.message) {
-        errorMessage = error.message;
-      } else if (error?.code === "NETWORK_ERROR") {
+      if (error?.code === "NETWORK_ERROR") {
         errorMessage = "Erreur de connexion. Vérifiez votre connexion internet";
       }
 

@@ -336,4 +336,138 @@ suite('Corrections de la recette au navigateur', path.join(__dirname, '../../rep
     );
     assert.equal(await tx.client.count(), avant, 'un client a été créé');
   });
+
+  /* ---------- Lot du 17/11 au soir : m1, m3, m4, m5, m7, m10, m13, m14, m15, m17 ---------- */
+
+  await test('m1 — jour de paiement : 1 à 28 accepté, 0, 29, 31 refusés ; 30 déjà enregistré reste accepté', async (tx, r) => {
+    const { paymentDayInvalid } = r.load('lib/bail/dates.ts');
+    for (const ok of ['1', '15', 28, '']) assert.equal(paymentDayInvalid(ok), false, `${ok} refusé`);
+    for (const ko of ['0', '29', 31, 'abc', '5.5']) assert.equal(paymentDayInvalid(ko), true, `${ko} accepté`);
+    assert.equal(paymentDayInvalid(30, 30), false, 'valeur déjà enregistrée refusée');
+    assert.equal(paymentDayInvalid(31, 30), true);
+  });
+
+  await test('m1 — fiche de l’équipe : 31 refusé avec le message ; 30 déjà enregistré ne bloque pas un autre champ', async (tx, r, f) => {
+    await tx.bail.update({ where: { id: f.bail.id }, data: { paymentDay: 30 } });
+    r.state.user = f.admin;
+    const refus = await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { paymentDay: '31' } });
+    assert.equal(refus.success, false);
+    assert.match(refus.error, /entre 1 et 28/);
+    const loyer = await terms(r).updateBailTermsAdmin({ bailId: f.bail.id, values: { rentAmount: '640', paymentDay: '30' } });
+    assert(loyer.success, loyer.error);
+  });
+
+  await test('m1 — formulaire propriétaire, étape « Locataire » : jour 31 refusé, rien n’est créé', async (tx, r, f) => {
+    const handlers = r.load('lib/actions/intake-handlers.ts');
+    const avant = await tx.client.count();
+    await assert.rejects(
+      () => handlers.handleOwnerTenantStep(f.intake, { tenantEmail: crypto.randomUUID() + '@example.invalid', bailEffectiveDate: jour(10), bailPaymentDay: '31' }, f.owner.id),
+      /entre 1 et 28/,
+    );
+    assert.equal(await tx.client.count(), avant);
+    const { ownerFormSchema } = r.load('lib/zod/client.ts');
+    const issue = ownerFormSchema.safeParse({ bailPaymentDay: '29' }).error?.issues.find((i) => i.path.join('.') === 'bailPaymentDay');
+    assert.match(issue?.message ?? '', /entre 1 et 28/, 'le formulaire n’affiche pas le message');
+  });
+
+  await test('m3 — date de naissance : future et mineur refusés, majeur accepté (formulaire et fiche de l’équipe)', async (tx, r, f) => {
+    const { birthDateIssue } = r.load('lib/utils/person-checks.ts');
+    const an = new Date().getUTCFullYear();
+    assert.match(birthDateIssue(`${an + 1}-01-01`), /futur/);
+    assert.match(birthDateIssue(`${an - 10}-06-15`), /majeure/);
+    assert.equal(birthDateIssue(`${an - 40}-06-15`), null);
+    const { tenantFormSchema } = r.load('lib/zod/client.ts');
+    const res = tenantFormSchema.safeParse({ clientId: f.tenant.id, email: 'x@example.invalid', type: 'PERSONNE_PHYSIQUE', persons: [{ firstName: 'A', lastName: 'B', email: 'x@example.invalid', birthDate: `${an - 12}-03-02` }] });
+    assert(res.error?.issues.some((i) => /majeure/.test(i.message)), 'mineur accepté par le formulaire');
+    r.state.user = f.admin;
+    const person = await tx.person.findFirst({ where: { clientId: f.tenant.id, isPrimary: true } });
+    const refus = await r.load('lib/actions/admin-bail.ts').updatePartyFieldAdmin({ entity: 'person', id: person.id, field: 'birthDate', value: `${an + 2}-01-01` });
+    assert.equal(refus.success, false);
+    assert.match(refus.error, /futur/);
+  });
+
+  await test('m4 — téléphones : « +33 6 12 » et « +33 12 » refusés, numéros réels acceptés', async (tx, r) => {
+    const { isValidPhoneNumberSafe } = r.load('lib/utils/phone-validation.ts');
+    for (const ko of ['+33 6 12', '+33 12', '+3361234567890', '12']) assert.equal(isValidPhoneNumberSafe(ko), false, `${ko} accepté`);
+    for (const ok of ['+33612345678', '06 12 34 56 78', '+33 1 23 45 67 89', '+447911123456', '0033612345678', '']) assert.equal(isValidPhoneNumberSafe(ok), true, `${ok} refusé`);
+  });
+
+  await test('m5 — syndic : e-mail et téléphone contrôlés par le formulaire', async (tx, r) => {
+    const { ownerFormSchema } = r.load('lib/zod/client.ts');
+    const issues = ownerFormSchema.safeParse({ propertySyndicEmail: 'pas-un-mail', propertySyndicPhone: '+33 6 12' }).error.issues.map((i) => i.path.join('.') + ' ' + i.message);
+    assert(issues.some((i) => /propertySyndicEmail E-mail du syndic invalide/.test(i)), issues.join(' | '));
+    assert(issues.some((i) => /propertySyndicPhone Numéro de téléphone du syndic invalide/.test(i)), issues.join(' | '));
+  });
+
+  await test('m7 — de « marié » à « célibataire » : le régime est effacé, même s’il est encore envoyé', async (tx, r, f) => {
+    f.tenantIntake = await tx.intakeLink.create({ data: { token: crypto.randomUUID(), target: 'TENANT', clientId: f.tenant.id, propertyId: f.property.id, bailId: f.bail.id, status: 'PENDING' } });
+    const person = await tx.person.findFirst({ where: { clientId: f.tenant.id, isPrimary: true } });
+    const handlers = r.load('lib/actions/intake-handlers.ts');
+    const base = { firstName: 'Test', lastName: 'Locataire', email: person.email, isPrimary: true };
+    await handlers.handleTenantClientInfoStep(await intakeTenant(tx, f), { type: 'PERSONNE_PHYSIQUE', email: person.email, persons: [{ ...base, familyStatus: 'MARIE', matrimonialRegime: 'COMMUNAUTE_UNIVERSELLE' }] }, f.tenant.id);
+    assert.equal((await tx.person.findUnique({ where: { id: person.id } })).matrimonialRegime, 'COMMUNAUTE_UNIVERSELLE');
+    await handlers.handleTenantClientInfoStep(await intakeTenant(tx, f), { type: 'PERSONNE_PHYSIQUE', email: person.email, persons: [{ ...base, familyStatus: 'CELIBATAIRE', matrimonialRegime: 'COMMUNAUTE_UNIVERSELLE' }] }, f.tenant.id);
+    const after = await tx.person.findUnique({ where: { id: person.id } });
+    assert.equal(after.familyStatus, 'CELIBATAIRE');
+    assert.equal(after.matrimonialRegime, null, 'régime conservé');
+    await tx.person.update({ where: { id: person.id }, data: { familyStatus: 'MARIE', matrimonialRegime: 'SEPARATION_DE_BIENS' } });
+    r.state.user = f.admin;
+    const res = await r.load('lib/actions/admin-bail.ts').updatePartyFieldAdmin({ entity: 'person', id: person.id, field: 'familyStatus', value: 'DIVORCE' });
+    assert(res.success, res.error);
+    assert.equal((await tx.person.findUnique({ where: { id: person.id } })).matrimonialRegime, null, 'régime conservé par la fiche de l’équipe');
+  });
+
+  await test('m10 — e-mail vide : « L’email est requis » ; e-mail mal formé : « Email invalide »', async (tx, r, f) => {
+    const { tenantFormSchema } = r.load('lib/zod/client.ts');
+    const msg = (email) => tenantFormSchema.safeParse({ clientId: f.tenant.id, email: 'x@example.invalid', type: 'PERSONNE_PHYSIQUE', persons: [{ firstName: 'A', lastName: 'B', email: 'x@example.invalid' }, { firstName: 'C', lastName: 'D', email }] })
+      .error?.issues.find((i) => i.path.join('.') === 'persons.1.email')?.message;
+    assert.equal(msg(''), "L'email est requis");
+    assert.equal(msg('pas-un-mail'), 'Email invalide');
+  });
+
+  await test('m13 + m14 — libellés en clair et orthographe', async (tx, r) => {
+    const { FAMILY_STATUS_LABELS } = r.load('lib/utils/person-labels.ts');
+    const { getPropertyTypeLabel } = r.load('lib/utils/property-labels.ts');
+    const { getPropertyLegalStatusLabel } = r.load('lib/utils/legaleStatus-label.ts');
+    const { getBailTypeLabel } = r.load('lib/utils/bails-labels.ts');
+    assert.equal(FAMILY_STATUS_LABELS.CELIBATAIRE, 'Célibataire');
+    assert.equal(getPropertyTypeLabel('BOUTIQUE'), 'Boutique');
+    assert.equal(getPropertyTypeLabel('APPARTEMENT'), 'Appartement');
+    assert.equal(getPropertyLegalStatusLabel('PLEIN_PROPRIETE'), 'Pleine propriété');
+    assert.equal(getBailTypeLabel('BAIL_NU_3_ANS'), 'Bail nu 3 ans');
+    assert.equal(getBailTypeLabel('BAIL_NU_6_ANS'), 'Bail nu 6 ans');
+  });
+
+  await test('m15 — messages en français : champ absent, connexion, code expiré', async (tx, r, f) => {
+    const { tenantFormSchema } = r.load('lib/zod/client.ts');
+    const issues = tenantFormSchema.safeParse({ clientId: f.tenant.id, email: 'x@example.invalid', type: 'PERSONNE_MORALE', entreprise: { registration: '123 456 789 00012' }, persons: [] }).error.issues;
+    const messages = issues.map((i) => i.message);
+    assert(!messages.some((m) => /Invalid input|expected/.test(m)), messages.join(' | '));
+    assert(messages.includes('Le numéro de téléphone est requis'), messages.join(' | '));
+    const { authErrorMessage } = r.load('lib/auth-error-message.ts');
+    assert.match(authErrorMessage({ code: 'OTP_EXPIRED' }, 'x'), /a expiré/);
+    assert.match(authErrorMessage({ code: 'INVALID_EMAIL_OR_PASSWORD' }, 'x'), /mot de passe incorrect/);
+    assert.equal(authErrorMessage({ code: 'INCONNU', message: 'Something went wrong' }, 'Repli'), 'Repli');
+  });
+
+  await test('m17 — fichier de la messagerie : téléchargé sous son nom d’origine', async (tx, r) => {
+    const { buildDocumentFileName } = r.load('lib/utils/document-filename.ts');
+    assert.equal(buildDocumentFileName({ id: 'cmabc123456', kind: 'OTHER', label: 'reponse-proprio.pdf', fileKey: 'chat/1731850000000-k3j2-reponse-proprio.pdf', owner: 'Jean Martin', address: '1 rue X' }), 'reponse-proprio.pdf');
+    assert.notEqual(buildDocumentFileName({ id: 'cmabc123456', kind: 'KBIS', fileKey: 'a.pdf', owner: 'SAS Essai' }), 'a.pdf');
+  });
+
+  await test('m6 — surface : 0 et négatif refusés ; au-delà de 10 000 m², avertissement sans blocage', async (tx, r, f) => {
+    const { surfaceIssue, surfaceWarning } = r.load('lib/utils/surface.ts');
+    for (const ko of ['-7', '0', 0, 'abc']) assert(surfaceIssue(ko), `${ko} accepté`);
+    for (const ok of ['42', '42,5', 100000, '']) assert.equal(surfaceIssue(ok), null, `${ok} refusé`);
+    assert(surfaceWarning('100000'));
+    assert.equal(surfaceWarning('9000'), null);
+    const { ownerFormSchema } = r.load('lib/zod/client.ts');
+    const issue = ownerFormSchema.safeParse({ propertySurfaceM2: '-7' }).error.issues.find((i) => i.path.join('.') === 'propertySurfaceM2');
+    assert.match(issue?.message ?? '', /supérieure à 0/);
+    const handlers = r.load('lib/actions/intake-handlers.ts');
+    const avant = (await tx.property.findUnique({ where: { id: f.property.id } })).surfaceM2;
+    await assert.rejects(() => handlers.handleOwnerPropertyStep(f.intake, { propertySurfaceM2: '-7' }, f.owner.id), /supérieure à 0/);
+    assert.equal(String((await tx.property.findUnique({ where: { id: f.property.id } })).surfaceM2), String(avant));
+  });
 });

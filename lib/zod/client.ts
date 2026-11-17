@@ -15,6 +15,9 @@ import {
   BailStatus,
   DocumentKind
 } from "@prisma/client";
+import { birthDateIssue } from "@/lib/utils/person-checks";
+import "@/lib/zod/locale";
+import { SURFACE_INVALID, surfaceIssue } from "@/lib/utils/surface";
 
 // ============================================================================
 // SCHÉMAS RÉUTILISABLES - Champs communs
@@ -82,7 +85,8 @@ const personFieldsSchema = {
         message: "Numéro de téléphone invalide",
       })
   ),
-  email: z.string()
+  email: z.string("L'email est requis")
+    .min(1, "L'email est requis")
     .email("Email invalide")
     .max(100, "L'email est trop long")
     .toLowerCase()
@@ -117,7 +121,7 @@ const personFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("La date de naissance est requise")
       .min(1, "La date de naissance est requise")
       .transform((val) => {
         const date = new Date(val);
@@ -129,6 +133,10 @@ const personFieldsSchema = {
           }]);
         }
         return date;
+      })
+      .superRefine((val, ctx) => {
+        const issue = birthDateIssue(val as any);
+        if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
       })
   ),
   isPrimary: z.boolean().optional(),
@@ -182,7 +190,7 @@ const contactFieldsSchemaWithRequiredEmail = {
     .refine((val) => !val || isValidPhoneNumberSafe(val), {
       message: "Numéro de téléphone invalide",
     }),
-  email: z.string()
+  email: z.string("L'email est requis")
     .min(1, "L'email est requis")
     .email("Email invalide")
     .max(100, "L'email est trop long")
@@ -223,12 +231,16 @@ const physicalPersonFieldsSchema = {
       const date = new Date(val);
       if (isNaN(date.getTime())) return undefined;
       return date;
-    }),
+    })
+    .superRefine((val, ctx) => {
+        const issue = birthDateIssue(val as any);
+        if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+      }),
 };
 
 // Schéma pour les champs de personne morale
 const legalPersonFieldsSchema = {
-  legalName: z.string()
+  legalName: z.string("La raison sociale est requise")
     .min(1, "La raison sociale est requise")
     .max(200, "La raison sociale est trop longue")
     .trim(),
@@ -260,8 +272,11 @@ const propertyFieldsSchema = {
   // Copropriété : syndic. Lotissement : créé il y a plus de 10 ans (YES | NO | UNKNOWN).
   // Facultatifs ici (anciens dossiers) : le formulaire les exige selon le régime juridique.
   propertySyndicName: z.string().max(200).trim().optional(),
-  propertySyndicEmail: z.string().max(200).trim().optional(),
-  propertySyndicPhone: z.string().max(30).trim().optional(),
+  // Même contrôle que les autres adresses et numéros (m5).
+  propertySyndicEmail: z.string().max(200).trim().optional()
+    .refine((val) => !val || z.string().email().safeParse(val).success, "E-mail du syndic invalide"),
+  propertySyndicPhone: z.string().max(30).trim().optional()
+    .refine((val) => !val || isValidPhoneNumberSafe(val), "Numéro de téléphone du syndic invalide"),
   propertySubdivisionOver10Years: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.enum(["YES", "NO", "UNKNOWN"]).optional()
@@ -294,13 +309,13 @@ const propertyFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("La surface est requise")
       .min(1, "La surface est requise")
       .refine((val) => {
         const num = parseFloat(val);
         return !isNaN(num) && num > 0;
       }, {
-        message: "La surface doit être un nombre positif",
+        message: "La surface doit être supérieure à 0 m².",
       })
       .transform((val) => parseFloat(val))
   ),
@@ -400,7 +415,7 @@ const bailFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("Le montant du loyer est requis")
       .min(1, "Le montant du loyer est requis")
       .refine((val) => {
         const num = parseInt(val, 10);
@@ -415,7 +430,7 @@ const bailFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("Les charges mensuelles sont requises")
       .min(1, "Les charges mensuelles sont requises")
       .refine((val) => {
         const num = parseInt(val, 10);
@@ -430,7 +445,7 @@ const bailFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("Le dépôt de garantie est requis")
       .min(1, "Le dépôt de garantie est requis")
       .refine((val) => {
         const num = parseInt(val, 10);
@@ -487,9 +502,9 @@ const bailFieldsSchema = {
       .refine((val) => {
         if (!val) return true;
         const num = parseInt(val);
-        return !isNaN(num) && num >= 1 && num <= 31;
+        return /^\d{1,2}$/.test(val.trim()) && num >= 1 && num <= 28;
       }, {
-        message: "Le jour de paiement doit être un nombre entre 1 et 31",
+        message: "Le jour de paiement doit être compris entre 1 et 28.",
       })
       .transform((val) => {
         if (!val) return undefined;
@@ -525,7 +540,8 @@ const documentFieldsSchema = {
 
 // Schéma pour création basique de client (email uniquement)
 export const createBasicClientSchema = z.object({
-  email: z.string()
+  email: z.string("L'email est requis")
+    .min(1, "L'email est requis")
     .email("Email invalide")
     .max(100, "L'email est trop long")
     .toLowerCase()
@@ -555,15 +571,16 @@ export const createOwnerLegalClientSchema = z.object({
 export const createTenantBasicClientSchema = z.object({
   type: z.literal(ClientType.PERSONNE_PHYSIQUE),
   profilType: z.literal(ProfilType.LOCATAIRE),
-  firstName: z.string()
+  firstName: z.string("Le prénom est requis")
     .min(1, "Le prénom est requis")
     .max(100, "Le prénom est trop long")
     .trim(),
-  lastName: z.string()
+  lastName: z.string("Le nom est requis")
     .min(1, "Le nom est requis")
     .max(100, "Le nom est trop long")
     .trim(),
-  email: z.string()
+  email: z.string("L'email est requis")
+    .min(1, "L'email est requis")
     .email("Email invalide")
     .max(100, "L'email est trop long")
     .toLowerCase()
@@ -599,8 +616,8 @@ export const ownerFormSchema = z
         })
         .optional()
     ),
-    email: z
-      .string()
+    email: z.string("L'email est requis")
+      .min(1, "L'email est requis")
       .email("Email invalide")
       .max(100, "L'email est trop long")
       .toLowerCase()
@@ -636,7 +653,7 @@ export const ownerFormSchema = z
     entreprise: z
       .object({
         legalName: z
-          .string()
+          .string("La raison sociale est requise")
           .min(1, "La raison sociale est requise")
           .max(200, "La raison sociale est trop longue")
           .trim(),
@@ -648,30 +665,30 @@ export const ownerFormSchema = z
           z.boolean().optional()
         ).optional(),
         registration: z
-          .string()
+          .string("Le numéro d'enregistrement est requis")
           .min(1, "Le numéro d'enregistrement est requis")
           .max(50, "Le numéro d'enregistrement est trop long")
           .trim(),
         // Société confirmée au registre : le serveur relit lui-même les données (SIREN/SIRET)
         registryConfirmed: z.boolean().optional(),
         name: z
-          .string()
+          .string("Le nom commercial est requis")
           .min(1, "Le nom commercial est requis")
           .max(200, "Le nom commercial est trop long")
           .trim(),
-        email: z
-          .string()
+        email: z.string("L'email est requis")
+          .min(1, "L'email est requis")
           .email("Email invalide")
           .max(100, "L'email est trop long")
           .toLowerCase()
           .trim(),
         phone: z
-          .string()
+          .string("Le numéro de téléphone est requis")
           .min(1, "Le numéro de téléphone est requis")
           .max(15, "Le numéro de téléphone est trop long")
           .trim(),
         fullAddress: z
-          .string()
+          .string("L'adresse est requise")
           .min(1, "L'adresse est requise")
           .max(500, "L'adresse est trop longue")
           .trim(),
@@ -910,8 +927,8 @@ export const tenantFormSchema = z
         })
         .optional()
     ),
-    email: z
-      .string()
+    email: z.string("L'email est requis")
+      .min(1, "L'email est requis")
       .email("Email invalide")
       .max(100, "L'email est trop long")
       .toLowerCase()
@@ -924,7 +941,7 @@ export const tenantFormSchema = z
     entreprise: z
       .object({
         legalName: z
-          .string()
+          .string("La raison sociale est requise")
           .min(1, "La raison sociale est requise")
           .max(200, "La raison sociale est trop longue")
           .trim(),
@@ -947,19 +964,19 @@ export const tenantFormSchema = z
           .max(200, "Le nom commercial est trop long")
           .trim()
           .optional(),
-        email: z
-          .string()
+        email: z.string("L'email est requis")
+          .min(1, "L'email est requis")
           .email("Email invalide")
           .max(100, "L'email est trop long")
           .toLowerCase()
           .trim(),
         phone: z
-          .string()
+          .string("Le numéro de téléphone est requis")
           .min(1, "Le numéro de téléphone est requis")
           .max(15, "Le numéro de téléphone est trop long")
           .trim(),
         fullAddress: z
-          .string()
+          .string("L'adresse est requise")
           .min(1, "L'adresse est requise")
           .max(500, "L'adresse est trop longue")
           .trim(),
@@ -1138,9 +1155,9 @@ export const tenantFormSchema = z
 // Schéma pour création complète de client avec bien, bail et locataire (personne physique)
 export const createFullOwnerPhysicalClientWithPropertySchema = createOwnerPhysicalClientSchema.extend({
 
-  email: z.string()
-    .email("Email invalide")
+  email: z.string("L'email est requis")
     .min(1, "L'email est requis")
+    .email("Email invalide")
     .max(100, "L'email est trop long")
     .toLowerCase()
     .trim(),
@@ -1167,6 +1184,7 @@ export const createFullOwnerPhysicalClientWithPropertySchema = createOwnerPhysic
     },
     z.string()
     .optional()
+    .refine((val) => !surfaceIssue(val), SURFACE_INVALID)
   ),
 
   propertyType: z.preprocess(
@@ -1296,6 +1314,7 @@ export const createFullOwnerPhysicalClientWithPropertySchema = createOwnerPhysic
       return String(val);
     },
     z.string()
+      .refine((val) => !val || (/^\d{1,2}$/.test(val.trim()) && Number(val) >= 1 && Number(val) <= 28), "Le jour de paiement doit être compris entre 1 et 28.")
       .transform((val) => {
         const num = parseInt(val);
         return num;
@@ -1431,6 +1450,10 @@ const updatePersonSchema = z.object({
         const date = new Date(val);
         if (isNaN(date.getTime())) return undefined;
         return date;
+      })
+      .superRefine((val, ctx) => {
+        const issue = birthDateIssue(val as any);
+        if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
       })
       .optional()
   ),

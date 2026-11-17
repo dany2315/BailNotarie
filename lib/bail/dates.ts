@@ -58,6 +58,28 @@ export function assertEffectiveDateNotPast(value: MaybeDate, previous?: MaybeDat
   if (effectiveDateInPast(value, previous)) throw new Error(EFFECTIVE_DATE_IN_PAST);
 }
 
+/** Jour de paiement du loyer : du 1er au 28, un jour présent dans tous les mois (décision du 17/11/2026, m1). */
+export const PAYMENT_DAY_MAX = 28;
+export const PAYMENT_DAY_INVALID = "Le jour de paiement doit être compris entre 1 et 28.";
+
+/**
+ * Le jour de paiement saisi est-il hors de 1 à 28 ? Vide : non (son absence se contrôle à part).
+ * Comme pour la date de prise d'effet, une valeur déjà enregistrée (`previous`) et inchangée passe toujours :
+ * les dossiers existants au 29, 30 ou 31 ne sont pas bloqués.
+ */
+export function paymentDayInvalid(value: number | string | null | undefined, previous?: number | null): boolean {
+  if (value === null || value === undefined || String(value).trim() === "") return false;
+  const text = String(value).trim();
+  const num = /^\d{1,2}$/.test(text) ? Number(text) : Number.NaN;
+  if (previous != null && num === previous) return false;
+  return !Number.isInteger(num) || num < 1 || num > PAYMENT_DAY_MAX;
+}
+
+/** Même contrôle, qui lève l'erreur à afficher. */
+export function assertPaymentDay(value: number | string | null | undefined, previous?: number | null): void {
+  if (paymentDayInvalid(value, previous)) throw new Error(PAYMENT_DAY_INVALID);
+}
+
 export const DATES_REQUIRED_WITH_TENANT = "Avec un locataire, indiquez la date de prise d'effet et le jour de paiement.";
 
 /** Ce qu'il manque quand un locataire est connu (liste vide = rien ne manque). */

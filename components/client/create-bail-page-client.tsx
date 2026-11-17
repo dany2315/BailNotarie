@@ -50,7 +50,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import { todayInFrance } from "@/lib/bail/dates";
+import { PAYMENT_DAY_INVALID, paymentDayInvalid, todayInFrance } from "@/lib/bail/dates";
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 const schema = z.object({
@@ -68,12 +68,13 @@ const schema = z.object({
 });
 
 /** Avec un locataire, les deux valeurs sont exigées (le serveur refait ce contrôle). */
-const tenantDateErrors = (values: { tenantId?: string; effectiveDate?: string; paymentDay?: string }) => {
+const tenantDateErrors = (values: { tenantId?: string; effectiveDate?: string; paymentDay?: string; savedPaymentDay?: number | null }) => {
   const errors: Partial<Record<"effectiveDate" | "paymentDay", string>> = {};
   if (!values.tenantId) return errors;
   if (!values.effectiveDate) errors.effectiveDate = "La date de début est requise";
   const day = parseInt(values.paymentDay || "", 10);
-  if (!values.paymentDay || Number.isNaN(day) || day < 1 || day > 31) errors.paymentDay = "Le jour de paiement est requis (entre 1 et 31)";
+  if (!values.paymentDay) errors.paymentDay = "Le jour de paiement est requis";
+  else if (paymentDayInvalid(values.paymentDay, values.savedPaymentDay)) errors.paymentDay = PAYMENT_DAY_INVALID;
   return errors;
 };
 
@@ -402,7 +403,7 @@ export function CreateBailPageClient({
     }
     if (step === 3) {
       // Locataire choisi : date de début et jour de paiement exigés avant le paiement.
-      const dateErrors = tenantDateErrors({ tenantId: watch("tenantId"), effectiveDate: watch("effectiveDate"), paymentDay: watch("paymentDay") });
+      const dateErrors = tenantDateErrors({ tenantId: watch("tenantId"), effectiveDate: watch("effectiveDate"), paymentDay: watch("paymentDay"), savedPaymentDay: draftBail?.paymentDay ?? null });
       for (const [field, message] of Object.entries(dateErrors)) setError(field as "effectiveDate" | "paymentDay", { type: "manual", message });
       if (Object.keys(dateErrors).length > 0) return;
       handleSubmit((data) => {
@@ -915,7 +916,7 @@ export function CreateBailPageClient({
               <Input
                 type="number"
                 min="1"
-                max="31"
+                max={draftBail?.paymentDay && draftBail.paymentDay > 28 ? 31 : 28}
                 placeholder="5"
                 inputMode="numeric"
                 className="w-full h-11"

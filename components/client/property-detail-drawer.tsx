@@ -14,6 +14,7 @@ import { formatDate } from "@/lib/utils/formatters";
 import { CompletionStatus } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { BailDocumentPreview } from "./bail-document-preview";
+import { getPropertyTypeLabel } from "@/lib/utils/property-labels";
 
 const completionStatusLabels: Record<CompletionStatus, string> = {
   NOT_STARTED: "Non commencé",
@@ -143,7 +144,7 @@ export function PropertyDetailDrawer({
                           <Building2 className="h-4 w-4 text-muted-foreground" />
                           <div>
                             <p className="text-xs text-muted-foreground">Type</p>
-                            <p className="text-sm font-medium">{property.type}</p>
+                            <p className="text-sm font-medium">{getPropertyTypeLabel(property.type)}</p>
                           </div>
                         </div>
                       )}

@@ -48,7 +48,7 @@ export function tenantDatesError(state: TenantDatesState): string | null {
   if (!state.needed) return null;
   if (!state.effectiveDate) return "Indiquez la date de prise d'effet du bail";
   const day = Number.parseInt(state.paymentDay, 10);
-  if (!Number.isFinite(day) || day < 1 || day > 31) return "Indiquez le jour de paiement du loyer (entre 1 et 31)";
+  if (!Number.isFinite(day) || day < 1 || day > 28) return "Indiquez le jour de paiement du loyer (entre 1 et 28)";
   return null;
 }
 

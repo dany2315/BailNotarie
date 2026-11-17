@@ -517,11 +517,12 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
               field={form.register("paymentDay")}
               value={form.watch("paymentDay")}
               min={1}
-              max={31}
+              // Nouveau bail : 1 à 28. Bail existant : un jour déjà enregistré (29 à 31) reste accepté.
+              max={initialData?.id ? 31 : 28}
               disabled={isLoading}
               placeholder="5"
             />
-            <p className="text-xs text-muted-foreground">Entre 1 et 31</p>
+            <p className="text-xs text-muted-foreground">Entre 1 et 28</p>
           </div>
         </CardContent>
       </Card>

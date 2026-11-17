@@ -62,6 +62,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AlertCircle, Trash2 } from "lucide-react";
+import { FAMILY_STATUS_LABELS } from "@/lib/utils/person-labels";
+import { getPropertyTypeLabel } from "@/lib/utils/property-labels";
+import { getPropertyLegalStatusLabel } from "@/lib/utils/legaleStatus-label";
+import { getBailFamilyLabel } from "@/lib/utils/bails-labels";
+import { commercialPaymentText, commercialVatText } from "@/lib/utils/commercial-terms";
+import { getBailTypeLabel } from "@/lib/utils/bails-labels";
 
 type TenantFormData = z.infer<typeof tenantFormSchema>;
 
@@ -1707,6 +1713,21 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const renderOverviewStep = () => {
     const property = intakeLink.property;
     const bail = intakeLink.bail;
+    // Bail commercial : vocabulaire du local, loyer hors taxes, périodicité et activité (m16).
+    const commercial = bail?.bailFamily === "COMMERCIAL";
+    const terms = (bail as any)?.commercialTerms ?? null;
+    const commercialPayment = commercial ? commercialPaymentText(terms, bail?.paymentDay) : null;
+    const commercialVat = commercial ? commercialVatText(terms) : null;
+    const duration = bail?.bailType
+      ? ({
+          BAIL_NU_3_ANS: "3 ans",
+          BAIL_NU_6_ANS: "6 ans",
+          BAIL_MEUBLE_1_ANS: "1 an",
+          BAIL_MEUBLE_9_MOIS: "9 mois",
+          COMMERCIAL_3_6_9: "9 ans (bail 3-6-9)",
+          COMMERCIAL_DEROGATOIRE: terms?.derogatoryMonths ? `${terms.derogatoryMonths} mois (bail dérogatoire)` : "Bail dérogatoire",
+        } as Record<string, string>)[bail.bailType] ?? ""
+      : "";
 
     // Si pas de bien ou de bail, afficher un message informatif
     if (!property && !bail) {
@@ -1742,7 +1763,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 <div className="text-left">
                   <div className="text-base font-bold">Voici le bien que vous souhaitez louer</div>
                   <div className="text-base mt-1 text-muted-foreground">
-                    Les caractéristiques du logement
+                    {commercial ? "Les caractéristiques du local" : "Les caractéristiques du logement"}
                   </div>
                 </div>
               </div>
@@ -1781,7 +1802,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Type de bien
                     </label>
                     <p className="text-base font-semibold">
-                      {property.type.replace(/_/g, " ")}
+                      {getPropertyTypeLabel(property.type)}
                     </p>
                   </div>
                 )}
@@ -1793,7 +1814,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Statut légal
                     </label>
                     <p className="text-base font-semibold">
-                      {property.legalStatus.replace(/_/g, " ")}
+                      {getPropertyLegalStatusLabel(property.legalStatus)}
                     </p>
                   </div>
                 )}
@@ -1837,11 +1858,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     <div className="flex items-center gap-2 mb-2">
                       <Euro className="h-4 w-4 text-primary" />
                       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Loyer mensuel
+                        {commercial ? "Loyer mensuel HT" : "Loyer mensuel"}
                       </label>
                     </div>
                     <p className="text-xl font-bold text-primary">
                       {formatCurrency(Number(bail.rentAmount))}
+                      {commercial && <span className="text-base font-semibold"> HT</span>}
                     </p>
                   </div>
                 )}
@@ -1881,7 +1903,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Type de bail
                     </label>
                     <p className="text-base font-semibold">
-                      {bail.bailType === BailType.BAIL_NU_3_ANS ? "Bail nue" : bail.bailType === BailType.BAIL_NU_6_ANS ? "Bail nue" : bail.bailType === BailType.BAIL_MEUBLE_1_ANS ? "Bail meublé" : bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "Bail étudiant" : ""}
+                      {bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "Bail étudiant (9 mois)" : getBailTypeLabel(bail.bailType)}
                     </p>
                   </div>
                 )}
@@ -1891,18 +1913,45 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Famille de bail
                     </label>
                     <p className="text-base font-semibold">
-                      {bail.bailFamily.replace(/_/g, " ")}
+                      {getBailFamilyLabel(bail.bailFamily)}
                     </p>
                   </div>
                 )}*/}
-                {bail.paymentDay && (
+                {commercial ? (
+                  commercialPayment && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Paiement du loyer
+                      </label>
+                      <p className="text-base font-semibold">{commercialPayment}</p>
+                    </div>
+                  )
+                ) : (
+                  bail.paymentDay && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Jour de paiement
+                      </label>
+                      <p className="text-base font-semibold">
+                        Le {bail.paymentDay} de chaque mois
+                      </p>
+                    </div>
+                  )
+                )}
+                {commercialVat && (
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Jour de paiement
+                      TVA
                     </label>
-                    <p className="text-base font-semibold">
-                      Le {bail.paymentDay} de chaque mois
-                    </p>
+                    <p className="text-base font-semibold">{commercialVat}</p>
+                  </div>
+                )}
+                {commercial && terms?.activity && (
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Activité autorisée
+                    </label>
+                    <p className="text-base font-semibold">{terms.activity}</p>
                   </div>
                 )}
               </div>
@@ -1916,13 +1965,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Durée du contrat
                     </label>
                   </div>
-                  {bail.bailType && (
-                    <div>
-                      {
-                        bail.bailType === BailType.BAIL_NU_3_ANS ? "3 ans" : bail.bailType === BailType.BAIL_NU_6_ANS ? "6 ans" : bail.bailType === BailType.BAIL_MEUBLE_1_ANS ? "1 an" : bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "9 mois" : ""
-                      }
-                    </div>
-                  )}
+                  {duration && <div>{duration}</div>}
                   <div className="grid gap-3 sm:grid-cols-2">
                     {bail.effectiveDate && (
                       <div>
@@ -2382,7 +2425,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                               <SelectContent>
                                 {Object.values(FamilyStatus).map((status) => (
                                   <SelectItem key={status} value={status}>
-                                    {status.replace(/_/g, " ")}
+                                    {FAMILY_STATUS_LABELS[status] ?? status}
                                   </SelectItem>
                                 ))}
                               </SelectContent>

@@ -24,6 +24,7 @@ import { assessRentRules } from "@/lib/rent-rules";
 import { PROOF_LABELS } from "@/lib/utils/rent-relocation";
 import { normalizeRegistrationNumber, sirenFromRegistration } from "@/lib/utils/company-registry";
 import { entrepriseRegistryFields } from "@/lib/services/company-registry";
+import { birthDateIssue } from "@/lib/utils/person-checks";
 
 /* ------------------------------------------------------------------ */
 /* Suivi du dossier : notaire, demandes en cours, formulaires          */
@@ -306,7 +307,10 @@ const PERSON_FIELDS = {
   nationality: text(100),
   birthPlace: text(200),
   profession: optionalText(200),
-  birthDate: isoDay,
+  birthDate: isoDay.superRefine((date, ctx) => {
+    const issue = birthDateIssue(date);
+    if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+  }),
   familyStatus: z.nativeEnum(FamilyStatus),
   matrimonialRegime: z.nativeEnum(MatrimonialRegime),
 } as const;
@@ -355,7 +359,11 @@ export async function updatePartyFieldAdmin(
     if (entity === "person") {
       const updated = await prisma.person.update({
         where: { id },
-        data: { [field]: result.data === "" ? null : result.data },
+        data: {
+          [field]: result.data === "" ? null : result.data,
+          // Plus marié : le régime n'est pas conservé (m7).
+          ...(field === "familyStatus" && result.data !== "MARIE" && { matrimonialRegime: null }),
+        },
         select: { clientId: true },
       });
       clientId = updated.clientId;

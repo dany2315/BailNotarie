@@ -9,6 +9,7 @@ import { ArrowLeft, CheckCircle2, Mail, RefreshCw, Timer } from "lucide-react";
 import { StartCard, StartSubmit } from "@/components/start/start-card";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
+import { authErrorMessage } from "@/lib/auth-error-message";
 
 const otpSchema = z.object({
   code: z.string().length(6, "Le code doit contenir 6 chiffres"),
@@ -58,16 +59,7 @@ export function OtpVerificationForm({
       });
 
       if (error) {
-        let errorMessage = "Code invalide ou expiré";
-        if (error.code === "INVALID_OTP") {
-          errorMessage = "Le code est incorrect. Veuillez vérifier et réessayer.";
-        } else if (error.code === "EXPIRED_OTP") {
-          errorMessage = "Le code a expiré. Veuillez en demander un nouveau.";
-        } else if (error.code === "TOO_MANY_ATTEMPTS") {
-          errorMessage = "Trop de tentatives. Veuillez demander un nouveau code.";
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
+        const errorMessage = authErrorMessage(error, "Code invalide ou expiré");
 
         toast.error("Code invalide", { description: errorMessage });
         setIsLoading(false);

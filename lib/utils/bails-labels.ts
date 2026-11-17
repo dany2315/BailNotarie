@@ -1,6 +1,6 @@
 const bailTypeLabels: Record<string, string> = {
-  BAIL_NU_3_ANS: "Bail nue 3 ans",
-  BAIL_NU_6_ANS: "Bail nue 6 ans",
+  BAIL_NU_3_ANS: "Bail nu 3 ans",
+  BAIL_NU_6_ANS: "Bail nu 6 ans",
   BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
   BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
   COMMERCIAL_3_6_9: "Bail commercial 3-6-9",
@@ -9,6 +9,15 @@ const bailTypeLabels: Record<string, string> = {
 
 export function getBailTypeLabel(bailType: string): string {
   return bailTypeLabels[bailType] || bailType;
+}
+
+const bailFamilyLabels: Record<string, string> = {
+  HABITATION: "Habitation",
+  COMMERCIAL: "Commercial",
+};
+
+export function getBailFamilyLabel(family: string): string {
+  return bailFamilyLabels[family] || family;
 }
 
 const bailStatusLabels: Record<string, string> = {

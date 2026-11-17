@@ -64,7 +64,10 @@ const schema = z.object({
   securityDeposit: z.string().optional(),
   effectiveDate: z.string().min(1, "La date de début est requise"),
   endDate: z.string().optional(),
-  paymentDay: z.string().min(1, "Le jour de paiement est requis"),
+  paymentDay: z
+    .string()
+    .min(1, "Le jour de paiement est requis")
+    .refine((v) => /^\d{1,2}$/.test(v.trim()) && Number(v) >= 1 && Number(v) <= 28, "Le jour de paiement doit être compris entre 1 et 28."),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -572,7 +575,7 @@ export function CreateBailDrawer({
               <Input
                 type="number"
                 min="1"
-                max="31"
+                max="28"
                 placeholder="5"
                 inputMode="numeric"
                 className="w-full h-11"

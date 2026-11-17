@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
 import { BienType, BienLegalStatus, PropertyStatus } from "@prisma/client";
+import "@/lib/zod/locale";
+import { SURFACE_INVALID, surfaceIssue } from "@/lib/utils/surface";
 
 // Schéma pour les champs de mobilier
 const furnitureFieldsSchema = {
@@ -21,13 +23,15 @@ const furnitureFieldsSchema = {
 
 export const createPropertySchema = z.object({
   label: z.string().max(200, "Le libellé est trop long").trim().optional(),
-  fullAddress: z.string().min(1, "L'adresse est requise").max(500, "L'adresse est trop longue").trim(),
-  surfaceM2: z.union([z.string(), z.number(), z.null(), z.undefined()]).optional().transform((val) => {
-    if (!val || val === null || val === undefined) return null;
-    const num = typeof val === 'string' ? parseFloat(val) : val;
-    if (isNaN(num) || num < 0) return null;
-    return num;
-  }),
+  fullAddress: z.string("L'adresse est requise").min(1, "L'adresse est requise").max(500, "L'adresse est trop longue").trim(),
+  surfaceM2: z.union([z.string(), z.number(), z.null(), z.undefined()]).optional()
+    .refine((val) => !surfaceIssue(val), SURFACE_INVALID)
+    .transform((val) => {
+      if (!val || val === null || val === undefined) return null;
+      const num = typeof val === 'string' ? parseFloat(val) : val;
+      if (isNaN(num) || num < 0) return null;
+      return num;
+    }),
   type: z.nativeEnum(BienType, { message: "Le type de bien est requis" }),
   legalStatus: z.nativeEnum(BienLegalStatus, { message: "Le statut juridique est requis" }),
   status: z.enum(["PROSPECT", "IN_PROGRESS", "ACTIVE", "ARCHIVED"]).default("PROSPECT"),
@@ -73,12 +77,14 @@ export const updatePropertySchema = z.object({
   id: z.string().cuid("ID invalide"),
   label: z.string().max(200, "Le libellé est trop long").trim().optional(),
   fullAddress: z.string().max(500, "L'adresse est trop longue").trim().optional(),
-  surfaceM2: z.string().optional().transform((val) => {
-    if (!val) return null;
-    const num = parseFloat(val);
-    if (isNaN(num) || num < 0) return null;
-    return num;
-  }),
+  surfaceM2: z.string().optional()
+    .refine((val) => !surfaceIssue(val), SURFACE_INVALID)
+    .transform((val) => {
+      if (!val) return null;
+      const num = parseFloat(val);
+      if (isNaN(num) || num < 0) return null;
+      return num;
+    }),
   type: z.nativeEnum(BienType).optional(),
   legalStatus: z.nativeEnum(BienLegalStatus).optional(),
   status: z.nativeEnum(PropertyStatus).optional(),
