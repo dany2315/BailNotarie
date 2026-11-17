@@ -206,4 +206,11 @@ async function suite(label, outFile, body) {
   if (report.failed > 0 || !report.databaseRestored) process.exitCode = 1;
 }
 
-module.exports = { test, suite, assert, prisma, crypto, runtime, snapshot };
+/** Actions d'un fichier, appelées comme l'écran : une erreur renvoyée ({ __actionError }) est relancée. */
+function strict(r, file) {
+  const mod = r.load(file);
+  const { unwrapAction } = r.load('lib/utils/action-error.ts');
+  return new Proxy(mod, { get(target, key) { const v = target[key]; return typeof v === 'function' ? (...args) => unwrapAction(Promise.resolve(v(...args))) : v; } });
+}
+
+module.exports = { test, suite, assert, prisma, crypto, runtime, snapshot, strict };

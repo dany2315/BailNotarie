@@ -1,10 +1,10 @@
 // Lot 1 — paiements historiques : périmètre fermé, vérification individuelle, règle commune « payé ».
 const path = require('path');
-const { test, suite, assert } = require('./harness.cjs');
+const { strict, test, suite, assert } = require('./harness.cjs');
 
 const actions = (r) => r.load('lib/actions/historical-payments.ts');
 const paid = (r) => r.load('lib/payments/paid.ts');
-const leases = (r) => r.load('lib/actions/leases.ts');
+const leases = (r) => strict(r, 'lib/actions/leases.ts');
 const list = (tx, f) => tx.historicalPaymentReview.create({ data: { bailId: f.bail.id } });
 const withReview = (tx, f) => tx.bail.findUnique({ where: { id: f.bail.id }, include: { historicalPayment: true } });
 

@@ -2,12 +2,12 @@
 // Sans locataire : dossier enregistrable et terminable sans ces valeurs, jamais de date provisoire.
 // Avec locataire (dès le départ ou ajouté plus tard) : les deux valeurs exigées dans le même parcours.
 const path = require('path');
-const { test, suite, assert, crypto } = require('./harness.cjs');
+const { strict, test, suite, assert, crypto } = require('./harness.cjs');
 
 const HAB = 3990;
-const clients = (r) => r.load('lib/actions/clients.ts');
-const leases = (r) => r.load('lib/actions/leases.ts');
-const intakes = (r) => r.load('lib/actions/intakes.ts');
+const clients = (r) => strict(r, 'lib/actions/clients.ts');
+const leases = (r) => strict(r, 'lib/actions/leases.ts');
+const intakes = (r) => strict(r, 'lib/actions/intakes.ts');
 const bailOf = (tx, id) => tx.bail.findUnique({ where: { id }, include: { parties: { select: { id: true, profilType: true } } } });
 const day = (d) => (d ? d.toISOString().slice(0, 10) : null);
 const noTenant = (tx, f, data = {}) => tx.bail.update({ where: { id: f.bail.id }, data: { parties: { set: [{ id: f.owner.id }] }, status: 'DRAFT', ...data } });
