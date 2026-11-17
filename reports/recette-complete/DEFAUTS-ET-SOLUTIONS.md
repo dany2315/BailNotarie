@@ -143,7 +143,7 @@ relevée trop tard par un script (COM-029) ; données créées directement en ba
 
 ## 6. État au 17/11 après les corrections
 
-Corrigées et vérifiées à l'écran : B1 à M10 (M9 compris, choix A du 17/11), puis M12 à M15 selon vos choix du 17/11 et le consentement à Google Analytics. 137 tests serveur au vert. B1 à M10 sont sur staging (da5b701) ; le consentement et M12 à M15 sont des commits locaux, pas encore poussés. Aucune PR, aucune fusion, rien en production.
+Corrigées et vérifiées à l'écran : B1 à M10 (M9 compris, choix A du 17/11), puis M12 à M15 selon vos choix du 17/11 et le consentement à Google Analytics. 137 tests serveur au vert. B1 à M10 sont sur staging depuis da5b701 ; le bandeau de cookies et M12 à M15 depuis e2af2dd (17/11). Aucune PR, aucune fusion, rien en production.
 Toutes les autres lignes attendent votre accord, une par une.
 
 Pour ajouter des lignes **Proposé**, dites lesquelles (« tout », ou des numéros). Pour les **Décision**, donnez
