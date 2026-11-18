@@ -252,7 +252,8 @@ export default function ClientLoginPage() {
   }
 
   if (session) {
-    return null; // Retourner null pendant la redirection
+    // Connecté : l'espace se charge, on le dit au lieu d'afficher une page vide.
+    return <LoadingScreen message="Ouverture de votre espace..." variant="inline" />;
   }
 
   const otp = step === "otp";

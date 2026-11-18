@@ -40,6 +40,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Loader2, User, Building2, Check, ChevronsUpDown, Calendar } from "lucide-react";
 import { assignDossierToNotaire, getAllNotaires } from "@/lib/actions/notaires";
+import { unwrapAction } from "@/lib/utils/action-error";
 import { getAllBails } from "@/lib/actions/leases";
 import { Controller } from "react-hook-form";
 import { cn } from "@/lib/utils";
@@ -131,7 +132,7 @@ export function AssignDossierDialog({
   const onSubmit = async (data: AssignDossierFormData) => {
     setIsLoading(true);
     try {
-      await assignDossierToNotaire(data);
+      await unwrapAction(assignDossierToNotaire(data));
       toast.success("Dossier assigné avec succès");
       reset();
       onOpenChange(false);

@@ -121,6 +121,12 @@ async function createNotaireUnguarded(data: unknown) {
  * Un dossier = un bail avec toutes ses données (parties et bien)
  */
 export async function assignDossierToNotaire(data: unknown) {
+  // Les refus (« déjà assigné à ce notaire »…) doivent arriver lisibles à l'écran : en production, Next.js masque
+  // le message d'une erreur levée.
+  return guardAction(() => assignDossierToNotaireUnguarded(data));
+}
+
+async function assignDossierToNotaireUnguarded(data: unknown) {
   const user = await requireRole([Role.ADMINISTRATEUR]);
   const validated = assignDossierSchema.parse(data);
 
@@ -177,7 +183,9 @@ export async function assignDossierToNotaire(data: unknown) {
     orderBy: { assignedAt: "desc" },
   });
   if (existingAssignments.length > 0 && existingAssignments.every((a) => a.notaireId === validated.notaireId)) {
-    throw new Error("Ce bail est déjà assigné à ce notaire");
+    throw new Error(
+      `Ce dossier est déjà assigné à ${notaire.name || notaire.email}. Pour le réassigner, choisissez un autre notaire.`,
+    );
   }
 
   const assignmentData = {

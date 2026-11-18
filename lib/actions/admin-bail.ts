@@ -252,7 +252,10 @@ export async function validateAndSendToNotary(
 
     if (bail.dossierAssignments.length === 0) {
       if (!notaireId) return { success: false, error: "Choisissez un notaire" };
-      await assignDossierToNotaire({ bailId, notaireId, notes: notes || null });
+      const assigned = await assignDossierToNotaire({ bailId, notaireId, notes: notes || null });
+      if (assigned && typeof assigned === "object" && "__actionError" in assigned) {
+        return { success: false, error: assigned.__actionError };
+      }
     }
 
     for (const party of [owner, tenant]) {

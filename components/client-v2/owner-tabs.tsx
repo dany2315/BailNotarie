@@ -84,6 +84,15 @@ function useActiveTab(tabs: SpaceTab[], explicit?: OwnerTabKey): OwnerTabKey {
 
 /** Le fût commun au segmenté et à la barre des sous-pages. */
 function TopBarShell({ children }: { children: React.ReactNode }) {
+  // En haut de page, la barre reste transparente : le halo de la page passe dessous, comme sur l'accueil.
+  // Le fondu n'apparaît qu'une fois la page défilée, pour que le contenu ne traverse pas le fil d'Ariane.
+  const [scrolled, setScrolled] = React.useState(false);
+  React.useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 8);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
   return (
     <div
       className="pointer-events-none sticky top-0 z-30 flex justify-center px-4 pb-3"
@@ -93,7 +102,10 @@ function TopBarShell({ children }: { children: React.ReactNode }) {
           d'atteindre la barre, au lieu de la traverser en pleine lisibilité. */}
       <div
         aria-hidden
-        className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-background via-background/85 to-transparent"
+        className={cn(
+          "absolute inset-x-0 top-0 h-full bg-gradient-to-b from-background via-background/85 to-transparent transition-opacity duration-300",
+          scrolled ? "opacity-100" : "opacity-0",
+        )}
       />
       {children}
     </div>

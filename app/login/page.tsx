@@ -83,7 +83,8 @@ export default function LoginPage() {
   }
 
   if (session) {
-    return null; // Retourner null pendant la redirection
+    // Connecté : l'espace se charge, on le dit au lieu d'afficher une page vide.
+    return <LoadingScreen message="Ouverture de votre espace..." />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
