@@ -1069,6 +1069,8 @@ export async function acceptComplementRequest(data: unknown): Promise<{ success:
 
 export interface StaffComplementItem {
   id: string;
+  /** Même clé que la ligne de la fenêtre « Demander » (pièce ou information) : relie la demande au point de la fiche. */
+  key: string;
   label: string;
   /** Pièce ou information. */
   type: ComplementItemKindValue;
@@ -1174,6 +1176,7 @@ async function loadStaffRequests(where: Prisma.ComplementRequestWhereInput): Pro
     createdByName: request.createdByName,
     items: request.items.map((item) => ({
       id: item.id,
+      key: complementItemKey(item),
       label: item.label,
       type: item.kind as ComplementItemKindValue,
       kind: item.documentKind ?? "",

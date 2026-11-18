@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, BellRing, Check, CreditCard, Euro, FileUp, Lock, ShieldCheck, UserPlus, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BellRing, Check, CreditCard, Euro, FileUp, Lock, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { BailStatus, CompletionStatus, DocumentKind } from "@prisma/client";
 import { getLease, getBailMissingData } from "@/lib/actions/leases";
 import { getDocuments } from "@/lib/actions/documents";
@@ -56,6 +56,10 @@ import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/adm
 import { commercialComplianceRules, commercialDepositWarning, type RuleTone, type RuleView } from "@/lib/utils/commercial-compliance";
 import { asksBoughtDuringMarriage, commercialPaymentText, commercialTermsToForm, commercialVatText, complexTypeValue } from "@/lib/utils/commercial-terms";
 import { CommercialTermsInline, EditTermsLink } from "@/components/admin/commercial-terms-editor";
+import { FicheProvider, RemindRequestButton, RuleTag, type FicheClaim } from "@/components/admin/fiche/fiche-context";
+import { ContactCard } from "@/components/admin/fiche/contact-card";
+import { questionsForDataFields } from "@/lib/rules/complement-questions";
+import { fieldComplementKey } from "@/lib/utils/complement";
 
 /** Règle de la Conformité légale → ligne des « Conditions commerciales » qui la corrige. */
 const TERMS_ROW_FOR_RULE: Record<string, string> = {
@@ -422,14 +426,14 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             [commercialPaymentText((lease as any).commercialTerms, lease.paymentDay), commercialVatText((lease as any).commercialTerms)]
               .filter(Boolean)
               .join(" · ") || null,
-            tenantConfirmation,
+            // Accord du locataire : en pastille sur la ligne (rentTags).
           ]
         : [
             lease.rentAmount > 0
               ? `${formatCurrency(lease.rentAmount)} de loyer + ${formatCurrency(lease.monthlyCharges)} de charges par mois`
               : null,
             lease.paymentDay ? `Payable le ${lease.paymentDay} de chaque mois` : null,
-            tenantConfirmation,
+            // Accord du locataire : en pastille sur la ligne (rentTags).
           ],
     },
     {
@@ -690,16 +694,247 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           ? `Encore ${overall.remaining} point${overall.remaining > 1 ? "s" : ""} à valider avant l'envoi au notaire.`
           : "Tout est vérifié : le dossier peut partir chez le notaire.";
 
+  // ---- Présentation « une page » (maquette A) : rien de nouveau n'est calculé ni enregistré ----
+  // Lignes déjà réclamées au client (demandes en cours), par clé de la fenêtre « Demander ».
+  const claims: Record<string, FicheClaim> = {};
+  for (const request of complementRequests) {
+    for (const item of request.items) {
+      if (item.status === "ACCEPTED") continue;
+      claims[item.key] = {
+        status: item.status === "PROVIDED" ? "PROVIDED" : "PENDING",
+        target: request.target as "OWNER" | "TENANT",
+        origin: request.origin as "TEAM" | "NOTAIRE",
+        reason: item.reason,
+        sentAt: request.lastSentAt,
+        submittedAt: request.submittedAt,
+      };
+    }
+  }
+  const bailClaimKeys = (fields: string[]) =>
+    questionsForDataFields("bail", fields, { commercial: isCommercial }).map((qid) => fieldComplementKey(qid, { bailId: lease.id }));
+  const propertyClaimKeys = property
+    ? questionsForDataFields("property", ["fullAddress", "surfaceM2", "type", "legalStatus", "inShoppingCenter"], { commercial: isCommercial }).map((qid) =>
+        fieldComplementKey(qid, { propertyId: property.id }),
+      )
+    : [];
+  // Contrôles du logiciel, en pastilles sur la ligne du loyer et du dépôt (le détail reste dans « Le bail »).
+  const rentTags = (
+    <>
+      {!isCommercial && rentCap && (
+        <RuleTag tone={capMissing ? "bad" : capAuto ? "ok" : "warn"}>
+          {capMissing
+            ? rentCap.status === "missing"
+              ? "Plafond : informations à compléter"
+              : "Au-dessus du plafond de loyer"
+            : capAuto
+              ? rentCap.status === "ok"
+                ? "✓ Sous le plafond de loyer"
+                : "✓ Pas d'encadrement des loyers ici"
+              : "Plafond de loyer : à vérifier ci-dessous"}
+        </RuleTag>
+      )}
+      {!isCommercial && relocation && (
+        <RuleTag tone={relocMissing ? "bad" : relocAuto ? "ok" : "warn"}>
+          {relocMissing ? "Hausse du loyer à revoir (zone tendue)" : relocAuto ? "✓ Hors zone tendue" : "Zone tendue : à vérifier ci-dessous"}
+        </RuleTag>
+      )}
+      {lease.tenantConfirmedTermsAt ? (
+        <RuleTag tone="ok">✓ Confirmé par le locataire le {formatDate(lease.tenantConfirmedTermsAt)}</RuleTag>
+      ) : (lease as any).tenantReconfirmationRequestedAt ? (
+        <RuleTag tone="warn">Accord du locataire à redonner</RuleTag>
+      ) : null}
+    </>
+  );
+  const depositTags = isCommercial ? (
+    depositWarning ? <RuleTag tone="warn">{depositWarning}</RuleTag> : null
+  ) : (
+    <RuleTag tone={depositOk ? "ok" : "bad"}>
+      {depositOk
+        ? `✓ Dans la limite légale (${isMeuble ? "2 mois en meublé" : "1 mois en location vide"})`
+        : `Au-dessus de la limite légale de ${formatCurrency(maxDeposit)}`}
+    </RuleTag>
+  );
+  const contactOf = (party: any) => {
+    if (!party) return { phone: null as string | null, email: null as string | null };
+    const person = party.type === "PERSONNE_MORALE" ? null : (party.persons?.find((p: any) => p.isPrimary) ?? party.persons?.[0]);
+    return {
+      phone: (person?.phone || party.entreprise?.phone || null) as string | null,
+      email: (person?.email || party.entreprise?.email || null) as string | null,
+    };
+  };
+  const ownerContact = contactOf(owner);
+  const tenantContact = contactOf(tenant);
+
+  // « Le bail » réunit le bail et ses contrôles légaux (pièces obligatoires : dans « À faire »).
+  const bailAndRules = summarize([...bailStates, ...rulesStates]);
+
+  // « À faire avant l'envoi » : une ligne par chose qui attend, avec son bouton.
+  const WHO_OF = { OWNER: "propriétaire", TENANT: "locataire" } as const;
+  const fmtShort = (iso: string) => formatDate(iso).slice(0, 5);
+  const todoRows: Array<{ key: string; tone: "action" | "wait" | "todo" | "done"; text: ReactNode; meta?: ReactNode; action?: ReactNode }> = [];
+  for (const request of complementRequests) {
+    const who = WHO_OF[request.target as "OWNER" | "TENANT"];
+    const received = request.items.filter((item) => item.status === "PROVIDED");
+    const waiting = request.items.filter((item) => item.status === "PENDING");
+    const byNotary = request.origin === "NOTAIRE";
+    if (received.length > 0) {
+      todoRows.push({
+        key: `recu-${request.id}`,
+        tone: byNotary ? "wait" : "action",
+        text: byNotary ? `Le ${who} a répondu au notaire` : `Le ${who} a répondu`,
+        meta: `${complementCountLabel(received.map((item) => ({ kind: item.type })))} à contrôler${byNotary ? " par le notaire" : ""}`,
+        action: byNotary ? undefined : (
+          <a href="#demandes" className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90">
+            Contrôler
+          </a>
+        ),
+      });
+    }
+    if (waiting.length > 0 && request.status === "OPEN") {
+      todoRows.push({
+        key: `attente-${request.id}`,
+        tone: "wait",
+        // « pièce » et « information » sont féminins : réclamée, réclamées.
+        text: `${complementCountLabel(waiting.map((item) => ({ kind: item.type })))} ${byNotary ? "demandée" : "réclamée"}${waiting.length > 1 ? "s" : ""}${byNotary ? " par le notaire" : ""} au ${who}`,
+        meta: `depuis le ${fmtShort(request.createdAt)}${request.sentCount > 1 ? ` · relancé ${request.sentCount - 1} fois` : ""}`,
+        action: byNotary || pastVerification ? undefined : <RemindRequestButton requestId={request.id} email={request.recipientEmail} />,
+      });
+    }
+  }
+  if (!tenant && !pastVerification) {
+    todoRows.push({ key: "locataire", tone: "action", text: "Ajouter le locataire", action: <TenantCreateButton bailId={lease.id} variant="outline" className="h-9" /> });
+  }
+  if (remind && reminderData) {
+    todoRows.push({
+      key: "relance",
+      tone: "action",
+      text: remind.title,
+      action: (
+        <RemindButton
+          bailId={lease.id}
+          label="Relancer"
+          title={remind.title}
+          focus="all"
+          size="sm"
+          icon={remind.icon === "tenant" ? <UserPlus className="size-4" /> : remind.icon === "rent" ? <Euro className="size-4" /> : <BellRing className="size-4" />}
+          initialPanel={reminderData}
+          rentCapLines={rentCapNotify}
+          className="h-9"
+        />
+      ),
+    });
+  }
+  if (!paid) {
+    todoRows.push({
+      key: "paiement",
+      tone: "action",
+      text: "Frais de dossier non payés",
+      meta: openPayments.length > 0 ? "paiement Stripe en cours de vérification" : historicalPayment?.status === "PENDING" ? "ancien paiement à vérifier" : undefined,
+      action: (
+        <a href="#bloc-paiement" className="inline-flex h-9 items-center rounded-md border px-3 text-[13px] font-semibold hover:bg-muted">
+          Voir
+        </a>
+      ),
+    });
+  }
+  if (docsMissing > 0) {
+    todoRows.push({
+      key: "pieces",
+      tone: piecesLabel ? "action" : "wait",
+      text: `${docsMissing} pièce${docsMissing > 1 ? "s" : ""} manquante${docsMissing > 1 ? "s" : ""}`,
+      meta: missingDocGroups.map((group) => `${group.label} · ${group.count}`).join(" · "),
+      action:
+        askTargets.length > 0 && piecesLabel ? (
+          <ComplementRequestButton bailId={lease.id} target={askTargets[0]} alsoTarget={askTargets[1]} label="Demander" icon={<FileUp className="size-4" />} />
+        ) : undefined,
+    });
+  } else if (piecesLabel && askTargets.length > 0) {
+    todoRows.push({
+      key: "infos",
+      tone: "action",
+      text: piecesLabel.replace(/^Demander /, "").replace(/^./, (c) => c.toUpperCase()) + " à demander",
+      action: <ComplementRequestButton bailId={lease.id} target={askTargets[0]} alsoTarget={askTargets[1]} label="Demander" icon={<FileUp className="size-4" />} />,
+    });
+  }
+  if (!isCommercial && (lease as any).tenantReconfirmationRequestedAt && !lease.tenantConfirmedTermsAt) {
+    todoRows.push({
+      key: "accord",
+      tone: "wait",
+      text: "Accord du locataire à redonner",
+      meta: `conditions ou locataire modifiés le ${fmtShort(new Date((lease as any).tenantReconfirmationRequestedAt).toISOString())}`,
+      action: (
+        <a href="#bloc-bail" className="inline-flex h-9 items-center rounded-md border px-3 text-[13px] font-semibold hover:bg-muted">
+          Voir
+        </a>
+      ),
+    });
+  }
+  if (!isCommercial && isMeuble && property && furniturePresent < FURNITURE.length) {
+    todoRows.push({
+      key: "meuble",
+      tone: "action",
+      text: `Meublé : ${FURNITURE.length - furniturePresent} équipement${FURNITURE.length - furniturePresent > 1 ? "s" : ""} non coché${FURNITURE.length - furniturePresent > 1 ? "s" : ""}`,
+      action: (
+        <a href="#bloc-bien" className="inline-flex h-9 items-center rounded-md border px-3 text-[13px] font-semibold hover:bg-muted">
+          Voir
+        </a>
+      ),
+    });
+  }
+  if (!pastVerification && diagnosticState && diagnosticState.counts.toFix + diagnosticState.counts.toCheck > 0) {
+    todoRows.push({
+      key: "diagnostics",
+      tone: "action",
+      text: "Diagnostics",
+      meta: [
+        diagnosticState.counts.toFix ? `${diagnosticState.counts.toFix} à remplacer` : null,
+        diagnosticState.counts.toCheck ? `${diagnosticState.counts.toCheck} à vérifier` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      action: (
+        <a href="#bloc-bien" className="inline-flex h-9 items-center rounded-md border px-3 text-[13px] font-semibold hover:bg-muted">
+          Voir
+        </a>
+      ),
+    });
+  }
+  for (const section of [
+    { id: "bloc-proprietaire", title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire", summary: summarize(ownerStates), show: !!owner },
+    { id: "bloc-locataire", title: "Locataire", summary: summarize(tenantStates), show: !!tenant },
+    { id: "bloc-bien", title: "Le bien", summary: summarize(propertyStates), show: !!property },
+    { id: "bloc-bail", title: "Le bail", summary: bailAndRules, show: true },
+  ]) {
+    if (!section.show || (section.summary.remaining === 0 && section.summary.missing === 0)) continue;
+    todoRows.push({
+      key: section.id,
+      tone: "todo",
+      text: section.title,
+      meta: [
+        section.summary.remaining > 0 ? `${section.summary.remaining} point${section.summary.remaining > 1 ? "s" : ""} à vérifier` : null,
+        section.summary.missing > 0 ? `${section.summary.missing} manquant${section.summary.missing > 1 ? "s" : ""}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      action: (
+        <a href={`#${section.id}`} className="inline-flex h-9 items-center px-2 text-[13px] font-semibold text-primary hover:underline">
+          Vérifier →
+        </a>
+      ),
+    });
+  }
+  const receivedCount = complementRequests.reduce((n, r) => n + r.items.filter((item) => item.status === "PROVIDED").length, 0);
+  const waitingCount = complementRequests.reduce((n, r) => n + r.items.filter((item) => item.status === "PENDING").length, 0);
+
   return (
+    <FicheProvider claims={claims}>
     <div className="flex flex-col gap-5 pb-10">
-      {/* En-tête collant (statique sur téléphone) */}
+      {/* En-tête collant (statique sur téléphone) : qui, quoi, contacter, agir */}
       <div className="-mx-4 -mt-6 flex flex-col gap-3 border-b bg-background/95 px-4 pb-4 pt-5 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:-mx-6 sm:px-6 md:sticky md:top-16 md:z-30 lg:-mx-8 lg:px-8">
         <Link href="/interface/baux" className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-primary hover:underline">
           <ArrowLeft className="size-4" />
           Dossiers
         </Link>
-        <div className="flex flex-col gap-3.5">
-          <div className="flex min-w-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className={cn("inline-flex h-[30px] items-center whitespace-nowrap rounded-lg px-2.5 text-[13.5px] font-semibold sm:px-3", stage.className)}>{stage.label}</span>
               {lease.paidAt ? (
@@ -734,61 +969,68 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 {nextAction.actor !== "personne" && ` · ${WAITING_ON[nextAction.actor] || ACTOR_LABELS[nextAction.actor].toLowerCase()}`}
               </span>
             </div>
-            <h1 className="break-words text-[26px] font-bold leading-tight tracking-tight">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <h1 className="break-words text-[24px] font-bold leading-tight tracking-tight">
               {property?.fullAddress || property?.label || `Bail #${lease.id.slice(-8).toUpperCase()}`}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {BAIL_TYPE_LABELS[lease.bailType] || lease.bailType} · {BAIL_FAMILY_LABELS[lease.bailFamily] || lease.bailFamily} ·{" "}
-              {ownerName || "propriétaire non renseigné"} → {tenantName || "locataire à ajouter"}
+              {BAIL_TYPE_LABELS[lease.bailType] || lease.bailType} · {BAIL_FAMILY_LABELS[lease.bailFamily] || lease.bailFamily} · Réf. #{lease.id.slice(-8).toUpperCase()}
             </p>
           </div>
-          {/* Actions sous le titre, comme dans la maquette : « Demander… », « Plus », puis le bouton
-              principal ; sur téléphone, le bouton principal passe en premier sur toute la largeur. */}
           <div className="flex flex-wrap items-center gap-2">
-            {canSend && (
-              <div className="w-full sm:order-last sm:w-auto">
-                <SendToNotaryButton
-                  bailId={lease.id}
-                  assignedNotaireName={followUp.notaire?.name}
-                  disabledReason={sendDisabledReason}
-                  label={lease.status === BailStatus.READY_FOR_NOTARY ? "Assigner un notaire" : "Valider et envoyer au notaire"}
-                  hideReason
-                />
-              </div>
-            )}
-            {remind && reminderData && (
-              <RemindButton
-                bailId={lease.id}
-                label={remind.label}
-                title={remind.title}
-                focus="all"
-                size="default"
-                icon={
-                  remind.icon === "tenant" ? <UserPlus className="size-4" /> : remind.icon === "rent" ? <Euro className="size-4" /> : <BellRing className="size-4" />
-                }
-                initialPanel={reminderData}
-                rentCapLines={rentCapNotify}
-                className="h-11 min-w-0 flex-1 px-3 sm:flex-none sm:px-4"
-              />
-            )}
-            {!remind && piecesLabel && (
-              <ComplementRequestButton
-                bailId={lease.id}
-                target={askTargets[0]}
-                alsoTarget={askTargets[1]}
-                label={piecesLabel}
-                size="default"
-                icon={<FileUp className="size-4" />}
-                className="h-11 min-w-0 flex-1 px-3 sm:flex-none sm:px-4"
-              />
-            )}
             <BailMoreMenu
               bailId={lease.id}
               status={lease.status}
               tenant={tenant && tenantName ? { id: tenant.id, name: tenantName } : null}
               canChangeTenant={!!tenant && !pastVerification}
-              triggerClassName="h-11 gap-1.5 px-3 sm:gap-2 sm:px-4"
+              triggerClassName="h-10 gap-1.5 px-3"
             />
+            {canSend && (
+              <SendToNotaryButton
+                bailId={lease.id}
+                assignedNotaireName={followUp.notaire?.name}
+                disabledReason={sendDisabledReason}
+                label={lease.status === BailStatus.READY_FOR_NOTARY ? "Assigner un notaire" : "Envoyer au notaire"}
+                hideReason
+              />
+            )}
+          </div>
+        </div>
+        {/* Les personnes du dossier : appeler, écrire, demander une pièce */}
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <ContactCard
+            role={(owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire"}
+            name={ownerName || null}
+            phone={ownerContact.phone}
+            email={ownerContact.email}
+            href={owner ? `/interface/clients/${owner.id}` : null}
+            bailId={lease.id}
+            target="OWNER"
+            canAsk={!!owner && !pastVerification}
+          />
+          <ContactCard
+            role="Locataire"
+            name={tenantName || null}
+            phone={tenantContact.phone}
+            email={tenantContact.email}
+            href={tenant ? `/interface/clients/${tenant.id}` : null}
+            bailId={lease.id}
+            target="TENANT"
+            canAsk={!!tenant && !pastVerification}
+          />
+          <div className="flex min-w-0 items-center gap-2 rounded-xl border bg-card px-3 py-2">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">Notaire</span>
+              {followUp.notaire ? (
+                <Link href={`/interface/notaires/${followUp.notaire.id}/dossiers`} className="truncate text-[14px] font-semibold hover:underline">
+                  {followUp.notaire.name}
+                </Link>
+              ) : (
+                <span className="text-[14px] text-muted-foreground">Pas encore choisi</span>
+              )}
+            </div>
+            {followUp.notaire && <span className="text-[12px] text-muted-foreground">depuis le {formatDate(followUp.notaire.assignedAt).slice(0, 5)}</span>}
           </div>
         </div>
         {/* Étapes */}
@@ -821,33 +1063,368 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         </ol>
       </div>
 
-      {/* Sur téléphone, les colonnes s'effacent (display: contents) pour ordonner les blocs :
-          avancement, conformité légale, suivi et notes, puis le détail du dossier. */}
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-[18px]">
-          <div className="order-2 min-w-0 lg:order-none">
-            {/* Conformité légale : règles contrôlées par le logiciel et règles à valider par l'équipe */}
-            <CheckSection
-              id="bloc-controles"
-              title="Conformité légale"
-              subtitle={
-                isCommercial
-                  ? "Ce que le Code de commerce impose à ce bail commercial. Les règles marquées « Automatique » sont vérifiées par le logiciel."
-                  : "Ce que la loi impose à ce bail. Les règles marquées « Automatique » sont vérifiées par le logiciel."
-              }
-              headerRight={
+        <div className="flex min-w-0 flex-col gap-4">
+          {/* À faire avant l'envoi : la seule liste à lire pour savoir quoi faire */}
+          <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-base font-semibold">{pastVerification ? "Dossier transmis au notaire" : "À faire avant l'envoi"}</h2>
+              <span className="text-sm font-bold">
+                {overall.verified} / {overall.total}
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+            </div>
+            {todoRows.length === 0 ? (
+              <p className="flex items-center gap-2 text-[14px] font-medium text-green-800">
+                <Check className="size-4" strokeWidth={3} />
+                {pastVerification ? "Contrôle terminé." : "Tout est vérifié : le dossier peut partir chez le notaire."}
+              </p>
+            ) : (
+              <ul className="flex flex-col divide-y">
+                {todoRows.map((row) => (
+                  <li key={row.key} className="grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-3 py-2.5">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "flex size-[20px] items-center justify-center rounded-full text-[12px] font-extrabold",
+                        row.tone === "action" && "bg-amber-100 text-amber-800",
+                        row.tone === "wait" && "bg-slate-100 text-slate-600",
+                        row.tone === "todo" && "border-2 border-slate-300",
+                      )}
+                    >
+                      {row.tone === "action" ? "!" : row.tone === "wait" ? "…" : ""}
+                    </span>
+                    <span className="min-w-0 text-[14px]">
+                      <span className="font-semibold">{row.text}</span>
+                      {row.meta ? <span className="text-muted-foreground"> · {row.meta}</span> : null}
+                    </span>
+                    {row.action ? <span className="flex justify-end">{row.action}</span> : <span />}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canSend && sendDisabledReason && <p className="text-[12.5px] text-muted-foreground">Transmission au notaire : {sendDisabledReason.replace(/^./, (c) => c.toLowerCase())}</p>}
+          </section>
+
+          {!paid && (
+          <CheckSection
+            id="bloc-paiement"
+            title="Paiement"
+            subtitle="Frais de dossier réglés à la fin du formulaire propriétaire"
+            headerRight={<StateChip tone={paid ? "ok" : "missing"}>{paid ? "Payé" : "Non payé"}</StateChip>}
+          >
+            <CheckList>
+              <CheckPoint
+                state={paid ? "ok" : "missing"}
+                label="Frais de dossier"
+                note={
+                  paid
+                    ? null
+                    : [
+                        "Non payés : le dossier ne peut pas partir chez le notaire.",
+                        ...openPayments.map((payment) =>
+                          payment.status === "SUCCEEDED"
+                            ? `Paiement Stripe ${payment.stripePaymentIntentId.slice(0, 8)}…${payment.stripePaymentIntentId.slice(-6)} confirmé${payment.stripePaidAt ? ` le ${formatDateTime(payment.stripePaidAt)} (heure de Paris)` : ""} : en attente de l'envoi du formulaire par le propriétaire (il ne repaiera pas).${payment.lastError ? ` ${payment.lastError}` : ""}`
+                            : `Paiement Stripe ${payment.stripePaymentIntentId.slice(0, 8)}…${payment.stripePaymentIntentId.slice(-6)} en cours de vérification : aucune nouvelle tentative n'est proposée au client tant que son résultat n'est pas connu.`,
+                        ),
+                      ].join("\n")
+                }
+              >
+                {lease.paidAt
+                  ? [
+                      `${formatDossierFee(lease.bailFamily)} payés le ${formatDateTime(lease.paidAt as Date)} (heure de Paris)`,
+                      lease.stripePaymentIntentId ? `Paiement Stripe ${lease.stripePaymentIntentId.slice(0, 8)}…${lease.stripePaymentIntentId.slice(-6)}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join("\n")
+                  : paidHistorically && historicalPayment
+                    ? [
+                        paidOn ? `Paiement historique confirmé — payé le ${formatDate(paidOn)}` : HISTORICAL_PAID_LABEL,
+                        `Vérifié par ${historicalPayment.verifiedByName ?? "l'équipe"}${historicalPayment.verifiedAt ? ` le ${formatDate(historicalPayment.verifiedAt)}` : ""}`,
+                        historicalPayment.proofReference ? `Preuve : ${historicalPayment.proofReference}` : null,
+                        historicalPayment.note ? `Note : ${historicalPayment.note}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join("\n")
+                    : historicalPayment?.status === "REJECTED"
+                      ? `Aucun paiement enregistré pour ce dossier.\nVérifié par ${historicalPayment.verifiedByName ?? "l'équipe"}${historicalPayment.verifiedAt ? ` le ${formatDate(historicalPayment.verifiedAt)}` : ""} : aucun paiement retrouvé${historicalPayment.note ? ` (${historicalPayment.note})` : ""}.`
+                      : "Aucun paiement enregistré pour ce dossier."}
+              </CheckPoint>
+            </CheckList>
+            {!paid && historicalPayment?.status === "PENDING" && (
+              <div className="px-4 pb-4 sm:px-5">
+                <HistoricalPaymentReview bailId={lease.id} />
+              </div>
+            )}
+          </CheckSection>
+
+          )}
+
+          <PartyCheckSection
+            id="bloc-proprietaire"
+            number={1}
+            role="PROPRIETAIRE"
+            data={ownerPoints}
+            bailId={lease.id}
+            verifiedKeys={verifiedKeys}
+            locked={ownerLocked}
+            formNote={formNote(ownerIntake)}
+            complement={pastVerification ? undefined : { bailId: lease.id, target: "OWNER", commercial: isCommercial }}
+          />
+          <PartyCheckSection
+            id="bloc-locataire"
+            number={2}
+            role="LOCATAIRE"
+            data={tenantPoints}
+            bailId={lease.id}
+            verifiedKeys={verifiedKeys}
+            locked={tenantLocked}
+            formNote={formNote(tenantIntake)}
+            complement={pastVerification ? undefined : { bailId: lease.id, target: "TENANT", commercial: isCommercial }}
+            emptyAction={pastVerification ? undefined : <TenantCreateButton bailId={lease.id} variant="default" className="h-10" />}
+            emptyHint="Ajoutez-le si le propriétaire vous l'a communiqué : il recevra son formulaire par e-mail. Sinon, relancez le propriétaire avec le bouton en haut de la fiche."
+          />
+
+          {/* Le bien */}
+          <CheckSection
+            id="bloc-bien"
+            number={3}
+            title="Le bien"
+            subtitle={
+              property ? (
                 <>
-                  <StateChip tone={summaryChip(sectionSummary("bloc-controles")).tone}>{summaryChip(sectionSummary("bloc-controles")).label}</StateChip>
-                  {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={sectionSummary("bloc-controles").pendingKeys} />}
+                  {[
+                    property.type && (PROPERTY_TYPE_LABELS[property.type] || property.type),
+                    property.legalStatus && (LEGAL_STATUS_LABELS[property.legalStatus] || property.legalStatus).toLowerCase(),
+                    surface && formatSurface(surface),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}{" "}
+                  <Link href={`/interface/properties/${property.id}`} className="ml-1 inline-flex items-center gap-0.5 font-medium text-primary hover:underline">
+                    Fiche du bien
+                    <ArrowUpRight className="size-3.5" />
+                  </Link>
                 </>
-              }
-            >
-              <CheckList>
+              ) : (
+                "Aucun bien associé"
+              )
+            }
+            headerRight={
+              property && (
+                <>
+                  <StateChip tone={summaryChip(sectionSummary("bloc-bien")).tone}>{summaryChip(sectionSummary("bloc-bien")).label}</StateChip>
+                  {!propertyLocked && <ValidateAllButton bailId={lease.id} pointKeys={sectionSummary("bloc-bien").pendingKeys} />}
+                </>
+              )
+            }
+            footer={
+              property &&
+              !isCommercial && (
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">Équipements du meublé</span>
+                    <span className="flex items-center gap-2">
+                      <StateChip tone={isMeuble ? (furniturePresent === FURNITURE.length ? "ok" : "missing") : "neutral"}>
+                        {isMeuble ? `${furniturePresent} / ${FURNITURE.length} présents` : "Non concerné · bail nu"}
+                      </StateChip>
+                      {!propertyLocked && (
+                        <PropertyFurnitureEditor
+                          propertyId={property.id}
+                          items={FURNITURE.map((item) => ({ key: item.key, label: item.label, present: !!property[item.key] }))}
+                        />
+                      )}
+                    </span>
+                  </div>
+                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-3.5 gap-y-1.5">
+                    {FURNITURE.map((item) => {
+                      const ok = !!property[item.key];
+                      return (
+                        <li
+                          key={item.key}
+                          className={cn("flex items-center gap-1.5 text-[13px]", isMeuble ? (ok ? "" : "text-red-700") : "text-muted-foreground")}
+                        >
+                          {isMeuble &&
+                            (ok ? (
+                              <Check className="size-3.5 shrink-0 text-green-700" strokeWidth={3} aria-label="présent" />
+                            ) : (
+                              <X className="size-3.5 shrink-0" aria-label="absent" />
+                            ))}
+                          {item.label}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )
+            }
+          >
+            {property ? (
+              <>
+                <CheckList>
+                  <CheckPoint
+                    state={propertyDescMissing ? "missing" : isVerified(propertyDescKey, propertyLocked) ? "ok" : "todo"}
+                    label="Adresse et description"
+                    claimKeys={propertyClaimKeys}
+                    note={
+                      missingData?.property?.missingFields.length
+                        ? `Manquant : ${missingData.property.missingFields.map((f) => (f === "fullAddress" ? "adresse" : f)).join(", ")}`
+                        : null
+                    }
+                    verify={{ bailId: lease.id, pointKey: propertyDescKey, verified: isVerified(propertyDescKey, propertyLocked), locked: propertyLocked }}
+                    actions={
+                      !propertyLocked && (
+                        <>
+                          {propertyDescMissing && owner && (
+                            <AskFieldsButton
+                              bailId={lease.id}
+                              target="OWNER"
+                              scope="property"
+                              targetId={property.id}
+                              fields={missingData?.property?.missingFields ?? []}
+                              commercial={isCommercial}
+                            />
+                          )}
+                          <PropertyDetailsEditor
+                            propertyId={property.id}
+                            missing={propertyDescMissing}
+                            commercial={isCommercial}
+                            values={{
+                              label: property.label,
+                              fullAddress: property.fullAddress,
+                              type: property.type,
+                              surfaceM2: surface,
+                              legalStatus: property.legalStatus,
+                              syndicName: property.syndicName,
+                              syndicEmail: property.syndicEmail,
+                              syndicPhone: property.syndicPhone,
+                              subdivisionOver10Years: property.subdivisionOver10Years,
+                              complexType: complexTypeValue(property.inShoppingCenter, property.complexType),
+                              outbuildings: property.outbuildings,
+                            }}
+                          />
+                        </>
+                      )
+                    }
+                  >
+                    {[
+                      [property.fullAddress, property.label && `« ${property.label} »`].filter(Boolean).join(" · "),
+                      [
+                        property.type && (PROPERTY_TYPE_LABELS[property.type] || property.type),
+                        surface && formatSurface(surface),
+                        property.legalStatus && (LEGAL_STATUS_LABELS[property.legalStatus] || property.legalStatus),
+                        property.status === "LOUER" ? "loué" : "non loué",
+                      ]
+                        .filter(Boolean)
+                        .join(" · "),
+                      property.legalStatus === "CO_PROPRIETE" && property.syndicName
+                        ? `Syndic : ${[property.syndicName, property.syndicEmail, property.syndicPhone].filter(Boolean).join(" · ")}`
+                        : null,
+                      property.legalStatus === "LOTISSEMENT" && property.subdivisionOver10Years
+                        ? SUBDIVISION_AGE_LABELS[property.subdivisionOver10Years] ?? null
+                        : null,
+                      property.inShoppingCenter
+                        ? property.complexType === "ESTATE_COMPLEX"
+                          ? "Dans un ensemble immobilier (parc d'activités, association syndicale…)"
+                          : "Dans un centre commercial"
+                        : null,
+                      property.outbuildings ? `Dépendances : ${property.outbuildings}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join("\n")}
+                  </CheckPoint>
+                {property && diagnosticState && (
+                  <CheckPoint
+                    state={diagnosticState.counts.toFix > 0 ? "missing" : diagnosticState.counts.toCheck > 0 || diagnosticState.items.length === 0 ? "todo" : "ok"}
+                    label={<AutoLabel>Diagnostics</AutoLabel>}
+                    // Liste des diagnostics dans le contenu : toute la largeur.
+                    actionsBelow
+                  >
+                    <DiagnosticsPanel
+                      bailId={lease.id}
+                      propertyId={property.id}
+                      state={diagnosticState}
+                      dpe={{
+                        dpeClass: property.dpeClass ?? null,
+                        gesClass: property.gesClass ?? null,
+                        dpeDate: dpeDateValue(property.dpeDate),
+                        commercial: isCommercial,
+                      }}
+                      locked={diagnosticsLocked}
+                      configured={isDiagnosticAnalysisConfigured()}
+                    />
+                  </CheckPoint>
+                )}
+                </CheckList>
+                <div className="border-t">
+                  <DocumentChecklist
+                    inset
+                    editable={!propertyLocked}
+                    rows={propertyDocRows}
+                    complement={propertyLocked ? undefined : { bailId: lease.id, target: "OWNER" }}
+                    verification={{
+                      bailId: lease.id,
+                      locked: propertyLocked,
+                      points: Object.fromEntries(
+                        Object.entries(propertyDocKeys).map(([rowKey, key]) => [rowKey, { pointKey: key, verified: isVerified(key, propertyLocked) }]),
+                      ),
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="px-5 py-4 text-sm text-muted-foreground">Aucun bien associé à ce dossier.</p>
+            )}
+          </CheckSection>
+
+          {/* Le bail */}
+          <CheckSection
+            id="bloc-bail"
+            number={4}
+            title="Le bail"
+            subtitle="Conditions saisies par le propriétaire"
+            headerRight={
+              <>
+                <StateChip tone={summaryChip(bailAndRules).tone}>{summaryChip(bailAndRules).label}</StateChip>
+                {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={bailAndRules.pendingKeys} />}
+              </>
+            }
+          >
+            <CheckList>
+              {bailPoints.map((point) => {
+                const missing = point.missing.length > 0;
+                const verified = !missing && isVerified(point.key, bailLocked);
+                return (
+                  <CheckPoint
+                    key={point.key}
+                    tags={point.label === "Loyer et charges" ? rentTags : point.label === "Dépôt de garantie" ? depositTags : undefined}
+                    claimKeys={bailClaimKeys(point.fields.map((f) => f.field))}
+                    state={missing ? "missing" : verified ? "ok" : "todo"}
+                    label={point.label}
+                    note={missing ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}` : null}
+                    verify={{ bailId: lease.id, pointKey: point.key, verified, locked: bailLocked }}
+                    actions={
+                      !bailLocked && (
+                        <>
+                          {missing && owner && (
+                            <AskFieldsButton bailId={lease.id} target="OWNER" scope="bail" targetId={lease.id} fields={point.missing} commercial={isCommercial} />
+                          )}
+                          <BailTermsEditor bailId={lease.id} title={point.label} fields={point.fields} />
+                        </>
+                      )
+                    }
+                  >
+                    {point.text.filter(Boolean).join("\n")}
+                  </CheckPoint>
+                );
+              })}
                 {!isCommercial && (
                 <>
                 <CheckPoint
                   state={capMissing ? "missing" : isVerified(rulesPoints[0].key, bailLocked || capAuto) ? "ok" : "todo"}
                   label={capAuto && !bailLocked ? <AutoLabel>Plafond de loyer</AutoLabel> : "Plafond de loyer"}
+                  foldable={capAuto && !capMissing}
                   actionsBelow
                   verify={capAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[0].key, verified: isVerified(rulesPoints[0].key, bailLocked), locked: bailLocked }}
                   note={
@@ -1026,6 +1603,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 <CheckPoint
                   state={relocMissing ? "missing" : isVerified(rulesPoints[1].key, bailLocked || relocAuto) ? "ok" : "todo"}
                   label={relocAuto && !bailLocked ? <AutoLabel>Évolution du loyer (zone tendue)</AutoLabel> : "Évolution du loyer (zone tendue)"}
+                  foldable={relocAuto && !relocMissing}
                   actionsBelow
                   verify={relocAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[1].key, verified: isVerified(rulesPoints[1].key, bailLocked), locked: bailLocked }}
                   note={
@@ -1113,6 +1691,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       key={rule.id}
                       state={rule.missing ? "missing" : verified ? "ok" : "todo"}
                       label={rule.auto && !bailLocked ? <AutoLabel>{rule.label}</AutoLabel> : rule.label}
+                      foldable={rule.auto && !rule.missing}
                       // Boutons sous le contenu : le tableau garde toute la largeur.
                       actionsBelow
                       note={rule.note}
@@ -1138,115 +1717,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     </CheckPoint>
                   );
                 })}
-                {property && diagnosticState && (
-                  <CheckPoint
-                    state={diagnosticState.counts.toFix > 0 ? "missing" : diagnosticState.counts.toCheck > 0 || diagnosticState.items.length === 0 ? "todo" : "ok"}
-                    label={<AutoLabel>Diagnostics</AutoLabel>}
-                    // Liste des diagnostics dans le contenu : toute la largeur.
-                    actionsBelow
-                  >
-                    <DiagnosticsPanel
-                      bailId={lease.id}
-                      propertyId={property.id}
-                      state={diagnosticState}
-                      dpe={{
-                        dpeClass: property.dpeClass ?? null,
-                        gesClass: property.gesClass ?? null,
-                        dpeDate: dpeDateValue(property.dpeDate),
-                        commercial: isCommercial,
-                      }}
-                      locked={diagnosticsLocked}
-                      configured={isDiagnosticAnalysisConfigured()}
-                    />
-                  </CheckPoint>
-                )}
-                <CheckPoint
-                  state={depositOk ? "ok" : "missing"}
-                  label={<AutoLabel>Dépôt de garantie</AutoLabel>}
-                  note={depositOk ? null : `Au-dessus de la limite légale de ${formatCurrency(maxDeposit)} : à corriger dans « Le bail »`}
-                  actions={depositOk && !bailLocked ? <AutoVerified /> : null}
-                >
-                  {`${formatCurrency(lease.securityDeposit)}${months !== null ? `, soit ${String(months).replace(".", ",")} mois de loyer` : ""} · ${isCommercial ? "pas de limite légale pour un bail commercial" : `limite légale de ${isMeuble ? "2 mois pour un meublé" : "1 mois pour un bail nu"}`}`}
-                  {depositWarning && <span className="mt-1 block text-[13px] text-amber-800">{depositWarning}</span>}
-                </CheckPoint>
-                <CheckPoint
-                  state={docsMissing > 0 ? "missing" : "ok"}
-                  label={<AutoLabel>Pièces obligatoires</AutoLabel>}
-                  note={docsMissing > 0 ? `${docsMissing} pièce${docsMissing > 1 ? "s" : ""} manquante${docsMissing > 1 ? "s" : ""}` : null}
-                  actions={
-                    docsMissing > 0 ? (
-                      pieceTargets.length > 0 ? (
-                        <ComplementRequestButton
-                          bailId={lease.id}
-                          target={pieceTargets[0]}
-                          alsoTarget={pieceTargets[1]}
-                          label={piecesCount > 1 ? `Demander les ${piecesCount} pièces` : "Demander la pièce"}
-                        />
-                      ) : null
-                    ) : !bailLocked ? (
-                      <AutoVerified />
-                    ) : null
-                  }
-                >
-                  {docsMissing > 0 ? (
-                    <span className="flex flex-col gap-1">
-                      {missingDocGroups.map((group) => (
-                        <a key={group.href} href={group.href} className="w-fit font-medium text-primary hover:underline">
-                          {group.label} · {group.count} pièce{group.count > 1 ? "s" : ""} à fournir
-                        </a>
-                      ))}
-                    </span>
-                  ) : (
-                    "Toutes les pièces exigées pour ce dossier sont présentes, selon la situation familiale et la copropriété."
-                  )}
-                </CheckPoint>
-              </CheckList>
-            </CheckSection>
-
-          </div>
-
-          <div className="order-4 flex min-w-0 flex-col gap-[18px] lg:order-none">
-          {/* Pièces demandées au propriétaire ou au locataire : en attente, ou reçues et à vérifier */}
-          {complementRequests.length > 0 && <ComplementRequestsPanel requests={complementRequests} locked={pastVerification} canArchive />}
-
-          {/* Le bail */}
-          <CheckSection
-            id="bloc-bail"
-            title="Le bail"
-            subtitle="Conditions saisies par le propriétaire"
-            headerRight={
-              <>
-                <StateChip tone={summaryChip(sectionSummary("bloc-bail")).tone}>{summaryChip(sectionSummary("bloc-bail")).label}</StateChip>
-                {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={sectionSummary("bloc-bail").pendingKeys} />}
-              </>
-            }
-          >
-            <CheckList>
-              {bailPoints.map((point) => {
-                const missing = point.missing.length > 0;
-                const verified = !missing && isVerified(point.key, bailLocked);
-                return (
-                  <CheckPoint
-                    key={point.key}
-                    state={missing ? "missing" : verified ? "ok" : "todo"}
-                    label={point.label}
-                    note={missing ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}` : null}
-                    verify={{ bailId: lease.id, pointKey: point.key, verified, locked: bailLocked }}
-                    actions={
-                      !bailLocked && (
-                        <>
-                          {missing && owner && (
-                            <AskFieldsButton bailId={lease.id} target="OWNER" scope="bail" targetId={lease.id} fields={point.missing} commercial={isCommercial} />
-                          )}
-                          <BailTermsEditor bailId={lease.id} title={point.label} fields={point.fields} />
-                        </>
-                      )
-                    }
-                  >
-                    {point.text.filter(Boolean).join("\n")}
-                  </CheckPoint>
-                );
-              })}
             </CheckList>
           </CheckSection>
 
@@ -1270,6 +1740,100 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             </CheckSection>
           )}
 
+          {bailDocRows.length > 0 && (
+            <CheckSection
+              id="bloc-documents"
+              title="Documents du bail"
+              subtitle={bailRules.length > 0 ? "Location précédente du local et pièces rattachées au bail" : "Pièces rattachées au bail lui-même"}
+            >
+              <DocumentChecklist
+                inset
+                editable
+                rows={bailDocRows}
+                complement={pastVerification ? undefined : { bailId: lease.id, target: "OWNER" }}
+              />
+            </CheckSection>
+          )}
+
+
+          {complementRequests.length > 0 && (
+            <details id="demandes" open={receivedCount > 0} className="group scroll-mt-64 overflow-hidden rounded-xl border bg-card">
+              <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-[15px] font-semibold">
+                Demandes de pièces
+                <span className="text-[13px] font-medium text-muted-foreground">
+                  {[receivedCount ? `${receivedCount} reçue${receivedCount > 1 ? "s" : ""} à contrôler` : null, waitingCount ? `${waitingCount} en attente` : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </summary>
+              <div className="flex flex-col gap-4 px-4 pb-4">
+                <ComplementRequestsPanel requests={complementRequests} locked={pastVerification} canArchive />
+              </div>
+            </details>
+          )}
+
+          {archivedDocuments.length > 0 && (
+            <details className="group overflow-hidden rounded-xl border bg-card">
+              <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-[15px] font-semibold">
+                <span className="flex items-center gap-2">
+                  <Trash2 className="size-4 text-muted-foreground" />
+                  Corbeille
+                </span>
+                <span className="text-[13px] font-medium text-muted-foreground">
+                  {archivedDocuments.length} pièce{archivedDocuments.length > 1 ? "s" : ""} remplacée{archivedDocuments.length > 1 ? "s" : ""} · rien n&apos;est effacé
+                </span>
+              </summary>
+          <ArchivedDocuments
+            bare
+            documents={archivedDocuments.map((doc) => ({
+              id: doc.id,
+              kind: doc.kind,
+              label: doc.label,
+              fileKey: doc.fileKey,
+              mimeType: doc.mimeType,
+              archivedAt: (doc.archivedAt as Date).toISOString(),
+              archivedByName: doc.archivedByName,
+              replacedByLabel: doc.replacedBy?.label ?? null,
+            }))}
+          />
+
+            </details>
+          )}
+
+          <details className="group overflow-hidden rounded-xl border bg-card">
+            <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-[15px] font-semibold">
+              Historique et détails techniques
+              <span className="text-[13px] font-medium text-muted-foreground group-open:hidden">Paiement, journal, référence</span>
+              <span className="hidden text-[13px] font-medium text-muted-foreground group-open:inline">Masquer</span>
+            </summary>
+            <div className="flex flex-col gap-5 px-5 pb-5">
+              <dl className="grid grid-cols-1 gap-x-3.5 gap-y-1.5 text-[13.5px] sm:grid-cols-[170px_minmax(0,1fr)]">
+                <KV label="Référence">
+                  <span className="font-mono">#{lease.id.slice(-8).toUpperCase()}</span>
+                </KV>
+                <KV label="Identifiant complet">
+                  <span className="break-all font-mono text-xs">{lease.id}</span>
+                </KV>
+                <KV label="Créé le">
+                  <LocalDateTime value={lease.createdAt} />
+                  {lease.createdBy ? ` par ${lease.createdBy.name || lease.createdBy.email}` : " · via le formulaire propriétaire"}
+                </KV>
+                <KV label="Modifié le">
+                  <LocalDateTime value={lease.updatedAt} />
+                  {lease.updatedBy ? ` par ${lease.updatedBy.name || lease.updatedBy.email}` : ""}
+                </KV>
+                <KV label="Adresse normalisée">
+                  {property
+                    ? [property.housenumber, property.street, property.postalCode, property.city, property.district, property.department, property.region]
+                        .filter(Boolean)
+                        .join(" · ") || "—"
+                    : "—"}
+                  {property?.inseeCode ? ` · INSEE ${property.inseeCode}` : ""}
+                  {property?.latitude && property?.longitude ? ` · ${Number(property.latitude)}, ${Number(property.longitude)}` : ""}
+                </KV>
+                <KV label="Statut du bien">{property ? (property.status === "LOUER" ? "Loué" : "Non loué") : "—"}</KV>
+              </dl>
+              {paid && (
           <CheckSection
             id="bloc-paiement"
             title="Paiement"
@@ -1321,315 +1885,16 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             )}
           </CheckSection>
 
-          <ArchivedDocuments
-            documents={archivedDocuments.map((doc) => ({
-              id: doc.id,
-              kind: doc.kind,
-              label: doc.label,
-              fileKey: doc.fileKey,
-              mimeType: doc.mimeType,
-              archivedAt: (doc.archivedAt as Date).toISOString(),
-              archivedByName: doc.archivedByName,
-              replacedByLabel: doc.replacedBy?.label ?? null,
-            }))}
-          />
-
-          <PartyCheckSection
-            id="bloc-proprietaire"
-            role="PROPRIETAIRE"
-            data={ownerPoints}
-            bailId={lease.id}
-            verifiedKeys={verifiedKeys}
-            locked={ownerLocked}
-            formNote={formNote(ownerIntake)}
-            complement={pastVerification ? undefined : { bailId: lease.id, target: "OWNER", commercial: isCommercial }}
-          />
-          <PartyCheckSection
-            id="bloc-locataire"
-            role="LOCATAIRE"
-            data={tenantPoints}
-            bailId={lease.id}
-            verifiedKeys={verifiedKeys}
-            locked={tenantLocked}
-            formNote={formNote(tenantIntake)}
-            complement={pastVerification ? undefined : { bailId: lease.id, target: "TENANT", commercial: isCommercial }}
-            emptyAction={pastVerification ? undefined : <TenantCreateButton bailId={lease.id} variant="default" className="h-10" />}
-            emptyHint="Ajoutez-le si le propriétaire vous l'a communiqué : il recevra son formulaire par e-mail. Sinon, relancez le propriétaire avec le bouton en haut de la fiche."
-          />
-
-          {/* Le bien */}
-          <CheckSection
-            id="bloc-bien"
-            title="Le bien"
-            subtitle={
-              property ? (
-                <>
-                  {[
-                    property.type && (PROPERTY_TYPE_LABELS[property.type] || property.type),
-                    property.legalStatus && (LEGAL_STATUS_LABELS[property.legalStatus] || property.legalStatus).toLowerCase(),
-                    surface && formatSurface(surface),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}{" "}
-                  <Link href={`/interface/properties/${property.id}`} className="ml-1 inline-flex items-center gap-0.5 font-medium text-primary hover:underline">
-                    Fiche du bien
-                    <ArrowUpRight className="size-3.5" />
-                  </Link>
-                </>
-              ) : (
-                "Aucun bien associé"
-              )
-            }
-            headerRight={
-              property && (
-                <>
-                  <StateChip tone={summaryChip(sectionSummary("bloc-bien")).tone}>{summaryChip(sectionSummary("bloc-bien")).label}</StateChip>
-                  {!propertyLocked && <ValidateAllButton bailId={lease.id} pointKeys={sectionSummary("bloc-bien").pendingKeys} />}
-                </>
-              )
-            }
-            footer={
-              property &&
-              !isCommercial && (
-                <div className="flex flex-col gap-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-sm font-semibold">Équipements du meublé</span>
-                    <span className="flex items-center gap-2">
-                      <StateChip tone={isMeuble ? (furniturePresent === FURNITURE.length ? "ok" : "missing") : "neutral"}>
-                        {isMeuble ? `${furniturePresent} / ${FURNITURE.length} présents` : "Non concerné · bail nu"}
-                      </StateChip>
-                      {!propertyLocked && (
-                        <PropertyFurnitureEditor
-                          propertyId={property.id}
-                          items={FURNITURE.map((item) => ({ key: item.key, label: item.label, present: !!property[item.key] }))}
-                        />
-                      )}
-                    </span>
-                  </div>
-                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-3.5 gap-y-1.5">
-                    {FURNITURE.map((item) => {
-                      const ok = !!property[item.key];
-                      return (
-                        <li
-                          key={item.key}
-                          className={cn("flex items-center gap-1.5 text-[13px]", isMeuble ? (ok ? "" : "text-red-700") : "text-muted-foreground")}
-                        >
-                          {isMeuble &&
-                            (ok ? (
-                              <Check className="size-3.5 shrink-0 text-green-700" strokeWidth={3} aria-label="présent" />
-                            ) : (
-                              <X className="size-3.5 shrink-0" aria-label="absent" />
-                            ))}
-                          {item.label}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )
-            }
-          >
-            {property ? (
-              <>
-                <CheckList>
-                  <CheckPoint
-                    state={propertyDescMissing ? "missing" : isVerified(propertyDescKey, propertyLocked) ? "ok" : "todo"}
-                    label="Adresse et description"
-                    note={
-                      missingData?.property?.missingFields.length
-                        ? `Manquant : ${missingData.property.missingFields.map((f) => (f === "fullAddress" ? "adresse" : f)).join(", ")}`
-                        : null
-                    }
-                    verify={{ bailId: lease.id, pointKey: propertyDescKey, verified: isVerified(propertyDescKey, propertyLocked), locked: propertyLocked }}
-                    actions={
-                      !propertyLocked && (
-                        <>
-                          {propertyDescMissing && owner && (
-                            <AskFieldsButton
-                              bailId={lease.id}
-                              target="OWNER"
-                              scope="property"
-                              targetId={property.id}
-                              fields={missingData?.property?.missingFields ?? []}
-                              commercial={isCommercial}
-                            />
-                          )}
-                          <PropertyDetailsEditor
-                            propertyId={property.id}
-                            missing={propertyDescMissing}
-                            commercial={isCommercial}
-                            values={{
-                              label: property.label,
-                              fullAddress: property.fullAddress,
-                              type: property.type,
-                              surfaceM2: surface,
-                              legalStatus: property.legalStatus,
-                              syndicName: property.syndicName,
-                              syndicEmail: property.syndicEmail,
-                              syndicPhone: property.syndicPhone,
-                              subdivisionOver10Years: property.subdivisionOver10Years,
-                              complexType: complexTypeValue(property.inShoppingCenter, property.complexType),
-                              outbuildings: property.outbuildings,
-                            }}
-                          />
-                        </>
-                      )
-                    }
-                  >
-                    {[
-                      [property.fullAddress, property.label && `« ${property.label} »`].filter(Boolean).join(" · "),
-                      [
-                        property.type && (PROPERTY_TYPE_LABELS[property.type] || property.type),
-                        surface && formatSurface(surface),
-                        property.legalStatus && (LEGAL_STATUS_LABELS[property.legalStatus] || property.legalStatus),
-                        property.status === "LOUER" ? "loué" : "non loué",
-                      ]
-                        .filter(Boolean)
-                        .join(" · "),
-                      property.legalStatus === "CO_PROPRIETE" && property.syndicName
-                        ? `Syndic : ${[property.syndicName, property.syndicEmail, property.syndicPhone].filter(Boolean).join(" · ")}`
-                        : null,
-                      property.legalStatus === "LOTISSEMENT" && property.subdivisionOver10Years
-                        ? SUBDIVISION_AGE_LABELS[property.subdivisionOver10Years] ?? null
-                        : null,
-                      property.inShoppingCenter
-                        ? property.complexType === "ESTATE_COMPLEX"
-                          ? "Dans un ensemble immobilier (parc d'activités, association syndicale…)"
-                          : "Dans un centre commercial"
-                        : null,
-                      property.outbuildings ? `Dépendances : ${property.outbuildings}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join("\n")}
-                  </CheckPoint>
-                </CheckList>
-                <div className="border-t">
-                  <DocumentChecklist
-                    inset
-                    editable={!propertyLocked}
-                    rows={propertyDocRows}
-                    complement={propertyLocked ? undefined : { bailId: lease.id, target: "OWNER" }}
-                    verification={{
-                      bailId: lease.id,
-                      locked: propertyLocked,
-                      points: Object.fromEntries(
-                        Object.entries(propertyDocKeys).map(([rowKey, key]) => [rowKey, { pointKey: key, verified: isVerified(key, propertyLocked) }]),
-                      ),
-                    }}
-                  />
-                </div>
-              </>
-            ) : (
-              <p className="px-5 py-4 text-sm text-muted-foreground">Aucun bien associé à ce dossier.</p>
-            )}
-          </CheckSection>
-
-          {bailDocRows.length > 0 && (
-            <CheckSection
-              id="bloc-documents"
-              title="Documents du bail"
-              subtitle={bailRules.length > 0 ? "Location précédente du local et pièces rattachées au bail" : "Pièces rattachées au bail lui-même"}
-            >
-              <DocumentChecklist
-                inset
-                editable
-                rows={bailDocRows}
-                complement={pastVerification ? undefined : { bailId: lease.id, target: "OWNER" }}
-              />
-            </CheckSection>
-          )}
-
-          <details className="group overflow-hidden rounded-xl border bg-card">
-            <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-[15px] font-semibold">
-              Détails techniques et historique
-              <span className="text-[13px] font-medium text-muted-foreground group-open:hidden">Référence, adresse normalisée, historique</span>
-              <span className="hidden text-[13px] font-medium text-muted-foreground group-open:inline">Masquer</span>
-            </summary>
-            <div className="flex flex-col gap-5 px-5 pb-5">
-              <dl className="grid grid-cols-1 gap-x-3.5 gap-y-1.5 text-[13.5px] sm:grid-cols-[170px_minmax(0,1fr)]">
-                <KV label="Référence">
-                  <span className="font-mono">#{lease.id.slice(-8).toUpperCase()}</span>
-                </KV>
-                <KV label="Identifiant complet">
-                  <span className="break-all font-mono text-xs">{lease.id}</span>
-                </KV>
-                <KV label="Créé le">
-                  <LocalDateTime value={lease.createdAt} />
-                  {lease.createdBy ? ` par ${lease.createdBy.name || lease.createdBy.email}` : " · via le formulaire propriétaire"}
-                </KV>
-                <KV label="Modifié le">
-                  <LocalDateTime value={lease.updatedAt} />
-                  {lease.updatedBy ? ` par ${lease.updatedBy.name || lease.updatedBy.email}` : ""}
-                </KV>
-                <KV label="Adresse normalisée">
-                  {property
-                    ? [property.housenumber, property.street, property.postalCode, property.city, property.district, property.department, property.region]
-                        .filter(Boolean)
-                        .join(" · ") || "—"
-                    : "—"}
-                  {property?.inseeCode ? ` · INSEE ${property.inseeCode}` : ""}
-                  {property?.latitude && property?.longitude ? ` · ${Number(property.latitude)}, ${Number(property.longitude)}` : ""}
-                </KV>
-                <KV label="Statut du bien">{property ? (property.status === "LOUER" ? "Loué" : "Non loué") : "—"}</KV>
-              </dl>
+              )}
               <div className="flex flex-col gap-3">
                 <h3 className="text-sm font-semibold">Historique</h3>
                 <BailAuditTimeline bailId={lease.id} bare />
               </div>
             </div>
           </details>
-          </div>
         </div>
 
-        {/* Colonne latérale (sur téléphone : l'avancement en premier, le suivi et les notes après la conformité) */}
-        <aside className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
-          <section className="order-1 flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-[18px] lg:order-none">
-            <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-base font-semibold">Avancement</h2>
-              <span className="text-sm font-bold">
-                {overall.verified} / {overall.total}
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
-            </div>
-            <ul className="flex flex-col">
-              {sections.map((section) => {
-                const chip = summaryChip(section.summary);
-                return (
-                  <li key={section.id}>
-                    <a href={`#${section.id}`} className="flex min-h-8 items-center justify-between gap-2 text-sm hover:underline">
-                      <span>{section.title}</span>
-                      <span
-                        className={cn(
-                          "font-semibold",
-                          chip.tone === "missing" ? "text-red-700" : chip.tone === "ok" ? "text-green-700" : "text-muted-foreground",
-                        )}
-                      >
-                        {chip.label}
-                      </span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="text-[13px] leading-relaxed text-muted-foreground">{ctaHelp}</p>
-            {/* Diagnostics à régler : l'envoi reste possible, le notaire voit chaque ligne et les décisions de l'équipe. */}
-            {!pastVerification && diagnosticState && diagnosticState.counts.toFix + diagnosticState.counts.toCheck > 0 && (
-              <p className="text-[13px] font-medium leading-relaxed text-amber-800">
-                Diagnostics :{" "}
-                {[
-                  diagnosticState.counts.toFix ? `${diagnosticState.counts.toFix} à remplacer` : null,
-                  diagnosticState.counts.toCheck ? `${diagnosticState.counts.toCheck} à vérifier` : null,
-                ]
-                  .filter(Boolean)
-                  .join(", ")}
-                . Le notaire le verra dans le dossier.
-              </p>
-            )}
-          </section>
-
-          <div className="order-3 flex min-w-0 flex-col gap-4 lg:order-none">
+        <aside className="flex min-w-0 flex-col gap-4">
           <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
             <h2 className="text-base font-semibold">Suivi</h2>
             <dl className="grid grid-cols-[130px_minmax(0,1fr)] gap-x-3 gap-y-2 text-[13.5px]">
@@ -1665,7 +1930,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               </KV>
             </dl>
             <p className="text-[12.5px] text-muted-foreground">
-              Seules les demandes ouvertes du notaire apparaissent ici ; ses discussions avec les parties ne sont pas affichées.
+              Ses échanges avec les parties ne sont pas affichés ici.
             </p>
             {reminderData && (
               <div className="border-t pt-3">
@@ -1681,9 +1946,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             </div>
             <InternalNotes target="BAIL" targetId={lease.id} />
           </section>
-          </div>
         </aside>
       </div>
     </div>
+    </FicheProvider>
   );
 }

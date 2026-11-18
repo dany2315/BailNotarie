@@ -15,6 +15,8 @@ import { REGISTERED_LABELS, registryNotes } from "@/lib/utils/company-registry";
 import { CompanyRegistryButton } from "@/components/admin/company-registry-button";
 import { AskFieldsButton } from "@/components/complements/complement-composer";
 import { pointKey, summarize, summaryChip, type VerificationPointState } from "@/lib/utils/verification";
+import { questionsForDataFields } from "@/lib/rules/complement-questions";
+import { fieldComplementKey } from "@/lib/utils/complement";
 
 const isoDay = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 const frDay = (d: Date | string | null | undefined) =>
@@ -333,8 +335,11 @@ export function PartyCheckSection({
   emptyHint,
   requestAction,
   complement,
+  number,
 }: {
   id: string;
+  /** Fiche dossier : numéro de la section ; le nom passe dans le sous-titre (il est déjà dans l'en-tête). */
+  number?: number;
   role: keyof typeof ROLE_TITLES;
   data: PartyPoints;
   bailId: string;
@@ -358,6 +363,7 @@ export function PartyCheckSection({
     return (
       <CheckSection
         id={id}
+        number={number}
         title={roleTitle}
         subtitle={`Pas encore de ${roleTitle.toLowerCase()} pour ce dossier`}
         headerRight={<StateChip tone="missing">À ajouter</StateChip>}
@@ -386,10 +392,11 @@ export function PartyCheckSection({
   return (
     <CheckSection
       id={id}
-      title={`${roleTitle}${persons.length > 1 ? "s" : ""} · ${data.name}`}
+      number={number}
+      title={number != null ? `${roleTitle}${persons.length > 1 ? "s" : ""}` : `${roleTitle}${persons.length > 1 ? "s" : ""} · ${data.name}`}
       subtitle={
         <>
-          {join([data.kindLabel, formNote])}{" "}
+          {join([number != null ? data.name : null, data.kindLabel, formNote])}{" "}
           <Link href={`/interface/clients/${party.id}`} className="ml-1 inline-flex items-center gap-0.5 font-medium text-primary hover:underline">
             Fiche client
             <ArrowUpRight className="size-3.5" />
@@ -410,6 +417,14 @@ export function PartyCheckSection({
           return (
             <CheckPoint
               key={g.key}
+              claimKeys={
+                complement
+                  ? questionsForDataFields(g.editor.entity, [...g.editor.fields.map((f) => f.field), ...g.missing], {
+                      commercial: complement.commercial,
+                      primaryPerson: g.primary,
+                    }).map((qid) => fieldComplementKey(qid, g.editor.entity === "person" ? { personId: g.editor.id } : { entrepriseId: g.editor.id }))
+                  : undefined
+              }
               state={missing ? "missing" : verified ? "ok" : "todo"}
               label={g.label}
               note={missing ? `Manquant : ${g.missing.map((f) => MISSING_FIELD_LABELS[f] || f).join(", ")}` : null}
