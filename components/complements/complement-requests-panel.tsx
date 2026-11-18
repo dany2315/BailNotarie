@@ -46,6 +46,31 @@ export function ComplementRequestsPanel({
   );
 }
 
+/**
+ * Une ligne de demande seule, avec les mêmes boutons que dans sa carte (accepter, choisir les
+ * anciennes pièces à retirer, redemander). Sert au contrôle guidé de la fiche dossier.
+ */
+export function ComplementItemReview({ item, locked = false, canArchive = false }: { item: StaffComplementItem; locked?: boolean; canArchive?: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState<string | null>(null);
+  const run = async (key: string, action: () => Promise<{ success: true } | { success: false; error: string }>, done: string) => {
+    setBusy(key);
+    const result = await action();
+    setBusy(null);
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(done);
+    router.refresh();
+  };
+  return (
+    <ul className="flex flex-col overflow-hidden rounded-lg border bg-card [&>li]:px-3.5">
+      <ItemRow item={item} locked={locked} busy={busy} run={run} canArchive={canArchive} />
+    </ul>
+  );
+}
+
 function RequestCard({ request, locked, canArchive }: { request: StaffComplementRequest; locked: boolean; canArchive: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);

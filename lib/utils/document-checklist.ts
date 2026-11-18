@@ -31,6 +31,8 @@ export interface ChecklistRow {
   extra?: ReactNode;
   /** Cible pour « Ajouter » / « Remplacer » depuis la fiche. */
   upload?: DocumentTargetLike;
+  /** Fiche dossier : données saisies à comparer avec la pièce (panneau de vérification). */
+  compare?: ReactNode;
 }
 
 /**

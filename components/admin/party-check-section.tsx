@@ -68,6 +68,8 @@ function join(parts: Array<string | null | undefined | false>, sep = " · ") {
 
 interface PartyGroup {
   key: string;
+  /** Type du point (identite, coordonnees, famille, societe, representant). */
+  kind: string;
   label: string;
   text: string;
   missing: string[];
@@ -206,6 +208,7 @@ export function buildPartyPoints(
     for (const d of defs) {
       groups.push({
         key: pointKey(`client:${party.id}:ent:${d.key}`, d.keyFields.map((f) => ent[f] ?? null)),
+        kind: d.key,
         label: d.label,
         text: d.lines.filter(Boolean).join("\n"),
         missing: [...d.fields.filter(isMissing), ...d.extra],
@@ -269,6 +272,7 @@ export function buildPartyPoints(
       for (const d of defs) {
         groups.push({
           key: pointKey(`client:${party.id}:person:${person.id}:${d.key}`, d.keyFields.map((f) => person[f] ?? null)),
+          kind: d.key,
           label: d.label,
           text: d.lines.filter(Boolean).join("\n"),
           missing: [...d.fields.filter(isMissing), ...d.extra],
@@ -461,7 +465,25 @@ export function PartyCheckSection({
       {data.docRows.length > 0 && (
         <div className="border-t">
           <DocumentChecklist
-            rows={data.docRows}
+            rows={data.docRows.map((row) => {
+              // Fiche dossier : dans le panneau de la pièce, les données saisies à comparer.
+              const holder = row.upload?.personId
+                ? data.groups.find((g) => g.kind === "identite" && g.editor.id === row.upload!.personId)
+                : row.upload?.entrepriseId
+                  ? data.groups.find((g) => g.kind === "societe" && g.editor.id === row.upload!.entrepriseId)
+                  : undefined;
+              return holder?.text
+                ? {
+                    ...row,
+                    compare: (
+                      <span className="flex flex-col gap-1">
+                        <span className="text-[12px] font-bold uppercase tracking-[0.06em] text-muted-foreground">À comparer avec ce qui a été saisi</span>
+                        <span className="whitespace-pre-line">{holder.text}</span>
+                      </span>
+                    ),
+                  }
+                : row;
+            })}
             requestAction={requestAction}
             complement={complement}
             inset

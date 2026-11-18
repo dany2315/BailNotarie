@@ -707,6 +707,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         reason: item.reason,
         sentAt: request.lastSentAt,
         submittedAt: request.submittedAt,
+        requestId: request.id,
+        requestStatus: request.status,
+        email: request.recipientEmail,
+        sentCount: request.sentCount,
+        item,
       };
     }
   }

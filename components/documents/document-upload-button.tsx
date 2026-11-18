@@ -49,40 +49,25 @@ export async function uploadToStorage(
 }
 
 /**
- * « Ajouter » une pièce manquante, ou « Remplacer » une pièce existante : la
- * nouvelle pièce est enregistrée, puis l'ancienne est supprimée (fichier
- * compris). En cas d'échec, l'ancienne reste en place.
+ * Envoi d'un fichier puis enregistrement de la pièce, avec la progression : ce que fait le bouton
+ * « Ajouter » / « Remplacer », réutilisable pour un fichier déposé sur une carte (glisser-déposer).
  */
-export function DocumentUploadButton({
+export function useAttachDocument({
   target,
   kind,
   replaceIds,
-  label,
-  className,
-  disabled = false,
   diagnosticItem,
   bailId,
-  variant = "outline",
-  icon,
   successMessage,
 }: {
   target: DocumentTarget;
   kind: string;
-  /** Pièces remplacées par le nouveau fichier. Vide = ajout. */
   replaceIds?: string[];
-  label?: string;
-  className?: string;
-  /** Fichier en cours de suppression : pas de remplacement en même temps. */
-  disabled?: boolean;
-  /** Nouveau fichier pour un diagnostic précis (ERP, plomb…) : lu seul par l'IA. */
   diagnosticItem?: string;
   bailId?: string;
-  variant?: "outline" | "default";
-  icon?: React.ReactNode;
   successMessage?: string;
 }) {
   const pathname = usePathname();
-  const inputRef = React.useRef<HTMLInputElement>(null);
   const [progress, setProgress] = React.useState<number | null>(null);
   const replacing = !!replaceIds && replaceIds.length > 0;
 
@@ -117,11 +102,52 @@ export function DocumentUploadButton({
       toast.error(error?.message || "L'envoi a échoué");
     } finally {
       setProgress(null);
-      if (inputRef.current) inputRef.current.value = "";
     }
   };
 
-  const busy = progress !== null;
+  return { onFile, progress, busy: progress !== null, replacing };
+}
+
+/**
+ * « Ajouter » une pièce manquante, ou « Remplacer » une pièce existante : la
+ * nouvelle pièce est enregistrée, puis l'ancienne est supprimée (fichier
+ * compris). En cas d'échec, l'ancienne reste en place.
+ */
+export function DocumentUploadButton({
+  target,
+  kind,
+  replaceIds,
+  label,
+  className,
+  disabled = false,
+  diagnosticItem,
+  bailId,
+  variant = "outline",
+  icon,
+  successMessage,
+}: {
+  target: DocumentTarget;
+  kind: string;
+  /** Pièces remplacées par le nouveau fichier. Vide = ajout. */
+  replaceIds?: string[];
+  label?: string;
+  className?: string;
+  /** Fichier en cours de suppression : pas de remplacement en même temps. */
+  disabled?: boolean;
+  /** Nouveau fichier pour un diagnostic précis (ERP, plomb…) : lu seul par l'IA. */
+  diagnosticItem?: string;
+  bailId?: string;
+  variant?: "outline" | "default";
+  icon?: React.ReactNode;
+  successMessage?: string;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const { onFile: attach, progress, busy, replacing } = useAttachDocument({ target, kind, replaceIds, diagnosticItem, bailId, successMessage });
+  const onFile = async (file: File) => {
+    await attach(file);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
   return (
     <>
       <input

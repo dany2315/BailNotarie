@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { remindComplementRequest } from "@/lib/actions/complement-requests";
 import { REASON_LABELS, type ComplementReasonValue } from "@/lib/utils/complement";
+import type { StaffComplementItem } from "@/lib/actions/complement-requests";
 import { cn } from "@/lib/utils";
 
 /*
@@ -22,6 +23,12 @@ export interface FicheClaim {
   reason: ComplementReasonValue;
   sentAt: string;
   submittedAt: string | null;
+  requestId: string;
+  requestStatus: string;
+  email: string;
+  sentCount: number;
+  /** La ligne de la demande (pour l'accepter ou la redemander sur place). */
+  item: StaffComplementItem;
 }
 
 const FicheContext = React.createContext<{ claims: Record<string, FicheClaim> } | null>(null);

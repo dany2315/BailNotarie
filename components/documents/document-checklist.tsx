@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Download, Eye, Loader2, MoreHorizontal, RotateCcw } from "lucide-react";
+import { Check, Download, Eye, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentViewer } from "@/components/leases/document-viewer";
 import { useDownloadFile } from "@/hooks/use-download-file";
@@ -14,7 +14,8 @@ import { DocumentUploadButton } from "@/components/documents/document-upload-but
 import { FileStack } from "@/components/documents/file-stack";
 import { ComplementRequestButton } from "@/components/complements/complement-composer";
 import { complementKey } from "@/lib/utils/complement";
-import { ClaimTag, useFiche } from "@/components/admin/fiche/fiche-context";
+import { useFiche } from "@/components/admin/fiche/fiche-context";
+import { PieceCards } from "@/components/admin/fiche/piece-cards";
 
 function formatSize(size?: number | null) {
   if (!size || size <= 0) return null;
@@ -65,16 +66,6 @@ export function DocumentChecklist({
   complement?: { bailId: string; target: "OWNER" | "TENANT" };
 }) {
   const { downloadFile, isFileDownloading } = useDownloadFile();
-  // Fiche dossier : chaque fichier en une ligne (nom, œil, « … ») ; les actions se déplient.
-  const fiche = useFiche();
-  const [openMenus, setOpenMenus] = React.useState<Set<string>>(() => new Set());
-  const toggleMenu = (id: string) =>
-    setOpenMenus((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   // Fichiers en cours de suppression : leurs autres actions sont bloquées jusqu'au rechargement.
   const [deletingIds, setDeletingIds] = React.useState<Set<string>>(() => new Set());
   const onDeletingChange = React.useCallback((id: string, deleting: boolean) => {
@@ -85,6 +76,12 @@ export function DocumentChecklist({
       return next;
     });
   }, []);
+
+  // Fiche dossier : les pièces en cartes compactes, avec le panneau de vérification.
+  const fiche = useFiche();
+  if (fiche) {
+    return <PieceCards rows={rows} verification={verification} editable={editable} complement={complement} requestAction={requestAction} />;
+  }
 
   if (rows.length === 0) {
     return <p className={cn("text-sm text-muted-foreground", inset && "px-5 py-3.5")}>Aucune pièce attendue.</p>;
@@ -136,7 +133,6 @@ export function DocumentChecklist({
                   {row.required && <span className="sr-only"> (obligatoire)</span>}
                 </span>
                 {row.extra}
-                {fiche && requestKey && <ClaimTag keys={[requestKey]} />}
               </div>
               {missing && <span className="text-[13px] font-semibold text-red-700">Manquante</span>}
               {!present && !row.required && <span className="text-sm text-muted-foreground">Non fournie (facultative)</span>}
@@ -151,71 +147,6 @@ export function DocumentChecklist({
                   .join(" · ");
                 const downloading = isFileDownloading(doc.fileKey);
                 const deleting = deletingIds.has(doc.id);
-                if (fiche) {
-                  const menuOpen = openMenus.has(doc.id);
-                  const name = doc.label || documentKindLabels[doc.kind] || "Fichier";
-                  return (
-                    <div key={doc.id} aria-busy={deleting} className={cn("flex min-w-0 flex-col gap-2", stacked && "p-2.5", deleting && "opacity-60")}>
-                      <span className="inline-flex max-w-full items-center gap-1.5 self-start rounded-lg border bg-muted/30 py-1 pl-2.5 pr-1 text-[13px]">
-                        {deleting && <Loader2 className="size-3.5 shrink-0 animate-spin text-red-700" />}
-                        <span className="min-w-0 truncate" title={meta || name}>
-                          {deleting ? "Suppression en cours…" : name}
-                        </span>
-                        {doc.viaComplement && !deleting && (
-                          <span className="shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700">reçue via la demande</span>
-                        )}
-                        <DocumentViewer document={doc} documentKindLabels={documentKindLabels}>
-                          <span
-                            role="button"
-                            aria-label={`Voir ${name}`}
-                            className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-background"
-                          >
-                            <Eye className="size-4" />
-                          </span>
-                        </DocumentViewer>
-                        <button
-                          type="button"
-                          aria-label={`Autres actions : ${name}`}
-                          aria-expanded={menuOpen}
-                          disabled={deleting}
-                          onClick={() => toggleMenu(doc.id)}
-                          className={cn("flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-background", menuOpen && "bg-background")}
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </button>
-                      </span>
-                      {menuOpen && !deleting && (
-                        <span className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-9 gap-1.5"
-                            disabled={downloading}
-                            onClick={() => downloadFile(doc.fileKey, name || `document-${doc.id}`)}
-                          >
-                            {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-                            Télécharger
-                          </Button>
-                          {canUpload && <DocumentUploadButton target={row.upload!} kind={row.kind} replaceIds={[doc.id]} />}
-                          {canUpload && <DocumentUploadButton target={row.upload!} kind={row.kind} label="Ajouter un fichier" />}
-                          {requestKey && (
-                            <ComplementRequestButton
-                              bailId={complement!.bailId}
-                              target={complement!.target}
-                              preselect={{ key: requestKey }}
-                              label="Redemander"
-                              icon={<RotateCcw className="size-4" />}
-                            />
-                          )}
-                          {editable && (
-                            <DocumentDeleteButton documentId={doc.id} fileName={doc.label || documentKindLabels[doc.kind] || null} onDeletingChange={onDeletingChange} />
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  );
-                }
                 return (
                   <div
                     key={doc.id}
@@ -272,7 +203,7 @@ export function DocumentChecklist({
                   });
                 return stacked ? <FileStack cardClassName="rounded-lg">{files}</FileStack> : files;
               })()}
-              {canUpload && present && !fiche && (
+              {canUpload && present && (
                 <DocumentUploadButton
                   target={row.upload!}
                   kind={row.kind}

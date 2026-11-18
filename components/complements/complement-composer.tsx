@@ -34,6 +34,8 @@ type Target = "OWNER" | "TENANT";
 export interface ComplementPreselect {
   key?: string;
   keys?: string[];
+  /** Réclamation préparée dans le contrôle guidé : chaque ligne avec son motif et sa précision. */
+  items?: Array<{ key: string; reason: ComplementReasonValue; note?: string }>;
 }
 
 interface Choice {
@@ -141,6 +143,7 @@ export function ComplementComposer({
   preselect,
   open,
   onOpenChange,
+  onSent,
 }: {
   bailId: string;
   target: Target;
@@ -148,6 +151,8 @@ export function ComplementComposer({
   preselect?: ComplementPreselect;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Après l'envoi : clés des lignes envoyées (pour vider la réclamation préparée). */
+  onSent?: (keys: string[]) => void;
 }) {
   const router = useRouter();
   const [target, setTarget] = React.useState<Target>(initialTarget);
@@ -192,11 +197,29 @@ export function ComplementComposer({
         setFieldChoices(new Map(fields.map((field) => [field.key, { reason: field.missing.length > 0 ? "MISSING" : "WRONG_VALUE", note: "" }])));
         if (fields.some((field) => field.missing.length === 0)) setShowOtherFields(true);
       }
+      // Réclamation préparée : toutes ses lignes cochées, avec le motif et la précision choisis.
+      const prepared = target === initialTarget ? (preselect?.items ?? []) : [];
+      if (prepared.length > 0) {
+        const byKey = new Map(prepared.map((item) => [item.key, item]));
+        const docRows = result.data.rows.filter((r) => byKey.has(r.key) && !r.pending);
+        const fieldRows = result.data.fields.filter((r) => byKey.has(r.key) && !r.pending);
+        // Motif cohérent avec la ligne : une pièce absente est « manquante », une information vide aussi.
+        const docReason = (row: ComposerRow, wanted: ComplementReasonValue): ComplementReasonValue =>
+          row.documents.length === 0 ? "MISSING" : REDO_REASONS.includes(wanted) ? wanted : "ILLEGIBLE";
+        const fieldReason = (row: ComposerFieldRow, wanted: ComplementReasonValue): ComplementReasonValue =>
+          row.missing.length > 0 ? "MISSING" : FIELD_REDO_REASONS.includes(wanted) ? wanted : "WRONG_VALUE";
+        setChoices(new Map(docRows.map((row) => [row.key, { reason: docReason(row, byKey.get(row.key)!.reason), note: byKey.get(row.key)!.note ?? "" }])));
+        setFieldChoices(
+          new Map(fieldRows.map((row) => [row.key, { reason: fieldReason(row, byKey.get(row.key)!.reason), note: byKey.get(row.key)!.note ?? "" }])),
+        );
+        if (docRows.some((row) => row.level === "optional")) setShowOptional(true);
+        if (fieldRows.some((row) => row.missing.length === 0)) setShowOtherFields(true);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [bailId, target, initialTarget, preselect?.key, preselect?.keys?.join("|")]);
+  }, [bailId, target, initialTarget, preselect?.key, preselect?.keys?.join("|"), preselect?.items?.map((i) => `${i.key}:${i.reason}:${i.note ?? ""}`).join("|")]);
 
   const toggle = (row: ComposerRow, on: boolean) => {
     setChoices((current) => {
@@ -289,6 +312,7 @@ export function ComplementComposer({
       return;
     }
     toast.success("Demande envoyée", { description: `E-mail envoyé à ${result.data.email}` });
+    onSent?.([...selectedRows.map((row) => row.key), ...selectedFields.map((row) => row.key)]);
     onOpenChange(false);
     router.refresh();
   };
