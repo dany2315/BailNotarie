@@ -56,7 +56,7 @@ import { PropertyDetailsEditor, PropertyFurnitureEditor } from "@/components/adm
 import { commercialComplianceRules, commercialDepositWarning, type RuleTone, type RuleView } from "@/lib/utils/commercial-compliance";
 import { asksBoughtDuringMarriage, commercialPaymentText, commercialTermsToForm, commercialVatText, complexTypeValue } from "@/lib/utils/commercial-terms";
 import { CommercialTermsInline, EditTermsLink } from "@/components/admin/commercial-terms-editor";
-import { FicheProvider, RemindRequestButton, RuleTag, type FicheClaim } from "@/components/admin/fiche/fiche-context";
+import { FicheAutoRefresh, FicheProvider, RemindRequestButton, RuleTag, Since, type FicheClaim } from "@/components/admin/fiche/fiche-context";
 import { ContactCard } from "@/components/admin/fiche/contact-card";
 import { questionsForDataFields } from "@/lib/rules/complement-questions";
 import { fieldComplementKey } from "@/lib/utils/complement";
@@ -787,7 +787,17 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         key: `recu-${request.id}`,
         tone: byNotary ? "wait" : "action",
         text: byNotary ? `Le ${who} a répondu au notaire` : `Le ${who} a répondu`,
-        meta: `${complementCountLabel(received.map((item) => ({ kind: item.type })))} à contrôler${byNotary ? " par le notaire" : ""}`,
+        meta: (
+          <>
+            {complementCountLabel(received.map((item) => ({ kind: item.type })))} à contrôler{byNotary ? " par le notaire" : ""}
+            {request.submittedAt ? (
+              <>
+                {" · reçu "}
+                <Since iso={request.submittedAt} />
+              </>
+            ) : null}
+          </>
+        ),
         action: byNotary ? undefined : (
           <a href="#demandes" className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90">
             Contrôler
@@ -801,7 +811,18 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         tone: "wait",
         // « pièce » et « information » sont féminins : réclamée, réclamées.
         text: `${complementCountLabel(waiting.map((item) => ({ kind: item.type })))} ${byNotary ? "demandée" : "réclamée"}${waiting.length > 1 ? "s" : ""}${byNotary ? " par le notaire" : ""} au ${who}`,
-        meta: `depuis le ${fmtShort(request.createdAt)}${request.sentCount > 1 ? ` · relancé ${request.sentCount - 1} fois` : ""}`,
+        meta: (
+          <>
+            {"envoyée "}
+            <Since iso={request.createdAt} />
+            {request.sentCount > 1 ? (
+              <>
+                {` · relancée ${request.sentCount - 1} fois, dernière `}
+                <Since iso={request.lastSentAt} />
+              </>
+            ) : null}
+          </>
+        ),
         action: byNotary || pastVerification ? undefined : <RemindRequestButton requestId={request.id} email={request.recipientEmail} />,
       });
     }
@@ -866,7 +887,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       key: "accord",
       tone: "wait",
       text: "Accord du locataire à redonner",
-      meta: `conditions ou locataire modifiés le ${fmtShort(new Date((lease as any).tenantReconfirmationRequestedAt).toISOString())}`,
+      meta: (
+        <>
+          {"conditions ou locataire modifiés "}
+          <Since iso={(lease as any).tenantReconfirmationRequestedAt} />
+        </>
+      ),
       action: (
         <a href="#bloc-bail" className="inline-flex h-9 items-center rounded-md border px-3 text-[13px] font-semibold hover:bg-muted">
           Voir
@@ -933,6 +959,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
   return (
     <FicheProvider claims={claims}>
+    <FicheAutoRefresh />
     <div className="flex flex-col gap-5 pb-10">
       {/* En-tête collant (statique sur téléphone) : qui, quoi, contacter, agir */}
       <div className="-mx-4 -mt-6 flex flex-col gap-3 border-b bg-background/95 px-4 pb-4 pt-5 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:-mx-6 sm:px-6 md:sticky md:top-16 md:z-30 lg:-mx-8 lg:px-8">
@@ -990,6 +1017,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               tenant={tenant && tenantName ? { id: tenant.id, name: tenantName } : null}
               canChangeTenant={!!tenant && !pastVerification}
               triggerClassName="h-10 gap-1.5 px-3"
+              currentNotaire={followUp.notaire ? { id: followUp.notaire.id, name: followUp.notaire.name } : null}
             />
             {canSend && (
               <SendToNotaryButton

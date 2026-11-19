@@ -1,10 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Check, Clock3, Loader2, Plus, Upload, X } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowRight, Clock3, Loader2, Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { setVerificationPoints } from "@/lib/actions/verification";
 import { ComplementRequestButton } from "@/components/complements/complement-composer";
 import { DocumentUploadButton, useAttachDocument } from "@/components/documents/document-upload-button";
 import { documentKindLabels } from "@/lib/utils/document-labels";
@@ -204,17 +202,10 @@ function PieceCard({
 }) {
   const { row, state, point, claim, requestKey } = info;
   const latest = [...row.documents].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())[0];
-  const [pending, startTransition] = React.useTransition();
   const [dragging, setDragging] = React.useState(false);
   const canUpload = editable && !!row.upload && !locked;
   const attach = useAttachDocument({ target: (row.upload ?? {}) as any, kind: row.kind });
 
-  const validate = () =>
-    startTransition(async () => {
-      if (!point || !verification) return;
-      const result = await setVerificationPoints({ bailId: verification.bailId, pointKeys: [point.pointKey], verified: true });
-      if (!result.success) toast.error(result.error);
-    });
 
   const meta =
     row.documents.length > 0
@@ -251,8 +242,7 @@ function PieceCard({
         if (!canUpload || row.documents.length > 0) return;
         event.preventDefault();
         setDragging(false);
-        const file = event.dataTransfer.files?.[0];
-        if (file) attach.onFile(file);
+        if (event.dataTransfer.files?.length) attach.onFiles(event.dataTransfer.files);
       }}
       className={cn(
         "flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-card p-2 pr-2.5 text-left transition-shadow hover:shadow-[0_8px_20px_-14px_rgba(15,23,42,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -285,23 +275,11 @@ function PieceCard({
       {!locked && (
         <span className="ml-auto flex flex-wrap justify-end gap-1.5" onClick={stop} onKeyDown={stop}>
           {state === "todo" && point && (
-            <>
-              <Button type="button" size="sm" className="h-8 gap-1 bg-green-700 px-2.5 text-[12.5px] hover:bg-green-800" disabled={pending} onClick={validate}>
-                {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" strokeWidth={3} />}
-                Bonne
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 border-red-200 px-2 text-red-700 hover:bg-red-50 hover:text-red-800"
-                aria-label={`${info.label} : pas bonne, à redemander`}
-                title="Pas bonne : à redemander"
-                onClick={onOpen}
-              >
-                <X className="size-4" strokeWidth={3} />
-              </Button>
-            </>
+            // Pas de « Bonne » sur la carte : on répond dans le panneau, la pièce sous les yeux.
+            <Button type="button" size="sm" className="h-8 gap-1 px-3 text-[12.5px]" onClick={onOpen}>
+              Vérifier
+              <ArrowRight className="size-3.5" />
+            </Button>
           )}
           {state === "received" && (
             <Button type="button" size="sm" className="h-8 px-3 text-[12.5px]" onClick={onOpen}>

@@ -245,7 +245,7 @@ export function PieceSheet({
               </div>
             )}
 
-            {row.compare && <div className="rounded-xl border bg-slate-50 px-3.5 py-3 text-[14px]">{row.compare}</div>}
+            {row.compare && <div className="text-[14px]">{row.compare}</div>}
             {row.extra && <div className="flex flex-wrap items-center gap-2 text-[13.5px]">{row.extra}</div>}
 
             {/* La réponse */}
@@ -319,8 +319,28 @@ export function PieceSheet({
                 <p className="text-[12.5px] text-muted-foreground">Vous relisez l&apos;e-mail avant l&apos;envoi.</p>
               </div>
             )}
-            {!complement && row.documents.length === 0 && !locked && (
-              <p className="text-[13.5px] text-muted-foreground">Ajoutez le fichier si vous l&apos;avez reçu par un autre moyen.</p>
+            {/* Pièce manquante : la demander au client (fenêtre « Demander », motif « manquante »), ou l'ajouter soi-même */}
+            {row.documents.length === 0 && !locked && state !== "sent" && (
+              <div className="flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50/60 p-3.5">
+                <p className="text-[14px] font-semibold text-red-900">{row.required ? "Cette pièce manque au dossier." : "Pièce facultative, pas encore fournie."}</p>
+                {complement && requestKey ? (
+                  <Button
+                    type="button"
+                    className="h-11 text-[15px]"
+                    onClick={() => {
+                      setReason("MISSING");
+                      setNote("");
+                      setComposing(true);
+                    }}
+                  >
+                    Demander {complement.target === "OWNER" ? "au propriétaire" : "au locataire"}
+                  </Button>
+                ) : null}
+                <p className="text-[12.5px] text-muted-foreground">
+                  {complement && requestKey ? "Vous relisez l'e-mail avant l'envoi. " : ""}
+                  Vous l&apos;avez reçue par un autre moyen ? Ajoutez-la ci-dessous.
+                </p>
+              </div>
             )}
 
             {/* Corriger soi-même : mêmes actions que la fiche */}

@@ -105,7 +105,18 @@ export function useAttachDocument({
     }
   };
 
-  return { onFile, progress, busy: progress !== null, replacing };
+  /**
+   * Plusieurs fichiers pour la même pièce (recto, verso, pages) : envoyés l'un après l'autre, comme
+   * plusieurs clics sur « Ajouter ». Un remplacement n'en prend qu'un.
+   */
+  const onFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    for (const file of replacing ? list.slice(0, 1) : list) {
+      await onFile(file);
+    }
+  };
+
+  return { onFile, onFiles, progress, busy: progress !== null, replacing };
 }
 
 /**
@@ -142,9 +153,9 @@ export function DocumentUploadButton({
   successMessage?: string;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const { onFile: attach, progress, busy, replacing } = useAttachDocument({ target, kind, replaceIds, diagnosticItem, bailId, successMessage });
-  const onFile = async (file: File) => {
-    await attach(file);
+  const { onFiles: attach, progress, busy, replacing } = useAttachDocument({ target, kind, replaceIds, diagnosticItem, bailId, successMessage });
+  const onFiles = async (files: FileList) => {
+    await attach(files);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -155,9 +166,10 @@ export function DocumentUploadButton({
         type="file"
         accept={ACCEPT}
         className="hidden"
+        // Ajout : plusieurs fichiers d'un coup (même pièce) ; remplacement : un seul.
+        multiple={!replacing && !diagnosticItem}
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onFile(file);
+          if (e.target.files && e.target.files.length > 0) onFiles(e.target.files);
         }}
       />
       <Button

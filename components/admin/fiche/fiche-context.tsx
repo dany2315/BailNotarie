@@ -63,9 +63,10 @@ export function ClaimTag({ keys }: { keys?: string[] }) {
         received ? "bg-blue-600 text-white" : "bg-amber-100 text-amber-900",
       )}
     >
+      {/* Ce qui a été réclamé, en toutes lettres (une ligne de la fiche peut regrouper plusieurs informations). */}
       {received
-        ? `● Reçu${claim.submittedAt ? ` le ${day(claim.submittedAt)}` : ""} · à contrôler`
-        : `⏳ Réclamé${by} le ${day(claim.sentAt)} · ${REASON_LABELS[claim.reason].toLowerCase()}`}
+        ? `● ${claim.item.label} · reçu${claim.submittedAt ? ` le ${day(claim.submittedAt)}` : ""}, à contrôler`
+        : `⏳ ${claim.item.label} · ${claim.reason === "MISSING" ? "demandé" : "redemandé"}${by} le ${day(claim.sentAt)}`}
     </a>
   );
 }
@@ -114,4 +115,68 @@ export function RemindRequestButton({ requestId, email, className }: { requestId
       Relancer
     </Button>
   );
+}
+
+const TIME_FORMAT = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
+
+/** « le 18/11 à 14:32 » (heure de Paris). */
+function dateAndTime(date: Date) {
+  const parts = TIME_FORMAT.formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `le ${get("day")}/${get("month")} à ${get("hour")}:${get("minute")}`;
+}
+
+/**
+ * Depuis quand : « à l'instant », « il y a 25 min », « il y a 3 h », puis au-delà d'un jour la date et
+ * l'heure (« le 18/11 à 14:32 »). Se met à jour toute seule ; d'abord la date (identique serveur et navigateur).
+ */
+export function Since({ iso, className }: { iso: string | Date | null | undefined; className?: string }) {
+  const [now, setNow] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  if (!iso) return null;
+  const date = new Date(iso);
+  const minutes = now === null ? null : Math.floor((now - date.getTime()) / 60_000);
+  const text =
+    minutes === null || minutes >= 24 * 60
+      ? dateAndTime(date)
+      : minutes < 1
+        ? "à l'instant"
+        : minutes < 60
+          ? `il y a ${minutes} min`
+          : `il y a ${Math.floor(minutes / 60)} h${minutes % 60 >= 5 ? ` ${minutes % 60} min` : ""}`;
+  return (
+    <time dateTime={date.toISOString()} title={dateAndTime(date)} className={className}>
+      {text}
+    </time>
+  );
+}
+
+/**
+ * La fiche se remet à jour seule : en revenant sur l'onglet, et toutes les 45 secondes tant qu'il est
+ * visible (pièce envoyée par le client, demande du notaire, autre membre de l'équipe, analyse terminée).
+ * Ses propres changements la mettent déjà à jour tout de suite (chaque action recharge la fiche).
+ */
+export function FicheAutoRefresh({ everyMs = 45_000 }: { everyMs?: number }) {
+  const router = useRouter();
+  React.useEffect(() => {
+    let last = Date.now();
+    const refresh = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < 5_000) return;
+      last = Date.now();
+      router.refresh();
+    };
+    const timer = window.setInterval(refresh, everyMs);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [router, everyMs]);
+  return null;
 }

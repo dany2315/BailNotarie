@@ -4,7 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { FileUp, Mail, MoreHorizontal, Phone, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MenuHeader, MenuItemRich } from "./menu-item";
 import { ComplementComposer } from "@/components/complements/complement-composer";
 import { formatPhone } from "@/lib/utils/phone-format";
 
@@ -67,20 +68,37 @@ export function ContactCard({
               <MoreHorizontal className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
+          <DropdownMenuContent align="end" sideOffset={6} className="w-[19rem] rounded-xl p-1.5 shadow-lg">
+            <MenuHeader kicker={role} title={name || "Pas encore renseigné"} />
+            <DropdownMenuSeparator className="my-1" />
             {canAsk && (
-              <DropdownMenuItem className="min-h-10 cursor-pointer" onSelect={() => setAsking(true)}>
-                <FileUp className="size-4" />
-                Lui demander une pièce ou une information
+              <DropdownMenuItem className="cursor-pointer rounded-lg px-2 py-1.5" onSelect={() => setAsking(true)}>
+                <MenuItemRich icon={<FileUp />} title="Demander une pièce ou une information" hint="Vous relisez l'e-mail avant l'envoi" tone="primary" />
+              </DropdownMenuItem>
+            )}
+            {phone && (
+              <DropdownMenuItem asChild className="cursor-pointer rounded-lg px-2 py-1.5">
+                <a href={`tel:${phone.replace(/\s+/g, "")}`}>
+                  <MenuItemRich icon={<Phone />} title="Appeler" hint={formatPhone(phone)} />
+                </a>
+              </DropdownMenuItem>
+            )}
+            {email && (
+              <DropdownMenuItem asChild className="cursor-pointer rounded-lg px-2 py-1.5">
+                <a href={`mailto:${email}`}>
+                  <MenuItemRich icon={<Mail />} title="Écrire un e-mail" hint={email} />
+                </a>
               </DropdownMenuItem>
             )}
             {href && (
-              <DropdownMenuItem asChild className="min-h-10 cursor-pointer">
-                <Link href={href}>
-                  <UserRound className="size-4" />
-                  Fiche client
-                </Link>
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuSeparator className="my-1" />
+                <DropdownMenuItem asChild className="cursor-pointer rounded-lg px-2 py-1.5">
+                  <Link href={href}>
+                    <MenuItemRich icon={<UserRound />} title="Ouvrir la fiche client" hint="Coordonnées, pièces, autres dossiers" />
+                  </Link>
+                </DropdownMenuItem>
+              </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>

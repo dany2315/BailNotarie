@@ -19,6 +19,7 @@ import { LeaseStatusSelect } from "@/components/leases/lease-status-select";
 import { DeleteLeaseDialog } from "@/components/leases/delete-lease-dialog";
 import { ChangeTenantDialog } from "@/components/leases/change-tenant-dialog";
 import { deleteLease } from "@/lib/actions/leases";
+import { MenuHeader, MenuItemRich } from "@/components/admin/fiche/menu-item";
 
 interface BailMoreMenuProps {
   bailId: string;
@@ -28,13 +29,20 @@ interface BailMoreMenuProps {
   canChangeTenant?: boolean;
   /** Classes du bouton « Plus » (hauteur alignée sur les autres actions). */
   triggerClassName?: string;
+  /**
+   * Notaire actuel du dossier : le menu propose alors « Changer de notaire » (même fenêtre et même
+   * action que l'assignation). Sans notaire, rien : c'est « Envoyer au notaire » qui en choisit un.
+   */
+  currentNotaire?: { id: string; name: string } | null;
 }
 
 /**
  * Actions rares de la fiche bail, rangées sous « Plus » : aucune n'est
  * retirée, elles cèdent seulement la place au bouton principal.
  */
-export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerClassName }: BailMoreMenuProps) {
+export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerClassName, currentNotaire }: BailMoreMenuProps) {
+  // Dossier clos (signé, terminé, abandonné) : plus de changement de notaire.
+  const canChangeNotaire = !!currentNotaire && !["SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"].includes(status);
   const router = useRouter();
   const [assignOpen, setAssignOpen] = React.useState(false);
   const [statusOpen, setStatusOpen] = React.useState(false);
@@ -74,23 +82,24 @@ export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerC
             <ChevronDown className="size-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuContent align="end" sideOffset={6} className="w-[19rem] rounded-xl p-1.5 shadow-lg">
+          <MenuHeader kicker="Dossier" title={`Réf. #${bailId.slice(-8).toUpperCase()}`} />
+          <DropdownMenuSeparator className="my-1" />
           {canChangeTenant && (
-            <DropdownMenuItem className="min-h-10 cursor-pointer" onSelect={() => setTenantOpen(true)}>
-              <UserCog className="size-4" />
-              Changer de locataire…
+            <DropdownMenuItem className="cursor-pointer rounded-lg px-2 py-1.5" onSelect={() => setTenantOpen(true)}>
+              <MenuItemRich icon={<UserCog />} title="Changer de locataire" hint={tenant ? `Actuel : ${tenant.name}` : "Remplacer le locataire du dossier"} />
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem className="min-h-10 cursor-pointer" onSelect={() => setStatusOpen(true)}>
-            <ListChecks className="size-4" />
-            Changer le statut manuellement
-          </DropdownMenuItem>
-          <DropdownMenuItem className="min-h-10 cursor-pointer" onSelect={() => setAssignOpen(true)}>
-            <GraduationCap className="size-4" />
-            Assigner un notaire
+          {canChangeNotaire && (
+            <DropdownMenuItem className="cursor-pointer rounded-lg px-2 py-1.5" onSelect={() => setAssignOpen(true)}>
+              <MenuItemRich icon={<GraduationCap />} title="Changer de notaire" hint={`Actuel : ${currentNotaire!.name}`} />
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem className="cursor-pointer rounded-lg px-2 py-1.5" onSelect={() => setStatusOpen(true)}>
+            <MenuItemRich icon={<ListChecks />} title="Changer le statut" hint="Cas particuliers seulement" />
           </DropdownMenuItem>
           <DropdownMenuItem
-            className="min-h-10 cursor-pointer"
+            className="cursor-pointer rounded-lg px-2 py-1.5"
             onSelect={() => {
               const reference = `#${bailId.slice(-8).toUpperCase()}`;
               navigator.clipboard
@@ -99,19 +108,17 @@ export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerC
                 .catch(() => toast.error("Copie impossible"));
             }}
           >
-            <Copy className="size-4" />
-            Copier la référence #{bailId.slice(-8).toUpperCase()}
+            <MenuItemRich icon={<Copy />} title="Copier la référence" hint={`#${bailId.slice(-8).toUpperCase()}`} />
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className="my-1" />
           <DropdownMenuItem
-            className="min-h-10 cursor-pointer text-destructive focus:text-destructive"
+            className="cursor-pointer rounded-lg px-2 py-1.5 focus:bg-red-50"
             onSelect={() => {
               setDeleteError(null);
               setDeleteOpen(true);
             }}
           >
-            <Trash2 className="size-4" />
-            Supprimer le dossier…
+            <MenuItemRich icon={<Trash2 />} title="Supprimer le dossier" hint="Une confirmation vous sera demandée" tone="danger" />
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -132,7 +139,16 @@ export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerC
         <ChangeTenantDialog open={tenantOpen} onOpenChange={setTenantOpen} bailId={bailId} currentTenant={tenant ?? null} />
       )}
 
-      <AssignDossierDialog open={assignOpen} onOpenChange={setAssignOpen} initialBailId={bailId} />
+      {canChangeNotaire && (
+        <AssignDossierDialog
+          open={assignOpen}
+          onOpenChange={setAssignOpen}
+          initialBailId={bailId}
+          title="Changer de notaire"
+          description={`Notaire actuel : ${currentNotaire!.name}. Choisissez le notaire qui reprend le dossier.`}
+          submitLabel="Changer de notaire"
+        />
+      )}
 
       <DeleteLeaseDialog
         open={deleteOpen}

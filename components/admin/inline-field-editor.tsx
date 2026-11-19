@@ -172,11 +172,14 @@ export function GroupFieldEditor({
   id,
   title,
   fields,
+  triggerLabel,
 }: {
   entity: "person" | "entreprise";
   id: string;
   title: string;
   fields: GroupField[];
+  /** Contrôle guidé : un simple lien (« Corriger ») à côté d'un élément, au lieu du bouton « Modifier ». */
+  triggerLabel?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [drafts, setDrafts] = React.useState<Record<string, string>>({});
@@ -210,11 +213,18 @@ export function GroupFieldEditor({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
-          <Pencil className="size-3.5" />
-          {anyMissing ? "Saisir" : "Modifier"}
-          <span className="sr-only"> : {title}</span>
-        </Button>
+        {triggerLabel ? (
+          <button type="button" className="text-[13.5px] font-semibold text-primary underline-offset-2 hover:underline">
+            {anyMissing ? "Saisir" : triggerLabel}
+            <span className="sr-only"> : {title}</span>
+          </button>
+        ) : (
+          <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
+            <Pencil className="size-3.5" />
+            {anyMissing ? "Saisir" : "Modifier"}
+            <span className="sr-only"> : {title}</span>
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="end" collisionPadding={16} className="w-[min(24rem,calc(100vw-2rem))] max-h-[min(36rem,80vh)] overflow-y-auto">
         <div className="flex flex-col gap-4">

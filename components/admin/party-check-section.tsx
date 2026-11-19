@@ -15,6 +15,7 @@ import { REGISTERED_LABELS, registryNotes } from "@/lib/utils/company-registry";
 import { CompanyRegistryButton } from "@/components/admin/company-registry-button";
 import { AskFieldsButton } from "@/components/complements/complement-composer";
 import { pointKey, summarize, summaryChip, type VerificationPointState } from "@/lib/utils/verification";
+import { cn } from "@/lib/utils";
 import { questionsForDataFields } from "@/lib/rules/complement-questions";
 import { fieldComplementKey } from "@/lib/utils/complement";
 
@@ -90,6 +91,16 @@ export interface PartyPoints {
   docKeys: Record<string, string>;
   /** Tous les points du bloc (pour les compteurs), sans l'état « validé ». */
   points: Array<{ key: string; missing: boolean }>;
+}
+
+/** Valeur d'un élément, telle qu'on la lit (dates en jj/mm/aaaa). */
+function fieldDisplay(f: GroupField): string {
+  if (!f.value) return "";
+  if (f.kind === "date") return frDay(f.value) || f.value;
+  if (f.kind === "registered") return f.value === "yes" ? REGISTERED_LABELS.yes : REGISTERED_LABELS.no;
+  if (f.kind === "familyStatus") return FAMILY_STATUS_LABELS[f.value] || f.value;
+  if (f.kind === "matrimonialRegime") return MATRIMONIAL_REGIME_LABELS[f.value] || f.value;
+  return f.value;
 }
 
 /** Clé de point des pièces : la ligne + les fichiers présents (un nouveau dépôt redemande la validation). */
@@ -472,17 +483,52 @@ export function PartyCheckSection({
                 : row.upload?.entrepriseId
                   ? data.groups.find((g) => g.kind === "societe" && g.editor.id === row.upload!.entrepriseId)
                   : undefined;
-              return holder?.text
-                ? {
-                    ...row,
-                    compare: (
-                      <span className="flex flex-col gap-1">
-                        <span className="text-[12px] font-bold uppercase tracking-[0.06em] text-muted-foreground">À comparer avec ce qui a été saisi</span>
-                        <span className="whitespace-pre-line">{holder.text}</span>
-                      </span>
-                    ),
-                  }
-                : row;
+              if (!holder) return row;
+              // Notes du registre (société vérifiée, fermée, nom modifié…) : en pastilles sous les éléments.
+              const notes = holder.kind === "societe" && party.entreprise ? registryNotes(party.entreprise) : [];
+              return {
+                ...row,
+                compare: (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[12px] font-bold uppercase tracking-[0.07em] text-muted-foreground">À comparer avec la pièce</p>
+                    <ol className="flex flex-col divide-y overflow-hidden rounded-xl border bg-card">
+                      {holder.editor.fields.map((f, i) => (
+                        <li key={f.field} className="grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-x-3 px-3.5 py-2.5">
+                          <span className="flex size-[22px] items-center justify-center rounded-full bg-primary text-[11.5px] font-bold text-primary-foreground">
+                            {i + 1}
+                          </span>
+                          <span className="flex min-w-0 flex-col">
+                            <span className="text-[12px] text-muted-foreground">{f.label}</span>
+                            <span className={cn("break-words text-[15.5px] font-semibold leading-snug", f.missing && "text-red-700")}>
+                              {fieldDisplay(f) || "Non renseigné"}
+                            </span>
+                          </span>
+                          {!locked ? (
+                            <GroupFieldEditor entity={holder.editor.entity} id={holder.editor.id} title={`${f.label} · ${holder.editor.title}`} fields={[f]} triggerLabel="Corriger" />
+                          ) : (
+                            <span />
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                    {notes.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {notes.map((note) => (
+                          <span
+                            key={note}
+                            className={cn(
+                              "inline-flex min-h-7 items-center rounded-lg px-2.5 py-1 text-[12.5px] font-semibold leading-tight",
+                              note.startsWith("Vérifiée") ? "bg-green-50 text-green-800" : note.startsWith("⚠") ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900",
+                            )}
+                          >
+                            {note.startsWith("Vérifiée") ? `✓ ${note}` : note}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ),
+              };
             })}
             requestAction={requestAction}
             complement={complement}

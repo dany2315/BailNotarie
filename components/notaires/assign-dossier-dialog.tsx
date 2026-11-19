@@ -58,6 +58,10 @@ type AssignDossierFormData = z.infer<typeof assignDossierSchema>;
 interface AssignDossierDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Fiche dossier : « Changer de notaire » (mêmes champs, même action). */
+  title?: string;
+  description?: string;
+  submitLabel?: string;
   initialBailId?: string;
 }
 
@@ -65,6 +69,9 @@ export function AssignDossierDialog({
   open,
   onOpenChange,
   initialBailId,
+  title,
+  description,
+  submitLabel,
 }: AssignDossierDialogProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -190,9 +197,9 @@ export function AssignDossierDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Assigner un dossier à un notaire</DialogTitle>
+          <DialogTitle>{title ?? "Assigner un dossier à un notaire"}</DialogTitle>
           <DialogDescription>
-            Sélectionnez un bail. Un bail comprend les parties et le bien associé.
+            {description ?? "Sélectionnez un bail. Un bail comprend les parties et le bien associé."}
           </DialogDescription>
         </DialogHeader>
         {isLoadingData ? (
@@ -400,7 +407,7 @@ export function AssignDossierDialog({
             </Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Assigner
+              {submitLabel ?? "Assigner"}
             </Button>
           </DialogFooter>
         </form>
