@@ -76,20 +76,7 @@ export function ContactCard({
                 <MenuItemRich icon={<FileUp />} title="Demander une pièce ou une information" hint="Vous relisez l'e-mail avant l'envoi" tone="primary" />
               </DropdownMenuItem>
             )}
-            {phone && (
-              <DropdownMenuItem asChild className="cursor-pointer rounded-lg px-2 py-1.5">
-                <a href={`tel:${phone.replace(/\s+/g, "")}`}>
-                  <MenuItemRich icon={<Phone />} title="Appeler" hint={formatPhone(phone)} />
-                </a>
-              </DropdownMenuItem>
-            )}
-            {email && (
-              <DropdownMenuItem asChild className="cursor-pointer rounded-lg px-2 py-1.5">
-                <a href={`mailto:${email}`}>
-                  <MenuItemRich icon={<Mail />} title="Écrire un e-mail" hint={email} />
-                </a>
-              </DropdownMenuItem>
-            )}
+            {/* Appeler et écrire : déjà en boutons sur la ligne, pas répétés ici. */}
             {href && (
               <>
                 <DropdownMenuSeparator className="my-1" />
