@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown, Loader2, Plus, Send, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Loader2, Plus, Search, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -166,6 +166,7 @@ export function ComplementComposer({
   const [customMessage, setCustomMessage] = React.useState<string | null>(null);
   const [showOptional, setShowOptional] = React.useState(false);
   const [showOtherFields, setShowOtherFields] = React.useState(false);
+  const [query, setQuery] = React.useState("");
   const [sending, setSending] = React.useState(false);
 
   React.useEffect(() => {
@@ -191,6 +192,7 @@ export function ComplementComposer({
       if (row) {
         setChoices(new Map([[row.key, { reason: row.documents.length > 0 ? "ILLEGIBLE" : "MISSING", note: "" }]]));
         if (row.level === "optional") setShowOptional(true);
+        if (row.documents.length > 0) setShowOtherFields(true);
       }
       const fields = result.data.fields.filter((r) => keys.has(r.key) && !r.pending);
       if (fields.length > 0) {
@@ -213,7 +215,7 @@ export function ComplementComposer({
           new Map(fieldRows.map((row) => [row.key, { reason: fieldReason(row, byKey.get(row.key)!.reason), note: byKey.get(row.key)!.note ?? "" }])),
         );
         if (docRows.some((row) => row.level === "optional")) setShowOptional(true);
-        if (fieldRows.some((row) => row.missing.length === 0)) setShowOtherFields(true);
+        if (fieldRows.some((row) => row.missing.length === 0) || docRows.some((row) => row.documents.length > 0)) setShowOtherFields(true);
       }
     });
     return () => {
@@ -317,19 +319,73 @@ export function ComplementComposer({
     router.refresh();
   };
 
-  const groups = (["party", "property", "bail"] as const)
-    .map((group) => ({
-      group,
-      rows: (data?.rows ?? []).filter((row) => row.group === group && (row.level !== "optional" || row.documents.length > 0)),
-    }))
-    .filter((g) => g.rows.length > 0);
-  const optionalRows = (data?.rows ?? []).filter((row) => row.level === "optional" && row.documents.length === 0);
-  // Informations : celles qui manquent d'abord ; les autres (à corriger ou confirmer) dans un repli.
-  const missingFields = (data?.fields ?? []).filter((row) => row.missing.length > 0);
-  const otherFields = (data?.fields ?? []).filter((row) => row.missing.length === 0);
-  const fieldGroups = (rows: ComposerFieldRow[]) =>
-    (["party", "property", "bail"] as const).map((group) => ({ group, rows: rows.filter((row) => row.group === group) })).filter((g) => g.rows.length > 0);
+  // Rangement par intention : ce qui manque, puis ce qu'on fait refaire ou corriger, puis le reste.
+  const q = query.trim().toLowerCase();
+  const match = (label: string) => !q || label.toLowerCase().includes(q);
+  const ORDER = { party: 0, property: 1, bail: 2 } as const;
+  const byGroup = <T extends { group: ComposerRow["group"] }>(a: T, b: T) => ORDER[a.group] - ORDER[b.group];
+  const mainRows = (data?.rows ?? []).filter((row) => row.level !== "optional" || row.documents.length > 0);
+  const missingPieces = mainRows.filter((row) => row.documents.length === 0 && match(row.label)).sort(byGroup);
+  const receivedPieces = mainRows.filter((row) => row.documents.length > 0 && match(row.label)).sort(byGroup);
+  const optionalRows = (data?.rows ?? []).filter((row) => row.level === "optional" && row.documents.length === 0 && match(row.label));
+  const missingFields = (data?.fields ?? []).filter((row) => row.missing.length > 0 && match(row.label)).sort(byGroup);
+  const otherFields = (data?.fields ?? []).filter((row) => row.missing.length === 0 && match(row.label)).sort(byGroup);
+  const missingCount = missingPieces.length + missingFields.length;
+  const fixCount = receivedPieces.length + otherFields.length;
   const who = target === "OWNER" ? "au propriétaire" : "au locataire";
+  const pieceRow = (row: ComposerRow) => (
+    <ChoiceRow
+      key={row.key}
+      id={`piece-${row.key}`}
+      label={row.label}
+      where={GROUP_TITLES[target][row.group]}
+      kind="Pièce"
+      status={
+        row.pending
+          ? { text: "Déjà demandée", tone: "text-blue-700" }
+          : row.documents.length > 0
+            ? { text: `Reçue le ${fmtDay(row.documents[row.documents.length - 1].createdAt)}`, tone: "text-muted-foreground" }
+            : row.level === "optional"
+              ? { text: "Facultative", tone: "text-muted-foreground" }
+              : { text: "Manquante", tone: "font-semibold text-red-700" }
+      }
+      pending={row.pending}
+      choice={choices.get(row.key)}
+      reasons={row.documents.length > 0 ? REDO_REASONS : null}
+      onToggle={(on) => toggle(row, on)}
+      onChange={(patch) => update(row.key, patch)}
+      footnote={row.documents.length > 0 ? "Le fichier actuel reste dans le dossier jusqu'à ce que vous acceptiez le nouveau." : undefined}
+    />
+  );
+  const fieldRow = (row: ComposerFieldRow) => (
+    <ChoiceRow
+      key={row.key}
+      id={`field-${row.key}`}
+      label={row.label}
+      where={GROUP_TITLES[target][row.group]}
+      kind="Information"
+      status={
+        row.pending
+          ? { text: "Déjà demandée", tone: "text-blue-700" }
+          : row.missing.length > 0
+            ? { text: row.missing.join(" · "), tone: "font-semibold text-red-700" }
+            : { text: row.current || "Renseignée", tone: "text-muted-foreground" }
+      }
+      pending={row.pending}
+      choice={fieldChoices.get(row.key)}
+      reasons={row.missing.length > 0 ? null : FIELD_REDO_REASONS}
+      notePlaceholder={row.missing.length > 0 ? "Précision pour le client (facultatif)" : "Ce qui ne va pas, pour le client (facultatif)"}
+      onToggle={(on) => toggleField(row, on)}
+      onChange={(patch) => updateField(row.key, patch)}
+      footnote={row.missing.length > 0 ? undefined : "Le client verra la valeur actuelle, déjà remplie, et pourra la modifier."}
+    />
+  );
+  // Récapitulatif de la demande, en bas de la fenêtre : on voit ce qui part, on peut retirer une ligne.
+  const summaryChips = [
+    ...selectedRows.map((row) => ({ key: row.key, label: row.label, remove: () => toggle(row, false) })),
+    ...validExtras.map((extra) => ({ key: extra.id, label: extra.label.trim(), remove: () => setExtras((list) => list.filter((e) => e.id !== extra.id)) })),
+    ...selectedFields.map((row) => ({ key: row.key, label: row.label, remove: () => toggleField(row, false) })),
+  ];
 
   return (
     <Dialog open={open} onOpenChange={(next) => !sending && onOpenChange(next)}>
@@ -339,6 +395,17 @@ export function ComplementComposer({
           <DialogDescription className="truncate">
             {data ? `${data.name}${data.email ? ` · ${data.email}` : ""}` : error ? "" : "Chargement du dossier…"}
           </DialogDescription>
+          <ol aria-label="Étapes" className="mt-2 flex items-center gap-2 text-[12.5px] font-semibold">
+            <li className={cn("flex items-center gap-1.5", step === "pick" ? "text-foreground" : "text-muted-foreground")}>
+              <span className={cn("flex size-5 items-center justify-center rounded-full text-[11px]", step === "pick" ? "bg-primary text-primary-foreground" : "bg-muted")}>1</span>
+              Choisir quoi demander
+            </li>
+            <li aria-hidden className="h-px w-6 bg-border" />
+            <li className={cn("flex items-center gap-1.5", step === "preview" ? "text-foreground" : "text-muted-foreground")}>
+              <span className={cn("flex size-5 items-center justify-center rounded-full text-[11px]", step === "preview" ? "bg-primary text-primary-foreground" : "bg-muted")}>2</span>
+              Relire l&apos;e-mail et envoyer
+            </li>
+          </ol>
           {alsoTarget && step === "pick" && (
             <div role="tablist" aria-label="Personne" className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
               {[initialTarget, alsoTarget].map((value) => (
@@ -396,39 +463,77 @@ export function ComplementComposer({
                 </p>
               )}
 
-              <PartTitle title="Pièces" />
-              {groups.map(({ group, rows }) => (
-                <section key={group} className="flex flex-col gap-1.5">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{GROUP_TITLES[target][group]}</h3>
-                  <ul className="flex flex-col divide-y rounded-xl border">
-                    {rows.map((row) => (
-                      <PieceRow key={row.key} row={row} choice={choices.get(row.key)} onToggle={toggle} onChange={update} />
-                    ))}
-                  </ul>
-                </section>
-              ))}
+              <label className="relative block">
+                <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <span className="sr-only">Rechercher</span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Rechercher une pièce ou une information"
+                  className="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-[14px] outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                />
+              </label>
 
-              {optionalRows.length > 0 && (
-                <section className="flex flex-col gap-1.5">
+              {/* 1. Ce qui manque */}
+              <section className="flex flex-col gap-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 className="text-[15px] font-semibold">Ce qui manque</h2>
+                  <span className={cn("text-[12.5px]", missingCount > 0 ? "font-semibold text-red-700" : "text-muted-foreground")}>
+                    {missingCount > 0 ? `${missingCount} élément${missingCount > 1 ? "s" : ""}` : q ? "Aucun résultat" : "Rien ne manque"}
+                  </span>
+                </div>
+                {missingCount > 0 && (
+                  <ul className="flex flex-col divide-y overflow-hidden rounded-xl border">
+                    {missingPieces.map(pieceRow)}
+                    {missingFields.map(fieldRow)}
+                  </ul>
+                )}
+              </section>
+
+              {/* 2. À faire refaire ou corriger */}
+              {fixCount > 0 && (
+                <section className="flex flex-col gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowOptional((v) => !v)}
-                    className="flex items-center gap-1.5 self-start text-[13px] font-semibold text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowOtherFields((v) => !v)}
+                    aria-expanded={showOtherFields || !!q}
+                    className="flex items-baseline justify-between gap-3 text-left"
                   >
-                    <ChevronDown className={cn("size-4 transition-transform", showOptional && "rotate-180")} />
-                    Pièces facultatives · {optionalRows.length}
+                    <span className="flex flex-col">
+                      <span className="text-[15px] font-semibold">À faire refaire ou corriger</span>
+                      <span className="text-[12.5px] text-muted-foreground">Une pièce reçue illisible, une information fausse…</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1 text-[12.5px] font-semibold text-primary">
+                      {fixCount} élément{fixCount > 1 ? "s" : ""}
+                      <ChevronDown className={cn("size-4 transition-transform", (showOtherFields || q) && "rotate-180")} />
+                    </span>
                   </button>
-                  {showOptional && (
-                    <ul className="flex flex-col divide-y rounded-xl border">
-                      {optionalRows.map((row) => (
-                        <PieceRow key={row.key} row={row} choice={choices.get(row.key)} onToggle={toggle} onChange={update} />
-                      ))}
+                  {(showOtherFields || !!q) && (
+                    <ul className="flex flex-col divide-y overflow-hidden rounded-xl border">
+                      {receivedPieces.map(pieceRow)}
+                      {otherFields.map(fieldRow)}
                     </ul>
                   )}
                 </section>
               )}
 
+              {/* 3. Autre chose */}
               <section className="flex flex-col gap-2">
+                <h2 className="text-[15px] font-semibold">Autre chose</h2>
+                {optionalRows.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowOptional((v) => !v)}
+                      aria-expanded={showOptional || !!q}
+                      className="flex items-center gap-1.5 self-start text-[13px] font-semibold text-muted-foreground hover:text-foreground"
+                    >
+                      <ChevronDown className={cn("size-4 transition-transform", (showOptional || q) && "rotate-180")} />
+                      Pièces facultatives · {optionalRows.length}
+                    </button>
+                    {(showOptional || !!q) && <ul className="flex flex-col divide-y overflow-hidden rounded-xl border">{optionalRows.map(pieceRow)}</ul>}
+                  </div>
+                )}
                 {extras.map((extra) => (
                   <div key={extra.id} className="flex flex-col gap-2 rounded-xl border p-3">
                     <div className="flex items-center gap-2">
@@ -460,59 +565,30 @@ export function ComplementComposer({
                   className="flex items-center gap-1.5 self-start rounded-md px-1 py-1 text-[13px] font-semibold text-primary hover:underline"
                 >
                   <Plus className="size-4" />
-                  Autre pièce
+                  Une pièce qui n&apos;est pas dans la liste
                 </button>
               </section>
-
-              {(data.fields.length > 0) && (
-                <>
-                  <PartTitle
-                    title="Informations"
-                    hint={
-                      missingFields.length > 0
-                        ? `${missingFields.length} manquante${missingFields.length > 1 ? "s" : ""}`
-                        : "Rien ne manque : vous pouvez en faire corriger ou confirmer une"
-                    }
-                  />
-                  {fieldGroups(missingFields).map(({ group, rows }) => (
-                    <section key={`f-${group}`} className="flex flex-col gap-1.5">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{GROUP_TITLES[target][group]}</h3>
-                      <ul className="flex flex-col divide-y rounded-xl border">
-                        {rows.map((row) => (
-                          <FieldRow key={row.key} row={row} choice={fieldChoices.get(row.key)} onToggle={toggleField} onChange={updateField} />
-                        ))}
-                      </ul>
-                    </section>
-                  ))}
-                  {otherFields.length > 0 && (
-                    <section className="flex flex-col gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setShowOtherFields((v) => !v)}
-                        aria-expanded={showOtherFields}
-                        className="flex items-center gap-1.5 self-start text-[13px] font-semibold text-muted-foreground hover:text-foreground"
-                      >
-                        <ChevronDown className={cn("size-4 transition-transform", showOtherFields && "rotate-180")} />
-                        Autres informations · {otherFields.length}
-                      </button>
-                      {showOtherFields &&
-                        fieldGroups(otherFields).map(({ group, rows }) => (
-                          <div key={`o-${group}`} className="flex flex-col gap-1.5 pt-1">
-                            <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{GROUP_TITLES[target][group]}</h3>
-                            <ul className="flex flex-col divide-y rounded-xl border">
-                              {rows.map((row) => (
-                                <FieldRow key={row.key} row={row} choice={fieldChoices.get(row.key)} onToggle={toggleField} onChange={updateField} />
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                    </section>
-                  )}
-                </>
-              )}
             </div>
           )}
         </div>
+
+        {step === "pick" && summaryChips.length > 0 && (
+          <div className="flex flex-col gap-1.5 border-t bg-blue-50/60 px-5 py-2.5 sm:px-6">
+            <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-blue-900">
+              Votre demande · {complementCountLabel(newItems)}
+            </span>
+            <div className="flex max-h-[76px] flex-wrap gap-1.5 overflow-y-auto">
+              {summaryChips.map((chip) => (
+                <span key={chip.key} className="inline-flex max-w-full items-center gap-1 rounded-full bg-white py-0.5 pl-2.5 pr-1 text-[12.5px] font-medium ring-1 ring-blue-200">
+                  <span className="truncate">{chip.label}</span>
+                  <button type="button" aria-label={`Retirer ${chip.label}`} onClick={chip.remove} className="rounded-full p-0.5 text-muted-foreground hover:bg-muted">
+                    <X className="size-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col-reverse gap-2 border-t bg-muted/30 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           {step === "pick" ? (
@@ -521,7 +597,7 @@ export function ComplementComposer({
                 Annuler
               </Button>
               <Button type="button" className="h-10" disabled={!data || !data.email || data.formPending || count === 0} onClick={() => setStep("preview")}>
-                {count === 0 ? "Choisissez quoi demander" : `Voir l'e-mail · ${complementCountLabel(newItems)}`}
+                {count === 0 ? "Cochez ce que vous voulez demander" : `Relire l'e-mail · ${complementCountLabel(newItems)}`}
               </Button>
             </>
           ) : (
@@ -542,129 +618,64 @@ export function ComplementComposer({
   );
 }
 
-function PieceRow({
-  row,
+/** Une ligne à cocher : pièce ou information. Cochée, elle montre le motif (en un clic) et la précision. */
+function ChoiceRow({
+  id,
+  label,
+  where,
+  kind,
+  status,
+  pending,
   choice,
+  reasons,
+  notePlaceholder,
+  footnote,
   onToggle,
   onChange,
 }: {
-  row: ComposerRow;
+  id: string;
+  label: string;
+  /** « Le propriétaire », « Le bien », « Le bail ». */
+  where: string;
+  kind: "Pièce" | "Information";
+  status: { text: string; tone: string };
+  pending: boolean;
   choice?: Choice;
-  onToggle: (row: ComposerRow, on: boolean) => void;
-  onChange: (key: string, patch: Partial<Choice>) => void;
+  /** Motifs proposés (pièce reçue, information remplie) ; aucun pour ce qui manque. */
+  reasons: readonly ComplementReasonValue[] | null;
+  notePlaceholder?: string;
+  footnote?: string;
+  onToggle: (on: boolean) => void;
+  onChange: (patch: Partial<Choice>) => void;
 }) {
-  const received = row.documents.length > 0;
-  const lastDoc = row.documents[row.documents.length - 1];
-  const status = row.pending
-    ? { text: "Déjà demandée", tone: "text-blue-700" }
-    : received
-      ? { text: `Reçue le ${fmtDay(lastDoc.createdAt)}`, tone: "text-muted-foreground" }
-      : row.level === "optional"
-        ? { text: "Facultative", tone: "text-muted-foreground" }
-        : { text: "Manquante", tone: "font-semibold text-red-700" };
-  const id = `piece-${row.key}`;
-
+  const [withNote, setWithNote] = React.useState(false);
+  const noteOpen = withNote || !!choice?.note;
   return (
-    <li className={cn("flex flex-col gap-3 px-3.5 py-3 transition-colors", choice && "bg-blue-50/50", row.pending && "opacity-60")}>
+    <li className={cn("flex flex-col gap-2.5 px-3.5 py-3 transition-colors", choice && "bg-blue-50/60", pending && "opacity-60")}>
       <div className="flex items-start gap-3">
-        <Checkbox
-          id={id}
-          className="mt-0.5 size-[18px]"
-          checked={!!choice}
-          disabled={row.pending}
-          onCheckedChange={(on) => onToggle(row, on === true)}
-        />
+        <Checkbox id={id} className="mt-0.5 size-[18px]" checked={!!choice} disabled={pending} onCheckedChange={(on) => onToggle(on === true)} />
         <label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5">
-          <span className="text-[14px] font-semibold leading-snug">{row.label}</span>
-          <span className={cn("text-[12.5px]", status.tone)}>{status.text}</span>
+          <span className="text-[14px] font-semibold leading-snug">{label}</span>
+          <span className="text-[12px] text-muted-foreground">
+            {kind} · {where}
+          </span>
         </label>
+        <span className={cn("max-w-[45%] shrink-0 truncate pt-0.5 text-right text-[12.5px]", status.tone)} title={status.text}>
+          {status.text}
+        </span>
       </div>
 
       {choice && (
-        <div className="flex flex-col gap-2.5 pl-[30px]">
-          {received && (
-            <div role="radiogroup" aria-label="Motif" className="flex flex-wrap gap-1.5">
-              {REDO_REASONS.map((reason) => (
+        <div className="flex flex-col gap-2 pl-[30px]">
+          {reasons && (
+            <div role="radiogroup" aria-label="Ce qui ne va pas" className="flex flex-wrap gap-1.5">
+              {reasons.map((reason) => (
                 <button
                   key={reason}
                   type="button"
                   role="radio"
                   aria-checked={choice.reason === reason}
-                  onClick={() => onChange(row.key, { reason })}
-                  className={cn(
-                    "h-8 rounded-full border px-3 text-[12.5px] font-semibold transition-colors",
-                    choice.reason === reason
-                      ? "border-blue-600 bg-blue-600 text-white"
-                      : "border-border bg-background text-foreground/80 hover:border-foreground/30",
-                  )}
-                >
-                  {REASON_LABELS[reason]}
-                </button>
-              ))}
-            </div>
-          )}
-          <NoteInput value={choice.note} onChange={(note) => onChange(row.key, { note })} />
-          {received && (
-            <p className="text-[12px] text-muted-foreground">
-              Le fichier actuel restera dans le dossier jusqu&apos;à ce que vous acceptiez le nouveau.
-            </p>
-          )}
-        </div>
-      )}
-    </li>
-  );
-}
-
-/** Titre d'une partie de la fenêtre (« Pièces », « Informations »). */
-function PartTitle({ title, hint }: { title: string; hint?: string }) {
-  return (
-    <div className="-mb-2 flex items-baseline justify-between gap-3 border-b pb-1.5 first:mt-0">
-      <h2 className="text-[15px] font-semibold">{title}</h2>
-      {hint && <span className="text-right text-[12.5px] text-muted-foreground">{hint}</span>}
-    </div>
-  );
-}
-
-/** Information qu'on peut demander : manquante (avec ce qui manque) ou à faire corriger / confirmer. */
-function FieldRow({
-  row,
-  choice,
-  onToggle,
-  onChange,
-}: {
-  row: ComposerFieldRow;
-  choice?: Choice;
-  onToggle: (row: ComposerFieldRow, on: boolean) => void;
-  onChange: (key: string, patch: Partial<Choice>) => void;
-}) {
-  const missing = row.missing.length > 0;
-  const id = `field-${row.key}`;
-  return (
-    <li className={cn("flex flex-col gap-3 px-3.5 py-3 transition-colors", choice && "bg-blue-50/50", row.pending && "opacity-60")}>
-      <div className="flex items-start gap-3">
-        <Checkbox id={id} className="mt-0.5 size-[18px]" checked={!!choice} disabled={row.pending} onCheckedChange={(on) => onToggle(row, on === true)} />
-        <label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5">
-          <span className="text-[14px] font-semibold leading-snug">{row.label}</span>
-          {row.pending ? (
-            <span className="text-[12.5px] text-blue-700">Déjà demandée</span>
-          ) : missing ? (
-            <span className="text-[12.5px] font-semibold text-red-700">{row.missing.join(" · ")}</span>
-          ) : (
-            <span className="line-clamp-2 text-[12.5px] text-muted-foreground">{row.current || "Renseignée"}</span>
-          )}
-        </label>
-      </div>
-      {choice && (
-        <div className="flex flex-col gap-2.5 pl-[30px]">
-          {!missing && (
-            <div role="radiogroup" aria-label="Motif" className="flex flex-wrap gap-1.5">
-              {FIELD_REDO_REASONS.map((reason) => (
-                <button
-                  key={reason}
-                  type="button"
-                  role="radio"
-                  aria-checked={choice.reason === reason}
-                  onClick={() => onChange(row.key, { reason })}
+                  onClick={() => onChange({ reason })}
                   className={cn(
                     "h-8 rounded-full border px-3 text-[12.5px] font-semibold transition-colors",
                     choice.reason === reason ? "border-blue-600 bg-blue-600 text-white" : "border-border bg-background text-foreground/80 hover:border-foreground/30",
@@ -675,12 +686,15 @@ function FieldRow({
               ))}
             </div>
           )}
-          <NoteInput
-            value={choice.note}
-            onChange={(note) => onChange(row.key, { note })}
-            placeholder={missing ? "Précision pour le client (facultatif)" : "Ce qui ne va pas, pour le client (facultatif)"}
-          />
-          {!missing && <p className="text-[12px] text-muted-foreground">Le client verra la valeur actuelle, déjà remplie, et pourra la modifier.</p>}
+          {noteOpen ? (
+            <NoteInput value={choice.note} onChange={(note) => onChange({ note })} placeholder={notePlaceholder} />
+          ) : (
+            <button type="button" onClick={() => setWithNote(true)} className="flex w-fit items-center gap-1 text-[12.5px] font-semibold text-primary hover:underline">
+              <Plus className="size-3.5" />
+              Ajouter une précision pour le client
+            </button>
+          )}
+          {footnote && <p className="text-[12px] text-muted-foreground">{footnote}</p>}
         </div>
       )}
     </li>

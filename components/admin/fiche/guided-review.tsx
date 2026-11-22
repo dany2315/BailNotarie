@@ -303,6 +303,9 @@ function Recap({
   const [withMissing, setWithMissing] = React.useState<Set<string>>(() => new Set(missing.map((m) => m.info.requestKey!)));
   const [composer, setComposer] = React.useState<"OWNER" | "TENANT" | null>(null);
   const bailId = items.find((i) => i.group.complement)?.group.complement?.bailId;
+  // Personnes à qui on peut écrire (propriétaire, locataire s'il a son espace) : on peut leur demander des
+  // informations même si aucune pièce n'a été mise de côté.
+  const targets = (["OWNER", "TENANT"] as const).filter((target) => items.some((i) => i.group.complement?.target === target));
 
   const entriesFor = (target: "OWNER" | "TENANT") => [
     ...basket.filter((b) => b.target === target),
@@ -333,14 +336,25 @@ function Recap({
         )}
       </div>
 
-      {(["OWNER", "TENANT"] as const).map((target) => {
+      {targets.length > 0 && (
+        <div className="flex flex-col gap-0.5">
+          <h3 className="text-[17px] font-semibold">Faut-il demander quelque chose au client ?</h3>
+          <p className="text-[13.5px] text-muted-foreground">
+            Des pièces, ou des informations à compléter ou corriger. Si rien ne manque, passez directement à la transmission.
+          </p>
+        </div>
+      )}
+
+      {targets.map((target) => {
         const entries = entriesFor(target);
         const own = basket.filter((b) => b.target === target);
         const missingFor = missing.filter((m) => m.group.complement?.target === target);
-        if (own.length === 0 && missingFor.length === 0) return null;
         return (
           <section key={target} className="flex flex-col gap-3 rounded-xl border bg-card p-4">
-            <h3 className="text-[16px] font-semibold">À demander {WHO[target]}</h3>
+            <h3 className="text-[16px] font-semibold">{own.length + missingFor.length > 0 ? `À demander ${WHO[target]}` : `Au ${target === "OWNER" ? "propriétaire" : "locataire"}`}</h3>
+            {own.length === 0 && missingFor.length === 0 && (
+              <p className="text-[13.5px] text-muted-foreground">Aucune pièce mise de côté. Vous pouvez quand même lui demander une information.</p>
+            )}
             {own.length > 0 && (
               <ul className="flex flex-col gap-1.5">
                 {own.map((entry) => (
@@ -386,11 +400,21 @@ function Recap({
                 ))}
               </div>
             )}
-            <Button type="button" className="h-11 w-fit gap-1.5" disabled={entries.length === 0 || !bailId} onClick={() => setComposer(target)}>
+            <Button
+              type="button"
+              variant={entries.length > 0 ? "default" : "outline"}
+              className="h-11 w-fit gap-1.5"
+              disabled={!bailId}
+              onClick={() => setComposer(target)}
+            >
               <Send className="size-4" />
-              Préparer la demande {WHO[target]} ({entries.length})
+              {entries.length > 0 ? `Préparer la demande ${WHO[target]} (${entries.length})` : `Demander des informations ${WHO[target]}`}
             </Button>
-            <p className="text-[12.5px] text-muted-foreground">Vous relisez l&apos;e-mail avant l&apos;envoi.</p>
+            <p className="text-[12.5px] text-muted-foreground">
+              {entries.length > 0
+                ? "Dans la fenêtre, vous pouvez ajouter des informations à corriger, puis vous relisez l'e-mail avant l'envoi."
+                : "Vous choisissez quoi demander, puis vous relisez l'e-mail avant l'envoi."}
+            </p>
           </section>
         );
       })}
@@ -398,7 +422,7 @@ function Recap({
       {basket.length === 0 && missing.length === 0 && (
         <p className="flex items-center gap-2 text-[14.5px] font-medium text-green-800">
           <ClipboardCheck className="size-5" />
-          Rien à redemander au client.
+          Aucune pièce à redemander. Rien à demander ? Terminez ou transmettez au notaire.
         </p>
       )}
 

@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, BellRing, Check, CreditCard, Euro, FileUp, Lock, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BellRing, Check, CreditCard, Euro, FileUp, Lock, MessageSquarePlus, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { BailStatus, CompletionStatus, DocumentKind } from "@prisma/client";
 import { getLease, getBailMissingData } from "@/lib/actions/leases";
 import { getDocuments } from "@/lib/actions/documents";
@@ -1716,7 +1716,14 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             }
             headerRight={
               // Description exigée par le formulaire, pièces dans « Pièces du dossier » : seul un manque est signalé ici.
-              property && propertyDescMissing ? <StateChip tone="missing">Information manquante</StateChip> : undefined
+              property ? (
+                <>
+                  {propertyDescMissing && <StateChip tone="missing">Information manquante</StateChip>}
+                  {owner && !propertyLocked && (
+                    <ComplementRequestButton bailId={lease.id} target="OWNER" label="Demander" icon={<MessageSquarePlus className="size-4" />} />
+                  )}
+                </>
+              ) : undefined
             }
             footer={
               property &&
@@ -1784,15 +1791,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                               commercial={isCommercial}
                             />
                           )}
-                          {!propertyDescMissing && owner && propertyClaimKeys.length > 0 && (
-                            <ComplementRequestButton
-                              bailId={lease.id}
-                              target="OWNER"
-                              preselect={{ items: propertyClaimKeys.map((key) => ({ key, reason: "WRONG_VALUE" as const })) }}
-                              label="Demander"
-                              variant="ghost"
-                            />
-                          )}
                           <PropertyDetailsEditor
                             propertyId={property.id}
                             missing={propertyDescMissing}
@@ -1856,8 +1854,13 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             subtitle="Conditions saisies par le propriétaire"
             headerRight={
               <>
-                <StateChip tone={summaryChip(bailAndRules).tone}>{summaryChip(bailAndRules).label}</StateChip>
+                {(bailAndRules.missing > 0 || bailAndRules.pendingKeys.length > 0) && (
+                  <StateChip tone={summaryChip(bailAndRules).tone}>{summaryChip(bailAndRules).label}</StateChip>
+                )}
                 {!bailLocked && <ValidateAllButton bailId={lease.id} pointKeys={bailAndRules.pendingKeys} />}
+                {owner && !bailLocked && (
+                  <ComplementRequestButton bailId={lease.id} target="OWNER" label="Demander" icon={<MessageSquarePlus className="size-4" />} />
+                )}
               </>
             }
           >
@@ -1878,15 +1881,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         <>
                           {missing && owner && (
                             <AskFieldsButton bailId={lease.id} target="OWNER" scope="bail" targetId={lease.id} fields={point.missing} commercial={isCommercial} />
-                          )}
-                          {!missing && owner && bailClaimKeys(point.fields.map((f) => f.field)).length > 0 && (
-                            <ComplementRequestButton
-                              bailId={lease.id}
-                              target="OWNER"
-                              preselect={{ items: bailClaimKeys(point.fields.map((f) => f.field)).map((key) => ({ key, reason: "WRONG_VALUE" as const })) }}
-                              label="Demander"
-                              variant="ghost"
-                            />
                           )}
                           <BailTermsEditor bailId={lease.id} title={point.label} fields={point.fields} />
                         </>

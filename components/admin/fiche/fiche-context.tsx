@@ -59,8 +59,8 @@ export function ClaimTag({ keys }: { keys?: string[] }) {
     <a
       href="#demandes"
       className={cn(
-        "inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[12px] font-semibold",
-        received ? "bg-blue-600 text-white" : "bg-amber-100 text-amber-900",
+        "inline-flex items-center gap-1 text-[12.5px] font-medium hover:underline",
+        received ? "font-semibold text-blue-700" : "text-amber-800",
       )}
     >
       {/* Ce qui a été réclamé, en toutes lettres (une ligne de la fiche peut regrouper plusieurs informations). */}
@@ -76,11 +76,11 @@ export function RuleTag({ tone, children }: { tone: "ok" | "warn" | "bad" | "neu
   return (
     <span
       className={cn(
-        "inline-flex min-h-6 items-center rounded-md px-2 py-0.5 text-[12px] font-semibold leading-tight",
-        tone === "ok" && "bg-green-50 text-green-800",
-        tone === "warn" && "bg-amber-50 text-amber-900",
-        tone === "bad" && "bg-red-50 text-red-800",
-        tone === "neutral" && "bg-slate-100 text-slate-700",
+        "inline-flex items-center text-[12.5px] font-medium leading-tight",
+        tone === "ok" && "text-green-700",
+        tone === "warn" && "text-amber-800",
+        tone === "bad" && "font-semibold text-red-700",
+        tone === "neutral" && "text-muted-foreground",
       )}
     >
       {children}

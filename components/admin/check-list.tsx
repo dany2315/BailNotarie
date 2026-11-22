@@ -68,14 +68,18 @@ export function CheckPoint({
   const fiche = useFiche();
   const [open, setOpen] = React.useState(false);
   if (fiche) {
-    const bullet = verify && state !== "missing" ? <VerifyBullet {...verify} /> : <PointIcon state={state} />;
+    // Un rond seulement quand il y a quelque chose à faire : une donnée manquante, ou un point à valider.
+    const bullet =
+      state === "missing" ? <PointIcon state="missing" /> : verify ? <VerifyBullet {...verify} /> : <span aria-hidden className="size-[22px]" />;
     const showBody = !foldable || open;
+    // Rien à faire sur la ligne : les boutons (Modifier…) n'apparaissent qu'au survol, sur ordinateur.
+    const quiet = state !== "missing" && !actionsBelow;
     return (
-      <li className="grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-5 py-3.5 @2xl:grid-cols-[22px_150px_minmax(0,1fr)_auto]">
+      <li className="group grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-5 py-3.5 @2xl:grid-cols-[22px_150px_minmax(0,1fr)_auto]">
         {bullet}
-        <span className="pt-0.5 text-[14px] font-semibold leading-snug">{label}</span>
+        <span className="pt-0.5 text-[13.5px] font-medium leading-snug text-muted-foreground">{label}</span>
         <div className="col-start-2 flex min-w-0 flex-col gap-1.5 @2xl:col-start-3 @2xl:pt-0.5">
-          {showBody && children && <div className="whitespace-pre-line break-words text-[14px] leading-relaxed text-foreground/85">{children}</div>}
+          {showBody && children && <div className="whitespace-pre-line break-words text-[14.5px] leading-relaxed text-foreground">{children}</div>}
           {note && <span className="whitespace-pre-line text-[13px] font-semibold text-red-700">{note}</span>}
           {(tags || claimKeys) && (
             <div className="flex flex-wrap gap-1.5">
@@ -97,7 +101,14 @@ export function CheckPoint({
           {actionsBelow && actions && showBody && <div className="flex flex-wrap items-start gap-2 pt-1">{actions}</div>}
         </div>
         {!actionsBelow && actions && (
-          <div className="col-start-2 flex flex-wrap items-start gap-2 @2xl:col-start-4 @2xl:justify-end">{actions}</div>
+          <div
+            className={cn(
+              "col-start-2 flex flex-wrap items-start gap-2 @2xl:col-start-4 @2xl:justify-end",
+              quiet && "transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100",
+            )}
+          >
+            {actions}
+          </div>
         )}
       </li>
     );

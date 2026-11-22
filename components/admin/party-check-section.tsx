@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight, UserPlus } from "lucide-react";
+import { ArrowUpRight, MessageSquarePlus, UserPlus } from "lucide-react";
 import { ClientType, DocumentKind, ProfilType } from "@prisma/client";
 import { DocumentChecklist } from "@/components/documents/document-checklist";
 import { GroupFieldEditor, type GroupField, type InlineFieldKind } from "@/components/admin/inline-field-editor";
@@ -524,7 +524,17 @@ export function PartyCheckSection({
         // Fiche dossier : rien à valider dans la section (les pièces et leurs données se valident ensemble) ;
         // seule une information manquante y est signalée.
         hidePieces ? (
-          summary.missing > 0 ? <StateChip tone="missing">{chip.label}</StateChip> : undefined
+          <>
+            {summary.missing > 0 && <StateChip tone="missing">{chip.label}</StateChip>}
+            {complement && !locked && (
+              <ComplementRequestButton
+                bailId={complement.bailId}
+                target={complement.target}
+                label="Demander"
+                icon={<MessageSquarePlus className="size-4" />}
+              />
+            )}
+          </>
         ) : (
           <>
             <StateChip tone={chip.tone}>{chip.label}</StateChip>
@@ -567,7 +577,7 @@ export function PartyCheckSection({
               }
               actions={
                 <>
-                  {!missing && complement && !locked && asked.length > 0 && (
+                  {!hidePieces && !missing && complement && !locked && asked.length > 0 && (
                     <ComplementRequestButton
                       bailId={complement.bailId}
                       target={complement.target}
