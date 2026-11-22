@@ -63,6 +63,8 @@ export function NotaireStatusActions({
   const stopped = STOPPED[current];
   const stepIndex = STEPS.findIndex((step) => step.status === current);
   const blocked = next?.to === "SIGNED" ? signBlockedReason : null;
+  // Dossier confié avant d'être prêt (formulaire du locataire en attente…) : rien à faire pour le notaire.
+  const notReady = !stopped && stepIndex < 0;
 
   const move = async (to: Status, done: string) => {
     setBusy(to);
@@ -147,6 +149,15 @@ export function NotaireStatusActions({
       </Dialog>
     </>
   );
+
+  if (notReady) {
+    return compact ? null : (
+      <p className="w-fit rounded-lg bg-amber-50 px-3 py-2 text-[13.5px] text-amber-900">
+        Dossier pas encore prêt : l&apos;équipe BailNotarie complète le dossier (formulaire du locataire en attente…). Vous
+        pourrez le faire avancer dès qu&apos;il sera prêt.
+      </p>
+    );
+  }
 
   if (compact) {
     return (

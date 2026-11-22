@@ -48,7 +48,7 @@ export function ArchivedDocuments({
             <span className="text-[13px] text-muted-foreground">
               Retirée le {day(doc.archivedAt)}
               {doc.archivedByName ? ` par ${doc.archivedByName}` : ""}
-              {doc.replacedByLabel ? ` · remplacée par « ${doc.replacedByLabel} »` : ""}
+              {doc.replacedByLabel ? " · remplacée par une nouvelle pièce" : ""}
             </span>
           </div>
           <DocumentViewer
@@ -82,7 +82,7 @@ export function ArchivedDocuments({
               <span className="text-[13px] text-muted-foreground">
                 Archivée le {day(doc.archivedAt)}
                 {doc.archivedByName ? ` par ${doc.archivedByName}` : ""}
-                {doc.replacedByLabel ? ` · remplacée par « ${doc.replacedByLabel} »` : ""}
+                {doc.replacedByLabel ? " · remplacée par une nouvelle pièce" : ""}
               </span>
             </div>
             <DocumentViewer
