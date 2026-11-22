@@ -51,6 +51,7 @@ export function PiecesSection({
     remind?: React.ReactNode;
     sendButton?: React.ReactNode;
     finish?: { title: string; hint: string };
+    audience?: "equipe" | "notaire";
   };
   /** Lecture des diagnostics (décisions par diagnostic, envoi au propriétaire) : dans le panneau de la pièce. */
   diagnostics?: React.ReactNode;
@@ -194,6 +195,7 @@ export function PiecesSection({
           remind={guided.remind}
           sendButton={guided.sendButton}
           finish={guided.finish}
+          audience={guided.audience}
           diagnostics={diagnostics}
           bailId={bailId}
           onExit={() => setReview(null)}

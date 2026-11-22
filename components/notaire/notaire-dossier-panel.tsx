@@ -207,13 +207,7 @@ export function NotaireDossierPanel({
                 legalPending: 0,
                 answers: [],
                 relances: [],
-                sendButton: (
-                  <NotaireStatusActions bailId={view.bailId} status={view.status} signBlockedReason={view.review.reason} compact />
-                ),
-                finish: {
-                  title: "Avancement du dossier",
-                  hint: "« Le bail est signé » s'active quand toutes les pièces sont vérifiées et qu'il n'en manque aucune.",
-                },
+                audience: "notaire",
               }}
             />
           )}

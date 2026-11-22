@@ -85,6 +85,7 @@ export function GuidedReview({
   remind,
   sendButton,
   finish,
+  audience = "equipe",
   diagnostics,
   bailId,
   onExit,
@@ -102,6 +103,8 @@ export function GuidedReview({
   sendButton?: React.ReactNode;
   /** Dernier bloc du récapitulatif (par défaut : la transmission au notaire). */
   finish?: { title: string; hint: string };
+  /** Qui vérifie : l'équipe (puis transmission au notaire) ou le notaire lui-même (textes adaptés). */
+  audience?: "equipe" | "notaire";
   diagnostics?: React.ReactNode;
   bailId: string;
   onExit: () => void;
@@ -222,7 +225,7 @@ export function GuidedReview({
           ))}
         </div>
       )}
-      {step.kind === "recap" && <Recap items={items} basket={basket} setBasket={setBasket} sendButton={sendButton} finish={finish} />}
+      {step.kind === "recap" && <Recap items={items} basket={basket} setBasket={setBasket} sendButton={sendButton} finish={finish} audience={audience} />}
     </StepSheet>
   );
 }
@@ -290,12 +293,14 @@ function Recap({
   setBasket,
   sendButton,
   finish = { title: "Transmettre au notaire", hint: "Le bouton s'active quand tout est vérifié et qu'il ne manque rien." },
+  audience = "equipe",
 }: {
   items: GuidedItem[];
   basket: BasketEntry[];
   setBasket: React.Dispatch<React.SetStateAction<BasketEntry[]>>;
   sendButton?: React.ReactNode;
   finish?: { title: string; hint: string };
+  audience?: "equipe" | "notaire";
 }) {
   const verified = items.filter((i) => i.info.state === "ok").length;
   const toCheck = items.filter(
@@ -345,7 +350,9 @@ function Recap({
         <div className="flex flex-col gap-0.5">
           <h3 className="text-[17px] font-semibold">Faut-il demander quelque chose au client ?</h3>
           <p className="text-[13.5px] text-muted-foreground">
-            Des pièces, ou des informations à compléter ou corriger. Si rien ne manque, passez directement à la transmission.
+            {audience === "notaire"
+              ? "Des pièces, ou des informations à compléter ou corriger. Si tout est bon, votre vérification est terminée."
+              : "Des pièces, ou des informations à compléter ou corriger. Si rien ne manque, passez directement à la transmission."}
           </p>
         </div>
       )}
@@ -427,7 +434,11 @@ function Recap({
       {basket.length === 0 && missing.length === 0 && (
         <p className="flex items-center gap-2 text-[14.5px] font-medium text-green-800">
           <ClipboardCheck className="size-5" />
-          Aucune pièce à redemander. Rien à demander ? Terminez ou transmettez au notaire.
+          {audience === "notaire"
+            ? toCheck === 0
+              ? "Toutes les pièces sont vérifiées. Rien à demander ? Cliquez sur « Terminer »."
+              : "Aucune pièce à redemander. Rien à demander ? Cliquez sur « Terminer »."
+            : "Aucune pièce à redemander. Rien à demander ? Terminez ou transmettez au notaire."}
         </p>
       )}
 
