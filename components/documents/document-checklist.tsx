@@ -193,7 +193,7 @@ export function DocumentChecklist({
                       {editable && (
                         <DocumentDeleteButton
                           documentId={doc.id}
-                          fileName={doc.label || documentKindLabels[doc.kind] || null}
+                          fileName={documentKindLabels[doc.kind] || null}
                           onDeletingChange={onDeletingChange}
                         />
                       )}

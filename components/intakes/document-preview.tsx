@@ -223,7 +223,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
                     {getDocumentIcon(doc.mimeType)}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
-                        {doc.label || getDocumentLabel(doc.kind)}
+                        {getDocumentLabel(doc.kind)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {formatFileSize(doc.size)} • {new Date(doc.createdAt).toLocaleDateString()}
@@ -262,7 +262,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
       <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>{selectedDocument?.label || "Aperçu du document"}</DialogTitle>
+            <DialogTitle>{selectedDocument ? getDocumentLabel(selectedDocument.kind) : "Aperçu du document"}</DialogTitle>
           </DialogHeader>
           <div className="mt-4">
             {selectedDocument && (

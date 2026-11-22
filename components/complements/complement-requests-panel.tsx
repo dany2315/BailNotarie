@@ -290,7 +290,7 @@ function ItemRow({
               >
                 <Button type="button" variant="outline" size="sm" className="h-9 max-w-full gap-1.5">
                   <Eye className="size-4 shrink-0" />
-                  <span className="truncate">{doc.label || "Voir le fichier"}</span>
+                  <span className="truncate">Voir le fichier{item.documents.length > 1 ? ` ${item.documents.indexOf(doc) + 1}` : ""}</span>
                 </Button>
               </DocumentViewer>
             ))}
@@ -348,7 +348,7 @@ function ItemRow({
                       disabled={!!busy}
                       onChange={(event) => setToArchive((ids) => (event.target.checked ? [...ids, doc.id] : ids.filter((id) => id !== doc.id)))}
                     />
-                    <span className="truncate">{doc.label || "Fichier"}</span>
+                    <span className="truncate">Ancien fichier{item.replaceable.length > 1 ? ` ${item.replaceable.indexOf(doc) + 1}` : ""}</span>
                     <span className="shrink-0 text-muted-foreground">· reçue le {fmtDay(doc.createdAt)}</span>
                     {doc.suggested && <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[11.5px] font-semibold text-amber-900">visée par la demande</span>}
                   </label>

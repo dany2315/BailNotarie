@@ -128,10 +128,7 @@ export function DocumentStackList({
           : null;
         const documentType = documentKindLabels[document.kind] || document.kind;
         const ownerLabel = (document as StackDocument).ownerLabel;
-        const documentNameAndSize = [
-          document.label || null,
-          formatSize(document.size),
-        ].filter(Boolean);
+        const documentNameAndSize = [formatSize(document.size)].filter(Boolean);
 
         const isDeleting = deletingId === document.id;
         const stackDepth = index;

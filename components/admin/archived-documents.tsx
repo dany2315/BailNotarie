@@ -44,7 +44,6 @@ export function ArchivedDocuments({
           <div className="flex min-w-0 flex-col">
             <span className="truncate text-sm font-semibold">
               {documentKindLabels[doc.kind] || doc.kind}
-              {doc.label ? ` — ${doc.label}` : ""}
             </span>
             <span className="text-[13px] text-muted-foreground">
               Retirée le {day(doc.archivedAt)}
@@ -79,7 +78,6 @@ export function ArchivedDocuments({
             <div className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-semibold">
                 {documentKindLabels[doc.kind] || doc.kind}
-                {doc.label ? ` — ${doc.label}` : ""}
               </span>
               <span className="text-[13px] text-muted-foreground">
                 Archivée le {day(doc.archivedAt)}

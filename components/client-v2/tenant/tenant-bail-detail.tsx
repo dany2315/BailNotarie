@@ -438,7 +438,7 @@ export function TenantBailDetail({
                       <div className="flex min-w-0 items-center gap-2.5">
                         <FileText className="h-4 w-4 shrink-0 text-slate-400" />
                         <span className="truncate text-[13px] font-medium text-slate-800">
-                          {doc.label || getDocumentLabel(doc.kind)}
+                          {getDocumentLabel(doc.kind)}
                         </span>
                       </div>
                       <span className="shrink-0 text-[11.5px] tabular-nums text-slate-400">

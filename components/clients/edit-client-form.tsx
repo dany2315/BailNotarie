@@ -738,11 +738,6 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                         <p className="text-sm font-medium truncate">
                                           {documentKindLabels[doc.kind] || doc.kind}
                                         </p>
-                                        {doc.label && (
-                                          <p className="text-xs text-muted-foreground truncate">
-                                            {doc.label}
-                                          </p>
-                                        )}
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-1">
@@ -874,11 +869,6 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                       <p className="text-sm font-medium truncate">
                                         {documentKindLabels[doc.kind] || doc.kind}
                                       </p>
-                                      {doc.label && (
-                                        <p className="text-xs text-muted-foreground truncate">
-                                          {doc.label}
-                                        </p>
-                                      )}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1">
@@ -1109,11 +1099,6 @@ export function EditClientForm({ client }: EditClientFormProps) {
                           <p className="text-sm font-medium truncate">
                             {documentKindLabels[doc.kind] || doc.kind}
                           </p>
-                          {doc.label && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              {doc.label}
-                            </p>
-                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">

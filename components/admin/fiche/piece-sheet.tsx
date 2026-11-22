@@ -137,7 +137,8 @@ export function PieceSheet({
 
   const kind = doc ? fileKindOf(doc) : "other";
   const hints = HINTS[row.kind] ?? DEFAULT_HINTS;
-  const name = doc ? doc.label || documentKindLabels[doc.kind] || "Fichier" : info.label;
+  // Nom de la pièce, jamais le nom du fichier enregistré (« Pièce d'identité · fichier 2 »).
+  const name = doc ? `${info.label}${files.length > 1 ? ` · fichier ${fileIndex + 1}` : ""}` : info.label;
 
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
@@ -491,8 +492,8 @@ export function PieceSheet({
                 <div className="flex max-h-[4.5rem] flex-col gap-0.5 overflow-y-auto">
                   {files.map((file, i) => (
                     <button key={file.id} type="button" onClick={() => setFileIndex(i)} className={cn("truncate text-left hover:underline", i === fileIndex && "font-semibold text-foreground")}>
-                      {files.length > 1 ? `${i + 1}. ` : ""}
-                      {day(file.createdAt)} · {file.label || "Fichier"}
+                      {files.length > 1 ? `Fichier ${i + 1} · ` : ""}
+                      reçu le {day(file.createdAt)}
                       {file.viaComplement ? " · reçue en réponse à une demande" : ""}
                     </button>
                   ))}

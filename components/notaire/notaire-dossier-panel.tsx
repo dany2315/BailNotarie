@@ -211,32 +211,6 @@ export function NotaireDossierPanel({
               }}
             />
           )}
-          {requests.length > 0 && (
-            <section
-              aria-labelledby="demandes-title"
-              className="flex flex-col gap-3"
-            >
-              <h3
-                id="demandes-title"
-                className="px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
-              >
-                Mes demandes
-                {toReview > 0 && (
-                  <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[11.5px] normal-case tracking-normal text-blue-800">
-                    {toReview} à vérifier
-                  </span>
-                )}
-              </h3>
-              <ComplementRequestsPanel requests={requests} canArchive />
-            </section>
-          )}
-
-          {archived.length > 0 && (
-            <section className="mt-6">
-              <ArchivedDocuments documents={archived} />
-            </section>
-          )}
-
           {view.bail.length > 0 && (
             <FactGroup
               title="Le bail"
@@ -276,7 +250,29 @@ export function NotaireDossierPanel({
         </div>
 
         {/* Pièces */}
-        <aside className="flex min-w-0 flex-col gap-5 xl:sticky xl:top-5">
+        <aside className="flex min-w-0 flex-col gap-5">
+          {/* Pièces demandées au client : ce qui est attendu, ce qui est reçu et à vérifier */}
+          <section aria-labelledby="demandes-title" className="flex flex-col gap-3">
+            <h3 id="demandes-title" className="flex items-center justify-between gap-2 px-1 text-[15px] font-semibold">
+              Pièces demandées
+              {toReview > 0 && (
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11.5px] font-semibold text-blue-800">{toReview} à vérifier</span>
+              )}
+            </h3>
+            {requests.length > 0 ? (
+              <ComplementRequestsPanel requests={requests} canArchive />
+            ) : (
+              <p className="rounded-2xl border border-dashed bg-background px-4 py-4 text-[13px] text-muted-foreground">
+                Aucune demande en cours. Pour demander une pièce ou une information, utilisez « Demander » en haut, ou
+                « À redemander » pendant la vérification.
+              </p>
+            )}
+          </section>
+
+          {archived.length > 0 && (
+            <ArchivedDocuments documents={archived} subtitle="Remplacées par une nouvelle pièce, toujours consultables" />
+          )}
+
           <OtherPiecesCard view={view} />
           {(view.notes || view.legacyRequests.length > 0) && (
             <section className="rounded-2xl border bg-background p-4">

@@ -241,13 +241,13 @@ function PieceCard({ item, disabled }: { item: ClientComplementItem; disabled: b
             {item.documents.map((doc) => (
               <li key={doc.id} className="flex items-center gap-2.5 rounded-xl bg-slate-50 px-3 py-2">
                 <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-700">{doc.label || "Fichier"}</span>
+                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-700">Fichier {item.documents.indexOf(doc) + 1}</span>
                 {formatSize(doc.size) && <span className="shrink-0 text-[12px] tabular-nums text-slate-400">{formatSize(doc.size)}</span>}
                 <button
                   type="button"
                   onClick={() => remove(doc.id)}
                   disabled={busy || removing === doc.id}
-                  aria-label={`Retirer ${doc.label || "ce fichier"}`}
+                  aria-label={`Retirer le fichier ${item.documents.indexOf(doc) + 1}`}
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-slate-700 disabled:opacity-50"
                 >
                   {removing === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}

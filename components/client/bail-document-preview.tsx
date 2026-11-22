@@ -148,9 +148,6 @@ export function BailDocumentPreview({ document }: BailDocumentPreviewProps) {
               {getDocumentLabel(document.kind)}
             </p>
             <div className="min-w-0 max-w-full overflow-hidden">
-              <p className="text-xs text-muted-foreground truncate max-w-full">
-                {document.label || getDocumentLabel(document.kind)}
-              </p>
               {document.createdAt && (
                 <p className="text-xs text-muted-foreground truncate max-w-full">
                   Ajouté le <LocalDateTime value={document.createdAt} />
@@ -185,8 +182,8 @@ export function BailDocumentPreview({ document }: BailDocumentPreviewProps) {
         {/* Largeur fixe et titre tronqué : un nom de fichier long ne doit pas élargir la fenêtre. */}
         <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)] sm:max-w-4xl max-h-[90vh] min-w-0 overflow-hidden">
           <DialogHeader className="min-w-0 pr-8">
-            <DialogTitle className="truncate" title={document.label || getDocumentLabel(document.kind)}>
-              {document.label || getDocumentLabel(document.kind)}
+            <DialogTitle className="truncate">
+              {getDocumentLabel(document.kind)}
             </DialogTitle>
             <DialogDescription className="truncate">{getDocumentLabel(document.kind)}</DialogDescription>
           </DialogHeader>
