@@ -23,6 +23,7 @@ import { deleteBailDraft } from "@/lib/actions/leases";
 import { OwnerBailRow } from "./owner-bail-card";
 import { useOwnerRuntime } from "./owner-runtime";
 import { TodoRow } from "./owner-todo";
+import { AddTenantDialog } from "./add-tenant-dialog";
 import { PROOF_LABELS } from "@/lib/utils/rent-relocation";
 import {
   EmptyState,
@@ -185,6 +186,8 @@ type TodoItem = {
   message?: string | null;
   actionLabel: string;
   href?: string;
+  /** Action sur place (sans changer de page), à la place du lien. */
+  onAction?: () => void;
   onDelete?: () => void;
   deleting?: boolean;
 };
@@ -201,6 +204,8 @@ export function OwnerDashboard({
   const { demo } = useOwnerRuntime();
   const [bailDrafts, setBailDrafts] = React.useState(initialBailDrafts);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  // « Ajouter le locataire » : la fenêtre d'ajout s'ouvre ici, sans passer par la fiche du bail.
+  const [tenantBailId, setTenantBailId] = React.useState<string | null>(null);
   const todoRef = React.useRef<HTMLDivElement>(null);
 
   const handleDeleteDraft = async (id: string) => {
@@ -272,7 +277,7 @@ export function OwnerDashboard({
       subtitle: bail.bailType ? BAIL_TYPE_LABELS[bail.bailType] || bail.bailType : null,
       message: "Indiquez votre locataire dès que vous l'avez trouvé : il recevra son formulaire et le dossier pourra avancer.",
       actionLabel: "Ajouter le locataire",
-      href: `/client/proprietaire/baux/${bail.id}`,
+      onAction: () => setTenantBailId(bail.id),
     })),
     // Justificatifs du loyer (zone tendue) : l'équipe en a besoin avant l'envoi au notaire.
     ...rentProofs.map((item) => ({
@@ -390,11 +395,15 @@ export function OwnerDashboard({
                       message={todo.message}
                       actionLabel={todo.actionLabel}
                       href={todo.href}
+                      onAction={todo.onAction}
                       onDelete={todo.onDelete}
                       deleting={todo.deleting}
                     />
                   ))}
                 </Surface>
+                {tenantBailId && (
+                  <AddTenantDialog bailId={tenantBailId} open onOpenChange={(open) => !open && setTenantBailId(null)} />
+                )}
               </section>
             )}
 

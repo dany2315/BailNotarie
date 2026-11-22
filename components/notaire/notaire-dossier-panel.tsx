@@ -203,6 +203,7 @@ export function NotaireDossierPanel({
           {view.bailId && (
             <NotaireRemindButton
               bailId={view.bailId}
+              address={view.address}
               requests={requests}
               reminders={reminders}
               formWaits={formWaits}

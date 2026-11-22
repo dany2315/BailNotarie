@@ -10,6 +10,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { remindNotaireTarget, type NotaireReminderSummary, type StaffComplementRequest } from "@/lib/actions/complement-requests";
 import { sendNotaireFormReminder } from "@/lib/actions/reminders";
 import type { NotaireFormWait } from "@/lib/notaire/form-reminders";
+import { relanceEmailContent } from "@/lib/utils/relance-content";
+import { complementEmailContent } from "@/lib/utils/complement";
+import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/components/emails/email-preview-frame";
 
 type Target = "OWNER" | "TENANT";
 
@@ -37,12 +40,15 @@ export function remindHistory(summary: NotaireReminderSummary | undefined) {
  */
 export function NotaireRemindButton({
   bailId,
+  address,
   requests,
   reminders,
   formWaits = [],
   targets,
 }: {
   bailId: string;
+  /** Adresse du bien, comme dans l'e-mail. */
+  address: string;
   requests: StaffComplementRequest[];
   /** Relances déjà faites par ce notaire, par personne. */
   reminders: Record<Target, NotaireReminderSummary>;
@@ -106,6 +112,7 @@ export function NotaireRemindButton({
       {target && (
         <NotaireRemindDialog
           bailId={bailId}
+          address={address}
           target={target}
           requests={waitingRequests(requests, target)}
           summary={reminders[target]}
@@ -130,10 +137,13 @@ const FORM_TEXT: Record<NotaireFormWait["reason"], string> = {
 export function NotaireFormRemindDialog({ wait, open, onOpenChange }: { wait: NotaireFormWait; open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+  const [note, setNote] = React.useState("");
+  // Même contenu que l'e-mail envoyé (modèle de l'équipe), avec la phrase du notaire.
+  const content = relanceEmailContent({ reason: wait.reason, name: wait.greetingName, address: wait.address, actionUrl: "" });
   const send = async () => {
     setBusy(true);
     try {
-      const result = await sendNotaireFormReminder({ bailId: wait.bailId, target: wait.target, reason: wait.reason });
+      const result = await sendNotaireFormReminder({ bailId: wait.bailId, target: wait.target, reason: wait.reason, note: note.trim() || undefined });
       if (!result.success) {
         toast.error("Le rappel n'a pas pu être envoyé", { description: result.error });
         return;
@@ -149,22 +159,46 @@ export function NotaireFormRemindDialog({ wait, open, onOpenChange }: { wait: No
   };
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="flex max-h-[min(92dvh,860px)] flex-col gap-4 overflow-hidden sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
             Relancer {WHO[wait.target]} : {lower(wait.label)}
           </DialogTitle>
           <DialogDescription>
-            {wait.partyName} {FORM_TEXT[wait.reason]} L&apos;e-mail précise que c&apos;est vous, son notaire, qui attendez ce retour.
+            {wait.partyName} {FORM_TEXT[wait.reason]}
           </DialogDescription>
         </DialogHeader>
-        <p className="text-[13px] text-muted-foreground">
-          Attendu depuis le {fmtDay(wait.since)}.{" "}
-          {wait.mine > 0 && wait.myLastAt
-            ? `Vous l'avez déjà relancé ${wait.mine} fois, la dernière le ${fmtDay(wait.myLastAt)}.`
-            : "Vous ne l'avez pas encore relancé."}
-          {wait.email ? ` Envoyé à ${wait.email}.` : ""}
-        </p>
+        <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
+          <p className="text-[13px] text-muted-foreground">
+            Attendu depuis le {fmtDay(wait.since)}.{" "}
+            {wait.mine > 0 && wait.myLastAt
+              ? `Vous l'avez déjà relancé ${wait.mine} fois, la dernière le ${fmtDay(wait.myLastAt)}.`
+              : "Vous ne l'avez pas encore relancé."}
+          </p>
+          <EmailPreviewFrame to={wait.email} toName={wait.partyName} toRole={wait.target === "OWNER" ? "Propriétaire" : "Locataire"} subject={content.subject}>
+            <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
+            <div className="mt-3 flex flex-col gap-3">
+              {content.paragraphs.map((paragraph) => (
+                <p key={paragraph} className="text-[14.5px] leading-[1.55] text-slate-600">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
+            {content.outro && <p className="mt-3 text-[14.5px] leading-[1.55] text-slate-600">{content.outro}</p>}
+            <p className="mt-4 whitespace-pre-line rounded-lg bg-slate-100 px-4 py-3 text-[15px] leading-[1.45] text-slate-800">{wait.notaryLine}</p>
+            <div className="mt-3">
+              <EditableEmailText
+                boxed
+                label="Un mot de votre part (facultatif)"
+                placeholder="Ajouter un mot pour le client (facultatif)"
+                value={note}
+                onChange={setNote}
+                maxLength={800}
+              />
+            </div>
+            <EmailPreviewButton>{content.button}</EmailPreviewButton>
+          </EmailPreviewFrame>
+        </div>
         {!wait.email && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
             Pas d&apos;adresse e-mail pour cette personne : l&apos;envoi est impossible.
@@ -187,6 +221,7 @@ export function NotaireFormRemindDialog({ wait, open, onOpenChange }: { wait: No
 /** Fenêtre de relance : à qui, ce qui est encore attendu, et combien de fois il a déjà été relancé. */
 export function NotaireRemindDialog({
   bailId,
+  address,
   target,
   requests,
   summary,
@@ -194,6 +229,8 @@ export function NotaireRemindDialog({
   onOpenChange,
 }: {
   bailId: string;
+  /** Adresse du bien, comme dans l'e-mail. */
+  address: string;
   target: Target;
   requests: StaffComplementRequest[];
   summary: NotaireReminderSummary | undefined;
@@ -224,32 +261,53 @@ export function NotaireRemindDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="flex max-h-[min(92dvh,860px)] flex-col gap-4 overflow-hidden sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Relancer {WHO[target]}</DialogTitle>
           <DialogDescription>
-            {requests[0]?.recipientName ? `${requests[0].recipientName} reçoit` : "Il reçoit"} à nouveau votre demande par e-mail, avec
-            seulement ce qu&apos;il n&apos;a pas encore envoyé.
+            {requests[0]?.recipientName ? `${requests[0].recipientName} reçoit` : "Il reçoit"} à nouveau la demande par e-mail, avec
+            seulement ce qu&apos;il n&apos;a pas encore envoyé. Voici l&apos;e-mail tel qu&apos;il partira.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
-          {requests.map((request) => {
+        <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1">
+          {requests.map((request, index) => {
             const items = request.items.filter((i) => i.status === "PENDING");
+            // Même contenu que l'e-mail de rappel envoyé : seulement ce qui est encore attendu.
+            const content = complementEmailContent({
+              name: request.recipientName,
+              address,
+              message: null,
+              reminder: true,
+              items: items.map((item) => ({ label: item.label, reason: item.reason, note: item.note, kind: item.type })),
+            });
             return (
-              <section key={request.id} className="rounded-xl border bg-muted/30 px-4 py-3">
+              <section key={request.id} className="flex flex-col gap-2">
                 <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground">
+                  {requests.length > 1 && <span>E-mail {index + 1} sur {requests.length} ·</span>}
                   {request.origin === "TEAM" && <span className={TEAM_BADGE}>Par l&apos;équipe BailNotarie</span>}
-                  Demandé le {fmtDay(request.createdAt)}, toujours attendu :
+                  Demandé le {fmtDay(request.createdAt)}
                 </p>
-                <ul className="mt-2 flex flex-col gap-1">
-                  {items.map((item) => (
-                    <li key={item.id} className="flex items-baseline gap-2 text-[14px]">
-                      <span aria-hidden className="size-1.5 shrink-0 translate-y-[-2px] rounded-full bg-amber-500" />
-                      {item.label}
-                    </li>
-                  ))}
-                  {items.length === 0 && <li className="text-[13.5px] text-muted-foreground">Tout est envoyé, il reste à valider l&apos;envoi.</li>}
-                </ul>
+                {items.length === 0 ? (
+                  <p className="rounded-xl border bg-muted/30 px-4 py-3 text-[13.5px] text-muted-foreground">
+                    Tout est envoyé, il reste à valider l&apos;envoi : pas d&apos;e-mail pour cette demande.
+                  </p>
+                ) : (
+                  <EmailPreviewFrame to={request.recipientEmail} toName={request.recipientName} toRole={target === "OWNER" ? "Propriétaire" : "Locataire"} subject={content.subject}>
+                    <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
+                    <p className="mt-0.5 text-[12.5px] text-slate-500">{content.context}</p>
+                    <p className="mt-4 whitespace-pre-line text-[14.5px] leading-[1.55] text-slate-600">{content.message}</p>
+                    <ul className="mt-4 flex flex-col gap-2">
+                      {content.items.map((item, i) => (
+                        <li key={`${item.label}-${i}`} className="rounded-[10px] border border-slate-200 px-3.5 py-3">
+                          <p className="text-[14px] font-bold leading-snug text-slate-900">{item.label}</p>
+                          <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600">{item.detail}</p>
+                        </li>
+                      ))}
+                    </ul>
+                    <EmailPreviewButton>{content.button}</EmailPreviewButton>
+                    <p className="mt-4 text-center text-[12.5px] text-slate-500">{content.outro}</p>
+                  </EmailPreviewFrame>
+                )}
               </section>
             );
           })}

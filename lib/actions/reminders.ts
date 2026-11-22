@@ -15,7 +15,7 @@ import { assessRentCap, rentCapOverLines } from "@/lib/rent-cap";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { ownerLines } from "@/lib/diagnostics/items";
 import { loadDiagnosticState } from "@/lib/diagnostics/state";
-import { NOTAIRE_FORM_REASONS, notaireFormWaits } from "@/lib/notaire/form-reminders";
+import { NOTAIRE_FORM_REASONS, notaireFormWaits, notaireReminderLine } from "@/lib/notaire/form-reminders";
 import {
   computeReminderNeeds,
   statusSinceFrom,
@@ -248,10 +248,16 @@ export async function sendNotaireFormReminder(
 ): Promise<{ success: true; data: { email: string } } | Fail> {
   const user = await requireRole([Role.NOTAIRE]);
   const parsed = z
-    .object({ bailId: z.string().min(1), target: z.enum(["OWNER", "TENANT"]), reason: z.enum(NOTAIRE_FORM_REASONS) })
+    .object({
+      bailId: z.string().min(1),
+      target: z.enum(["OWNER", "TENANT"]),
+      reason: z.enum(NOTAIRE_FORM_REASONS),
+      /** Un mot du notaire pour le client (facultatif). */
+      note: z.string().trim().max(1000).optional(),
+    })
     .safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
-  const { bailId, target, reason } = parsed.data;
+  const { bailId, target, reason, note } = parsed.data;
   const assignment = await prisma.dossierNotaireAssignment.findFirst({ where: { bailId, notaireId: user.id }, select: { id: true } });
   if (!assignment) return { success: false, error: "Accès refusé" };
   const waits = await notaireFormWaits([bailId], user.id);
@@ -259,7 +265,7 @@ export async function sendNotaireFormReminder(
   const result = await deliverReminders(user, {
     bailId,
     sends: [{ target, reason }],
-    note: `${getActorName(user)}, le notaire qui rédigera votre bail, attend ce retour pour avancer.`,
+    note: [notaireReminderLine(user), note].filter(Boolean).join("\n\n"),
   });
   if (!result.success) return result;
   if (result.data.sent.length === 0) return { success: false, error: result.data.failed[0]?.error || "Le rappel n'a pas pu être envoyé" };

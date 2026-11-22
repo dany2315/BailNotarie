@@ -4,7 +4,7 @@
 
 import { IntakeStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getClientDisplayName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
+import { getActorName, getClientDisplayName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
 import { statusSinceFrom, waitingReasons, type ReminderParty, type ReminderReasonValue, type ReminderTargetValue } from "@/lib/utils/reminders";
 
 /** Relances « formulaire » ouvertes au notaire (les autres restent à l'équipe). */
@@ -20,8 +20,19 @@ export const FORM_REASON_LABELS: Record<NotaireFormReason, string> = {
   TENANT_FORM: "Remplir son formulaire",
 };
 
+/** Phrase ajoutée aux relances du notaire : c'est lui qui attend ce retour. */
+export function notaireReminderLine(user: { name?: string | null; email?: string | null }) {
+  return `${getActorName(user)}, le notaire qui rédigera votre bail, attend ce retour pour avancer.`;
+}
+
 export interface NotaireFormWait {
   bailId: string;
+  /** Adresse du bien, comme dans l'e-mail. */
+  address: string;
+  /** Nom après « Bonjour », comme dans l'e-mail. */
+  greetingName: string;
+  /** Phrase du notaire ajoutée à l'e-mail. */
+  notaryLine: string;
   /** Personne relancée. */
   target: ReminderTargetValue;
   reason: NotaireFormReason;
@@ -67,6 +78,7 @@ export async function notaireFormWaits(bailIds: string[], userId: string): Promi
       id: true,
       status: true,
       createdAt: true,
+      property: { select: { fullAddress: true, label: true } },
       parties: { select: partySelect },
       intakes: { select: { target: true, clientId: true, status: true } },
       auditLogs: { where: { eventType: "STATUS_CHANGED" }, select: { eventType: true, toStatus: true, createdAt: true } },
@@ -74,6 +86,8 @@ export async function notaireFormWaits(bailIds: string[], userId: string): Promi
     },
   });
   const now = Date.now();
+  const notary = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+  const notaryLine = notaireReminderLine(notary ?? {});
   const out: NotaireFormWait[] = [];
   for (const bail of bails) {
     const owner = toParty(bail.parties.find((p) => p.profilType === "PROPRIETAIRE"));
@@ -87,6 +101,9 @@ export async function notaireFormWaits(bailIds: string[], userId: string): Promi
       const last = Math.max(+since, mine[0] ? +mine[0].createdAt : 0);
       out.push({
         bailId: bail.id,
+        address: bail.property?.fullAddress || bail.property?.label || "votre logement",
+        greetingName: wait.party.greetingName || "",
+        notaryLine,
         target: wait.target,
         reason,
         label: FORM_REASON_LABELS[reason],
