@@ -86,7 +86,7 @@ export function pieceInfos(
             ? "ok"
             : !point
               ? "plain"
-              : point.verified
+              : point.verified && (row.linkedPoints ?? []).every((linked) => linked.verified)
                 ? "ok"
                 : "todo";
     return { row, label: row.label || documentKindLabels[row.kind] || row.kind, owner, state, point, requestKey, claim };

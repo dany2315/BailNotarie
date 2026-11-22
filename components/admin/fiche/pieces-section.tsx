@@ -33,7 +33,16 @@ interface Item {
  * on les contrôle d'une traite, et « Suivante » passe d'une pièce à l'autre dans tout le dossier.
  * Mêmes validations, mêmes demandes et mêmes envois de fichiers que la fiche classique.
  */
-export function PiecesSection({ groups, bailId }: { groups: PieceGroup[]; bailId: string }) {
+export function PiecesSection({
+  groups,
+  bailId,
+  diagnostics,
+}: {
+  groups: PieceGroup[];
+  bailId: string;
+  /** Lecture des diagnostics (décisions par diagnostic, envoi au propriétaire) : dans le panneau de la pièce. */
+  diagnostics?: React.ReactNode;
+}) {
   const fiche = useFiche();
   const [openKey, setOpenKey] = React.useState<string | null>(null);
   const [optionalFor, setOptionalFor] = React.useState<string | null>(null);
@@ -142,6 +151,7 @@ export function PiecesSection({ groups, bailId }: { groups: PieceGroup[]; bailId
           onClose={() => setOpenKey(null)}
           onPrev={openIndex > 0 ? () => setOpenKey(items[openIndex - 1].info.row.key) : undefined}
           onNext={openIndex < items.length - 1 ? () => setOpenKey(items[openIndex + 1].info.row.key) : undefined}
+          extra={open.info.row.kind === "DIAGNOSTICS" ? diagnostics : undefined}
         />
       )}
     </section>

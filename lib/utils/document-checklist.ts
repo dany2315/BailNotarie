@@ -49,6 +49,11 @@ export interface ChecklistRow {
   compare?: ReactNode;
   /** Fiche dossier : les mêmes, modifiables directement dans la ligne. */
   compareSpec?: CompareSpec;
+  /**
+   * Fiche dossier : données prouvées par cette pièce (identité, société, situation familiale). « La pièce
+   * est bonne » les valide en même temps (mêmes clés de point qu'avant).
+   */
+  linkedPoints?: Array<{ key: string; label: string; verified: boolean }>;
 }
 
 /**

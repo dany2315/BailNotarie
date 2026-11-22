@@ -58,7 +58,10 @@ export function PieceSheet({
   onClose,
   onPrev,
   onNext,
+  extra,
 }: {
+  /** Contenu propre à la pièce (lecture des diagnostics, décisions par diagnostic). */
+  extra?: React.ReactNode;
   info: PieceInfo;
   index: number;
   total: number;
@@ -108,7 +111,9 @@ export function PieceSheet({
   const setVerified = (verified: boolean) =>
     startTransition(async () => {
       if (!point || !bailId) return;
-      const result = await setVerificationPoints({ bailId, pointKeys: [point.pointKey], verified });
+      // La pièce et les données qu'elle prouve (identité, société, situation familiale) : un seul geste.
+      const pointKeys = [point.pointKey, ...(row.linkedPoints ?? []).map((linked) => linked.key)];
+      const result = await setVerificationPoints({ bailId, pointKeys, verified });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -304,11 +309,22 @@ export function PieceSheet({
               <div className="text-[14px]">{row.compare}</div>
             ) : null}
             {row.extra && <div className="flex flex-wrap items-center gap-2 text-[13.5px]">{row.extra}</div>}
+            {extra && (
+              <div className="flex flex-col gap-2">
+                <p className="text-[12px] font-bold uppercase tracking-[0.07em] text-muted-foreground">Lecture des diagnostics</p>
+                <div className="rounded-xl border bg-card p-3">{extra}</div>
+              </div>
+            )}
 
             {/* La réponse */}
             {!locked && point && state !== "received" && (
               <div className="flex flex-col gap-2">
-                {point.verified ? (
+                {(row.linkedPoints ?? []).length > 0 && (
+                  <p className="text-[12.5px] text-muted-foreground">
+                    « La pièce est bonne » valide aussi : {(row.linkedPoints ?? []).map((linked) => linked.label.toLowerCase()).join(", ")}.
+                  </p>
+                )}
+                {point.verified && (row.linkedPoints ?? []).every((linked) => linked.verified) ? (
                   <p className="flex items-center gap-2 text-[14.5px] font-semibold text-green-800">
                     <Check className="size-4" strokeWidth={3} />
                     Vérifiée

@@ -13,9 +13,11 @@ import { MISSING_FIELD_LABELS } from "@/lib/utils/missing-items";
 import { formatPhone } from "@/lib/utils/phone-format";
 import { REGISTERED_LABELS, registryNotes } from "@/lib/utils/company-registry";
 import { CompanyRegistryButton } from "@/components/admin/company-registry-button";
-import { AskFieldsButton } from "@/components/complements/complement-composer";
+import { AskFieldsButton, ComplementRequestButton } from "@/components/complements/complement-composer";
 import { pointKey, summarize, summaryChip, type VerificationPointState } from "@/lib/utils/verification";
 import { cn } from "@/lib/utils";
+import { RuleTag } from "@/components/admin/fiche/fiche-context";
+import { documentKindLabels } from "@/lib/utils/document-labels";
 import { questionsForDataFields } from "@/lib/rules/complement-questions";
 import { fieldComplementKey } from "@/lib/utils/complement";
 
@@ -104,13 +106,37 @@ function fieldDisplay(f: GroupField): string {
 }
 
 /**
+ * Pièce qui prouve un point : pièce d'identité → identité de la personne ; Kbis → société et représentant ;
+ * contrat de mariage ou convention de PACS → situation familiale de la personne principale.
+ * Seulement si la pièce est déposée (sinon le point se vérifie à la main, comme avant).
+ */
+export function proofRowFor(data: PartyPoints, group: PartyGroup): ChecklistRow | undefined {
+  const present = (row: ChecklistRow | undefined) => (row && row.documents.length > 0 ? row : undefined);
+  if (group.kind === "identite") {
+    return present(data.docRows.find((r) => r.kind === DocumentKind.ID_IDENTITY && r.upload?.personId === group.editor.id));
+  }
+  if (group.kind === "societe" || group.kind === "representant") {
+    return present(data.docRows.find((r) => r.kind === DocumentKind.KBIS && r.upload?.entrepriseId === group.editor.id));
+  }
+  if (group.kind === "famille" && group.primary) {
+    return present(data.docRows.find((r) => r.kind === DocumentKind.CONTRAT_DE_MARIAGE || r.kind === DocumentKind.CONTRAT_DE_PACS));
+  }
+  return undefined;
+}
+
+/**
  * Fiche dossier : les pièces d'une partie pour la section « Pièces du dossier », chacune avec les
  * éléments qu'elle prouve (pièce d'identité → identité de la personne, Kbis → la société), modifiables.
  */
-export function partyPieceRows(data: PartyPoints, locked: boolean): ChecklistRow[] {
+export function partyPieceRows(data: PartyPoints, locked: boolean, verifiedKeys: Set<string> = new Set()): ChecklistRow[] {
   const party = data.party;
   if (!party) return data.docRows;
   return data.docRows.map((row) => {
+    // Données prouvées par cette pièce : validées avec elle (« La pièce est bonne »).
+    const linked = data.groups
+      .filter((g) => g.missing.length === 0 && proofRowFor(data, g)?.key === row.key)
+      .map((g) => ({ key: g.key, label: g.label, verified: locked || verifiedKeys.has(g.key) }));
+    row = linked.length > 0 ? { ...row, linkedPoints: linked } : row;
     const holder = row.upload?.personId
       ? data.groups.find((g) => g.kind === "identite" && g.editor.id === row.upload!.personId)
       : row.upload?.entrepriseId
@@ -358,7 +384,11 @@ export function buildPartyPoints(
     groups,
     docRows,
     docKeys,
-    points: [...groups.map((g) => ({ key: g.key, missing: g.missing.length > 0 })), ...docPoints(docRows, docKeys)],
+    // Coordonnées (e-mail, téléphone, adresse) : affichées et modifiables, sans validation (aucune pièce ne les prouve).
+    points: [
+      ...groups.filter((g) => g.kind !== "coordonnees").map((g) => ({ key: g.key, missing: g.missing.length > 0 })),
+      ...docPoints(docRows, docKeys),
+    ],
   };
 }
 
@@ -430,7 +460,11 @@ export function PartyCheckSection({
     );
   }
 
-  const summary = summarize(withVerified(data.points, verifiedKeys, locked));
+  // Ce qui se vérifie dans cette section : ni les pièces, ni les données qu'une pièce prouve (vérifiées avec elle).
+  const provenKeys = new Set(data.groups.filter((g) => g.missing.length === 0 && proofRowFor(data, g)).map((g) => g.key));
+  const docKeySet = new Set(Object.values(data.docKeys));
+  const sectionPoints = hidePieces ? data.points.filter((pt) => !docKeySet.has(pt.key) && !provenKeys.has(pt.key)) : data.points;
+  const summary = summarize(withVerified(sectionPoints, verifiedKeys, locked));
   const chip = summaryChip(summary);
   const isVerified = (key: string) => locked || verifiedKeys.has(key);
   const persons: any[] = party.persons || [];
@@ -460,23 +494,47 @@ export function PartyCheckSection({
         {data.groups.map((g) => {
           const missing = g.missing.length > 0;
           const verified = !missing && isVerified(g.key);
+          const info = g.kind === "coordonnees";
+          // Pièce qui prouve ce point : il se valide avec elle, dans « Pièces du dossier ».
+          const proof = !missing && !info ? proofRowFor(data, g) : undefined;
+          const proofLabel = proof ? proof.label || documentKindLabels[proof.kind] || proof.kind : "";
+          const proofVerified = proof ? isVerified(data.docKeys[proof.key]) : false;
+          const asked = complement
+            ? questionsForDataFields(g.editor.entity, [...g.editor.fields.map((f) => f.field), ...g.missing], {
+                commercial: complement.commercial,
+                primaryPerson: g.primary,
+              }).map((qid) => fieldComplementKey(qid, g.editor.entity === "person" ? { personId: g.editor.id } : { entrepriseId: g.editor.id }))
+            : [];
           return (
             <CheckPoint
               key={g.key}
-              claimKeys={
-                complement
-                  ? questionsForDataFields(g.editor.entity, [...g.editor.fields.map((f) => f.field), ...g.missing], {
-                      commercial: complement.commercial,
-                      primaryPerson: g.primary,
-                    }).map((qid) => fieldComplementKey(qid, g.editor.entity === "person" ? { personId: g.editor.id } : { entrepriseId: g.editor.id }))
-                  : undefined
-              }
-              state={missing ? "missing" : verified ? "ok" : "todo"}
+              claimKeys={asked.length > 0 ? asked : undefined}
+              state={missing ? "missing" : info ? "info" : verified && (!proof || proofVerified) ? "ok" : "todo"}
               label={g.label}
               note={missing ? `Manquant : ${g.missing.map((f) => MISSING_FIELD_LABELS[f] || f).join(", ")}` : null}
-              verify={{ bailId, pointKey: g.key, verified, locked }}
+              verify={info || proof ? undefined : { bailId, pointKey: g.key, verified, locked }}
+              tags={
+                proof ? (
+                  <a href="#bloc-pieces" className="inline-flex">
+                    <RuleTag tone={verified && proofVerified ? "ok" : "neutral"}>
+                      {verified && proofVerified ? `✓ Vérifiée avec : ${proofLabel.toLowerCase()}` : `À vérifier avec : ${proofLabel.toLowerCase()} →`}
+                    </RuleTag>
+                  </a>
+                ) : info ? (
+                  <RuleTag tone="neutral">Contact · rien à vérifier</RuleTag>
+                ) : undefined
+              }
               actions={
                 <>
+                  {!missing && complement && !locked && asked.length > 0 && (
+                    <ComplementRequestButton
+                      bailId={complement.bailId}
+                      target={complement.target}
+                      preselect={{ items: asked.map((key) => ({ key, reason: "WRONG_VALUE" as const })) }}
+                      label="Demander"
+                      variant="ghost"
+                    />
+                  )}
                   {g.registry && !locked && (
                     <CompanyRegistryButton
                       entrepriseId={g.registry.entrepriseId}

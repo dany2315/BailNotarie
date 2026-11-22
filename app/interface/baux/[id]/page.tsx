@@ -925,14 +925,18 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         .filter(Boolean)
         .join(" · "),
       action: (
-        <a href="#bloc-bien" className="inline-flex h-9 items-center rounded-md border px-3 text-[13px] font-semibold hover:bg-muted">
+        <a href="#bloc-pieces" className="inline-flex h-9 items-center rounded-md border px-3 text-[13px] font-semibold hover:bg-muted">
           Voir
         </a>
       ),
     });
   }
   // Pièces : contrôlées dans « Pièces du dossier » ; les sections ne comptent ici que leurs informations.
-  const pieceKeys = new Set([...Object.values(ownerPoints.docKeys), ...Object.values(tenantPoints.docKeys), ...Object.values(propertyDocKeys)]);
+  // Données prouvées par une pièce (identité, société, situation familiale) : vérifiées avec elle.
+  const linkedKeys = [...partyPieceRows(ownerPoints, ownerLocked, verifiedKeys), ...partyPieceRows(tenantPoints, tenantLocked, verifiedKeys)].flatMap(
+    (row) => row.linkedPoints?.map((linked) => linked.key) ?? [],
+  );
+  const pieceKeys = new Set([...Object.values(ownerPoints.docKeys), ...Object.values(tenantPoints.docKeys), ...Object.values(propertyDocKeys), ...linkedKeys]);
   const withoutPieces = (states: Array<{ key: string; missing: boolean; verified: boolean }>) => states.filter((st) => !pieceKeys.has(st.key));
   const piecesSummary = summarize([...ownerStates, ...tenantStates, ...propertyStates].filter((st) => pieceKeys.has(st.key)));
   for (const section of [
@@ -972,7 +976,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             id: "pieces-proprietaire",
             title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire",
             name: ownerName,
-            rows: partyPieceRows(ownerPoints, ownerLocked),
+            rows: partyPieceRows(ownerPoints, ownerLocked, verifiedKeys),
             verification: verificationOf(ownerPoints.docKeys, ownerLocked),
             complement: pastVerification ? undefined : { bailId: lease.id, target: "OWNER" as const },
             editable: !ownerLocked,
@@ -985,7 +989,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             id: "pieces-locataire",
             title: "Locataire",
             name: tenantName,
-            rows: partyPieceRows(tenantPoints, tenantLocked),
+            rows: partyPieceRows(tenantPoints, tenantLocked, verifiedKeys),
             verification: verificationOf(tenantPoints.docKeys, tenantLocked),
             complement: pastVerification ? undefined : { bailId: lease.id, target: "TENANT" as const },
             editable: !tenantLocked,
@@ -1207,7 +1211,27 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             {canSend && sendDisabledReason && <p className="text-[12.5px] text-muted-foreground">Transmission au notaire : {sendDisabledReason.replace(/^./, (c) => c.toLowerCase())}</p>}
           </section>
 
-          <PiecesSection groups={pieceGroups} bailId={lease.id} />
+          <PiecesSection
+            groups={pieceGroups}
+            bailId={lease.id}
+            diagnostics={
+              property && diagnosticState ? (
+                <DiagnosticsPanel
+                  bailId={lease.id}
+                  propertyId={property.id}
+                  state={diagnosticState}
+                  dpe={{
+                    dpeClass: property.dpeClass ?? null,
+                    gesClass: property.gesClass ?? null,
+                    dpeDate: dpeDateValue(property.dpeDate),
+                    commercial: isCommercial,
+                  }}
+                  locked={diagnosticsLocked}
+                  configured={isDiagnosticAnalysisConfigured()}
+                />
+              ) : undefined
+            }
+          />
 
           {!paid && (
           <CheckSection
@@ -1389,6 +1413,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                               commercial={isCommercial}
                             />
                           )}
+                          {!propertyDescMissing && owner && propertyClaimKeys.length > 0 && (
+                            <ComplementRequestButton
+                              bailId={lease.id}
+                              target="OWNER"
+                              preselect={{ items: propertyClaimKeys.map((key) => ({ key, reason: "WRONG_VALUE" as const })) }}
+                              label="Demander"
+                              variant="ghost"
+                            />
+                          )}
                           <PropertyDetailsEditor
                             propertyId={property.id}
                             missing={propertyDescMissing}
@@ -1437,28 +1470,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       .filter(Boolean)
                       .join("\n")}
                   </CheckPoint>
-                {property && diagnosticState && (
-                  <CheckPoint
-                    state={diagnosticState.counts.toFix > 0 ? "missing" : diagnosticState.counts.toCheck > 0 || diagnosticState.items.length === 0 ? "todo" : "ok"}
-                    label={<AutoLabel>Diagnostics</AutoLabel>}
-                    // Liste des diagnostics dans le contenu : toute la largeur.
-                    actionsBelow
-                  >
-                    <DiagnosticsPanel
-                      bailId={lease.id}
-                      propertyId={property.id}
-                      state={diagnosticState}
-                      dpe={{
-                        dpeClass: property.dpeClass ?? null,
-                        gesClass: property.gesClass ?? null,
-                        dpeDate: dpeDateValue(property.dpeDate),
-                        commercial: isCommercial,
-                      }}
-                      locked={diagnosticsLocked}
-                      configured={isDiagnosticAnalysisConfigured()}
-                    />
-                  </CheckPoint>
-                )}
                 </CheckList>
               </>
             ) : (
@@ -1497,6 +1508,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         <>
                           {missing && owner && (
                             <AskFieldsButton bailId={lease.id} target="OWNER" scope="bail" targetId={lease.id} fields={point.missing} commercial={isCommercial} />
+                          )}
+                          {!missing && owner && bailClaimKeys(point.fields.map((f) => f.field)).length > 0 && (
+                            <ComplementRequestButton
+                              bailId={lease.id}
+                              target="OWNER"
+                              preselect={{ items: bailClaimKeys(point.fields.map((f) => f.field)).map((key) => ({ key, reason: "WRONG_VALUE" as const })) }}
+                              label="Demander"
+                              variant="ghost"
+                            />
                           )}
                           <BailTermsEditor bailId={lease.id} title={point.label} fields={point.fields} />
                         </>

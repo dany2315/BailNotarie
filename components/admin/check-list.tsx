@@ -14,7 +14,7 @@ import { ClaimTag, useFiche } from "@/components/admin/fiche/fiche-context";
  */
 
 /** ok : renseigné / présent · missing : manquant · todo : à contrôler par nous. */
-export type PointState = "ok" | "missing" | "todo";
+export type PointState = "ok" | "missing" | "todo" | "info";
 
 export function PointIcon({ state }: { state: PointState }) {
   return (
@@ -25,6 +25,8 @@ export function PointIcon({ state }: { state: PointState }) {
         state === "ok" && "bg-green-100 text-green-800",
         state === "missing" && "bg-red-100 text-red-800",
         state === "todo" && "border-2 border-slate-300 bg-background",
+        // Information affichée seulement (téléphone, e-mail, adresse) : rien à valider.
+        state === "info" && "after:size-1.5 after:rounded-full after:bg-slate-300 after:content-['']",
       )}
     >
       {state === "ok" ? <Check className="size-3.5" strokeWidth={3} /> : state === "missing" ? "!" : null}
