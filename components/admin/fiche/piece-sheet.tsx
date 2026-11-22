@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeft, ArrowRight, Check, Clock3, Download, File, Loader2, Maximize2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Clock3, Download, File, Files, Loader2, Maximize2, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -23,6 +23,8 @@ import { fileKindOf, signedUrl } from "./piece-thumb";
 // Lecture des PDF (pdf.js) : seulement dans le navigateur.
 const PdfPages = dynamic(() => import("./pdf-first-page").then((m) => m.PdfPages), { ssr: false });
 import { PieceStateChip, type PieceInfo } from "./piece-cards";
+import { PieceThumb } from "./piece-thumb";
+import { InlineFields } from "./inline-fields";
 
 const day = (d?: Date | string | null) =>
   d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }) : null;
@@ -132,19 +134,28 @@ export function PieceSheet({
                 {name}
               </span>
               {files.length > 1 && (
-                <span role="tablist" aria-label="Fichiers" className="flex gap-1">
-                  {files.map((file, i) => (
-                    <button
-                      key={file.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={i === fileIndex}
-                      onClick={() => setFileIndex(i)}
-                      className={cn("h-7 rounded-md px-2.5 text-[12.5px] font-semibold", i === fileIndex ? "bg-slate-900 text-white" : "text-muted-foreground hover:bg-muted")}
-                    >
-                      Fichier {i + 1}
-                    </button>
-                  ))}
+                <span className="flex items-center gap-1 rounded-lg bg-slate-900 px-1 py-0.5 text-white">
+                  <button
+                    type="button"
+                    aria-label="Fichier précédent"
+                    disabled={fileIndex === 0}
+                    onClick={() => setFileIndex((i) => Math.max(0, i - 1))}
+                    className="flex size-7 items-center justify-center rounded-md hover:bg-white/15 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <span className="px-1 text-[12.5px] font-semibold tabular-nums">
+                    Fichier {fileIndex + 1} sur {files.length}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Fichier suivant"
+                    disabled={fileIndex >= files.length - 1}
+                    onClick={() => setFileIndex((i) => Math.min(files.length - 1, i + 1))}
+                    className="flex size-7 items-center justify-center rounded-md hover:bg-white/15 disabled:opacity-40"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
                 </span>
               )}
               {doc && (
@@ -169,7 +180,29 @@ export function PieceSheet({
                 </>
               )}
             </div>
-            <div className={cn("flex min-h-0 flex-1 justify-center overflow-y-auto p-4", kind === "pdf" && url && !pdfFailed ? "items-start" : "items-center")}>
+            <div className="flex min-h-0 flex-1">
+            {files.length > 1 && (
+              <nav aria-label="Fichiers de la pièce" className="flex w-[92px] shrink-0 flex-col gap-2 overflow-y-auto border-r bg-white/70 p-2">
+                {files.map((file, i) => (
+                  <button
+                    key={file.id}
+                    type="button"
+                    aria-current={i === fileIndex ? "true" : undefined}
+                    onClick={() => setFileIndex(i)}
+                    className={cn(
+                      "group flex flex-col items-center gap-1 rounded-lg p-1 text-[11.5px] font-semibold transition-colors",
+                      i === fileIndex ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    <span className={cn("relative block h-[84px] w-[66px] overflow-hidden rounded-md ring-2", i === fileIndex ? "ring-primary" : "ring-transparent")}>
+                      <PieceThumb doc={file} width={66} className="size-full" />
+                    </span>
+                    Fichier {i + 1}
+                  </button>
+                ))}
+              </nav>
+            )}
+            <div className={cn("flex min-h-0 min-w-0 flex-1 justify-center overflow-y-auto p-4", kind === "pdf" && url && !pdfFailed ? "items-start" : "items-center")}>
               {!doc ? (
                 <div className="flex flex-col items-center gap-2 text-center text-[14px] text-muted-foreground">
                   <File className="size-10" />
@@ -192,20 +225,40 @@ export function PieceSheet({
                 </div>
               )}
             </div>
+            </div>
           </div>
 
           {/* Ce qu'il faut vérifier, et la réponse */}
-          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-5">
-            <div className="flex flex-col gap-1 pr-8">
-              <p className="text-[12px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
-                Pièce {index + 1} sur {total}
-              </p>
-              <SheetTitle className="text-[20px] font-semibold leading-snug">{info.label}</SheetTitle>
+          <div className="flex min-h-0 flex-col">
+            {/* En-tête fixe : quelle pièce, de qui */}
+            <div className="flex shrink-0 flex-col gap-2 border-b bg-card px-5 pb-4 pt-5 pr-12">
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-slate-900 px-2 py-0.5 text-[11.5px] font-bold tabular-nums text-white">
+                  {index + 1} / {total}
+                </span>
+                <span className="text-[12px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">Pièce du dossier</span>
+              </div>
+              <SheetTitle className="text-[24px] font-bold leading-tight tracking-tight">{info.label}</SheetTitle>
+              {info.owner && (
+                <p className="flex min-w-0 items-center gap-1.5 text-[14px] font-medium text-foreground/80">
+                  <UserRound className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{info.owner}</span>
+                </p>
+              )}
               <SheetDescription className="flex flex-wrap items-center gap-1.5 text-[13px]">
                 <PieceStateChip info={info} />
                 {doc?.createdAt ? <span>reçue le {day(doc.createdAt)}</span> : null}
+                {files.length > 1 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[12px] font-semibold text-primary">
+                    <Files className="size-3.5" />
+                    {files.length} fichiers
+                  </span>
+                )}
               </SheetDescription>
             </div>
+
+            {/* Zone qui défile : de « À vérifier » jusqu'aux actions */}
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
 
             {claim?.status === "PROVIDED" && (
               <div className="flex flex-col gap-2">
@@ -245,7 +298,11 @@ export function PieceSheet({
               </div>
             )}
 
-            {row.compare && <div className="text-[14px]">{row.compare}</div>}
+            {row.compareSpec ? (
+              <InlineFields spec={row.compareSpec} locked={locked || !editable} />
+            ) : row.compare ? (
+              <div className="text-[14px]">{row.compare}</div>
+            ) : null}
             {row.extra && <div className="flex flex-wrap items-center gap-2 text-[13.5px]">{row.extra}</div>}
 
             {/* La réponse */}
@@ -358,19 +415,26 @@ export function PieceSheet({
               </div>
             )}
 
+            </div>
+
+            {/* Bas fixe : les fichiers de la pièce, puis précédente / suivante */}
+            <div className="flex shrink-0 flex-col gap-3 border-t bg-card px-5 py-3">
             {files.length > 0 && (
-              <div className="flex flex-col gap-1 border-t pt-3 text-[12.5px] text-muted-foreground">
-                <p className="font-semibold text-foreground">Fichiers de la pièce</p>
-                {files.map((file, i) => (
-                  <button key={file.id} type="button" onClick={() => setFileIndex(i)} className={cn("truncate text-left hover:underline", i === fileIndex && "font-semibold text-foreground")}>
-                    {day(file.createdAt)} · {file.label || "Fichier"}
-                    {file.viaComplement ? " · reçue en réponse à une demande" : ""}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-1 text-[12.5px] text-muted-foreground">
+                <p className="font-semibold text-foreground">Fichiers de la pièce{files.length > 1 ? ` (${files.length})` : ""}</p>
+                <div className="flex max-h-[4.5rem] flex-col gap-0.5 overflow-y-auto">
+                  {files.map((file, i) => (
+                    <button key={file.id} type="button" onClick={() => setFileIndex(i)} className={cn("truncate text-left hover:underline", i === fileIndex && "font-semibold text-foreground")}>
+                      {files.length > 1 ? `${i + 1}. ` : ""}
+                      {day(file.createdAt)} · {file.label || "Fichier"}
+                      {file.viaComplement ? " · reçue en réponse à une demande" : ""}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
-            <div className="mt-auto flex justify-between gap-2 pt-2">
+            <div className="flex justify-between gap-2">
               <Button type="button" variant="outline" className="h-10 gap-1.5" disabled={!onPrev} onClick={onPrev}>
                 <ArrowLeft className="size-4" />
                 Précédente
@@ -379,6 +443,7 @@ export function PieceSheet({
                 Suivante
                 <ArrowRight className="size-4" />
               </Button>
+            </div>
             </div>
           </div>
         </div>

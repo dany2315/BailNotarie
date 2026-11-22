@@ -19,6 +19,8 @@ export type PieceState = "todo" | "ok" | "missing" | "received" | "sent" | "plai
 export interface PieceInfo {
   row: ChecklistRow;
   label: string;
+  /** À qui ou à quoi appartient la pièce (« Propriétaire · Chloë-Marie », « Le logement »). */
+  owner?: string;
   state: PieceState;
   point?: { pointKey: string; verified: boolean };
   requestKey: string | null;
@@ -57,6 +59,40 @@ export function PieceStateChip({ info, className }: { info: PieceInfo; className
   return <span className={cn("inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-full px-2 text-[11.5px] font-bold", style, className)}>{text}</span>;
 }
 
+/** État de chaque pièce : même règle partout (cartes, panneau, section « Pièces du dossier »). */
+export function pieceInfos(
+  rows: ChecklistRow[],
+  verification: ChecklistVerification | undefined,
+  complement: { bailId: string; target: "OWNER" | "TENANT" } | undefined,
+  claims: Record<string, FicheClaim> | undefined,
+  owner?: string,
+): PieceInfo[] {
+  return rows.map((row) => {
+    const present = row.documents.length > 0;
+    const point = verification && present ? verification.points[row.key] : undefined;
+    const requestKey = complement && row.upload ? complementKey(row.kind, row.upload) : null;
+    const claim = requestKey ? claims?.[requestKey] : undefined;
+    const state: PieceState = !present
+      ? row.required
+        ? claim?.status === "PENDING"
+          ? "sent"
+          : "missing"
+        : "plain"
+      : claim?.status === "PROVIDED"
+        ? "received"
+        : claim?.status === "PENDING"
+          ? "sent"
+          : verification?.locked
+            ? "ok"
+            : !point
+              ? "plain"
+              : point.verified
+                ? "ok"
+                : "todo";
+    return { row, label: row.label || documentKindLabels[row.kind] || row.kind, owner, state, point, requestKey, claim };
+  });
+}
+
 /**
  * Pièces d'une section de la fiche dossier, en cartes compactes (deux par ligne) : aperçu, état en
  * clair, et l'action à faire. Un clic ouvre le panneau de vérification. Mêmes validations et mêmes
@@ -79,30 +115,7 @@ export function PieceCards({
   const [openKey, setOpenKey] = React.useState<string | null>(null);
   const [showOptional, setShowOptional] = React.useState(false);
 
-  const infos: PieceInfo[] = rows.map((row) => {
-    const present = row.documents.length > 0;
-    const point = verification && present ? verification.points[row.key] : undefined;
-    const requestKey = complement && row.upload ? complementKey(row.kind, row.upload) : null;
-    const claim = requestKey ? fiche?.claims[requestKey] : undefined;
-    const state: PieceState = !present
-      ? row.required
-        ? claim?.status === "PENDING"
-          ? "sent"
-          : "missing"
-        : "plain"
-      : claim?.status === "PROVIDED"
-        ? "received"
-        : claim?.status === "PENDING"
-          ? "sent"
-          : verification?.locked
-            ? "ok"
-            : !point
-              ? "plain"
-              : point.verified
-                ? "ok"
-                : "todo";
-    return { row, label: row.label || documentKindLabels[row.kind] || row.kind, state, point, requestKey, claim };
-  });
+  const infos = pieceInfos(rows, verification, complement, fiche?.claims);
   // Pièces facultatives pas encore déposées : derrière « Ajouter une pièce ».
   const optional = infos.filter((i) => !i.row.required && i.row.documents.length === 0);
   const cards = infos.filter((i) => !optional.includes(i));
@@ -183,7 +196,7 @@ export function PieceCards({
   );
 }
 
-function PieceCard({
+export function PieceCard({
   info,
   locked,
   editable,
@@ -251,16 +264,23 @@ function PieceCard({
         dragging && "border-primary bg-primary/5",
       )}
     >
-      <span className="relative block h-14 w-11 shrink-0 overflow-hidden rounded-md">
-        {latest ? (
-          <PieceThumb doc={latest} width={44} className="size-full" />
-        ) : (
-          <span className={cn("flex size-full items-center justify-center", state === "missing" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-500")}>
-            {attach.busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-          </span>
-        )}
+      {/* Plusieurs fichiers : une pile de feuilles derrière la miniature, et leur nombre. */}
+      <span className={cn("relative block h-14 w-11 shrink-0", row.documents.length > 1 && "mr-1.5 mt-1.5")}>
+        {row.documents.length > 2 && <span aria-hidden className="absolute inset-0 translate-x-[7px] -translate-y-[7px] rounded-md border bg-slate-100" />}
+        {row.documents.length > 1 && <span aria-hidden className="absolute inset-0 translate-x-[3.5px] -translate-y-[3.5px] rounded-md border bg-slate-200" />}
+        <span className="relative block size-full overflow-hidden rounded-md ring-1 ring-black/5">
+          {latest ? (
+            <PieceThumb doc={latest} width={44} className="size-full" />
+          ) : (
+            <span className={cn("flex size-full items-center justify-center", state === "missing" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-500")}>
+              {attach.busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+            </span>
+          )}
+        </span>
         {row.documents.length > 1 && (
-          <span className="absolute bottom-0.5 right-0.5 rounded bg-slate-900/80 px-1 text-[10px] font-extrabold text-white">{row.documents.length}</span>
+          <span className="absolute -bottom-1.5 -right-2 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-primary px-1 text-[10.5px] font-extrabold text-primary-foreground">
+            {row.documents.length}
+          </span>
         )}
       </span>
       <span className="flex min-w-[9rem] flex-1 flex-col gap-1">

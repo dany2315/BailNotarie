@@ -103,6 +103,34 @@ function fieldDisplay(f: GroupField): string {
   return f.value;
 }
 
+/**
+ * Fiche dossier : les pièces d'une partie pour la section « Pièces du dossier », chacune avec les
+ * éléments qu'elle prouve (pièce d'identité → identité de la personne, Kbis → la société), modifiables.
+ */
+export function partyPieceRows(data: PartyPoints, locked: boolean): ChecklistRow[] {
+  const party = data.party;
+  if (!party) return data.docRows;
+  return data.docRows.map((row) => {
+    const holder = row.upload?.personId
+      ? data.groups.find((g) => g.kind === "identite" && g.editor.id === row.upload!.personId)
+      : row.upload?.entrepriseId
+        ? data.groups.find((g) => g.kind === "societe" && g.editor.id === row.upload!.entrepriseId)
+        : undefined;
+    if (!holder) return row;
+    return {
+      ...row,
+      compareSpec: {
+        entity: holder.editor.entity,
+        id: holder.editor.id,
+        title: holder.editor.title,
+        fields: holder.editor.fields.map((f) => ({ ...f, display: fieldDisplay(f) })),
+        notes: holder.kind === "societe" && party.entreprise ? registryNotes(party.entreprise) : undefined,
+        lastCheck: row.kind === DocumentKind.ID_IDENTITY ? "Lisible et en cours de validité" : row.kind === DocumentKind.KBIS ? "Lisible et récent (moins de 3 mois)" : undefined,
+      },
+    };
+  });
+}
+
 /** Clé de point des pièces : la ligne + les fichiers présents (un nouveau dépôt redemande la validation). */
 export function docRowKeys(rows: ChecklistRow[]): Record<string, string> {
   return Object.fromEntries(rows.map((row) => [row.key, pointKey(`doc:${row.key}`, row.documents.map((d) => d.id).sort())]));
@@ -351,10 +379,13 @@ export function PartyCheckSection({
   requestAction,
   complement,
   number,
+  hidePieces = false,
 }: {
   id: string;
   /** Fiche dossier : numéro de la section ; le nom passe dans le sous-titre (il est déjà dans l'en-tête). */
   number?: number;
+  /** Fiche dossier : les pièces sont dans la section « Pièces du dossier ». */
+  hidePieces?: boolean;
   role: keyof typeof ROLE_TITLES;
   data: PartyPoints;
   bailId: string;
@@ -473,7 +504,7 @@ export function PartyCheckSection({
           );
         })}
       </CheckList>
-      {data.docRows.length > 0 && (
+      {data.docRows.length > 0 && !hidePieces && (
         <div className="border-t">
           <DocumentChecklist
             rows={data.docRows.map((row) => {

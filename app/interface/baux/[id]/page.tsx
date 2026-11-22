@@ -25,7 +25,7 @@ import { RentRulesEditor } from "@/components/admin/rent-rules-editor";
 import { EXEMPTION_LABELS, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { RentCapEditor, RentCapExemptionButton, RentSupplementButton } from "@/components/admin/rent-cap-editor";
 import { intakeSummary } from "@/lib/utils/intake-summary";
-import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, withVerified } from "@/components/admin/party-check-section";
+import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, partyPieceRows, withVerified } from "@/components/admin/party-check-section";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
 import { ValidateAllButton } from "@/components/admin/verify-buttons";
 import { pointKey, summarize, summaryChip } from "@/lib/utils/verification";
@@ -58,6 +58,7 @@ import { asksBoughtDuringMarriage, commercialPaymentText, commercialTermsToForm,
 import { CommercialTermsInline, EditTermsLink } from "@/components/admin/commercial-terms-editor";
 import { FicheAutoRefresh, FicheProvider, RemindRequestButton, RuleTag, Since, type FicheClaim } from "@/components/admin/fiche/fiche-context";
 import { ContactCard } from "@/components/admin/fiche/contact-card";
+import { PiecesSection, type PieceGroup } from "@/components/admin/fiche/pieces-section";
 import { questionsForDataFields } from "@/lib/rules/complement-questions";
 import { fieldComplementKey } from "@/lib/utils/complement";
 
@@ -930,10 +931,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       ),
     });
   }
+  // Pièces : contrôlées dans « Pièces du dossier » ; les sections ne comptent ici que leurs informations.
+  const pieceKeys = new Set([...Object.values(ownerPoints.docKeys), ...Object.values(tenantPoints.docKeys), ...Object.values(propertyDocKeys)]);
+  const withoutPieces = (states: Array<{ key: string; missing: boolean; verified: boolean }>) => states.filter((st) => !pieceKeys.has(st.key));
+  const piecesSummary = summarize([...ownerStates, ...tenantStates, ...propertyStates].filter((st) => pieceKeys.has(st.key)));
   for (const section of [
-    { id: "bloc-proprietaire", title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire", summary: summarize(ownerStates), show: !!owner },
-    { id: "bloc-locataire", title: "Locataire", summary: summarize(tenantStates), show: !!tenant },
-    { id: "bloc-bien", title: "Le bien", summary: summarize(propertyStates), show: !!property },
+    { id: "bloc-pieces", title: "Pièces du dossier", summary: { ...piecesSummary, missing: 0 }, show: true },
+    { id: "bloc-proprietaire", title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire", summary: summarize(withoutPieces(ownerStates)), show: !!owner },
+    { id: "bloc-locataire", title: "Locataire", summary: summarize(withoutPieces(tenantStates)), show: !!tenant },
+    { id: "bloc-bien", title: "Le bien", summary: summarize(withoutPieces(propertyStates)), show: !!property },
     { id: "bloc-bail", title: "Le bail", summary: bailAndRules, show: true },
   ]) {
     if (!section.show || (section.summary.remaining === 0 && section.summary.missing === 0)) continue;
@@ -954,6 +960,66 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       ),
     });
   }
+  const verificationOf = (keys: Record<string, string>, locked: boolean) => ({
+    bailId: lease.id,
+    locked,
+    points: Object.fromEntries(Object.entries(keys).map(([rowKey, key]) => [rowKey, { pointKey: key, verified: isVerified(key, locked) }])),
+  });
+  const pieceGroups: PieceGroup[] = [
+    ...(owner
+      ? [
+          {
+            id: "pieces-proprietaire",
+            title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire",
+            name: ownerName,
+            rows: partyPieceRows(ownerPoints, ownerLocked),
+            verification: verificationOf(ownerPoints.docKeys, ownerLocked),
+            complement: pastVerification ? undefined : { bailId: lease.id, target: "OWNER" as const },
+            editable: !ownerLocked,
+          },
+        ]
+      : []),
+    ...(tenant
+      ? [
+          {
+            id: "pieces-locataire",
+            title: "Locataire",
+            name: tenantName,
+            rows: partyPieceRows(tenantPoints, tenantLocked),
+            verification: verificationOf(tenantPoints.docKeys, tenantLocked),
+            complement: pastVerification ? undefined : { bailId: lease.id, target: "TENANT" as const },
+            editable: !tenantLocked,
+          },
+        ]
+      : []),
+    ...(property
+      ? [
+          {
+            id: "pieces-logement",
+            title: "Le logement",
+            rows: propertyDocRows.map((row) => ({
+              ...row,
+              compare: row.kind === DocumentKind.TITLE_DEED && ownerName ? `Propriétaire déclaré : ${ownerName}` : undefined,
+            })),
+            verification: verificationOf(propertyDocKeys, propertyLocked),
+            complement: propertyLocked ? undefined : { bailId: lease.id, target: "OWNER" as const },
+            editable: !propertyLocked,
+          },
+        ]
+      : []),
+    ...(bailDocRows.length > 0
+      ? [
+          {
+            id: "pieces-bail",
+            title: "Le bail",
+            rows: bailDocRows,
+            complement: pastVerification ? undefined : { bailId: lease.id, target: "OWNER" as const },
+            editable: true,
+          },
+        ]
+      : []),
+  ];
+
   const receivedCount = complementRequests.reduce((n, r) => n + r.items.filter((item) => item.status === "PROVIDED").length, 0);
   const waitingCount = complementRequests.reduce((n, r) => n + r.items.filter((item) => item.status === "PENDING").length, 0);
 
@@ -1141,6 +1207,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             {canSend && sendDisabledReason && <p className="text-[12.5px] text-muted-foreground">Transmission au notaire : {sendDisabledReason.replace(/^./, (c) => c.toLowerCase())}</p>}
           </section>
 
+          <PiecesSection groups={pieceGroups} bailId={lease.id} />
+
           {!paid && (
           <CheckSection
             id="bloc-paiement"
@@ -1197,6 +1265,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
 
           <PartyCheckSection
             id="bloc-proprietaire"
+            hidePieces
             number={1}
             role="PROPRIETAIRE"
             data={ownerPoints}
@@ -1208,6 +1277,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           />
           <PartyCheckSection
             id="bloc-locataire"
+            hidePieces
             number={2}
             role="LOCATAIRE"
             data={tenantPoints}
@@ -1390,21 +1460,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   </CheckPoint>
                 )}
                 </CheckList>
-                <div className="border-t">
-                  <DocumentChecklist
-                    inset
-                    editable={!propertyLocked}
-                    rows={propertyDocRows}
-                    complement={propertyLocked ? undefined : { bailId: lease.id, target: "OWNER" }}
-                    verification={{
-                      bailId: lease.id,
-                      locked: propertyLocked,
-                      points: Object.fromEntries(
-                        Object.entries(propertyDocKeys).map(([rowKey, key]) => [rowKey, { pointKey: key, verified: isVerified(key, propertyLocked) }]),
-                      ),
-                    }}
-                  />
-                </div>
               </>
             ) : (
               <p className="px-5 py-4 text-sm text-muted-foreground">Aucun bien associé à ce dossier.</p>
@@ -1773,20 +1828,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             </CheckSection>
           )}
 
-          {bailDocRows.length > 0 && (
-            <CheckSection
-              id="bloc-documents"
-              title="Documents du bail"
-              subtitle={bailRules.length > 0 ? "Location précédente du local et pièces rattachées au bail" : "Pièces rattachées au bail lui-même"}
-            >
-              <DocumentChecklist
-                inset
-                editable
-                rows={bailDocRows}
-                complement={pastVerification ? undefined : { bailId: lease.id, target: "OWNER" }}
-              />
-            </CheckSection>
-          )}
 
 
           {complementRequests.length > 0 && (

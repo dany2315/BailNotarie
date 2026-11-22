@@ -1,4 +1,18 @@
 import type { ReactNode } from "react";
+import type { GroupField } from "@/components/admin/inline-field-editor";
+
+/** Éléments saisis qu'une pièce doit prouver (identité d'une personne, informations d'une société). */
+export interface CompareSpec {
+  entity: "person" | "entreprise";
+  id: string;
+  title: string;
+  /** `display` : la valeur telle qu'on la lit (date en jj/mm/aaaa, libellés). */
+  fields: Array<GroupField & { display: string }>;
+  /** Notes du registre des entreprises (vérifiée, fermée, nom modifié…). */
+  notes?: string[];
+  /** Dernière ligne, sans saisie : ce qu'on regarde sur la pièce elle-même. */
+  lastCheck?: string;
+}
 
 /** Pièce telle qu'affichée dans une liste de pièces (sérialisable). */
 export interface ChecklistDocument {
@@ -33,6 +47,8 @@ export interface ChecklistRow {
   upload?: DocumentTargetLike;
   /** Fiche dossier : données saisies à comparer avec la pièce (panneau de vérification). */
   compare?: ReactNode;
+  /** Fiche dossier : les mêmes, modifiables directement dans la ligne. */
+  compareSpec?: CompareSpec;
 }
 
 /**
