@@ -110,7 +110,7 @@ function fieldDisplay(f: GroupField): string {
  * contrat de mariage ou convention de PACS → situation familiale de la personne principale.
  * Seulement si la pièce est déposée (sinon le point se vérifie à la main, comme avant).
  */
-export function proofRowFor(data: PartyPoints, group: PartyGroup): ChecklistRow | undefined {
+export function proofRowFor(data: Pick<PartyPoints, "docRows">, group: PartyGroup): ChecklistRow | undefined {
   const present = (row: ChecklistRow | undefined) => (row && row.documents.length > 0 ? row : undefined);
   if (group.kind === "identite") {
     return present(data.docRows.find((r) => r.kind === DocumentKind.ID_IDENTITY && r.upload?.personId === group.editor.id));
@@ -384,9 +384,13 @@ export function buildPartyPoints(
     groups,
     docRows,
     docKeys,
-    // Coordonnées (e-mail, téléphone, adresse) : affichées et modifiables, sans validation (aucune pièce ne les prouve).
+    // À valider : les pièces, et les données qu'une pièce prouve (validées avec elle). Le reste (coordonnées,
+    // situation familiale sans contrat…) est exigé par le formulaire : affiché, modifiable, sans validation.
+    // Une donnée manquante (ancien dossier) compte toujours, et bloque l'envoi.
     points: [
-      ...groups.filter((g) => g.kind !== "coordonnees").map((g) => ({ key: g.key, missing: g.missing.length > 0 })),
+      ...groups
+        .filter((g) => g.missing.length > 0 || !!proofRowFor({ docRows }, g))
+        .map((g) => ({ key: g.key, missing: g.missing.length > 0 })),
       ...docPoints(docRows, docKeys),
     ],
   };
@@ -484,10 +488,16 @@ export function PartyCheckSection({
         </>
       }
       headerRight={
-        <>
-          <StateChip tone={chip.tone}>{chip.label}</StateChip>
-          {!locked && <ValidateAllButton bailId={bailId} pointKeys={summary.pendingKeys} />}
-        </>
+        // Fiche dossier : rien à valider dans la section (les pièces et leurs données se valident ensemble) ;
+        // seule une information manquante y est signalée.
+        hidePieces ? (
+          summary.missing > 0 ? <StateChip tone="missing">{chip.label}</StateChip> : undefined
+        ) : (
+          <>
+            <StateChip tone={chip.tone}>{chip.label}</StateChip>
+            {!locked && <ValidateAllButton bailId={bailId} pointKeys={summary.pendingKeys} />}
+          </>
+        )
       }
     >
       <CheckList>
@@ -509,10 +519,10 @@ export function PartyCheckSection({
             <CheckPoint
               key={g.key}
               claimKeys={asked.length > 0 ? asked : undefined}
-              state={missing ? "missing" : info ? "info" : verified && (!proof || proofVerified) ? "ok" : "todo"}
+              state={missing ? "missing" : !proof ? "info" : verified && proofVerified ? "ok" : "todo"}
               label={g.label}
               note={missing ? `Manquant : ${g.missing.map((f) => MISSING_FIELD_LABELS[f] || f).join(", ")}` : null}
-              verify={info || proof ? undefined : { bailId, pointKey: g.key, verified, locked }}
+              verify={undefined}
               tags={
                 proof ? (
                   <a href="#bloc-pieces" className="inline-flex">
@@ -520,8 +530,6 @@ export function PartyCheckSection({
                       {verified && proofVerified ? `✓ Vérifiée avec : ${proofLabel.toLowerCase()}` : `À vérifier avec : ${proofLabel.toLowerCase()} →`}
                     </RuleTag>
                   </a>
-                ) : info ? (
-                  <RuleTag tone="neutral">Contact · rien à vérifier</RuleTag>
                 ) : undefined
               }
               actions={

@@ -454,8 +454,10 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     },
   ];
   // Locataire, propriétaire ou bien absents : comptés une seule fois, dans leur propre section.
+  // Conditions du bail : saisies et exigées par le formulaire du propriétaire, confirmées par le locataire.
+  // Plus de validation ligne par ligne ; une information manquante (ancien dossier) bloque toujours l'envoi.
   const bailStates = withVerified(
-    bailPoints.map((p) => ({ key: p.key, missing: p.missing.length > 0 })),
+    bailPoints.filter((p) => p.missing.length > 0).map((p) => ({ key: p.key, missing: true })),
     verifiedKeys,
     bailLocked,
   );
@@ -518,8 +520,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       ])
     : "property:absent";
   const propertyDescMissing = !property || (missingData?.property?.missingFields.length || 0) > 0;
+  // Description du bien : exigée par le formulaire, plus validée à la main (seule une donnée manquante compte).
   const propertyStates = withVerified(
-    [{ key: propertyDescKey, missing: propertyDescMissing }, ...docPoints(propertyDocRows, propertyDocKeys)],
+    [...(propertyDescMissing ? [{ key: propertyDescKey, missing: true }] : []), ...docPoints(propertyDocRows, propertyDocKeys)],
     verifiedKeys,
     propertyLocked,
   );
@@ -1339,12 +1342,8 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               )
             }
             headerRight={
-              property && (
-                <>
-                  <StateChip tone={summaryChip(sectionSummary("bloc-bien")).tone}>{summaryChip(sectionSummary("bloc-bien")).label}</StateChip>
-                  {!propertyLocked && <ValidateAllButton bailId={lease.id} pointKeys={sectionSummary("bloc-bien").pendingKeys} />}
-                </>
-              )
+              // Description exigée par le formulaire, pièces dans « Pièces du dossier » : seul un manque est signalé ici.
+              property && propertyDescMissing ? <StateChip tone="missing">Information manquante</StateChip> : undefined
             }
             footer={
               property &&
@@ -1391,7 +1390,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               <>
                 <CheckList>
                   <CheckPoint
-                    state={propertyDescMissing ? "missing" : isVerified(propertyDescKey, propertyLocked) ? "ok" : "todo"}
+                    state={propertyDescMissing ? "missing" : "info"}
                     label="Adresse et description"
                     claimKeys={propertyClaimKeys}
                     note={
@@ -1399,7 +1398,6 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         ? `Manquant : ${missingData.property.missingFields.map((f) => (f === "fullAddress" ? "adresse" : f)).join(", ")}`
                         : null
                     }
-                    verify={{ bailId: lease.id, pointKey: propertyDescKey, verified: isVerified(propertyDescKey, propertyLocked), locked: propertyLocked }}
                     actions={
                       !propertyLocked && (
                         <>
@@ -1499,10 +1497,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                     key={point.key}
                     tags={point.label === "Loyer et charges" ? rentTags : point.label === "Dépôt de garantie" ? depositTags : undefined}
                     claimKeys={bailClaimKeys(point.fields.map((f) => f.field))}
-                    state={missing ? "missing" : verified ? "ok" : "todo"}
+                    state={missing ? "missing" : "info"}
                     label={point.label}
                     note={missing ? `Manquant : ${point.missing.map((f) => (BAIL_FIELD_LABELS[f] || f).toLowerCase()).join(", ")}` : null}
-                    verify={{ bailId: lease.id, pointKey: point.key, verified, locked: bailLocked }}
                     actions={
                       !bailLocked && (
                         <>
