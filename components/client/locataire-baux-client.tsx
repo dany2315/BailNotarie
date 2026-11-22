@@ -79,6 +79,7 @@ const BAIL_STEP_INDEX: Record<string, number> = {
   PENDING_VALIDATION: 0,
   READY_FOR_NOTARY: 1,
   CLIENT_CONTACTED: 1,
+  PROVISION_RECEIVED: 1,
   SIGNED: 2,
   TERMINATED: 2,
 };
@@ -90,6 +91,7 @@ const BAIL_STATUS_CONFIG: Record<string, { badgeBg: string; label: string; icon:
   PENDING_VALIDATION: { badgeBg: "bg-blue-50 text-blue-700 border-blue-200", label: "En vérification", icon: Clock },
   READY_FOR_NOTARY: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
   CLIENT_CONTACTED: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
+  PROVISION_RECEIVED: { badgeBg: "bg-violet-50 text-violet-700 border-violet-200", label: "Chez le notaire", icon: Scale },
   SIGNED: { badgeBg: "bg-green-50 text-green-700 border-green-200", label: "Signé", icon: CheckCircle2 },
   TERMINATED: { badgeBg: "bg-gray-100 text-gray-500 border-gray-200", label: "Terminé", icon: FileText },
 };

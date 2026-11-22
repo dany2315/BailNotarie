@@ -11,6 +11,7 @@ import MailNotaireAssignment from "@/emails/mail-notaire-assignment";
 import { triggerNotaireWelcomeEmail, triggerDocumentRequestEmail } from "@/lib/inngest/helpers";
 import { pusherServer } from "@/lib/pusher";
 import { createBailAuditLog, getActorName } from "@/lib/actions/bail-audit-log";
+import { notaireReviewForBail } from "@/lib/notaire/review";
 
 // Schémas de validation
 const createNotaireSchema = z.object({
@@ -1151,7 +1152,7 @@ export async function getNotaireRequestsByDossier(dossierId: string) {
  */
 const updateBailStatusSchema = z.object({
   bailId: z.string().min(1, "Le bail est requis"),
-  status: z.enum(["READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "DESISTE", "CLASSE_SANS_SUITE"]),
+  status: z.enum(["READY_FOR_NOTARY", "CLIENT_CONTACTED", "PROVISION_RECEIVED", "SIGNED", "DESISTE", "CLASSE_SANS_SUITE"]),
 });
 
 export async function updateBailStatusByNotaire(data: unknown) {
@@ -1175,10 +1176,28 @@ export async function updateBailStatusByNotaire(data: unknown) {
     throw new Error("Dossier introuvable ou non autorisé");
   }
 
+  // « Signé » : seulement quand le notaire a vérifié toutes les pièces et qu'il n'en manque aucune.
+  if (validated.status === "SIGNED" && user.role === Role.NOTAIRE) {
+    const review = await notaireReviewForBail(validated.bailId);
+    if (!review || !review.done) return { success: false as const, error: review?.reason ?? "Vérification du dossier à terminer" };
+  }
+
+  const before = await prisma.bail.findUnique({ where: { id: validated.bailId }, select: { status: true } });
   const bail = await prisma.bail.update({
     where: { id: validated.bailId },
     data: { status: validated.status },
   });
+  // Historique du dossier : qui a fait avancer le dossier, et de quel statut à quel statut.
+  if (before && before.status !== bail.status) {
+    await createBailAuditLog({
+      bailId: bail.id,
+      eventType: BailAuditEventType.STATUS_CHANGED,
+      actorId: user.id,
+      actorName: getActorName(user),
+      fromStatus: before.status,
+      toStatus: bail.status,
+    });
+  }
 
   revalidatePath("/notaire");
   revalidatePath("/notaire/dossiers");

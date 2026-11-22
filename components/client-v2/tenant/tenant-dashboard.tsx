@@ -109,7 +109,7 @@ export function TenantDashboard({
       [...activeBails]
         .sort((a, b) => {
           const rank = (status: string) =>
-            status === "CLIENT_CONTACTED"
+            status === "CLIENT_CONTACTED" || status === "PROVISION_RECEIVED"
               ? 0
               : status === "AWAITING_TENANT_FORM"
                 ? 1

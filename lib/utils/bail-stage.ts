@@ -16,6 +16,7 @@ export type BailStatusValue =
   | "PENDING_VALIDATION"
   | "READY_FOR_NOTARY"
   | "CLIENT_CONTACTED"
+  | "PROVISION_RECEIVED"
   | "SIGNED"
   | "TERMINATED"
   | "DESISTE"
@@ -46,7 +47,7 @@ export const STAGES: Record<StageKey, { label: string; hint: string; className: 
     label: "Notaire",
     hint: "Assignation, rendez-vous",
     className: "bg-violet-100 text-violet-900",
-    statuses: ["READY_FOR_NOTARY", "CLIENT_CONTACTED"],
+    statuses: ["READY_FOR_NOTARY", "CLIENT_CONTACTED", "PROVISION_RECEIVED"],
   },
   signe: {
     label: "Signé",
@@ -72,6 +73,7 @@ export const STATUS_LABELS: Record<BailStatusValue, string> = {
   PENDING_VALIDATION: "En cours de validation",
   READY_FOR_NOTARY: "Prêt pour notaire",
   CLIENT_CONTACTED: "Client contacté",
+  PROVISION_RECEIVED: "Provision reçue",
   SIGNED: "Signé",
   TERMINATED: "Terminé",
   DESISTE: "Désisté",
@@ -135,6 +137,7 @@ export function getNextAction({ status, hasTenant, hasNotaire, pendingNotaireReq
         ? { label: "Demande du notaire en attente", actor: "client", primary: false }
         : { label: "Suivre chez le notaire", actor: "notaire", primary: false };
     case "CLIENT_CONTACTED":
+    case "PROVISION_RECEIVED":
       return pendingNotaireRequests > 0
         ? { label: "Demande du notaire en attente", actor: "client", primary: false }
         : { label: "Rendez-vous de signature", actor: "notaire", primary: false };

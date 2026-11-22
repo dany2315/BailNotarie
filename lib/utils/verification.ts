@@ -17,6 +17,9 @@ export function fingerprint(value: unknown): string {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
+/** Validations du notaire : mêmes clés que celles de l'équipe, précédées de ce préfixe (séparées d'elles). */
+export const NOTAIRE_KEY_PREFIX = "notaire:";
+
 export function pointKey(base: string, values: unknown): string {
   return `${base}#${fingerprint(values)}`;
 }

@@ -27,7 +27,7 @@ export default async function NotaireDashboardPage() {
   const stats = {
     enCours: dossiers.filter((d: DossierType) => DOSSIER_TAB_STATUSES.en_cours.includes(getBailStatus(d))).length,
     aContacter: dossiers.filter((d: DossierType) => getBailStatus(d) === "READY_FOR_NOTARY").length,
-    enTraitement: dossiers.filter((d: DossierType) => getBailStatus(d) === "CLIENT_CONTACTED").length,
+    enTraitement: dossiers.filter((d: DossierType) => ["CLIENT_CONTACTED", "PROVISION_RECEIVED"].includes(getBailStatus(d))).length,
     signes: dossiers.filter((d: DossierType) => getBailStatus(d) === "SIGNED").length,
     classes: dossiers.filter((d: DossierType) => DOSSIER_TAB_STATUSES.classes.includes(getBailStatus(d))).length,
   };

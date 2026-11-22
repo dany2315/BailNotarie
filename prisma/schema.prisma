@@ -107,6 +107,7 @@ enum BailStatus {
   PENDING_VALIDATION // en attente de validation par bailnotarie si toute les donne sont remplies
   READY_FOR_NOTARY // prêt pour notaire
   CLIENT_CONTACTED // client contacté
+  PROVISION_RECEIVED // provision sur frais versée au notaire : il peut commencer la rédaction
   SIGNED // signé
   TERMINATED // terminé
   DESISTE // le client s'est désisté / a renoncé

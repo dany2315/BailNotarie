@@ -68,6 +68,12 @@ const statusConfig: Record<
     textColor: "text-violet-700 dark:text-violet-300",
     bgColor: "bg-violet-50 dark:bg-violet-950/40",
   },
+  PROVISION_RECEIVED: {
+    label: "Provision reçue",
+    icon: <CheckCircle2 className="size-3" />,
+    textColor: "text-indigo-700 dark:text-indigo-300",
+    bgColor: "bg-indigo-50 dark:bg-indigo-950/40",
+  },
   SIGNED: {
     label: "Signé",
     icon: <CheckCircle2 className="size-3" />,

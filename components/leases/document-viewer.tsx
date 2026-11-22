@@ -24,6 +24,8 @@ interface DocumentViewerProps {
   children: React.ReactNode;
   /** Lien d'intake (formulaire sans compte), exigé pour obtenir l'URL du fichier. */
   token?: string;
+  /** Classe du déclencheur (par défaut en ligne) : « flex w-full min-w-0 » pour une ligne qui prend toute la largeur. */
+  triggerClassName?: string;
 }
 
 export function DocumentViewer({
@@ -31,6 +33,7 @@ export function DocumentViewer({
   documentKindLabels,
   children,
   token,
+  triggerClassName,
 }: DocumentViewerProps) {
   const [open, setOpen] = useState(false);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
@@ -133,7 +136,7 @@ export function DocumentViewer({
             setOpen(true);
           }
         }}
-        className="cursor-pointer inline-flex"
+        className={`cursor-pointer ${triggerClassName ?? "inline-flex"}`}
       >
         {children}
       </div>

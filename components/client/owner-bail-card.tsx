@@ -91,6 +91,7 @@ const STEP_INDEX: Record<string, number> = {
   PENDING_VALIDATION: 0,
   READY_FOR_NOTARY: 1,
   CLIENT_CONTACTED: 1,
+  PROVISION_RECEIVED: 1,
   SIGNED: 2,
   TERMINATED: 2,
   DESISTE: 2,
@@ -108,6 +109,7 @@ const STATUS_MESSAGES: Record<string, string> = {
     "Un notaire a pris en charge votre dossier. Il va vous contacter prochainement.",
   CLIENT_CONTACTED:
     "Votre dossier avance avec votre notaire. Vous êtes désormais en contact pour préparer ensemble les prochaines étapes jusqu'à la signature.",
+  PROVISION_RECEIVED: "Le notaire a reçu la provision : il rédige votre bail.",
   SIGNED: "Félicitations ! Votre bail a été signé avec succès.",
   TERMINATED: "Ce bail est terminé.",
   DESISTE: "Ce dossier a fait l'objet d'un désistement.",
@@ -220,7 +222,7 @@ export function OwnerBailCard({
   const notaire = bail.dossierAssignments?.[0]?.notaire ?? null;
   const isCommercial = bail.bailFamily === BailFamille.COMMERCIAL;
   const isSigned = bail.status === "SIGNED";
-  const isContacted = bail.status === "CLIENT_CONTACTED";
+  const isContacted = bail.status === "CLIENT_CONTACTED" || bail.status === "PROVISION_RECEIVED";
   const terminal = TERMINAL_STATUSES.includes(bail.status);
   const familyLabel = isCommercial ? "Bail commercial" : "Bail d'habitation";
   const propertyLabel =

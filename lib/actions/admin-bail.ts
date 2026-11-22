@@ -346,10 +346,25 @@ const updateFieldSchema = z.object({
 export async function updatePartyFieldAdmin(
   data: unknown,
 ): Promise<{ success: true } | { success: false; error: string }> {
-  await requireRole([Role.ADMINISTRATEUR]);
+  const user = await requireRole([Role.ADMINISTRATEUR, Role.NOTAIRE]);
   const parsed = updateFieldSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const { entity, id, field, value } = parsed.data;
+
+  // Notaire : seulement les personnes et sociétés d'un dossier qui lui est confié.
+  if (user.role === Role.NOTAIRE) {
+    const owner =
+      entity === "person"
+        ? await prisma.person.findUnique({ where: { id }, select: { clientId: true } })
+        : await prisma.entreprise.findUnique({ where: { id }, select: { clientId: true } });
+    const allowed =
+      owner &&
+      (await prisma.dossierNotaireAssignment.findFirst({
+        where: { notaireId: user.id, bail: { parties: { some: { id: owner.clientId } } } },
+        select: { id: true },
+      }));
+    if (!allowed) return { success: false, error: "Non autorisé" };
+  }
 
   const fields: Record<string, z.ZodTypeAny> = entity === "person" ? PERSON_FIELDS : ENTREPRISE_FIELDS;
   const validator = fields[field];
@@ -388,6 +403,7 @@ export async function updatePartyFieldAdmin(
     });
     revalidatePath(`/interface/clients/${clientId}`);
     for (const bail of bails) revalidatePath(`/interface/baux/${bail.id}`);
+    revalidatePath("/notaire/dossiers");
     return { success: true };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {

@@ -59,6 +59,7 @@ const STEP_INDEX: Record<string, number> = {
   PENDING_VALIDATION: 0,
   READY_FOR_NOTARY: 1,
   CLIENT_CONTACTED: 1,
+  PROVISION_RECEIVED: 1,
   SIGNED: 2,
   TERMINATED: 2,
   DESISTE: 2,
@@ -105,6 +106,12 @@ export const STATUS_VIEW: Record<
   CLIENT_CONTACTED: {
     title: "Avec votre notaire",
     note: "Vous préparez ensemble la signature.",
+    tone: "violet",
+    icon: MessageSquare,
+  },
+  PROVISION_RECEIVED: {
+    title: "Avec votre notaire",
+    note: "Provision reçue : le notaire rédige votre bail.",
     tone: "violet",
     icon: MessageSquare,
   },

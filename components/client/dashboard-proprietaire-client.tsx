@@ -109,7 +109,7 @@ const STAGE_LABELS: Record<string, string> = {
   finalize: "Documents",
 };
 
-const ACTIVE_STATUSES = ["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED"];
+const ACTIVE_STATUSES = ["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "PROVISION_RECEIVED"];
 
 // ─── Carte : intake en cours ──────────────────────────────────────────────────
 
@@ -202,7 +202,7 @@ export function DashboardProprietaireClient({
   const recentBails = [...baux]
     .sort((a, b) => {
       const p = (s: string) =>
-        s === "CLIENT_CONTACTED" ? 0 : s === "AWAITING_TENANT_FORM" ? 1 : s === "PENDING_VALIDATION" ? 2 : s === "READY_FOR_NOTARY" ? 3 : s === "AWAITING_TENANT" ? 4 : s === "DRAFT" ? 5 : s === "SIGNED" ? 6 : 7;
+        s === "CLIENT_CONTACTED" || s === "PROVISION_RECEIVED" ? 0 : s === "AWAITING_TENANT_FORM" ? 1 : s === "PENDING_VALIDATION" ? 2 : s === "READY_FOR_NOTARY" ? 3 : s === "AWAITING_TENANT" ? 4 : s === "DRAFT" ? 5 : s === "SIGNED" ? 6 : 7;
       return p(a.status) - p(b.status);
     })
     .slice(0, 4);

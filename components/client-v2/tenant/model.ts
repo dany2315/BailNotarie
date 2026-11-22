@@ -65,6 +65,7 @@ export const STEP_INDEX: Record<string, number> = {
   PENDING_VALIDATION: 0,
   READY_FOR_NOTARY: 1,
   CLIENT_CONTACTED: 1,
+  PROVISION_RECEIVED: 1,
   SIGNED: 2,
   TERMINATED: 2,
 };
@@ -74,7 +75,7 @@ export const ACTIVE_STATUSES = [
   "AWAITING_TENANT_FORM",
   "PENDING_VALIDATION",
   "READY_FOR_NOTARY",
-  "CLIENT_CONTACTED",
+  "CLIENT_CONTACTED", "PROVISION_RECEIVED",
 ];
 
 /** Les statuts où le bail ne bouge plus. */
@@ -123,6 +124,11 @@ export const STATUS_VIEW: Record<string, { title: string; note?: string; tone: T
   CLIENT_CONTACTED: {
     title: "Avec le notaire",
     note: "Vous préparez ensemble la signature.",
+    tone: "violet",
+  },
+  PROVISION_RECEIVED: {
+    title: "Avec le notaire",
+    note: "Le notaire rédige le bail.",
     tone: "violet",
   },
   SIGNED: { title: "Signé", note: "Votre bail a été signé.", tone: "emerald" },

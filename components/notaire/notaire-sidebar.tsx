@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 const STATUS_DOT: Record<string, string> = {
   READY_FOR_NOTARY: "bg-orange-500",
   CLIENT_CONTACTED: "bg-blue-500",
+  PROVISION_RECEIVED: "bg-indigo-500",
   SIGNED: "bg-emerald-500",
   DESISTE: "bg-red-500",
   CLASSE_SANS_SUITE: "bg-slate-400",

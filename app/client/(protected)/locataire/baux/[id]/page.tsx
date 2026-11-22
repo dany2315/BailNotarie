@@ -20,6 +20,7 @@ const statusLabels: Record<BailStatus, string> = {
   PENDING_VALIDATION: "En attente de validation",
   READY_FOR_NOTARY: "Prêt pour notaire",
   CLIENT_CONTACTED: "Client contacté",
+  PROVISION_RECEIVED: "Provision reçue",
   SIGNED: "Actif",
   TERMINATED: "Terminé",
   DESISTE: "Désisté",

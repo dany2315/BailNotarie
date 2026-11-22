@@ -5,6 +5,7 @@ import { z } from "zod";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
+import { NOTAIRE_KEY_PREFIX } from "@/lib/utils/verification";
 
 const schema = z.object({
   bailId: z.string().min(1).max(100),
@@ -20,10 +21,17 @@ const schema = z.object({
 export async function setVerificationPoints(
   data: unknown,
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const user = await requireRole([Role.ADMINISTRATEUR, Role.NOTAIRE]);
   const parsed = schema.safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const { bailId, pointKeys, verified } = parsed.data;
+
+  // Notaire : seulement ses propres validations (clés « notaire: »), sur un dossier qui lui est confié.
+  if (user.role === Role.NOTAIRE) {
+    if (!pointKeys.every((key) => key.startsWith(NOTAIRE_KEY_PREFIX))) return { success: false, error: "Non autorisé" };
+    const assignment = await prisma.dossierNotaireAssignment.findFirst({ where: { bailId, notaireId: user.id }, select: { id: true } });
+    if (!assignment) return { success: false, error: "Dossier introuvable" };
+  }
 
   const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { id: true } });
   if (!bail) return { success: false, error: "Dossier introuvable" };
@@ -38,5 +46,6 @@ export async function setVerificationPoints(
   }
 
   revalidatePath(`/interface/baux/${bailId}`);
+  revalidatePath("/notaire/dossiers");
   return { success: true };
 }

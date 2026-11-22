@@ -30,7 +30,6 @@ import { ArchivedDocuments, type ArchivedDocumentRow } from "@/components/admin/
 import { NotaireBailChatSheet } from "@/components/notaire/notaire-bail-chat-sheet";
 import { NotaireDiagnosticsCard } from "@/components/notaire/notaire-diagnostics";
 import { useDownloadFile } from "@/hooks/use-download-file";
-import { updateBailStatusByNotaire } from "@/lib/actions/notaires";
 import { getBailStatusColor } from "@/lib/utils/bails-labels";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { copyToClipboard } from "@/lib/utils/copy";
@@ -41,16 +40,10 @@ import type {
 } from "@/lib/notaire/dossier-view";
 import type { StaffComplementRequest } from "@/lib/actions/complement-requests";
 import { cn } from "@/lib/utils";
+import { PiecesSection } from "@/components/admin/fiche/pieces-section";
+import { NotaireStatusActions } from "@/components/notaire/notaire-status-actions";
 
 type Target = "OWNER" | "TENANT";
-
-const STATUS_OPTIONS = [
-  "READY_FOR_NOTARY",
-  "CLIENT_CONTACTED",
-  "SIGNED",
-  "DESISTE",
-  "CLASSE_SANS_SUITE",
-];
 
 const dayFr = (iso: string) =>
   new Date(iso).toLocaleDateString("fr-FR", {
@@ -61,15 +54,20 @@ const dayFr = (iso: string) =>
   });
 
 
-/** Copie avec un retour visuel bref (« Copié »). */
+/** Copie avec un retour visuel bref : la ligne passe en « copié » et un petit toast dit ce qui a été copié. */
 function useCopy() {
   const [copied, setCopied] = React.useState<string | null>(null);
-  const copy = async (key: string, text: string) => {
+  const copy = async (key: string, text: string, label?: string) => {
     const ok = await copyToClipboard(text);
     if (!ok) {
       toast.error("Copie impossible");
       return;
     }
+    toast.success(label ? `Copié · ${label}` : "Copié", {
+      id: "notaire-copie",
+      description: text.length > 120 ? `${text.slice(0, 120)}…` : text,
+      duration: 1800,
+    });
     setCopied(key);
     window.setTimeout(
       () => setCopied((current) => (current === key ? null : current)),
@@ -93,9 +91,6 @@ export function NotaireDossierPanel({
   /** Anciennes pièces que ce notaire a retirées en acceptant une nouvelle : il peut toujours les rouvrir. */
   archived?: ArchivedDocumentRow[];
 }) {
-  const router = useRouter();
-  const [status, setStatus] = React.useState(view.status);
-  const [savingStatus, setSavingStatus] = React.useState(false);
   const [chat, setChat] = React.useState<{
     open: boolean;
     partyId: string | null;
@@ -107,25 +102,7 @@ export function NotaireDossierPanel({
   const tenants = view.parties.filter((p) => p.role === "TENANT");
   const askable = (target: Target) =>
     view.parties.some((p) => p.role === target && p.askable);
-  const statusColor = getBailStatusColor(status);
   const toReview = requests.filter((r) => r.status === "SUBMITTED").length;
-
-  const changeStatus = async (next: string) => {
-    if (!view.bailId || next === status) return;
-    const previous = status;
-    setStatus(next);
-    setSavingStatus(true);
-    try {
-      await updateBailStatusByNotaire({ bailId: view.bailId, status: next });
-      toast.success("Statut mis à jour");
-      router.refresh();
-    } catch {
-      setStatus(previous);
-      toast.error("Le statut n'a pas pu être changé");
-    } finally {
-      setSavingStatus(false);
-    }
-  };
 
   const partyLine = [
     owners.length > 0 &&
@@ -152,49 +129,11 @@ export function NotaireDossierPanel({
               {partyLine.join(" · ")}
             </p>
           </div>
-          {view.bailId && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="h-9 shrink-0 gap-2 self-start"
-                  disabled={savingStatus}
-                >
-                  {savingStatus ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <span
-                      aria-hidden
-                      className={cn("size-2 rounded-full", statusDot(status))}
-                    />
-                  )}
-                  {statusColor.label}
-                  <ChevronDown className="size-4 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-52">
-                <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
-                  Avancement du dossier
-                </DropdownMenuLabel>
-                {STATUS_OPTIONS.map((value) => (
-                  <DropdownMenuItem
-                    key={value}
-                    onSelect={() => changeStatus(value)}
-                    className="gap-2"
-                  >
-                    <Check
-                      className={cn(
-                        "size-4",
-                        value === status ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    {getBailStatusColor(value).label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
         </div>
+
+        {view.bailId && (
+          <NotaireStatusActions bailId={view.bailId} status={view.status} signBlockedReason={view.review?.reason ?? null} />
+        )}
 
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <Button asChild className="col-span-2 h-10 gap-2 sm:col-span-1">
@@ -257,8 +196,27 @@ export function NotaireDossierPanel({
       </header>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-        {/* Données */}
+        {/* Pièces à vérifier, puis les données */}
         <div className="flex min-w-0 flex-col gap-5">
+          {view.bailId && view.review && view.review.groups.length > 0 && (
+            <PiecesSection
+              groups={view.review.groups}
+              bailId={view.bailId}
+              diagnostics={view.diagnostics ? <NotaireDiagnosticsCard diagnostics={view.diagnostics} /> : undefined}
+              guided={{
+                legalPending: 0,
+                answers: [],
+                relances: [],
+                sendButton: (
+                  <NotaireStatusActions bailId={view.bailId} status={view.status} signBlockedReason={view.review.reason} compact />
+                ),
+                finish: {
+                  title: "Avancement du dossier",
+                  hint: "« Le bail est signé » s'active quand toutes les pièces sont vérifiées et qu'il n'en manque aucune.",
+                },
+              }}
+            />
+          )}
           {requests.length > 0 && (
             <section
               aria-labelledby="demandes-title"
@@ -299,11 +257,7 @@ export function NotaireDossierPanel({
               sections={view.property}
               copied={copied}
               copy={copy}
-            >
-              {view.diagnostics && (
-                <NotaireDiagnosticsCard diagnostics={view.diagnostics} />
-              )}
-            </FactGroup>
+            />
           )}
           {owners.map((party) => (
             <FactGroup
@@ -329,7 +283,7 @@ export function NotaireDossierPanel({
 
         {/* Pièces */}
         <aside className="flex min-w-0 flex-col gap-5 xl:sticky xl:top-5">
-          <PiecesCard view={view} />
+          <OtherPiecesCard view={view} />
           {(view.notes || view.legacyRequests.length > 0) && (
             <section className="rounded-2xl border bg-background p-4">
               {view.notes && (
@@ -426,6 +380,7 @@ function statusDot(status: string) {
       {
         READY_FOR_NOTARY: "bg-orange-500",
         CLIENT_CONTACTED: "bg-blue-500",
+        PROVISION_RECEIVED: "bg-indigo-500",
         SIGNED: "bg-emerald-500",
         DESISTE: "bg-red-500",
       } as Record<string, string>
@@ -489,7 +444,7 @@ function FactGroup({
   subtitle?: string;
   sections: FactSection[];
   copied: string | null;
-  copy: (key: string, text: string) => void;
+  copy: (key: string, text: string, label?: string) => void;
   children?: React.ReactNode;
 }) {
   return (
@@ -530,7 +485,7 @@ function FactGroup({
                   <button
                     key={key}
                     type="button"
-                    onClick={() => copy(key, row.value)}
+                    onClick={() => copy(key, row.value, row.label)}
                     title={`Copier : ${row.value}`}
                     aria-label={`Copier ${row.label} : ${row.value}`}
                     className="group relative grid w-full grid-cols-1 gap-0.5 px-4 py-2.5 pr-14 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none sm:grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] sm:items-baseline sm:gap-4 sm:px-5 sm:pr-14"
@@ -568,57 +523,26 @@ function FactGroup({
   );
 }
 
-/** Pièces du dossier, rangées par personne puis le bien et le bail : voir ou télécharger chacune. */
-function PiecesCard({ view }: { view: NotaireDossierView }) {
+/**
+ * Pièces hors de « Pièces du dossier » (pièces jointes d'anciennes demandes) : voir ou télécharger chacune.
+ * « Tout télécharger » reste en haut de la page.
+ */
+function OtherPiecesCard({ view }: { view: NotaireDossierView }) {
   const { downloadFile, isFileDownloading } = useDownloadFile();
+  const others = view.documents.filter((group) => group.key === "autres");
+  if (others.length === 0) return null;
   return (
-    <section
-      aria-labelledby="pieces-title"
-      className="overflow-hidden rounded-2xl border bg-background"
-    >
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
-        <h3 id="pieces-title" className="text-[15px] font-semibold">
-          Pièces{" "}
-          <span className="font-normal text-muted-foreground">
-            · {view.documentCount}
-          </span>
-        </h3>
-        {view.documentCount > 0 && (
-          <a
-            href={`/api/notaire/dossiers/${view.assignmentId}/zip`}
-            download
-            className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-primary hover:bg-primary/5"
-          >
-            <Download className="size-3.5" />
-            Zip
-          </a>
+    <section aria-labelledby="autres-pieces-title" className="overflow-hidden rounded-2xl border bg-background">
+      <h3 id="autres-pieces-title" className="border-b px-4 py-3 text-[15px] font-semibold">
+        Autres pièces
+      </h3>
+      <ul className="flex flex-col py-1.5">
+        {others.flatMap((group) =>
+          group.documents.map((doc) => (
+            <PieceRow key={doc.id} doc={doc} downloading={isFileDownloading(doc.fileKey)} onDownload={() => downloadFile(doc.fileKey, doc.zipName)} />
+          )),
         )}
-      </div>
-      {view.documents.length === 0 ? (
-        <p className="px-4 py-6 text-center text-[13px] text-muted-foreground">
-          Aucune pièce pour le moment
-        </p>
-      ) : (
-        <div className="flex flex-col">
-          {view.documents.map((group) => (
-            <div key={group.key} className="border-b last:border-b-0">
-              <p className="px-4 pb-1 pt-3 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                {group.title}
-              </p>
-              <ul className="pb-2">
-                {group.documents.map((doc) => (
-                  <PieceRow
-                    key={doc.id}
-                    doc={doc}
-                    downloading={isFileDownloading(doc.fileKey)}
-                    onDownload={() => downloadFile(doc.fileKey, doc.zipName)}
-                  />
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
+      </ul>
     </section>
   );
 }
@@ -633,46 +557,24 @@ function PieceRow({
   onDownload: () => void;
 }) {
   return (
-    <li className="flex items-center gap-1 px-2">
-      <div className="min-w-0 flex-1">
-        <DocumentViewer
-          document={
-            {
-              id: doc.id,
-              kind: doc.kindCode,
-              fileKey: doc.fileKey,
-              mimeType: doc.mimeType,
-              label: doc.fileName,
-            } as any
-          }
-          documentKindLabels={documentKindLabels}
-        >
-          <button
-            type="button"
-            className="flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-muted/60"
-          >
-            <FileText className="size-4 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13.5px] font-medium">
-                {doc.kind}
-                {doc.who && (
-                  <span className="font-normal text-muted-foreground">
-                    {" "}
-                    · {doc.who}
-                  </span>
-                )}
-              </span>
-              <span className="block truncate text-[12px] text-muted-foreground">
-                {doc.fileName}
-              </span>
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 px-2">
+      <DocumentViewer
+        document={{ id: doc.id, kind: doc.kindCode, fileKey: doc.fileKey, mimeType: doc.mimeType, label: doc.fileName } as any}
+        documentKindLabels={documentKindLabels}
+        triggerClassName="flex w-full min-w-0"
+      >
+        <span className="flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-muted/60" title={`Voir ${doc.kind}`}>
+          <FileText className="size-4 shrink-0 text-muted-foreground" />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[13.5px] font-medium">
+              {doc.kind}
+              {doc.who && <span className="font-normal text-muted-foreground"> · {doc.who}</span>}
             </span>
-            <Eye
-              className="size-4 shrink-0 text-muted-foreground"
-              aria-label="Voir"
-            />
-          </button>
-        </DocumentViewer>
-      </div>
+            <span className="truncate text-[12px] text-muted-foreground">reçue le {dayFr(doc.createdAt)}</span>
+          </span>
+          <Eye className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </span>
+      </DocumentViewer>
       <Button
         variant="ghost"
         size="icon"
@@ -681,11 +583,7 @@ function PieceRow({
         disabled={downloading}
         aria-label={`Télécharger ${doc.kind}`}
       >
-        {downloading ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Download className="size-4" />
-        )}
+        {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
       </Button>
     </li>
   );

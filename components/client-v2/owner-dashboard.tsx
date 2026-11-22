@@ -142,11 +142,11 @@ const ACTIVE_STATUSES = [
   "AWAITING_TENANT_FORM",
   "PENDING_VALIDATION",
   "READY_FOR_NOTARY",
-  "CLIENT_CONTACTED",
+  "CLIENT_CONTACTED", "PROVISION_RECEIVED",
 ];
 
 const STATUS_PRIORITY = (status: string) =>
-  status === "CLIENT_CONTACTED"
+  status === "CLIENT_CONTACTED" || status === "PROVISION_RECEIVED"
     ? 0
     : status === "AWAITING_TENANT_FORM"
       ? 1

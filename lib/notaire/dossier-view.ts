@@ -14,6 +14,7 @@ import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { registryNotes } from "@/lib/utils/company-registry";
 import { FURNITURE_KEYS, isFurnishedBail } from "@/lib/rules/dossier-rules";
 import { formatPhone } from "@/lib/utils/phone-format";
+import { notaireReview, type NotaireReview } from "@/lib/notaire/review";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Modèle                                   */
@@ -87,6 +88,8 @@ export interface NotaireDossierView {
   /** Parties du bail pour la discussion. */
   chatParties: Array<{ id: string; profilType: string; persons: Array<{ firstName: string | null; lastName: string | null }>; entreprise: { legalName: string; name: string } | null }>;
   legacyRequests: Array<{ id: string; title: string; content: string; status: string; createdAt: string }>;
+  /** Vérification du notaire : pièces avec ce qu'elles prouvent, et ce qui reste avant « signé ». */
+  review: NotaireReview | null;
   /** Toute la fiche en texte, à coller dans le logiciel de l'étude. */
   text: string;
 }
@@ -305,6 +308,10 @@ async function buildView(a: Assignment): Promise<NotaireDossierView> {
 
   const ownerName = partyViews.find((p) => p.role === "OWNER")?.name;
   const tenantName = partyViews.find((p) => p.role === "TENANT")?.name;
+  const checks = bail ? await prisma.bailVerificationCheck.findMany({ where: { bailId: bail.id }, select: { pointKey: true } }) : [];
+  const review = bail
+    ? notaireReview(a as any, checks.map((c) => c.pointKey), (role) => partyViews.some((p) => p.role === role && p.askable))
+    : null;
   const view: NotaireDossierView = {
     assignmentId: a.id,
     bailId: bail?.id ?? null,
@@ -328,6 +335,7 @@ async function buildView(a: Assignment): Promise<NotaireDossierView> {
     })),
     legacyRequests: a.requests.map((r) => ({ id: r.id, title: r.title, content: r.content, status: r.status, createdAt: r.createdAt.toISOString() })),
     text: "",
+    review,
   };
   view.text = dossierText(view, ownerName, tenantName);
   return view;

@@ -50,6 +50,7 @@ export function PiecesSection({
     relances: RelanceInfo[];
     remind?: React.ReactNode;
     sendButton?: React.ReactNode;
+    finish?: { title: string; hint: string };
   };
   /** Lecture des diagnostics (décisions par diagnostic, envoi au propriétaire) : dans le panneau de la pièce. */
   diagnostics?: React.ReactNode;
@@ -192,6 +193,7 @@ export function PiecesSection({
           relances={guided.relances}
           remind={guided.remind}
           sendButton={guided.sendButton}
+          finish={guided.finish}
           diagnostics={diagnostics}
           bailId={bailId}
           onExit={() => setReview(null)}

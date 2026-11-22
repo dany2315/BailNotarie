@@ -84,6 +84,7 @@ export function GuidedReview({
   relances,
   remind,
   sendButton,
+  finish,
   diagnostics,
   bailId,
   onExit,
@@ -99,6 +100,8 @@ export function GuidedReview({
   relances: RelanceInfo[];
   remind?: React.ReactNode;
   sendButton?: React.ReactNode;
+  /** Dernier bloc du récapitulatif (par défaut : la transmission au notaire). */
+  finish?: { title: string; hint: string };
   diagnostics?: React.ReactNode;
   bailId: string;
   onExit: () => void;
@@ -219,7 +222,7 @@ export function GuidedReview({
           ))}
         </div>
       )}
-      {step.kind === "recap" && <Recap items={items} basket={basket} setBasket={setBasket} sendButton={sendButton} />}
+      {step.kind === "recap" && <Recap items={items} basket={basket} setBasket={setBasket} sendButton={sendButton} finish={finish} />}
     </StepSheet>
   );
 }
@@ -286,11 +289,13 @@ function Recap({
   basket,
   setBasket,
   sendButton,
+  finish = { title: "Transmettre au notaire", hint: "Le bouton s'active quand tout est vérifié et qu'il ne manque rien." },
 }: {
   items: GuidedItem[];
   basket: BasketEntry[];
   setBasket: React.Dispatch<React.SetStateAction<BasketEntry[]>>;
   sendButton?: React.ReactNode;
+  finish?: { title: string; hint: string };
 }) {
   const verified = items.filter((i) => i.info.state === "ok").length;
   const toCheck = items.filter(
@@ -428,8 +433,8 @@ function Recap({
 
       {sendButton && (
         <section className={cn("flex flex-col gap-2 rounded-xl border bg-card p-4")}>
-          <h3 className="text-[16px] font-semibold">Transmettre au notaire</h3>
-          <p className="text-[13.5px] text-muted-foreground">Le bouton s&apos;active quand tout est vérifié et qu&apos;il ne manque rien.</p>
+          <h3 className="text-[16px] font-semibold">{finish.title}</h3>
+          <p className="text-[13.5px] text-muted-foreground">{finish.hint}</p>
           <div className="w-fit">{sendButton}</div>
         </section>
       )}

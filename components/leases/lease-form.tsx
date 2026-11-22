@@ -60,7 +60,7 @@ const leaseFormSchema = z
         "AWAITING_TENANT_FORM",
         "PENDING_VALIDATION",
         "READY_FOR_NOTARY",
-        "CLIENT_CONTACTED",
+        "CLIENT_CONTACTED", "PROVISION_RECEIVED",
         "SIGNED",
         "TERMINATED",
         "DESISTE",
@@ -448,6 +448,7 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
                     <SelectItem value="PENDING_VALIDATION">En attente de validation</SelectItem>
                     <SelectItem value="READY_FOR_NOTARY">Prêt pour notaire</SelectItem>
                     <SelectItem value="CLIENT_CONTACTED">Client contacté</SelectItem>
+                    <SelectItem value="PROVISION_RECEIVED">Provision reçue</SelectItem>
                     <SelectItem value="SIGNED">Signé</SelectItem>
                     <SelectItem value="TERMINATED">Terminé</SelectItem>
                     <SelectItem value="DESISTE">Désisté</SelectItem>

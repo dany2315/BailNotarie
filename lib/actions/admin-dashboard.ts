@@ -16,6 +16,7 @@ const ACTIVE_STATUSES: BailStatus[] = [
   BailStatus.PENDING_VALIDATION,
   BailStatus.READY_FOR_NOTARY,
   BailStatus.CLIENT_CONTACTED,
+  BailStatus.PROVISION_RECEIVED,
 ];
 
 const partySelect = {

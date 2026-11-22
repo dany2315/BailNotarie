@@ -27,6 +27,7 @@ const bailStatusLabels: Record<string, string> = {
   PENDING_VALIDATION: "En attente de validation",
   READY_FOR_NOTARY: "À contacter",
   CLIENT_CONTACTED: "En traitement",
+  PROVISION_RECEIVED: "Provision reçue",
   SIGNED: "Signé",
   TERMINATED: "Terminé",
   DESISTE: "Désisté",
@@ -48,18 +49,19 @@ export const DOSSIER_FILTER_TABS: { value: DossierFilterTab; label: string }[] =
 
 /** Statuts correspondant à chaque onglet */
 export const DOSSIER_TAB_STATUSES: Record<DossierFilterTab, string[]> = {
-  en_cours: ["READY_FOR_NOTARY", "CLIENT_CONTACTED"],
+  en_cours: ["READY_FOR_NOTARY", "CLIENT_CONTACTED", "PROVISION_RECEIVED"],
   signes: ["SIGNED"],
   classes: ["TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"],
 };
 
 /** Sous-catégories pour l'onglet "En cours" */
-export type DossierSubFilter = "all" | "a_contacter" | "en_traitement";
+export type DossierSubFilter = "all" | "a_contacter" | "en_traitement" | "provision";
 
 export const DOSSIER_SUB_FILTERS: { value: DossierSubFilter; label: string; status: string | null }[] = [
   { value: "all", label: "Tous", status: null },
   { value: "a_contacter", label: "À contacter", status: "READY_FOR_NOTARY" },
   { value: "en_traitement", label: "En traitement", status: "CLIENT_CONTACTED" },
+  { value: "provision", label: "Provision reçue", status: "PROVISION_RECEIVED" },
 ];
 
 /** Couleurs centralisées pour les statuts de bail notaire */
@@ -92,6 +94,11 @@ export const BAIL_STATUS_COLORS: Record<string, {
     badge: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border-blue-200 dark:border-blue-800",
     text: "text-blue-600",
     label: "En traitement",
+  },
+  PROVISION_RECEIVED: {
+    badge: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
+    text: "text-indigo-600",
+    label: "Provision reçue",
   },
   SIGNED: {
     badge: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400 border-green-200 dark:border-green-800",
