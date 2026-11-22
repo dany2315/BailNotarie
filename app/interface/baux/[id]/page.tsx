@@ -59,6 +59,7 @@ import { CommercialTermsInline, EditTermsLink } from "@/components/admin/commerc
 import { FicheAutoRefresh, FicheProvider, RemindRequestButton, RuleTag, Since, type FicheClaim } from "@/components/admin/fiche/fiche-context";
 import { ContactCard } from "@/components/admin/fiche/contact-card";
 import { PiecesSection, type PieceGroup } from "@/components/admin/fiche/pieces-section";
+import { StartReviewButton } from "@/components/admin/fiche/guided-review";
 import { questionsForDataFields } from "@/lib/rules/complement-questions";
 import { fieldComplementKey } from "@/lib/utils/complement";
 
@@ -1027,6 +1028,340 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
       : []),
   ];
 
+  // Contrôles légaux (plafond, relocation, règles du bail commercial) : dans « Le bail », et repris tels quels
+  // dans le parcours « Commencer la vérification ».
+  const legalChecks = (
+    <>
+                {!isCommercial && (
+                <>
+                <CheckPoint
+                  state={capMissing ? "missing" : isVerified(rulesPoints[0].key, bailLocked || capAuto) ? "ok" : "todo"}
+                  label={capAuto && !bailLocked ? <AutoLabel>Plafond de loyer</AutoLabel> : "Plafond de loyer"}
+                  foldable={capAuto && !capMissing}
+                  actionsBelow
+                  verify={capAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[0].key, verified: isVerified(rulesPoints[0].key, bailLocked), locked: bailLocked }}
+                  note={
+                    !rentCap
+                      ? null
+                      : rentRules?.supplement.forbidden
+                        ? `Complément de loyer interdit (logement classé F ou G) : loyer à ramener à ${formatCurrency(rentRules.supplement.base ?? 0)} au plus`
+                      : rentCap.status === "missing"
+                        ? `À saisir : ${rentCap.missing.join(", ")}`
+                        : rentCap.status === "over" && !rentCap.supplement
+                          ? rentCap.validity === "in"
+                            ? `Au-dessus du plafond de ${formatCurrency(rentCap.overBy ?? 0)} par mois : à corriger, ou complément de loyer à justifier`
+                            : `Au-dessus du plafond de cet arrêté de ${formatCurrency(rentCap.overBy ?? 0)} par mois : vérifiez l'arrêté applicable à la date du bail`
+                          : null
+                  }
+                  actions={
+                    !bailLocked && (!!rentCap?.territory || rentCap?.status === "over" || !!lease.rentSupplementReason || (!capMissing && capAuto)) ? (
+                    <>
+                      {property && rentCap?.territory && rentCap.status !== "no_data" && rentCap.notConcerned !== "exempt" && !bailLocked && (
+                        <RentCapEditor
+                          propertyId={property.id}
+                          periods={rentCap.territory.periods}
+                          zones={rentCap.territory.zones}
+                          zoneMode={rentCap.territory.zoneMode}
+                          detectedZone={rentCap.zone && rentCap.zone.source !== "manual" ? rentCap.zone.label : null}
+                          allowOutside={rentCap.territory.partialCommune}
+                          zoneHint={
+                    rentCap.zoneHint ? (rentCap.zoneHint.kind === "limit" ? rentCap.zoneHint.label : `${rentCap.zoneHint.label} ou hors du périmètre`) : null
+                  }
+                          values={{ mainRooms: property.mainRooms, constructionPeriod: property.constructionPeriod, rentCapZone: property.rentCapZone }}
+                        />
+                      )}
+                      {rentCap?.territory && !bailLocked && (
+                        <RentCapExemptionButton bailId={lease.id} exemption={lease.rentCapExemption} note={lease.rentCapExemptionNote} />
+                      )}
+                      {(rentCap?.status === "over" || lease.rentSupplementReason) && !bailLocked && (
+                        <RentSupplementButton bailId={lease.id} reason={lease.rentSupplementReason} />
+                      )}
+                      {!capMissing && capAuto && !bailLocked && <AutoVerified />}
+                    </>
+                    ) : null
+                  }
+                >
+                  <span className="flex flex-col gap-1">
+                    {!rentCap || !rentCap.territory ? (
+                      <>
+                        <span>
+                          {lease.rentAmount > 0
+                            ? `${formatCurrency(lease.rentAmount)} hors charges${surface ? ` pour ${formatSurface(surface)}, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m²` : ""}.`
+                            : "Loyer non renseigné."}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {rentCap?.referentialUnavailable
+                            ? "Référentiel des loyers indisponible : contrôle de l'encadrement impossible pour le moment. Le dossier ne peut pas partir chez le notaire tant que les barèmes ne sont pas importés et vérifiés."
+                            : rentCap?.notConcerned === "commercial"
+                            ? "Bail commercial : l'encadrement des loyers ne s'applique pas."
+                            : property?.inseeCode
+                              ? "Commune non soumise à l'encadrement des loyers : pas de plafond à respecter."
+                              : "Adresse non localisée : vérifiez si la commune est soumise à l'encadrement des loyers."}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          {rentCap.territory.label}
+                          {rentCap.status !== "no_data" && rentCap.notConcerned !== "exempt" ? ` · ${describeRentCapZone(rentCap)}` : ""}
+                        </span>
+                        {rentCap.effectiveDateMissing && (
+                          <span className="font-semibold text-amber-800">
+                            Date de prise d&apos;effet non renseignée : plafond calculé avec l&apos;arrêté en vigueur aujourd&apos;hui, à titre
+                            indicatif. Il sera recalculé quand la date sera saisie.
+                          </span>
+                        )}
+                        {rentCap.notConcerned === "exempt" && (
+                          <span className="font-semibold text-amber-800">
+                            Logement exclu de l&apos;encadrement : {EXEMPTION_LABELS[rentCap.exemption?.code || ""] || rentCap.exemption?.code}
+                            {rentCap.exemption?.note ? ` (${rentCap.exemption.note})` : ""}
+                            {lease.rentCapExemptionAt ? `, indiqué le ${formatDate(lease.rentCapExemptionAt)}` : ""}
+                            {lease.rentCapExemptionByName ? ` par ${lease.rentCapExemptionByName}` : ""}. Pas de plafond à respecter.
+                          </span>
+                        )}
+                        {rentCap.notConcerned === "outside_perimeter" && (
+                          <span className="text-muted-foreground">
+                            Commune encadrée en partie seulement : ce logement n&apos;a pas de plafond à respecter.
+                          </span>
+                        )}
+                        {rentCap.status === "no_data" && (
+                          <>
+                            <span>
+                              {lease.rentAmount > 0 && surface
+                                ? `Loyer : ${formatCurrency(lease.rentAmount)} hors charges, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m².`
+                                : "Loyer ou surface non renseigné."}
+                            </span>
+                            <span className="font-semibold text-amber-800">
+                              Barème officiel pas encore intégré : comparez avec le simulateur officiel, puis validez.
+                            </span>
+                          </>
+                        )}
+                        {(rentCap.status === "missing" || rentCap.status === "ok" || rentCap.status === "over") && (
+                          <span className="text-muted-foreground">
+                            {[
+                              property?.mainRooms ? ROOMS_LABELS[Math.min(4, property.mainRooms)] : "pièces ?",
+                              property?.constructionPeriod ? (PERIOD_LABELS[property.constructionPeriod] || property.constructionPeriod).toLowerCase() : "époque ?",
+                              rentCap.furnished ? "meublé" : "non meublé",
+                              rentCap.territory.houseTypes ? (property?.type === "MAISON" ? "maison" : property?.type === "APPARTEMENT" ? "appartement" : "type ?") : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        )}
+                        {rentCap.reference && rentCap.maxRent != null && (
+                          <>
+                            <span>
+                              Loyer : {formatCurrency(rentCap.rent)} hors charges, soit {(rentCap.rentPerM2 ?? 0).toFixed(2).replace(".", ",")} €/m²
+                            </span>
+                            <span>
+                              Plafond (loyer de référence majoré) : {rentCap.reference.max.toFixed(2).replace(".", ",")} €/m², soit{" "}
+                              <strong className="font-semibold">{formatCurrency(rentCap.maxRent)}</strong> au maximum
+                            </span>
+                            {rentCap.status === "ok" && (
+                              <span className="font-semibold text-green-700">
+                                Conforme : {formatCurrency(Math.abs(rentCap.overBy ?? 0))} sous le plafond
+                              </span>
+                            )}
+                          </>
+                        )}
+                        {lease.rentSupplementReason && rentCap.status === "over" && (
+                          <span className="font-semibold text-amber-800">
+                            Complément de loyer justifié
+                            {lease.rentSupplementAt ? ` le ${formatDate(lease.rentSupplementAt)}` : ""}
+                            {lease.rentSupplementByName ? ` par ${lease.rentSupplementByName}` : ""} : {lease.rentSupplementReason}
+                            {rentRules?.supplement.amount != null && rentRules.supplement.base != null
+                              ? ` (loyer de base ${formatCurrency(rentRules.supplement.base)} + complément ${formatCurrency(rentRules.supplement.amount)})`
+                              : ""}
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          Arrêté en vigueur du {formatDate(rentCap.territory.validFrom)} au {formatDate(rentCap.territory.validTo)} · barème
+                          intégré le {formatDate(rentCap.territory.importedAt)} ·{" "}
+                          <a href={rentCap.territory.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                            {rentCap.territory.mapUrl === rentCap.territory.sourceUrl ? "texte officiel et cartes des zones" : "texte officiel"}
+                          </a>
+                          {rentCap.territory.simulatorUrl && (
+                            <>
+                              {" · "}
+                              <a href={rentCap.territory.simulatorUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                                simulateur officiel
+                              </a>
+                            </>
+                          )}
+                          {rentCap.territory.mapUrl && rentCap.territory.mapUrl !== rentCap.territory.sourceUrl && (
+                            <>
+                              {" · "}
+                              <a href={rentCap.territory.mapUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                                cartes des zones
+                              </a>
+                            </>
+                          )}
+                        </span>
+                        {rentCap.notConcerned !== "exempt" && rentCap.notConcerned !== "outside_perimeter" && rentCap.validity === "after" && (
+                          <span className="text-[13px] font-semibold text-amber-800">
+                            Le bail prend effet le {formatDate(lease.effectiveDate)}, après la fin de cet arrêté : vérifiez s&apos;il est
+                            prolongé ou remplacé, puis validez à la main.
+                          </span>
+                        )}
+                        {rentCap.notConcerned !== "exempt" && rentCap.notConcerned !== "outside_perimeter" && rentCap.validity === "before" && (
+                          <span className="text-[13px] font-semibold text-amber-800">
+                            Le bail prend effet le {formatDate(lease.effectiveDate)}, avant cet arrêté : c&apos;est l&apos;arrêté précédent qui
+                            s&apos;applique. Vérifiez avec le simulateur officiel, puis validez à la main.
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </span>
+                </CheckPoint>
+                <CheckPoint
+                  state={relocMissing ? "missing" : isVerified(rulesPoints[1].key, bailLocked || relocAuto) ? "ok" : "todo"}
+                  label={relocAuto && !bailLocked ? <AutoLabel>Évolution du loyer (zone tendue)</AutoLabel> : "Évolution du loyer (zone tendue)"}
+                  foldable={relocAuto && !relocMissing}
+                  actionsBelow
+                  verify={relocAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[1].key, verified: isVerified(rulesPoints[1].key, bailLocked), locked: bailLocked }}
+                  note={
+                    !relocation
+                      ? null
+                      : relocation.status === "over"
+                        ? `Au-dessus du maximum à la relocation de ${formatCurrency(relocation.overBy ?? 0)} par mois : loyer à corriger`
+                        : relocation.status === "missing" && !relocation.undeclared
+                          ? `À compléter : ${relocation.missing.join(", ")}`
+                          : missingProofs.length
+                            ? `Justificatif${missingProofs.length > 1 ? "s" : ""} à demander : ${missingProofs.map((kind) => PROOF_LABELS[kind]?.label.toLowerCase()).join(", ")}`
+                            : null
+                  }
+                  actions={
+                    !bailLocked && ((!!relocation && relocation.notConcerned === null) || (!relocMissing && relocAuto)) ? (
+                      <>
+                        {relocation && relocation.notConcerned === null && relocMissing && owner && (
+                          <AskFieldsButton bailId={lease.id} target="OWNER" scope="bail" targetId={lease.id} fields={["relocationLetBefore"]} />
+                        )}
+                        {relocation && relocation.notConcerned === null && (
+                          <RentRulesEditor bailId={lease.id} values={rentRulesToForm(lease)} missing={relocation.undeclared} />
+                        )}
+                        {!relocMissing && relocAuto && <AutoVerified />}
+                      </>
+                    ) : null
+                  }
+                >
+                  <span className="flex flex-col gap-1">
+                    {!relocation ? (
+                      <span className="text-muted-foreground">Bien non renseigné.</span>
+                    ) : relocation.notConcerned ? (
+                      <span className="text-muted-foreground">
+                        {relocation.notConcerned === "commercial"
+                          ? "Bail commercial : non concerné."
+                          : relocation.notConcerned === "no_address"
+                            ? "Adresse non localisée : vérifiez si la commune est en zone tendue."
+                            : "Commune hors zone tendue : le loyer est libre à la relocation."}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-muted-foreground">
+                          Commune en zone tendue : à la relocation, le loyer ne peut pas dépasser celui du locataire précédent, sauf exceptions
+                          (décret n° 2017-1198).
+                        </span>
+                        {relocation.undeclared && (
+                          <span className="font-semibold text-amber-800">
+                            Questions non renseignées (dossier créé avant ces questions) : complétez-les avec le propriétaire.
+                          </span>
+                        )}
+                        {relocation.situation === "first" && <span>Première mise en location, déclarée par le propriétaire.</span>}
+                        {(relocation.situation === "relet" || relocation.situation === "vacant") && lease.previousTenantLeftAt && (
+                          <span>
+                            Départ du locataire précédent le {formatDate(lease.previousTenantLeftAt)}
+                            {relocation.situation === "vacant" ? ` : logement vide depuis ${VACANCY_MONTHS} mois ou plus.` : "."}
+                          </span>
+                        )}
+                        {relocationSummaryLines(relocation).map((line) => (
+                          <span key={line}>{line}</span>
+                        ))}
+                        {relocation.status === "ok" && (
+                          <span className="font-semibold text-green-700">
+                            Conforme : {formatCurrency(Math.abs(relocation.overBy ?? 0))} sous le maximum
+                          </span>
+                        )}
+                        {relocation.proofs.length > 0 && (
+                          <span className="text-[13px]">
+                            Justificatifs :{" "}
+                            {relocation.proofs
+                              .map((kind) => `${PROOF_LABELS[kind]?.label.toLowerCase()} (${bailDocKinds.has(kind) ? "reçu" : "à demander"})`)
+                              .join(", ")}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </span>
+                </CheckPoint>
+                </>
+                )}
+                {commercialRules.map((rule) => {
+                  const key = commercialKeys[rule.id];
+                  const locked = bailLocked || rule.auto;
+                  const verified = !rule.missing && isVerified(key, locked);
+                  return (
+                    <CheckPoint
+                      key={rule.id}
+                      state={rule.missing ? "missing" : verified ? "ok" : "todo"}
+                      label={rule.auto && !bailLocked ? <AutoLabel>{rule.label}</AutoLabel> : rule.label}
+                      foldable={rule.auto && !rule.missing}
+                      // Boutons sous le contenu : le tableau garde toute la largeur.
+                      actionsBelow
+                      note={rule.note}
+                      verify={rule.auto ? undefined : { bailId: lease.id, pointKey: key, verified, locked: bailLocked }}
+                      actions={
+                        !bailLocked && (rule.editsTerms || (!rule.missing && rule.auto)) ? (
+                          <>
+                            {rule.editsTerms && <EditTermsLink row={TERMS_ROW_FOR_RULE[rule.id] ?? "activity"} />}
+                            {!rule.missing && rule.auto && <AutoVerified />}
+                          </>
+                        ) : null
+                      }
+                    >
+                      <span className="flex flex-col gap-1.5">
+                        {rule.view && <RuleViewBlock view={rule.view} />}
+                        {rule.warnings.map((line) => (
+                          <span key={line} className="text-[13px] leading-snug text-amber-800">
+                            {line}
+                          </span>
+                        ))}
+                        {rule.legal && <span className="text-xs text-muted-foreground">{rule.legal}</span>}
+                      </span>
+                    </CheckPoint>
+                  );
+                })}
+    </>
+  );
+  const legalPending = bailLocked ? 0 : summarize(rulesStates).pendingKeys.length;
+  // Réponses du parcours : informations reçues (les pièces reçues sont des étapes « pièce »).
+  const answers = pastVerification
+    ? []
+    : complementRequests
+        .filter((request) => request.origin === "TEAM")
+        .flatMap((request) =>
+          request.items
+            .filter((item) => item.status === "PROVIDED" && !item.kind)
+            .map((item) => ({ target: request.target as "OWNER" | "TENANT", item })),
+        );
+  // Relances du parcours : demandes de l'équipe encore sans réponse.
+  const relances = pastVerification
+    ? []
+    : complementRequests
+        .filter((request) => request.origin === "TEAM" && request.status === "OPEN" && request.items.some((item) => item.status === "PENDING"))
+        .map((request) => {
+          const waiting = request.items.filter((item) => item.status === "PENDING");
+          return {
+            requestId: request.id,
+            target: request.target as "OWNER" | "TENANT",
+            email: request.recipientEmail,
+            createdAt: request.createdAt,
+            lastSentAt: request.lastSentAt,
+            sentCount: request.sentCount,
+            what: `${complementCountLabel(waiting.map((item) => ({ kind: item.type })))} réclamée${waiting.length > 1 ? "s" : ""}`,
+            labels: waiting.map((item) => item.label),
+          };
+        });
+
   const receivedCount = complementRequests.reduce((n, r) => n + r.items.filter((item) => item.status === "PROVIDED").length, 0);
   const waitingCount = complementRequests.reduce((n, r) => n + r.items.filter((item) => item.status === "PENDING").length, 0);
 
@@ -1175,8 +1510,11 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="text-base font-semibold">{pastVerification ? "Dossier transmis au notaire" : "À faire avant l'envoi"}</h2>
-              <span className="text-sm font-bold">
-                {overall.verified} / {overall.total}
+              <span className="flex items-center gap-3">
+                <span className="text-sm font-bold">
+                  {overall.verified} / {overall.total}
+                </span>
+                {!pastVerification && <StartReviewButton />}
               </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -1217,6 +1555,41 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
           <PiecesSection
             groups={pieceGroups}
             bailId={lease.id}
+            guided={
+              pastVerification
+                ? undefined
+                : {
+                    legalChecks,
+                    legalPending,
+                    answers,
+                    relances,
+                    remind:
+                      remind && reminderData ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[14.5px] font-semibold">{remind.title}</span>
+                          <RemindButton
+                            bailId={lease.id}
+                            label="Relancer"
+                            title={remind.title}
+                            focus="all"
+                            size="sm"
+                            icon={remind.icon === "tenant" ? <UserPlus className="size-4" /> : remind.icon === "rent" ? <Euro className="size-4" /> : <BellRing className="size-4" />}
+                            initialPanel={reminderData}
+                            rentCapLines={rentCapNotify}
+                            className="h-9"
+                          />
+                        </div>
+                      ) : undefined,
+                    sendButton: canSend ? (
+                      <SendToNotaryButton
+                        bailId={lease.id}
+                        assignedNotaireName={followUp.notaire?.name}
+                        disabledReason={sendDisabledReason}
+                        label={lease.status === BailStatus.READY_FOR_NOTARY ? "Assigner un notaire" : "Envoyer au notaire"}
+                      />
+                    ) : undefined,
+                  }
+            }
             diagnostics={
               property && diagnosticState ? (
                 <DiagnosticsPanel
@@ -1524,304 +1897,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                   </CheckPoint>
                 );
               })}
-                {!isCommercial && (
-                <>
-                <CheckPoint
-                  state={capMissing ? "missing" : isVerified(rulesPoints[0].key, bailLocked || capAuto) ? "ok" : "todo"}
-                  label={capAuto && !bailLocked ? <AutoLabel>Plafond de loyer</AutoLabel> : "Plafond de loyer"}
-                  foldable={capAuto && !capMissing}
-                  actionsBelow
-                  verify={capAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[0].key, verified: isVerified(rulesPoints[0].key, bailLocked), locked: bailLocked }}
-                  note={
-                    !rentCap
-                      ? null
-                      : rentRules?.supplement.forbidden
-                        ? `Complément de loyer interdit (logement classé F ou G) : loyer à ramener à ${formatCurrency(rentRules.supplement.base ?? 0)} au plus`
-                      : rentCap.status === "missing"
-                        ? `À saisir : ${rentCap.missing.join(", ")}`
-                        : rentCap.status === "over" && !rentCap.supplement
-                          ? rentCap.validity === "in"
-                            ? `Au-dessus du plafond de ${formatCurrency(rentCap.overBy ?? 0)} par mois : à corriger, ou complément de loyer à justifier`
-                            : `Au-dessus du plafond de cet arrêté de ${formatCurrency(rentCap.overBy ?? 0)} par mois : vérifiez l'arrêté applicable à la date du bail`
-                          : null
-                  }
-                  actions={
-                    !bailLocked && (!!rentCap?.territory || rentCap?.status === "over" || !!lease.rentSupplementReason || (!capMissing && capAuto)) ? (
-                    <>
-                      {property && rentCap?.territory && rentCap.status !== "no_data" && rentCap.notConcerned !== "exempt" && !bailLocked && (
-                        <RentCapEditor
-                          propertyId={property.id}
-                          periods={rentCap.territory.periods}
-                          zones={rentCap.territory.zones}
-                          zoneMode={rentCap.territory.zoneMode}
-                          detectedZone={rentCap.zone && rentCap.zone.source !== "manual" ? rentCap.zone.label : null}
-                          allowOutside={rentCap.territory.partialCommune}
-                          zoneHint={
-                    rentCap.zoneHint ? (rentCap.zoneHint.kind === "limit" ? rentCap.zoneHint.label : `${rentCap.zoneHint.label} ou hors du périmètre`) : null
-                  }
-                          values={{ mainRooms: property.mainRooms, constructionPeriod: property.constructionPeriod, rentCapZone: property.rentCapZone }}
-                        />
-                      )}
-                      {rentCap?.territory && !bailLocked && (
-                        <RentCapExemptionButton bailId={lease.id} exemption={lease.rentCapExemption} note={lease.rentCapExemptionNote} />
-                      )}
-                      {(rentCap?.status === "over" || lease.rentSupplementReason) && !bailLocked && (
-                        <RentSupplementButton bailId={lease.id} reason={lease.rentSupplementReason} />
-                      )}
-                      {!capMissing && capAuto && !bailLocked && <AutoVerified />}
-                    </>
-                    ) : null
-                  }
-                >
-                  <span className="flex flex-col gap-1">
-                    {!rentCap || !rentCap.territory ? (
-                      <>
-                        <span>
-                          {lease.rentAmount > 0
-                            ? `${formatCurrency(lease.rentAmount)} hors charges${surface ? ` pour ${formatSurface(surface)}, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m²` : ""}.`
-                            : "Loyer non renseigné."}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {rentCap?.referentialUnavailable
-                            ? "Référentiel des loyers indisponible : contrôle de l'encadrement impossible pour le moment. Le dossier ne peut pas partir chez le notaire tant que les barèmes ne sont pas importés et vérifiés."
-                            : rentCap?.notConcerned === "commercial"
-                            ? "Bail commercial : l'encadrement des loyers ne s'applique pas."
-                            : property?.inseeCode
-                              ? "Commune non soumise à l'encadrement des loyers : pas de plafond à respecter."
-                              : "Adresse non localisée : vérifiez si la commune est soumise à l'encadrement des loyers."}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span>
-                          {rentCap.territory.label}
-                          {rentCap.status !== "no_data" && rentCap.notConcerned !== "exempt" ? ` · ${describeRentCapZone(rentCap)}` : ""}
-                        </span>
-                        {rentCap.effectiveDateMissing && (
-                          <span className="font-semibold text-amber-800">
-                            Date de prise d&apos;effet non renseignée : plafond calculé avec l&apos;arrêté en vigueur aujourd&apos;hui, à titre
-                            indicatif. Il sera recalculé quand la date sera saisie.
-                          </span>
-                        )}
-                        {rentCap.notConcerned === "exempt" && (
-                          <span className="font-semibold text-amber-800">
-                            Logement exclu de l&apos;encadrement : {EXEMPTION_LABELS[rentCap.exemption?.code || ""] || rentCap.exemption?.code}
-                            {rentCap.exemption?.note ? ` (${rentCap.exemption.note})` : ""}
-                            {lease.rentCapExemptionAt ? `, indiqué le ${formatDate(lease.rentCapExemptionAt)}` : ""}
-                            {lease.rentCapExemptionByName ? ` par ${lease.rentCapExemptionByName}` : ""}. Pas de plafond à respecter.
-                          </span>
-                        )}
-                        {rentCap.notConcerned === "outside_perimeter" && (
-                          <span className="text-muted-foreground">
-                            Commune encadrée en partie seulement : ce logement n&apos;a pas de plafond à respecter.
-                          </span>
-                        )}
-                        {rentCap.status === "no_data" && (
-                          <>
-                            <span>
-                              {lease.rentAmount > 0 && surface
-                                ? `Loyer : ${formatCurrency(lease.rentAmount)} hors charges, soit ${(lease.rentAmount / surface).toFixed(2).replace(".", ",")} €/m².`
-                                : "Loyer ou surface non renseigné."}
-                            </span>
-                            <span className="font-semibold text-amber-800">
-                              Barème officiel pas encore intégré : comparez avec le simulateur officiel, puis validez.
-                            </span>
-                          </>
-                        )}
-                        {(rentCap.status === "missing" || rentCap.status === "ok" || rentCap.status === "over") && (
-                          <span className="text-muted-foreground">
-                            {[
-                              property?.mainRooms ? ROOMS_LABELS[Math.min(4, property.mainRooms)] : "pièces ?",
-                              property?.constructionPeriod ? (PERIOD_LABELS[property.constructionPeriod] || property.constructionPeriod).toLowerCase() : "époque ?",
-                              rentCap.furnished ? "meublé" : "non meublé",
-                              rentCap.territory.houseTypes ? (property?.type === "MAISON" ? "maison" : property?.type === "APPARTEMENT" ? "appartement" : "type ?") : null,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
-                        )}
-                        {rentCap.reference && rentCap.maxRent != null && (
-                          <>
-                            <span>
-                              Loyer : {formatCurrency(rentCap.rent)} hors charges, soit {(rentCap.rentPerM2 ?? 0).toFixed(2).replace(".", ",")} €/m²
-                            </span>
-                            <span>
-                              Plafond (loyer de référence majoré) : {rentCap.reference.max.toFixed(2).replace(".", ",")} €/m², soit{" "}
-                              <strong className="font-semibold">{formatCurrency(rentCap.maxRent)}</strong> au maximum
-                            </span>
-                            {rentCap.status === "ok" && (
-                              <span className="font-semibold text-green-700">
-                                Conforme : {formatCurrency(Math.abs(rentCap.overBy ?? 0))} sous le plafond
-                              </span>
-                            )}
-                          </>
-                        )}
-                        {lease.rentSupplementReason && rentCap.status === "over" && (
-                          <span className="font-semibold text-amber-800">
-                            Complément de loyer justifié
-                            {lease.rentSupplementAt ? ` le ${formatDate(lease.rentSupplementAt)}` : ""}
-                            {lease.rentSupplementByName ? ` par ${lease.rentSupplementByName}` : ""} : {lease.rentSupplementReason}
-                            {rentRules?.supplement.amount != null && rentRules.supplement.base != null
-                              ? ` (loyer de base ${formatCurrency(rentRules.supplement.base)} + complément ${formatCurrency(rentRules.supplement.amount)})`
-                              : ""}
-                          </span>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          Arrêté en vigueur du {formatDate(rentCap.territory.validFrom)} au {formatDate(rentCap.territory.validTo)} · barème
-                          intégré le {formatDate(rentCap.territory.importedAt)} ·{" "}
-                          <a href={rentCap.territory.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
-                            {rentCap.territory.mapUrl === rentCap.territory.sourceUrl ? "texte officiel et cartes des zones" : "texte officiel"}
-                          </a>
-                          {rentCap.territory.simulatorUrl && (
-                            <>
-                              {" · "}
-                              <a href={rentCap.territory.simulatorUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
-                                simulateur officiel
-                              </a>
-                            </>
-                          )}
-                          {rentCap.territory.mapUrl && rentCap.territory.mapUrl !== rentCap.territory.sourceUrl && (
-                            <>
-                              {" · "}
-                              <a href={rentCap.territory.mapUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
-                                cartes des zones
-                              </a>
-                            </>
-                          )}
-                        </span>
-                        {rentCap.notConcerned !== "exempt" && rentCap.notConcerned !== "outside_perimeter" && rentCap.validity === "after" && (
-                          <span className="text-[13px] font-semibold text-amber-800">
-                            Le bail prend effet le {formatDate(lease.effectiveDate)}, après la fin de cet arrêté : vérifiez s&apos;il est
-                            prolongé ou remplacé, puis validez à la main.
-                          </span>
-                        )}
-                        {rentCap.notConcerned !== "exempt" && rentCap.notConcerned !== "outside_perimeter" && rentCap.validity === "before" && (
-                          <span className="text-[13px] font-semibold text-amber-800">
-                            Le bail prend effet le {formatDate(lease.effectiveDate)}, avant cet arrêté : c&apos;est l&apos;arrêté précédent qui
-                            s&apos;applique. Vérifiez avec le simulateur officiel, puis validez à la main.
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </span>
-                </CheckPoint>
-                <CheckPoint
-                  state={relocMissing ? "missing" : isVerified(rulesPoints[1].key, bailLocked || relocAuto) ? "ok" : "todo"}
-                  label={relocAuto && !bailLocked ? <AutoLabel>Évolution du loyer (zone tendue)</AutoLabel> : "Évolution du loyer (zone tendue)"}
-                  foldable={relocAuto && !relocMissing}
-                  actionsBelow
-                  verify={relocAuto ? undefined : { bailId: lease.id, pointKey: rulesPoints[1].key, verified: isVerified(rulesPoints[1].key, bailLocked), locked: bailLocked }}
-                  note={
-                    !relocation
-                      ? null
-                      : relocation.status === "over"
-                        ? `Au-dessus du maximum à la relocation de ${formatCurrency(relocation.overBy ?? 0)} par mois : loyer à corriger`
-                        : relocation.status === "missing" && !relocation.undeclared
-                          ? `À compléter : ${relocation.missing.join(", ")}`
-                          : missingProofs.length
-                            ? `Justificatif${missingProofs.length > 1 ? "s" : ""} à demander : ${missingProofs.map((kind) => PROOF_LABELS[kind]?.label.toLowerCase()).join(", ")}`
-                            : null
-                  }
-                  actions={
-                    !bailLocked && ((!!relocation && relocation.notConcerned === null) || (!relocMissing && relocAuto)) ? (
-                      <>
-                        {relocation && relocation.notConcerned === null && relocMissing && owner && (
-                          <AskFieldsButton bailId={lease.id} target="OWNER" scope="bail" targetId={lease.id} fields={["relocationLetBefore"]} />
-                        )}
-                        {relocation && relocation.notConcerned === null && (
-                          <RentRulesEditor bailId={lease.id} values={rentRulesToForm(lease)} missing={relocation.undeclared} />
-                        )}
-                        {!relocMissing && relocAuto && <AutoVerified />}
-                      </>
-                    ) : null
-                  }
-                >
-                  <span className="flex flex-col gap-1">
-                    {!relocation ? (
-                      <span className="text-muted-foreground">Bien non renseigné.</span>
-                    ) : relocation.notConcerned ? (
-                      <span className="text-muted-foreground">
-                        {relocation.notConcerned === "commercial"
-                          ? "Bail commercial : non concerné."
-                          : relocation.notConcerned === "no_address"
-                            ? "Adresse non localisée : vérifiez si la commune est en zone tendue."
-                            : "Commune hors zone tendue : le loyer est libre à la relocation."}
-                      </span>
-                    ) : (
-                      <>
-                        <span className="text-muted-foreground">
-                          Commune en zone tendue : à la relocation, le loyer ne peut pas dépasser celui du locataire précédent, sauf exceptions
-                          (décret n° 2017-1198).
-                        </span>
-                        {relocation.undeclared && (
-                          <span className="font-semibold text-amber-800">
-                            Questions non renseignées (dossier créé avant ces questions) : complétez-les avec le propriétaire.
-                          </span>
-                        )}
-                        {relocation.situation === "first" && <span>Première mise en location, déclarée par le propriétaire.</span>}
-                        {(relocation.situation === "relet" || relocation.situation === "vacant") && lease.previousTenantLeftAt && (
-                          <span>
-                            Départ du locataire précédent le {formatDate(lease.previousTenantLeftAt)}
-                            {relocation.situation === "vacant" ? ` : logement vide depuis ${VACANCY_MONTHS} mois ou plus.` : "."}
-                          </span>
-                        )}
-                        {relocationSummaryLines(relocation).map((line) => (
-                          <span key={line}>{line}</span>
-                        ))}
-                        {relocation.status === "ok" && (
-                          <span className="font-semibold text-green-700">
-                            Conforme : {formatCurrency(Math.abs(relocation.overBy ?? 0))} sous le maximum
-                          </span>
-                        )}
-                        {relocation.proofs.length > 0 && (
-                          <span className="text-[13px]">
-                            Justificatifs :{" "}
-                            {relocation.proofs
-                              .map((kind) => `${PROOF_LABELS[kind]?.label.toLowerCase()} (${bailDocKinds.has(kind) ? "reçu" : "à demander"})`)
-                              .join(", ")}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </span>
-                </CheckPoint>
-                </>
-                )}
-                {commercialRules.map((rule) => {
-                  const key = commercialKeys[rule.id];
-                  const locked = bailLocked || rule.auto;
-                  const verified = !rule.missing && isVerified(key, locked);
-                  return (
-                    <CheckPoint
-                      key={rule.id}
-                      state={rule.missing ? "missing" : verified ? "ok" : "todo"}
-                      label={rule.auto && !bailLocked ? <AutoLabel>{rule.label}</AutoLabel> : rule.label}
-                      foldable={rule.auto && !rule.missing}
-                      // Boutons sous le contenu : le tableau garde toute la largeur.
-                      actionsBelow
-                      note={rule.note}
-                      verify={rule.auto ? undefined : { bailId: lease.id, pointKey: key, verified, locked: bailLocked }}
-                      actions={
-                        !bailLocked && (rule.editsTerms || (!rule.missing && rule.auto)) ? (
-                          <>
-                            {rule.editsTerms && <EditTermsLink row={TERMS_ROW_FOR_RULE[rule.id] ?? "activity"} />}
-                            {!rule.missing && rule.auto && <AutoVerified />}
-                          </>
-                        ) : null
-                      }
-                    >
-                      <span className="flex flex-col gap-1.5">
-                        {rule.view && <RuleViewBlock view={rule.view} />}
-                        {rule.warnings.map((line) => (
-                          <span key={line} className="text-[13px] leading-snug text-amber-800">
-                            {line}
-                          </span>
-                        ))}
-                        {rule.legal && <span className="text-xs text-muted-foreground">{rule.legal}</span>}
-                      </span>
-                    </CheckPoint>
-                  );
-                })}
+              {legalChecks}
             </CheckList>
           </CheckSection>
 

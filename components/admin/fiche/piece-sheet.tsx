@@ -59,9 +59,20 @@ export function PieceSheet({
   onPrev,
   onNext,
   extra,
+  guided,
 }: {
   /** Contenu propre à la pièce (lecture des diagnostics, décisions par diagnostic). */
   extra?: React.ReactNode;
+  /**
+   * Parcours « Commencer la vérification » : « À redemander » met la pièce de côté (demande envoyée à la
+   * fin, depuis le récapitulatif) au lieu d'ouvrir la fenêtre « Demander » tout de suite.
+   */
+  guided?: {
+    stepLabel: string;
+    inBasket: { reason: ComplementReasonValue; note: string } | null;
+    addToBasket: (reason: ComplementReasonValue, note: string) => void;
+    removeFromBasket: () => void;
+  };
   info: PieceInfo;
   index: number;
   total: number;
@@ -241,7 +252,9 @@ export function PieceSheet({
                 <span className="rounded-md bg-slate-900 px-2 py-0.5 text-[11.5px] font-bold tabular-nums text-white">
                   {index + 1} / {total}
                 </span>
-                <span className="text-[12px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">Pièce du dossier</span>
+                <span className="text-[12px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
+                  {guided ? guided.stepLabel : "Pièce du dossier"}
+                </span>
               </div>
               <SheetTitle className="text-[24px] font-bold leading-tight tracking-tight">{info.label}</SheetTitle>
               {info.owner && (
@@ -316,6 +329,18 @@ export function PieceSheet({
               </div>
             )}
 
+            {guided?.inBasket && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13.5px] text-red-950">
+                <span>
+                  <span className="font-semibold">✗ Mise de côté pour la demande</span> · {REASON_LABELS[guided.inBasket.reason].toLowerCase()}
+                  {guided.inBasket.note ? ` · « ${guided.inBasket.note} »` : ""}
+                </span>
+                <button type="button" className="text-[13px] font-semibold text-red-800 hover:underline" onClick={guided.removeFromBasket}>
+                  Retirer
+                </button>
+              </div>
+            )}
+
             {/* La réponse */}
             {!locked && point && state !== "received" && (
               <div className="flex flex-col gap-2">
@@ -382,14 +407,30 @@ export function PieceSheet({
                   className="h-10 rounded-lg border border-red-200 bg-white px-3 text-[14px] outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                 />
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" className="h-10 flex-1" onClick={() => setComposing(true)}>
-                    Préparer la demande
-                  </Button>
+                  {guided ? (
+                    <Button
+                      type="button"
+                      className="h-10 flex-1"
+                      onClick={() => {
+                        guided.addToBasket(reason, note.trim());
+                        setRedo(false);
+                        onNext?.();
+                      }}
+                    >
+                      Mettre de côté et continuer
+                    </Button>
+                  ) : (
+                    <Button type="button" className="h-10 flex-1" onClick={() => setComposing(true)}>
+                      Préparer la demande
+                    </Button>
+                  )}
                   <Button type="button" variant="ghost" className="h-10" onClick={() => setRedo(false)}>
                     Annuler
                   </Button>
                 </div>
-                <p className="text-[12.5px] text-muted-foreground">Vous relisez l&apos;e-mail avant l&apos;envoi.</p>
+                <p className="text-[12.5px] text-muted-foreground">
+                  {guided ? "La demande part à la fin de la vérification, avec les autres." : "Vous relisez l'e-mail avant l'envoi."}
+                </p>
               </div>
             )}
             {/* Pièce manquante : la demander au client (fenêtre « Demander », motif « manquante »), ou l'ajouter soi-même */}
@@ -401,12 +442,21 @@ export function PieceSheet({
                     type="button"
                     className="h-11 text-[15px]"
                     onClick={() => {
+                      if (guided) {
+                        guided.addToBasket("MISSING", "");
+                        onNext?.();
+                        return;
+                      }
                       setReason("MISSING");
                       setNote("");
                       setComposing(true);
                     }}
                   >
-                    Demander {complement.target === "OWNER" ? "au propriétaire" : "au locataire"}
+                    {guided
+                      ? guided.inBasket
+                        ? "Déjà mise de côté"
+                        : `À demander ${complement.target === "OWNER" ? "au propriétaire" : "au locataire"} · à la fin`
+                      : `Demander ${complement.target === "OWNER" ? "au propriétaire" : "au locataire"}`}
                   </Button>
                 ) : null}
                 <p className="text-[12.5px] text-muted-foreground">

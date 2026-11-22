@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { FolderOpen, Plus } from "lucide-react";
+import { FolderOpen, Play, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentUploadButton } from "@/components/documents/document-upload-button";
 import type { ChecklistRow } from "@/lib/utils/document-checklist";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useFiche } from "./fiche-context";
 import { PieceCard, pieceInfos, type PieceInfo, type PieceState } from "./piece-cards";
 import { PieceSheet } from "./piece-sheet";
+import { GuidedReview, START_REVIEW_EVENT, type AnswerInfo, type BasketEntry, type RelanceInfo } from "./guided-review";
 
 export interface PieceGroup {
   id: string;
@@ -37,15 +38,28 @@ export function PiecesSection({
   groups,
   bailId,
   diagnostics,
+  guided,
 }: {
   groups: PieceGroup[];
   bailId: string;
+  /** « Commencer la vérification » : contrôles légaux, relances et transmission repris dans le parcours. */
+  guided?: {
+    legalChecks?: React.ReactNode;
+    legalPending: number;
+    answers: AnswerInfo[];
+    relances: RelanceInfo[];
+    remind?: React.ReactNode;
+    sendButton?: React.ReactNode;
+  };
   /** Lecture des diagnostics (décisions par diagnostic, envoi au propriétaire) : dans le panneau de la pièce. */
   diagnostics?: React.ReactNode;
 }) {
   const fiche = useFiche();
   const [openKey, setOpenKey] = React.useState<string | null>(null);
   const [optionalFor, setOptionalFor] = React.useState<string | null>(null);
+  // Parcours guidé : pièces figées au départ ; ce qui est mis de côté part en une demande à la fin.
+  const [review, setReview] = React.useState<string[] | null>(null);
+  const [basket, setBasket] = React.useState<BasketEntry[]>([]);
 
   const perGroup = groups.map((group) => {
     const infos = pieceInfos(group.rows, group.verification, group.complement, fiche?.claims, group.name ? `${group.title} · ${group.name}` : group.title);
@@ -63,6 +77,27 @@ export function PiecesSection({
   ]
     .filter(Boolean)
     .join(" · ");
+  // Ordre du parcours : réponses reçues, puis pièces à vérifier, puis pièces manquantes.
+  const reviewOrder: PieceState[] = ["received", "todo", "missing"];
+  const startReview = React.useCallback(() => {
+    if (!guided) return;
+    setOpenKey(null);
+    setReview(
+      reviewOrder.flatMap((state) =>
+        items.filter((item) => item.info.state === state && !(state === "missing" && !item.group.complement)).map((item) => item.info.row.key),
+      ),
+    );
+  }, [guided, items]); // eslint-disable-line react-hooks/exhaustive-deps
+  const startRef = React.useRef(startReview);
+  startRef.current = startReview;
+  React.useEffect(() => {
+    const onStart = () => {
+      startRef.current();
+      document.getElementById("bloc-pieces")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    window.addEventListener(START_REVIEW_EVENT, onStart);
+    return () => window.removeEventListener(START_REVIEW_EVENT, onStart);
+  }, []);
   const openIndex = items.findIndex((item) => item.info.row.key === openKey);
   const open = openIndex >= 0 ? items[openIndex] : null;
 
@@ -83,6 +118,12 @@ export function PiecesSection({
             </p>
           </div>
         </div>
+        {guided && (
+          <Button type="button" className="h-10 gap-1.5" onClick={startReview}>
+            <Play className="size-4" />
+            Commencer la vérification
+          </Button>
+        )}
       </header>
 
       <div className="flex flex-col divide-y">
@@ -139,7 +180,25 @@ export function PiecesSection({
         )}
       </div>
 
-      {open && (
+      {review && guided && (
+        <GuidedReview
+          items={items}
+          pieceKeys={review}
+          basket={basket}
+          setBasket={setBasket}
+          legalChecks={guided.legalChecks}
+          legalPending={guided.legalPending}
+          answers={guided.answers}
+          relances={guided.relances}
+          remind={guided.remind}
+          sendButton={guided.sendButton}
+          diagnostics={diagnostics}
+          bailId={bailId}
+          onExit={() => setReview(null)}
+        />
+      )}
+
+      {open && !review && (
         <PieceSheet
           info={open.info}
           index={openIndex}
