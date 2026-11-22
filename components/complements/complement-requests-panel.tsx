@@ -18,6 +18,7 @@ import {
 } from "@/lib/actions/complement-requests";
 import { COMPLEMENT_NOTE_MAX, FIELD_REDO_REASONS, REASON_LABELS, REDO_REASONS, type ComplementReasonValue } from "@/lib/utils/complement";
 import { cn } from "@/lib/utils";
+import { ComplementRemindDialog } from "@/components/complements/complement-remind-dialog";
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: "Europe/Paris" });
 
@@ -100,6 +101,7 @@ function RequestCard({
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const [reminding, setReminding] = React.useState(false);
   const toReview = request.items.filter((item) => item.status === "PROVIDED").length;
   const waiting = request.items.filter((item) => item.status === "PENDING").length;
   const who = request.target === "OWNER" ? "propriétaire" : "locataire";
@@ -124,6 +126,7 @@ function RequestCard({
     : `Envoyée le ${fmtDay(request.createdAt)}${request.sentCount > 1 ? `, relancée ${request.sentCount - 1} fois (dernière le ${fmtDay(request.lastSentAt)})` : ""}`;
 
   return (
+    <>
     <CheckSection
       id={`demande-${request.id}`}
       title={`${what}${request.origin === "NOTAIRE" ? " par le notaire" : ""} au ${who}`}
@@ -193,7 +196,7 @@ function RequestCard({
               variant="outline"
               className="h-10 gap-1.5"
               disabled={!!busy}
-              onClick={() => run("remind", () => remindComplementRequest({ requestId: request.id }), `Rappel envoyé à ${request.recipientEmail}`)}
+              onClick={() => setReminding(true)}
             >
               {busy === "remind" ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
               Relancer
@@ -208,6 +211,8 @@ function RequestCard({
         ))}
       </ul>
     </CheckSection>
+    {reminding && <ComplementRemindDialog requestId={request.id} open onOpenChange={setReminding} />}
+    </>
   );
 }
 

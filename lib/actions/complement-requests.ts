@@ -786,6 +786,58 @@ async function traceNotaireReminder(
   revalidatePath("/notaire");
 }
 
+export interface ComplementReminderPreviewData {
+  requestId: string;
+  target: "OWNER" | "TENANT";
+  greetingName: string;
+  recipientName: string;
+  recipientEmail: string;
+  address: string;
+  createdAt: string;
+  lastSentAt: string;
+  sentCount: number;
+  /** Ce qui est encore attendu (ce que liste l'e-mail de rappel). */
+  items: Array<{ label: string; reason: ComplementReasonValue; note: string | null; kind: ComplementItemKindValue }>;
+}
+
+/** Ce qu'il faut pour l'aperçu de l'e-mail de rappel d'une demande (mêmes données que l'envoi). */
+export async function getComplementReminderPreview(requestId: string): Promise<{ success: true; data: ComplementReminderPreviewData } | Fail> {
+  const parsed = z.string().min(1).safeParse(requestId);
+  if (!parsed.success) return { success: false, error: "Données invalides" };
+  const request = await prisma.complementRequest.findUnique({
+    where: { id: parsed.data },
+    include: {
+      items: { where: { status: ComplementItemStatus.PENDING }, orderBy: { position: "asc" } },
+      client: { include: { persons: { orderBy: { isPrimary: "desc" }, take: 1 }, entreprise: true } },
+      bail: { select: { property: { select: { fullAddress: true, label: true } } } },
+    },
+  });
+  if (!request) return { success: false, error: "Demande introuvable" };
+  if (!(await allowed(() => requireRequestAccess(request)))) return { success: false, error: "Accès refusé" };
+  if (request.status !== ComplementRequestStatus.OPEN) return { success: false, error: "Cette demande n'attend plus le client" };
+  if (request.items.length === 0) return { success: false, error: "Plus rien n'est attendu" };
+  return {
+    success: true,
+    data: {
+      requestId: request.id,
+      target: request.target as "OWNER" | "TENANT",
+      greetingName: getClientGreetingName(request.client) || "",
+      recipientName: getClientDisplayName(request.client) || "",
+      recipientEmail: request.recipientEmail,
+      address: request.bail.property?.fullAddress || request.bail.property?.label || "votre logement",
+      createdAt: request.createdAt.toISOString(),
+      lastSentAt: request.lastSentAt.toISOString(),
+      sentCount: request.sentCount,
+      items: request.items.map((item) => ({
+        label: item.label,
+        reason: item.reason as ComplementReasonValue,
+        note: item.note,
+        kind: item.kind as ComplementItemKindValue,
+      })),
+    },
+  };
+}
+
 /** Le notaire relance le propriétaire ou le locataire : toutes ses demandes encore sans réponse, en un rappel. */
 export async function remindNotaireTarget(data: unknown): Promise<{ success: true; data: { emails: string[] } } | Fail> {
   const parsed = z
@@ -1190,6 +1242,8 @@ export interface StaffComplementRequest {
   origin: ComplementOrigin;
   status: ComplementRequestStatus;
   recipientName: string;
+  /** Nom après « Bonjour », comme dans l'e-mail. */
+  greetingName: string;
   recipientEmail: string;
   message: string | null;
   sentCount: number;
@@ -1266,6 +1320,7 @@ async function loadStaffRequests(where: Prisma.ComplementRequestWhereInput): Pro
     origin: request.origin,
     status: request.status,
     recipientName: getClientDisplayName(request.client) || "",
+    greetingName: getClientGreetingName(request.client) || "",
     recipientEmail: request.recipientEmail,
     message: request.message,
     sentCount: request.sentCount,

@@ -259,8 +259,11 @@ export async function sendNotaireFormReminder(
       bailId: z.string().min(1),
       target: z.enum(["OWNER", "TENANT"]),
       reason: z.enum(NOTAIRE_FORM_REASONS),
-      /** Un mot du notaire pour le client (facultatif). */
-      note: z.string().trim().max(1000).optional(),
+      /**
+       * Encadré du notaire, modifié dans l'aperçu (sa phrase « Maître …, le notaire qui rédigera votre bail… » et ce
+       * qu'il y ajoute). Absent : sa phrase habituelle ; vide : pas d'encadré.
+       */
+      note: z.string().trim().max(1500).optional(),
       /** Texte de l'e-mail modifié dans l'aperçu (sinon le texte prévu). */
       body: z.string().trim().max(RELANCE_BODY_MAX).optional(),
     })
@@ -274,7 +277,7 @@ export async function sendNotaireFormReminder(
   const result = await deliverReminders(user, {
     bailId,
     sends: [{ target, reason, body }],
-    note: [notaireReminderLine(user), note].filter(Boolean).join("\n\n"),
+    note: note === undefined ? notaireReminderLine(user) : note,
   });
   if (!result.success) return result;
   if (result.data.sent.length === 0) return { success: false, error: result.data.failed[0]?.error || "Le rappel n'a pas pu être envoyé" };

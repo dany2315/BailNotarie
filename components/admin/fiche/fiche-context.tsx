@@ -2,10 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RotateCcw } from "lucide-react";
-import { toast } from "sonner";
+import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { remindComplementRequest } from "@/lib/actions/complement-requests";
+import { ComplementRemindDialog } from "@/components/complements/complement-remind-dialog";
 import { REASON_LABELS, type ComplementReasonValue } from "@/lib/utils/complement";
 import type { StaffComplementItem } from "@/lib/actions/complement-requests";
 import { cn } from "@/lib/utils";
@@ -88,32 +87,17 @@ export function RuleTag({ tone, children }: { tone: "ok" | "warn" | "bad" | "neu
   );
 }
 
-/** « Relancer » d'une demande de pièces en attente (même e-mail de rappel que dans la carte de la demande). */
-export function RemindRequestButton({ requestId, email, className }: { requestId: string; email: string; className?: string }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+/** « Relancer » d'une demande de pièces en attente : l'aperçu de l'e-mail de rappel, modifiable, avant l'envoi. */
+export function RemindRequestButton({ requestId, className }: { requestId: string; email?: string; className?: string }) {
+  const [open, setOpen] = React.useState(false);
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className={cn("h-9 gap-1.5", className)}
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        const result = await remindComplementRequest({ requestId });
-        setBusy(false);
-        if (!result.success) {
-          toast.error(result.error);
-          return;
-        }
-        toast.success(`Relance envoyée à ${email}`);
-        router.refresh();
-      }}
-    >
-      {busy ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
-      Relancer
-    </Button>
+    <>
+      <Button type="button" variant="outline" size="sm" className={cn("h-9 gap-1.5", className)} onClick={() => setOpen(true)}>
+        <RotateCcw className="size-3.5" />
+        Relancer
+      </Button>
+      {open && <ComplementRemindDialog requestId={requestId} open onOpenChange={setOpen} />}
+    </>
   );
 }
 

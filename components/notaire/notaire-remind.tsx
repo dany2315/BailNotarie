@@ -13,6 +13,7 @@ import type { NotaireFormWait } from "@/lib/notaire/form-reminders";
 import { RELANCE_BODY_MAX, relanceEmailContent } from "@/lib/utils/relance-content";
 import { COMPLEMENT_MESSAGE_MAX, complementEmailContent } from "@/lib/utils/complement";
 import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/components/emails/email-preview-frame";
+import { ComplementReminderPreview } from "@/components/complements/complement-remind-dialog";
 
 type Target = "OWNER" | "TENANT";
 
@@ -137,7 +138,8 @@ const FORM_TEXT: Record<NotaireFormWait["reason"], string> = {
 export function NotaireFormRemindDialog({ wait, open, onOpenChange }: { wait: NotaireFormWait; open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
-  const [note, setNote] = React.useState("");
+  // Encadré du notaire : sa phrase, modifiable et complétable.
+  const [note, setNote] = React.useState(wait.notaryLine);
   const [body, setBody] = React.useState<string | null>(null);
   // Même contenu que l'e-mail envoyé (modèle de l'équipe), avec la phrase du notaire.
   const content = relanceEmailContent({ reason: wait.reason, name: wait.greetingName, address: wait.address, actionUrl: "" });
@@ -148,7 +150,7 @@ export function NotaireFormRemindDialog({ wait, open, onOpenChange }: { wait: No
         bailId: wait.bailId,
         target: wait.target,
         reason: wait.reason,
-        note: note.trim() || undefined,
+        note: note.trim(),
         body: body?.trim() || undefined,
       });
       if (!result.success) {
@@ -188,15 +190,14 @@ export function NotaireFormRemindDialog({ wait, open, onOpenChange }: { wait: No
               <EditableEmailText label="Texte de l'e-mail" value={body ?? content.paragraphs.join("\n\n")} onChange={setBody} maxLength={RELANCE_BODY_MAX} />
             </div>
             {content.outro && <p className="mt-3 text-[14.5px] leading-[1.55] text-slate-600">{content.outro}</p>}
-            <p className="mt-4 whitespace-pre-line rounded-lg bg-slate-100 px-4 py-3 text-[15px] leading-[1.45] text-slate-800">{wait.notaryLine}</p>
-            <div className="mt-3">
+            <div className="mt-4">
               <EditableEmailText
                 boxed
-                label="Un mot de votre part (facultatif)"
-                placeholder="Ajouter un mot pour le client (facultatif)"
+                label="Votre mot au client"
+                placeholder="Un mot pour le client (facultatif)"
                 value={note}
                 onChange={setNote}
-                maxLength={800}
+                maxLength={1500}
               />
             </div>
             <EmailPreviewButton>{content.button}</EmailPreviewButton>
@@ -278,14 +279,6 @@ export function NotaireRemindDialog({
         <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1">
           {requests.map((request, index) => {
             const items = request.items.filter((i) => i.status === "PENDING");
-            // Même contenu que l'e-mail de rappel envoyé : seulement ce qui est encore attendu.
-            const content = complementEmailContent({
-              name: request.recipientName,
-              address,
-              message: null,
-              reminder: true,
-              items: items.map((item) => ({ label: item.label, reason: item.reason, note: item.note, kind: item.type })),
-            });
             return (
               <section key={request.id} className="flex flex-col gap-2">
                 <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground">
@@ -298,28 +291,16 @@ export function NotaireRemindDialog({
                     Tout est envoyé, il reste à valider l&apos;envoi : pas d&apos;e-mail pour cette demande.
                   </p>
                 ) : (
-                  <EmailPreviewFrame to={request.recipientEmail} toName={request.recipientName} toRole={target === "OWNER" ? "Propriétaire" : "Locataire"} subject={content.subject}>
-                    <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
-                    <p className="mt-0.5 text-[12.5px] text-slate-500">{content.context}</p>
-                    <div className="mt-4">
-                      <EditableEmailText
-                        label="Message de l'e-mail"
-                        value={messages[request.id] ?? content.message}
-                        onChange={(value) => setMessages((current) => ({ ...current, [request.id]: value }))}
-                        maxLength={COMPLEMENT_MESSAGE_MAX}
-                      />
-                    </div>
-                    <ul className="mt-4 flex flex-col gap-2">
-                      {content.items.map((item, i) => (
-                        <li key={`${item.label}-${i}`} className="rounded-[10px] border border-slate-200 px-3.5 py-3">
-                          <p className="text-[14px] font-bold leading-snug text-slate-900">{item.label}</p>
-                          <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600">{item.detail}</p>
-                        </li>
-                      ))}
-                    </ul>
-                    <EmailPreviewButton>{content.button}</EmailPreviewButton>
-                    <p className="mt-4 text-center text-[12.5px] text-slate-500">{content.outro}</p>
-                  </EmailPreviewFrame>
+                  <ComplementReminderPreview
+                    greetingName={request.greetingName}
+                    recipientName={request.recipientName}
+                    email={request.recipientEmail}
+                    role={target === "OWNER" ? "Propriétaire" : "Locataire"}
+                    address={address}
+                    items={items.map((item) => ({ label: item.label, reason: item.reason, note: item.note, kind: item.type }))}
+                    message={messages[request.id] ?? null}
+                    onMessageChange={(value) => setMessages((current) => ({ ...current, [request.id]: value }))}
+                  />
                 )}
               </section>
             );
