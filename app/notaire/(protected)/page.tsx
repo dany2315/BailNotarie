@@ -17,6 +17,7 @@ export default async function NotaireDashboardPage() {
   const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Paris" });
 
   const stages = [
+    { label: "En préparation", value: data.counts.preparation, hint: "L'équipe complète le dossier", className: "bg-slate-100 text-slate-800" },
     { label: "À contacter", value: data.counts.aContacter, hint: "Dossiers confiés", className: "bg-orange-100 text-orange-800" },
     { label: "Clients contactés", value: data.counts.contactes, hint: "Provision attendue", className: "bg-blue-100 text-blue-800" },
     { label: "Provision reçue", value: data.counts.provision, hint: "Vers la signature", className: "bg-indigo-100 text-indigo-800" },
@@ -33,7 +34,7 @@ export default async function NotaireDashboardPage() {
 
       <section
         aria-label="Dossiers par étape"
-        className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden"
+        className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 lg:grid-cols-5 sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden"
       >
         {stages.map((stage) => (
           <div key={stage.label} className="flex w-36 shrink-0 snap-start flex-col gap-1.5 rounded-xl border bg-card p-3.5 sm:w-auto">

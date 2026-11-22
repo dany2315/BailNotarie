@@ -40,6 +40,7 @@ import type {
 } from "@/lib/notaire/dossier-view";
 import type { NotaireReminderSummary, StaffComplementRequest } from "@/lib/actions/complement-requests";
 import { NotaireRemindButton } from "@/components/notaire/notaire-remind";
+import type { NotaireFormWait } from "@/lib/notaire/form-reminders";
 import { cn } from "@/lib/utils";
 import { PiecesSection } from "@/components/admin/fiche/pieces-section";
 import { NotaireStatusActions } from "@/components/notaire/notaire-status-actions";
@@ -86,12 +87,15 @@ export function NotaireDossierPanel({
   view,
   requests,
   reminders,
+  formWaits = [],
   archived = [],
 }: {
   view: NotaireDossierView;
   requests: StaffComplementRequest[];
   /** Relances faites par ce notaire (jamais celles de l'équipe). */
   reminders: Record<Target, NotaireReminderSummary>;
+  /** Ce que le dossier attend encore des clients avant d'être prêt (formulaire, locataire à indiquer). */
+  formWaits?: NotaireFormWait[];
   /** Anciennes pièces que ce notaire a retirées en acceptant une nouvelle : il peut toujours les rouvrir. */
   archived?: ArchivedDocumentRow[];
 }) {
@@ -201,11 +205,8 @@ export function NotaireDossierPanel({
               bailId={view.bailId}
               requests={requests}
               reminders={reminders}
+              formWaits={formWaits}
               targets={(["OWNER", "TENANT"] as const).filter((target) => view.parties.some((p) => p.role === target))}
-              onAsk={(target) => {
-                if (askable(target)) setAsk(target);
-                else toast.info("Son formulaire n'est pas encore envoyé : il demande déjà tout ce qui est obligatoire.");
-              }}
             />
           )}
         </div>
@@ -279,7 +280,9 @@ export function NotaireDossierPanel({
               <ComplementRequestsPanel
                 requests={requests}
                 canArchive
+                teamReadOnly
                 sentLabel={(request) => {
+                  if (request.origin === "TEAM") return `Envoyée par l'équipe le ${dayFr(request.createdAt)}`;
                   const mine = reminders[request.target as Target];
                   return `Envoyée le ${dayFr(request.createdAt)}${mine.count > 0 && mine.lastAt ? `, vous l'avez relancé ${mine.count} fois (dernière le ${dayFr(mine.lastAt)})` : ""}`;
                 }}

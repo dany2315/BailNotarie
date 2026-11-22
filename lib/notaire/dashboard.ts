@@ -5,6 +5,7 @@ import { ComplementOrigin, ComplementRequestStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notaireDossiers } from "@/lib/notaire/dossier-list";
 import { notaireReviewForBail } from "@/lib/notaire/review";
+import { notaireFormWaits, type NotaireFormWait } from "@/lib/notaire/form-reminders";
 
 /** Délai avant de proposer une relance : 2 jours sans réponse depuis la demande ou la dernière relance du notaire. */
 export const NOTAIRE_REMIND_AFTER_H = 48;
@@ -28,6 +29,8 @@ export interface NotaireTask {
   since: string;
   /** Relance directe depuis le tableau de bord. */
   remindTarget?: "OWNER" | "TENANT";
+  /** Relance d'un formulaire (ou du locataire à indiquer) plutôt que d'une demande de pièces. */
+  form?: NotaireFormWait;
   /** Libellé du bouton. */
   action: string;
   /** Lien du bouton (le dossier, éventuellement à sa section). */
@@ -48,6 +51,10 @@ export interface NotaireWaiting {
   lastReminderAt: string | null;
   /** Une relance est conseillée. */
   due: boolean;
+  /** Attente d'un formulaire (ou du locataire à indiquer) plutôt que d'une demande de pièces. */
+  form?: NotaireFormWait;
+  /** Une des demandes vient de l'équipe BailNotarie. */
+  byTeam?: boolean;
 }
 
 export interface NotaireAnswer {
@@ -62,7 +69,7 @@ export interface NotaireAnswer {
 }
 
 export interface NotaireDashboard {
-  counts: { aContacter: number; contactes: number; provision: number; signes: number; arretes: number };
+  counts: { preparation: number; aContacter: number; contactes: number; provision: number; signes: number; arretes: number };
   todo: NotaireTask[];
   waiting: NotaireWaiting[];
   answers: NotaireAnswer[];
@@ -82,7 +89,9 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? man
 export async function loadNotaireDashboard(userId: string): Promise<NotaireDashboard> {
   const dossiers: any[] = await notaireDossiers(userId);
   const status = (d: any): string => d.bail?.status || "READY_FOR_NOTARY";
+  const PREPARATION = ["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION"];
   const counts = {
+    preparation: dossiers.filter((d) => d.bail?.id && PREPARATION.includes(status(d))).length,
     aContacter: dossiers.filter((d) => status(d) === "READY_FOR_NOTARY").length,
     contactes: dossiers.filter((d) => status(d) === "CLIENT_CONTACTED").length,
     provision: dossiers.filter((d) => status(d) === "PROVISION_RECEIVED").length,
@@ -112,10 +121,11 @@ export async function loadNotaireDashboard(userId: string): Promise<NotaireDashb
         prisma.complementRequest.findMany({
           where: {
             bailId: { in: bailIds },
-            origin: ComplementOrigin.NOTAIRE,
             OR: [
-              { status: { in: [ComplementRequestStatus.OPEN, ComplementRequestStatus.SUBMITTED] } },
-              { status: ComplementRequestStatus.ACCEPTED, submittedAt: { gte: new Date(Date.now() - 7 * 24 * HOUR) } },
+              { origin: ComplementOrigin.NOTAIRE, status: { in: [ComplementRequestStatus.OPEN, ComplementRequestStatus.SUBMITTED] } },
+              { origin: ComplementOrigin.NOTAIRE, status: ComplementRequestStatus.ACCEPTED, submittedAt: { gte: new Date(Date.now() - 7 * 24 * HOUR) } },
+              // Demandes de l'équipe encore sans réponse : le notaire peut aussi relancer.
+              { origin: ComplementOrigin.TEAM, status: ComplementRequestStatus.OPEN },
             ],
           },
           orderBy: { createdAt: "asc" },
@@ -192,6 +202,7 @@ export async function loadNotaireDashboard(userId: string): Promise<NotaireDashb
         reminders: mine.length,
         lastReminderAt: mine[0]?.createdAt.toISOString() ?? null,
         due,
+        byTeam: requests.some((r) => r.bailId === request.bailId && r.target === target && r.status === ComplementRequestStatus.OPEN && r.origin === ComplementOrigin.TEAM),
       });
       if (due) {
         todo.push({
@@ -248,6 +259,49 @@ export async function loadNotaireDashboard(userId: string): Promise<NotaireDashb
     }
     if (base.status === "PROVISION_RECEIVED" && review?.done) {
       todo.push({ key: `sign:${base.assignmentId}`, kind: "sign", ...base, title: "Prêt pour la signature", detail: "Pièces vérifiées, provision reçue", since: updatedAt, action: "Ouvrir le dossier", href: base.href });
+    }
+  }
+
+  // Dossiers confiés avant d'être prêts : ce que les clients doivent encore faire (formulaire, locataire à indiquer).
+  const preparing = dossiers.filter((d) => d.bail?.id && PREPARATION.includes(status(d)));
+  const forms = await notaireFormWaits(preparing.map((d) => d.bail.id as string), userId);
+  for (const form of forms) {
+    const d = preparing.find((x) => x.bail.id === form.bailId);
+    if (!d) continue;
+    const base = info(d);
+    const history = form.mine > 0 && form.myLastAt ? `vous l'avez relancé ${form.mine} fois, dernière le ${day(form.myLastAt)}` : "jamais relancé";
+    waiting.push({
+      key: `form:${form.bailId}:${form.reason}`,
+      assignmentId: base.assignmentId,
+      bailId: base.bailId,
+      address: base.address,
+      target: form.target,
+      recipientName: form.partyName,
+      pending: 0,
+      askedAt: form.since,
+      reminders: form.mine,
+      lastReminderAt: form.myLastAt,
+      due: form.due,
+      form,
+    });
+    if (form.due) {
+      todo.push({
+        key: `form:${form.bailId}:${form.reason}`,
+        kind: "remind",
+        ...base,
+        title:
+          form.reason === "TENANT_TO_ADD"
+            ? "Le propriétaire n'a pas encore indiqué son locataire"
+            : form.reason === "OWNER_FORM"
+              ? "Le propriétaire n'a pas terminé son formulaire"
+              : "Le locataire n'a pas encore rempli son formulaire",
+        detail: `Dossier en préparation · attendu depuis le ${day(form.since)} · ${history}`,
+        since: form.myLastAt ?? form.since,
+        remindTarget: form.target,
+        form,
+        action: "Relancer",
+        href: base.href,
+      });
     }
   }
 

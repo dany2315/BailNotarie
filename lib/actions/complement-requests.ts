@@ -792,7 +792,8 @@ export async function remindNotaireTarget(data: unknown): Promise<{ success: tru
   const access = await allowed(() => requireRequester(parsed.data.bailId));
   if (!access || access.origin !== ComplementOrigin.NOTAIRE) return { success: false, error: "Accès refusé" };
   const requests = await prisma.complementRequest.findMany({
-    where: { bailId: parsed.data.bailId, target: parsed.data.target, origin: ComplementOrigin.NOTAIRE, status: ComplementRequestStatus.OPEN },
+    // Ses demandes et celles de l'équipe encore sans réponse : le client reçoit le rappel de tout ce qu'on attend de lui.
+    where: { bailId: parsed.data.bailId, target: parsed.data.target, status: ComplementRequestStatus.OPEN },
     include: { items: { select: { status: true, label: true } } },
   });
   if (requests.length === 0) return { success: false, error: "Rien n'est en attente de cette personne" };
@@ -1222,7 +1223,14 @@ export async function getNotaireArchivedDocuments(bailId: string) {
 export async function getNotaireComplementRequests(bailId: string): Promise<StaffComplementRequest[]> {
   const access = await allowed(() => requireRequester(bailId));
   if (!access || access.origin !== ComplementOrigin.NOTAIRE) return [];
-  const requests = await loadStaffRequests({ bailId, origin: ComplementOrigin.NOTAIRE, status: { not: ComplementRequestStatus.CANCELLED } });
+  // Ses propres demandes, et celles de l'équipe encore sans réponse du client (affichées en lecture seule).
+  const requests = await loadStaffRequests({
+    bailId,
+    OR: [
+      { origin: ComplementOrigin.NOTAIRE, status: { not: ComplementRequestStatus.CANCELLED } },
+      { origin: ComplementOrigin.TEAM, status: ComplementRequestStatus.OPEN },
+    ],
+  });
   const rank = (status: ComplementRequestStatus) => (status === ComplementRequestStatus.SUBMITTED ? 0 : status === ComplementRequestStatus.OPEN ? 1 : 2);
   return requests.sort((a, b) => rank(a.status) - rank(b.status) || b.lastSentAt.localeCompare(a.lastSentAt));
 }

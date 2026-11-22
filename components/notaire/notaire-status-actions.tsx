@@ -154,7 +154,7 @@ export function NotaireStatusActions({
     return compact ? null : (
       <p className="w-fit rounded-lg bg-amber-50 px-3 py-2 text-[13.5px] text-amber-900">
         Dossier pas encore prêt : l&apos;équipe BailNotarie complète le dossier (formulaire du locataire en attente…). Vous
-        pourrez le faire avancer dès qu&apos;il sera prêt.
+        pourrez le faire avancer dès qu&apos;il sera prêt ; en attendant, « Relancer » rappelle au client ce qu&apos;il doit faire.
       </p>
     );
   }

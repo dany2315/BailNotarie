@@ -15,6 +15,7 @@ import { assessRentCap, rentCapOverLines } from "@/lib/rent-cap";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { ownerLines } from "@/lib/diagnostics/items";
 import { loadDiagnosticState } from "@/lib/diagnostics/state";
+import { NOTAIRE_FORM_REASONS, notaireFormWaits } from "@/lib/notaire/form-reminders";
 import {
   computeReminderNeeds,
   statusSinceFrom,
@@ -235,8 +236,41 @@ export async function sendBailReminders(
   const user = await requireRole([Role.ADMINISTRATEUR]);
   const parsed = sendSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
-  const { bailId, sends, note } = parsed.data;
+  return deliverReminders(user, parsed.data);
+}
 
+/**
+ * Le notaire relance lui-même un client dont le dossier attend encore quelque chose (formulaire, locataire à
+ * indiquer) : même e-mail que l'équipe, tracé à son nom. Seulement sur ses dossiers et ces relances-là.
+ */
+export async function sendNotaireFormReminder(
+  data: unknown,
+): Promise<{ success: true; data: { email: string } } | Fail> {
+  const user = await requireRole([Role.NOTAIRE]);
+  const parsed = z
+    .object({ bailId: z.string().min(1), target: z.enum(["OWNER", "TENANT"]), reason: z.enum(NOTAIRE_FORM_REASONS) })
+    .safeParse(data);
+  if (!parsed.success) return { success: false, error: "Données invalides" };
+  const { bailId, target, reason } = parsed.data;
+  const assignment = await prisma.dossierNotaireAssignment.findFirst({ where: { bailId, notaireId: user.id }, select: { id: true } });
+  if (!assignment) return { success: false, error: "Accès refusé" };
+  const waits = await notaireFormWaits([bailId], user.id);
+  if (!waits.some((w) => w.target === target && w.reason === reason)) return { success: false, error: "Le dossier n'attend plus cela de cette personne" };
+  const result = await deliverReminders(user, {
+    bailId,
+    sends: [{ target, reason }],
+    note: `${getActorName(user)}, le notaire qui rédigera votre bail, attend ce retour pour avancer.`,
+  });
+  if (!result.success) return result;
+  if (result.data.sent.length === 0) return { success: false, error: result.data.failed[0]?.error || "Le rappel n'a pas pu être envoyé" };
+  revalidatePath("/notaire", "layout");
+  return { success: true, data: { email: result.data.sent[0].email } };
+}
+
+async function deliverReminders(
+  user: { id: string; name?: string | null; email?: string | null },
+  { bailId, sends, note }: z.infer<typeof sendSchema>,
+): Promise<{ success: true; data: { sent: Array<{ target: string; email: string }>; failed: Array<{ target: string; error: string }> } } | Fail> {
   const bail = await loadBail(bailId);
   if (!bail) return { success: false, error: "Dossier introuvable" };
   const { owner, tenant } = contextOf(bail);

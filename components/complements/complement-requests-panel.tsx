@@ -33,17 +33,27 @@ export function ComplementRequestsPanel({
   locked = false,
   canArchive = false,
   sentLabel,
+  teamReadOnly = false,
 }: {
   requests: StaffComplementRequest[];
   locked?: boolean;
   canArchive?: boolean;
   /** Texte d'envoi et de relances à la place du compte global (le notaire ne voit que ses propres relances). */
   sentLabel?: (request: StaffComplementRequest) => string;
+  /** Espace notaire : les demandes de l'équipe sont affichées en lecture seule, avec le badge « Par l'équipe BailNotarie ». */
+  teamReadOnly?: boolean;
 }) {
   return (
     <>
       {requests.map((request) => (
-        <RequestCard key={request.id} request={request} locked={locked} canArchive={canArchive} sentLabel={sentLabel} />
+        <RequestCard
+          key={request.id}
+          request={request}
+          locked={locked || (teamReadOnly && request.origin === "TEAM")}
+          teamBadge={teamReadOnly && request.origin === "TEAM"}
+          canArchive={canArchive}
+          sentLabel={sentLabel}
+        />
       ))}
     </>
   );
@@ -79,11 +89,13 @@ function RequestCard({
   locked,
   canArchive,
   sentLabel,
+  teamBadge = false,
 }: {
   request: StaffComplementRequest;
   locked: boolean;
   canArchive: boolean;
   sentLabel?: (request: StaffComplementRequest) => string;
+  teamBadge?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -117,7 +129,13 @@ function RequestCard({
       title={`${what}${request.origin === "NOTAIRE" ? " par le notaire" : ""} au ${who}`}
       subtitle={`${request.recipientName} · ${request.submittedAt ? `réponse reçue le ${fmtDay(request.submittedAt)}` : sent}`}
       headerRight={
-        request.status === "ACCEPTED" ? (
+        <span className="flex flex-wrap items-center justify-end gap-1.5">
+        {teamBadge && (
+          <StateChip tone="neutral" className="bg-slate-100 text-slate-700">
+            Par l&apos;équipe BailNotarie
+          </StateChip>
+        )}
+        {request.status === "ACCEPTED" ? (
           <StateChip tone="neutral" className="bg-green-100 text-green-800">
             Terminée
           </StateChip>
@@ -129,7 +147,8 @@ function RequestCard({
           <StateChip tone="neutral" className="bg-amber-100 text-amber-900">
             En attente du client
           </StateChip>
-        )
+        )}
+        </span>
       }
       footer={
         locked || request.status === "ACCEPTED" ? undefined : request.status === "SUBMITTED" || (toReview > 0 && waiting === 0) ? (

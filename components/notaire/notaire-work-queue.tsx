@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { remindNotaireTarget } from "@/lib/actions/complement-requests";
 import type { NotaireTask, NotaireWaiting } from "@/lib/notaire/dashboard";
+import type { NotaireFormWait } from "@/lib/notaire/form-reminders";
+import { NotaireFormRemindDialog } from "@/components/notaire/notaire-remind";
 import { cn } from "@/lib/utils";
 
 type TabKey = "todo" | "waiting";
@@ -96,7 +98,7 @@ export function NotaireWorkQueue({ todo, waiting }: { todo: NotaireTask[]; waiti
                       {days === 0 ? "aujourd'hui" : `depuis ${days} j`}
                     </span>
                     {task.remindTarget ? (
-                      <QuickRemind bailId={task.bailId} target={task.remindTarget} detail={task.detail} className="sm:min-w-36" />
+                      <QuickRemind bailId={task.bailId} target={task.remindTarget} detail={task.detail} form={task.form} className="sm:min-w-36" />
                     ) : (
                       <Button asChild size="sm" variant={task.kind === "contact" || task.kind === "answers" ? "default" : "outline"} className="sm:min-w-36">
                         <Link href={task.href}>{task.action}</Link>
@@ -115,15 +117,21 @@ export function NotaireWorkQueue({ todo, waiting }: { todo: NotaireTask[]; waiti
           {waiting.map((w) => (
             <li key={w.key} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 flex-col gap-1">
-                <span className="font-semibold">
-                  {w.recipientName || (w.target === "OWNER" ? "Propriétaire" : "Locataire")}
-                  <span className="font-normal text-muted-foreground"> · {w.target === "OWNER" ? "propriétaire" : "locataire"}</span>
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold">
+                  <span>
+                    {w.recipientName || (w.target === "OWNER" ? "Propriétaire" : "Locataire")}
+                    <span className="font-normal text-muted-foreground"> · {w.target === "OWNER" ? "propriétaire" : "locataire"}</span>
+                  </span>
+                  {w.byTeam && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-700">Par l&apos;équipe BailNotarie</span>}
                 </span>
                 <Link href={`/notaire/dossiers?dossierId=${w.assignmentId}#demandes-title`} className="truncate text-sm text-foreground/80 hover:underline">
                   {w.address}
                 </Link>
                 <span className="text-xs text-muted-foreground">
-                  {w.pending} élément{w.pending > 1 ? "s" : ""} attendu{w.pending > 1 ? "s" : ""} · demandé le {fmtDay(w.askedAt)} ·{" "}
+                  {w.form
+                    ? `${w.form.label} · attendu depuis le ${fmtDay(w.askedAt)}`
+                    : `${w.pending} élément${w.pending > 1 ? "s" : ""} attendu${w.pending > 1 ? "s" : ""} · demandé le ${fmtDay(w.askedAt)}`}{" "}
+                  ·{" "}
                   {w.reminders > 0 && w.lastReminderAt ? `vous l'avez relancé ${w.reminders} fois, dernière le ${fmtDay(w.lastReminderAt)}` : "jamais relancé"}
                 </span>
               </div>
@@ -131,6 +139,7 @@ export function NotaireWorkQueue({ todo, waiting }: { todo: NotaireTask[]; waiti
                 bailId={w.bailId}
                 target={w.target}
                 detail={`${w.pending} élément${w.pending > 1 ? "s" : ""} attendu${w.pending > 1 ? "s" : ""}`}
+                form={w.form}
                 variant={w.due ? "default" : "outline"}
                 className="sm:min-w-36"
               />
@@ -147,12 +156,15 @@ function QuickRemind({
   bailId,
   target,
   detail,
+  form,
   variant = "default",
   className,
 }: {
   bailId: string;
   target: "OWNER" | "TENANT";
   detail: string;
+  /** Relance d'un formulaire : sa propre fenêtre. */
+  form?: NotaireFormWait;
   variant?: "default" | "outline";
   className?: string;
 }) {
@@ -182,6 +194,9 @@ function QuickRemind({
         <BellRing className="size-3.5" />
         Relancer
       </Button>
+      {form ? (
+        <NotaireFormRemindDialog wait={form} open={open} onOpenChange={setOpen} />
+      ) : (
       <Dialog open={open} onOpenChange={(next) => !busy && setOpen(next)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -201,6 +216,7 @@ function QuickRemind({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
     </>
   );
 }
