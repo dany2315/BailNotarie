@@ -20,9 +20,29 @@ export const FORM_REASON_LABELS: Record<NotaireFormReason, string> = {
   TENANT_FORM: "Remplir son formulaire",
 };
 
+/**
+ * « Maître Diallo » : le nom du notaire tel qu'on l'écrit au client, avec une majuscule à chaque mot et
+ * sans doubler « Maître » s'il est déjà dans le nom du compte. Sans nom, null (jamais l'adresse e-mail).
+ */
+export function notaireTitle(name: string | null | undefined): string | null {
+  const bare = (name ?? "")
+    .trim()
+    .replace(/^(ma[iî]tre|me)\.?\s+/i, "")
+    .trim();
+  if (!bare) return null;
+  const capitalized = bare
+    .split(/(\s+|-)/)
+    .map((part) => (/^[a-zà-ÿ]/i.test(part) ? part.charAt(0).toLocaleUpperCase("fr-FR") + part.slice(1) : part))
+    .join("");
+  return `Maître ${capitalized}`;
+}
+
 /** Phrase ajoutée aux relances du notaire : c'est lui qui attend ce retour. */
 export function notaireReminderLine(user: { name?: string | null; email?: string | null }) {
-  return `${getActorName(user)}, le notaire qui rédigera votre bail, attend ce retour pour avancer.`;
+  const title = notaireTitle(user.name);
+  return title
+    ? `${title}, le notaire qui rédigera votre bail, attend ce retour pour avancer.`
+    : "Le notaire qui rédigera votre bail attend ce retour pour avancer.";
 }
 
 export interface NotaireFormWait {

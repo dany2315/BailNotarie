@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailRelance from "@/emails/mail-relance";
-import { RELANCE_SUBJECTS } from "@/lib/utils/relance-content";
+import { RELANCE_BODY_MAX, RELANCE_SUBJECTS } from "@/lib/utils/relance-content";
 import { getBailMissingData, transitionLease } from "@/lib/actions/leases";
 import { getActorName, getClientDisplayName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
 import { describeMissingItems } from "@/lib/utils/missing-items";
@@ -199,7 +199,14 @@ export async function getReminderPanel(bailId: string): Promise<{ success: true;
 const sendSchema = z.object({
   bailId: z.string().min(1),
   sends: z
-    .array(z.object({ target: z.nativeEnum(ReminderTarget), reason: z.nativeEnum(ReminderReason) }))
+    .array(
+      z.object({
+        target: z.nativeEnum(ReminderTarget),
+        reason: z.nativeEnum(ReminderReason),
+        /** Texte de l'e-mail modifié dans l'aperçu (sinon le texte prévu). */
+        body: z.string().trim().max(RELANCE_BODY_MAX).optional(),
+      }),
+    )
     .min(1, "Choisissez au moins une personne")
     .max(4),
   note: z.string().trim().max(1000).optional(),
@@ -254,17 +261,19 @@ export async function sendNotaireFormReminder(
       reason: z.enum(NOTAIRE_FORM_REASONS),
       /** Un mot du notaire pour le client (facultatif). */
       note: z.string().trim().max(1000).optional(),
+      /** Texte de l'e-mail modifié dans l'aperçu (sinon le texte prévu). */
+      body: z.string().trim().max(RELANCE_BODY_MAX).optional(),
     })
     .safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
-  const { bailId, target, reason, note } = parsed.data;
+  const { bailId, target, reason, note, body } = parsed.data;
   const assignment = await prisma.dossierNotaireAssignment.findFirst({ where: { bailId, notaireId: user.id }, select: { id: true } });
   if (!assignment) return { success: false, error: "Accès refusé" };
   const waits = await notaireFormWaits([bailId], user.id);
   if (!waits.some((w) => w.target === target && w.reason === reason)) return { success: false, error: "Le dossier n'attend plus cela de cette personne" };
   const result = await deliverReminders(user, {
     bailId,
-    sends: [{ target, reason }],
+    sends: [{ target, reason, body }],
     note: [notaireReminderLine(user), note].filter(Boolean).join("\n\n"),
   });
   if (!result.success) return result;
@@ -287,7 +296,7 @@ async function deliverReminders(
   const sent: Array<{ target: string; email: string }> = [];
   const failed: Array<{ target: string; error: string }> = [];
 
-  for (const { target, reason } of sends) {
+  for (const { target, reason, body } of sends) {
     const label = target === "OWNER" ? "Propriétaire" : "Locataire";
     // Relance au sujet du locataire : c'est le propriétaire qui la reçoit.
     const party = reason === "TENANT_VIA_OWNER" ? owner : target === "OWNER" ? owner : tenant;
@@ -353,6 +362,7 @@ async function deliverReminders(
           items,
           tenantName: tenant?.greetingName || undefined,
           note: note || undefined,
+          body: body || undefined,
         }),
       });
       if (result.error) throw new Error(result.error.message);

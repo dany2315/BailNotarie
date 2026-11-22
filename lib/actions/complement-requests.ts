@@ -549,7 +549,7 @@ function checkItemTargets(bail: LoadedBail, party: NonNullable<ReturnType<typeof
 }
 
 /** E-mail de la demande, avec seulement les pièces encore attendues. */
-async function sendRequestEmail(requestId: string, reminder: boolean): Promise<string | null> {
+async function sendRequestEmail(requestId: string, reminder: boolean, customMessage?: string | null): Promise<string | null> {
   const request = await prisma.complementRequest.findUnique({
     where: { id: requestId },
     include: {
@@ -564,7 +564,8 @@ async function sendRequestEmail(requestId: string, reminder: boolean): Promise<s
     name: getClientGreetingName(request.client) || "",
     address: request.bail.property?.fullAddress || request.bail.property?.label || "votre logement",
     // Relance ou pièce redemandée : texte de relance, toujours juste (le premier message peut ne plus l'être).
-    message: reminder ? null : request.message,
+    // Un message modifié dans l'aperçu du rappel remplace le texte prévu.
+    message: reminder ? customMessage?.trim() || null : request.message,
     items: request.items.map((item) => ({
       label: item.label,
       reason: item.reason as ComplementReasonValue,
@@ -742,13 +743,13 @@ async function loadRequestForStaff(requestId: string) {
 
 /** Relance : le même e-mail, avec seulement les pièces encore attendues. */
 export async function remindComplementRequest(data: unknown): Promise<{ success: true } | Fail> {
-  const parsed = z.object({ requestId: z.string().min(1) }).safeParse(data);
+  const parsed = z.object({ requestId: z.string().min(1), message: z.string().trim().max(COMPLEMENT_MESSAGE_MAX).optional() }).safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const request = await loadRequestForStaff(parsed.data.requestId);
   const access = request ? await allowed(() => requireRequestAccess(request)) : null;
   if (request && !access) return { success: false, error: "Accès refusé" };
   if (!request || request.status !== ComplementRequestStatus.OPEN) return { success: false, error: "Cette demande n'attend plus le client" };
-  const sendError = await sendRequestEmail(request.id, true);
+  const sendError = await sendRequestEmail(request.id, true, parsed.data.message);
   if (sendError) return { success: false, error: sendError };
   await prisma.complementRequest.update({ where: { id: request.id }, data: { sentCount: { increment: 1 }, lastSentAt: new Date() } });
   if (access?.origin === ComplementOrigin.NOTAIRE) await traceNotaireReminder(access.user, [request]);
@@ -787,7 +788,14 @@ async function traceNotaireReminder(
 
 /** Le notaire relance le propriétaire ou le locataire : toutes ses demandes encore sans réponse, en un rappel. */
 export async function remindNotaireTarget(data: unknown): Promise<{ success: true; data: { emails: string[] } } | Fail> {
-  const parsed = z.object({ bailId: z.string().min(1), target: z.enum(["OWNER", "TENANT"]) }).safeParse(data);
+  const parsed = z
+    .object({
+      bailId: z.string().min(1),
+      target: z.enum(["OWNER", "TENANT"]),
+      /** Message modifié dans l'aperçu, par demande. */
+      messages: z.record(z.string(), z.string().trim().max(COMPLEMENT_MESSAGE_MAX)).optional(),
+    })
+    .safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const access = await allowed(() => requireRequester(parsed.data.bailId));
   if (!access || access.origin !== ComplementOrigin.NOTAIRE) return { success: false, error: "Accès refusé" };
@@ -800,7 +808,7 @@ export async function remindNotaireTarget(data: unknown): Promise<{ success: tru
   const sent: typeof requests = [];
   let lastError: string | null = null;
   for (const request of requests) {
-    const sendError = await sendRequestEmail(request.id, true);
+    const sendError = await sendRequestEmail(request.id, true, parsed.data.messages?.[request.id]);
     if (sendError) {
       lastError = sendError;
       continue;

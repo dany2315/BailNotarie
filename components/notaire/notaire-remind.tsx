@@ -10,8 +10,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { remindNotaireTarget, type NotaireReminderSummary, type StaffComplementRequest } from "@/lib/actions/complement-requests";
 import { sendNotaireFormReminder } from "@/lib/actions/reminders";
 import type { NotaireFormWait } from "@/lib/notaire/form-reminders";
-import { relanceEmailContent } from "@/lib/utils/relance-content";
-import { complementEmailContent } from "@/lib/utils/complement";
+import { RELANCE_BODY_MAX, relanceEmailContent } from "@/lib/utils/relance-content";
+import { COMPLEMENT_MESSAGE_MAX, complementEmailContent } from "@/lib/utils/complement";
 import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/components/emails/email-preview-frame";
 
 type Target = "OWNER" | "TENANT";
@@ -138,12 +138,19 @@ export function NotaireFormRemindDialog({ wait, open, onOpenChange }: { wait: No
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [note, setNote] = React.useState("");
+  const [body, setBody] = React.useState<string | null>(null);
   // Même contenu que l'e-mail envoyé (modèle de l'équipe), avec la phrase du notaire.
   const content = relanceEmailContent({ reason: wait.reason, name: wait.greetingName, address: wait.address, actionUrl: "" });
   const send = async () => {
     setBusy(true);
     try {
-      const result = await sendNotaireFormReminder({ bailId: wait.bailId, target: wait.target, reason: wait.reason, note: note.trim() || undefined });
+      const result = await sendNotaireFormReminder({
+        bailId: wait.bailId,
+        target: wait.target,
+        reason: wait.reason,
+        note: note.trim() || undefined,
+        body: body?.trim() || undefined,
+      });
       if (!result.success) {
         toast.error("Le rappel n'a pas pu être envoyé", { description: result.error });
         return;
@@ -177,12 +184,8 @@ export function NotaireFormRemindDialog({ wait, open, onOpenChange }: { wait: No
           </p>
           <EmailPreviewFrame to={wait.email} toName={wait.partyName} toRole={wait.target === "OWNER" ? "Propriétaire" : "Locataire"} subject={content.subject}>
             <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
-            <div className="mt-3 flex flex-col gap-3">
-              {content.paragraphs.map((paragraph) => (
-                <p key={paragraph} className="text-[14.5px] leading-[1.55] text-slate-600">
-                  {paragraph}
-                </p>
-              ))}
+            <div className="mt-3">
+              <EditableEmailText label="Texte de l'e-mail" value={body ?? content.paragraphs.join("\n\n")} onChange={setBody} maxLength={RELANCE_BODY_MAX} />
             </div>
             {content.outro && <p className="mt-3 text-[14.5px] leading-[1.55] text-slate-600">{content.outro}</p>}
             <p className="mt-4 whitespace-pre-line rounded-lg bg-slate-100 px-4 py-3 text-[15px] leading-[1.45] text-slate-800">{wait.notaryLine}</p>
@@ -239,12 +242,15 @@ export function NotaireRemindDialog({
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+  // Message de chaque e-mail modifié dans l'aperçu ; absent = texte de rappel prévu.
+  const [messages, setMessages] = React.useState<Record<string, string>>({});
   const emails = [...new Set(requests.map((r) => r.recipientEmail))];
 
   const send = async () => {
     setBusy(true);
     try {
-      const result = await remindNotaireTarget({ bailId, target });
+      const edited = Object.fromEntries(Object.entries(messages).filter(([, value]) => value.trim()));
+      const result = await remindNotaireTarget({ bailId, target, messages: edited });
       if (!result.success) {
         toast.error("Le rappel n'a pas pu être envoyé", { description: result.error });
         return;
@@ -295,7 +301,14 @@ export function NotaireRemindDialog({
                   <EmailPreviewFrame to={request.recipientEmail} toName={request.recipientName} toRole={target === "OWNER" ? "Propriétaire" : "Locataire"} subject={content.subject}>
                     <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
                     <p className="mt-0.5 text-[12.5px] text-slate-500">{content.context}</p>
-                    <p className="mt-4 whitespace-pre-line text-[14.5px] leading-[1.55] text-slate-600">{content.message}</p>
+                    <div className="mt-4">
+                      <EditableEmailText
+                        label="Message de l'e-mail"
+                        value={messages[request.id] ?? content.message}
+                        onChange={(value) => setMessages((current) => ({ ...current, [request.id]: value }))}
+                        maxLength={COMPLEMENT_MESSAGE_MAX}
+                      />
+                    </div>
                     <ul className="mt-4 flex flex-col gap-2">
                       {content.items.map((item, i) => (
                         <li key={`${item.label}-${i}`} className="rounded-[10px] border border-slate-200 px-3.5 py-3">

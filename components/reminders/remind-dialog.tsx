@@ -25,7 +25,7 @@ import {
   type ReminderTargetValue,
 } from "@/lib/utils/reminders";
 import { formatPhone } from "@/lib/utils/phone-format";
-import { relanceEmailContent } from "@/lib/utils/relance-content";
+import { RELANCE_BODY_MAX, relanceEmailContent } from "@/lib/utils/relance-content";
 import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/components/emails/email-preview-frame";
 import { cn } from "@/lib/utils";
 import { LocalDateTime } from "@/components/shared/local-date-time";
@@ -77,6 +77,8 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
   const [loading, setLoading] = React.useState(false);
   const [selected, setSelected] = React.useState<Set<SendKey>>(new Set());
   const [note, setNote] = React.useState("");
+  // Texte de chaque e-mail modifié dans l'aperçu (par personne et motif) ; absent = texte prévu.
+  const [bodies, setBodies] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState<string | null>(null);
   const [confirmClassify, setConfirmClassify] = React.useState(false);
   const [snoozeDays, setSnoozeDays] = React.useState("14");
@@ -105,6 +107,7 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
   React.useEffect(() => {
     if (!open) return;
     setNote("");
+    setBodies({});
     setConfirmClassify(false);
     if (initialPanel) {
       setPanel(initialPanel);
@@ -161,7 +164,10 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
     setBusy("send");
     const result = await sendBailReminders({
       bailId,
-      sends: recipients.map((r) => ({ target: r.target, reason: r.reason })),
+      sends: recipients.map((r) => {
+        const body = bodies[`${r.target}:${r.reason}`]?.trim();
+        return { target: r.target, reason: r.reason, ...(body ? { body } : {}) };
+      }),
       note: note.trim() || undefined,
     });
     setBusy(null);
@@ -304,12 +310,13 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
 
               <EmailPreviewFrame to={active.party.email} toName={active.party.name} toRole={TARGET_LABELS[active.target]} subject={content.subject}>
                 <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
-                <div className="mt-3 flex flex-col gap-3">
-                  {content.paragraphs.map((paragraph) => (
-                    <p key={paragraph} className="text-[14.5px] leading-[1.55] text-slate-600">
-                      {paragraph}
-                    </p>
-                  ))}
+                <div className="mt-3">
+                  <EditableEmailText
+                    label="Texte de l'e-mail"
+                    value={bodies[active.key] ?? content.paragraphs.join("\n\n")}
+                    onChange={(value) => setBodies((current) => ({ ...current, [active.key]: value }))}
+                    maxLength={RELANCE_BODY_MAX}
+                  />
                 </div>
                 {content.items.length > 0 && (
                   <ul className="mt-3 flex list-disc flex-col gap-1 pl-5 text-[14px] text-slate-800">

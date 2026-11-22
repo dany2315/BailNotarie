@@ -26,7 +26,12 @@ export interface RelanceEmailInput {
   tenantName?: string;
   /** Message libre ajouté par l'équipe. */
   note?: string;
+  /** Texte de l'e-mail modifié dans l'aperçu : remplace le texte prévu (paragraphes séparés par une ligne vide). */
+  body?: string;
 }
+
+/** Longueur maximale du texte d'une relance modifié dans l'aperçu. */
+export const RELANCE_BODY_MAX = 3000;
 
 export const RELANCE_CONTENT: Record<RelanceReason, { preview: string; intro: (p: RelanceEmailInput) => string[]; button: string }> = {
   OWNER_FORM: {
@@ -106,7 +111,12 @@ export function relanceEmailContent(input: RelanceEmailInput) {
     subject: RELANCE_SUBJECTS[input.reason],
     preview: content.preview,
     greeting: `Bonjour${input.name ? ` ${input.name}` : ""},`,
-    paragraphs: content.intro(input),
+    paragraphs: input.body?.trim()
+      ? input.body
+          .split(/\n\s*\n/)
+          .map((paragraph) => paragraph.trim())
+          .filter(Boolean)
+      : content.intro(input),
     items: input.items ?? [],
     outro: RELANCE_OUTRO[input.reason] ?? null,
     note: input.note?.trim() || null,
