@@ -1,5 +1,6 @@
 // Liste des dossiers du notaire pour le menu latéral (lecture seule, après contrôle du rôle par le layout).
 
+import { cache } from "react";
 import { getDossiersByNotaire } from "@/lib/actions/notaires";
 import { DOSSIER_TAB_STATUSES } from "@/lib/utils/bails-labels";
 
@@ -22,8 +23,14 @@ function partyName(party: any): string {
   return (party.persons ?? []).map(personName).filter(Boolean).join(" et ");
 }
 
+/**
+ * Dossiers du notaire, lus une seule fois par affichage : le menu latéral (layout) et la page les partagent
+ * au lieu de refaire la même grosse requête deux fois.
+ */
+export const notaireDossiers = cache((userId: string) => getDossiersByNotaire(userId));
+
 export async function notaireDossierList(userId: string): Promise<DossierListItem[]> {
-  const dossiers = await getDossiersByNotaire(userId);
+  const dossiers = await notaireDossiers(userId);
   return dossiers.map((d: any) => {
     const parties: any[] = d.bail?.parties ?? [];
     return {

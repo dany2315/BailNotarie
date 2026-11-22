@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { getDossiersByNotaire } from "@/lib/actions/notaires";
+import { notaireDossiers } from "@/lib/notaire/dossier-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Users, Phone, Settings2, CheckCircle, Archive } from "lucide-react";
 import { KPICard } from "@/components/shared/kpi-card";
@@ -18,7 +19,7 @@ export default async function NotaireDashboardPage() {
     return null;
   }
 
-  const dossiers = await getDossiersByNotaire(user.id);
+  const dossiers = await notaireDossiers(user.id);
   type DossierType = Awaited<ReturnType<typeof getDossiersByNotaire>>[number];
 
   const getBailStatus = (d: DossierType) => d.bail?.status || "READY_FOR_NOTARY";
