@@ -128,14 +128,32 @@ export function proofRowFor(data: Pick<PartyPoints, "docRows">, group: PartyGrou
  * Fiche dossier : les pièces d'une partie pour la section « Pièces du dossier », chacune avec les
  * éléments qu'elle prouve (pièce d'identité → identité de la personne, Kbis → la société), modifiables.
  */
-export function partyPieceRows(data: PartyPoints, locked: boolean, verifiedKeys: Set<string> = new Set()): ChecklistRow[] {
+/** Contrôle du registre affiché et validé avec le Kbis (pouvoirs des signataires, immatriculation). */
+export interface KbisCheck {
+  key: string;
+  /** Ligne du panneau (« Peut signer pour la société »). */
+  label: string;
+  /** Nom du contrôle légal (« Pouvoirs des signataires »), pour « valide aussi ». */
+  ruleLabel: string;
+  value: string;
+  tone: "ok" | "warn";
+  auto: boolean;
+  verified: boolean;
+}
+
+export function partyPieceRows(data: PartyPoints, locked: boolean, verifiedKeys: Set<string> = new Set(), kbisChecks: KbisCheck[] = []): ChecklistRow[] {
   const party = data.party;
   if (!party) return data.docRows;
   return data.docRows.map((row) => {
-    // Données prouvées par cette pièce : validées avec elle (« La pièce est bonne »).
-    const linked = data.groups
-      .filter((g) => g.missing.length === 0 && proofRowFor(data, g)?.key === row.key)
-      .map((g) => ({ key: g.key, label: g.label, verified: locked || verifiedKeys.has(g.key) }));
+    const isKbis = row.kind === DocumentKind.KBIS && row.documents.length > 0;
+    // Données prouvées par cette pièce : validées avec elle (« La pièce est bonne »). Sur le Kbis, aussi les
+    // contrôles du registre que le logiciel n'a pas pu trancher.
+    const linked = [
+      ...data.groups
+        .filter((g) => g.missing.length === 0 && proofRowFor(data, g)?.key === row.key)
+        .map((g) => ({ key: g.key, label: g.label, verified: locked || verifiedKeys.has(g.key) })),
+      ...(isKbis ? kbisChecks.filter((check) => !check.auto).map((check) => ({ key: check.key, label: check.ruleLabel, verified: check.verified })) : []),
+    ];
     row = linked.length > 0 ? { ...row, linkedPoints: linked } : row;
     const holder = row.upload?.personId
       ? data.groups.find((g) => g.kind === "identite" && g.editor.id === row.upload!.personId)
@@ -173,6 +191,7 @@ export function partyPieceRows(data: PartyPoints, locked: boolean, verifiedKeys:
           fields: show([...holder.editor.fields, ...(row.kind === DocumentKind.KBIS ? (representative?.editor.fields ?? []) : [])]),
           notes: party.entreprise ? registryNotes(party.entreprise) : undefined,
           registry: row.kind === DocumentKind.KBIS ? holder.registry : undefined,
+          checks: isKbis && kbisChecks.length > 0 ? kbisChecks.map(({ label, value, tone, auto }) => ({ label, value, tone, auto })) : undefined,
           lastCheck: row.kind === DocumentKind.KBIS ? "Lisible et récent (moins de 3 mois)" : undefined,
         },
       };

@@ -25,10 +25,25 @@ export function InlineFields({ spec, locked = false }: { spec: CompareSpec; lock
         {spec.fields.map((field, index) => (
           <InlineFieldRow key={field.field} spec={spec} field={field} index={index} locked={locked} />
         ))}
+        {(spec.checks ?? []).map((check, index) => (
+          <li key={check.label} className="grid grid-cols-[22px_minmax(0,1fr)] items-center gap-x-3 px-3.5 py-2.5">
+            <span className="flex size-[22px] items-center justify-center rounded-full bg-primary text-[11.5px] font-bold text-primary-foreground">
+              {spec.fields.length + index + 1}
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="text-[12px] text-muted-foreground">{check.label}</span>
+              <span className={cn("break-words text-[15px] font-semibold leading-snug", check.tone === "ok" ? "text-green-800" : "text-amber-800")}>
+                {check.tone === "ok" ? "✓ " : "⚠ "}
+                {check.value}
+              </span>
+              {check.auto && <span className="text-[12px] font-medium text-green-700">✓ vérifié par le logiciel</span>}
+            </span>
+          </li>
+        ))}
         {spec.lastCheck && (
           <li className="grid grid-cols-[22px_minmax(0,1fr)] items-center gap-x-3 px-3.5 py-2.5">
             <span className="flex size-[22px] items-center justify-center rounded-full bg-primary text-[11.5px] font-bold text-primary-foreground">
-              {spec.fields.length + 1}
+              {spec.fields.length + (spec.checks?.length ?? 0) + 1}
             </span>
             <span className="flex min-w-0 flex-col">
               <span className="text-[12px] text-muted-foreground">Sur la pièce</span>

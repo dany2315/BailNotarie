@@ -14,6 +14,8 @@ export interface CompareSpec {
   registry?: { entrepriseId: string; registration: string | null; representativeName: string | null };
   /** Dernière ligne, sans saisie : ce qu'on regarde sur la pièce elle-même. */
   lastCheck?: string;
+  /** Kbis : contrôles du registre (pouvoirs des signataires, immatriculation), validés avec la pièce. */
+  checks?: Array<{ label: string; value: string; tone: "ok" | "warn"; auto: boolean }>;
 }
 
 /** Pièce telle qu'affichée dans une liste de pièces (sérialisable). */

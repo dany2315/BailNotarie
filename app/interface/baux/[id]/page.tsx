@@ -25,7 +25,7 @@ import { RentRulesEditor } from "@/components/admin/rent-rules-editor";
 import { EXEMPTION_LABELS, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { RentCapEditor, RentCapExemptionButton, RentSupplementButton } from "@/components/admin/rent-cap-editor";
 import { intakeSummary } from "@/lib/utils/intake-summary";
-import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, partyPieceRows, withVerified } from "@/components/admin/party-check-section";
+import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, partyPieceRows, withVerified, type KbisCheck } from "@/components/admin/party-check-section";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
 import { ValidateAllButton } from "@/components/admin/verify-buttons";
 import { pointKey, summarize, summaryChip } from "@/lib/utils/verification";
@@ -168,24 +168,17 @@ function KV({ label, children }: { label: string; children: ReactNode }) {
 /** Règle de « Conformité légale » contrôlée par le logiciel, sans clic de l'équipe. */
 function AutoLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="flex flex-wrap items-center gap-2">
+    <span className="flex flex-col gap-0.5">
       {children}
-      <span className="inline-flex h-5 items-center gap-1 rounded bg-slate-100 px-1.5 text-[11.5px] font-semibold text-slate-600">
-        <ShieldCheck className="size-3" />
-        Automatique
-      </span>
+      <span className="text-[12px] font-medium text-green-700">✓ vérifié par le logiciel</span>
     </span>
   );
 }
 
 /** À la place de « Valider » quand le logiciel a déjà vérifié la règle. */
 function AutoVerified() {
-  return (
-    <span className="inline-flex h-9 min-w-[6.5rem] items-center justify-center gap-1.5 rounded-md bg-slate-100 px-3 text-[13px] font-medium text-slate-600">
-      <Lock className="size-3.5" />
-      Vérifié automatiquement
-    </span>
-  );
+  // Déjà dit sous le titre de la ligne (« ✓ vérifié par le logiciel ») : rien à ajouter dans les boutons.
+  return null;
 }
 
 const FACT_TONE: Record<RuleTone, string> = {
@@ -600,6 +593,33 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const depositWarning = isCommercial
     ? commercialDepositWarning({ rentAmount: lease.rentAmount, securityDeposit: lease.securityDeposit, rentPeriodicity: commercialTerms?.rentPeriodicity })
     : null;
+  // Contrôles du registre (immatriculation du locataire, pouvoirs des signataires) : affichés et validés dans le
+  // panneau du Kbis de chaque société quand ce Kbis est déposé. Mêmes clés de validation qu'avant.
+  const hasKbis = (points: typeof ownerPoints) => points.docRows.some((row) => row.kind === DocumentKind.KBIS && row.documents.length > 0);
+  const ownerKbisChecks: KbisCheck[] = [];
+  const tenantKbisChecks: KbisCheck[] = [];
+  const movedRuleIds = new Set<string>();
+  for (const rule of commercialRules) {
+    if ((rule.id !== "immatriculation" && rule.id !== "signataires") || rule.view?.kind !== "facts") continue;
+    const facts = rule.view.facts;
+    const sides = facts.map((fact) => (fact.label === "Propriétaire" ? "owner" : fact.label === "Locataire" ? "tenant" : null));
+    // Toutes les sociétés concernées doivent avoir leur Kbis ; sinon le contrôle reste dans « Le bail ».
+    if (sides.length === 0 || !sides.every((side) => side && hasKbis(side === "owner" ? ownerPoints : tenantPoints))) continue;
+    const key = commercialKeys[rule.id];
+    movedRuleIds.add(rule.id);
+    facts.forEach((fact, index) => {
+      (sides[index] === "owner" ? ownerKbisChecks : tenantKbisChecks).push({
+        key,
+        label: rule.id === "signataires" ? "Peut signer pour la société" : "Inscription au registre",
+        ruleLabel: rule.label,
+        value: fact.values.join(" · "),
+        tone: fact.tone === "ok" ? "ok" : "warn",
+        auto: rule.auto,
+        verified: bailLocked || rule.auto || verifiedKeys.has(key),
+      });
+    });
+  }
+  const movedRuleKeys = new Set([...movedRuleIds].map((id) => commercialKeys[id]));
   const rulesStates = [
     ...(isCommercial ? [] : withVerified([{ key: rulesPoints[0].key, missing: capMissing }], verifiedKeys, bailLocked || capAuto)),
     // Logement dont la classe DPE est interdite à la location (G, puis F en 2028) : l'envoi au notaire reste bloqué.
@@ -776,7 +796,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const tenantContact = contactOf(tenant);
 
   // « Le bail » réunit le bail et ses contrôles légaux (pièces obligatoires : dans « À faire »).
-  const bailAndRules = summarize([...bailStates, ...rulesStates]);
+  const bailAndRules = summarize([...bailStates, ...rulesStates.filter((st) => !movedRuleKeys.has(st.key))]);
 
   // « À faire avant l'envoi » : une ligne par chose qui attend, avec son bouton.
   const WHO_OF = { OWNER: "propriétaire", TENANT: "locataire" } as const;
@@ -937,12 +957,12 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   }
   // Pièces : contrôlées dans « Pièces du dossier » ; les sections ne comptent ici que leurs informations.
   // Données prouvées par une pièce (identité, société, situation familiale) : vérifiées avec elle.
-  const linkedKeys = [...partyPieceRows(ownerPoints, ownerLocked, verifiedKeys), ...partyPieceRows(tenantPoints, tenantLocked, verifiedKeys)].flatMap(
+  const linkedKeys = [...partyPieceRows(ownerPoints, ownerLocked, verifiedKeys, ownerKbisChecks), ...partyPieceRows(tenantPoints, tenantLocked, verifiedKeys, tenantKbisChecks)].flatMap(
     (row) => row.linkedPoints?.map((linked) => linked.key) ?? [],
   );
   const pieceKeys = new Set([...Object.values(ownerPoints.docKeys), ...Object.values(tenantPoints.docKeys), ...Object.values(propertyDocKeys), ...linkedKeys]);
   const withoutPieces = (states: Array<{ key: string; missing: boolean; verified: boolean }>) => states.filter((st) => !pieceKeys.has(st.key));
-  const piecesSummary = summarize([...ownerStates, ...tenantStates, ...propertyStates].filter((st) => pieceKeys.has(st.key)));
+  const piecesSummary = summarize([...ownerStates, ...tenantStates, ...propertyStates, ...rulesStates].filter((st) => pieceKeys.has(st.key)));
   for (const section of [
     { id: "bloc-pieces", title: "Pièces du dossier", summary: { ...piecesSummary, missing: 0 }, show: true },
     { id: "bloc-proprietaire", title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire", summary: summarize(withoutPieces(ownerStates)), show: !!owner },
@@ -980,7 +1000,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             id: "pieces-proprietaire",
             title: (owner?.persons?.length || 0) > 1 ? "Propriétaires" : "Propriétaire",
             name: ownerName,
-            rows: partyPieceRows(ownerPoints, ownerLocked, verifiedKeys),
+            rows: partyPieceRows(ownerPoints, ownerLocked, verifiedKeys, ownerKbisChecks),
             verification: verificationOf(ownerPoints.docKeys, ownerLocked),
             complement: pastVerification ? undefined : { bailId: lease.id, target: "OWNER" as const },
             editable: !ownerLocked,
@@ -993,7 +1013,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             id: "pieces-locataire",
             title: "Locataire",
             name: tenantName,
-            rows: partyPieceRows(tenantPoints, tenantLocked, verifiedKeys),
+            rows: partyPieceRows(tenantPoints, tenantLocked, verifiedKeys, tenantKbisChecks),
             verification: verificationOf(tenantPoints.docKeys, tenantLocked),
             complement: pastVerification ? undefined : { bailId: lease.id, target: "TENANT" as const },
             editable: !tenantLocked,
@@ -1295,7 +1315,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 </CheckPoint>
                 </>
                 )}
-                {commercialRules.map((rule) => {
+                {commercialRules.filter((rule) => !movedRuleIds.has(rule.id)).map((rule) => {
                   const key = commercialKeys[rule.id];
                   const locked = bailLocked || rule.auto;
                   const verified = !rule.missing && isVerified(key, locked);
@@ -1310,7 +1330,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                       note={rule.note}
                       verify={rule.auto ? undefined : { bailId: lease.id, pointKey: key, verified, locked: bailLocked }}
                       actions={
-                        !bailLocked && (rule.editsTerms || (!rule.missing && rule.auto)) ? (
+                        !bailLocked && rule.editsTerms ? (
                           <>
                             {rule.editsTerms && <EditTermsLink row={TERMS_ROW_FOR_RULE[rule.id] ?? "activity"} />}
                             {!rule.missing && rule.auto && <AutoVerified />}
@@ -1332,7 +1352,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 })}
     </>
   );
-  const legalPending = bailLocked ? 0 : summarize(rulesStates).pendingKeys.length;
+  const legalPending = bailLocked ? 0 : summarize(rulesStates.filter((st) => !movedRuleKeys.has(st.key))).pendingKeys.length;
   // Réponses du parcours : informations reçues (les pièces reçues sont des étapes « pièce »).
   const answers = pastVerification
     ? []
