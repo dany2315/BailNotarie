@@ -143,15 +143,48 @@ export function partyPieceRows(data: PartyPoints, locked: boolean, verifiedKeys:
         ? data.groups.find((g) => g.kind === "societe" && g.editor.id === row.upload!.entrepriseId)
         : undefined;
     if (!holder) return row;
+    const show = (fields: PartyGroup["editor"]["fields"]) => fields.map((f) => ({ ...f, display: fieldDisplay(f) }));
+    if (holder.kind === "societe") {
+      // Société : le représentant légal est saisi sur la même fiche entreprise.
+      const representative = data.groups.find((g) => g.kind === "representant" && g.editor.id === holder.editor.id);
+      if (row.kind === DocumentKind.STATUTES) {
+        // Statuts : ce qu'ils prouvent en plus du Kbis (forme de la société, qui signe pour elle). Le registre reste sur le Kbis.
+        return {
+          ...row,
+          compareSpec: {
+            entity: holder.editor.entity,
+            id: holder.editor.id,
+            title: holder.editor.title,
+            fields: show([
+              ...holder.editor.fields.filter((f) => f.field === "legalName" || f.field === "legalFormLabel"),
+              ...(representative?.editor.fields ?? []),
+            ]),
+            lastCheck: "Signés et à jour",
+          },
+        };
+      }
+      // Kbis (et autre pièce de la société) : tout le registre au même endroit.
+      return {
+        ...row,
+        compareSpec: {
+          entity: holder.editor.entity,
+          id: holder.editor.id,
+          title: holder.editor.title,
+          fields: show([...holder.editor.fields, ...(row.kind === DocumentKind.KBIS ? (representative?.editor.fields ?? []) : [])]),
+          notes: party.entreprise ? registryNotes(party.entreprise) : undefined,
+          registry: row.kind === DocumentKind.KBIS ? holder.registry : undefined,
+          lastCheck: row.kind === DocumentKind.KBIS ? "Lisible et récent (moins de 3 mois)" : undefined,
+        },
+      };
+    }
     return {
       ...row,
       compareSpec: {
         entity: holder.editor.entity,
         id: holder.editor.id,
         title: holder.editor.title,
-        fields: holder.editor.fields.map((f) => ({ ...f, display: fieldDisplay(f) })),
-        notes: holder.kind === "societe" && party.entreprise ? registryNotes(party.entreprise) : undefined,
-        lastCheck: row.kind === DocumentKind.ID_IDENTITY ? "Lisible et en cours de validité" : row.kind === DocumentKind.KBIS ? "Lisible et récent (moins de 3 mois)" : undefined,
+        fields: show(holder.editor.fields),
+        lastCheck: row.kind === DocumentKind.ID_IDENTITY ? "Lisible et en cours de validité" : undefined,
       },
     };
   });
@@ -543,7 +576,8 @@ export function PartyCheckSection({
                       variant="ghost"
                     />
                   )}
-                  {g.registry && !locked && (
+                  {/* Avec un Kbis déposé, le registre est dans le panneau du Kbis (« Pièces du dossier »). */}
+                  {g.registry && !locked && !(hidePieces && proof) && (
                     <CompanyRegistryButton
                       entrepriseId={g.registry.entrepriseId}
                       registration={g.registry.registration}

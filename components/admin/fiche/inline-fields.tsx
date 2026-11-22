@@ -8,6 +8,7 @@ import { FieldInput, type GroupField } from "@/components/admin/inline-field-edi
 import { updatePartyFieldAdmin } from "@/lib/actions/admin-bail";
 import { cn } from "@/lib/utils";
 import type { CompareSpec } from "@/lib/utils/document-checklist";
+import { CompanyRegistryButton } from "@/components/admin/company-registry-button";
 
 export type { CompareSpec };
 
@@ -36,9 +37,38 @@ export function InlineFields({ spec, locked = false }: { spec: CompareSpec; lock
           </li>
         )}
       </ol>
-      {spec.notes && spec.notes.length > 0 && (
+      {spec.registry ? (
+        <div className="flex flex-col gap-2 rounded-xl border bg-muted/30 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex min-w-0 flex-col">
+              <span className="text-[14px] font-semibold">Registre des entreprises</span>
+              <span className="text-[12.5px] text-muted-foreground">
+                {spec.notes && spec.notes.length > 0 ? "Ce que dit le registre officiel :" : "Pas encore comparée au registre officiel."}
+              </span>
+            </span>
+            {!locked && (
+              <CompanyRegistryButton
+                entrepriseId={spec.registry.entrepriseId}
+                registration={spec.registry.registration}
+                representativeName={spec.registry.representativeName}
+              />
+            )}
+          </div>
+          {spec.notes && spec.notes.length > 0 && <RegistryNotes notes={spec.notes} />}
+        </div>
+      ) : (
+        spec.notes && spec.notes.length > 0 && <RegistryNotes notes={spec.notes} />
+      )}
+    </div>
+  );
+}
+
+function RegistryNotes({ notes }: { notes: string[] }) {
+  return (
+    <>
+      {notes.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {spec.notes.map((note) => (
+          {notes.map((note) => (
             <span
               key={note}
               className={cn(
@@ -51,7 +81,7 @@ export function InlineFields({ spec, locked = false }: { spec: CompareSpec; lock
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }
 

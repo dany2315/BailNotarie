@@ -10,6 +10,8 @@ export interface CompareSpec {
   fields: Array<GroupField & { display: string }>;
   /** Notes du registre des entreprises (vérifiée, fermée, nom modifié…). */
   notes?: string[];
+  /** Kbis : bouton « Vérifier au registre » (recherche par SIREN, même outil que la fiche). */
+  registry?: { entrepriseId: string; registration: string | null; representativeName: string | null };
   /** Dernière ligne, sans saisie : ce qu'on regarde sur la pièce elle-même. */
   lastCheck?: string;
 }
