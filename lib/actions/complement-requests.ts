@@ -745,13 +745,96 @@ export async function remindComplementRequest(data: unknown): Promise<{ success:
   const parsed = z.object({ requestId: z.string().min(1) }).safeParse(data);
   if (!parsed.success) return { success: false, error: "Données invalides" };
   const request = await loadRequestForStaff(parsed.data.requestId);
-  if (request && !(await allowed(() => requireRequestAccess(request)))) return { success: false, error: "Accès refusé" };
+  const access = request ? await allowed(() => requireRequestAccess(request)) : null;
+  if (request && !access) return { success: false, error: "Accès refusé" };
   if (!request || request.status !== ComplementRequestStatus.OPEN) return { success: false, error: "Cette demande n'attend plus le client" };
   const sendError = await sendRequestEmail(request.id, true);
   if (sendError) return { success: false, error: sendError };
   await prisma.complementRequest.update({ where: { id: request.id }, data: { sentCount: { increment: 1 }, lastSentAt: new Date() } });
+  if (access?.origin === ComplementOrigin.NOTAIRE) await traceNotaireReminder(access.user, [request]);
   revalidateBail(request.bailId);
   return { success: true };
+}
+
+/**
+ * Relance du notaire : tracée à son nom (une ligne par relance, même pour plusieurs demandes), pour qu'il ne
+ * voie que les siennes. Elle n'entre pas dans le calcul des relances de l'équipe, qui la voit dans l'historique.
+ */
+async function traceNotaireReminder(
+  user: Parameters<typeof getActorName>[0] & { id: string },
+  requests: Array<{ bailId: string; clientId: string; target: ReminderTarget; recipientEmail: string; items: Array<{ status: ComplementItemStatus; label: string }> }>,
+) {
+  const first = requests[0];
+  if (!first) return;
+  await prisma.bailReminder
+    .create({
+      data: {
+        bailId: first.bailId,
+        clientId: first.clientId,
+        target: first.target,
+        reason: "MISSING_ITEMS",
+        channel: "EMAIL",
+        recipientEmail: first.recipientEmail,
+        items: requests.flatMap((r) => r.items.filter((item) => item.status === ComplementItemStatus.PENDING).map((item) => item.label)),
+        note: "Relance du notaire",
+        createdById: user.id,
+        createdByName: getActorName(user),
+      },
+    })
+    .catch((error) => console.error("[complement-requests] trace de la relance du notaire", error));
+  revalidatePath("/notaire");
+}
+
+/** Le notaire relance le propriétaire ou le locataire : toutes ses demandes encore sans réponse, en un rappel. */
+export async function remindNotaireTarget(data: unknown): Promise<{ success: true; data: { emails: string[] } } | Fail> {
+  const parsed = z.object({ bailId: z.string().min(1), target: z.enum(["OWNER", "TENANT"]) }).safeParse(data);
+  if (!parsed.success) return { success: false, error: "Données invalides" };
+  const access = await allowed(() => requireRequester(parsed.data.bailId));
+  if (!access || access.origin !== ComplementOrigin.NOTAIRE) return { success: false, error: "Accès refusé" };
+  const requests = await prisma.complementRequest.findMany({
+    where: { bailId: parsed.data.bailId, target: parsed.data.target, origin: ComplementOrigin.NOTAIRE, status: ComplementRequestStatus.OPEN },
+    include: { items: { select: { status: true, label: true } } },
+  });
+  if (requests.length === 0) return { success: false, error: "Rien n'est en attente de cette personne" };
+  const sent: typeof requests = [];
+  let lastError: string | null = null;
+  for (const request of requests) {
+    const sendError = await sendRequestEmail(request.id, true);
+    if (sendError) {
+      lastError = sendError;
+      continue;
+    }
+    await prisma.complementRequest.update({ where: { id: request.id }, data: { sentCount: { increment: 1 }, lastSentAt: new Date() } });
+    sent.push(request);
+  }
+  if (sent.length === 0) return { success: false, error: lastError ?? "Le rappel n'a pas pu être envoyé" };
+  await traceNotaireReminder(access.user, sent);
+  revalidateBail(parsed.data.bailId);
+  return { success: true, data: { emails: [...new Set(sent.map((r) => r.recipientEmail))] } };
+}
+
+export interface NotaireReminderSummary {
+  count: number;
+  lastAt: string | null;
+}
+
+/** Relances faites par le notaire connecté dans ce dossier, par personne (jamais celles de l'équipe). */
+export async function getNotaireReminders(bailId: string): Promise<Record<"OWNER" | "TENANT", NotaireReminderSummary>> {
+  const empty = { OWNER: { count: 0, lastAt: null }, TENANT: { count: 0, lastAt: null } };
+  const access = await allowed(() => requireRequester(bailId));
+  if (!access || access.origin !== ComplementOrigin.NOTAIRE) return empty;
+  const rows = await prisma.bailReminder.findMany({
+    where: { bailId, createdById: access.user.id, reason: "MISSING_ITEMS", channel: "EMAIL" },
+    orderBy: { createdAt: "desc" },
+    select: { target: true, createdAt: true },
+  });
+  const out: Record<"OWNER" | "TENANT", NotaireReminderSummary> = { OWNER: { count: 0, lastAt: null }, TENANT: { count: 0, lastAt: null } };
+  for (const row of rows) {
+    const entry = out[row.target as "OWNER" | "TENANT"];
+    entry.count += 1;
+    entry.lastAt ??= row.createdAt.toISOString();
+  }
+  return out;
 }
 
 /**

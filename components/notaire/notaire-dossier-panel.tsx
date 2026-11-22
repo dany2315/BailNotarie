@@ -38,7 +38,8 @@ import type {
   FactSection,
   NotaireDossierView,
 } from "@/lib/notaire/dossier-view";
-import type { StaffComplementRequest } from "@/lib/actions/complement-requests";
+import type { NotaireReminderSummary, StaffComplementRequest } from "@/lib/actions/complement-requests";
+import { NotaireRemindButton } from "@/components/notaire/notaire-remind";
 import { cn } from "@/lib/utils";
 import { PiecesSection } from "@/components/admin/fiche/pieces-section";
 import { NotaireStatusActions } from "@/components/notaire/notaire-status-actions";
@@ -84,10 +85,13 @@ function useCopy() {
 export function NotaireDossierPanel({
   view,
   requests,
+  reminders,
   archived = [],
 }: {
   view: NotaireDossierView;
   requests: StaffComplementRequest[];
+  /** Relances faites par ce notaire (jamais celles de l'équipe). */
+  reminders: Record<Target, NotaireReminderSummary>;
   /** Anciennes pièces que ce notaire a retirées en acceptant une nouvelle : il peut toujours les rouvrir. */
   archived?: ArchivedDocumentRow[];
 }) {
@@ -192,6 +196,18 @@ export function NotaireDossierPanel({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          {view.bailId && (
+            <NotaireRemindButton
+              bailId={view.bailId}
+              requests={requests}
+              reminders={reminders}
+              targets={(["OWNER", "TENANT"] as const).filter((target) => view.parties.some((p) => p.role === target))}
+              onAsk={(target) => {
+                if (askable(target)) setAsk(target);
+                else toast.info("Son formulaire n'est pas encore envoyé : il demande déjà tout ce qui est obligatoire.");
+              }}
+            />
+          )}
         </div>
       </header>
 
@@ -260,7 +276,14 @@ export function NotaireDossierPanel({
               )}
             </h3>
             {requests.length > 0 ? (
-              <ComplementRequestsPanel requests={requests} canArchive />
+              <ComplementRequestsPanel
+                requests={requests}
+                canArchive
+                sentLabel={(request) => {
+                  const mine = reminders[request.target as Target];
+                  return `Envoyée le ${dayFr(request.createdAt)}${mine.count > 0 && mine.lastAt ? `, vous l'avez relancé ${mine.count} fois (dernière le ${dayFr(mine.lastAt)})` : ""}`;
+                }}
+              />
             ) : (
               <p className="rounded-2xl border border-dashed bg-background px-4 py-4 text-[13px] text-muted-foreground">
                 Aucune demande en cours. Pour demander une pièce ou une information, utilisez « Demander » en haut, ou

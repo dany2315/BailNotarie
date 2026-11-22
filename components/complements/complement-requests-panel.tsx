@@ -32,15 +32,18 @@ export function ComplementRequestsPanel({
   requests,
   locked = false,
   canArchive = false,
+  sentLabel,
 }: {
   requests: StaffComplementRequest[];
   locked?: boolean;
   canArchive?: boolean;
+  /** Texte d'envoi et de relances à la place du compte global (le notaire ne voit que ses propres relances). */
+  sentLabel?: (request: StaffComplementRequest) => string;
 }) {
   return (
     <>
       {requests.map((request) => (
-        <RequestCard key={request.id} request={request} locked={locked} canArchive={canArchive} />
+        <RequestCard key={request.id} request={request} locked={locked} canArchive={canArchive} sentLabel={sentLabel} />
       ))}
     </>
   );
@@ -71,7 +74,17 @@ export function ComplementItemReview({ item, locked = false, canArchive = false 
   );
 }
 
-function RequestCard({ request, locked, canArchive }: { request: StaffComplementRequest; locked: boolean; canArchive: boolean }) {
+function RequestCard({
+  request,
+  locked,
+  canArchive,
+  sentLabel,
+}: {
+  request: StaffComplementRequest;
+  locked: boolean;
+  canArchive: boolean;
+  sentLabel?: (request: StaffComplementRequest) => string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = React.useState(false);
@@ -94,7 +107,9 @@ function RequestCard({ request, locked, canArchive }: { request: StaffComplement
     router.refresh();
   };
 
-  const sent = `Envoyée le ${fmtDay(request.createdAt)}${request.sentCount > 1 ? `, relancée ${request.sentCount - 1} fois (dernière le ${fmtDay(request.lastSentAt)})` : ""}`;
+  const sent = sentLabel
+    ? sentLabel(request)
+    : `Envoyée le ${fmtDay(request.createdAt)}${request.sentCount > 1 ? `, relancée ${request.sentCount - 1} fois (dernière le ${fmtDay(request.lastSentAt)})` : ""}`;
 
   return (
     <CheckSection

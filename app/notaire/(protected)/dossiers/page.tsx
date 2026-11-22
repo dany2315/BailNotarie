@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth-helpers";
-import { getNotaireArchivedDocuments, getNotaireComplementRequests } from "@/lib/actions/complement-requests";
+import { getNotaireArchivedDocuments, getNotaireComplementRequests, getNotaireReminders } from "@/lib/actions/complement-requests";
 import { loadNotaireDossier } from "@/lib/notaire/dossier-view";
 import { defaultDossierId, notaireDossierList } from "@/lib/notaire/dossier-list";
 import { NotaireDossierPanel } from "@/components/notaire/notaire-dossier-panel";
@@ -22,6 +22,9 @@ export default async function NotaireDossiersPage({ searchParams }: { searchPara
   const view = selectedId ? await loadNotaireDossier(selectedId) : null;
   const requests = view?.bailId ? await getNotaireComplementRequests(view.bailId) : [];
   const archived = view?.bailId ? await getNotaireArchivedDocuments(view.bailId) : [];
+  const reminders = view?.bailId
+    ? await getNotaireReminders(view.bailId)
+    : { OWNER: { count: 0, lastAt: null }, TENANT: { count: 0, lastAt: null } };
 
   if (!view) {
     return (
@@ -48,5 +51,5 @@ export default async function NotaireDossiersPage({ searchParams }: { searchPara
     );
   }
 
-  return <NotaireDossierPanel key={view.assignmentId} view={view} requests={requests} archived={archived} />;
+  return <NotaireDossierPanel key={view.assignmentId} view={view} requests={requests} reminders={reminders} archived={archived} />;
 }
