@@ -44,6 +44,7 @@ import type { NotaireFormWait } from "@/lib/notaire/form-reminders";
 import { cn } from "@/lib/utils";
 import { PiecesSection } from "@/components/admin/fiche/pieces-section";
 import { NotaireStatusActions } from "@/components/notaire/notaire-status-actions";
+import { DossierDownloadMenu } from "@/components/notaire/dossier-download-menu";
 
 type Target = "OWNER" | "TENANT";
 
@@ -144,15 +145,7 @@ export function NotaireDossierPanel({
         )}
 
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <Button asChild className="col-span-2 h-10 gap-2 sm:col-span-1">
-            <a href={`/api/notaire/dossiers/${view.assignmentId}/zip`} download>
-              <Download className="size-4" />
-              Tout télécharger
-              <span className="font-normal opacity-80">
-                · {view.documentCount} pièce{view.documentCount > 1 ? "s" : ""}
-              </span>
-            </a>
-          </Button>
+          <DossierDownloadMenu assignmentId={view.assignmentId} documentCount={view.documentCount} />
           {view.bailId && (
             <PartyMenu
               label="Discuter"

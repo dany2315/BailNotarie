@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Zip, ZipPassThrough, strToU8 } from "fflate";
 import { loadNotaireDossier } from "@/lib/notaire/dossier-view";
-import { extractS3KeyFromUrl, generateSignedDownloadUrl } from "@/lib/utils/s3-client";
+import { documentReadUrl } from "@/lib/notaire/dossier-files";
 import { contentDisposition } from "@/lib/utils/document-filename";
 
 export const runtime = "nodejs";
@@ -40,10 +40,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         for (const doc of group.documents) {
           const path = `${group.folder}/${doc.zipName}`;
           try {
-            const url = doc.fileKey.startsWith("http") && !doc.fileKey.includes("amazonaws.com")
-              ? doc.fileKey
-              : await generateSignedDownloadUrl(extractS3KeyFromUrl(doc.fileKey) || doc.fileKey, 600);
-            const response = await fetch(url);
+            const response = await fetch(await documentReadUrl(doc));
             if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
             const file = new ZipPassThrough(path);
             file.mtime = new Date(doc.createdAt);
