@@ -1,20 +1,8 @@
-import { getCurrentUser } from "@/lib/auth-helpers";
-import { redirect } from "next/navigation";
-import { Role } from "@prisma/client";
-import { NotaireSidebar } from "@/components/notaire/notaire-sidebar";
+import { NO_INDEX_METADATA } from "@/lib/seo/no-index";
 
-export default async function NotaireLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // Ne pas protéger la page de login
-  // La protection se fait dans les pages individuelles
-  
-  return (
-    <>
-      {children}
-    </>
-  );
+export const metadata = NO_INDEX_METADATA;
+
+/** Espace notaire : la page de connexion n'est pas protégée ; le reste l'est dans (protected)/layout.tsx. */
+export default function NotaireLayout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
-

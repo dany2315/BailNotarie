@@ -1,0 +1,1707 @@
+{
+ "genereLe": "2026-11-17T16:49:44.495Z",
+ "totaux": {
+  "cas": 1239,
+  "OK": 1035,
+  "KO": 99,
+  "PARTIEL": 72,
+  "NON_TESTE": 33
+ },
+ "captures": 1239,
+ "parAgent": {
+  "PRO-D": {
+   "cas": 101,
+   "OK": 81,
+   "KO": 11,
+   "PARTIEL": 5,
+   "NON_TESTE": 4,
+   "captures": 124,
+   "rapport": true
+  },
+  "PRO-M": {
+   "cas": 156,
+   "OK": 131,
+   "KO": 9,
+   "PARTIEL": 8,
+   "NON_TESTE": 8,
+   "captures": 193,
+   "rapport": true
+  },
+  "LOC": {
+   "cas": 143,
+   "OK": 121,
+   "KO": 12,
+   "PARTIEL": 8,
+   "NON_TESTE": 2,
+   "captures": 171,
+   "rapport": true
+  },
+  "ADM-1": {
+   "cas": 158,
+   "OK": 136,
+   "KO": 20,
+   "PARTIEL": 1,
+   "NON_TESTE": 1,
+   "captures": 129,
+   "rapport": true
+  },
+  "ADM-2": {
+   "cas": 121,
+   "OK": 114,
+   "KO": 6,
+   "PARTIEL": 1,
+   "NON_TESTE": 0,
+   "captures": 129,
+   "rapport": true
+  },
+  "NOT": {
+   "cas": 178,
+   "OK": 162,
+   "KO": 3,
+   "PARTIEL": 9,
+   "NON_TESTE": 4,
+   "captures": 94,
+   "rapport": true
+  },
+  "COM": {
+   "cas": 102,
+   "OK": 75,
+   "KO": 13,
+   "PARTIEL": 8,
+   "NON_TESTE": 6,
+   "captures": 110,
+   "rapport": true
+  },
+  "PUB": {
+   "cas": 280,
+   "OK": 215,
+   "KO": 25,
+   "PARTIEL": 32,
+   "NON_TESTE": 8,
+   "captures": 289,
+   "rapport": true
+  }
+ },
+ "parRole": {
+  "Visiteur": {
+   "cas": 289,
+   "OK": 232,
+   "KO": 25,
+   "PARTIEL": 28,
+   "NON_TESTE": 4
+  },
+  "Propriétaire": {
+   "cas": 308,
+   "OK": 243,
+   "KO": 26,
+   "PARTIEL": 24,
+   "NON_TESTE": 15
+  },
+  "Locataire": {
+   "cas": 182,
+   "OK": 147,
+   "KO": 23,
+   "PARTIEL": 8,
+   "NON_TESTE": 4
+  },
+  "Équipe": {
+   "cas": 297,
+   "OK": 263,
+   "KO": 25,
+   "PARTIEL": 3,
+   "NON_TESTE": 6
+  },
+  "Notaire": {
+   "cas": 163,
+   "OK": 150,
+   "KO": 0,
+   "PARTIEL": 9,
+   "NON_TESTE": 4
+  }
+ },
+ "parAppareil": {
+  "ordinateur": {
+   "cas": 768,
+   "OK": 632,
+   "KO": 67,
+   "PARTIEL": 46,
+   "NON_TESTE": 23
+  },
+  "portable": {
+   "cas": 22,
+   "OK": 22,
+   "KO": 0,
+   "PARTIEL": 0,
+   "NON_TESTE": 0
+  },
+  "tablette": {
+   "cas": 20,
+   "OK": 17,
+   "KO": 3,
+   "PARTIEL": 0,
+   "NON_TESTE": 0
+  },
+  "telephone": {
+   "cas": 257,
+   "OK": 217,
+   "KO": 18,
+   "PARTIEL": 16,
+   "NON_TESTE": 6
+  },
+  "iphone": {
+   "cas": 150,
+   "OK": 127,
+   "KO": 10,
+   "PARTIEL": 10,
+   "NON_TESTE": 3
+  },
+  "petit": {
+   "cas": 22,
+   "OK": 20,
+   "KO": 1,
+   "PARTIEL": 0,
+   "NON_TESTE": 1
+  }
+ },
+ "defauts": [
+  {
+   "id": "COM-063",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "bloquant",
+   "origine": "staging",
+   "fonctionnalite": "Société locataire : passer l'étape « Informations de l'entreprise »",
+   "etat": "corrigé"
+  },
+  {
+   "id": "COM-093",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "bloquant",
+   "origine": "staging",
+   "fonctionnalite": "Société locataire : passer l'étape « Informations de l'entreprise »",
+   "etat": "corrigé"
+  },
+  {
+   "id": "LOC-055",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "bloquant",
+   "origine": "staging",
+   "fonctionnalite": "Adresse e-mail de la société saisie au clavier",
+   "etat": "corrigé"
+  },
+  {
+   "id": "LOC-056",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "bloquant",
+   "origine": "staging",
+   "fonctionnalite": "Étape 3 « entreprise » entièrement remplie : passage aux pièces",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PUB-330",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "bloquant",
+   "origine": "staging",
+   "fonctionnalite": "Inscription publique sur /register (il ne doit pas y avoir de création de compte publique)",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PUB-331",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "bloquant",
+   "origine": "staging",
+   "fonctionnalite": "Connexion équipe par mot de passe avec le compte créé par l'inscription publique",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PUB-332",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "bloquant",
+   "origine": "staging",
+   "fonctionnalite": "Inscription par appel direct à /api/auth/sign-up/email, puis neutralisation des comptes créés",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-1-019",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Ajouter un lead : adresse déjà connue refusée",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-1-022",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Inviter le propriétaire : adresse déjà utilisée refusée",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-1-053",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Nouveau client complet : e-mail déjà utilisé",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-1-062",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Ouverture d'un lien de formulaire : valide, périmé (jeton régénéré), révoqué",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-1-063",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Nouveau client complet : seuls les champs marqués obligatoires sont remplis",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-1-094",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "« Créer un notaire » avec l'e-mail d'un compte client existant",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-2-049",
+   "agent": "ADM-2",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Bail nu 3 ans → meublé 1 an : date de fin recalculée",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-2-066",
+   "agent": "ADM-2",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Type ou prise d'effet modifiés depuis la fiche : la date de fin ne suit pas (seconde confirmation)",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-2-106",
+   "agent": "ADM-2",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "branche",
+   "fonctionnalite": "Réponse à une information quand la base est lente : message technique et réponse pourtant enregistrée",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-2-115",
+   "agent": "ADM-2",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Réassigner le dossier à l'autre notaire",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-2-118",
+   "agent": "ADM-2",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Dossier signé : l'identité des parties reste modifiable depuis la fiche",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-024",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Locataire : e-mail invalide refusé",
+   "etat": "corrigé"
+  },
+  {
+   "id": "COM-025",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Locataire : même e-mail que le propriétaire refusé",
+   "etat": "corrigé"
+  },
+  {
+   "id": "COM-034",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "montage",
+   "fonctionnalite": "Paiement accepté par Stripe mais dossier non soumis pendant plusieurs essais (réponses 500 passagères)",
+   "etat": "non reproduit"
+  },
+  {
+   "id": "LOC-045",
+   "agent": "LOC",
+   "statut": "PARTIEL",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Seconde personne : adresse e-mail identique au premier locataire ou déjà utilisée par un autre compte",
+   "etat": "corrigé"
+  },
+  {
+   "id": "LOC-122",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "branche",
+   "fonctionnalite": "Le locataire est prévenu par e-mail qu'il doit reconfirmer",
+   "etat": "corrigé"
+  },
+  {
+   "id": "NOT-093",
+   "agent": "NOT",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Les fichiers échangés dans la messagerie entre le notaire et le propriétaire restent invisibles pour le locataire",
+   "etat": "corrigé"
+  },
+  {
+   "id": "NOT-094",
+   "agent": "NOT",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Réciproque : le fichier envoyé par le notaire au locataire reste invisible pour le propriétaire",
+   "etat": "corrigé"
+  },
+  {
+   "id": "NOT-097",
+   "agent": "NOT",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Le locataire ne peut pas lire par l'API les messages échangés entre le notaire et le propriétaire",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-D-023",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Deuxième propriétaire : même e-mail que le premier",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-D-027",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Deuxième propriétaire : e-mail déjà utilisé par un autre client",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-D-048",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Locataire : e-mail invalide",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-D-049",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Locataire : e-mail du propriétaire refusé",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-D-082",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Ajouter le locataire : e-mail du propriétaire refusé",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-M-013",
+   "agent": "PRO-M",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Geste « retour » du navigateur dans le formulaire",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-M-044",
+   "agent": "PRO-M",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "« Locataire » : libellé du bouton, apparition des dates, e-mail mal formé",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-M-045",
+   "agent": "PRO-M",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "« Locataire » : adresse déjà utilisée (celle du propriétaire, ou d'un autre client)",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-M-054",
+   "agent": "PRO-M",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Dépôt d'un fichier au mauvais format (.txt, .zip)",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-M-060",
+   "agent": "PRO-M",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Paiement refusé tant qu'une pièce obligatoire manque (Kbis supprimé)",
+   "etat": "corrigé"
+  },
+  {
+   "id": "PRO-M-077",
+   "agent": "PRO-M",
+   "statut": "PARTIEL",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "Fenêtre « Ajouter un locataire » : tient dans l'écran, e-mail obligatoire et contrôlé",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-078",
+   "agent": "PRO-M",
+   "statut": "KO",
+   "gravite": "majeur",
+   "origine": "staging",
+   "fonctionnalite": "« Ajouter un locataire » avec l'adresse du propriétaire lui-même",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-1-013",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Tuile « Frais non payés » → liste filtrée « Non payés » avec le même nombre",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-015",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Bouton « Nouveau dossier » de « À traiter »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-034",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Adresse de liste avec des paramètres invalides",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-038",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Lead par téléphone : numéro incomplet refusé",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-041",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Relancer depuis la liste quand la relance n'est pas encore due (moins de 24 h, ou moins de 48 h après une relance)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-060",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Recherche « par token » dans les formulaires envoyés",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-064",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "branche",
+   "fonctionnalite": "Nouveau bail : locataire choisi sans jour de paiement",
+   "etat": "à décider"
+  },
+  {
+   "id": "ADM-1-065",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Nouveau lien de formulaire : le bail choisi est enregistré",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-1-085",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Création d'un notaire : adresse déjà utilisée",
+   "etat": "corrigé"
+  },
+  {
+   "id": "ADM-1-098",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Modification d'un bien : surface négative",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-111",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "« À traiter » sur tablette : boutons d'en-tête et onglets",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-116",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Liste des clients sur tablette : boutons d'en-tête",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-120",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Nouveau bail sur tablette : liste « Locataire »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-2-057",
+   "agent": "ADM-2",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Coordonnées du locataire : téléphone invalide refusé, téléphone et adresse modifiés",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-2-136",
+   "agent": "ADM-2",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Fichier trop lourd et type de fichier inattendu",
+   "etat": "corrigé"
+  },
+  {
+   "id": "COM-010",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Caractéristiques du local : e-mail du syndic invalide accepté",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-026",
+   "agent": "COM",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Locataire : jour de paiement, valeur limite 31",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-028",
+   "agent": "COM",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "inconnue",
+   "fonctionnalite": "Locataire : date de prise d'effet dans le passé",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-061",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Récapitulatif commercial présenté au locataire (loyer hors taxes, périodicité, activité)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-067",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Société locataire : messages des champs obligatoires",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-071",
+   "agent": "COM",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "montage",
+   "fonctionnalite": "Cohérence entre « Inventaire des charges » (conformité) et « Charges, impôts et taxes » (conditions)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-091",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Récapitulatif commercial présenté au locataire (loyer hors taxes, périodicité, activité)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-097",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Société locataire : messages des champs obligatoires",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-100",
+   "agent": "COM",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "montage",
+   "fonctionnalite": "Fiche notaire : conditions commerciales complètes",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-012",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Adresse e-mail du locataire principal : préremplie et verrouillée",
+   "etat": "corrigé"
+  },
+  {
+   "id": "LOC-013",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Téléphone avec indicatif de pays",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-018",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Date de naissance dans le futur ou locataire mineur",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-021",
+   "agent": "LOC",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Reprise du formulaire après fermeture du navigateur",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-024",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Marié : contrat de mariage exigé sauf en communauté réduite aux acquêts",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-051",
+   "agent": "LOC",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Profil « Entreprise » : champs obligatoires",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-054",
+   "agent": "LOC",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Société introuvable : saisie manuelle",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-070",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Erreurs JavaScript et réponses 5xx sur l'espace locataire (ordinateur)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-085",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Erreurs JavaScript et réponses 5xx sur l'espace locataire (telephone)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-099",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Erreurs JavaScript et réponses 5xx sur l'espace locataire (iphone)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-112",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Identité saisie sur iPhone ; date de naissance à venir (seconde reproduction)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-114",
+   "agent": "LOC",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Régime matrimonial après retour à « célibataire » (seconde reproduction)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "NOT-029",
+   "agent": "NOT",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Recherche : accents et onglet courant",
+   "etat": "à examiner"
+  },
+  {
+   "id": "NOT-075",
+   "agent": "NOT",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Le notaire est prévenu de la réponse du client",
+   "etat": "à examiner"
+  },
+  {
+   "id": "NOT-117",
+   "agent": "NOT",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "branche",
+   "fonctionnalite": "Accepter une « autre pièce » (pièce libre, sans ancienne version)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "NOT-177",
+   "agent": "NOT",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Bulle « Support » et bouton principal de la fenêtre « Demander »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-018",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Identité : libellés de la liste « Statut familial »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-035",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Copropriété : nom du syndic exigé, e-mail du syndic contrôlé",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-039",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Reprise après « Caractéristiques du bien » : l'étape « Type de contrat » n'est pas présentée",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-051",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "branche",
+   "fonctionnalite": "Locataire : jour de paiement et date de prise d'effet hors limites",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-056",
+   "agent": "PRO-D",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "inconnue",
+   "fonctionnalite": "Documents : suppression d'un fichier déposé",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-078",
+   "agent": "PRO-D",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Mes informations : lecture, pièces, modification",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-079",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Erreurs JavaScript dans l'espace client",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-022",
+   "agent": "PRO-M",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Société : téléphone invalide refusé",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-035",
+   "agent": "PRO-M",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Copropriété : syndic obligatoire, e-mail du syndic contrôlé",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-050",
+   "agent": "PRO-M",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Date de prise d'effet dans le passé (bail déjà échu)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-058",
+   "agent": "PRO-M",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Boutons d'action d'une pièce (voir, télécharger, supprimer) au doigt",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-059",
+   "agent": "PRO-M",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Suppression d'une pièce déposée (recette-kbis.pdf)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-119",
+   "agent": "PRO-M",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "iPhone — « Le loyer » : un seul toucher sur « Continuer » suffit",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-132",
+   "agent": "PRO-M",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "iPhone — Page /commencer (bail d'habitation)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-168",
+   "agent": "PRO-M",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Bulle « Support » et bouton « Continuer » de la page /commencer",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-017",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Page de maquette /testFiches (/testFiches) s'affiche",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-035",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Page de maquette /testFiches (/testFiches) s'affiche",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-053",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Page de maquette /testFiches (/testFiches) s'affiche",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-105",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Accueil connecté : champ remplacé par « Reprendre mon dossier », badges vers l'espace client",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-110",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Pied de page : liens, téléphone, e-mail, ancres",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-125",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Accueil connecté : champ remplacé par « Reprendre mon dossier », badges vers l'espace client",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-130",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Pied de page : liens, téléphone, e-mail, ancres",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-145",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Accueil connecté : champ remplacé par « Reprendre mon dossier », badges vers l'espace client",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-150",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Pied de page : liens, téléphone, e-mail, ancres",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-203",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Simulateur : valeurs limites",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-209",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Simulateur : valeurs limites",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-215",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Simulateur : valeurs limites",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-230",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "montage",
+   "fonctionnalite": "Blog : liste des articles",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-231",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Blog : encart « Restez informé » / bouton « S'abonner »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-232",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "montage",
+   "fonctionnalite": "Article « Sous-location illégale : que faire ? »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-236",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "montage",
+   "fonctionnalite": "Article « Préavis location : 1 ou 3 mois ? Règles 2026 »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-238",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "montage",
+   "fonctionnalite": "Article « Révision loyer 2026 : calcul IRL et simulateur »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-239",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "montage",
+   "fonctionnalite": "Article « Dépôt de garantie : montant, délai, litiges »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-252",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Article « Bail notarié ou bail classique : lequel choisir ? »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-267",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Blog : erreurs JavaScript, 5xx et ressources en erreur (ordinateur)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-271",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Blog : encart « Restez informé » / bouton « S'abonner »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-272",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Les 24 articles s'ouvrent et se lisent sur telephone",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-274",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Blog : erreurs JavaScript, 5xx et ressources en erreur (telephone)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-281",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Blog : encart « Restez informé » / bouton « S'abonner »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-282",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Les 24 articles s'ouvrent et se lisent sur iphone",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-284",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Blog : erreurs JavaScript, 5xx et ressources en erreur (iphone)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-320",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Connexion client : code expiré (saisi plus de 10 minutes après l'envoi)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-401",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "GET /api/client/properties/<id> : réservé au propriétaire du bien",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-402",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "GET /api/properties/<id> : équipe ou propriétaire du bien",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-403",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "GET /api/clients/<id> : fiche client réservée à l'équipe",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-404",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "GET /api/bail/<id>/messages : parties du bail et notaire attribué",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-405",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "POST /api/bail/<id>/messages : pas d'écriture dans le bail d'un autre",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-420",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "POST /api/stripe/create-payment-intent-bail : réservé aux clients",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-423",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "POST /api/bail-messages/send-with-s3 et /api/notaire-requests/add-document-with-s3",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-425",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Routes publiques de vérification d'adresse (/api/auth/client/check-user, /api/auth/notaire/check-user, /api/auth/client/prepare-login)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-426",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Anciennes routes de connexion par code (/api/auth/client/request-otp et /verify-otp), que l'écran de connexion n'utilise plus",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-502",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Balises de référencement des pages indexables (titre, description, Open Graph, données structurées, titre principal)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-503",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Pages privées, de connexion et de tunnel : jamais indexables",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-504",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Adresses inexistantes : page « introuvable » propre",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-505",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Liens internes des pages publiques",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-543",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Bulle « Support » : ne masque pas les boutons principaux",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-544",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Menu mobile ouvert : la bulle « Support » ne recouvre pas l'action principale",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-554",
+   "agent": "PUB",
+   "statut": "KO",
+   "gravite": "mineur",
+   "origine": "staging",
+   "fonctionnalite": "Menu mobile ouvert : la bulle « Support » ne recouvre pas l'action principale",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-027",
+   "agent": "ADM-1",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Recherche par le libellé du bien (nom affiché en gras dans la colonne « Dossier »)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "ADM-1-052",
+   "agent": "ADM-1",
+   "statut": "KO",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Nouveau client complet : libellés des listes déroulantes",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-007",
+   "agent": "COM",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "inconnue",
+   "fonctionnalite": "Récapitulatif d'un propriétaire société",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-029",
+   "agent": "COM",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "montage",
+   "fonctionnalite": "Documents : envoi refusé sans les pièces obligatoires",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-040",
+   "agent": "COM",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "montage",
+   "fonctionnalite": "Accueil → « bail commercial » → page de démarrage",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-045",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Le local : libellés propres au bail commercial (info-bulle de la surface)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-046",
+   "agent": "COM",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Caractéristiques du local : lotissement et « autre ensemble immobilier »",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-062",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Récapitulatif du locataire : vocabulaire du bail commercial",
+   "etat": "à examiner"
+  },
+  {
+   "id": "COM-092",
+   "agent": "COM",
+   "statut": "KO",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Récapitulatif du locataire : vocabulaire du bail commercial",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-008",
+   "agent": "LOC",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Récapitulatif du bien (étape 1)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-015",
+   "agent": "LOC",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Statut familial et régime matrimonial : listes proposées",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-043",
+   "agent": "LOC",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Ajout d'une seconde personne : champs obligatoires",
+   "etat": "à examiner"
+  },
+  {
+   "id": "LOC-111",
+   "agent": "LOC",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Récapitulatif et profil sur iPhone",
+   "etat": "à examiner"
+  },
+  {
+   "id": "NOT-027",
+   "agent": "NOT",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Tri de la liste",
+   "etat": "à examiner"
+  },
+  {
+   "id": "NOT-032",
+   "agent": "NOT",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Lien direct avec un identifiant inexistant",
+   "etat": "à examiner"
+  },
+  {
+   "id": "NOT-071",
+   "agent": "NOT",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Page « Demande du notaire » du propriétaire",
+   "etat": "à examiner"
+  },
+  {
+   "id": "NOT-095",
+   "agent": "NOT",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Téléchargement d'un fichier reçu dans la messagerie",
+   "etat": "à examiner"
+  },
+  {
+   "id": "NOT-119",
+   "agent": "NOT",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Intitulé des pièces libres et des fichiers de messagerie dans la carte « Pièces » et dans le zip",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-016",
+   "agent": "PRO-D",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Identité : propriétaire mineur (né en 2015)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-030",
+   "agent": "PRO-D",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Le bien : surfaces invalides (0, négative, démesurée)",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-038",
+   "agent": "PRO-D",
+   "statut": "KO",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Type de contrat : orthographe des libellés",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-D-071",
+   "agent": "PRO-D",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Mes dossiers : liste par bien, bail de chaque bien, dépliage",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-076",
+   "agent": "PRO-M",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "inconnue",
+   "fonctionnalite": "Erreurs JavaScript à l'ouverture du détail d'un dossier",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PRO-M-114",
+   "agent": "PRO-M",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "iPhone — date de naissance saisie au clavier et situation familiale",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-112",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Formulaire de contact : champs obligatoires et envoi",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-132",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Formulaire de contact : champs obligatoires et envoi",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-152",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Formulaire de contact : champs obligatoires et envoi",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-205",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Simulateur : liens, textes et qualité de la page",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-211",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Simulateur : liens, textes et qualité de la page",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-217",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Simulateur : liens, textes et qualité de la page",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-307",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Déjà connecté : les pages de connexion renvoient vers son espace",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-313",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Connexion équipe (/login) : champs vides, compte inconnu, mot de passe faux, adresse d'un client",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-347",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Déjà connecté : les pages de connexion renvoient vers son espace",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-367",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Déjà connecté : les pages de connexion renvoient vers son espace",
+   "etat": "à examiner"
+  },
+  {
+   "id": "PUB-526",
+   "agent": "PUB",
+   "statut": "PARTIEL",
+   "gravite": "cosmetique",
+   "origine": "staging",
+   "fonctionnalite": "Contraste des textes (accueil, connexion client, pied de page)",
+   "etat": "à examiner"
+  }
+ ]
+}

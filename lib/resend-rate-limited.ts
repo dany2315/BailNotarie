@@ -1,4 +1,5 @@
 import { resend } from "@/lib/resend";
+import { markEmailIfNotProduction } from "@/lib/email-test-marker";
 
 function readPositiveNumber(envValue: string | undefined, fallback: number): number {
   if (!envValue) return fallback;
@@ -324,8 +325,10 @@ export async function sendEmailWithRateLimit<T>(
 /**
  * Fonction helper pour envoyer un email avec rate limiting et retry automatique
  * Gère automatiquement les erreurs 429 de Resend
+ * Hors production, l'email est marqué comme envoi de test ([TEST] + bandeau)
  */
 export async function resendSendEmail(options: Parameters<typeof resend.emails.send>[0]) {
-  return sendEmailWithRateLimit(() => resend.emails.send(options));
+  const preparedOptions = await markEmailIfNotProduction(options);
+  return sendEmailWithRateLimit(() => resend.emails.send(preparedOptions));
 }
 

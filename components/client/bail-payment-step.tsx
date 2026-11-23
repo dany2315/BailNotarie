@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatDossierFee } from "@/lib/utils/dossier-fee";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -64,12 +65,18 @@ const STRIPE_APPEARANCE = {
   },
 };
 
+/** Message d'attente : le paiement existe, son résultat n'est pas encore connu. */
+const PAYMENT_PENDING_MESSAGE =
+  "Votre paiement est en cours de vérification. Ne payez pas une seconde fois : cette page se mettra à jour dès qu'il sera confirmé.";
+
 interface PaymentFormProps {
   onPaymentSuccess: (paymentIntentId: string) => void;
+  /** Paiement envoyé mais pas encore confirmé par la banque : on attend la confirmation. */
+  onPaymentPending: () => void;
   isSubmitting: boolean;
 }
 
-function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
+function PaymentForm({ onPaymentSuccess, onPaymentPending, isSubmitting }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -100,6 +107,9 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
 
     if (paymentIntent?.status === "succeeded") {
       onPaymentSuccess(paymentIntent.id);
+    } else if (paymentIntent?.status === "processing" || paymentIntent?.status === "requires_capture") {
+      // Paiement parti : surtout ne pas inviter à réessayer, on attend la confirmation.
+      onPaymentPending();
     } else {
       setError("Le paiement n'a pas pu être confirmé. Veuillez réessayer.");
       setIsProcessing(false);
@@ -178,7 +188,7 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
         ) : (
           <>
             <Lock className="mr-2 h-4 w-4" />
-            Payer 39,90€ et créer mon bail
+            Payer {formatDossierFee("HABITATION")} et créer mon bail
           </>
         )}
       </Button>
@@ -202,8 +212,18 @@ export function BailPaymentStep({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Paiement parti mais pas encore confirmé (ou état impossible à vérifier pour l'instant) : on attend et
+  // on revérifie, sans jamais proposer de payer une seconde fois.
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [checkCount, setCheckCount] = useState(0);
+
   useEffect(() => {
     const controller = new AbortController();
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const waitAndRecheck = (message: string) => {
+      setPendingMessage(message);
+      retry = setTimeout(() => setCheckCount((count) => count + 1), 5000);
+    };
 
     fetch("/api/stripe/create-payment-intent-bail", {
       method: "POST",
@@ -212,7 +232,14 @@ export function BailPaymentStep({
     })
       .then((r) => r.json())
       .then((data) => {
-        if (data.clientSecret) {
+        if (data.alreadyPaid && data.paymentIntentId) {
+          // Déjà payé (page fermée ou création du bail interrompue) : on poursuit sans repayer.
+          setPendingMessage(null);
+          onPaymentSuccess(data.paymentIntentId);
+        } else if (data.state === "processing" || data.state === "unknown") {
+          waitAndRecheck(data.message || data.error || PAYMENT_PENDING_MESSAGE);
+        } else if (data.clientSecret) {
+          setPendingMessage(null);
           setClientSecret(data.clientSecret);
         } else {
           setLoadError(
@@ -222,12 +249,17 @@ export function BailPaymentStep({
       })
       .catch((err) => {
         if (err.name !== "AbortError") {
-          setLoadError("Erreur réseau lors de l'initialisation du paiement.");
+          if (pendingMessage) waitAndRecheck(pendingMessage);
+          else setLoadError("Erreur réseau lors de l'initialisation du paiement.");
         }
       });
 
-    return () => controller.abort();
-  }, []);
+    return () => {
+      controller.abort();
+      if (retry) clearTimeout(retry);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkCount]);
 
   const inclus = [
     "Constitution du dossier en ligne",
@@ -242,7 +274,7 @@ export function BailPaymentStep({
     <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
       {/* Récapitulatif unifié : maintenant (haut, mis en avant) + plus tard (bas, discret) */}
       <div className="rounded-xl border border-blue-100 overflow-hidden bg-white">
-        {/* Section 1 — À payer maintenant : 39,90 € */}
+        {/* Section 1 — À payer maintenant : frais de dossier (bail d'habitation) */}
         <div className="bg-blue-50/60 px-4 py-3">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -262,7 +294,7 @@ export function BailPaymentStep({
               </div>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-2xl font-bold text-[#4373f5]">39,90€</p>
+              <p className="text-2xl font-bold text-[#4373f5]">{formatDossierFee("HABITATION")}</p>
               <p className="text-xs text-gray-400">TTC</p>
             </div>
           </div>
@@ -301,6 +333,14 @@ export function BailPaymentStep({
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{loadError}</span>
         </div>
+      ) : pendingMessage ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-3" role="status">
+          <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-amber-600" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-amber-900">Paiement en cours de vérification</p>
+            <p className="text-sm text-amber-800">{pendingMessage}</p>
+          </div>
+        </div>
       ) : !clientSecret ? (
         <div className="rounded-xl border border-gray-200 bg-white p-8 flex flex-col items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-[#4373f5]" />
@@ -317,6 +357,10 @@ export function BailPaymentStep({
         >
           <PaymentForm
             onPaymentSuccess={onPaymentSuccess}
+            onPaymentPending={() => {
+              setPendingMessage(PAYMENT_PENDING_MESSAGE);
+              setCheckCount((count) => count + 1);
+            }}
             isSubmitting={isSubmitting}
           />
         </Elements>

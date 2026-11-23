@@ -4,6 +4,7 @@ import { pusherServer } from "@/lib/pusher";
 import { canAccessBail } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 export async function POST(request: NextRequest) {
   try {
@@ -99,9 +100,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(auth);
   } catch (error: any) {
     console.error("Erreur lors de l'authentification Pusher:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur d'authentification" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur d'authentification");
   }
 }

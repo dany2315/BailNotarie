@@ -6,6 +6,7 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -29,9 +30,11 @@ import { deleteDocument, getDocuments } from "@/lib/actions/documents";
 import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentViewer } from "@/components/leases/document-viewer";
 import { ClientDocumentUploaded } from "@/components/documents/client-document-uploaded";
-import { getRequiredClientFields } from "@/lib/utils/required-fields";
+import { getMaritalDocumentKind, getRequiredClientFields } from "@/lib/utils/required-fields";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { useDownloadFile } from "@/hooks/use-download-file";
+import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
+import { PROFIL_TYPE_LABELS } from "@/lib/utils/property-labels";
 
 interface EditClientFormProps {
   client: any;
@@ -204,19 +207,15 @@ export function EditClientForm({ client }: EditClientFormProps) {
   // Documents requis pour l'entreprise (KBIS, STATUTES)
   const entrepriseRequiredDocuments = [DocumentKind.KBIS, DocumentKind.STATUTES];
   
-  // Documents requis pour le client (selon statut familial)
+  // Documents requis pour le client : contrat de mariage (hors communauté légale) ou convention de PACS
   const clientRequiredDocuments: DocumentKind[] = [];
-  if (watchedFamilyStatus === FamilyStatus.MARIE) {
-    clientRequiredDocuments.push(DocumentKind.LIVRET_DE_FAMILLE);
-  } else if (watchedFamilyStatus === FamilyStatus.PACS) {
-    clientRequiredDocuments.push(DocumentKind.CONTRAT_DE_PACS);
+  const maritalDocument = getMaritalDocumentKind(watchedFamilyStatus, watchedMatrimonialRegime);
+  if (maritalDocument) {
+    clientRequiredDocuments.push(maritalDocument);
   }
   
-  // Documents requis selon le profil (assurance, RIB pour locataire)
+  // Plus de pièce propre au profil (l'assurance et le RIB ne sont plus demandés)
   const profilRequiredDocuments: DocumentKind[] = [];
-  if (watchedProfilType === ProfilType.LOCATAIRE) {
-    profilRequiredDocuments.push(DocumentKind.INSURANCE, DocumentKind.RIB);
-  }
 
   // Fonction pour déterminer quels documents doivent être affichés (uniquement pour l'affichage, ne bloque pas la soumission)
   const hasRequiredDocument = (kind: DocumentKind) => {
@@ -339,7 +338,7 @@ export function EditClientForm({ client }: EditClientFormProps) {
             <div className="space-y-2">
               <Label>Profil</Label>
               <div className="px-3 py-2 border rounded-md bg-muted/50">
-                <p className="text-sm font-medium">{client.profilType.replace(/_/g, " ")}</p>
+                <p className="text-sm font-medium">{PROFIL_TYPE_LABELS[client.profilType] ?? client.profilType}</p>
               </div>
             </div>
 
@@ -568,7 +567,7 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                   <SelectContent>
                                     {Object.values(FamilyStatus).map((status) => (
                                       <SelectItem key={status} value={status}>
-                                        {status.replace(/_/g, " ")}
+                                        {FAMILY_STATUS_LABELS[status] ?? status}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -591,7 +590,7 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                     <SelectContent>
                                       {Object.values(MatrimonialRegime).map((regime) => (
                                         <SelectItem key={regime} value={regime}>
-                                          {regime.replace(/_/g, " ")}
+                                          {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
@@ -614,10 +613,21 @@ export function EditClientForm({ client }: EditClientFormProps) {
 
                           <div className="space-y-2">
                             <Label htmlFor={`persons.${index}.birthDate`}>Date de naissance</Label>
-                            <Input
-                              type="date"
-                              {...form.register(`persons.${index}.birthDate`)}
-                              disabled={isLoading}
+                            <Controller
+                              name={`persons.${index}.birthDate`}
+                              control={form.control}
+                              render={({ field }) => (
+                                <DateInput
+                                  id={`persons.${index}.birthDate`}
+                                  name={field.name}
+                                  value={field.value as string | undefined}
+                                  onChange={field.onChange}
+                                  onBlur={field.onBlur}
+                                  disabled={isLoading}
+                                  fromYear={new Date().getFullYear() - 120}
+                                  toYear={new Date().getFullYear()}
+                                />
+                              )}
                             />
                           </div>
                         </div>
@@ -728,11 +738,6 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                         <p className="text-sm font-medium truncate">
                                           {documentKindLabels[doc.kind] || doc.kind}
                                         </p>
-                                        {doc.label && (
-                                          <p className="text-xs text-muted-foreground truncate">
-                                            {doc.label}
-                                          </p>
-                                        )}
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-1">
@@ -797,7 +802,7 @@ export function EditClientForm({ client }: EditClientFormProps) {
                         Documents du client
                       </CardTitle>
                       <CardDescription>
-                        Documents liés au client (livret de famille, contrat PACS, assurance, RIB)
+                        Documents liés au client (contrat de mariage, convention de PACS)
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -864,11 +869,6 @@ export function EditClientForm({ client }: EditClientFormProps) {
                                       <p className="text-sm font-medium truncate">
                                         {documentKindLabels[doc.kind] || doc.kind}
                                       </p>
-                                      {doc.label && (
-                                        <p className="text-xs text-muted-foreground truncate">
-                                          {doc.label}
-                                        </p>
-                                      )}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1">
@@ -1099,11 +1099,6 @@ export function EditClientForm({ client }: EditClientFormProps) {
                           <p className="text-sm font-medium truncate">
                             {documentKindLabels[doc.kind] || doc.kind}
                           </p>
-                          {doc.label && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              {doc.label}
-                            </p>
-                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">

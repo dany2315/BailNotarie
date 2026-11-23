@@ -1,0 +1,404 @@
+"use client";
+
+import { useState } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { OtpCodeInput } from "@/components/ui/otp-code-input";
+import { Loader2, Mail, Scale, Shield, Lock, ArrowLeft } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+import Image from "next/image";
+import { LoadingScreen } from "@/components/ui/loading-screen";
+import { authErrorMessage } from "@/lib/auth-error-message";
+
+const loginSchema = z.object({
+  email: z.string().email("Email invalide"),
+});
+
+const otpSchema = z.object({
+  code: z.string().length(6, "Le code doit contenir 6 chiffres"),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+type OTPFormData = z.infer<typeof otpSchema>;
+
+/**
+ * Formulaire de connexion notaire. Déjà connecté, on n'arrive pas ici : la page serveur redirige tout de
+ * suite vers le bon espace (plus d'écran « Ouverture… » qui attend trois allers-retours).
+ */
+export function NotaireLoginClient() {
+  const [step, setStep] = useState<"email" | "otp">("email");
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+
+  const {
+    register: registerEmail,
+    handleSubmit: handleSubmitEmail,
+    formState: { errors: emailErrors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const {
+    control: controlOTP,
+    handleSubmit: handleSubmitOTP,
+    formState: { errors: otpErrors },
+  } = useForm<OTPFormData>({
+    resolver: zodResolver(otpSchema),
+  });
+
+  // Envoyer l'OTP selon la documentation better-auth
+  const onEmailSubmit = async (data: LoginFormData) => {
+    setIsLoading(true);
+    try {
+      const emailNormalized = data.email.toLowerCase().trim();
+      
+      // Pas de vérification préalable de l'adresse : la réponse serait un
+      // annuaire des notaires (m41). Better Auth n'envoie un code qu'à un compte existant.
+      // Si l'utilisateur est valide, envoyer l'OTP via better-auth
+      const { data: result, error } = await authClient.emailOtp.sendVerificationOtp({
+        email: emailNormalized,
+        type: "sign-in",
+      });
+
+      if (error) {
+        // Gestion spécifique des erreurs better-auth
+        const errorMessage = authErrorMessage(error, "Impossible d'envoyer le code OTP");
+
+        toast.error("Erreur", {
+          description: errorMessage,
+        });
+        return;
+      }
+
+      setEmail(emailNormalized);
+      setStep("otp");
+      toast.success("Demande envoyée", {
+        description: "Si un compte notaire existe pour cette adresse, un code vient d'y être envoyé.",
+      });
+    } catch (error: any) {
+      console.error("Erreur lors de l'envoi de l'OTP:", error);
+      
+      let errorMessage = "Impossible d'envoyer le code OTP";
+      if (error?.code === "NETWORK_ERROR") {
+        errorMessage = "Erreur de connexion. Vérifiez votre connexion internet";
+      }
+
+      toast.error("Erreur", {
+        description: errorMessage,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Se connecter avec OTP selon la documentation better-auth
+  const onOTPSubmit = async (data: OTPFormData) => {
+    setIsLoading(true);
+    try {
+      const { data: result, error } = await authClient.signIn.emailOtp({
+        email: email,
+        otp: data.code,
+      });
+
+      if (error) {
+        // Gestion spécifique des erreurs better-auth
+        const errorMessage = authErrorMessage(error, "Code invalide ou expiré");
+
+        toast.error("Erreur de connexion", {
+          description: errorMessage,
+        });
+        return;
+      }
+
+      // Navigation complète : le navigateur montre le chargement, et la page arrive avec la session.
+      setRedirecting(true);
+      window.location.assign("/notaire");
+      return;
+    } catch (error: any) {
+      console.error("Erreur lors de la connexion:", error);
+      
+      let errorMessage = "Erreur lors de la connexion";
+      if (error?.code === "NETWORK_ERROR") {
+        errorMessage = "Erreur de connexion. Vérifiez votre connexion internet";
+      }
+
+      toast.error("Erreur", {
+        description: errorMessage,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (redirecting) {
+    return <LoadingScreen message="Ouverture de votre espace notaire..." />;
+  }
+
+  return (
+    <div className="min-h-screen flex">
+      {/* Section gauche avec image et branding */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 overflow-hidden">
+        {/* Motifs décoratifs */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
+        </div>
+        
+        {/* Contenu */}
+        <div className="relative z-10 flex flex-col justify-center items-center p-12 text-white " >
+          <div className=" animate-fade-in self-start ">
+            <div className="bg-white backdrop-blur-md rounded-2xl p-6 mb-6 shadow-2xl border border-white/20">
+              <Image
+                src="/logoLarge.png"
+                alt="BailNotarie"
+                width={200}
+                height={200}
+                className="w-auto h-24 object-contain"
+              />
+            </div>
+          </div>
+          
+          <div className="max-w-md space-y-6 animate-slide-in-left">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-white/20 backdrop-blur-sm rounded-lg">
+                <Scale className="h-8 w-8" />
+              </div>
+              <h1 className="text-4xl font-bold">Espace Notaire</h1>
+            </div>
+            
+            <p className="text-xl text-blue-100 leading-relaxed mb-50">
+              Accédez à votre espace sécurisé pour gérer vos dossiers de baux notariés en toute simplicité.
+            </p>
+            
+            <div className="space-y-4 mt-8">
+              <div className="flex items-start gap-4">
+                <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg mt-1">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-1">Sécurité renforcée</h3>
+                  <p className="text-sm text-blue-100">Authentification à deux facteurs pour protéger vos données</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-4">
+                <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg mt-1">
+                  <Lock className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-1">Connexion sécurisée</h3>
+                  <p className="text-sm text-blue-100">Code OTP envoyé par email pour une connexion sécurisée</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Section droite avec formulaire */}
+      <div className="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-8 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/30 min-h-screen lg:min-h-0 relative overflow-hidden">
+        {/* Fond décoratif pour mobile */}
+        <div className="lg:hidden absolute inset-0 overflow-hidden pointer-events-none">
+          {/* Gradient animé */}
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-600/10 via-indigo-600/5 to-purple-600/10"></div>
+          
+          {/* Formes géométriques décoratives */}
+          <div className="absolute top-10 right-10 w-32 h-32 bg-blue-400/20 rounded-full blur-2xl animate-pulse"></div>
+          <div className="absolute bottom-20 left-10 w-40 h-40 bg-indigo-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+          <div className="absolute top-1/2 right-1/4 w-24 h-24 bg-purple-400/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+          
+          {/* Motifs de grille subtils */}
+          <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:20px_20px]"></div>
+        </div>
+
+        <div className="w-full max-w-md relative z-10">
+          {/* Logo mobile avec fond amélioré */}
+          <div className="lg:hidden mb-6 sm:mb-8 flex flex-col items-center space-y-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-xl border border-white/50 relative overflow-hidden">
+              {/* Effet de brillance */}
+              
+              <Image
+                src="/logoLarge.png"
+                alt="BailNotarie"
+                width={150}
+                height={150}
+                className="w-auto h-14 sm:h-16 md:h-18 object-contain relative z-10"
+              />
+            </div>
+          </div>
+
+          <Card className="border-0 shadow-xl sm:shadow-2xl bg-white/90 sm:bg-white/80 backdrop-blur-sm">
+            <CardHeader className="space-y-2 sm:space-y-3 pb-4 sm:pb-6 px-4 sm:px-6 pt-4 sm:pt-6">
+              {step === "otp" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-fit -ml-2 mb-1 sm:mb-2 text-sm"
+                  onClick={() => {
+                    setStep("email");
+                    setEmail("");
+                  }}
+                  disabled={isLoading}
+                >
+                  <ArrowLeft className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  Retour
+                </Button>
+              )}
+              <CardTitle className="text-2xl sm:text-3xl font-bold text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                {step === "email" ? "Connexion à votre Espace Notaire" : "Code de vérification"}
+              </CardTitle>
+              <CardDescription className="text-sm text-center text-muted-foreground">
+                Connexion sécurisée à votre espace professionnel
+              </CardDescription>
+              <CardDescription className="text-center text-sm sm:text-base px-2">
+                {step === "email"
+                  ? "Entrez votre adresse email professionnelle pour recevoir un code de connexion sécurisé"
+                  : `Nous avons envoyé un code à 6 chiffres à l'adresse ${email}`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6 pb-4 sm:pb-6">
+              {step === "email" ? (
+                <form onSubmit={handleSubmitEmail(onEmailSubmit)} className="space-y-4 sm:space-y-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-xs sm:text-sm font-semibold">
+                      Adresse email
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="notaire@example.com"
+                        className="pl-9 sm:pl-10 h-11 sm:h-12 text-base sm:text-base border-2 focus:border-primary transition-colors"
+                        {...registerEmail("email")}
+                      />
+                    </div>
+                    {emailErrors.email && (
+                      <p className="text-xs sm:text-sm text-destructive mt-1">{emailErrors.email.message}</p>
+                    )}
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full h-11 sm:h-12 text-sm sm:text-base font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200" 
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
+                        <span className="hidden sm:inline">Envoi en cours...</span>
+                        <span className="sm:hidden">Envoi...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">Recevoir le code OTP</span>
+                        <span className="sm:hidden">Recevoir le code</span>
+                        <Mail className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
+                      </>
+                    )}
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleSubmitOTP(onOTPSubmit)} className="space-y-4 sm:space-y-6">
+                  <Controller
+                    name="code"
+                    control={controlOTP}
+                    render={({ field }) => (
+                      <OtpCodeInput
+                        id="notaire-login-otp-code"
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        disabled={isLoading}
+                        autoFocus
+                        error={otpErrors.code?.message}
+                      />
+                    )}
+                  />
+                  <div className="space-y-2 sm:space-y-3">
+                    <Button 
+                      type="submit" 
+                      className="w-full h-11 sm:h-12 text-sm sm:text-base font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200" 
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
+                          Connexion...
+                        </>
+                      ) : (
+                        "Se connecter"
+                      )}
+                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1 h-10 sm:h-11 border-2 hover:bg-blue-50 transition-colors text-xs sm:text-sm"
+                        onClick={async () => {
+                          setIsLoading(true);
+                          try {
+                            const { error } = await authClient.emailOtp.sendVerificationOtp({
+                              email: email,
+                              type: "sign-in",
+                            });
+
+                            if (error) {
+                              toast.error("Erreur", {
+                                description: authErrorMessage(error, "Impossible de renvoyer le code"),
+                              });
+                            } else {
+                              toast.success("Code renvoyé", {
+                                description: "Vérifiez votre boîte de réception",
+                              });
+                            }
+                          } catch (error: any) {
+                            toast.error("Erreur", {
+                              description: "Impossible de renvoyer le code",
+                            });
+                          } finally {
+                            setIsLoading(false);
+                          }
+                        }}
+                        disabled={isLoading}
+                      >
+                        <span className="hidden sm:inline">Renvoyer le code</span>
+                        <span className="sm:hidden">Renvoyer</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1 h-10 sm:h-11 border-2 hover:bg-blue-50 transition-colors text-xs sm:text-sm"
+                        onClick={() => {
+                          setStep("email");
+                          setEmail("");
+                        }}
+                        disabled={isLoading}
+                      >
+                        <span className="hidden sm:inline">Changer d'email</span>
+                        <span className="sm:hidden">Changer</span>
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Footer */}
+          <p className="text-center text-xs sm:text-sm text-muted-foreground mt-4 sm:mt-6 px-2">
+            © 2025 BailNotarie. Tous droits réservés.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+

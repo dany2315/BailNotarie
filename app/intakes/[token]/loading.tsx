@@ -1,13 +1,13 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import Image from "next/image";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer"
 
 export default function IntakeLoading() {
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <LpNav />
       <div className="p-3 sm:p-4">
         <div className="max-w-2xl mx-auto py-4 sm:py-8">
           <div className="space-y-4 sm:space-y-6">

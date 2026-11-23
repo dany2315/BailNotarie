@@ -49,6 +49,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createPropertySchema } from "@/lib/zod/property";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { OWNER_PERIODS, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import { deleteDocument } from "@/lib/actions/documents";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import type { AddressData } from "@/lib/types/address";
@@ -292,6 +294,8 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
     register,
     handleSubmit,
     setValue,
+    setError,
+    clearErrors,
     watch,
     control,
     formState: { errors },
@@ -369,6 +373,17 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
   );
 
   const onSubmit = async (data: any) => {
+    // Adresse choisie dans la liste : le bien est localisé (commune, zone d'encadrement des loyers).
+    if (!String(data.inseeCode || "").trim()) {
+      setError("fullAddress" as any, { type: "manual", message: "Choisissez l'adresse dans la liste proposée pour que le bien soit localisé." });
+      return;
+    }
+    // Catégorie du logement : nécessaire au calcul du plafond de loyer.
+    if (!data.mainRooms || !data.constructionPeriod) {
+      if (!data.mainRooms) setError("mainRooms" as any, { type: "manual", message: "Indiquez le nombre de pièces principales" });
+      if (!data.constructionPeriod) setError("constructionPeriod" as any, { type: "manual", message: "Indiquez l'époque de construction" });
+      return;
+    }
     try {
       setIsLoading(true);
       const property = await createProperty(data);
@@ -436,50 +451,18 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
             <AddressAutocomplete
               value={watch("fullAddress" as any) || ""}
               onAddressSelect={handleAddressSelect}
-              onChange={(value: string) => setValue("fullAddress" as any, value)}
+              onChange={(value: string) => {
+                // Texte modifié à la main : l'ancienne localisation ne correspond plus (une suggestion la redonne).
+                setValue("fullAddress" as any, value);
+                setValue("inseeCode" as any, "");
+                setValue("latitude" as any, "");
+                setValue("longitude" as any, "");
+              }}
               disabled={isLoading}
               placeholder="Rechercher une adresse..."
               error={(errors as any).fullAddress?.message}
             />
-                {(errors as any).fullAddress && (
-                  <p className="text-sm text-destructive">{(errors as any).fullAddress.message}</p>
-            )}
           </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="postalCode" className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    Code postal *
-                  </Label>
-                  <Input
-                    id="postalCode"
-                    {...register("postalCode" as any)}
-                    disabled={isLoading}
-                    placeholder="75001"
-                    value={watch("postalCode" as any) || ""}
-                  />
-                  {(errors as any).postalCode && (
-                    <p className="text-sm text-destructive">{(errors as any).postalCode.message}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="city" className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    Ville *
-                  </Label>
-                  <Input
-                    id="city"
-                    {...register("city" as any)}
-                    disabled={isLoading}
-                    placeholder="Paris"
-                    value={watch("city" as any) || ""}
-                  />
-                  {(errors as any).city && (
-                    <p className="text-sm text-destructive">{(errors as any).city.message}</p>
-                  )}
-                </div>
-              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -556,7 +539,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                 <SelectValue placeholder="Sélectionner un statut" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={BienLegalStatus.PLEIN_PROPRIETE}>Plein propriété</SelectItem>
+                <SelectItem value={BienLegalStatus.PLEIN_PROPRIETE}>Pleine propriété</SelectItem>
                 <SelectItem value={BienLegalStatus.CO_PROPRIETE}>Co-propriété</SelectItem>
                 <SelectItem value={BienLegalStatus.LOTISSEMENT}>Lotissement</SelectItem>
               </SelectContent>
@@ -565,6 +548,74 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                     <p className="text-sm text-destructive">{(errors as any).legalStatus.message}</p>
             )}
           </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="mainRooms">Nombre de pièces principales *</Label>
+                    <InfoTooltip content={<p><strong>Pièce principale</strong> : pièce où l'on vit ou dort (séjour, salon, chambre). Ne comptent pas : cuisine, salle de bains, WC, entrée, couloir. Ex. : un T2 = séjour + 1 chambre = 2 pièces.</p>} className="max-w-xs">
+                      <button type="button" className="inline-flex items-center" aria-label="Qu'est-ce qu'une pièce principale ?">
+                        <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </InfoTooltip>
+                  </div>
+                  <Select
+                    value={watch("mainRooms" as any) ? String(watch("mainRooms" as any)) : undefined}
+                    onValueChange={(value) => {
+                      setValue("mainRooms" as any, Number(value));
+                      clearErrors("mainRooms" as any);
+                    }}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger id="mainRooms" className="w-full">
+                      <SelectValue placeholder="Choisir le nombre de pièces" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {ROOMS_LABELS[n]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(errors as any).mainRooms && (
+                    <p className="text-sm text-destructive">{(errors as any).mainRooms.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="constructionPeriod">Époque de construction *</Label>
+                    <InfoTooltip content={<p>Indiquée dans votre titre de propriété ou l'acte de vente, et dans le diagnostic de performance énergétique (DPE, « année de construction »). Le syndic ou le règlement de copropriété peuvent aussi vous la donner.</p>} className="max-w-xs">
+                      <button type="button" className="inline-flex items-center" aria-label="Où trouver l'époque de construction">
+                        <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </InfoTooltip>
+                  </div>
+                  <Select
+                    value={(watch("constructionPeriod" as any) as string) || undefined}
+                    onValueChange={(value) => {
+                      setValue("constructionPeriod" as any, value);
+                      clearErrors("constructionPeriod" as any);
+                    }}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger id="constructionPeriod" className="w-full">
+                      <SelectValue placeholder="Choisir l'époque de construction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OWNER_PERIODS.map((code) => (
+                        <SelectItem key={code} value={code}>
+                          {PERIOD_LABELS[code]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(errors as any).constructionPeriod && (
+                    <p className="text-sm text-destructive">{(errors as any).constructionPeriod.message}</p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -693,18 +744,7 @@ export const CreatePropertyForm = forwardRef<CreatePropertyFormRef, CreateProper
                       <PropertyDocumentUploaded
                         propertyId={createdPropertyId}
                         documentKind={DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT}
-                        label="Cahier des charges lotissement *"
-                        ownerId={ownerId}
-                        onUploadStateChange={handleUploadStateChange}
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <div className="min-w-0 w-full overflow-visible">
-                      <PropertyDocumentUploaded
-                        propertyId={createdPropertyId}
-                        documentKind={DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE}
-                        label="Statut de l'association syndicale *"
+                        label="Règlement du lotissement *"
                         ownerId={ownerId}
                         onUploadStateChange={handleUploadStateChange}
                         required

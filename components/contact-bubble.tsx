@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 const CONTACT_PHONE = "0768098624";
 const CONTACT_PHONE_DISPLAY = "07 68 09 86 24";
 const CONTACT_EMAIL = "contact@bailnotarie.fr";
-const MIN_KEY = "bn-contact-bubble-minimized";
 const POS_KEY = "bn-contact-bubble-pos";
 // Seuil en pixels au-delà duquel un mouvement est considéré comme un drag (et pas un clic)
 const DRAG_THRESHOLD = 6;
@@ -26,7 +25,9 @@ type Pos = { x: number; y: number };
 export function ContactBubble() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [minimized, setMinimized] = useState(false);
+  // Toujours réduite à l'arrivée sur le site (petit point) : elle ne recouvre aucun bouton
+  // tant qu'on ne l'a pas ouverte. Dépliée, elle le reste jusqu'au prochain chargement (m23).
+  const [minimized, setMinimized] = useState(true);
   const [pos, setPos] = useState<Pos | null>(null);
   const [dragging, setDragging] = useState(false);
   // true = bulle collée au bord gauche, false = bord droit (ou fallback right par défaut)
@@ -49,7 +50,6 @@ export function ContactBubble() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      setMinimized(window.localStorage.getItem(MIN_KEY) === "1");
       const raw = window.localStorage.getItem(POS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Pos;
@@ -123,12 +123,6 @@ export function ContactBubble() {
 
   const persistMinimized = (value: boolean) => {
     setMinimized(value);
-    try {
-      if (value) window.localStorage.setItem(MIN_KEY, "1");
-      else window.localStorage.removeItem(MIN_KEY);
-    } catch {
-      // ignore
-    }
   };
 
   const persistPos = (p: Pos) => {
@@ -160,11 +154,6 @@ export function ContactBubble() {
         currentX: rect.left,
         currentY: rect.top,
       };
-      try {
-        wrapper.setPointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
     };
 
     const onMove = (e: PointerEvent) => {
@@ -196,11 +185,6 @@ export function ContactBubble() {
       const state = dragState.current;
       if (!state || e.pointerId !== state.pointerId) return;
       dragState.current = null;
-      try {
-        wrapper.releasePointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
       if (state.moved) {
         setDragging(false);
         justDraggedRef.current = true;
@@ -218,17 +202,28 @@ export function ContactBubble() {
       }
     };
 
-    // passive: false pour pouvoir preventDefault() sur iOS Safari
+    // L'appui est écouté sur la bulle ; le déplacement et le relâchement le
+    // sont sur la fenêtre.
+    //
+    // Ce partage remplace `setPointerCapture`, qui tenait ce rôle et coûtait
+    // les deux boutons : un élément qui capture le pointeur reçoit aussi le
+    // `click` à la place de la cible réelle, si bien que « Support » et la
+    // croix ne voyaient jamais le leur. Écouter sur la fenêtre suit le doigt
+    // partout, y compris hors de la bulle et au premier mouvement brusque,
+    // sans rien détourner. Les écouteurs sortent immédiatement tant qu'aucun
+    // appui n'est en cours sur la bulle.
+    //
+    // passive: false pour pouvoir preventDefault() sur iOS Safari.
     wrapper.addEventListener("pointerdown", onDown, { passive: false });
-    wrapper.addEventListener("pointermove", onMove, { passive: false });
-    wrapper.addEventListener("pointerup", onUp, { passive: false });
-    wrapper.addEventListener("pointercancel", onUp, { passive: false });
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp, { passive: false });
+    window.addEventListener("pointercancel", onUp, { passive: false });
 
     return () => {
       wrapper.removeEventListener("pointerdown", onDown);
-      wrapper.removeEventListener("pointermove", onMove);
-      wrapper.removeEventListener("pointerup", onUp);
-      wrapper.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     };
   }, []);
 
@@ -237,12 +232,22 @@ export function ContactBubble() {
   const wrapperStyle: React.CSSProperties = useFallback
     ? {
         right: 16,
-        bottom: `calc(env(safe-area-inset-bottom, 0px) + 88px)`,
+        // Au-dessus du bouton de retour en haut, qui occupe le ras du coin :
+        // 20 px de garde + ses 44 px + 48 px de respiration. `max` et non une
+        // addition, car la barre d'onglets porte déjà le décalage de sécurité
+        // dans sa hauteur.
+        bottom: `calc(max(var(--bn-dock-h, 0px), env(safe-area-inset-bottom, 0px)) + 112px)`,
       }
     : {
         left: 0,
         top: 0,
-        transform: `translate3d(${pos!.x}px, ${pos!.y}px, 0)`,
+        // Translation plate au repos. `translate3d` promeut la bulle sur sa
+        // propre couche de composition en permanence ; quand elle change de
+        // taille (pastille réduite), la couche laissée derrière peut rester
+        // affichée telle quelle — c'est le rectangle clair qui apparaissait
+        // à la place du fond. Le glisser, lui, pose `translate3d` directement
+        // dans le style de l'élément : il garde son accélération.
+        transform: `translate(${pos!.x}px, ${pos!.y}px)`,
       };
 
   const onMainClick = () => {
@@ -273,12 +278,18 @@ export function ContactBubble() {
         ref={wrapperRef}
         className={cn(
           "fixed z-[60] flex items-center gap-2 select-none",
+          // La messagerie du bail occupe le même coin : on s'efface le temps
+          // de la conversation (marque posée par ChatDock).
+          "[html[data-chat-open]_&]:hidden",
           dragging ? "cursor-grabbing" : "cursor-grab"
         )}
         style={{
           ...wrapperStyle,
           touchAction: "none",
-          willChange: "transform",
+          // Annoncé pendant le glisser seulement : `will-change` permanent
+          // maintient une couche dédiée tout le temps, pour un gain nul hors
+          // déplacement et le même risque de rémanence.
+          willChange: dragging ? "transform" : undefined,
         }}
       >
         {minimized ? (
@@ -288,7 +299,11 @@ export function ContactBubble() {
             aria-label="Réafficher le support"
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-full",
-              "bg-[#4373f5]/40 text-white opacity-60 backdrop-blur-sm transition-colors",
+              // Sans `backdrop-blur` : un filtre d'arrière-plan oblige le
+              // navigateur à isoler ce qui se trouve dessous, et c'est le
+              // second moyen d'obtenir une zone qui ne se repeint plus. La
+              // pastille reste lisible avec un aplat un peu plus franc.
+              "bg-[#4373f5]/70 text-white opacity-70 transition-colors",
               "hover:opacity-100 hover:bg-[#4373f5]"
             )}
           >
@@ -301,18 +316,20 @@ export function ContactBubble() {
               onClick={onMainClick}
               aria-label="Contacter le support"
               className={cn(
-                "flex h-12 items-center gap-2 rounded-full pl-3 pr-4",
+                // Une pastille d'invitation, pas un bandeau : elle flotte sur
+                // du contenu, et chaque pixel qu'elle prend en cache un.
+                "flex h-10 items-center gap-1.5 rounded-full pl-2.5 pr-3.5",
                 "bg-[#4373f5] text-white shadow-lg shadow-blue-500/30 transition-all duration-150",
                 "hover:shadow-xl active:scale-95",
-                "sm:h-14",
+                "sm:h-11",
                 // origine du scale opposée au bord pour que l'agrandissement
                 // (hover/active/drag) parte du côté libre et ne déborde pas
                 onLeftSide ? "origin-left" : "origin-right",
                 dragging && "scale-105 shadow-2xl"
               )}
             >
-              <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
-              <span className="text-sm font-semibold whitespace-nowrap sm:text-base">
+              <MessageCircle className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+              <span className="whitespace-nowrap text-[13px] font-semibold sm:text-sm">
                 Support
               </span>
             </button>
@@ -323,7 +340,11 @@ export function ContactBubble() {
               aria-label="Masquer le support"
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-full",
-                "bg-slate-900/70 text-white shadow-md backdrop-blur-sm transition-colors",
+                // Même raison que la pastille réduite, et c'est ici le cas le
+                // plus probable : ce bouton est justement celui qui disparaît,
+                // et son filtre d'arrière-plan couvrait exactement la zone
+                // restée claire.
+                "bg-slate-900/80 text-white shadow-md transition-colors",
                 "hover:bg-slate-900"
               )}
             >

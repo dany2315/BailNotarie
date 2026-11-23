@@ -11,10 +11,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Send, FileText, MessageSquare, User, Scale, Download } from "lucide-react";
 import { getBailMessages, sendBailMessage, getNotaireRequestsByBail } from "@/lib/actions/bail-messages";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { Role, BailMessageType, NotaireRequestStatus } from "@prisma/client";
 import { useSession } from "@/lib/auth-client";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
+import { useSendLock } from "@/hooks/use-send-lock";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 const messageSchema = z.object({
   content: z.string().min(1, "Le message ne peut pas être vide"),
@@ -32,6 +33,7 @@ export function BailChat({ bailId }: BailChatProps) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const sendLock = useSendLock();
   const [userRole, setUserRole] = useState<Role | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -154,7 +156,7 @@ export function BailChat({ bailId }: BailChatProps) {
                         { isNotaireMessage ? `Maître ${message.sender.name}` : message.sender.name || message.sender.email}
                       </span>
                       <span className="text-xs opacity-70">
-                        {formatDateTime(message.createdAt)}
+                        <LocalDateTime value={message.createdAt} />
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -220,7 +222,7 @@ export function BailChat({ bailId }: BailChatProps) {
                       <p>
                         De : {request.createdBy.name || request.createdBy.email}
                       </p>
-                      <p>{formatDateTime(request.createdAt)}</p>
+                      <p><LocalDateTime value={request.createdAt} /></p>
                     </div>
                   </CardContent>
                 </Card>
@@ -232,7 +234,7 @@ export function BailChat({ bailId }: BailChatProps) {
       </div>
 
       {/* Formulaire d'envoi */}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-2">
+      <form onSubmit={handleSubmit((data) => sendLock(() => onSubmit(data)))} className="space-y-2">
         <Textarea
           placeholder="Tapez votre message..."
           {...register("content")}

@@ -1,0 +1,18 @@
+{
+ "ok": true,
+ "e0": "10",
+ "e1": "10",
+ "e2": "10",
+ "res": [
+  {
+   "adresse": "/commencer/proprietaire/55b252",
+   "etape": "9",
+   "marque": 1
+  },
+  {
+   "adresse": "/commencer/proprietaire/55b252",
+   "etape": "8",
+   "marque": 1
+  }
+ ]
+}

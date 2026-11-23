@@ -1,12 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getBailAuditLogs } from "@/lib/actions/bail-audit-log";
 import { getBailStatusLabel } from "@/lib/utils/bails-labels";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { BailAuditEventType, type BailAuditLog } from "@prisma/client";
 import { CheckCircle2, CircleDollarSign, FileCheck2, History, Landmark, UserPlus } from "lucide-react";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 type BailAuditTimelineProps = {
   bailId: string;
+  /** Sans carte ni titre : pour l'intégrer dans un autre bloc. */
+  bare?: boolean;
 };
 
 function getEventSentence(log: BailAuditLog) {
@@ -45,19 +47,11 @@ function getEventIcon(eventType: BailAuditEventType) {
   }
 }
 
-export async function BailAuditTimeline({ bailId }: BailAuditTimelineProps) {
+export async function BailAuditTimeline({ bailId, bare = false }: BailAuditTimelineProps) {
   const logs = await getBailAuditLogs(bailId);
 
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <History className="size-5 text-muted-foreground" />
-          <CardTitle className="text-base">Historique du bail</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {logs.length === 0 ? (
+  const content =
+        logs.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucun événement enregistré pour ce bail.</p>
         ) : (
           <ol className="space-y-3">
@@ -70,7 +64,7 @@ export async function BailAuditTimeline({ bailId }: BailAuditTimelineProps) {
                   className="grid grid-cols-[minmax(8.5rem,11rem)_1.75rem_1fr] items-center gap-3 text-sm"
                 >
                   <time className="text-xs text-muted-foreground" dateTime={log.createdAt.toISOString()}>
-                    {formatDateTime(log.createdAt)}
+                    <LocalDateTime value={log.createdAt} />
                   </time>
                   <div className="relative flex h-full min-h-10 items-center justify-center">
                     <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-border" />
@@ -85,8 +79,19 @@ export async function BailAuditTimeline({ bailId }: BailAuditTimelineProps) {
               );
             })}
           </ol>
-        )}
-      </CardContent>
+        );
+
+  if (bare) return content;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <History className="size-5 text-muted-foreground" />
+          <CardTitle className="text-base">Historique du bail</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>{content}</CardContent>
     </Card>
   );
 }

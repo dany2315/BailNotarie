@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendBailMessageWithS3Urls } from "@/lib/actions/bail-messages";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 /**
  * Route API pour envoyer un message avec fichiers uploadés directement vers S3
@@ -47,10 +48,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("[bail-messages/send-with-s3] Erreur:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de l'envoi du message" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de l'envoi du message");
   }
 }
 

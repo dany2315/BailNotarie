@@ -8,7 +8,8 @@ import { toast } from "sonner";
  * Utilise des URLs signées pour la sécurité et la cohérence avec le système de preview
  * Supporte le suivi individuel par fileKey pour éviter que tous les boutons ne passent en loading
  */
-export function useDownloadFile() {
+export function useDownloadFile(token?: string) {
+  // token : lien d'intake (formulaire sans compte), exigé pour obtenir l'URL d'un fichier.
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
 
   // Rétrocompatibilité : true si un téléchargement est en cours (peu importe lequel)
@@ -30,17 +31,20 @@ export function useDownloadFile() {
     try {
       // Toujours essayer d'obtenir une URL signée (fonctionne avec clé S3 ou URL complète)
       let downloadUrl = fileKey;
-      
+      // Nom lisible calculé par le serveur (type de pièce, personne ou bien, identifiant court).
+      let downloadName = fileName;
+
       try {
         const response = await fetch("/api/blob/get-signed-url", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileKey }),
+          body: JSON.stringify({ fileKey, download: true, ...(token && { token }) }),
         });
 
         if (response.ok) {
-          const { signedUrl } = await response.json();
+          const { signedUrl, fileName: serverFileName } = await response.json();
           downloadUrl = signedUrl;
+          if (serverFileName) downloadName = serverFileName;
         }
       } catch (error) {
         // Fallback : si c'est une URL complète (ancien format), utiliser directement
@@ -64,7 +68,7 @@ export function useDownloadFile() {
       const url = window.URL.createObjectURL(blob);
       const link = window.document.createElement("a");
       link.href = url;
-      link.download = fileName;
+      link.download = downloadName;
       window.document.body.appendChild(link);
       link.click();
       window.document.body.removeChild(link);

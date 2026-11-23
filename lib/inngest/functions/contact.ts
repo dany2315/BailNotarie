@@ -1,7 +1,7 @@
 import { inngest } from "@/lib/inngest/client";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailConfirmation from "@/emails/mail-Confirmation";
-import MailNotificationEquipe from "@/emails/mail-Notification-Equipe";
+import MailNotificationEquipe, { contactTeamSubject } from "@/emails/mail-Notification-Equipe";
 
 export const sendContactConfirmationEmail = inngest.createFunction(
   { id: "send-contact-confirmation-email" },
@@ -11,7 +11,7 @@ export const sendContactConfirmationEmail = inngest.createFunction(
       await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.email,
-        subject: "Confirmation de votre demande de contact",
+        subject: `Bien reçu${event.data.firstName ? `, ${event.data.firstName}` : ""} : on vous rappelle sous 24 h ouvrées`,
         react: MailConfirmation({
           firstName: event.data.firstName,
           lastName: event.data.lastName,
@@ -31,8 +31,8 @@ export const sendContactNotificationEmail = inngest.createFunction(
     await step.run("send-notification-email", async () => {
       await resendSendEmail({
         from: "Support BailNotarie <support@bailnotarie.fr>",
-        to: ["david@bailnotarie.fr", "shlomi@bailnotarie.fr"],
-        subject: "Nouvelle demande de contact",
+        to: ["david@bailnotarie.fr", "laetitia@bailnotarie.fr"],
+        subject: contactTeamSubject(event.data.firstName, event.data.lastName),
         react: MailNotificationEquipe({
           firstName: event.data.firstName,
           lastName: event.data.lastName,

@@ -2,8 +2,35 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // L'ancienne page de travail du nouveau design est devenue l'accueil.
+  // Les liens de prévisualisation partagés pendant sa conception continuent
+  // donc d'aboutir, au lieu de tomber sur une page introuvable.
+  async redirects() {
+    return [
+      { source: "/lptest", destination: "/", permanent: true },
+      // Pas d'inscription publique (voir `disableSignUp` dans lib/auth.ts) : /register mène à la connexion client,
+      // avant même l'affichage d'une page.
+      { source: "/register", destination: "/client/login", permanent: false },
+      { source: "/register/:path*", destination: "/client/login", permanent: false },
+      // L'ancienne page de suivi par e-mail n'existe plus : l'avancement se suit dans l'espace client.
+      { source: "/commencer/suivi", destination: "/client/login", permanent: true },
+    ];
+  },
+
   async headers() {
     return [
+      // En-têtes de sécurité sur tout le site : pas d'intégration dans un cadre d'un autre site
+      // (clickjacking), pas de détection de type de contenu, référent limité, HTTPS imposé.
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+        ],
+      },
       {
         source: "/login",
         headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
@@ -29,10 +56,6 @@ const nextConfig: NextConfig = {
       // racine ; celui-ci ayant ete retire, elles doivent etre explicitement exclues.
       {
         source: "/commencer/deja-soumis",
-        headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
-      },
-      {
-        source: "/commencer/suivi",
         headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
       },
       {

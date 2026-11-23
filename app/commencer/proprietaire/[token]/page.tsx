@@ -1,8 +1,11 @@
 import { getIntakeLinkByToken } from "@/lib/actions/intakes";
 import { notFound } from "next/navigation";
 import { OwnerIntakeForm } from "@/components/intakes/owner-intake-form";
+import { IntakeOpenTracker } from "@/components/intakes/intake-open-tracker";
+import { IntakeOtpGate } from "@/components/intakes/intake-otp-gate";
+import { intakeGate } from "@/lib/intake-session";
 import Image from "next/image";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
@@ -25,7 +28,9 @@ export default async function OwnerFormPage({
     const isSubmitted = intakeLink.status === "SUBMITTED";
     return (
       <>
-        <Header />
+        {/* Sans réserve : le dégradé commence en haut de l'écran et ses 80 px
+            de marge dégagent déjà la barre. */}
+        <LpNav overlay />
         <div className="py-20 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center p-4">
           <Empty className="max-w-lg w-full bg-white/80 backdrop-blur-sm shadow-lg">
             <EmptyHeader className="gap-4">
@@ -84,8 +89,20 @@ export default async function OwnerFormPage({
     notFound();
   }
 
+  // Le lien ne suffit pas : sans session de ce client, le code reçu par e-mail d'abord.
+  const gate = await intakeGate(intakeLink.clientId);
+  if (gate) {
+    return (
+      <>
+        <IntakeOpenTracker token={resolvedParams.token} />
+        <IntakeOtpGate token={resolvedParams.token} {...gate} />
+      </>
+    );
+  }
+
   return (
     <div className="h-screen-safe overflow-hidden bg-background">
+      <IntakeOpenTracker token={resolvedParams.token} />
       <OwnerIntakeForm intakeLink={intakeLink} />
     </div>
   );

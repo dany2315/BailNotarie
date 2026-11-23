@@ -6,29 +6,27 @@ import Link from 'next/link';
 
 export function Blog2Content() {
   const piecesObligatoires = [
-    "Copie intégrale de l'acte de naissance de moins de 3 mois",
     "Pièce d'identité ou titre de séjour en cours de validité",
-    "Livret de famille ou contrat de mariage",
-    "Copie du PACS (le cas échéant)",
-    "Questionnaire d'état civil complété",
-    "RIB signé par le titulaire du compte"
+    "État civil complet : date et lieu de naissance, situation familiale, régime matrimonial",
+    "Contrat de mariage, si vous êtes marié sous un autre régime que la communauté légale",
+    "Convention de PACS (le cas échéant)"
   ];
 
   const piecesPersonneMorale = [
-    "Extrait KBIS récent",
-    "Statuts à jour certifiés",
-    "Procès-verbal autorisant l'opération",
-    "Pièce d'identité des associés",
-    "PV de nomination du représentant si applicable"
+    "Extrait KBIS récent (sauf société en cours de création)",
+    "Statuts à jour",
+    "Nom et qualité du représentant légal qui signe",
+    "Pouvoir ou délégation de signature, si le signataire n'est pas le représentant légal"
   ];
 
   const documentsBien = [
     "Titre de propriété complet",
-    "Attestation d'assurance du logement",
-    "Règlement de copropriété (si concerné)",
+    "Dossier de diagnostics techniques (DPE, électricité, gaz, etc.)",
+    "Règlement de copropriété et coordonnées du syndic (si concerné)",
+    "Règlement du lotissement, s'il a été autorisé il y a moins de 10 ans",
+    "Déclaration d'occupation (impots.gouv), dans les villes où les loyers sont encadrés",
     "Liste du mobilier (logement meublé)",
-    "État des lieux contradictoire",
-    "Dossier de diagnostics techniques (DPE, électricité, gaz, etc.)"
+    "État des lieux contradictoire"
   ];
 
   const conditionsBail = [
@@ -104,19 +102,19 @@ export function Blog2Content() {
           </h2>
           <div className="grid md:grid-cols-2 gap-4 text-gray-700">
             <div>
-              <h3 className="font-semibold mb-2">Cote bailleur</h3>
+              <h3 className="font-semibold mb-2">Côté bailleur</h3>
               <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Titre de propriete et diagnostics a jour</li>
-                <li>Etat civil complet et piece d'identite valide</li>
-                <li>Conditions du bail deja arbitrees (loyer, depot, duree)</li>
+                <li>Titre de propriété et diagnostics à jour</li>
+                <li>État civil complet et pièce d'identité valide</li>
+                <li>Conditions du bail déjà arbitrées (loyer, dépôt, durée)</li>
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold mb-2">Cote locataire</h3>
+              <h3 className="font-semibold mb-2">Côté locataire</h3>
               <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Piece d'identite valide</li>
-                <li>Etat civil complet et RIB</li>
-                <li>Justificatifs demandes selon le dossier</li>
+                <li>Pièce d'identité valide</li>
+                <li>État civil complet</li>
+                <li>Contrat de mariage ou convention de PACS, selon la situation</li>
               </ul>
             </div>
           </div>
@@ -138,7 +136,7 @@ export function Blog2Content() {
 
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-6 my-6">
           <h3 className="font-semibold text-gray-900 mb-4">Pièces obligatoires pour TOUS bailleurs et locataires</h3>
-          <p className="text-gray-700 mb-4 text-sm">Les documents suivants sont demandés systématiquement :</p>
+          <p className="text-gray-700 mb-4 text-sm">Les documents suivants sont demandés à chaque personne qui signe :</p>
           <ul className="space-y-2">
             {piecesObligatoires.map((piece, index) => (
               <li key={index} className="flex items-start text-gray-700">
@@ -147,6 +145,9 @@ export function Blog2Content() {
               </li>
             ))}
           </ul>
+          <p className="text-gray-700 mt-4 text-sm">
+            Marié sans contrat (communauté légale) : aucune pièce à fournir, l'étude demande elle-même l'extrait d'acte de mariage.
+          </p>
         </div>
       </section>
 
@@ -346,7 +347,7 @@ export function Blog2Content() {
             href="/commencer"
             className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
           >
-            Demarrer mon bail notarie
+            Démarrer mon bail notarié
           </Link>
         </div>
       </section>

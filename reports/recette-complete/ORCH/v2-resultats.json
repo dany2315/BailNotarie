@@ -1,0 +1,37 @@
+[
+ {
+  "id": "M3-locataire",
+  "ok": true,
+  "detail": "API des messages : 200, 2 message(s), fichiers de l'autre fil : 0"
+ },
+ {
+  "id": "M2-locataire",
+  "ok": true,
+  "detail": "page du bail : fichiers de l'autre fil affichés [] ; accès direct à ces fichiers [403,403] ; son propre fichier 200"
+ },
+ {
+  "id": "M3-propriétaire",
+  "ok": true,
+  "detail": "API des messages : 200, 5 message(s), fichiers de l'autre fil : 0"
+ },
+ {
+  "id": "M2-propriétaire",
+  "ok": true,
+  "detail": "page du bail : fichiers de l'autre fil affichés [] ; accès direct à ces fichiers [403] ; son propre fichier 200"
+ },
+ {
+  "id": "M1-ajout-locataire",
+  "ok": true,
+  "detail": "message affiché : « Erreur Cet email est déjà associé à un compte existant. Veuillez utiliser un email différent ou contacter le support. »"
+ },
+ {
+  "id": "M5-fiche",
+  "ok": true,
+  "detail": "champ « Date de fin » dans la fenêtre : false ; message « Type de bail enregistré » ; en base BAIL_MEUBLE_9_MOIS, fin 2027-11-01 ; fiche : « Type et durée · Bail meublé 9 mois · Habitation · À partir du 01/02/2027 jusqu'au 01/11/2027 »"
+ },
+ {
+  "id": "M10",
+  "ok": false,
+  "detail": "avant : [\"recette-adm1-notaire1@example.invalid\"] ; message « null » ; après : [\"recette-adm1-notaire1@example.invalid\"] (même ligne : true) ; l'ancien notaire voit encore le dossier : true ; archive zip pour lui : 200"
+ }
+]

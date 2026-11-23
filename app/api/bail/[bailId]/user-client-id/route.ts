@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 export async function GET(
   request: NextRequest,
@@ -37,10 +38,7 @@ export async function GET(
     return NextResponse.json({ clientId: user.clientId });
   } catch (error: any) {
     console.error("Erreur lors de la récupération du clientId:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la récupération du clientId" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la récupération du clientId");
   }
 }
 

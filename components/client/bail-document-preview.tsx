@@ -12,8 +12,9 @@ import {
 import { FileText, Download, Eye, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
+import { fetchSignedFileUrl } from "@/lib/utils/signed-file-url";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 interface BailDocumentPreviewProps {
   document: {
@@ -58,9 +59,12 @@ async function handleDownloadDocument(
   try {
     // Toujours essayer d'obtenir une URL signée (fonctionne avec clé S3 ou URL complète)
     let downloadUrl = fileKey;
-    
+    let downloadName = fileName;
+
     try {
-      downloadUrl = await getSignedUrlForPreview(fileKey);
+      const signed = await fetchSignedFileUrl(fileKey, { download: true });
+      downloadUrl = signed.signedUrl;
+      downloadName = signed.fileName ?? fileName;
     } catch (error) {
       // Fallback : si c'est une URL complète (ancien format), utiliser directement
       if (fileKey?.startsWith("http")) {
@@ -82,7 +86,7 @@ async function handleDownloadDocument(
     const url = window.URL.createObjectURL(blob);
     const link = window.document.createElement("a");
     link.href = url;
-    link.download = fileName;
+    link.download = downloadName;
     window.document.body.appendChild(link);
     link.click();
     window.document.body.removeChild(link);
@@ -144,12 +148,9 @@ export function BailDocumentPreview({ document }: BailDocumentPreviewProps) {
               {getDocumentLabel(document.kind)}
             </p>
             <div className="min-w-0 max-w-full overflow-hidden">
-              <p className="text-xs text-muted-foreground truncate max-w-full">
-                {document.label || getDocumentLabel(document.kind)}
-              </p>
               {document.createdAt && (
                 <p className="text-xs text-muted-foreground truncate max-w-full">
-                  Ajouté le {formatDateTime(document.createdAt)}
+                  Ajouté le <LocalDateTime value={document.createdAt} />
                 </p>
               )}
             </div>
@@ -178,10 +179,13 @@ export function BailDocumentPreview({ document }: BailDocumentPreviewProps) {
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>{document.label || getDocumentLabel(document.kind)}</DialogTitle>
-            <DialogDescription>{getDocumentLabel(document.kind)}</DialogDescription>
+        {/* Largeur fixe et titre tronqué : un nom de fichier long ne doit pas élargir la fenêtre. */}
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)] sm:max-w-4xl max-h-[90vh] min-w-0 overflow-hidden">
+          <DialogHeader className="min-w-0 pr-8">
+            <DialogTitle className="truncate">
+              {getDocumentLabel(document.kind)}
+            </DialogTitle>
+            <DialogDescription className="truncate">{getDocumentLabel(document.kind)}</DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-center min-h-[400px]">
             {isLoading ? (

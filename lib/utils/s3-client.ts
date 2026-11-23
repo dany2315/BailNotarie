@@ -89,14 +89,18 @@ export async function uploadFileToS3(
 
 /**
  * Génère une URL signée pour téléchargement (lecture)
+ * contentDisposition : en-tête renvoyé par S3 (nom de fichier proposé au navigateur), sans
+ * toucher à l'objet stocké.
  */
 export async function generateSignedDownloadUrl(
   fileKey: string,
-  expiresIn: number = 3600
+  expiresIn: number = 3600,
+  contentDisposition?: string
 ): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,
     Key: fileKey,
+    ...(contentDisposition && { ResponseContentDisposition: contentDisposition }),
   });
 
   const signedUrl = await getSignedUrl(s3Client, command, { expiresIn });
@@ -155,8 +159,9 @@ export function generateS3FileKey(
   fileName: string
 ): string {
   const timestamp = Date.now();
-  const randomSuffix = Math.random().toString(36).substring(2, 9);
-  const sanitizedName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+  // Identifiant aléatoire cryptographique : la clé d'un fichier ne doit pas pouvoir être devinée.
+  const randomSuffix = crypto.randomUUID();
+  const sanitizedName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_").slice(-120);
   
   return `documents/${timestamp}-${randomSuffix}-${sanitizedName}`;
 }

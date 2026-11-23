@@ -22,18 +22,23 @@ interface DocumentViewerProps {
   };
   documentKindLabels: Record<string, string>;
   children: React.ReactNode;
+  /** Lien d'intake (formulaire sans compte), exigé pour obtenir l'URL du fichier. */
+  token?: string;
+  /** Classe du déclencheur (par défaut en ligne) : « flex w-full min-w-0 » pour une ligne qui prend toute la largeur. */
+  triggerClassName?: string;
 }
 
 export function DocumentViewer({
   document,
   documentKindLabels,
   children,
+  token,
+  triggerClassName,
 }: DocumentViewerProps) {
   const [open, setOpen] = useState(false);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [isLoadingSignedUrl, setIsLoadingSignedUrl] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const [pdfError, setPdfError] = useState(false);
+  // Adresse qui n'a pas pu s'afficher : l'erreur ne vaut que pour elle, jamais pour une ouverture suivante.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
   const getFileType = (mimeType?: string | null, fileKey?: string) => {
     if (mimeType) {
@@ -65,7 +70,7 @@ export function DocumentViewer({
       const response = await fetch("/api/blob/get-signed-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey }),
+        body: JSON.stringify({ fileKey, ...(token && { token }) }),
       });
 
       if (!response.ok) {
@@ -81,36 +86,33 @@ export function DocumentViewer({
     }
   };
 
-  // Générer l'URL signée quand le dialog s'ouvre
+  // Une URL signée neuve à chaque ouverture. Rien ne s'affiche tant qu'elle n'est pas là : avant, l'image
+  // partait sur l'adresse publique (bucket privé), échouait, et l'erreur restait pour l'ouverture suivante.
   useEffect(() => {
-    if (open && document.fileKey) {
-      setIsLoadingSignedUrl(true);
-      getSignedUrlForDocument(document.fileKey)
-        .then((url) => {
-          setSignedUrl(url);
-        })
-        .catch((error) => {
-          console.error("[DocumentViewer] Erreur:", error);
-          // Fallback : générer l'URL publique depuis la clé S3
-          setSignedUrl(getS3PublicUrl(document.fileKey) || document.fileKey);
-        })
-        .finally(() => {
-          setIsLoadingSignedUrl(false);
-        });
-    } else if (!open) {
-      setSignedUrl(null);
-    }
+    if (!open || !document.fileKey) return;
+    let cancelled = false;
+    getSignedUrlForDocument(document.fileKey).then((url) => {
+      if (!cancelled) setSignedUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [open, document.fileKey]);
 
-  const handleDialogOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (!newOpen) {
-      // Reset errors when dialog closes
-      setImageError(false);
-      setPdfError(false);
-      setSignedUrl(null);
-    }
+  const openViewer = () => {
+    setSignedUrl(null);
+    setFailedUrl(null);
+    setOpen(true);
   };
+
+  // À la fermeture, l'aperçu reste tel quel pendant l'animation ; tout repart de zéro à la prochaine ouverture.
+  const handleDialogOpenChange = (newOpen: boolean) => {
+    if (newOpen) openViewer();
+    else setOpen(false);
+  };
+
+  const isLoadingSignedUrl = open && !signedUrl;
+  const loadFailed = !!signedUrl && failedUrl === signedUrl;
 
   return (
     <>
@@ -121,16 +123,16 @@ export function DocumentViewer({
           e.preventDefault();
           e.stopPropagation();
           e.nativeEvent.stopImmediatePropagation();
-          setOpen(true);
+          openViewer();
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             e.stopPropagation();
-            setOpen(true);
+            openViewer();
           }
         }}
-        className="cursor-pointer inline-flex"
+        className={`cursor-pointer ${triggerClassName ?? "inline-flex"}`}
       >
         {children}
       </div>
@@ -166,22 +168,24 @@ export function DocumentViewer({
                     <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse [animation-delay:300ms]" />
                   </div>
                 </div>
-              ) : fileType === "image" && !imageError ? (
+              ) : signedUrl && fileType === "image" && !loadFailed ? (
                 <div className="w-full h-full flex items-center justify-center">
                   <img
-                    src={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
+                    key={signedUrl}
+                    src={signedUrl}
                     alt={documentName}
                     className="max-w-full max-h-[70vh] object-contain rounded-lg"
-                    onError={() => setImageError(true)}
+                    onError={() => setFailedUrl(signedUrl)}
                   />
                 </div>
-              ) : fileType === "pdf" && !pdfError ? (
+              ) : signedUrl && fileType === "pdf" && !loadFailed ? (
                 <div className="w-full h-full">
                   <iframe
-                    src={getPdfPreviewUrl(signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey)}
+                    key={signedUrl}
+                    src={getPdfPreviewUrl(signedUrl)}
                     className="w-full h-[70vh] rounded-lg border"
                     title={documentName}
-                    onError={() => setPdfError(true)}
+                    onError={() => setFailedUrl(signedUrl)}
                   />
                 </div>
               ) : (
@@ -201,7 +205,7 @@ export function DocumentViewer({
               <div className="flex justify-end pt-3 border-t mt-2">
                 <Button variant="outline" size="sm" asChild>
                   <a
-                    href={signedUrl || getS3PublicUrl(document.fileKey) || document.fileKey}
+                    href={signedUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

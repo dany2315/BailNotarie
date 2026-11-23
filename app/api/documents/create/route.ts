@@ -6,12 +6,19 @@ import {
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
 } from "@/lib/utils/completion-status";
 import { revalidatePath } from "next/cache";
+import { authorizeUploadTarget, isValidUploadKey } from "@/lib/upload-access";
+import { queueDiagnosticReading } from "@/lib/diagnostics/run";
+import { apiErrorResponse } from "@/lib/api/error-response";
+
+// Diagnostics reçus : leur lecture par l'IA continue après la réponse (jusqu'à 2 minutes pour un gros dossier).
+export const maxDuration = 300;
 
 /**
  * Route API pour créer des documents dans la DB après upload direct côté client
  * Supporte tous les contextes : intakes, clients, propriétés, baux
  * 
- * PAS D'AUTHENTIFICATION REQUISE
+ * Accès contrôlé par authorizeUploadTarget : lien d'intake en cours (identifiants limités à ce
+ * lien) ou utilisateur connecté autorisé sur la cible.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -41,11 +48,19 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (!isValidUploadKey(fileKey) || !(Object.values(DocumentKind) as string[]).includes(kind)) {
+      return NextResponse.json({ error: "Document invalide" }, { status: 400 });
+    }
+
+    const access = await authorizeUploadTarget({ token: intakeToken, clientId, personId, entrepriseId, propertyId, bailId });
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
 
     let finalClientId: string | null = null;
     let finalPropertyId: string | null = null;
     let finalBailId: string | null = null;
-    let uploadedById: string | null = null;
+    let uploadedById: string | null = access.userId;
 
     // Cas 1: Document pour intake
     if (intakeToken) {
@@ -157,7 +172,7 @@ export async function POST(request: NextRequest) {
       }
     }
     // Documents bien (PROPERTY) — en intake la propriété peut ne pas exister encore : rattacher au client pour que getIntakeDocuments les retourne
-    else if (["DIAGNOSTICS", "TITLE_DEED", "REGLEMENT_COPROPRIETE", "CAHIER_DE_CHARGE_LOTISSEMENT", "STATUT_DE_LASSOCIATION_SYNDICALE"].includes(documentKind)) {
+    else if (["DIAGNOSTICS", "TITLE_DEED", "REGLEMENT_COPROPRIETE", "CAHIER_DE_CHARGE_LOTISSEMENT", "STATUT_DE_LASSOCIATION_SYNDICALE", "OCCUPANCY_DECLARATION", "GENERAL_ASSEMBLY_MINUTES", "SHOPPING_CENTER_RULES", "PREMISES_PLANS", "OPERAT_CERTIFICATE", "ENVIRONMENTAL_APPENDIX"].includes(documentKind)) {
       targetPropertyId = finalPropertyId || null;
       if (!targetPropertyId && finalClientId) {
         targetClientId = finalClientId;
@@ -174,7 +189,14 @@ export async function POST(request: NextRequest) {
         targetClientId = finalClientId;
       }
     }
-    // Documents client (livret de famille, PACS)
+    // Justificatifs du loyer (relocation en zone tendue) : rattachés au bail
+    else if (["PREVIOUS_RENT_PROOF", "PREVIOUS_TENANT_EXIT_PROOF", "WORKS_INVOICES", "RENT_REFERENCES", "PREVIOUS_LEASE", "LEASE_TERMINATION"].includes(documentKind)) {
+      targetBailId = finalBailId || null;
+      if (!targetBailId && finalClientId) {
+        targetClientId = finalClientId;
+      }
+    }
+    // Documents client (contrat de mariage, convention de PACS)
     else {
       targetClientId = finalClientId;
     }
@@ -196,6 +218,15 @@ export async function POST(request: NextRequest) {
     }
     if (targetPropertyId) whereCondition.propertyId = targetPropertyId;
     if (targetBailId) whereCondition.bailId = targetBailId;
+
+    // Un fichier déjà rattaché ailleurs ne peut pas être repris (sinon on pourrait se l'approprier).
+    const usedElsewhere = await prisma.document.findFirst({
+      where: { fileKey, NOT: whereCondition },
+      select: { id: true },
+    });
+    if (usedElsewhere) {
+      return NextResponse.json({ error: "Document invalide" }, { status: 400 });
+    }
 
     const existingDoc = await prisma.document.findFirst({
       where: whereCondition,
@@ -235,6 +266,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Diagnostics reçus : lecture automatique par l'IA (tâche de fond).
+    if (documentKind === "DIAGNOSTICS" && targetPropertyId && !existingDoc) {
+      queueDiagnosticReading(targetPropertyId);
+    }
+
     // Mettre à jour les statuts de complétion
     if (finalClientId) {
       await calculateAndUpdateClientStatus(finalClientId);
@@ -262,10 +298,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("[documents/create] Erreur:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la création du document" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la création du document");
   }
 }
 

@@ -1,0 +1,60 @@
+{
+ "suite": "Lot 5 — référentiel des loyers",
+ "createdAt": "2026-11-17T16:44:23.962Z",
+ "passed": 7,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "Import commencé et pas terminé : commune sans arrêté → « contrôle impossible », jamais « non encadrée »",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Import terminé et vérifié : la même commune est bien « non encadrée »",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Référentiel chargé avant le journal (aucun import journalisé, territoires présents) : utilisable",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Tables de barèmes vides (import oublié à la bascule) : contrôle impossible, envoi au notaire refusé avec un message clair",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Référentiel indisponible : les brouillons et les éditions restent enregistrables",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Commune encadrée dont l’arrêté est en base : contrôlée normalement même pendant un import",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Ancien contrôle RentControl retiré : les éditions de loyer ne dépendent plus de cette table (vide)",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

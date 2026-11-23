@@ -1,5 +1,6 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
@@ -9,7 +10,10 @@ import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailNotaireAssignment from "@/emails/mail-notaire-assignment";
 import { triggerNotaireWelcomeEmail, triggerDocumentRequestEmail } from "@/lib/inngest/helpers";
 import { pusherServer } from "@/lib/pusher";
-import { createBailAuditLog, getActorName } from "@/lib/actions/bail-audit-log";
+import { createBailAuditLog, getActorName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
+import { formatAgreementValue } from "@/lib/bail/agreement-terms";
+import { formatEuros, formatFrenchDate } from "@/lib/utils/email-format";
+import { notaireReviewForBail } from "@/lib/notaire/review";
 
 // Schémas de validation
 const createNotaireSchema = z.object({
@@ -51,6 +55,10 @@ const createNotaireRequestSchema = z.object({
  * Créer un nouveau notaire
  */
 export async function createNotaire(data: unknown) {
+  return guardAction(() => createNotaireUnguarded(data));
+}
+
+async function createNotaireUnguarded(data: unknown) {
   const user = await requireRole([Role.ADMINISTRATEUR]);
   const validated = createNotaireSchema.parse(data);
 
@@ -61,19 +69,22 @@ export async function createNotaire(data: unknown) {
     where: { email },
   });
 
+  // Une adresse déjà utilisée n'est jamais transformée en compte notaire : un client (ou un membre de l'équipe)
+  // perdrait l'accès à son espace sans le savoir (recette du 17/11, M12).
   if (existingUser) {
-    // Si l'utilisateur existe, mettre à jour son rôle en NOTAIRE
-    if (existingUser.role !== Role.NOTAIRE) {
-      await prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          role: Role.NOTAIRE,
-          name: validated.name || existingUser.name,
-        },
-      });
-    }
-    revalidatePath("/interface/notaires");
-    return existingUser;
+    if (existingUser.role === Role.NOTAIRE) throw new Error("Ce notaire existe déjà.");
+    throw new Error(
+      existingUser.role === Role.UTILISATEUR
+        ? "Cette adresse appartient déjà à un compte client. Utilisez une autre adresse pour le notaire."
+        : "Cette adresse appartient déjà à un compte de l'équipe. Utilisez une autre adresse pour le notaire.",
+    );
+  }
+  const [clientPerson, clientEntreprise] = await Promise.all([
+    prisma.person.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } }),
+    prisma.entreprise.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } }),
+  ]);
+  if (clientPerson || clientEntreprise) {
+    throw new Error("Cette adresse appartient déjà à un client. Utilisez une autre adresse pour le notaire.");
   }
 
   // Créer un nouvel utilisateur avec le rôle NOTAIRE
@@ -113,6 +124,12 @@ export async function createNotaire(data: unknown) {
  * Un dossier = un bail avec toutes ses données (parties et bien)
  */
 export async function assignDossierToNotaire(data: unknown) {
+  // Les refus (« déjà assigné à ce notaire »…) doivent arriver lisibles à l'écran : en production, Next.js masque
+  // le message d'une erreur levée.
+  return guardAction(() => assignDossierToNotaireUnguarded(data));
+}
+
+async function assignDossierToNotaireUnguarded(data: unknown) {
   const user = await requireRole([Role.ADMINISTRATEUR]);
   const validated = assignDossierSchema.parse(data);
 
@@ -161,29 +178,35 @@ export async function assignDossierToNotaire(data: unknown) {
   // Si le propriétaire n'est pas dans les parties, on l'ajoute logiquement
   const clientId = bail.property.ownerId;
 
-  // Vérifier si l'assignation existe déjà
-  const existingAssignment = await prisma.dossierNotaireAssignment.findFirst({
-    where: {
-      bailId: validated.bailId,
-      notaireId: validated.notaireId,
-    },
+  // Un dossier n'a qu'un notaire. Réassigner remplace l'assignation existante (même ligne, donc les demandes
+  // déjà faites restent attachées au dossier) : l'ancien notaire perd l'accès. Rien n'est supprimé.
+  const existingAssignments = await prisma.dossierNotaireAssignment.findMany({
+    where: { bailId: validated.bailId },
+    select: { id: true, notaireId: true },
+    orderBy: { assignedAt: "desc" },
   });
-
-  if (existingAssignment) {
-    throw new Error("Ce bail est déjà assigné à ce notaire");
+  if (existingAssignments.length > 0 && existingAssignments.every((a) => a.notaireId === validated.notaireId)) {
+    throw new Error(
+      `Ce dossier est déjà assigné à ${notaire.name || notaire.email}. Pour le réassigner, choisissez un autre notaire.`,
+    );
   }
 
-  // Créer l'assignation
-  const assignment = await prisma.dossierNotaireAssignment.create({
-    data: {
-      clientId: clientId,
-      propertyId: bail.propertyId,
-      bailId: validated.bailId,
-      notaireId: validated.notaireId,
-      assignedById: user.id,
-      notes: validated.notes || null,
-    },
-    include: {
+  const assignmentData = {
+    clientId: clientId,
+    propertyId: bail.propertyId,
+    bailId: validated.bailId,
+    notaireId: validated.notaireId,
+    assignedById: user.id,
+    notes: validated.notes || null,
+  };
+  const assignment = await prisma.$transaction(async (tx) => {
+    if (existingAssignments.length > 0) {
+      await tx.dossierNotaireAssignment.updateMany({
+        where: { bailId: validated.bailId },
+        data: { ...assignmentData, assignedAt: new Date() },
+      });
+    }
+    const include = {
       client: {
         include: {
           persons: { where: { isPrimary: true }, take: 1 },
@@ -205,7 +228,10 @@ export async function assignDossierToNotaire(data: unknown) {
       notaire: {
         select: { id: true, email: true, name: true },
       },
-    },
+    } as const;
+    return existingAssignments.length > 0
+      ? tx.dossierNotaireAssignment.findFirstOrThrow({ where: { id: existingAssignments[0].id }, include })
+      : tx.dossierNotaireAssignment.create({ data: assignmentData, include });
   });
 
   await createBailAuditLog({
@@ -224,15 +250,36 @@ export async function assignDossierToNotaire(data: unknown) {
                       (client?.persons?.[0] ? `${client.persons[0].firstName || ""} ${client.persons[0].lastName || ""}`.trim() : "Client") ||
                       "Client";
     const propertyAddress = bail.property.fullAddress || undefined;
+    // Résumé du dossier tel qu'il est au moment de l'assignation. « Pièces vérifiées » seulement si l'équipe a
+    // réellement validé le bien et chaque partie.
+    const ownerParty = bail.parties.find((party) => party.profilType === "PROPRIETAIRE") ?? client;
+    const tenantParty = bail.parties.find((party) => party.profilType === "LOCATAIRE") ?? null;
+    const documentsVerified =
+      !!tenantParty &&
+      bail.property.completionStatus === "COMPLETED" &&
+      [ownerParty, tenantParty].every((party) => party?.completionStatus === "COMPLETED");
+    const surface = bail.property.surfaceM2 ? `${Number(bail.property.surfaceM2).toLocaleString("fr-FR")} m²` : null;
+    const rent = formatEuros(bail.rentAmount);
+    const charges = bail.monthlyCharges ? formatEuros(bail.monthlyCharges) : null;
+    const bailTypeLabel = formatAgreementValue("bailType", bail.bailType);
+    const ownerName = getClientGreetingName(ownerParty) || clientName;
+    const tenantName = getClientGreetingName(tenantParty);
+    const effectiveDate = formatFrenchDate(bail.effectiveDate);
 
     await resendSendEmail({
       from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
       to: notaire.email,
-      subject: "Nouveau dossier assigné - BailNotarie",
+      subject: `Nouveau dossier : ${[bailTypeLabel, propertyAddress || clientName].filter(Boolean).join(", ")}`,
       react: MailNotaireAssignment({
         userName: notaire.name,
         clientName,
-        propertyAddress,
+        propertyAddress: [propertyAddress, surface].filter(Boolean).join(" · ") || undefined,
+        bailTypeLabel,
+        ownerName,
+        tenantName,
+        rentText: rent ? `${rent}${charges ? ` + ${charges} de charges` : ""}` : null,
+        documentsVerified,
+        effectiveDate,
         notes: validated.notes || undefined,
         interfaceUrl: `${process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr"}/notaire/dossiers`,
       }),
@@ -442,14 +489,14 @@ export async function revokeAssignment(data: unknown) {
 
   // Supprimer tous les fichiers AWS S3
   if (allDocumentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    const { deleteBlobFiles } = await import("@/lib/document-storage");
     await deleteBlobFiles(allDocumentFileKeys);
   }
 
   // Supprimer les documents directs des demandes (les documents des messages seront supprimés en cascade)
   const requestIds = assignment.requests.map(r => r.id);
   if (requestIds.length > 0) {
-    const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+    const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
     await deleteDocumentsFromDB({ notaireRequestId: { in: requestIds } });
   }
 
@@ -1028,7 +1075,7 @@ export async function deleteNotaireRequest(requestId: string) {
 
   // Supprimer tous les fichiers AWS S3
   if (allDocumentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    const { deleteBlobFiles } = await import("@/lib/document-storage");
     await deleteBlobFiles(allDocumentFileKeys);
   }
 
@@ -1038,7 +1085,7 @@ export async function deleteNotaireRequest(requestId: string) {
     if (message.document) {
       try {
         // Supprimer le document de la base de données
-        const { deleteDocumentFromDB } = await import("@/lib/actions/documents");
+        const { deleteDocumentFromDB } = await import("@/lib/document-storage");
         await deleteDocumentFromDB(message.document.id);
       } catch (error) {
         // Ne pas faire échouer la suppression si un document ne peut pas être supprimé
@@ -1049,7 +1096,7 @@ export async function deleteNotaireRequest(requestId: string) {
 
   // Supprimer les documents directs de la demande
   if (request.documents && request.documents.length > 0) {
-    const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+    const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
     await deleteDocumentsFromDB({ notaireRequestId: requestId });
   }
 
@@ -1128,7 +1175,7 @@ export async function getNotaireRequestsByDossier(dossierId: string) {
  */
 const updateBailStatusSchema = z.object({
   bailId: z.string().min(1, "Le bail est requis"),
-  status: z.enum(["READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "DESISTE", "CLASSE_SANS_SUITE"]),
+  status: z.enum(["READY_FOR_NOTARY", "CLIENT_CONTACTED", "PROVISION_RECEIVED", "SIGNED", "DESISTE", "CLASSE_SANS_SUITE"]),
 });
 
 export async function updateBailStatusByNotaire(data: unknown) {
@@ -1152,10 +1199,28 @@ export async function updateBailStatusByNotaire(data: unknown) {
     throw new Error("Dossier introuvable ou non autorisé");
   }
 
+  // « Signé » : seulement quand le notaire a vérifié toutes les pièces et qu'il n'en manque aucune.
+  if (validated.status === "SIGNED" && user.role === Role.NOTAIRE) {
+    const review = await notaireReviewForBail(validated.bailId);
+    if (!review || !review.done) return { success: false as const, error: review?.reason ?? "Vérification du dossier à terminer" };
+  }
+
+  const before = await prisma.bail.findUnique({ where: { id: validated.bailId }, select: { status: true } });
   const bail = await prisma.bail.update({
     where: { id: validated.bailId },
     data: { status: validated.status },
   });
+  // Historique du dossier : qui a fait avancer le dossier, et de quel statut à quel statut.
+  if (before && before.status !== bail.status) {
+    await createBailAuditLog({
+      bailId: bail.id,
+      eventType: BailAuditEventType.STATUS_CHANGED,
+      actorId: user.id,
+      actorName: getActorName(user),
+      fromStatus: before.status,
+      toStatus: bail.status,
+    });
+  }
 
   revalidatePath("/notaire");
   revalidatePath("/notaire/dossiers");

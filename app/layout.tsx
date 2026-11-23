@@ -7,6 +7,8 @@ import { Analytics } from "@vercel/analytics/next";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Toaster } from "@/components/shared/toaster";
 import { ContactBubble } from "@/components/contact-bubble";
+import { ScrollToTop } from "@/components/scroll-to-top";
+import { AnalyticsConsent } from "@/components/consent/analytics-consent";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -153,27 +155,17 @@ export default function RootLayout({
       {/* Vercel Web Analytics */}
       <Analytics />
       
-      {/* Google ADS */}
-      <Script
-              src="https://www.googletagmanager.com/gtag/js?id=G-TZ7DF5J0XW"
-              strategy="afterInteractive"
-            />
-
-            {/* Config GA4 */}
-            <Script id="ga4-init" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', 'G-TZ7DF5J0XW');
-              `}
-      </Script>
+      {/* Google Analytics : seulement avec l'accord du visiteur, jamais dans les espaces privés ni les formulaires */}
+      <AnalyticsConsent />
       
       {/* Données structurées SEO optimisées */}
       <StructuredData />
       {/* Toaster pour les notifications */}
       <Toaster />
-      {/* Bulle support flottante (présente sur toutes les pages) */}
+      {/* Boutons flottants du coin bas droit, présents sur toutes les pages.
+          Le retour en haut se pose au ras de la barre d'onglets ; la bulle
+          d'assistance s'empile au-dessus de lui. */}
+      <ScrollToTop />
       <ContactBubble />
       </body>
     </html>

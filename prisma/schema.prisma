@@ -61,6 +61,12 @@ enum PropertyStatus {
 enum BienType {
   APPARTEMENT
   MAISON
+  // Locaux du bail commercial
+  BOUTIQUE
+  BUREAU
+  LOCAL_ACTIVITE
+  ENTREPOT
+  AUTRE_LOCAL
 }
 
 enum BienLegalStatus {
@@ -69,11 +75,24 @@ enum BienLegalStatus {
   LOTISSEMENT
 }
 
+/// Classe d'un DPE (énergie ou climat), de A à G.
+enum EnergyClass {
+  A
+  B
+  C
+  D
+  E
+  F
+  G
+}
+
 enum BailType {
   BAIL_NU_3_ANS
   BAIL_NU_6_ANS
   BAIL_MEUBLE_1_ANS
   BAIL_MEUBLE_9_MOIS
+  COMMERCIAL_3_6_9 // Bail commercial de 9 ans (résiliable tous les 3 ans)
+  COMMERCIAL_DEROGATOIRE // Bail dérogatoire : 36 mois au plus (durée dans BailCommercialTerms)
 }
 
 enum BailFamille {
@@ -88,6 +107,7 @@ enum BailStatus {
   PENDING_VALIDATION // en attente de validation par bailnotarie si toute les donne sont remplies
   READY_FOR_NOTARY // prêt pour notaire
   CLIENT_CONTACTED // client contacté
+  PROVISION_RECEIVED // provision sur frais versée au notaire : il peut commencer la rédaction
   SIGNED // signé
   TERMINATED // terminé
   DESISTE // le client s'est désisté / a renoncé
@@ -145,6 +165,9 @@ enum NotificationType {
   COMPLETION_STATUS_CHANGED
   LEAD_CREATED
   LEAD_CONVERTED
+  DIAGNOSTICS_TO_REVIEW
+  COMPLEMENT_SUBMITTED
+  COMPLEMENT_REQUESTED_BY_NOTAIRE
 }
 
 enum DocumentKind {
@@ -156,8 +179,9 @@ enum DocumentKind {
   TITLE_DEED
 
   ID_IDENTITY
-  LIVRET_DE_FAMILLE
+  LIVRET_DE_FAMILLE // N'est plus demandé : gardé pour les pièces déjà envoyées
   CONTRAT_DE_PACS
+  CONTRAT_DE_MARIAGE // Demandé seulement si le régime n'est pas la communauté légale
 
   //biens
   DIAGNOSTICS
@@ -166,6 +190,25 @@ enum DocumentKind {
   STATUT_DE_LASSOCIATION_SYNDICALE
 
   RIB
+
+  // Justificatifs du loyer (relocation en zone tendue)
+  PREVIOUS_RENT_PROOF // Dernière quittance ou ancien bail : loyer du locataire précédent
+  PREVIOUS_TENANT_EXIT_PROOF // État des lieux de sortie : date de départ du locataire précédent
+  WORKS_INVOICES // Factures des travaux qui justifient une hausse
+  RENT_REFERENCES // Loyers de logements comparables du voisinage
+
+  // Ville à loyers encadrés : déclaration d'occupation (impots.gouv, « Gérer mes biens immobiliers »)
+  OCCUPANCY_DECLARATION
+
+  // Bail commercial
+  PREVIOUS_LEASE // Bail du locataire précédent
+  LEASE_TERMINATION // Congé, résiliation ou fin du bail précédent
+  GENERAL_ASSEMBLY_MINUTES // Derniers procès-verbaux d'assemblée de copropriété
+  SHOPPING_CENTER_RULES // Règlement du centre commercial ou de l'ensemble immobilier
+  PREMISES_PLANS // Plans du local
+  OPERAT_CERTIFICATE // Attestation OPERAT (bâtiments tertiaires de 1 000 m² et plus)
+  ENVIRONMENTAL_APPENDIX // Éléments de l'annexe environnementale (plus de 2 000 m²)
+  SIGNING_AUTHORITY // Autorisation de signer ou délégation de pouvoirs
 
   OTHER
 }
@@ -230,6 +273,9 @@ model User {
   // Relations pour les demandes du notaire
   notaireRequestsCreated NotaireRequest[] @relation("NotaireRequestCreatedBy")
 
+  // Demandes de pièces envoyées depuis la fiche du bail
+  complementRequestsCreated ComplementRequest[] @relation("ComplementRequestCreatedBy")
+
   // Messages de chat sur les baux
   bailMessagesSent BailMessage[] @relation("BailMessageSender")
 }
@@ -261,6 +307,9 @@ model Client {
   documents Document[]
 
   bails Bail[] @relation("BailClients")
+
+  // Pièces que l'équipe lui a redemandées
+  complementRequests ComplementRequest[]
 
   intakeLinks IntakeLink[]
 
@@ -319,6 +368,23 @@ model Entreprise {
   registration String
   legalName    String
 
+  // Bail commercial : représentant légal, et société pas encore immatriculée (Kbis non exigé)
+  representativeName String?
+  representativeRole String?
+  isRegistered       Boolean?
+
+  // Registre des entreprises (recherche par SIREN/SIRET) : null = saisie antérieure ou manuelle
+  siren                     String?
+  siret                     String?
+  legalFormCode             String?
+  legalFormLabel            String?
+  nafCode                   String?
+  registryStatus            String? // A = active, C = cessée, P = diffusion partielle
+  registrySource            String? // RECHERCHE_ENTREPRISES | MANUAL
+  registryCheckedAt         DateTime?
+  registryConfirmedByClient Boolean?
+  registrySnapshot          Json?
+
   name        String
   email       String  @unique
   phone       String?
@@ -351,18 +417,42 @@ model Property {
   status      PropertyStatus   @default(NON_LOUER)
 
   // Données géographiques enrichies (via API BAN)
-  housenumber String?
-  street      String?
-  city        String?
-  postalCode  String?
-  district    String? // Arrondissement pour Paris/Lyon/Marseille
-  inseeCode   String?
-  department  String?
-  region      String?
-  latitude    Decimal?         @db.Decimal(10, 8)
-  longitude   Decimal?         @db.Decimal(11, 8)
-  isTightZone Boolean          @default(false)
-  hasRentControl Boolean       @default(false)
+  housenumber    String?
+  street         String?
+  city           String?
+  postalCode     String?
+  district       String? // Arrondissement pour Paris/Lyon/Marseille
+  inseeCode      String?
+  department     String?
+  region         String?
+  latitude       Decimal? @db.Decimal(10, 8)
+  longitude      Decimal? @db.Decimal(11, 8)
+  isTightZone    Boolean  @default(false)
+  hasRentControl Boolean  @default(false)
+
+  // DPE saisi à la main par l'équipe (la validité se calcule depuis la date)
+  dpeClass EnergyClass?
+  gesClass EnergyClass?
+  dpeDate  DateTime?
+
+  // Encadrement des loyers : saisis par l'équipe (catégorie du logement au sens de l'arrêté)
+  mainRooms          Int? // Nombre de pièces principales (4 = 4 et plus)
+  constructionPeriod String? // Époque de construction (codes de RentCapReference.period)
+  rentCapZone        String? // Zone choisie à la main quand la carte ne suffit pas
+
+  // Copropriété : syndic, que le notaire contacte directement (rapport amiante des parties communes…)
+  syndicName  String?
+  syndicEmail String?
+  syndicPhone String?
+
+  // Lotissement autorisé il y a plus de 10 ans (YES | NO | UNKNOWN) : au-delà, son règlement ne s'applique plus
+  subdivisionOver10Years String?
+
+  // Bail commercial : local dans un centre commercial ou un ensemble immobilier, dépendances
+  inShoppingCenter Boolean?
+  // Type d'ensemble quand inShoppingCenter : SHOPPING_CENTER (centre commercial, galerie) | ESTATE_COMPLEX (parc d'activités, ASL…)
+  complexType      String?
+  outbuildings     String?
 
   // Mobilier obligatoire pour location meublée
   hasLiterie           Boolean @default(false) // Literie avec couette ou couverture
@@ -394,7 +484,9 @@ model Property {
   intakes   IntakeLink[] @relation("PropertyIntakes")
   bails     Bail[]       @relation("PropertyBails")
 
-  dossierAssignments DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
+  dossierAssignments  DossierNotaireAssignment[] @relation("DossierNotaireAssignments")
+  diagnosticAnalyses  DiagnosticAnalysis[]
+  diagnosticDecisions DiagnosticDecision[]
 
   @@index([status])
   @@index([ownerId])
@@ -407,16 +499,16 @@ model Property {
  */
 
 model ZoneTendue {
-  id               String   @id @default(cuid())
-  inseeCode        String  @unique
-  city             String
-  postalCode       String
-  department       String
-  region           String
-  isActive         Boolean  @default(true)
-  rentControlEnabled Boolean @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  inseeCode          String   @unique
+  city               String
+  postalCode         String
+  department         String
+  region             String
+  isActive           Boolean  @default(true)
+  rentControlEnabled Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   rentControls RentControl[]
 
@@ -425,16 +517,118 @@ model ZoneTendue {
   @@index([rentControlEnabled])
 }
 
+/// Territoire soumis à l'encadrement des loyers (un arrêté préfectoral en vigueur).
+/// Indice de référence des loyers (INSEE, série 001515333), mis à jour chaque jour depuis l'INSEE.
+model IrlIndex {
+  quarter     String   @id // « 2026-T3 »
+  year        Int
+  quarterNum  Int
+  value       Decimal  @db.Decimal(8, 2)
+  publishedAt DateTime // Publication au Journal officiel
+  updatedAt   DateTime @updatedAt
+
+  @@index([publishedAt])
+}
+
+model RentCapTerritory {
+  id                String             @id // ex. « paris », « lyon »
+  label             String
+  inseeCodes        String[]
+  /// « polygon » : zone trouvée sur la carte ; « manual » : zone choisie par l'équipe
+  zoneMode          String
+  /// Époques de construction de l'arrêté (codes, dans l'ordre)
+  periods           String[]
+  /// L'arrêté distingue-t-il maison et appartement ?
+  houseTypes        Boolean            @default(false)
+  validFrom         DateTime
+  validTo           DateTime
+  sourceTitle       String
+  sourceUrl         String
+  geometrySource    String?
+  simulatorUrl      String?
+  mapUrl            String?
+  /// Communes entièrement dans une zone : { code INSEE: code de zone }
+  communeZones      Json?
+  /// Communes encadrées seulement en partie : hors des contours = hors périmètre
+  partialInseeCodes String[]           @default([])
+  /// Contours relevés sur une carte : à moins de cette distance d'une limite, zone à confirmer
+  precisionM        Int?
+  importedAt        DateTime           @default(now())
+  zones             RentCapZone[]
+  areas             RentCapArea[]
+  references        RentCapReference[]
+}
+
+/// Journal des imports de barèmes. Un import commence (ligne créée), écrit les territoires, puis est vérifié
+/// (comptes attendus, liens) avant d'être marqué terminé. Tant que le dernier import n'est pas terminé, le
+/// contrôle des loyers se déclare « impossible » au lieu de conclure qu'une commune n'est pas encadrée.
+model RentCapImport {
+  id          String    @id @default(cuid())
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  /// Fichiers attendus : [{ id, sha256, zones, areas, references, validFrom, validTo }]
+  manifest    Json
+  territories Int
+  zones       Int
+  areas       Int
+  references  Int
+  note        String?   @db.Text
+
+  @@index([startedAt])
+}
+
+model RentCapZone {
+  id          String           @id @default(cuid())
+  territoryId String
+  territory   RentCapTerritory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  code        String
+  label       String
+
+  @@unique([territoryId, code])
+}
+
+/// Contour d'un quartier, d'un îlot ou d'une commune, rattaché à une zone.
+model RentCapArea {
+  id          String           @id @default(cuid())
+  territoryId String
+  territory   RentCapTerritory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  zoneCode    String
+  label       String
+  geometry    Json
+  /// Emprise [lonMin, latMin, lonMax, latMax] pour un premier tri rapide
+  bbox        Float[]
+
+  @@index([territoryId])
+}
+
+/// Loyers de référence (€/m²) d'une catégorie de logement dans une zone.
+model RentCapReference {
+  id          String           @id @default(cuid())
+  territoryId String
+  territory   RentCapTerritory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  zoneCode    String
+  /// « ALL », « APPARTEMENT » ou « MAISON »
+  houseType   String
+  rooms       Int
+  period      String
+  furnished   Boolean
+  refMin      Decimal          @db.Decimal(6, 2)
+  ref         Decimal          @db.Decimal(6, 2)
+  refMax      Decimal          @db.Decimal(6, 2)
+
+  @@unique([territoryId, zoneCode, houseType, rooms, period, furnished])
+}
+
 model RentControl {
-  id           String   @id @default(cuid())
-  zoneTendueId String
-  zoneTendue   ZoneTendue @relation(fields: [zoneTendueId], references: [id], onDelete: Cascade)
-  propertyType BienType
-  maxRentPerM2 Decimal  @db.Decimal(10, 2)
+  id            String     @id @default(cuid())
+  zoneTendueId  String
+  zoneTendue    ZoneTendue @relation(fields: [zoneTendueId], references: [id], onDelete: Cascade)
+  propertyType  BienType
+  maxRentPerM2  Decimal    @db.Decimal(10, 2)
   effectiveDate DateTime
-  endDate      DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  endDate       DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   @@index([zoneTendueId])
   @@index([propertyType])
@@ -456,7 +650,9 @@ model Bail {
   monthlyCharges  Int @default(0)
   securityDeposit Int @default(0)
 
-  effectiveDate DateTime
+  // Date de prise d'effet et jour de paiement : demandés une fois le locataire connu. Sans locataire, le
+  // dossier s'enregistre sans ces valeurs (vides, jamais une date provisoire).
+  effectiveDate DateTime?
   endDate       DateTime?
   paymentDay    Int?
 
@@ -472,8 +668,51 @@ model Bail {
   createdBy   User?    @relation("BailCreatedBy", fields: [createdById], references: [id])
   updatedBy   User?    @relation("BailUpdatedBy", fields: [updatedById], references: [id])
 
-  stripePaymentIntentId String?   @db.Text
-  paidAt                DateTime?
+  stripePaymentIntentId String? @db.Text
+
+  // Complément de loyer justifié (loyer au-dessus du loyer de référence majoré)
+  rentSupplementReason String?   @db.Text
+  rentSupplementAt     DateTime?
+  rentSupplementByName String?
+  // Montant du complément, compris dans rentAmount (loyer de base = rentAmount - complément)
+  rentSupplementAmount Int?
+
+  // Relocation en zone tendue (évolution du loyer entre deux locataires, décret n° 2017-1198).
+  // null partout = non renseigné (baux créés avant ces questions).
+  relocationLetBefore         Boolean? // Logement déjà loué : false = première mise en location
+  previousTenantLeftAt        DateTime? // Départ du locataire précédent (vacance de moins ou de plus de 18 mois)
+  previousRentAmount          Int? // Dernier loyer hors charges du locataire précédent
+  previousRentRevisedRecently Boolean? // Loyer révisé au cours des 12 derniers mois (pas de nouvelle révision IRL)
+  rentIncreaseReason          String? // NONE | WORKS | UNDERVALUED
+  worksAmount                 Int? // Coût TTC des travaux d'amélioration ou de mise en conformité
+  worksCompletedAt            DateTime? // Fin des travaux
+  neighborhoodRent            Int? // Loyer mensuel du voisinage pour un logement comparable (hors villes encadrées)
+
+  // Logement exclu de l'encadrement (logement social, conventionné, loi de 1948…)
+  rentCapExemption       String?
+  rentCapExemptionNote   String?   @db.Text
+  rentCapExemptionAt     DateTime?
+  rentCapExemptionByName String?
+  paidAt                 DateTime?
+
+  // Le locataire a confirmé le loyer, les charges et la date d'entrée en envoyant son formulaire
+  tenantConfirmedTermsAt DateTime?
+  // Conditions montrées au locataire au moment de son accord (vide pour les accords antérieurs à ce suivi :
+  // leur contenu précis n'a pas été enregistré et n'est pas reconstitué)
+  tenantConfirmedTerms            Json?
+  // Fiche client du locataire qui a donné l'accord
+  tenantConfirmedById             String?
+  // Accord précédent invalidé (conditions modifiées ou locataire remplacé) : nouvelle confirmation attendue
+  tenantReconfirmationRequestedAt DateTime?
+  tenantAgreementHistory          BailTenantAgreementHistory[]
+
+  // Tentatives et confirmations de paiement des frais de dossier (source : Stripe)
+  payments          DossierPayment[]
+  // Paiement ancien confirmé à la main par l'équipe (périmètre fermé, listé à la bascule)
+  historicalPayment HistoricalPaymentReview?
+
+  // Bail commercial : conditions propres (activité, loyer HT, charges, travaux…)
+  commercialTerms BailCommercialTerms?
 
   documents Document[]
   intakes   IntakeLink[] @relation("BailIntakes")
@@ -485,9 +724,128 @@ model Bail {
 
   auditLogs BailAuditLog[] @relation("BailAuditLogs")
 
+  // Points de la fiche de vérification validés par l'équipe
+  verificationChecks BailVerificationCheck[]
+
+  // Relances (e-mails, appels, reports) faites depuis l'interface
+  reminders BailReminder[]
+
+  // Pièces redemandées par l'équipe au propriétaire ou au locataire
+  complementRequests ComplementRequest[]
+
   @@index([status])
   @@index([propertyId])
   @@index([effectiveDate])
+}
+
+/// Conditions d'un bail commercial, demandées au propriétaire dans le formulaire.
+/// Tout est facultatif en base : le formulaire exige ce qui est utile au notaire.
+model BailCommercialTerms {
+  id     String @id @default(cuid())
+  bailId String @unique
+  bail   Bail   @relation(fields: [bailId], references: [id], onDelete: Cascade)
+
+  // Activité et situation du local
+  activity            String?  @db.Text
+  ancillaryActivities String?  @db.Text
+  previouslyLet       Boolean?
+  previousActivity    String?
+  currentlyVacant     Boolean?
+
+  // Durée : nombre de mois du bail dérogatoire, remise des clés, franchise de loyer
+  derogatoryMonths Int?
+  keysHandoverDate DateTime?
+  rentFreeMonths   Int?
+
+  // Loyer hors taxes : rythme de paiement (MONTHLY | QUARTERLY), TVA, révision (ILC | ILAT | NONE)
+  rentPeriodicity String?
+  vatApplicable   Boolean?
+  indexation      String?
+  // Pas-de-porte (euros) et frais d'acte (TENANT | OWNER | SHARED)
+  entryFee        Int?
+  feesPaidBy      String?
+
+  // Loi Pinel : répartition des charges { clé: OWNER | TENANT } et travaux [{ label, amount, year }]
+  chargesAllocation Json?
+  hasPastWorks      Boolean?
+  pastWorks         Json?
+  hasPlannedWorks   Boolean?
+  plannedWorks      Json?
+
+  // Garant et clauses particulières
+  hasGuarantor   Boolean?
+  guarantorName  String?
+  guarantorEmail String?
+  clauses        String[] @default([])
+  clausesNote    String?  @db.Text
+
+  // Propriétaire marié en communauté : local acheté pendant le mariage (le conjoint doit signer)
+  premisesBoughtDuringMarriage Boolean?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Point de contrôle validé sur la fiche de vérification d'un dossier.
+/// La clé contient une empreinte des données vérifiées : si elles changent,
+/// le point redevient « à valider » (l'ancienne ligne reste sans effet).
+/// Qui l'on relance pour un dossier.
+enum ReminderTarget {
+  OWNER
+  TENANT
+}
+
+/// Pourquoi on relance.
+enum ReminderReason {
+  OWNER_FORM // Le propriétaire n'a pas terminé son formulaire (dont le paiement)
+  TENANT_TO_ADD // Le propriétaire doit indiquer son locataire
+  TENANT_FORM // Le locataire doit remplir son formulaire
+  TENANT_VIA_OWNER // Le propriétaire est relancé au sujet de son locataire
+  MISSING_ITEMS // Éléments encore manquants après soumission (relance manuelle)
+  RENT_CAP // Loyer au-dessus du loyer de référence majoré
+  DIAGNOSTICS // Diagnostics : ce qui bloque la location, ou questions au propriétaire
+}
+
+/// Comment on a relancé.
+enum ReminderChannel {
+  EMAIL // E-mail envoyé par l'application
+  CALL // Appel noté par l'équipe
+  SNOOZE // Relances reportées (ex. le propriétaire cherche encore son locataire)
+}
+
+/// Trace de chaque relance faite depuis l'interface.
+model BailReminder {
+  id             String          @id @default(cuid())
+  bailId         String
+  bail           Bail            @relation(fields: [bailId], references: [id], onDelete: Cascade)
+  /// Client relancé (fiche conservée même si le client est retiré du dossier)
+  clientId       String?
+  target         ReminderTarget
+  reason         ReminderReason
+  channel        ReminderChannel
+  recipientEmail String?
+  /// Éléments listés dans l'e-mail (libellés)
+  items          Json?
+  note           String?
+  /// Pour un report : date jusqu'à laquelle on ne propose plus de relance
+  snoozeUntil    DateTime?
+  createdById    String?
+  createdByName  String?
+  createdAt      DateTime        @default(now())
+
+  @@index([bailId, createdAt])
+}
+
+model BailVerificationCheck {
+  id           String   @id @default(cuid())
+  bailId       String
+  bail         Bail     @relation(fields: [bailId], references: [id], onDelete: Cascade)
+  pointKey     String
+  verifiedById String?
+  createdAt    DateTime @default(now())
+
+  @@unique([bailId, pointKey])
+  @@index([bailId])
 }
 
 model BailAuditLog {
@@ -505,7 +863,7 @@ model BailAuditLog {
   notaireName String?
 
   actorId   String?
-  actor     User?  @relation("BailAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actor     User?   @relation("BailAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
   actorName String
 
   createdAt DateTime @default(now())
@@ -566,11 +924,20 @@ model IntakeLink {
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id])
 
-  status               IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
-  submittedAt          DateTime?
-  formEmailSentAt      DateTime?
+  status              IntakeStatus @default(PENDING) // PENDING | SUBMITTED | EXPIRED | REVOKED
+  submittedAt         DateTime?
+  formEmailSentAt     DateTime?
+  // Suivi d'envoi et d'ouverture du formulaire, pour l'espace administrateur.
+  // formEmailCount compte chaque envoi (le premier et les relances) ;
+  // lastFormEmailSentAt est la date du dernier envoi.
+  formEmailCount      Int          @default(0)
+  lastFormEmailSentAt DateTime?
+  // Première et dernière ouverture du formulaire par le client (pas par un admin).
+  firstOpenedAt       DateTime?
+  lastOpenedAt        DateTime?
 
-  stripePaymentIntentId String?   @db.Text // Temporaire : cache pour réutiliser le PaymentIntent
+  stripePaymentIntentId String? @db.Text // Temporaire : cache pour réutiliser le PaymentIntent
+  payments              DossierPayment[]
 
   bailFamilyPreference BailFamille?
 
@@ -589,6 +956,70 @@ model IntakeLink {
 /**
  * ---------------------- Documents ------------------
  */
+
+/// Lecture automatique des diagnostics d'un bien par un modèle d'IA (OpenAI), demandée par l'équipe
+/// depuis la fiche dossier. Les données extraites sont conservées ; la conformité est recalculée par le code.
+model DiagnosticAnalysis {
+  id            String    @id @default(cuid())
+  propertyId    String
+  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  /// Dossier depuis lequel l'analyse a été lancée
+  bailId        String?
+  /// Pièces « Diagnostics » du bien analysées (pour savoir si elles ont changé depuis)
+  documentIds   String[]
+  /// null : lecture de tous les fichiers ; sinon lecture du seul nouveau fichier ajouté pour ce diagnostic (erp, plomb…)
+  item          String?
+  /// RUNNING, SUCCEEDED ou FAILED
+  status        String
+  model         String
+  /// Données lues dans les fichiers (schéma de lib/diagnostics/schema.ts)
+  extracted     Json?
+  error         String?
+  inputTokens   Int?
+  outputTokens  Int?
+  costUsd       Float?
+  durationMs    Int?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([propertyId, createdAt])
+}
+
+enum DiagnosticDecisionKind {
+  /// Déclaré conforme par l'équipe (avec ou sans justificatif, motif obligatoire)
+  CONFORME
+  /// Diagnostic non exigé pour ce bien (motif obligatoire)
+  NON_CONCERNE
+  /// Date du nouveau diagnostic saisie à la main (fichier ajouté mais non lu)
+  DATE
+}
+
+/// Décision de l'équipe sur un diagnostic du bien, visible du notaire. Annulée = revokedAt renseigné (historique gardé).
+model DiagnosticDecision {
+  id            String                 @id @default(cuid())
+  propertyId    String
+  property      Property               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  /// Diagnostic concerné : dpe, erp, plomb, electricite, gaz, amiante, adresse, surface…
+  item          String
+  kind          DiagnosticDecisionKind
+  /// Motif saisi par l'équipe
+  note          String?
+  /// Constat au moment de la décision : si le constat change, la décision ne s'applique plus
+  basis         String?
+  /// DATE : date d'établissement du nouveau diagnostic
+  date          DateTime?
+  /// Justificatif ou nouveau diagnostic (pièce du bien)
+  documentId    String?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime               @default(now())
+  revokedAt     DateTime?
+  revokedByName String?
+
+  @@index([propertyId, item])
+}
 
 model Document {
   id       String       @id @default(cuid())
@@ -619,6 +1050,25 @@ model Document {
 
   bailMessages BailMessage[] @relation("BailMessageDocument")
 
+  // Reçue via une demande de pièces de l'équipe
+  complementItemId String?
+  complementItem   ComplementRequestItem? @relation(fields: [complementItemId], references: [id], onDelete: SetNull)
+
+  // Pièce retirée des pièces actives par l'équipe (remplacée par une nouvelle). Le fichier et la ligne sont
+  // conservés : seule l'équipe la consulte encore. Vide = pièce active.
+  // À l'archivage, la pièce est détachée de sa fiche (personId, propertyId… vidés) : elle sort ainsi de
+  // toutes les listes et du calcul de complétude. Son ancien rattachement est gardé dans archivedFrom, et
+  // archivedBailId donne le dossier depuis lequel elle a été archivée (pour la retrouver).
+  archivedAt     DateTime?
+  archivedById   String?
+  archivedByName String?
+  archivedFrom   Json?
+  archivedBailId String?
+  // Pièce qui la remplace (traçabilité ancienne → nouvelle)
+  replacedById   String?
+  replacedBy     Document?  @relation("DocumentReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces       Document[] @relation("DocumentReplacement")
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   uploadedById String?
@@ -632,6 +1082,10 @@ model Document {
   @@index([uploadedById])
   @@index([fileKey])
   @@index([notaireRequestId])
+  @@index([complementItemId])
+  @@index([archivedAt])
+  @@index([replacedById])
+  @@index([archivedBailId])
 }
 
 /**
@@ -841,6 +1295,138 @@ model NotaireRequest {
 }
 
 /**
+ * ---------------------- Demandes de pièces ------------------
+ * L'équipe redemande des pièces au propriétaire ou au locataire depuis la fiche du bail
+ * (manquante, illisible, expirée…). La personne les envoie depuis son espace client ;
+ * l'équipe accepte chaque pièce ou la redemande.
+ */
+
+enum ComplementRequestStatus {
+  OPEN // Envoyée : en attente de la personne
+  SUBMITTED // Tout est envoyé : à vérifier par l'équipe
+  ACCEPTED // Vérifiée et acceptée
+  CANCELLED // Annulée par l'équipe
+}
+
+enum ComplementItemStatus {
+  PENDING // À fournir
+  PROVIDED // Fournie, à vérifier
+  ACCEPTED // Acceptée par l'équipe
+}
+
+enum ComplementReason {
+  MISSING
+  ILLEGIBLE
+  EXPIRED
+  WRONG_DOCUMENT
+  INCOMPLETE
+  WRONG_VALUE // Information à corriger
+  TO_CONFIRM // Information à confirmer
+}
+
+enum ComplementOrigin {
+  TEAM // Demande de l'équipe BailNotarie
+  NOTAIRE // Demande du notaire assigné au dossier
+}
+
+enum ComplementItemKind {
+  DOCUMENT // Pièce à envoyer
+  FIELD // Information à compléter (question du formulaire)
+}
+
+model ComplementRequest {
+  id String @id @default(cuid())
+
+  bailId String
+  bail   Bail   @relation(fields: [bailId], references: [id], onDelete: Cascade)
+
+  // Partie à qui la demande est adressée
+  clientId String
+  client   Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  target   ReminderTarget
+
+  status ComplementRequestStatus @default(OPEN)
+  // Qui a fait la demande : l'équipe, ou le notaire assigné (il la suit depuis son espace)
+  origin ComplementOrigin        @default(TEAM)
+
+  // Message de l'équipe, relu dans l'aperçu de l'e-mail avant l'envoi
+  message        String?   @db.Text
+  recipientEmail String
+  sentCount      Int       @default(1)
+  lastSentAt     DateTime  @default(now())
+  submittedAt    DateTime?
+  closedAt       DateTime?
+
+  createdById   String?
+  createdBy     User?   @relation("ComplementRequestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items ComplementRequestItem[]
+
+  @@index([bailId, status])
+  @@index([clientId, status])
+}
+
+model ComplementRequestItem {
+  id String @id @default(cuid())
+
+  requestId String
+  request   ComplementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  position  Int               @default(0)
+
+  kind         ComplementItemKind @default(DOCUMENT)
+  // Pièce : son type. Information : vide.
+  documentKind DocumentKind?
+  // Information : question demandée (« person.birth », « property.legalStatus »…). Pièce ajoutée
+  // automatiquement après une réponse : « auto:<question> ».
+  fieldKey     String?
+  // Information : valeurs au moment de la demande, puis réponse du client (historique de la ligne)
+  previousValue Json?
+  providedValue Json?
+  // Nom simple montré à la personne (« Pièce d'identité de Marie Durand »)
+  label        String
+  reason       ComplementReason     @default(MISSING)
+  // Précision de l'équipe, affichée à la personne
+  note         String?              @db.Text
+  status       ComplementItemStatus @default(PENDING)
+
+  // Rattachement de la nouvelle pièce (une seule cible), comme les pièces du dossier
+  personId     String?
+  entrepriseId String?
+  clientId     String?
+  propertyId   String?
+  bailId       String?
+
+  // Pièces à remplacer (illisible, expirée…) : proposées à l'équipe quand elle accepte la nouvelle.
+  // Elle choisit celles à retirer ; elles sont archivées, jamais supprimées.
+  replacesDocumentIds String[] @default([])
+
+  // Information : la réponse (providedValue) reste une proposition tant que l'équipe ne l'a pas acceptée.
+  // baseValue = valeurs du dossier au moment de la réponse (pour voir si le dossier a changé depuis) ;
+  // appliedBefore / appliedAfter = journal de ce qui a été écrit à l'acceptation.
+  baseValue     Json?
+  // Réponse du client telle qu'il l'a envoyée, rejouée sur le dossier au moment de l'acceptation
+  proposedAnswer Json?
+  appliedBefore Json?
+  appliedAfter  Json?
+  appliedAt     DateTime?
+  appliedById   String?
+  appliedByName String?
+
+  providedAt DateTime?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  documents Document[]
+
+  @@index([requestId])
+}
+
+/**
  * ---------------------- OTP Codes ------------------
  */
 
@@ -855,3 +1441,128 @@ model OTPCode {
   @@index([email, used])
   @@index([expiresAt])
 }
+
+/**
+ * ---------------------- Paiements des frais de dossier ------------------
+ */
+
+enum DossierPaymentStatus {
+  PENDING // Créé chez Stripe, pas encore payé (moyen de paiement ou confirmation attendus)
+  PROCESSING // En cours chez Stripe : résultat pas encore connu
+  SUCCEEDED // Confirmé par Stripe
+  FAILED // Refusé
+  CANCELED // Annulé
+  UNKNOWN // État impossible à vérifier pour le moment : aucune nouvelle tentative tant qu'il n'est pas éclairci
+}
+
+/// Une ligne par ordre de paiement Stripe (PaymentIntent). La référence Stripe est unique : un paiement
+/// ne peut être rattaché qu'à un seul dossier (bailId posé une seule fois, de façon atomique).
+model DossierPayment {
+  id                    String               @id @default(cuid())
+  stripePaymentIntentId String               @unique
+  status                DossierPaymentStatus @default(PENDING)
+  amountCents           Int
+  currency              String               @default("eur")
+  // Numéro de tentative pour ce dossier (clé d'idempotence Stripe)
+  attempt               Int                  @default(1)
+
+  // Dossier payé : formulaire propriétaire (intake) ou création depuis l'espace client (utilisateur)
+  intakeLinkId String?
+  intakeLink   IntakeLink? @relation(fields: [intakeLinkId], references: [id], onDelete: SetNull)
+  userId       String?
+  // Bail auquel le paiement est rattaché (vide = confirmé mais en attente de rattachement)
+  bailId       String?
+  bail         Bail?       @relation(fields: [bailId], references: [id], onDelete: SetNull)
+
+  // Date réelle du paiement donnée par Stripe (vide si inconnue) — distincte de la date d'enregistrement
+  stripePaidAt DateTime?
+  // Date à laquelle notre serveur a enregistré la confirmation
+  confirmedAt  DateTime?
+  // Date du rattachement au bail
+  attachedAt   DateTime?
+  // Dernier événement Stripe pris en compte (les événements plus anciens sont ignorés)
+  lastEventAt  DateTime?
+  lastError    String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([intakeLinkId])
+  @@index([bailId])
+  @@index([userId])
+  @@index([status])
+}
+
+/// Événements Stripe déjà reçus (un événement rejoué n'est traité qu'une fois).
+model StripeWebhookEvent {
+  id              String    @id // identifiant Stripe de l'événement (evt_…)
+  type            String
+  paymentIntentId String?
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+  outcome         String?
+
+  @@index([paymentIntentId])
+}
+
+enum HistoricalPaymentStatus {
+  PENDING // À vérifier par l'équipe
+  CONFIRMED // Paiement retrouvé et confirmé par l'équipe
+  REJECTED // Vérifié : pas de paiement retrouvé
+}
+
+/// Anciens dossiers sans paiement enregistré, listés une fois à la bascule. Seuls les dossiers de cette
+/// liste peuvent être confirmés à la main ; rien n'est confirmé automatiquement.
+model HistoricalPaymentReview {
+  id     String                  @id @default(cuid())
+  bailId String                  @unique
+  bail   Bail                    @relation(fields: [bailId], references: [id], onDelete: Cascade)
+  status HistoricalPaymentStatus @default(PENDING)
+
+  listedAt       DateTime  @default(now())
+  // Vérification par un administrateur
+  verifiedById   String?
+  verifiedByName String?
+  verifiedAt     DateTime?
+  // Preuve du rapprochement (référence Stripe, virement, facture…)
+  proofReference String?   @db.Text
+  note           String?   @db.Text
+  // Date réelle du paiement si elle est connue ; sinon vide (jamais inventée)
+  paymentDate    DateTime?
+
+  @@index([status])
+}
+
+/**
+ * ---------------------- Accords du locataire (historique) ------------------
+ */
+
+enum TenantAgreementEndReason {
+  TERMS_CHANGED // Conditions du bail modifiées après l'accord
+  TENANT_REPLACED // Locataire remplacé ou retiré du dossier
+}
+
+/// Accord du locataire qui n'est plus valable : conservé pour l'historique, jamais supprimé.
+model BailTenantAgreementHistory {
+  id     String @id @default(cuid())
+  bailId String
+  bail   Bail   @relation(fields: [bailId], references: [id], onDelete: Cascade)
+
+  tenantId          String?
+  tenantName        String?
+  confirmedAt       DateTime
+  // Conditions montrées au locataire lors de l'accord ; vide si elles n'avaient pas été enregistrées
+  confirmedTerms    Json?
+  // Conditions du dossier juste avant la modification qui a mis fin à l'accord
+  termsBeforeChange Json
+  // Champs modifiés : [{ field, before, after }]
+  changes           Json?
+
+  reason            TenantAgreementEndReason
+  invalidatedAt     DateTime                 @default(now())
+  invalidatedById   String?
+  invalidatedByName String
+
+  @@index([bailId, invalidatedAt])
+}
+

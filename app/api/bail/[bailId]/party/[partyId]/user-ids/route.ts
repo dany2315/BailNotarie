@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
+import { apiErrorResponse } from "@/lib/api/error-response";
 
 export async function GET(
   request: NextRequest,
@@ -61,10 +62,7 @@ export async function GET(
     return NextResponse.json({ userIds });
   } catch (error: any) {
     console.error("Erreur lors de la récupération des IDs utilisateurs:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la récupération des IDs utilisateurs" },
-      { status: 500 }
-    );
+    return apiErrorResponse(error, "Erreur lors de la récupération des IDs utilisateurs");
   }
 }
 

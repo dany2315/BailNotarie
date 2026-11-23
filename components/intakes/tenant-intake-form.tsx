@@ -1,5 +1,7 @@
 "use client";
 
+import { useStepBackGesture } from "@/hooks/use-step-back-gesture";
+import { unwrapAction } from "@/lib/utils/action-error";
 import React from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,9 +31,20 @@ import { ArrowLeftIcon, Loader2, Building2, User2, MapPin, Calendar, Euro, Home,
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { NationalitySelect } from "@/components/ui/nationality-select";
+import { getMaritalDocumentKind } from "@/lib/utils/required-fields";
+import {
+  isDocumentProvided,
+  missingDocuments,
+  tenantDocumentRequirements,
+  tenantFieldIssues,
+  type DocumentRequirement,
+} from "@/lib/rules/dossier-rules";
+import { MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
+import { RENT_PERIODICITY_LABELS } from "@/lib/utils/commercial-terms";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { CompanyRegistryLookup } from "@/components/intakes/company-registry-lookup";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DatePicker, formatDateToLocalString } from "@/components/ui/date-picker";
+import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
 import useIsMobile from "@/hooks/useIsMobile";
 import {
   Accordion,
@@ -49,8 +62,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AlertCircle, Trash2 } from "lucide-react";
+import { FAMILY_STATUS_LABELS } from "@/lib/utils/person-labels";
+import { getPropertyTypeLabel } from "@/lib/utils/property-labels";
+import { getPropertyLegalStatusLabel } from "@/lib/utils/legaleStatus-label";
+import { getBailFamilyLabel } from "@/lib/utils/bails-labels";
+import { commercialPaymentText, commercialVatText } from "@/lib/utils/commercial-terms";
+import { getBailTypeLabel } from "@/lib/utils/bails-labels";
 
 type TenantFormData = z.infer<typeof tenantFormSchema>;
+
+/** Messages des erreurs de validation, à plat (champs imbriqués et listes compris). */
+function collectErrorMessages(errors: any, out: string[] = []): string[] {
+  if (!errors || typeof errors !== "object") return out;
+  if (typeof errors.message === "string" && errors.message) out.push(errors.message);
+  for (const [key, value] of Object.entries(errors)) {
+    if (key === "message" || key === "ref" || key === "type") continue;
+    collectErrorMessages(value, out);
+  }
+  return [...new Set(out)];
+}
 
 type PersonForm = {
   firstName: string;
@@ -75,6 +105,12 @@ type EntrepriseForm = {
   phone: string;
   fullAddress: string;
   nationality: string;
+  // Bail commercial : représentant légal et immatriculation (yes | no)
+  representativeName?: string;
+  representativeRole?: string;
+  isRegistered?: "" | "yes" | "no";
+  // Société confirmée par le client au registre (recherche SIREN/SIRET)
+  registryConfirmed?: boolean;
   documents: RawDocumentMeta[];
 };
 
@@ -181,6 +217,10 @@ const buildDefaultValues = (intakeLink: any): FormWithPersons => {
       phone: rootPhone,
       fullAddress: entreprise.fullAddress ?? "",
       nationality: entreprise.nationality ?? "",
+      representativeName: entreprise.representativeName ?? "",
+      representativeRole: entreprise.representativeRole ?? "",
+      isRegistered: entreprise.isRegistered === true ? "yes" : entreprise.isRegistered === false ? "no" : "",
+      registryConfirmed: entreprise.registryConfirmedByClient === true,
       documents: (entreprise.documents || []).map((doc: any) => ({
         kind: doc.kind,
         fileKey: doc.fileKey,
@@ -263,9 +303,13 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentStep]);
 
-  // Fonction pour gérer les changements d'état d'upload
+  // Uploads en cours, toutes zones confondues. Un compteur et non un booléen :
+  // plusieurs zones peuvent envoyer en même temps, et la fin du premier envoi
+  // ne doit pas réactiver « Continuer » tant qu'un autre tourne encore.
+  const activeUploadsRef = useRef(0);
   const handleUploadStateChange = (isUploading: boolean) => {
-    setIsFileUploading(isUploading);
+    activeUploadsRef.current = Math.max(0, activeUploadsRef.current + (isUploading ? 1 : -1));
+    setIsFileUploading(activeUploadsRef.current > 0);
   };
   
   // Recalculer client quand intakeLink change
@@ -280,6 +324,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     defaultValues.type || ClientType.PERSONNE_PHYSIQUE
   );
 
+  // Adresse de l'invitation (saisie par le propriétaire) : c'est l'adresse de connexion du locataire. Connue à
+  // l'ouverture, elle est préremplie et grisée partout (personne principale, et e-mail de la société s'il
+  // choisit « Entreprise »). Le verrou se décide ici, une fois : jamais sur la valeur en cours de frappe.
+  const [lockedEmail] = useState<string>(() => ((defaultValues as any).email || "").trim());
+  const [lockedPhone] = useState<string>(() => ((defaultValues as any).phone || "").trim());
+
   // On garde une photo des dernières valeurs sauvegardées
   const lastSavedValues = useRef<FormWithPersons>(defaultValues);
 
@@ -292,10 +342,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   // Refs pour les fichiers
   const kbisRef = useRef<HTMLInputElement>(null);
   const statutesRef = useRef<HTMLInputElement>(null);
-  const livretDeFamilleRef = useRef<HTMLInputElement>(null);
+  const contratDeMariageRef = useRef<HTMLInputElement>(null);
   const contratDePacsRef = useRef<HTMLInputElement>(null);
-  const insuranceTenantRef = useRef<HTMLInputElement>(null);
-  const ribTenantRef = useRef<HTMLInputElement>(null);
 
   // Refs dynamiques pour les documents de chaque personne
   const personDocumentRefs = useRef<Record<number, { idIdentity: React.RefObject<HTMLInputElement | null> }>>({});
@@ -304,10 +352,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const [kbisFile, setKbisFile] = useState<File | null>(null);
   const [statutesFile, setStatutesFile] = useState<File | null>(null);
   const [idIdentityFile, setIdIdentityFile] = useState<File | null>(null);
-  const [livretDeFamilleFile, setLivretDeFamilleFile] = useState<File | null>(null);
+  const [contratDeMariageFile, setContratDeMariageFile] = useState<File | null>(null);
   const [contratDePacsFile, setContratDePacsFile] = useState<File | null>(null);
-  const [insuranceTenantFile, setInsuranceTenantFile] = useState<File | null>(null);
-  const [ribTenantFile, setRibTenantFile] = useState<File | null>(null);
 
   // États dynamiques pour les documents de chaque personne
   const [personDocumentFiles, setPersonDocumentFiles] = useState<Record<number, { idIdentity: File | null }>>({});
@@ -458,90 +504,24 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return clientTypeIndex !== -1 ? clientTypeIndex : 0;
     }
 
-    // Vérifier l'étape clientInfo (maintenant index 2 si overview existe)
-    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      const primaryPerson = values.persons?.[0];
-      if (!primaryPerson || 
-          isEmpty(primaryPerson.firstName) || isEmpty(primaryPerson.lastName) || 
-          isEmpty(primaryPerson.email) || isEmpty(primaryPerson.phone) || isEmpty(primaryPerson.fullAddress) ||
-          isEmpty(primaryPerson.profession) || !primaryPerson.familyStatus || 
-          isEmpty(primaryPerson.birthPlace) || !primaryPerson.birthDate || isEmpty(primaryPerson.nationality)) {
-        return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-      }
-      if (primaryPerson.familyStatus === FamilyStatus.MARIE && !primaryPerson.matrimonialRegime) {
-        return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-      }
-      // Vérifier toutes les personnes
-      if (values.persons && values.persons.length > 1) {
-        for (let i = 1; i < values.persons.length; i++) {
-          const person = values.persons[i];
-          if (!person || isEmpty(person.firstName) || isEmpty(person.lastName) || 
-              isEmpty(person.email) || isEmpty(person.phone) || isEmpty(person.fullAddress) ||
-              isEmpty(person.profession) || !person.familyStatus || 
-              isEmpty(person.birthPlace) || !person.birthDate || isEmpty(person.nationality)) {
-            return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-          }
-          if (person.familyStatus === FamilyStatus.MARIE && !person.matrimonialRegime) {
-            return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-          }
-        }
-      }
-    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      if (!values.entreprise ||
-          isEmpty(values.entreprise.legalName) || isEmpty(values.entreprise.email) || 
-          isEmpty(values.entreprise.phone) || isEmpty(values.entreprise.fullAddress) ||
-          isEmpty(values.entreprise.registration) || isEmpty(values.entreprise.nationality)) {
-        return clientInfoIndex !== -1 ? clientInfoIndex : 1;
-      }
+    // Données et pièces du locataire : règles dans lib/rules/dossier-rules.ts
+    const bailFamily = intakeLink.bail?.bailFamily ?? null;
+    if (tenantFieldIssues(values, { bailFamily }).some((issue) => issue.step === "clientInfo")) {
+      return clientInfoIndex !== -1 ? clientInfoIndex : 1;
     }
-
-    // Vérifier l'étape documents (maintenant index 3 si overview existe)
-    // Utiliser intakeLink directement pour avoir les données à jour
-    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      // Vérifier les documents pour chaque personne
-      if (values.persons) {
-        for (let i = 0; i < values.persons.length; i++) {
-          const person = values.persons[i];
-          const personDocs = intakeLink.client?.persons?.[i]?.documents || [];
-          const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY");
-          
-          if (!hasIdIdentity) {
-            return documentsIndex !== -1 ? documentsIndex : 2;
-          }
-        }
-      }
-      
-      // Vérifier les documents communs (livret de famille, PACS)
-      const primaryPerson = values.persons?.[0];
-      const clientDocs = intakeLink.client?.documents || [];
-      if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
-        const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE");
-        if (!hasLivret) {
-          return documentsIndex !== -1 ? documentsIndex : 2;
-        }
-      }
-      if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
-        const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS");
-        if (!hasPacs) {
-          return documentsIndex !== -1 ? documentsIndex : 2;
-        }
-      }
-    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
-      const hasKbis = entrepriseDocs.some((doc: any) => doc.kind === "KBIS");
-      const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES");
-      
-      if (!hasKbis || !hasStatutes) {
-        return documentsIndex !== -1 ? documentsIndex : 2;
-      }
-    }
-
-    // Vérifier les documents du locataire (client) - assurance et RIB
-    const clientDocs = intakeLink.client?.documents || [];
-    const hasInsurance = clientDocs.some((doc: any) => doc.kind === "INSURANCE");
-    const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB");
-    
-    if (!hasInsurance || !hasRib) {
+    // Même ordre que les personnes du formulaire (construites depuis intakeLink.client.persons)
+    const dbPersons = intakeLink.client?.persons || [];
+    const documentRules = tenantDocumentRequirements({
+      clientType: currentClientType,
+      persons: values.persons,
+      entreprise: intakeLink.client?.entreprise ?? (values as any).entreprise,
+    });
+    const provided = {
+      persons: dbPersons.map((person: any) => person.documents || []),
+      client: intakeLink.client?.documents || [],
+      entreprise: intakeLink.client?.entreprise?.documents || [],
+    };
+    if (missingDocuments(documentRules, (rule) => isDocumentProvided(rule, provided)).length > 0) {
       return documentsIndex !== -1 ? documentsIndex : 2;
     }
 
@@ -552,17 +532,10 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   // Initialiser currentStep avec la première étape incomplète
   useEffect(() => {
     lastSavedValues.current = defaultValues as FormWithPersons;
-    let firstIncompleteStep = getFirstIncompleteStep();
-    
-    // Si le bien ou le bail existe, commencer par l'étape overview
-    if (intakeLink.property || intakeLink.bail) {
-      const overviewIndex = STEPS.findIndex((s) => s.id === "overview");
-      if (overviewIndex !== -1) {
-        firstIncompleteStep = overviewIndex;
-      }
-    }
-    
-    setCurrentStep(firstIncompleteStep);
+    // Première étape incomplète. Le récapitulatif du bail n'est montré d'office qu'à un
+    // locataire qui n'a encore rien saisi (getFirstIncompleteStep s'en charge) : une reprise
+    // repart de là où il s'était arrêté (m19).
+    setCurrentStep(getFirstIncompleteStep());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -752,19 +725,15 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       const fileToDocumentKind: Record<string, string> = {
         kbis: "KBIS",
         statutes: "STATUTES",
-        livretDeFamille: "LIVRET_DE_FAMILLE",
+        contratDeMariage: "CONTRAT_DE_MARIAGE",
         contratDePacs: "CONTRAT_DE_PACS",
-        insuranceTenant: "INSURANCE",
-        ribTenant: "RIB",
       };
 
       const fileRefs = [
         { ref: kbisRef, name: "kbis" },
         { ref: statutesRef, name: "statutes" },
-        { ref: livretDeFamilleRef, name: "livretDeFamille" },
+        { ref: contratDeMariageRef, name: "contratDeMariage" },
         { ref: contratDePacsRef, name: "contratDePacs" },
-        { ref: insuranceTenantRef, name: "insuranceTenant" },
-        { ref: ribTenantRef, name: "ribTenant" },
       ];
 
       // Récupérer tous les documents existants
@@ -863,37 +832,31 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     const fileRefs = [
       { ref: kbisRef, name: "kbis" },
       { ref: statutesRef, name: "statutes" },
-      { ref: livretDeFamilleRef, name: "livretDeFamille" },
+      { ref: contratDeMariageRef, name: "contratDeMariage" },
       { ref: contratDePacsRef, name: "contratDePacs" },
-      { ref: insuranceTenantRef, name: "insuranceTenant" },
-      { ref: ribTenantRef, name: "ribTenant" },
     ];
 
     // Mapper les noms de fichiers aux types de documents
     const fileToDocumentKind: Record<string, string> = {
       kbis: "KBIS",
       statutes: "STATUTES",
-      livretDeFamille: "LIVRET_DE_FAMILLE",
+      contratDeMariage: "CONTRAT_DE_MARIAGE",
       contratDePacs: "CONTRAT_DE_PACS",
-      insuranceTenant: "INSURANCE",
-      ribTenant: "RIB",
     };
 
     // Mapping des noms de fichiers aux états correspondants
     const fileStateMap: Record<string, File | null> = {
       kbis: kbisFile,
       statutes: statutesFile,
-      livretDeFamille: livretDeFamilleFile,
+      contratDeMariage: contratDeMariageFile,
       contratDePacs: contratDePacsFile,
-      insuranceTenant: insuranceTenantFile,
-      ribTenant: ribTenantFile,
     };
 
     // Récupérer les valeurs actuelles du formulaire pour vérifier les documents existants
     const currentValues = getValues() as FormWithPersons;
     
     // Récupérer tous les documents du client (locataire)
-    // Documents client (livret de famille, PACS, assurance, RIB)
+    // Documents client (contrat de mariage, convention de PACS)
     const clientDocs = intakeLink.client?.documents || [];
     // Documents de l'entreprise (KBIS, STATUTES)
     const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
@@ -933,10 +896,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         const stateSetter = {
           kbis: setKbisFile,
           statutes: setStatutesFile,
-          livretDeFamille: setLivretDeFamilleFile,
+          contratDeMariage: setContratDeMariageFile,
           contratDePacs: setContratDePacsFile,
-          insuranceTenant: setInsuranceTenantFile,
-          ribTenant: setRibTenantFile,
         }[name];
         if (stateSetter) {
           stateSetter(null);
@@ -958,10 +919,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         const stateSetter = {
           kbis: setKbisFile,
           statutes: setStatutesFile,
-          livretDeFamille: setLivretDeFamilleFile,
+          contratDeMariage: setContratDeMariageFile,
           contratDePacs: setContratDePacsFile,
-          insuranceTenant: setInsuranceTenantFile,
-          ribTenant: setRibTenantFile,
         }[name];
         
         if (stateSetter) {
@@ -1149,7 +1108,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             currentPayload.entreprise.documents.push(documentMeta);
           }
         } else if (doc.target === 'client') {
-          // Document client (livret de famille, PACS, assurance, RIB)
+          // Document client (contrat de mariage, convention de PACS)
           if (!currentPayload.clientDocuments) {
             currentPayload.clientDocuments = [];
           }
@@ -1241,11 +1200,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       }
       
       // Sauvegarder les données avec le stepId
-      await savePartialIntake({
+      await unwrapAction(savePartialIntake({
         token: intakeLink.token,
         payload,
         stepId: stepId, // Envoyer l'ID de l'étape pour que le backend sache quelle étape traiter
-      });
+      }));
 
       // Rafraîchir les données pour obtenir les valeurs réellement sauvegardées
       const refreshed = await refreshIntakeLinkData();
@@ -1337,7 +1296,21 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       } else {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
-        if (!valid) return;
+        if (!valid) {
+          // Une erreur sur un champ absent de l'écran ne doit jamais laisser « Continuer » sans réponse.
+          const messages = collectErrorMessages(form.formState.errors);
+          toast.error("Certaines informations sont à compléter", {
+            description: messages.slice(0, 3).join(" · ") || undefined,
+          });
+          return;
+        }
+        // Réponses qui dépendent des autres (bail commercial : représentant légal et immatriculation
+        // de la société) : règles dans lib/rules/dossier-rules.ts
+        if (stepId === "clientInfo") {
+          const stepIssues = tenantFieldIssues(form.getValues(), { bailFamily: intakeLink.bail?.bailFamily ?? null });
+          for (const issue of stepIssues) form.setError(issue.path as any, { type: "manual", message: issue.message });
+          if (stepIssues.length > 0) return;
+        }
       }
     }
   
@@ -1414,6 +1387,9 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return target;
     });
   };
+
+  // Geste « retour » du téléphone : recule d'une étape comme la flèche (M9, validé le 17/11/2026)
+  useStepBackGesture(`${currentStep}:${clientInfoPersonIdx}`, currentStep > 0 || clientInfoPersonIdx > 0, handlePrevious);
 
   const handleManualSave = async () => {
     try {
@@ -1525,86 +1501,52 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       return [];
     });
 
-    // Validation selon le type de client
-    if (currentClientType === ClientType.PERSONNE_PHYSIQUE) {
-      // Vérifier les documents pour chaque personne
-      persons.forEach((person, index) => {
-        const personRef = personDocumentRefs.current[index];
-        const personFiles = personDocumentFiles[index];
-        const personDocs = intakeLink.client?.persons?.[index]?.documents || [];
-        const personUploadedDocs = uploadedDocuments.filter((doc: any) => doc.personIndex === index);
-        
-        const hasIdIdentity = personDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
-          personUploadedDocs.some((doc: any) => doc.kind === "ID_IDENTITY") ||
-          personRef?.idIdentity.current?.files?.[0] || personFiles?.idIdentity;
-        
-        if (!hasIdIdentity) {
-          errors.push(`La pièce d'identité de la personne ${person.firstName} ${person.lastName} est requise`);
+    // Règles des pièces : lib/rules/dossier-rules.ts (les mêmes que le serveur et la fiche du bail).
+    const rules = tenantDocumentRequirements({ clientType: currentClientType, persons, entreprise: values.entreprise as any });
+    const isProvided = (rule: DocumentRequirement): boolean => {
+      switch (rule.target) {
+        case "person": {
+          const index = rule.personIndex ?? 0;
+          const personDocs = intakeLink.client?.persons?.[index]?.documents || [];
+          return (
+            personDocs.some((doc: any) => doc.kind === rule.kind) ||
+            uploadedDocuments.some((doc: any) => doc.personIndex === index && doc.kind === rule.kind) ||
+            !!personDocumentRefs.current[index]?.idIdentity.current?.files?.[0] ||
+            !!personDocumentFiles[index]?.idIdentity
+          );
         }
-      });
-
-      // Vérifier les documents communs (livret de famille, PACS)
-      const primaryPerson = persons[0];
-      const familyStatus = primaryPerson?.familyStatus;
-      const clientDocs = intakeLink.client?.documents || [];
-      const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.source === 'client');
-
-      if (familyStatus === FamilyStatus.MARIE) {
-        const hasLivret = clientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
-          uploadedClientDocs.some((doc: any) => doc.kind === "LIVRET_DE_FAMILLE") ||
-          livretDeFamilleRef.current?.files?.[0] || livretDeFamilleFile;
-        if (!hasLivret) {
-          errors.push("Le livret de famille est requis");
+        case "client": {
+          const local = rule.kind === "CONTRAT_DE_MARIAGE"
+            ? contratDeMariageRef.current?.files?.[0] || contratDeMariageFile
+            : contratDePacsRef.current?.files?.[0] || contratDePacsFile;
+          return (
+            (intakeLink.client?.documents || []).some((doc: any) => doc.kind === rule.kind) ||
+            uploadedDocuments.some((doc: any) => doc.source === "client" && doc.kind === rule.kind) ||
+            !!local
+          );
         }
-      }
-      if (familyStatus === FamilyStatus.PACS) {
-        const hasPacs = clientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
-          uploadedClientDocs.some((doc: any) => doc.kind === "CONTRAT_DE_PACS") ||
-          contratDePacsRef.current?.files?.[0] || contratDePacsFile;
-        if (!hasPacs) {
-          errors.push("Le contrat de PACS est requis");
+        case "entreprise": {
+          const local = rule.kind === "KBIS" ? kbisRef.current?.files?.[0] || kbisFile : statutesRef.current?.files?.[0] || statutesFile;
+          return (
+            (intakeLink.client?.entreprise?.documents || []).some((doc: any) => doc.kind === rule.kind) ||
+            uploadedDocuments.some((doc: any) => doc.source === "entreprise" && doc.kind === rule.kind) ||
+            !!local
+          );
         }
+        default:
+          return true;
       }
-    } else if (currentClientType === ClientType.PERSONNE_MORALE) {
-      const entrepriseDocs = intakeLink.client?.entreprise?.documents || [];
-      const uploadedEntrepriseDocs = uploadedDocuments.filter((doc: any) => doc.source === 'entreprise');
-      const hasKbis = entrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
-        uploadedEntrepriseDocs.some((doc: any) => doc.kind === "KBIS") ||
-        kbisRef.current?.files?.[0] || kbisFile;
-      const hasStatutes = entrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
-        uploadedEntrepriseDocs.some((doc: any) => doc.kind === "STATUTES") ||
-        statutesRef.current?.files?.[0] || statutesFile;
-
-      if (!hasKbis) {
-        errors.push("Le KBIS est requis");
-      }
-      if (!hasStatutes) {
-        errors.push("Les statuts sont requis");
-      }
-    }
-
-    // Validation des documents du client (assurance et RIB - toujours requis)
-    const clientDocs = intakeLink.client?.documents || [];
-    const uploadedClientDocs = uploadedDocuments.filter((doc: any) => doc.source === 'client');
-    const hasInsurance = clientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
-      uploadedClientDocs.some((doc: any) => doc.kind === "INSURANCE") ||
-      insuranceTenantRef.current?.files?.[0] || insuranceTenantFile;
-    const hasRib = clientDocs.some((doc: any) => doc.kind === "RIB") ||
-      uploadedClientDocs.some((doc: any) => doc.kind === "RIB") ||
-      ribTenantRef.current?.files?.[0] || ribTenantFile;
-    
-    if (!hasInsurance) {
-      errors.push("L'assurance locataire est requise");
-    }
-    if (!hasRib) {
-      errors.push("Le RIB signé locataire est requis");
-    }
+    };
+    for (const rule of missingDocuments(rules, isProvided)) errors.push(rule.label);
 
     return {
       isValid: errors.length === 0,
       errors,
     };
   };
+
+  // Le locataire confirme le loyer, les charges et la date d'entrée saisis par le propriétaire
+  const [termsConfirmed, setTermsConfirmed] = useState(false);
 
   const onSubmit = async (data: FormWithPersons) => {
     setIsSubmitting(true);
@@ -1617,7 +1559,14 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       });
       
       await refreshIntakeLinkData();
-      
+
+      if (intakeLink.bail && !termsConfirmed) {
+        toast.error("Confirmez le loyer, les charges et la date d'entrée avant d'envoyer le formulaire");
+        setSubmissionProgress({ step: 0, totalSteps: 3, currentStepName: "" });
+        setIsSubmitting(false);
+        return;
+      }
+
       // Étape 2: Validation des documents
       const fileValidation = await validateRequiredFiles();
       if (!fileValidation.isValid) {
@@ -1639,7 +1588,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
       // Soumettre les données (les documents sont déjà uploadés via file-upload.tsx)
       await submitIntake({
         token: intakeLink.token,
-        payload: data,
+        payload: { ...data, tenantConfirmedTerms: !!intakeLink.bail && termsConfirmed },
       });
       
       // Étape 4: Redirection
@@ -1704,7 +1653,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, token: intakeLink.token }),
       });
 
       const data = await response.json();
@@ -1757,6 +1706,21 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
   const renderOverviewStep = () => {
     const property = intakeLink.property;
     const bail = intakeLink.bail;
+    // Bail commercial : vocabulaire du local, loyer hors taxes, périodicité et activité (m16).
+    const commercial = bail?.bailFamily === "COMMERCIAL";
+    const terms = (bail as any)?.commercialTerms ?? null;
+    const commercialPayment = commercial ? commercialPaymentText(terms, bail?.paymentDay) : null;
+    const commercialVat = commercial ? commercialVatText(terms) : null;
+    const duration = bail?.bailType
+      ? ({
+          BAIL_NU_3_ANS: "3 ans",
+          BAIL_NU_6_ANS: "6 ans",
+          BAIL_MEUBLE_1_ANS: "1 an",
+          BAIL_MEUBLE_9_MOIS: "9 mois",
+          COMMERCIAL_3_6_9: "9 ans (bail 3-6-9)",
+          COMMERCIAL_DEROGATOIRE: terms?.derogatoryMonths ? `${terms.derogatoryMonths} mois (bail dérogatoire)` : "Bail dérogatoire",
+        } as Record<string, string>)[bail.bailType] ?? ""
+      : "";
 
     // Si pas de bien ou de bail, afficher un message informatif
     if (!property && !bail) {
@@ -1792,7 +1756,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 <div className="text-left">
                   <div className="text-base font-bold">Voici le bien que vous souhaitez louer</div>
                   <div className="text-base mt-1 text-muted-foreground">
-                    Les caractéristiques du logement
+                    {commercial ? "Les caractéristiques du local" : "Les caractéristiques du logement"}
                   </div>
                 </div>
               </div>
@@ -1831,7 +1795,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Type de bien
                     </label>
                     <p className="text-base font-semibold">
-                      {property.type.replace(/_/g, " ")}
+                      {getPropertyTypeLabel(property.type)}
                     </p>
                   </div>
                 )}
@@ -1843,7 +1807,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Statut légal
                     </label>
                     <p className="text-base font-semibold">
-                      {property.legalStatus.replace(/_/g, " ")}
+                      {getPropertyLegalStatusLabel(property.legalStatus)}
                     </p>
                   </div>
                 )}
@@ -1887,11 +1851,12 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     <div className="flex items-center gap-2 mb-2">
                       <Euro className="h-4 w-4 text-primary" />
                       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Loyer mensuel
+                        {commercial ? "Loyer mensuel HT" : "Loyer mensuel"}
                       </label>
                     </div>
                     <p className="text-xl font-bold text-primary">
                       {formatCurrency(Number(bail.rentAmount))}
+                      {commercial && <span className="text-base font-semibold"> HT</span>}
                     </p>
                   </div>
                 )}
@@ -1931,7 +1896,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Type de bail
                     </label>
                     <p className="text-base font-semibold">
-                      {bail.bailType === BailType.BAIL_NU_3_ANS ? "Bail nue" : bail.bailType === BailType.BAIL_NU_6_ANS ? "Bail nue" : bail.bailType === BailType.BAIL_MEUBLE_1_ANS ? "Bail meublé" : bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "Bail étudiant" : ""}
+                      {bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "Bail étudiant (9 mois)" : getBailTypeLabel(bail.bailType)}
                     </p>
                   </div>
                 )}
@@ -1941,18 +1906,45 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Famille de bail
                     </label>
                     <p className="text-base font-semibold">
-                      {bail.bailFamily.replace(/_/g, " ")}
+                      {getBailFamilyLabel(bail.bailFamily)}
                     </p>
                   </div>
                 )}*/}
-                {bail.paymentDay && (
+                {commercial ? (
+                  commercialPayment && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Paiement du loyer
+                      </label>
+                      <p className="text-base font-semibold">{commercialPayment}</p>
+                    </div>
+                  )
+                ) : (
+                  bail.paymentDay && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Jour de paiement
+                      </label>
+                      <p className="text-base font-semibold">
+                        Le {bail.paymentDay} de chaque mois
+                      </p>
+                    </div>
+                  )
+                )}
+                {commercialVat && (
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Jour de paiement
+                      TVA
                     </label>
-                    <p className="text-base font-semibold">
-                      Le {bail.paymentDay} de chaque mois
-                    </p>
+                    <p className="text-base font-semibold">{commercialVat}</p>
+                  </div>
+                )}
+                {commercial && terms?.activity && (
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Activité autorisée
+                    </label>
+                    <p className="text-base font-semibold">{terms.activity}</p>
                   </div>
                 )}
               </div>
@@ -1966,13 +1958,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                       Durée du contrat
                     </label>
                   </div>
-                  {bail.bailType && (
-                    <div>
-                      {
-                        bail.bailType === BailType.BAIL_NU_3_ANS ? "3 ans" : bail.bailType === BailType.BAIL_NU_6_ANS ? "6 ans" : bail.bailType === BailType.BAIL_MEUBLE_1_ANS ? "1 an" : bail.bailType === BailType.BAIL_MEUBLE_9_MOIS ? "9 mois" : ""
-                      }
-                    </div>
-                  )}
+                  {duration && <div>{duration}</div>}
                   <div className="grid gap-3 sm:grid-cols-2">
                     {bail.effectiveDate && (
                       <div>
@@ -2046,6 +2032,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 onClick={() => {
                   field.onChange(ClientType.PERSONNE_MORALE);
                   setClientType(ClientType.PERSONNE_MORALE);
+                  if (lockedEmail) form.setValue("entreprise.email" as any, lockedEmail, { shouldDirty: true });
                 }}
                 className={cn(
                   "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
@@ -2079,8 +2066,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
     const primaryPerson = personsWatch?.find((person) => person.isPrimary);
     const rootEmail = entrepriseWatch?.email || primaryPerson?.email || "";
     const rootPhone = entrepriseWatch?.phone || primaryPerson?.phone || "";
-    const isEmailLocked = !!rootEmail;
-    const isPhoneLocked = !rootEmail && !!rootPhone;
+    const isEmailLocked = !!lockedEmail;
+    const isPhoneLocked = !lockedEmail && !!lockedPhone;
     const watchedFamilyStatuses = personFields.map((_, index) => 
       form.watch(`persons.${index}.familyStatus` as any)
     );
@@ -2115,48 +2102,17 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
           <div>
             <p className="text-xl font-semibold">Informations de l&apos;entreprise</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Renseignez les informations concernant votre société.
+              Indiquez le numéro de votre société, nous retrouvons ses informations.
             </p>
           </div>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="entreprise.legalName">Raison sociale *</Label>
-              <Input
-                id="entreprise.legalName"
-                className="h-11"
-                {...form.register("entreprise.legalName")}
-              />
-              {form.formState.errors.entreprise?.legalName && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.entreprise.legalName.message}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="entreprise.registration">SIREN/SIRET *</Label>
-              <Input
-                id="entreprise.registration"
-                className="h-11"
-                {...form.register("entreprise.registration")}
-              />
-              {form.formState.errors.entreprise?.registration && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.entreprise.registration.message}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="entreprise.fullAddress">Adresse complète *</Label>
-              <Textarea 
-                id="entreprise.fullAddress" 
-                {...form.register("entreprise.fullAddress")} 
-              />
-              {form.formState.errors.entreprise?.fullAddress && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.entreprise.fullAddress.message}
-                </p>
-              )}
-            </div>
+            <CompanyRegistryLookup
+              form={form as any}
+              token={intakeLink.token}
+              showRepresentative={intakeLink.bail?.bailFamily === "COMMERCIAL"}
+              allowUnregistered={intakeLink.bail?.bailFamily === "COMMERCIAL"}
+              syncTradeName
+            />
             <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="entreprise.phone">Téléphone *</Label>
@@ -2186,12 +2142,18 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                 <Input
                   id="entreprise.email"
                   type="email"
-                  className="h-11"
                   {...form.register("entreprise.email", {
                     required: "L'email est requis",
                   })}
-                  disabled={isEmailLocked}
+                  // Lecture seule (la valeur part avec le formulaire), mais d'aspect désactivé : grisé, sans focus.
+                  readOnly={isEmailLocked}
+                  aria-readonly={isEmailLocked || undefined}
+                  tabIndex={isEmailLocked ? -1 : undefined}
+                  className={`h-11 ${isEmailLocked ? "bg-slate-100 text-muted-foreground cursor-not-allowed focus-visible:border-input focus-visible:ring-0" : ""}`}
                 />
+                {isEmailLocked && (
+                  <p className="text-sm text-muted-foreground">L&apos;email ne peut pas être modifié</p>
+                )}
                 {form.formState.errors.entreprise?.email && (
                   <div className="text-sm text-destructive">
                     <p>{form.formState.errors.entreprise.email.message}</p>
@@ -2205,26 +2167,6 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   </div>
                 )}
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="entreprise.nationality">Nationalité *</Label>
-              <Controller
-                name="entreprise.nationality"
-                control={form.control}
-                render={({ field }) => (
-                  <NationalitySelect
-                    value={field.value || ""}
-                    onValueChange={field.onChange}
-                    disabled={form.formState.isSubmitting}
-                    placeholder="Sélectionner la nationalité"
-                  />
-                )}
-              />
-              {form.formState.errors.entreprise?.nationality && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.entreprise.nationality.message}
-                </p>
-              )}
             </div>
           </div>
         </div>
@@ -2367,8 +2309,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           {...form.register(`persons.${index}.email` as any, {
                             required: "L'email est requis",
                           })}
-                          disabled={isEmailLocked && index === 0}
-                          className={`h-11 ${isEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}`}
+                          // Adresse de l'invitation : lecture seule, d'aspect désactivé (grisé, sans focus).
+                          readOnly={isEmailLocked && index === 0}
+                          aria-readonly={(isEmailLocked && index === 0) || undefined}
+                          tabIndex={isEmailLocked && index === 0 ? -1 : undefined}
+                          className={`h-11 ${isEmailLocked && index === 0 ? "bg-slate-100 text-muted-foreground cursor-not-allowed focus-visible:border-input focus-visible:ring-0" : ""}`}
                         />
                         {isEmailLocked && index === 0 && (
                           <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>
@@ -2479,7 +2424,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                               <SelectContent>
                                 {Object.values(FamilyStatus).map((status) => (
                                   <SelectItem key={status} value={status}>
-                                    {status.replace(/_/g, " ")}
+                                    {FAMILY_STATUS_LABELS[status] ?? status}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -2509,13 +2454,17 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                                 <SelectContent>
                                   {Object.values(MatrimonialRegime).map((regime) => (
                                     <SelectItem key={regime} value={regime}>
-                                      {regime.replace(/_/g, " ")}
+                                      {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             )}
                           />
+                          <p className="text-xs text-muted-foreground">
+                            Sans contrat signé chez un notaire, choisissez « Communauté réduite aux acquêts ». En cas de
+                            doute, la page « Mariage » de votre livret de famille l&apos;indique.
+                          </p>
                           {form.formState.errors.persons?.[index]?.matrimonialRegime && (
                             <p className="text-sm text-destructive">
                               {form.formState.errors.persons[index]?.matrimonialRegime?.message}
@@ -2543,11 +2492,16 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           name={`persons.${index}.birthDate` as any}
                           control={form.control}
                           render={({ field }) => (
-                            <DatePicker
+                            <DateInput
+                              id={`persons.${index}.birthDate`}
+                              name={field.name}
                               value={field.value ? toDateValue(field.value as any) : undefined}
-                              onChange={(val) =>
-                                field.onChange(toDateValue(val as any) || undefined)
-                              }
+                              onChange={(val) => field.onChange(val || undefined)}
+                              onBlur={field.onBlur}
+                              autoComplete="bday"
+                              fromYear={new Date().getFullYear() - 120}
+                              toYear={new Date().getFullYear()}
+                              aria-invalid={!!form.formState.errors.persons?.[index]?.birthDate}
                             />
                           )}
                         />
@@ -2635,6 +2589,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
 
   const renderDocuments = () => {
     const persons = personsWatch || [];
+    // Contrat de mariage (hors communauté légale) ou convention de PACS, selon la première personne
+    const maritalKind = getMaritalDocumentKind(
+      form.watch(`persons.0.familyStatus` as any) as FamilyStatus | undefined,
+      form.watch(`persons.0.matrimonialRegime` as any) as MatrimonialRegime | undefined
+    );
     
     return (
       <Card>
@@ -2647,6 +2606,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
             <h3 className="text-lg font-semibold">Documents Locataire *</h3>
             {clientType === ClientType.PERSONNE_MORALE ? (
               <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                {form.watch("entreprise.isRegistered" as any) !== "no" && (
                 <div className="min-w-0 w-full overflow-visible">
                   <DocumentUploaded token={intakeLink.token} documentKind="KBIS">
                     <FileUpload
@@ -2661,7 +2621,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           kbisRef.current.files = dt.files;
                         }
                       }}
-                      disabled={isSubmitting || isFileUploading}
+                      disabled={isSubmitting}
                       uploadToken={intakeLink.token}
                       documentKind="KBIS"
                       documentClientId={client?.id}
@@ -2669,6 +2629,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                     />
                   </DocumentUploaded>
                 </div>
+                )}
                 <div className="min-w-0 w-full overflow-visible">
                   <DocumentUploaded token={intakeLink.token} documentKind="STATUTES">
                     <FileUpload
@@ -2683,7 +2644,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           statutesRef.current.files = dt.files;
                         }
                       }}
-                      disabled={isSubmitting || isFileUploading}
+                      disabled={isSubmitting}
                       uploadToken={intakeLink.token}
                       documentKind="STATUTES"
                       documentClientId={client?.id}
@@ -2729,7 +2690,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                                   personRefs.idIdentity.current.files = dt.files;
                                 }
                               }}
-                              disabled={isSubmitting || isFileUploading}
+                              disabled={isSubmitting}
                               uploadToken={intakeLink.token}
                               documentKind="ID_IDENTITY"
                               documentClientId={client?.id}
@@ -2743,44 +2704,44 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   );
                 })}
                 
-                {/* Documents communs au client (livret de famille, PACS) */}
+                {/* Documents communs au client (contrat de mariage, convention de PACS) */}
                 {persons.length > 0 && (
                   <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                    {form.watch(`persons.0.familyStatus`) === FamilyStatus.MARIE && (
+                    {maritalKind === "CONTRAT_DE_MARIAGE" && (
                       <div className="min-w-0 w-full overflow-visible">
                         <DocumentUploaded
                           token={intakeLink.token}
-                          documentKind="LIVRET_DE_FAMILLE"
+                          documentKind="CONTRAT_DE_MARIAGE"
                         >
                           <FileUpload
-                            label="Livret de famille *"
+                            label="Contrat de mariage *"
                             multiple
-                            value={livretDeFamilleFile}
+                            value={contratDeMariageFile}
                             onChange={(file) => {
-                              setLivretDeFamilleFile(file);
-                              if (livretDeFamilleRef.current) {
+                              setContratDeMariageFile(file);
+                              if (contratDeMariageRef.current) {
                                 const dt = new DataTransfer();
                                 if (file) dt.items.add(file);
-                                livretDeFamilleRef.current.files = dt.files;
+                                contratDeMariageRef.current.files = dt.files;
                               }
                             }}
-                            disabled={isSubmitting || isFileUploading}
+                            disabled={isSubmitting}
                             uploadToken={intakeLink.token}
-                            documentKind="LIVRET_DE_FAMILLE"
+                            documentKind="CONTRAT_DE_MARIAGE"
                             documentClientId={client?.id}
                             onUploadStateChange={handleUploadStateChange}
                           />
                         </DocumentUploaded>
                       </div>
                     )}
-                    {form.watch(`persons.0.familyStatus`) === FamilyStatus.PACS && (
+                    {maritalKind === "CONTRAT_DE_PACS" && (
                       <div className="min-w-0 w-full overflow-visible">
                         <DocumentUploaded
                           token={intakeLink.token}
                           documentKind="CONTRAT_DE_PACS"
                         >
                           <FileUpload
-                            label="Contrat de PACS *"
+                            label="Convention de PACS *"
                             multiple
                             value={contratDePacsFile}
                             onChange={(file) => {
@@ -2791,7 +2752,7 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                                 contratDePacsRef.current.files = dt.files;
                               }
                             }}
-                            disabled={isSubmitting || isFileUploading}
+                            disabled={isSubmitting}
                             uploadToken={intakeLink.token}
                             documentKind="CONTRAT_DE_PACS"
                             documentClientId={client?.id}
@@ -2805,56 +2766,48 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
               </>
             )}
             
-            {/* Documents du locataire (assurance et RIB) — même rendu que intake propriétaire */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Documents du bail (assurance et RIB)</h3>
-              <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                <div className="min-w-0 w-full overflow-visible">
-                  <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE" clientId={client?.id}>
-                    <FileUpload
-                      label="Assurance locataire *"
-                      multiple
-                      value={insuranceTenantFile}
-                      onChange={(file) => {
-                        setInsuranceTenantFile(file);
-                        if (insuranceTenantRef.current) {
-                          const dt = new DataTransfer();
-                          if (file) dt.items.add(file);
-                          insuranceTenantRef.current.files = dt.files;
-                        }
-                      }}
-                      disabled={isSubmitting || isFileUploading}
-                      uploadToken={intakeLink.token}
-                      documentKind="INSURANCE"
-                      documentClientId={client?.id}
-                      onUploadStateChange={handleUploadStateChange}
-                    />
-                  </DocumentUploaded>
-                </div>
-                <div className="min-w-0 w-full overflow-visible">
-                  <DocumentUploaded token={intakeLink.token} documentKind="RIB" clientId={client?.id}>
-                    <FileUpload
-                      label="RIB signé locataire *"
-                      multiple
-                      value={ribTenantFile}
-                      onChange={(file) => {
-                        setRibTenantFile(file);
-                        if (ribTenantRef.current) {
-                          const dt = new DataTransfer();
-                          if (file) dt.items.add(file);
-                          ribTenantRef.current.files = dt.files;
-                        }
-                      }}
-                      disabled={isSubmitting || isFileUploading}
-                      uploadToken={intakeLink.token}
-                      documentKind="RIB"
-                      documentClientId={client?.id}
-                      onUploadStateChange={handleUploadStateChange}
-                    />
-                  </DocumentUploaded>
-                </div>
-              </div>
-            </div>
+            {intakeLink.bail && (
+              <label className="flex items-start gap-3 rounded-xl border p-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 shrink-0 accent-primary"
+                  checked={termsConfirmed}
+                  onChange={(event) => setTermsConfirmed(event.target.checked)}
+                  disabled={isSubmitting}
+                />
+                {intakeLink.bail.bailFamily === "COMMERCIAL" ? (
+                <span className="text-sm">
+                  Je confirme le loyer de <strong>{formatCurrency(Number(intakeLink.bail.rentAmount ?? 0))}</strong> hors taxes par mois
+                  {intakeLink.bail.commercialTerms?.rentPeriodicity ? (
+                    <> (paiement {RENT_PERIODICITY_LABELS[intakeLink.bail.commercialTerms.rentPeriodicity]?.toLowerCase()})</>
+                  ) : null}
+                  {intakeLink.bail.effectiveDate ? (
+                    <>
+                      , la prise d&apos;effet du bail le <strong>{formatDate(intakeLink.bail.effectiveDate)}</strong>
+                    </>
+                  ) : null}
+                  {intakeLink.bail.commercialTerms?.activity ? (
+                    <>
+                      {" "}et l&apos;activité « <strong>{intakeLink.bail.commercialTerms.activity}</strong> »
+                    </>
+                  ) : null}
+                  , convenus avec le propriétaire.
+                </span>
+                ) : (
+                <span className="text-sm">
+                  Je confirme le loyer de{" "}
+                  <strong>{formatCurrency(Number(intakeLink.bail.rentAmount ?? 0))}</strong> hors charges, les charges de{" "}
+                  <strong>{formatCurrency(Number(intakeLink.bail.monthlyCharges ?? 0))}</strong> par mois
+                  {intakeLink.bail.effectiveDate ? (
+                    <>
+                      {" "}et l&apos;entrée dans le logement le <strong>{formatDate(intakeLink.bail.effectiveDate)}</strong>
+                    </>
+                  ) : null}
+                  , convenus avec le propriétaire.
+                </span>
+                )}
+              </label>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -3019,10 +2972,8 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
         {/* Inputs file cachés pour les refs */}
         <input type="file" ref={kbisRef} name="kbis" className="hidden" />
         <input type="file" ref={statutesRef} name="statutes" className="hidden" />
-        <input type="file" ref={livretDeFamilleRef} name="livretDeFamille" className="hidden" />
+        <input type="file" ref={contratDeMariageRef} name="contratDeMariage" className="hidden" />
         <input type="file" ref={contratDePacsRef} name="contratDePacs" className="hidden" />
-        <input type="file" ref={insuranceTenantRef} name="insuranceTenant" className="hidden" />
-        <input type="file" ref={ribTenantRef} name="ribTenant" className="hidden" />
         {/* Inputs file cachés pour les documents par personne */}
         {personsWatch?.map((_, index) => {
           const personRefs = personDocumentRefs.current[index];

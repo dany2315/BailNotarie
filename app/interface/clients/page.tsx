@@ -1,67 +1,27 @@
-import { getAllClients } from "@/lib/actions/clients";
-import { Column } from "@/components/data-table/data-table";
-import { ClientProfilTypeCell, ClientNameCell, ClientDateCell, ClientCreatedByCell, ClientCompletionStatusCell, ClientEmailCell, ClientPhoneCell } from "@/components/clients/client-table-cells";
-import { ClientCreateButton } from "@/components/clients/client-create-button";
-import { ClientsTableClient } from "@/components/clients/clients-table-client";
+import { getClientsList } from "@/lib/actions/admin-clients";
+import { ClientsListClient } from "@/components/clients/clients-list-client";
+import { ClientsHeaderActions } from "@/components/clients/clients-header-actions";
+
+export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
-  // Charger tous les clients une seule fois
-  const allClients = await getAllClients();
-
-  const columns: Column<(typeof allClients)[0]>[] = [
-    {
-      id: "profilType",
-      header: "Profil",
-      cell: ClientProfilTypeCell,
-    },
-    {
-      id: "name",
-      header: "Nom / Raison sociale",
-      cell: ClientNameCell,
-    },
-    {
-      id: "email",
-      header: "Email",
-      cell: ClientEmailCell,
-    },
-    {
-      id: "phone",
-      header: "Téléphone",
-      cell: ClientPhoneCell,
-    },
-    {
-      id: "completionStatus",
-      header: "Statut de complétion",
-      cell: ClientCompletionStatusCell,
-    },
-    {
-      id: "createdAt",
-      header: "Créé le",
-      cell: ClientDateCell,
-    },
-    {
-      id: "createdBy",
-      header: "Créé par",
-      cell: ClientCreatedByCell,
-    },
-  ];
+  const rows = await getClientsList();
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="flex flex-col gap-5 pb-10">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Clients</h1>
-          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Gestion des propriétaires et locataires
-          </p>
+          <h1 className="text-2xl font-bold sm:text-3xl">Clients</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Propriétaires, locataires et prospects.</p>
         </div>
-        <div className="flex-shrink-0">
-          <ClientCreateButton />
-        </div>
+        <ClientsHeaderActions />
       </div>
 
-      <ClientsTableClient initialData={allClients} columns={columns} />
+      <ClientsListClient rows={rows} />
+
+      <p className="text-[13px] text-muted-foreground">
+        La date de création et l&apos;auteur sont dans la fiche de chaque client, sous « Détails ».
+      </p>
     </div>
   );
 }
-

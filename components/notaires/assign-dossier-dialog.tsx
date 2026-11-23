@@ -40,10 +40,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Loader2, User, Building2, Check, ChevronsUpDown, Calendar } from "lucide-react";
 import { assignDossierToNotaire, getAllNotaires } from "@/lib/actions/notaires";
+import { unwrapAction } from "@/lib/utils/action-error";
 import { getAllBails } from "@/lib/actions/leases";
 import { Controller } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/formatters";
+import { getBailTypeLabel } from "@/lib/utils/bails-labels";
 
 const assignDossierSchema = z.object({
   bailId: z.string().min(1, "Le bail est requis"),
@@ -56,6 +58,10 @@ type AssignDossierFormData = z.infer<typeof assignDossierSchema>;
 interface AssignDossierDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Fiche dossier : « Changer de notaire » (mêmes champs, même action). */
+  title?: string;
+  description?: string;
+  submitLabel?: string;
   initialBailId?: string;
 }
 
@@ -63,6 +69,9 @@ export function AssignDossierDialog({
   open,
   onOpenChange,
   initialBailId,
+  title,
+  description,
+  submitLabel,
 }: AssignDossierDialogProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -130,7 +139,7 @@ export function AssignDossierDialog({
   const onSubmit = async (data: AssignDossierFormData) => {
     setIsLoading(true);
     try {
-      await assignDossierToNotaire(data);
+      await unwrapAction(assignDossierToNotaire(data));
       toast.success("Dossier assigné avec succès");
       reset();
       onOpenChange(false);
@@ -188,9 +197,9 @@ export function AssignDossierDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Assigner un dossier à un notaire</DialogTitle>
+          <DialogTitle>{title ?? "Assigner un dossier à un notaire"}</DialogTitle>
           <DialogDescription>
-            Sélectionnez un bail. Un bail comprend les parties et le bien associé.
+            {description ?? "Sélectionnez un bail. Un bail comprend les parties et le bien associé."}
           </DialogDescription>
         </DialogHeader>
         {isLoadingData ? (
@@ -279,7 +288,7 @@ export function AssignDossierDialog({
                                   <div className="flex items-center gap-2 flex-wrap pl-6">
                                     {bail.bailType && (
                                       <Badge variant="secondary" className="text-xs">
-                                        {bail.bailType}
+                                        {getBailTypeLabel(bail.bailType)}
                                       </Badge>
                                     )}
                                     {bail.effectiveDate && (
@@ -398,7 +407,7 @@ export function AssignDossierDialog({
             </Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Assigner
+              {submitLabel ?? "Assigner"}
             </Button>
           </DialogFooter>
         </form>

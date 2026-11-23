@@ -1,11 +1,13 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-picker";
 import { NumberInputGroup } from "@/components/ui/number-input-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +28,12 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { NationalitySelect } from "@/components/ui/nationality-select";
 import { PhoneInput } from "@/components/ui/phone-input";
 
+import { todayInFrance } from "@/lib/bail/dates";
+import { FAMILY_STATUS_LABELS, MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
+import { getPropertyTypeLabel } from "@/lib/utils/property-labels";
+import { getPropertyLegalStatusLabel } from "@/lib/utils/legaleStatus-label";
+import { getBailTypeLabel } from "@/lib/utils/bails-labels";
+import { surfaceWarning } from "@/lib/utils/surface";
 // Composant séparé pour la validation du dépôt de garantie (évite les re-renders)
 const BailSecurityDepositValidation = ({ control }: { control: any }) => {
   const bailType = useWatch({ control, name: "bailType" });
@@ -56,7 +64,7 @@ const BailSecurityDepositValidation = ({ control }: { control: any }) => {
 };
 
 interface FullClientFormProps {
-  onSubmit: (data: FormData) => Promise<void>;
+  onSubmit: (data: FormData) => Promise<unknown>;
 }
 
 // Valeurs par défaut du formulaire
@@ -98,14 +106,11 @@ const FILE_REFS_CONFIG = [
   { name: "kbis" },
   { name: "statutes" },
   { name: "idIdentity" },
-  { name: "livretDeFamille" },
+  { name: "contratDeMariage" },
   { name: "contratDePacs" },
   { name: "diagnostics" },
   { name: "reglementCopropriete" },
   { name: "cahierChargeLotissement" },
-  { name: "statutAssociationSyndicale" },
-  { name: "insuranceOwner" },
-  { name: "ribOwner" },
 ] as const;
 
 export function FullClientForm({ onSubmit }: FullClientFormProps) {
@@ -261,7 +266,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
         formData.append("persons", JSON.stringify(personsPayload));
       }
 
-      await onSubmit(formData);
+      await unwrapAction(Promise.resolve(onSubmit(formData) as any));
       toast.success("Client créé avec succès");
       router.push("/interface/clients");
     } catch (error: any) {
@@ -305,7 +310,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
   };
 
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit, onError)} className="space-y-6">
+    <form onSubmit={form.handleSubmit(handleSubmit, onError)} noValidate className="space-y-6">
       <Tabs value={clientType} onValueChange={handleClientTypeChange}>
         <TabsList className="grid w-full grid-cols-2 border rounded-lg mb-6">
           <TabsTrigger value={ClientType.PERSONNE_PHYSIQUE}>Particulier</TabsTrigger>
@@ -367,7 +372,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                           <SelectContent>
                             {Object.values(FamilyStatus).map((status) => (
                               <SelectItem key={status} value={status}>
-                                {status.replace(/_/g, " ")}
+                                {FAMILY_STATUS_LABELS[status] ?? status}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -389,7 +394,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                             <SelectContent>
                               {Object.values(MatrimonialRegime).map((regime) => (
                                 <SelectItem key={regime} value={regime}>
-                                  {regime.replace(/_/g, " ")}
+                                  {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -406,7 +411,22 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="birthDate">Date de naissance</Label>
-                    <Input id="birthDate" type="date" {...form.register("birthDate")} disabled={isLoading} />
+                    <Controller
+                      name="birthDate"
+                      control={form.control}
+                      render={({ field }) => (
+                        <DateInput
+                          id="birthDate"
+                          name={field.name}
+                          value={field.value as string | undefined}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          disabled={isLoading}
+                          fromYear={new Date().getFullYear() - 120}
+                          toYear={new Date().getFullYear()}
+                        />
+                      )}
+                    />
                   </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -582,7 +602,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                             <SelectContent>
                               {Object.values(FamilyStatus).map((status) => (
                                 <SelectItem key={status} value={status}>
-                                  {status.replace(/_/g, " ")}
+                                  {FAMILY_STATUS_LABELS[status] ?? status}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -604,7 +624,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                               <SelectContent>
                                 {Object.values(MatrimonialRegime).map((regime) => (
                                   <SelectItem key={regime} value={regime}>
-                                    {regime.replace(/_/g, " ")}
+                                    {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -625,11 +645,21 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`additionalPersons.${index}.birthDate`}>Date de naissance</Label>
-                      <Input
-                        id={`additionalPersons.${index}.birthDate`}
-                        type="date"
-                        {...form.register(`additionalPersons.${index}.birthDate` as const)}
-                        disabled={isLoading}
+                      <Controller
+                        name={`additionalPersons.${index}.birthDate` as const}
+                        control={form.control}
+                        render={({ field }) => (
+                          <DateInput
+                            id={`additionalPersons.${index}.birthDate`}
+                            name={field.name}
+                            value={field.value as string | undefined}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            disabled={isLoading}
+                            fromYear={new Date().getFullYear() - 120}
+                            toYear={new Date().getFullYear()}
+                          />
+                        )}
                       />
                     </div>
                   </div>
@@ -734,7 +764,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                       <SelectContent>
                         {BienType && Object.values(BienType).map((type) => (
                           <SelectItem key={type} value={type}>
-                            {type.replace(/_/g, " ")}
+                            {getPropertyTypeLabel(type)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -744,7 +774,13 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="propertySurfaceM2">Surface (m²)</Label>
-                <Input id="propertySurfaceM2" type="number" step="0.01" {...form.register("propertySurfaceM2")} disabled={isLoading} />
+                <Input id="propertySurfaceM2" type="number" step="0.01" min="0" {...form.register("propertySurfaceM2")} disabled={isLoading} />
+                {form.formState.errors.propertySurfaceM2 && (
+                  <p className="text-sm text-destructive">{String(form.formState.errors.propertySurfaceM2.message)}</p>
+                )}
+                {surfaceWarning(form.watch("propertySurfaceM2")) && (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">{surfaceWarning(form.watch("propertySurfaceM2"))}</p>
+                )}
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -761,7 +797,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                       <SelectContent>
                         {BienLegalStatus && Object.values(BienLegalStatus).map((status) => (
                           <SelectItem key={status} value={status}>
-                            {status.replace(/_/g, " ")}
+                            {getPropertyLegalStatusLabel(status)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -792,7 +828,7 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
                     <SelectContent>
                       {Object.values(BailType).map((type) => (
                         <SelectItem key={type} value={type}>
-                          {type.replace(/_/g, " ")}
+                          {getBailTypeLabel(type)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -810,7 +846,22 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bailEffectiveDate">Date de prise d'effet *</Label>
-                <Input id="bailEffectiveDate" type="date" {...form.register("bailEffectiveDate")} disabled={isLoading} />
+                <Controller
+                  name="bailEffectiveDate"
+                  control={form.control}
+                  render={({ field }) => (
+                    <DateInput
+                      id="bailEffectiveDate"
+                      name={field.name}
+                      value={field.value as string | undefined}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      minDate={todayInFrance()}
+                      disabled={isLoading}
+                      aria-invalid={!!form.formState.errors.bailEffectiveDate}
+                    />
+                  )}
+                />
                 {form.formState.errors.bailEffectiveDate && (
                   <p className="text-sm text-destructive">{(form.formState.errors.bailEffectiveDate as any)?.message}</p>
                 )}
@@ -819,11 +870,24 @@ export function FullClientForm({ onSubmit }: FullClientFormProps) {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="bailEndDate">Date de fin</Label>
-                <Input id="bailEndDate" type="date" {...form.register("bailEndDate")} disabled={isLoading} />
+                <Controller
+                  name="bailEndDate"
+                  control={form.control}
+                  render={({ field }) => (
+                    <DateInput
+                      id="bailEndDate"
+                      name={field.name}
+                      value={field.value as string | undefined}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      disabled={isLoading}
+                    />
+                  )}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bailPaymentDay">Jour de paiement</Label>
-                <NumberInputGroup field={form.register("bailPaymentDay")} min={1} max={31} disabled={isLoading} />
+                <NumberInputGroup field={form.register("bailPaymentDay")} min={1} max={28} disabled={isLoading} />
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">

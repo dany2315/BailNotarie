@@ -1,7 +1,8 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireStaff } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
 import { randomBytes } from "crypto";
@@ -99,8 +100,12 @@ const createLeadSchema = z.object({
 
 // Créer un lead et envoyer un email avec lien de conversion (si email fourni)
 export async function createLead(data: unknown) {
+  return guardAction(() => createLeadUnguarded(data));
+}
+
+async function createLeadUnguarded(data: unknown) {
   try {
-    const user = await requireAuth();
+    const user = await requireStaff();
     const validated = createLeadSchema.parse(data);
 
     // Vérifier si un client avec cet email ou téléphone existe déjà
@@ -161,7 +166,7 @@ export async function createLead(data: unknown) {
       try {
         await triggerLeadConversionEmail({
           to: validated.email,
-          subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
+          subject: "Votre bail notarié en 1 semaine, on s'occupe de tout",
           convertUrl,
         });
         emailSent = true;
@@ -351,7 +356,7 @@ export async function convertLead(data: {
       try {
         await triggerLeadConversionEmail({
           to: clientEmail,
-          subject: "Formulaire de bail notarié - Propriétaire",
+          subject: "Votre dossier propriétaire est ouvert",
           convertUrl: formUrl,
           isOwnerForm: true,
         });
@@ -459,8 +464,9 @@ export async function convertLead(data: {
         rentAmount: 0, // Sera mis à jour lors du formulaire propriétaire
         monthlyCharges: 0,
         securityDeposit: 0,
-        effectiveDate: new Date(), // Date temporaire, sera mise à jour
-        paymentDay: 1, // Valeur par défaut
+        // Pas de date provisoire : la date d'effet et le jour de paiement restent vides jusqu'à leur saisie.
+        effectiveDate: null,
+        paymentDay: null,
         propertyId: property.id,
         parties: {
           connect: [

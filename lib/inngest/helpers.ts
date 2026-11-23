@@ -1,4 +1,23 @@
 import { inngest } from "./client";
+import { prisma } from "@/lib/prisma";
+
+/**
+ * Enregistre l'envoi d'un formulaire sur son lien (compteur et date du dernier
+ * envoi), pour le suivi côté administrateur. Le jeton est le dernier segment
+ * de l'URL du formulaire. Un échec ici ne doit jamais empêcher l'envoi.
+ */
+async function recordFormEmailSent(formUrl: string) {
+  try {
+    const token = new URL(formUrl, "http://localhost").pathname.split("/").filter(Boolean).pop();
+    if (!token) return;
+    await prisma.intakeLink.updateMany({
+      where: { token },
+      data: { formEmailCount: { increment: 1 }, lastFormEmailSentAt: new Date() },
+    });
+  } catch (error) {
+    console.error("[recordFormEmailSent] Suivi d'envoi non enregistré:", error);
+  }
+}
 
 /**
  * Déclenche l'envoi d'un email de confirmation de contact
@@ -34,6 +53,24 @@ export async function triggerContactNotificationEmail(data: {
 }
 
 /**
+ * E-mail unique au locataire : ses conditions ont changé, il doit les reconfirmer (M15). L'identifiant
+ * d'événement empêche un double envoi pour la même demande.
+ */
+export async function triggerTenantReconfirmationEmail(data: {
+  bailId: string;
+  requestedAt: string;
+  changedLabels: string[];
+  /** Détail des changements, valeurs déjà mises en forme (« 1 150 € » → « 1 100 € »). */
+  changes?: Array<{ label: string; before: string; after: string }>;
+}) {
+  await inngest.send({
+    id: `tenant-reconfirmation-${data.bailId}-${data.requestedAt}`,
+    name: "email/tenant-reconfirmation.send",
+    data,
+  });
+}
+
+/**
  * Déclenche l'envoi d'un email de notification
  */
 export async function triggerNotificationEmail(data: {
@@ -62,6 +99,7 @@ export async function triggerOwnerFormEmail(data: {
     name: "email/intake.owner-form",
     data,
   });
+  await recordFormEmailSent(data.formUrl);
 }
 
 /**
@@ -77,6 +115,7 @@ export async function triggerTenantFormEmail(data: {
     name: "email/intake.tenant-form",
     data,
   });
+  await recordFormEmailSent(data.formUrl);
 }
 
 /**
@@ -129,25 +168,6 @@ export async function triggerCompletionStatusesCalculation(data: {
 }
 
 /**
- * Déclenche l'envoi d'un email de suivi de demande
- */
-export async function triggerRequestStatusEmail(data: {
-  to: string;
-  firstName?: string | null;
-  lastName?: string | null;
-  currentStep: string;
-  status: string;
-  propertyAddress?: string | null;
-  profilType: string;
-  intakeLinkToken?: string | null;
-}) {
-  await inngest.send({
-    name: "email/request-status.send",
-    data,
-  });
-}
-
-/**
  * Déclenche l'envoi d'un email de notification pour un nouveau commentaire de blog
  */
 export async function triggerBlogCommentNotificationEmail(data: {
@@ -173,6 +193,8 @@ export async function triggerIntakeConfirmationEmail(data: {
   lastName: string;
   phone?: string;
   role: "LOCATAIRE" | "PROPRIETAIRE";
+  /** Fiche du client : sert à retrouver son dossier (adresse, autre partie) au moment de l'envoi. */
+  clientId?: string;
 }) {
   await inngest.send({
     name: "email/intake.confirmation",
@@ -263,29 +285,13 @@ export async function triggerCompletionStatusEmail(data: {
   newStatus: string;
   dashboardUrl: string;
   profilType?: "PROPRIETAIRE" | "LOCATAIRE";
+  /** Fiche vérifiée (client) ou bien vérifié : sert à savoir, à l'envoi, si tout le dossier l'est. */
+  clientId?: string;
+  propertyId?: string;
 }) {
-  const statusLabels: Record<string, string> = {
-    NOT_STARTED: "Non commencé",
-    PARTIAL: "Partiel",
-    PENDING_CHECK: "En vérification",
-    COMPLETED: "Complété",
-  };
-
-  const oldStatusLabel = statusLabels[data.oldStatus] || data.oldStatus;
-  const newStatusLabel = statusLabels[data.newStatus] || data.newStatus;
-  
-  const subject = data.newStatus === "COMPLETED"
-    ? "✅ Vérification complétée - BailNotarie"
-    : data.newStatus === "PENDING_CHECK"
-    ? "🔵 Vérification en cours - BailNotarie"
-    : `Statut de vérification mis à jour : ${oldStatusLabel} → ${newStatusLabel}`;
-
   await inngest.send({
     name: "email/completion-status.send",
-    data: {
-      ...data,
-      subject,
-    },
+    data,
   });
 }
 

@@ -11,9 +11,11 @@ import { DeletePropertyDialog } from "./delete-property-dialog";
 interface DeletePropertyButtonProps {
   propertyId: string;
   propertyAddress: string;
+  /** Page affichée après la suppression (la fiche du propriétaire). */
+  redirectTo: string;
 }
 
-export function DeletePropertyButton({ propertyId, propertyAddress }: DeletePropertyButtonProps) {
+export function DeletePropertyButton({ propertyId, propertyAddress, redirectTo }: DeletePropertyButtonProps) {
   const router = useRouter();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -36,7 +38,7 @@ export function DeletePropertyButton({ propertyId, propertyAddress }: DeleteProp
       if (result.success) {
         toast.success("Bien supprimé avec succès");
         setIsDeleteDialogOpen(false);
-        router.push("/interface/properties");
+        router.push(redirectTo);
       } else {
         setDeleteError({
           message: result.error,

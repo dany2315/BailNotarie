@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
@@ -28,7 +29,7 @@ const intakeLinkFormSchema = z.object({
 type IntakeLinkFormData = z.infer<typeof intakeLinkFormSchema>;
 
 interface IntakeLinkFormProps {
-  onSubmit: (data: FormData) => Promise<void>;
+  onSubmit: (data: FormData) => Promise<unknown>;
   properties: any[];
   leases: any[];
 }
@@ -54,7 +55,7 @@ export function IntakeLinkForm({ onSubmit, properties, leases }: IntakeLinkFormP
       if (data.propertyId) formData.append("propertyId", data.propertyId);
       if (data.leaseId) formData.append("leaseId", data.leaseId);
       
-      await onSubmit(formData);
+      await unwrapAction(Promise.resolve(onSubmit(formData) as any));
       toast.success("Lien d'intake créé avec succès");
       router.push("/interface/intakes");
     } catch (error: any) {

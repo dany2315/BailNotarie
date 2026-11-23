@@ -1,0 +1,621 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import {
+  BailAuditEventType,
+  BailFamille,
+  BailStatus,
+  BailType,
+  ClientType,
+  CompletionStatus,
+  IntakeStatus,
+  NotificationType,
+  ProfilType,
+  Role,
+} from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { computeBailEndDate } from "@/lib/utils/bail-duration";
+import { EFFECTIVE_DATE_IN_PAST, PAYMENT_DAY_INVALID, effectiveDateInPast, paymentDayInvalid } from "@/lib/bail/dates";
+import { requireRole } from "@/lib/auth-helpers";
+import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
+import { createNotificationForAllUsers } from "@/lib/utils/notifications";
+import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
+import { getStageKey } from "@/lib/utils/bail-stage";
+import { EXEMPTION_LABELS } from "@/lib/utils/rent-cap";
+import { assessRentCap } from "@/lib/rent-cap";
+import { rentRulesFromForm } from "@/lib/utils/rent-draft";
+import { commercialTermsFromForm, commercialTermsToForm, validateCommercialStep, type CommercialStep } from "@/lib/utils/commercial-terms";
+import { commercialComplianceRules, commercialDepositWarning } from "@/lib/utils/commercial-compliance";
+import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
+
+/** Étapes du questionnaire commercial du formulaire propriétaire : l'équipe suit les mêmes règles. */
+const COMMERCIAL_STEPS: CommercialStep[] = ["activity", "duration", "rent", "deposit", "charges", "clauses"];
+
+/** Types de bail propres à chaque usage, comme dans le formulaire. */
+const COMMERCIAL_TYPES: BailType[] = [BailType.COMMERCIAL_3_6_9, BailType.COMMERCIAL_DEROGATOIRE];
+
+type Result<T = undefined> = ({ success: true } & (T extends undefined ? unknown : { data: T })) | { success: false; error: string };
+
+/** Le dossier se modifie tant qu'il n'est pas parti chez le notaire (même règle que la vérification). */
+function isEditable(status: BailStatus) {
+  const stage = getStageKey(status);
+  return stage === "constitution" || stage === "attente_locataire" || stage === "verification";
+}
+
+const revalidateField = z
+  .string()
+  .max(300)
+  .refine((path) => /^\/interface(\/[\w-]+)*$/.test(path), "Page invalide")
+  .optional();
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide");
+const euros = (label: string) =>
+  z
+    .string()
+    .trim()
+    .regex(/^\d{1,7}$/, `${label} : montant en euros entiers attendu`)
+    .transform(Number);
+
+/* ------------------------------------------------------------------ */
+/* Conditions du bail (type, durée, loyer, charges, dépôt)             */
+/* ------------------------------------------------------------------ */
+
+const termsSchema = z.object({
+  bailId: z.string().min(1),
+  values: z
+    .object({
+      bailType: z.nativeEnum(BailType),
+      bailFamily: z.nativeEnum(BailFamille),
+      effectiveDate: isoDate,
+      // Vide = pas de date de fin.
+      endDate: z.union([isoDate, z.literal("")]),
+      rentAmount: euros("Loyer"),
+      monthlyCharges: euros("Charges"),
+      securityDeposit: euros("Dépôt de garantie"),
+      paymentDay: z
+        .string()
+        .trim()
+        .regex(/^\d{1,2}$/, PAYMENT_DAY_INVALID)
+        .transform(Number)
+        .refine((day) => day >= 1 && day <= 31, PAYMENT_DAY_INVALID),
+    })
+    .partial(),
+  revalidate: revalidateField,
+});
+
+const utcDate = (value: string) => new Date(`${value}T00:00:00Z`);
+
+/**
+ * Modification des conditions du bail depuis la fiche dossier, champ par champ.
+ * Mêmes garde-fous que le formulaire complet : plafond du dépôt de garantie
+ * et encadrement du loyer.
+ */
+export async function updateBailTermsAdmin(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = termsSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, values, revalidate } = parsed.data;
+  if (Object.keys(values).length === 0) return { success: true };
+
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    select: { id: true, status: true, propertyId: true, bailType: true, bailFamily: true, rentAmount: true, securityDeposit: true, effectiveDate: true, endDate: true, paymentDay: true, commercialTerms: { select: { derogatoryMonths: true } } },
+  });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  // Bail commercial : ni limite légale du dépôt de garantie, ni encadrement des loyers.
+  const isCommercial = (values.bailFamily ?? bail.bailFamily) === BailFamille.COMMERCIAL;
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+
+  // Valeurs finales, pour les contrôles qui croisent plusieurs champs.
+  const bailType = values.bailType ?? bail.bailType;
+  const rentAmount = values.rentAmount ?? bail.rentAmount;
+  const securityDeposit = values.securityDeposit ?? bail.securityDeposit;
+  const effectiveDate = values.effectiveDate ? utcDate(values.effectiveDate) : bail.effectiveDate;
+  if (values.effectiveDate && effectiveDateInPast(effectiveDate, bail.effectiveDate)) {
+    return { success: false, error: EFFECTIVE_DATE_IN_PAST };
+  }
+  if (values.paymentDay !== undefined && paymentDayInvalid(values.paymentDay, bail.paymentDay)) {
+    return { success: false, error: PAYMENT_DAY_INVALID };
+  }
+  // Date de fin : toujours calculée à partir du type de bail et de la prise d'effet (durée du bail dérogatoire
+  // comprise), jamais saisie. Une date de fin envoyée par l'écran est ignorée. Recalculée seulement quand le
+  // type ou la prise d'effet change, pour ne pas toucher aux dossiers existants lors d'une autre modification.
+  const recompute =
+    (values.bailType !== undefined && values.bailType !== bail.bailType) ||
+    (values.effectiveDate !== undefined && (effectiveDate?.getTime() ?? null) !== (bail.effectiveDate?.getTime() ?? null));
+  const endDate = recompute ? computeBailEndDate(effectiveDate, bailType, bail.commercialTerms?.derogatoryMonths ?? null) : bail.endDate;
+  const endDateChanged = (endDate?.getTime() ?? null) !== (bail.endDate?.getTime() ?? null);
+  // Usage et type vont ensemble, comme dans le formulaire : 3-6-9 ou dérogatoire pour un local
+  // commercial, bail nu ou meublé pour un logement.
+  if (isCommercial !== COMMERCIAL_TYPES.includes(bailType)) {
+    return {
+      success: false,
+      error: isCommercial
+        ? "Un bail commercial est un bail 3-6-9 ou un bail dérogatoire : changez aussi le type de bail"
+        : "Un bail d'habitation est un bail nu ou meublé : changez aussi le type de bail",
+    };
+  }
+  if (rentAmount <= 0) return { success: false, error: "Le loyer doit être supérieur à 0 €" };
+  const isMeuble = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
+  const maxDeposit = isMeuble ? rentAmount * 2 : rentAmount;
+  if (!isCommercial && rentAmount > 0 && securityDeposit > maxDeposit) {
+    return {
+      success: false,
+      error: `Le dépôt de garantie ne peut pas dépasser ${isMeuble ? "2 mois" : "1 mois"} de loyer hors charges (max ${maxDeposit.toLocaleString("fr-FR")} €)${values.securityDeposit === undefined ? " : ajustez aussi le dépôt de garantie" : ""}`,
+    };
+  }
+  // Plafond de loyer : contrôlé par le moteur commun (lib/rent-rules), affiché dans le bloc « Loyer » de la
+  // fiche et bloquant à l'envoi au notaire. L'ancien contrôle (table RentControl, jamais alimentée) est
+  // retiré : il ne vérifiait rien.
+
+  // La modification et le sort de l'accord du locataire vont ensemble : si une condition qu'il a confirmée
+  // change réellement, son accord est archivé et une nouvelle confirmation est demandée.
+  await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, bailId);
+    await tx.bail.update({
+      where: { id: bailId },
+      data: {
+        ...(values.bailType !== undefined && { bailType: values.bailType }),
+        ...(values.bailFamily !== undefined && { bailFamily: values.bailFamily }),
+        ...(values.effectiveDate !== undefined && { effectiveDate }),
+        ...(endDateChanged && { endDate }),
+        ...(values.rentAmount !== undefined && { rentAmount: values.rentAmount }),
+        ...(values.monthlyCharges !== undefined && { monthlyCharges: values.monthlyCharges }),
+        ...(values.securityDeposit !== undefined && { securityDeposit: values.securityDeposit }),
+        ...(values.paymentDay !== undefined && { paymentDay: values.paymentDay }),
+        updatedById: user.id,
+      },
+    });
+    await settleTenantAgreement(tx, bailId, agreement, { id: user.id, name: getActorName(user) });
+  });
+
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  revalidatePath("/interface/baux");
+  return { success: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Conditions du bail commercial                                       */
+/* ------------------------------------------------------------------ */
+
+const commercialTermsSchema = z.object({
+  bailId: z.string().min(1),
+  // Mêmes réponses que le formulaire propriétaire, nettoyées par commercialTermsFromForm.
+  values: z.record(z.string(), z.unknown()),
+  revalidate: revalidateField,
+});
+
+const frDay = (date: Date) => date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
+
+/**
+ * Conditions du bail commercial corrigées par l'équipe (sans renvoyer le formulaire au client), une ligne à la fois.
+ * Seules les réponses envoyées sont contrôlées et enregistrées. Renvoie les conséquences sur le reste du dossier
+ * (date de fin recalculée, règles de la Conformité légale à revalider ou devenues bloquantes, dépôt de garantie,
+ * pièces à demander), affichées à l'équipe après l'enregistrement.
+ */
+export async function updateCommercialTermsAdmin(data: unknown): Promise<Result<{ effects: string[] }>> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = commercialTermsSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, values, revalidate } = parsed.data;
+
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    select: {
+      id: true,
+      status: true,
+      bailFamily: true,
+      bailType: true,
+      rentAmount: true,
+      securityDeposit: true,
+      effectiveDate: true,
+      endDate: true,
+      commercialTerms: true,
+      parties: {
+        select: {
+          profilType: true,
+          type: true,
+          entreprise: true,
+          persons: { select: { isPrimary: true, familyStatus: true, matrimonialRegime: true } },
+        },
+      },
+    },
+  });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  if (bail.bailFamily !== BailFamille.COMMERCIAL) return { success: false, error: "Ce dossier n'est pas un bail commercial" };
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+
+  // Mêmes contrôles que le formulaire propriétaire, sur l'ensemble des réponses (enregistrées + modifiées),
+  // mais seules les erreurs des réponses modifiées bloquent (une ligne se corrige sans toucher aux autres).
+  const merged = { ...commercialTermsToForm(bail.commercialTerms), ...values } as any;
+  const edited = new Set(Object.keys(values).map((key) => `commercial.${key}`));
+  const errors = COMMERCIAL_STEPS.flatMap((step) =>
+    Object.entries(validateCommercialStep(step, merged, { bailType: bail.bailType }))
+      .filter(([path]) => edited.has(path))
+      .map(([, message]) => message),
+  );
+  if (errors.length > 0) return { success: false, error: [...new Set(errors)].join("\n") };
+
+  const terms = commercialTermsFromForm(values);
+  if (Object.keys(terms).length === 0) return { success: true, data: { effects: [] } };
+  const before = (bail.commercialTerms ?? {}) as Record<string, any>;
+  const after = { ...before, ...terms } as Record<string, any>;
+
+  // Bail dérogatoire : la date de fin suit la durée.
+  const effects: string[] = [];
+  let endDate = bail.endDate;
+  if (
+    bail.bailType === BailType.COMMERCIAL_DEROGATOIRE &&
+    "derogatoryMonths" in terms &&
+    terms.derogatoryMonths !== before.derogatoryMonths &&
+    bail.effectiveDate
+  ) {
+    // Calcul en UTC (dates enregistrées à minuit UTC) : même jour, N mois plus tard.
+    const months = terms.derogatoryMonths as number | null;
+    const start = bail.effectiveDate;
+    const computed = months ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + months, start.getUTCDate())) : null;
+    if (computed && (!endDate || computed.getTime() !== endDate.getTime())) {
+      endDate = computed;
+      effects.push(`Date de fin du bail recalculée : ${frDay(computed)} (${terms.derogatoryMonths} mois à partir du ${frDay(bail.effectiveDate)}).`);
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, bailId);
+    await tx.bailCommercialTerms.upsert({ where: { bailId }, create: { bailId, ...terms }, update: terms });
+    await tx.bail.update({ where: { id: bailId }, data: { updatedById: user.id, ...(endDate !== bail.endDate ? { endDate } : {}) } });
+    // Périodicité du loyer ou date de fin modifiée : l'accord du locataire est à renouveler.
+    await settleTenantAgreement(tx, bailId, agreement, { id: user.id, name: getActorName(user) });
+  });
+
+  // Règles de la Conformité légale avant / après : à revalider (contrôle de l'équipe), devenues bloquantes ou réglées.
+  const owner = bail.parties.find((party) => party.profilType === ProfilType.PROPRIETAIRE) ?? null;
+  const tenant = bail.parties.find((party) => party.profilType === ProfilType.LOCATAIRE) ?? null;
+  const rulesOf = (t: Record<string, any>, end: Date | null) =>
+    commercialComplianceRules({ bail: { ...bail, endDate: end }, terms: t, owner: owner as any, tenant: tenant as any });
+  const oldRules = new Map(rulesOf(before, bail.endDate).map((rule) => [rule.id, rule]));
+  for (const rule of rulesOf(after, endDate)) {
+    const old = oldRules.get(rule.id);
+    if (!old) {
+      effects.push(`Nouvelle règle dans la Conformité légale : « ${rule.label} »${rule.note ? ` (${rule.note})` : ""}.`);
+    } else if (!old.missing && rule.missing) {
+      effects.push(`« ${rule.label} » devient bloquant dans la Conformité légale${rule.note ? ` : ${rule.note}` : ""}.`);
+    } else if (old.missing && !rule.missing) {
+      // Ce que la règle dit maintenant (ex. « le conjoint doit aussi signer le bail »).
+      const fact = rule.view?.kind === "facts" ? rule.view.facts.find((f: any) => f.tone === "warn") ?? rule.view.facts[0] : null;
+      effects.push(`« ${rule.label} » n'est plus bloquant${fact ? ` : ${String(fact.label).toLowerCase()} ${fact.values.join(", ")}` : ""}.`);
+    } else if (!rule.auto && JSON.stringify(old.values) !== JSON.stringify(rule.values)) {
+      effects.push(`« ${rule.label} » est à revalider dans la Conformité légale.`);
+    }
+    oldRules.delete(rule.id);
+  }
+  for (const rule of oldRules.values()) effects.push(`« ${rule.label} » ne s'applique plus à ce bail.`);
+
+  // Dépôt de garantie comparé au terme de loyer (mensuel ou trimestriel).
+  const depositBefore = commercialDepositWarning({ rentAmount: bail.rentAmount, securityDeposit: bail.securityDeposit, rentPeriodicity: before.rentPeriodicity });
+  const depositAfter = commercialDepositWarning({ rentAmount: bail.rentAmount, securityDeposit: bail.securityDeposit, rentPeriodicity: after.rentPeriodicity });
+  if (depositAfter && depositAfter !== depositBefore) effects.push(`Dépôt de garantie : ${depositAfter}`);
+  if (!depositAfter && depositBefore) effects.push("Dépôt de garantie : plus d'alerte.");
+
+  // Pièces du bien qui dépendent de la location précédente.
+  if ("previouslyLet" in terms && terms.previouslyLet !== before.previouslyLet) {
+    effects.push(
+      terms.previouslyLet === true
+        ? "Pièces du bien : bail du locataire précédent, congé et état des lieux de sortie peuvent être demandés."
+        : "Pièces du bien : plus de pièces de la location précédente à demander.",
+    );
+  }
+
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  return { success: true, data: { effects } };
+}
+
+/* ------------------------------------------------------------------ */
+/* Changement de locataire                                             */
+/* ------------------------------------------------------------------ */
+
+export interface TenantOption {
+  id: string;
+  name: string;
+  email: string | null;
+  completionStatus: CompletionStatus;
+}
+
+const tenantInclude = {
+  persons: { orderBy: { isPrimary: "desc" as const }, take: 1, select: { firstName: true, lastName: true, email: true } },
+  entreprise: { select: { legalName: true, name: true, email: true } },
+};
+
+function toOption(client: {
+  id: string;
+  type: ClientType;
+  completionStatus: CompletionStatus;
+  persons: Array<{ firstName: string | null; lastName: string | null; email: string | null }>;
+  entreprise: { legalName: string | null; name: string | null; email: string | null } | null;
+}): TenantOption {
+  return {
+    id: client.id,
+    name: getClientDisplayName(client) || "Locataire sans nom",
+    email: client.type === ClientType.PERSONNE_MORALE ? client.entreprise?.email || null : client.persons[0]?.email || null,
+    completionStatus: client.completionStatus,
+  };
+}
+
+/** Locataires existants (nom, e-mail ou raison sociale), pour « Changer de locataire ». */
+export async function searchTenantsAdmin(data: unknown): Promise<Result<TenantOption[]>> {
+  await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = z.object({ query: z.string().trim().max(100), excludeId: z.string().optional() }).safeParse(data);
+  if (!parsed.success) return { success: false, error: "Recherche invalide" };
+  const { query, excludeId } = parsed.data;
+  if (query.length < 2) return { success: true, data: [] };
+
+  const contains = { contains: query, mode: "insensitive" as const };
+  const clients = await prisma.client.findMany({
+    where: {
+      profilType: ProfilType.LOCATAIRE,
+      ...(excludeId && { id: { not: excludeId } }),
+      OR: [
+        { persons: { some: { OR: [{ firstName: contains }, { lastName: contains }, { email: contains }] } } },
+        { entreprise: { OR: [{ legalName: contains }, { name: contains }, { email: contains }] } },
+      ],
+    },
+    include: tenantInclude,
+    orderBy: { updatedAt: "desc" },
+    take: 8,
+  });
+  return { success: true, data: clients.map(toOption) };
+}
+
+const changeTenantSchema = z
+  .object({
+    bailId: z.string().min(1),
+    tenantId: z.string().min(1).optional(),
+    email: z.string().trim().toLowerCase().email("E-mail invalide").optional(),
+    sendForm: z.boolean(),
+    revalidate: revalidateField,
+  })
+  .refine((d) => !!d.tenantId !== !!d.email, "Choisissez un locataire existant ou saisissez un e-mail");
+
+const READY_TENANT: CompletionStatus[] = [CompletionStatus.PENDING_CHECK, CompletionStatus.COMPLETED];
+
+/**
+ * Remplace le locataire du dossier. L'ancien locataire est retiré du dossier
+ * (sa fiche client est conservée) et ses formulaires en attente pour ce
+ * dossier sont désactivés. Si le nouveau locataire n'a pas encore rempli son
+ * formulaire, le dossier repasse en « Formulaire locataire en attente ».
+ */
+export async function changeBailTenantAdmin(data: unknown): Promise<Result<{ tenantName: string; formSent: boolean }>> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = changeTenantSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, tenantId, email, sendForm, revalidate } = parsed.data;
+
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    include: { property: { select: { label: true, fullAddress: true } }, parties: { select: { id: true, profilType: true } } },
+  });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : changement impossible ici" };
+  const owner = bail.parties.find((p) => p.profilType === ProfilType.PROPRIETAIRE);
+  const previous = bail.parties.find((p) => p.profilType === ProfilType.LOCATAIRE);
+  if (!owner) return { success: false, error: "Le dossier n'a pas de propriétaire" };
+
+  // Le nouveau locataire : existant, ou retrouvé / créé à partir de l'e-mail.
+  let tenant = tenantId
+    ? await prisma.client.findFirst({ where: { id: tenantId, profilType: ProfilType.LOCATAIRE }, include: tenantInclude })
+    : null;
+  if (tenantId && !tenant) return { success: false, error: "Locataire introuvable" };
+  let created = false;
+  if (email) {
+    const person = await prisma.person.findUnique({ where: { email }, select: { clientId: true, client: { select: { profilType: true } } } });
+    if (person && person.client.profilType !== ProfilType.LOCATAIRE) {
+      return { success: false, error: "Cet e-mail appartient déjà à un client qui n'est pas locataire" };
+    }
+    tenant = person
+      ? await prisma.client.findUnique({ where: { id: person.clientId }, include: tenantInclude })
+      : null;
+    if (!tenant) {
+      tenant = await prisma.client.create({
+        data: {
+          type: ClientType.PERSONNE_PHYSIQUE,
+          profilType: ProfilType.LOCATAIRE,
+          createdById: user.id,
+          persons: { create: { email, isPrimary: true, createdById: user.id } },
+        },
+        include: tenantInclude,
+      });
+      created = true;
+    }
+  }
+  if (!tenant) return { success: false, error: "Locataire introuvable" };
+  if (tenant.id === previous?.id) return { success: false, error: "C'est déjà le locataire de ce dossier" };
+
+  const option = toOption(tenant);
+  const nextStatus =
+    (bail.status === BailStatus.PENDING_VALIDATION || bail.status === BailStatus.AWAITING_TENANT) && !READY_TENANT.includes(tenant.completionStatus)
+      ? BailStatus.AWAITING_TENANT_FORM
+      : bail.status;
+  const actorName = getActorName(user);
+
+  const intakeLink = await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, bailId);
+    await tx.bail.update({
+      where: { id: bailId },
+      data: {
+        parties: { set: [{ id: owner.id }, { id: tenant!.id }] },
+        ...(nextStatus !== bail.status && { status: nextStatus }),
+        updatedById: user.id,
+      },
+    });
+    // L'accord donné par l'ancien locataire ne vaut pas pour le nouveau : archivé, à redemander.
+    await settleTenantAgreement(tx, bailId, agreement, { id: user.id, name: actorName });
+    // Les formulaires encore ouverts de l'ancien locataire pour ce dossier ne servent plus.
+    if (previous) {
+      await tx.intakeLink.updateMany({
+        where: { bailId, clientId: previous.id, target: "TENANT", status: IntakeStatus.PENDING },
+        data: { status: IntakeStatus.REVOKED },
+      });
+    }
+    await createBailAuditLog(
+      { bailId, eventType: BailAuditEventType.TENANT_ADDED, actorId: user.id, actorName, tenantId: tenant!.id, tenantName: option.name },
+      tx,
+    );
+    if (nextStatus !== bail.status) {
+      await createBailAuditLog(
+        { bailId, eventType: BailAuditEventType.STATUS_CHANGED, actorId: user.id, actorName, fromStatus: bail.status, toStatus: nextStatus },
+        tx,
+      );
+    }
+    // Lien de formulaire du nouveau locataire pour ce dossier (réutilisé s'il existe encore).
+    const existing = await tx.intakeLink.findFirst({
+      where: { bailId, clientId: tenant!.id, target: "TENANT", status: { in: [IntakeStatus.PENDING, IntakeStatus.SUBMITTED] } },
+      orderBy: { createdAt: "desc" },
+    });
+    return (
+      existing ??
+      tx.intakeLink.create({
+        data: { target: "TENANT", clientId: tenant!.id, propertyId: bail.propertyId, bailId, createdById: user.id },
+      })
+    );
+  });
+
+  if (created) {
+    await createNotificationForAllUsers(NotificationType.CLIENT_CREATED, "BAIL", bailId, user.id, {
+      createdByForm: false,
+      profileType: ProfilType.LOCATAIRE,
+      bailPropertyLabel: bail.property?.label || bail.property?.fullAddress?.split(",")[0] || null,
+    }).catch((error) => console.error("[changeBailTenantAdmin] notification", error));
+  }
+
+  let formSent = false;
+  if (sendForm && intakeLink.status === IntakeStatus.PENDING && option.email) {
+    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+    try {
+      await triggerTenantFormEmail({ to: option.email, formUrl: `${baseUrl}/intakes/${intakeLink.token}` });
+      formSent = true;
+    } catch (error) {
+      console.error("[changeBailTenantAdmin] e-mail du formulaire", error);
+    }
+  }
+
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  revalidatePath("/interface/baux");
+  revalidatePath(`/interface/clients/${tenant.id}`);
+  if (previous) revalidatePath(`/interface/clients/${previous.id}`);
+  return { success: true, data: { tenantName: option.name, formSent } };
+}
+
+/* ------------------------------------------------------------------ */
+/* Complément de loyer justifié                                         */
+/* ------------------------------------------------------------------ */
+
+const supplementSchema = z.object({
+  bailId: z.string().min(1),
+  // null : on retire le complément.
+  reason: z.string().trim().min(10, "Précisez le motif (10 caractères minimum)").max(2000).nullable(),
+  revalidate: revalidateField,
+});
+
+/**
+ * Loyer au-dessus du loyer de référence majoré : après réponse du propriétaire,
+ * l'équipe indique que le complément de loyer est justifié (caractéristiques
+ * exceptionnelles du logement) et en garde le motif.
+ */
+export async function setRentSupplementAdmin(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = supplementSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, reason, revalidate } = parsed.data;
+  const bail = await prisma.bail.findUnique({ where: { id: bailId }, include: { property: true } });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+  // Complément chiffré : loyer de base au plafond (à l'euro), le reste en complément.
+  const cap = reason ? await assessRentCap({ property: bail.property, bail }) : null;
+  const amount = cap?.status === "over" && cap.maxRent != null ? bail.rentAmount - Math.floor(cap.maxRent) : null;
+
+  await prisma.bail.update({
+    where: { id: bailId },
+    data: {
+      rentSupplementReason: reason,
+      rentSupplementAmount: amount,
+      rentSupplementAt: reason ? new Date() : null,
+      rentSupplementByName: reason ? getActorName(user) : null,
+      updatedById: user.id,
+    },
+  });
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  return { success: true };
+}
+
+const rentRulesSchema = z.object({
+  bailId: z.string().min(1),
+  values: z.record(z.string(), z.any()),
+  revalidate: revalidateField,
+});
+
+/**
+ * Relocation en zone tendue : l'équipe complète ou corrige les réponses du propriétaire
+ * (logement déjà loué, départ du locataire précédent, dernier loyer, révision, hausse).
+ * Le complément de loyer garde son propre réglage.
+ */
+export async function setRentRulesAdmin(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = rentRulesSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: "Données invalides" };
+  const { bailId, values, revalidate } = parsed.data;
+  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { status: true } });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+  const { rentSupplementReason: _ignored, ...relocation } = rentRulesFromForm(values);
+
+  await prisma.bail.update({ where: { id: bailId }, data: { ...relocation, updatedById: user.id } });
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  return { success: true };
+}
+
+const exemptionSchema = z
+  .object({
+    bailId: z.string().min(1),
+    // null : le logement redevient soumis à l'encadrement.
+    exemption: z.enum(Object.keys(EXEMPTION_LABELS) as [string, ...string[]]).nullable(),
+    note: z.string().trim().max(2000).nullable(),
+    revalidate: revalidateField,
+  })
+  .refine((d) => d.exemption !== "OTHER" || (d.note?.length ?? 0) >= 10, {
+    message: "Précisez le motif (10 caractères minimum)",
+    path: ["note"],
+  });
+
+/**
+ * Logement exclu de l'encadrement (logement social, conventionné APL ou Anah, loi de 1948…) :
+ * le plafond ne s'applique pas ; le motif et son auteur restent visibles dans le dossier.
+ */
+export async function setRentCapExemptionAdmin(data: unknown): Promise<Result> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = exemptionSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, exemption, note, revalidate } = parsed.data;
+  const bail = await prisma.bail.findUnique({ where: { id: bailId }, select: { status: true } });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  if (!isEditable(bail.status)) return { success: false, error: "Dossier déjà transmis au notaire : modification impossible ici" };
+
+  await prisma.bail.update({
+    where: { id: bailId },
+    data: {
+      rentCapExemption: exemption,
+      rentCapExemptionNote: exemption ? note || null : null,
+      rentCapExemptionAt: exemption ? new Date() : null,
+      rentCapExemptionByName: exemption ? getActorName(user) : null,
+      updatedById: user.id,
+    },
+  });
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  return { success: true };
+}

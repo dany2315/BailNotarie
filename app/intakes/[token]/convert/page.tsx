@@ -30,6 +30,13 @@ export default function ConvertLeadPage() {
   const [isValidating, setIsValidating] = useState(true);
   const [isTokenValid, setIsTokenValid] = useState(false);
 
+  // Les boutons « Je suis propriétaire / locataire » de l'e-mail de bienvenue présélectionnent le profil.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("role");
+    if (wanted === "proprietaire") setRole("PROPRIETAIRE");
+    else if (wanted === "locataire") setRole("LOCATAIRE");
+  }, []);
+
   useEffect(() => {
     const validateToken = async () => {
       if (!token) {

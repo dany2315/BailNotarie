@@ -1,0 +1,144 @@
+import type { ReactNode } from "react";
+import type { GroupField } from "@/components/admin/inline-field-editor";
+
+/** Éléments saisis qu'une pièce doit prouver (identité d'une personne, informations d'une société). */
+export interface CompareSpec {
+  entity: "person" | "entreprise";
+  id: string;
+  title: string;
+  /** `display` : la valeur telle qu'on la lit (date en jj/mm/aaaa, libellés). */
+  fields: Array<GroupField & { display: string }>;
+  /** Notes du registre des entreprises (vérifiée, fermée, nom modifié…). */
+  notes?: string[];
+  /** Kbis : bouton « Vérifier au registre » (recherche par SIREN, même outil que la fiche). */
+  registry?: { entrepriseId: string; registration: string | null; representativeName: string | null };
+  /** Dernière ligne, sans saisie : ce qu'on regarde sur la pièce elle-même. */
+  lastCheck?: string;
+  /** Kbis : contrôles du registre (pouvoirs des signataires, immatriculation), validés avec la pièce. */
+  checks?: Array<{ label: string; value: string; tone: "ok" | "warn"; auto: boolean }>;
+}
+
+/** Pièce telle qu'affichée dans une liste de pièces (sérialisable). */
+export interface ChecklistDocument {
+  id: string;
+  kind: string;
+  fileKey: string;
+  mimeType?: string | null;
+  label?: string | null;
+  size?: number | null;
+  createdAt?: Date | string | null;
+  /** Reçue via une demande de pièces de l'équipe. */
+  viaComplement?: boolean;
+}
+
+/** Où rattacher une pièce envoyée depuis la fiche (une seule cible). */
+export interface DocumentTargetLike {
+  personId?: string;
+  entrepriseId?: string;
+  clientId?: string;
+  propertyId?: string;
+  bailId?: string;
+}
+
+export interface ChecklistRow {
+  key: string;
+  kind: string;
+  label?: string;
+  required: boolean;
+  documents: ChecklistDocument[];
+  extra?: ReactNode;
+  /** Cible pour « Ajouter » / « Remplacer » depuis la fiche. */
+  upload?: DocumentTargetLike;
+  /** Fiche dossier : données saisies à comparer avec la pièce (panneau de vérification). */
+  compare?: ReactNode;
+  /** Fiche dossier : les mêmes, modifiables directement dans la ligne. */
+  compareSpec?: CompareSpec;
+  /**
+   * Fiche dossier : données prouvées par cette pièce (identité, société, situation familiale). « La pièce
+   * est bonne » les valide en même temps (mêmes clés de point qu'avant).
+   */
+  linkedPoints?: Array<{ key: string; label: string; verified: boolean }>;
+}
+
+/**
+ * Construit les lignes d'une liste de pièces : d'abord chaque pièce attendue
+ * (même absente), puis les autres pièces déposées, regroupées par type.
+ * Utilisable côté serveur comme côté client.
+ */
+export function buildChecklistRows(
+  requiredKinds: string[],
+  documents: ChecklistDocument[],
+  options: {
+    keyPrefix: string;
+    labels?: Partial<Record<string, string>>;
+    extras?: Partial<Record<string, ReactNode>>;
+    /** Cible des envois depuis la fiche (personne, société, client, bien ou bail). */
+    target?: DocumentTargetLike;
+    /** Pièces facultatives à proposer même absentes (« Non fournie (facultative) »). */
+    optionalKinds?: string[];
+  },
+): ChecklistRow[] {
+  const byKind = new Map<string, ChecklistDocument[]>();
+  for (const doc of documents) {
+    const list = byKind.get(doc.kind) || [];
+    list.push(doc);
+    byKind.set(doc.kind, list);
+  }
+  const rows: ChecklistRow[] = requiredKinds.map((kind) => ({
+    key: `${options.keyPrefix}-${kind}`,
+    kind,
+    label: options.labels?.[kind],
+    required: true,
+    documents: byKind.get(kind) || [],
+    extra: options.extras?.[kind],
+    upload: options.target,
+  }));
+  for (const kind of options.optionalKinds || []) {
+    if (requiredKinds.includes(kind) || rows.some((row) => row.kind === kind)) continue;
+    rows.push({
+      key: `${options.keyPrefix}-${kind}`,
+      kind,
+      label: options.labels?.[kind],
+      required: false,
+      documents: byKind.get(kind) || [],
+      extra: options.extras?.[kind],
+      upload: options.target,
+    });
+  }
+  for (const [kind, docs] of byKind) {
+    if (requiredKinds.includes(kind) || options.optionalKinds?.includes(kind)) continue;
+    rows.push({
+      key: `${options.keyPrefix}-${kind}`,
+      kind,
+      label: options.labels?.[kind],
+      required: false,
+      documents: docs,
+      extra: options.extras?.[kind],
+      upload: options.target,
+    });
+  }
+  return rows;
+}
+
+/** Ne garde que les champs utiles d'une pièce Prisma (dates en ISO). */
+export function toChecklistDocument(doc: {
+  id: string;
+  kind: string;
+  fileKey: string;
+  mimeType?: string | null;
+  label?: string | null;
+  size?: number | null;
+  createdAt?: Date | string | null;
+  complementItemId?: string | null;
+}): ChecklistDocument {
+  return {
+    id: doc.id,
+    kind: doc.kind,
+    fileKey: doc.fileKey,
+    mimeType: doc.mimeType ?? null,
+    label: doc.label ?? null,
+    size: doc.size ?? null,
+    createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
+    viaComplement: !!doc.complementItemId,
+  };
+}

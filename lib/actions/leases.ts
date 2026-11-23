@@ -1,20 +1,119 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireRole, requireProprietaireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireRole, requireProprietaireAuth, requireStaff, requireClientAccess, STAFF_ROLES } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
 import { revalidatePath } from "next/cache";
-import { BailAuditEventType, BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus } from "@prisma/client";
+import { BailAuditEventType, BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus, EnergyClass } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
-import { validateRentForProperty } from "@/lib/utils/rent-validation";
+import { assessRentRules } from "@/lib/rent-rules";
+import { assessRentCap, requiresOccupancyDeclaration } from "@/lib/rent-cap";
+import { getBailDocumentRules } from "@/lib/utils/required-fields";
+import { dossierFeeCents } from "@/lib/utils/dossier-fee";
+import { rentRulesFromForm, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
+import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
+import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
+import { HISTORICAL_PAYMENT_SELECT, PAID_WHERE, UNPAID_WHERE, isBailPaid, paymentKind } from "@/lib/payments/paid";
+import { DATES_REQUIRED_WITH_TENANT, PAYMENT_DAY_INVALID, assertEffectiveDateNotPast, assertPaymentDay, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
+import { computeBailEndDate } from "@/lib/utils/bail-duration";
+import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
+
+/**
+ * Réponses du contrôle du loyer à enregistrer sur le bail (espace client), avec le complément de
+ * loyer chiffré par le moteur. Le formulaire bloque avant le paiement ; pour un propriétaire
+ * (enforce), le serveur refuse aussi un loyer au-dessus du maximum ou des réponses manquantes,
+ * comme le formulaire propriétaire (lien d'intake).
+ */
+async function rentRulesColumns(
+  propertyId: string,
+  bail: { rentAmount: number; bailType: string; effectiveDate: Date | null },
+  rentRules: Record<string, unknown> | undefined,
+  dpeClass: string | undefined,
+  enforce = false,
+) {
+  if (!rentRules && !enforce) return {};
+  const answers = rentRulesFromForm((rentRules ?? {}) as Partial<RentRulesFormValues>);
+  const property = await prisma.property.findUnique({ where: { id: propertyId } });
+  if (!property || !bail.rentAmount) return { ...answers, rentSupplementAmount: null };
+  const check = await assessRentRules({
+    property: { ...property, dpeClass: property.dpeClass ?? dpeClass ?? null },
+    bail: { ...bail, bailFamily: BailFamille.HABITATION, rentCapExemption: null, ...answers },
+  });
+  if (enforce && check.ownerBlocking) {
+    const over = check.overBy !== null && check.overBy > 0 && check.maxRent !== null;
+    const supplementPossible = check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over";
+    throw new Error(
+      over && !supplementPossible
+        ? `Le loyer dépasse le maximum autorisé de ${check.maxRent!.toLocaleString("fr-FR")} € hors charges : baissez-le pour continuer.`
+        : supplementPossible
+          ? "Le loyer dépasse le plafond de la ville : décrivez les atouts du logement ou baissez le loyer."
+          : "Répondez aux questions sur le loyer avant de continuer.",
+    );
+  }
+  if (!rentRules) return {};
+  return {
+    ...answers,
+    // Loyer sous le plafond : pas de complément, l'ancien motif est retiré.
+    rentSupplementReason: check.supplement.needed ? answers.rentSupplementReason : null,
+    rentSupplementAmount: check.supplement.accepted ? check.supplement.amount : null,
+    rentSupplementAt: check.supplement.accepted ? new Date() : null,
+    rentSupplementByName: check.supplement.accepted ? "Propriétaire (espace client)" : null,
+  };
+}
+
+/**
+ * Paiement des frais de dossier (espace client) : vérifié auprès de Stripe avant de marquer le bail
+ * payé. Réglé, du bon montant, dans la bonne devise, créé pour cet utilisateur, et pas déjà utilisé pour
+ * un autre bail. Le rattachement au bail (attachPaymentToBail) se fait ensuite dans la transaction qui
+ * crée le bail : un même paiement ne peut pas servir deux fois, même avec deux requêtes simultanées.
+ */
+async function assertBailPayment(paymentIntentId: string, userId: string, draftBailId?: string) {
+  const paymentIntent = await verifyFeePayment(paymentIntentId, { amountCents: dossierFeeCents("HABITATION"), userId });
+  const used = await prisma.bail.findFirst({
+    where: { stripePaymentIntentId: paymentIntentId, ...(draftBailId ? { NOT: { id: draftBailId } } : {}) },
+    select: { id: true },
+  });
+  if (used) throw new Error("Ce paiement a déjà été utilisé.");
+  return paymentIntent;
+}
+
+/** Classe DPE saisie par le propriétaire pour un bien qui n'en avait pas (jamais écrasée). */
+async function fillPropertyDpe(propertyId: string, dpeClass: string | undefined) {
+  if (!dpeClass) return;
+  await prisma.property.updateMany({ where: { id: propertyId, dpeClass: null }, data: { dpeClass: dpeClass as EnergyClass } });
+}
+
+/** Bail en cours sur le bien : le propriétaire ne peut pas en préparer un autre (erreur explicite sinon). */
+async function assertNewBailAllowed(propertyId: string, excludeBailId?: string | null) {
+  const bails = await prisma.bail.findMany({
+    where: { propertyId },
+    select: { id: true, status: true, paidAt: true, endDate: true, effectiveDate: true, bailType: true },
+  });
+  const message = newBailBlockedMessage(newBailAvailability(bails, { excludeBailId }));
+  if (message) throw new Error(message);
+}
 
 export async function createLease(data: unknown, paymentIntentId?: string, draftBailId?: string) {
+  return guardAction(() => createLeaseUnguarded(data, paymentIntentId, draftBailId));
+}
+
+async function createLeaseUnguarded(data: unknown, paymentIntentId?: string, draftBailId?: string) {
   const user = await requireAuth();
   const validated = createLeaseSchema.parse(data);
+  // Seuls l'équipe et les propriétaires créent un bail.
+  if (!STAFF_ROLES.includes(user.role)) await requireProprietaireAuth();
+  // Date de prise d'effet passée refusée (sauf date déjà enregistrée sur le brouillon), avant tout autre effet.
+  const draft = draftBailId
+    ? await prisma.bail.findUnique({ where: { id: draftBailId }, select: { effectiveDate: true, paymentDay: true } })
+    : undefined;
+  assertEffectiveDateNotPast(validated.effectiveDate, draft === undefined ? undefined : draft?.effectiveDate ?? null);
+  assertPaymentDay(validated.paymentDay, draft?.paymentDay ?? null);
+  const paidIntent = paymentIntentId ? await assertBailPayment(paymentIntentId, user.id, draftBailId) : null;
 
   // Récupérer le propriétaire du bien
   const property = await prisma.property.findUnique({
@@ -37,6 +136,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         client.completionStatus !== CompletionStatus.COMPLETED) {
       throw new Error("Vous devez compléter vos informations personnelles et les soumettre à vérification avant de pouvoir créer un bail");
     }
+    await assertNewBailAllowed(property.id, draftBailId);
   }
 
   // Vérifier que le locataire existe (optionnel)
@@ -53,16 +153,22 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
   if (validated.tenantId && !tenant) {
     throw new Error("Locataire introuvable");
   }
-
-  // Valider le loyer selon les limitations de zone tendue
-  const rentValidation = await validateRentForProperty(validated.propertyId, validated.rentAmount);
-  if (!rentValidation.isValid && rentValidation.maxAllowed !== null) {
-    throw new Error(
-      `Le loyer de ${validated.rentAmount} € dépasse la limite autorisée de ${rentValidation.maxAllowed.toFixed(2)} € ` +
-      `(${rentValidation.maxRentPerM2?.toFixed(2)} €/m²). ` +
-      `Veuillez ajuster le loyer pour respecter la réglementation.`
-    );
+  // Le locataire choisi doit être un client locataire (pas le dossier d'un autre propriétaire).
+  if (tenant && tenant.profilType !== ProfilType.LOCATAIRE) {
+    throw new Error("Locataire introuvable");
   }
+
+  // Contrôle du loyer (plafond de l'arrêté, relocation en zone tendue) : vérifié avant le paiement
+  // dans le formulaire ; ici, les réponses sont enregistrées et la fiche admin bloque l'envoi au
+  // notaire si le loyer ne respecte pas les règles.
+  if (user.role === Role.UTILISATEUR) await fillPropertyDpe(property.id, validated.dpeClass);
+  const rentRulesData = await rentRulesColumns(
+    validated.propertyId,
+    { rentAmount: validated.rentAmount, bailType: validated.bailType, effectiveDate: validated.effectiveDate },
+    validated.rentRules,
+    validated.dpeClass,
+    user.role === Role.UTILISATEUR,
+  );
 
   // Mapper leaseType vers bailFamily
   const bailFamilyMap: Record<string, BailFamille> = {
@@ -103,10 +209,10 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
           monthlyCharges: validated.monthlyCharges,
           securityDeposit: validated.securityDeposit,
           effectiveDate: validated.effectiveDate,
-          endDate: validated.endDate || null,
+          // Date de fin : celle calculée par l'écran, sinon recalculée (type de bail + date de début) ; aucune sans date de début.
+          endDate: validated.effectiveDate ? validated.endDate || computeBailEndDate(validated.effectiveDate, validated.bailType) : null,
           paymentDay: validated.paymentDay || null,
-          stripePaymentIntentId: paymentIntentId || null,
-          paidAt: paymentIntentId ? new Date() : null,
+          ...rentRulesData,
           parties: { set: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
           updatedById: user.id,
         },
@@ -121,14 +227,9 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         createdAt: updatedBail.createdAt,
       }, tx);
 
-      if (paymentIntentId) {
-        await createBailAuditLog({
-          bailId: updatedBail.id,
-          eventType: BailAuditEventType.PAYMENT_RECEIVED,
-          actorId: user.id,
-          actorName,
-          createdAt: updatedBail.paidAt || undefined,
-        }, tx);
+      // Paiement rattaché à ce bail et bail marqué payé, une seule fois (avec sa ligne d'historique).
+      if (paidIntent) {
+        await attachPaymentToBail(tx, { intent: paidIntent, bailId: updatedBail.id, link: { userId: user.id }, actor: { id: user.id, name: actorName } });
       }
 
       if (validated.tenantId) {
@@ -142,7 +243,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         }, tx);
       }
 
-      return updatedBail;
+      return paidIntent ? tx.bail.findUniqueOrThrow({ where: { id: updatedBail.id }, include: bailInclude }) : updatedBail;
     });
   } else {
     bail = await prisma.$transaction(async (tx) => {
@@ -155,11 +256,11 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
           monthlyCharges: validated.monthlyCharges,
           securityDeposit: validated.securityDeposit,
           effectiveDate: validated.effectiveDate,
-          endDate: validated.endDate || null,
+          // Date de fin : celle calculée par l'écran, sinon recalculée (type de bail + date de début) ; aucune sans date de début.
+          endDate: validated.effectiveDate ? validated.endDate || computeBailEndDate(validated.effectiveDate, validated.bailType) : null,
           paymentDay: validated.paymentDay || null,
+          ...rentRulesData,
           propertyId: validated.propertyId,
-          stripePaymentIntentId: paymentIntentId || null,
-          paidAt: paymentIntentId ? new Date() : null,
           parties: { connect: validated.tenantId ? [{ id: property.ownerId }, { id: validated.tenantId }] : [{ id: property.ownerId }] },
           createdById: user.id,
         },
@@ -174,14 +275,8 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         createdAt: createdBail.createdAt,
       }, tx);
 
-      if (paymentIntentId) {
-        await createBailAuditLog({
-          bailId: createdBail.id,
-          eventType: BailAuditEventType.PAYMENT_RECEIVED,
-          actorId: user.id,
-          actorName,
-          createdAt: createdBail.paidAt || undefined,
-        }, tx);
+      if (paidIntent) {
+        await attachPaymentToBail(tx, { intent: paidIntent, bailId: createdBail.id, link: { userId: user.id }, actor: { id: user.id, name: actorName } });
       }
 
       if (validated.tenantId) {
@@ -195,7 +290,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
         }, tx);
       }
 
-      return createdBail;
+      return paidIntent ? tx.bail.findUniqueOrThrow({ where: { id: createdBail.id }, include: bailInclude }) : createdBail;
     });
   }
 
@@ -262,7 +357,7 @@ export async function createLease(data: unknown, paymentIntentId?: string, draft
 }
 
 export async function updateLease(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = updateLeaseSchema.parse(data);
   const { id, tenantId, leaseType, bailType: validatedBailType, ...updateData } = validated;
   // bailType est géré séparément car il n'est pas dans updateData spread
@@ -276,20 +371,14 @@ export async function updateLease(data: unknown) {
   if (!bail) {
     throw new Error("Bail introuvable");
   }
+  if (updateData.effectiveDate) assertEffectiveDateNotPast(updateData.effectiveDate, bail.effectiveDate);
+  assertPaymentDay(updateData.paymentDay, bail.paymentDay);
 
   const propertyId = updateData.propertyId || bail.propertyId;
 
-  // Valider le loyer si il est modifié
-  if (updateData.rentAmount !== undefined) {
-    const rentValidation = await validateRentForProperty(propertyId, updateData.rentAmount);
-    if (!rentValidation.isValid && rentValidation.maxAllowed !== null) {
-      throw new Error(
-        `Le loyer de ${updateData.rentAmount} € dépasse la limite autorisée de ${rentValidation.maxAllowed.toFixed(2)} € ` +
-        `(${rentValidation.maxRentPerM2?.toFixed(2)} €/m²). ` +
-        `Veuillez ajuster le loyer pour respecter la réglementation.`
-      );
-    }
-  }
+  // Plafond de loyer : contrôlé par le moteur commun (lib/rent-rules), affiché sur la fiche du dossier et
+  // bloquant à l'envoi au notaire. L'ancien contrôle (table RentControl, jamais alimentée) est retiré : il ne
+  // vérifiait rien et laissait croire à une conformité.
 
   const updatePayload: any = {
     updatedById: user.id,
@@ -356,6 +445,7 @@ export async function updateLease(data: unknown) {
   const newStatus = updatePayload.status || oldBail?.status;
 
   const updatedBail = await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, id);
     const bail = await tx.bail.update({
       where: { id },
       data: updatePayload,
@@ -364,6 +454,8 @@ export async function updateLease(data: unknown) {
         parties: true,
       },
     });
+    // Conditions confirmées par le locataire modifiées, ou locataire remplacé : accord archivé, à redemander.
+    await settleTenantAgreement(tx, id, agreement, { id: user.id, name: getActorName(user) });
 
     if (oldStatus && newStatus && oldStatus !== newStatus) {
       await createBailAuditLog({
@@ -442,7 +534,7 @@ export async function transitionLease(data: unknown) {
 }
 
 export async function deleteLease(id: string): Promise<{ success: true } | { success: false; error: string; blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }> }> {
-  const user = await requireAuth();
+  const user = await requireStaff();
   
   // Récupérer le bail avec toutes ses relations
   const bail = await prisma.bail.findUnique({ 
@@ -530,12 +622,12 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
 
   // Supprimer tous les fichiers AWS S3
   if (allDocumentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    const { deleteBlobFiles } = await import("@/lib/document-storage");
     await deleteBlobFiles(allDocumentFileKeys);
   }
 
   // Supprimer les documents du bail et des messages
-  const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+  const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
   await deleteDocumentsFromDB({ bailId: id });
 
   // Supprimer les messages du bail (les documents associés sont déjà supprimés)
@@ -587,7 +679,7 @@ export async function deleteLease(id: string): Promise<{ success: true } | { suc
 }
 
 export async function getLease(id: string) {
-  await requireAuth();
+  await requireStaff();
   return prisma.bail.findUnique({
     where: { id },
     include: {
@@ -625,11 +717,27 @@ export async function getLease(id: string) {
           },
         },
       },
+      commercialTerms: true,
+      // Ancien paiement à vérifier ou confirmé à la main par l'équipe
+      historicalPayment: true,
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
       documents: true,
     },
   });
+}
+
+/** Filtre « Notaire » de la liste : « none » = non assigné, sinon l'id du notaire. */
+function notaireWhere(notaire?: string) {
+  if (!notaire) return {};
+  if (notaire === "none") return { dossierAssignments: { none: {} } };
+  return { dossierAssignments: { some: { notaireId: notaire } } };
+}
+
+/** Filtre « Type de bail » de la liste : habitation ou commercial. */
+function familyWhere(family?: string) {
+  if (family === BailFamille.HABITATION || family === BailFamille.COMMERCIAL) return { bailFamily: family };
+  return {};
 }
 
 export async function getLeases(params: {
@@ -640,10 +748,13 @@ export async function getLeases(params: {
   propertyId?: string;
   tenantId?: string;
   payment?: "paid" | "unpaid";
+  sort?: "recent" | "attente";
+  notaire?: string;
+  family?: string;
 }) {
-  await requireAuth();
+  await requireStaff();
 
-  const where: any = {};
+  const where: any = { ...notaireWhere(params.notaire), ...familyWhere(params.family) };
 
   if (params.status) {
     // Gérer plusieurs statuts (tableau ou chaîne séparée par des virgules)
@@ -668,10 +779,11 @@ export async function getLeases(params: {
     };
   }
 
+  // « Payé » = confirmé par Stripe, ou ancien paiement confirmé à la main par l'équipe (règle commune).
   if (params.payment === "paid") {
-    where.paidAt = { not: null };
+    where.AND = [...(where.AND ?? []), PAID_WHERE];
   } else if (params.payment === "unpaid") {
-    where.paidAt = null;
+    where.AND = [...(where.AND ?? []), UNPAID_WHERE];
   }
 
   if (params.search) {
@@ -724,18 +836,30 @@ export async function getLeases(params: {
                 email: true,
               },
             },
+            // Demandes du notaire encore en attente (prochaine action)
+            _count: { select: { requests: { where: { status: "PENDING" } } } },
           },
         },
+        // Dernière activité du dossier (calcul de l'attente)
+        auditLogs: {
+          select: { createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        // Ancien paiement confirmé à la main (pastille « Payés » sans date Stripe)
+        historicalPayment: HISTORICAL_PAYMENT_SELECT,
       },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { createdAt: "desc" },
+      // « attente » : les dossiers sans évolution depuis le plus longtemps d'abord
+      orderBy: params.sort === "attente" ? { updatedAt: "asc" } : { createdAt: "desc" },
     }),
     prisma.bail.count({ where }),
   ]);
 
-  // Sérialiser les données pour éviter les problèmes de sérialisation
-  const serializedData = JSON.parse(JSON.stringify(data));
+  // Sérialiser les données pour éviter les problèmes de sérialisation.
+  // « paid » : état de paiement selon la règle commune (sert à la pastille et à la teinte des lignes).
+  const serializedData = JSON.parse(JSON.stringify(data.map((bail) => ({ ...bail, paid: isBailPaid(bail) ? paymentKind(bail) : null }))));
 
   return {
     data: serializedData,
@@ -746,15 +870,51 @@ export async function getLeases(params: {
   };
 }
 
+/**
+ * Nombre de dossiers par statut, avec les mêmes filtres de recherche et de
+ * paiement que la liste (le filtre de statut est volontairement ignoré : les
+ * onglets d'étape s'en servent pour afficher leurs propres compteurs).
+ */
+export async function getLeaseStatusCounts(params: {
+  search?: string;
+  payment?: "paid" | "unpaid";
+  notaire?: string;
+  family?: string;
+}): Promise<Record<string, number>> {
+  await requireStaff();
+
+  const where: any = { ...notaireWhere(params.notaire), ...familyWhere(params.family) };
+  if (params.payment === "paid") where.AND = [PAID_WHERE];
+  else if (params.payment === "unpaid") where.AND = [UNPAID_WHERE];
+  if (params.search) {
+    where.OR = [
+      { property: { fullAddress: { contains: params.search, mode: "insensitive" } } },
+      { parties: { some: { persons: { some: { firstName: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { persons: { some: { lastName: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { persons: { some: { email: { contains: params.search, mode: "insensitive" } } } } } },
+      { parties: { some: { entreprise: { legalName: { contains: params.search, mode: "insensitive" } } } } },
+      { parties: { some: { entreprise: { name: { contains: params.search, mode: "insensitive" } } } } },
+      { parties: { some: { entreprise: { email: { contains: params.search, mode: "insensitive" } } } } },
+    ];
+  }
+
+  const groups = await prisma.bail.groupBy({ by: ["status"], where, _count: { _all: true } });
+  const counts: Record<string, number> = {};
+  for (const g of groups) counts[g.status] = g._count._all;
+  return counts;
+}
+
 export async function getLeasePaymentCounts(params: {
   search?: string;
   status?: string | string[];
   propertyId?: string;
   tenantId?: string;
+  notaire?: string;
+  family?: string;
 }) {
-  await requireAuth();
+  await requireStaff();
 
-  const baseWhere: any = {};
+  const baseWhere: any = { ...notaireWhere(params.notaire), ...familyWhere(params.family) };
 
   if (params.status) {
     const statuses = Array.isArray(params.status)
@@ -792,8 +952,8 @@ export async function getLeasePaymentCounts(params: {
 
   const [total, unpaid, paid] = await Promise.all([
     prisma.bail.count({ where: baseWhere }),
-    prisma.bail.count({ where: { ...baseWhere, paidAt: null } }),
-    prisma.bail.count({ where: { ...baseWhere, paidAt: { not: null } } }),
+    prisma.bail.count({ where: { AND: [baseWhere, UNPAID_WHERE] } }),
+    prisma.bail.count({ where: { AND: [baseWhere, PAID_WHERE] } }),
   ]);
 
   return { total, unpaid, paid };
@@ -801,7 +961,7 @@ export async function getLeasePaymentCounts(params: {
 
 // Obtenir tous les baux (pour filtrage côté client)
 export async function getAllBails() {
-  await requireAuth();
+  await requireStaff();
 
   const data = await prisma.bail.findMany({
     include: {
@@ -843,6 +1003,10 @@ const createTenantForLeaseSchema = z.object({
     .max(100, "L'email est trop long")
     .toLowerCase()
     .trim(),
+  // Date de prise d'effet et jour de paiement : à fournir ici si le bail ne les a pas encore (ils se
+  // demandent avec le locataire, dans le même parcours).
+  effectiveDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide"), z.literal("")]).optional(),
+  paymentDay: z.union([z.number().int().min(1).max(31), z.string().regex(/^\d{1,2}$/, PAYMENT_DAY_INVALID), z.literal("")]).optional(),
 });
 
 // Schéma pour créer un locataire depuis un email (sans bailId)
@@ -854,8 +1018,28 @@ const createTenantFromEmailSchema = z.object({
     .trim(),
 });
 
-// Créer un locataire pour un bail existant (avec juste l'email)
+/**
+ * Ce que l'écran « Ajouter un locataire » doit demander : la date de prise d'effet et le jour de paiement
+ * déjà enregistrés sur le bail, ou vides s'ils restent à saisir.
+ */
+export async function getBailTenantDates(bailId: string): Promise<{ effectiveDate: string | null; paymentDay: number | null; needed: boolean }> {
+  await requireAuth();
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    select: { effectiveDate: true, paymentDay: true, createdAt: true, status: true, property: { select: { ownerId: true } } },
+  });
+  if (!bail) throw new Error("Bail introuvable");
+  await requireClientAccess(bail.property.ownerId);
+  const effectiveDate = effectiveDateGiven(bail) && bail.effectiveDate ? bail.effectiveDate.toISOString().slice(0, 10) : null;
+  return { effectiveDate, paymentDay: bail.paymentDay, needed: missingTenantDates({ effectiveDate, paymentDay: bail.paymentDay }).length > 0 };
+}
+
+// Créer un locataire pour un bail existant (e-mail, et date d'effet + jour de paiement s'ils manquent)
 export async function createTenantForLease(data: unknown) {
+  return guardAction(() => createTenantForLeaseUnguarded(data));
+}
+
+async function createTenantForLeaseUnguarded(data: unknown) {
   const user = await requireAuth();
   const validated = createTenantForLeaseSchema.parse(data);
 
@@ -865,12 +1049,15 @@ export async function createTenantForLease(data: unknown) {
     include: {
       property: true,
       parties: true,
+      commercialTerms: { select: { derogatoryMonths: true } },
     },
   });
 
   if (!bail) {
     throw new Error("Bail introuvable");
   }
+  // Seulement le propriétaire du bien (ou l'équipe).
+  await requireClientAccess(bail.property.ownerId);
 
   // Vérifier s'il y a déjà un locataire connecté au bail
   const existingTenant = bail.parties.find(
@@ -880,6 +1067,18 @@ export async function createTenantForLease(data: unknown) {
   if (existingTenant) {
     throw new Error("Un locataire est déjà connecté à ce bail");
   }
+
+  // Avec un locataire, la date de prise d'effet et le jour de paiement sont exigés : ceux du bail s'ils
+  // existent déjà, sinon ceux fournis ici. Vérifié avant de créer quoi que ce soit.
+  const givenDate = validated.effectiveDate ? new Date(`${validated.effectiveDate}T00:00:00.000Z`) : null;
+  const tenantEffectiveDate = givenDate ?? (effectiveDateGiven(bail) ? bail.effectiveDate : null);
+  const givenDay = validated.paymentDay === "" || validated.paymentDay === undefined ? null : Number(validated.paymentDay);
+  const tenantPaymentDay = givenDay ?? bail.paymentDay ?? null;
+  if (missingTenantDates({ effectiveDate: tenantEffectiveDate, paymentDay: tenantPaymentDay }).length > 0) {
+    throw new Error(DATES_REQUIRED_WITH_TENANT);
+  }
+  assertEffectiveDateNotPast(tenantEffectiveDate, bail.effectiveDate);
+  assertPaymentDay(givenDay, bail.paymentDay);
 
   // Chercher une personne existante avec cet email (toutes profils confondus)
   const existingPerson = await prisma.person.findUnique({
@@ -926,11 +1125,17 @@ export async function createTenantForLease(data: unknown) {
     );
   }
 
-  // Connecter le locataire au bail + passer à PENDING_VALIDATION si en attente de locataire
+  // Connecter le locataire au bail + passer à PENDING_VALIDATION si en attente de locataire.
+  // La date de prise d'effet et le jour de paiement sont enregistrés dans la même écriture.
   await prisma.bail.update({
     where: { id: validated.bailId },
     data: {
       parties: { connect: { id: tenant.id } },
+      effectiveDate: tenantEffectiveDate,
+      paymentDay: tenantPaymentDay,
+      // Date de fin : calculée d'après le type de bail et la date de prise d'effet, comme à la création
+      // (une date de fin déjà enregistrée n'est pas remplacée).
+      ...(bail.endDate ? {} : { endDate: computeBailEndDate(tenantEffectiveDate, bail.bailType, bail.commercialTerms?.derogatoryMonths ?? null) }),
       ...(bail.status === BailStatus.AWAITING_TENANT && { status: BailStatus.AWAITING_TENANT_FORM }),
     },
   });
@@ -1004,6 +1209,8 @@ export async function createTenantForLease(data: unknown) {
 // Créer un locataire depuis un email (sans bailId) - pour utilisation lors de la création de bail
 export async function createTenantFromEmail(data: unknown) {
   const user = await requireAuth();
+  // Réservé à l'équipe et aux propriétaires (un locataire ou un notaire ne crée pas de locataire).
+  if (!STAFF_ROLES.includes(user.role)) await requireProprietaireAuth();
   const validated = createTenantFromEmailSchema.parse(data);
 
   // Chercher un locataire existant avec cet email dans ses persons
@@ -1059,6 +1266,8 @@ export async function createTenantFromEmail(data: unknown) {
 
 // Récupérer les locataires qui étaient en commun dans un bail avec un propriétaire
 export async function getCommonTenantsForOwner(ownerId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(ownerId);
   await requireAuth();
 
   // Récupérer tous les baux où ce propriétaire est partie
@@ -1150,7 +1359,7 @@ export interface BailCompleteMissingData {
 
 // Fonction pour récupérer toutes les données manquantes d'un bail
 export async function getBailMissingData(bailId: string): Promise<BailCompleteMissingData | null> {
-  await requireAuth();
+  await requireStaff();
   
   const { checkClientCompletionDetailed, checkPropertyCompletion } = await import("@/lib/utils/completion-status");
   
@@ -1170,6 +1379,7 @@ export async function getBailMissingData(bailId: string): Promise<BailCompleteMi
             entreprise: true,
           },
         },
+        commercialTerms: { select: { previouslyLet: true } },
       },
     });
 
@@ -1313,6 +1523,23 @@ export async function getBailMissingData(bailId: string): Promise<BailCompleteMi
     let propertyMissingData: BailMissingDataProperty | null = null;
     if (bail.property) {
       const propertyCompletion = await checkPropertyCompletion(bail.property.id);
+
+      // Pièces propres à ce bail : bail commercial (règlement du centre…) ou déclaration
+      // d'occupation dans une ville à loyers encadrés.
+      const occupancyDeclarationRequired =
+        bail.bailFamily !== BailFamille.COMMERCIAL &&
+        requiresOccupancyDeclaration(await assessRentCap({ property: bail.property, bail }));
+      const propertyKinds = new Set<string>(bail.property.documents.map((doc) => doc.kind));
+      for (const rule of getBailDocumentRules({
+        bailFamily: bail.bailFamily,
+        property: bail.property,
+        previouslyLet: bail.commercialTerms?.previouslyLet,
+        occupancyDeclarationRequired,
+      })) {
+        if (rule.required && rule.target === "property" && !propertyKinds.has(rule.kind) && !propertyCompletion.missingDocuments.includes(rule.kind as any)) {
+          propertyCompletion.missingDocuments.push(rule.kind as any);
+        }
+      }
       
       propertyMissingData = {
         propertyId: bail.property.id,
@@ -1368,6 +1595,8 @@ export async function saveBailDraft(data: {
   effectiveDate?: string;
   endDate?: string;
   paymentDay?: string;
+  rentRules?: Partial<RentRulesFormValues>;
+  dpeClass?: string;
 }) {
   const { client } = await requireProprietaireAuth();
 
@@ -1378,14 +1607,30 @@ export async function saveBailDraft(data: {
   if (!property || property.ownerId !== client.id) {
     throw new Error("Bien introuvable ou accès refusé");
   }
+  // Le locataire choisi doit être un client locataire (pas le dossier d'un autre propriétaire).
+  if (data.tenantId) {
+    const tenant = await prisma.client.findUnique({ where: { id: data.tenantId }, select: { profilType: true } });
+    if (!tenant || tenant.profilType !== ProfilType.LOCATAIRE) throw new Error("Locataire introuvable");
+  }
 
   const rentAmount = data.rentAmount ? (parseInt(data.rentAmount, 10) || 0) : 0;
   const monthlyCharges = data.monthlyCharges ? (parseInt(data.monthlyCharges, 10) || 0) : 0;
   const securityDeposit = data.securityDeposit ? (parseInt(data.securityDeposit, 10) || 0) : 0;
-  const effectiveDate = data.effectiveDate ? new Date(data.effectiveDate) : new Date();
+  // Sans date saisie, la date d'effet reste vide (jamais la date du jour).
+  const effectiveDate = data.effectiveDate ? new Date(data.effectiveDate) : null;
+  const draft = data.draftBailId
+    ? await prisma.bail.findUnique({ where: { id: data.draftBailId }, select: { effectiveDate: true, paymentDay: true } })
+    : undefined;
+  assertEffectiveDateNotPast(effectiveDate, draft === undefined ? undefined : draft?.effectiveDate ?? null);
+  assertPaymentDay(data.paymentDay, draft?.paymentDay ?? null);
   const endDate = data.endDate ? new Date(data.endDate) : null;
   const paymentDay = data.paymentDay ? (parseInt(data.paymentDay, 10) || null) : null;
   const bailType = (data.bailType as BailType) || BailType.BAIL_NU_3_ANS;
+  if (data.dpeClass && (Object.values(EnergyClass) as string[]).includes(data.dpeClass)) {
+    await fillPropertyDpe(data.propertyId, data.dpeClass);
+  }
+  // Réponses du contrôle du loyer, enregistrées telles quelles (le complément se chiffre à la création).
+  const rentRulesData = data.rentRules ? rentRulesFromForm(data.rentRules) : {};
 
   if (data.draftBailId) {
     // Vérifier que le brouillon appartient bien au client et n'est pas payé
@@ -1411,6 +1656,7 @@ export async function saveBailDraft(data: {
         effectiveDate,
         endDate,
         paymentDay,
+        ...rentRulesData,
         parties: { set: tenantConnects },
       },
     });
@@ -1418,6 +1664,8 @@ export async function saveBailDraft(data: {
     revalidatePath("/client/proprietaire");
     return { bailId: data.draftBailId };
   }
+
+  await assertNewBailAllowed(data.propertyId);
 
   // Créer un nouveau brouillon
   const bail = await prisma.bail.create({
@@ -1431,6 +1679,7 @@ export async function saveBailDraft(data: {
       effectiveDate,
       endDate,
       paymentDay,
+      ...rentRulesData,
       propertyId: data.propertyId,
       parties: {
         connect: data.tenantId
@@ -1461,6 +1710,8 @@ export async function deleteBailDraft(bailId: string) {
 }
 
 export async function getClientBailDrafts(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const drafts = await prisma.bail.findMany({
     where: {
       status: BailStatus.DRAFT,
@@ -1499,11 +1750,13 @@ export async function getClientBailDrafts(clientId: string) {
     ...d,
     createdAt: d.createdAt.toISOString(),
     updatedAt: d.updatedAt.toISOString(),
-    effectiveDate: d.effectiveDate.toISOString(),
+    effectiveDate: d.effectiveDate ? d.effectiveDate.toISOString() : null,
   }));
 }
 
 export async function getDraftBailForClient(bailId: string, clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
     include: {
@@ -1524,17 +1777,23 @@ export async function getDraftBailForClient(bailId: string, clientId: string) {
   }
 
   const tenant = bail.parties.find((p) => p.profilType === "LOCATAIRE");
+  // Sans loyer, l'étape « Détails du bail » n'a pas été remplie. Les anciens brouillons portaient une
+  // date d'effet provisoire (le jour de leur création) : sans jour de paiement et avec cette date-là,
+  // l'étape des dates n'a pas été remplie non plus. On ne les présente pas comme des saisies.
+  const rentSaved = bail.rentAmount > 0;
+  const datesSaved = effectiveDateGiven(bail);
 
   return {
     id: bail.id,
     bailType: bail.bailType,
     rentAmount: bail.rentAmount,
-    monthlyCharges: bail.monthlyCharges,
-    securityDeposit: bail.securityDeposit,
-    effectiveDate: bail.effectiveDate.toISOString().split("T")[0],
+    monthlyCharges: rentSaved ? bail.monthlyCharges : null,
+    securityDeposit: rentSaved ? bail.securityDeposit : null,
+    effectiveDate: datesSaved && bail.effectiveDate ? bail.effectiveDate.toISOString().split("T")[0] : null,
     endDate: null,
     paymentDay: bail.paymentDay,
     propertyId: bail.property.id,
     tenantId: tenant?.id ?? null,
+    rentRules: rentRulesToForm(bail),
   };
 }

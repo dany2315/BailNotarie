@@ -4,6 +4,7 @@ import { getCommonTenantsForOwner, getDraftBailForClient } from "@/lib/actions/l
 import { CreateBailPageClient } from "@/components/client/create-bail-page-client";
 import { prisma } from "@/lib/prisma";
 import { ClientType } from "@prisma/client";
+import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -37,6 +38,8 @@ export default async function CreateBailPage({
         id: b.id,
         label: b.label,
         fullAddress: b.fullAddress ?? null,
+        // Bail en cours : nouveau bail impossible (le brouillon repris ne compte pas).
+        blockedMessage: newBailBlockedMessage(newBailAvailability(b.bails, { excludeBailId: draftBail?.id })),
       }))}
       locataires={locataires || []}
       ownerId={client.id}

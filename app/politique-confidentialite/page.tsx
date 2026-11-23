@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 
 export const metadata: Metadata = {
@@ -14,9 +14,10 @@ export const metadata: Metadata = {
 export default function PolitiqueConfidentialitePage() {
   return (
     <main className="min-h-screen bg-gray-50">
-      <Header />
-
-      <section className="bg-white py-16">
+      {/* La barre flotte sur la section, qui commence donc en haut de
+          l'écran et dégage elle-même sa hauteur. */}
+      <section className="bg-white pb-16 pt-nav">
+        <LpNav overlay />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="prose prose-lg max-w-none">
 
@@ -145,10 +146,55 @@ export default function PolitiqueConfidentialitePage() {
                   <li>Vercel (hébergement du site – région Paris)</li>
                   <li>Neon (base de données – région Francfort)</li>
                   <li>AWS S3 (stockage sécurisé des documents – région Paris)</li>
+                  <li>OpenAI (analyse automatisée de certains documents – États-Unis)</li>
                 </ul>
 
                 <p className="mt-4">
                   Les données sont hébergées principalement dans l'Union européenne.
+                </p>
+
+                <h3 className="mt-6 mb-2 text-lg font-semibold text-gray-900">
+                  Analyse automatisée des documents
+                </h3>
+
+                <p className="mb-4">
+                  Pour contrôler plus rapidement certains documents déposés dans votre dossier,
+                  notamment les diagnostics immobiliers (DPE, état des risques, amiante…),
+                  BailNotarie peut les faire lire par un service d'intelligence artificielle
+                  fourni par OpenAI. Seul le document concerné est transmis, dans le seul but
+                  d'en extraire les informations utiles au contrôle du dossier (classe
+                  énergétique, dates de validité, adresse du bien…). Le résultat est toujours
+                  vérifié par un membre de notre équipe : aucune décision n'est prise sur la
+                  seule base de cette analyse.
+                </p>
+
+                <p className="mb-4">
+                  OpenAI agit en qualité de sous-traitant, dans le cadre d'un contrat de
+                  traitement des données conforme à l'article 28 du RGPD. Les documents
+                  transmis ne sont pas utilisés pour entraîner ses modèles et ne sont
+                  conservés par OpenAI que 30 jours au maximum, sauf obligation légale. Ces
+                  données pouvant être traitées aux États-Unis, ce transfert est encadré par
+                  les clauses contractuelles types adoptées par la Commission européenne.
+                </p>
+
+                <p>
+                  Vous pouvez vous opposer à cette analyse automatisée en nous écrivant à
+                  contact@bailnotarie.fr : vos documents seront alors contrôlés uniquement par
+                  notre équipe.
+                </p>
+              </section>
+
+              <section id="mesure-audience">
+                <h3 className="mt-2 mb-2 text-lg font-semibold text-gray-900">
+                  Mesure d&apos;audience et cookies
+                </h3>
+                <p>
+                  Avec votre accord seulement, le site public utilise Google Analytics pour mesurer son audience (pages
+                  vues, provenance des visites). Sans accord, rien n&apos;est chargé. Aucune mesure n&apos;a lieu dans
+                  votre espace client, dans l&apos;espace notaire ni dans les formulaires de votre dossier. Vous pouvez
+                  changer votre choix à tout moment avec le lien « Gérer les cookies » en bas de page ; il est
+                  conservé 6 mois, après quoi nous vous le redemandons. La mesure
+                  d&apos;audience de notre hébergeur (Vercel) fonctionne sans cookie.
                 </p>
               </section>
 

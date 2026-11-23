@@ -1,7 +1,8 @@
 "use server";
 
+import { isBailPaidById } from "@/lib/payments/paid-check";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireProprietaireAuth } from "@/lib/auth-helpers";
+import { requireAuth, requireProprietaireAuth, requireStaff, requireClientAccess, STAFF_ROLES } from "@/lib/auth-helpers";
 import { createPropertySchema, updatePropertySchema } from "@/lib/zod/property";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -10,6 +11,7 @@ import { updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus } fr
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
+import { ensurePropertyGeocoded } from "@/lib/geocode";
 
 /**
  * Fonction helper récursive pour sérialiser les Decimal de Prisma
@@ -72,6 +74,13 @@ function serializeDecimal(obj: any): any {
   return obj;
 }
 
+/** Bien enregistré sans localisation : localisé à partir de son adresse, puis zone tendue mise à jour. */
+async function locateProperty(propertyId: string) {
+  await ensurePropertyGeocoded(propertyId);
+  const located = await prisma.property.findUnique({ where: { id: propertyId }, select: { inseeCode: true, type: true } });
+  if (located?.inseeCode && located.type) await updatePropertyZoneStatus(propertyId, located.inseeCode, located.type);
+}
+
 export async function createProperty(data: unknown) {
   const user = await requireAuth();
   const validated = createPropertySchema.parse(data);
@@ -116,6 +125,8 @@ export async function createProperty(data: unknown) {
   // Vérifier et mettre à jour les indicateurs de zone tendue
   if (validated.inseeCode && validated.type) {
     await updatePropertyZoneStatus(property.id, validated.inseeCode, validated.type);
+  } else {
+    await locateProperty(property.id);
   }
 
   // Mettre à jour le statut de complétion
@@ -128,6 +139,12 @@ export async function createProperty(data: unknown) {
     DocumentKind.REGLEMENT_COPROPRIETE,
     DocumentKind.CAHIER_DE_CHARGE_LOTISSEMENT,
     DocumentKind.STATUT_DE_LASSOCIATION_SYNDICALE,
+    DocumentKind.OCCUPANCY_DECLARATION,
+    DocumentKind.GENERAL_ASSEMBLY_MINUTES,
+    DocumentKind.SHOPPING_CENTER_RULES,
+    DocumentKind.PREMISES_PLANS,
+    DocumentKind.OPERAT_CERTIFICATE,
+    DocumentKind.ENVIRONMENTAL_APPENDIX,
   ];
   await prisma.document.updateMany({
     where: {
@@ -155,7 +172,7 @@ export async function createProperty(data: unknown) {
 }
 
 export async function updateProperty(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = updatePropertySchema.parse(data);
   const { id, ...updateData } = validated;
 
@@ -231,6 +248,8 @@ export async function updateProperty(data: unknown) {
     }
   }
 
+  if (!property.inseeCode) await locateProperty(id);
+
   // Mettre à jour le statut de complétion
   await calculateAndUpdatePropertyStatus(id);
 
@@ -242,7 +261,7 @@ export async function updateProperty(data: unknown) {
 }
 
 export async function deleteProperty(id: string): Promise<{ success: true } | { success: false; error: string; blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }> }> {
-  const user = await requireAuth();
+  const user = await requireStaff();
   
   // Récupérer le bien avec toutes ses relations
   const property = await prisma.property.findUnique({ 
@@ -313,12 +332,12 @@ export async function deleteProperty(id: string): Promise<{ success: true } | { 
   // Supprimer les documents et leurs fichiers blob
   const documentFileKeys = property.documents.map(doc => doc.fileKey);
   if (documentFileKeys.length > 0) {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
+    const { deleteBlobFiles } = await import("@/lib/document-storage");
     await deleteBlobFiles(documentFileKeys);
   }
 
   // Supprimer les documents du bien
-  const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+  const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
   await deleteDocumentsFromDB({ propertyId: id });
 
   // Remettre l'IntakeLink du propriétaire en PENDING s'il était en SUBMITTED
@@ -367,7 +386,7 @@ export async function deleteProperty(id: string): Promise<{ success: true } | { 
 }
 
 export async function getAllProperties() {
-  await requireAuth();
+  await requireStaff();
   return prisma.property.findMany({
     include: {
       owner: {
@@ -384,7 +403,13 @@ export async function getAllProperties() {
 }
 
 export async function getProperty(id: string) {
-  await requireAuth();
+  const user = await requireAuth();
+  // Hors équipe : seulement le propriétaire du bien.
+  if (!STAFF_ROLES.includes(user.role)) {
+    const owner = await prisma.property.findUnique({ where: { id }, select: { ownerId: true } });
+    if (!owner) return null;
+    await requireClientAccess(owner.ownerId);
+  }
   return prisma.property.findUnique({
     where: { id },
     include: {
@@ -422,7 +447,7 @@ export async function getProperties(params: {
   status?: string;
   ownerId?: string;
 }) {
-  await requireAuth();
+  await requireStaff();
 
   const where: any = {};
 
@@ -474,9 +499,14 @@ export async function getProperties(params: {
 }
 
 // Mettre à jour le statut de complétion d'un bien
-export async function updatePropertyCompletionStatus(data: { id: string; completionStatus: CompletionStatus }) {
-  const user = await requireAuth();
-  const { id, completionStatus } = data;
+export async function updatePropertyCompletionStatus(data: {
+  id: string;
+  completionStatus: CompletionStatus;
+  /** false : pas d'e-mail au propriétaire (il en reçoit déjà un pour la même validation, ex. envoi au notaire). */
+  notify?: boolean;
+}) {
+  const user = await requireStaff();
+  const { id, completionStatus, notify = true } = data;
 
   // Récupérer l'ancien statut et le propriétaire
   const property = await prisma.property.findUnique({
@@ -508,7 +538,7 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
   });
 
   // Envoyer un email de notification au propriétaire si le statut a changé (asynchrone)
-  if (oldStatus !== completionStatus && property.ownerId) {
+  if (notify && oldStatus !== completionStatus && property.ownerId) {
     const { getClientEmailAndName } = await import("../utils/client-email");
     const { triggerCompletionStatusEmail } = await import("../inngest/helpers");
     
@@ -526,6 +556,7 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
           clientName: name,
           entityType: "property",
           entityName: propertyName,
+          propertyId: id,
           oldStatus,
           newStatus: completionStatus,
           dashboardUrl: `${baseUrl}${dashboardPath}`,
@@ -568,11 +599,14 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
       tenant.completionStatus === "PENDING_CHECK" && 
       completionStatus === "PENDING_CHECK";
 
+    // Un dossier non payé ne passe pas tout seul à « prêt pour notaire » (règle commune « payé »).
     if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION")) {
-      await prisma.bail.update({
-        where: { id: bail.id },
-        data: { status: "READY_FOR_NOTARY" }
-      });
+      if (await isBailPaidById(bail.id)) {
+        await prisma.bail.update({
+          where: { id: bail.id },
+          data: { status: "READY_FOR_NOTARY" }
+        });
+      }
     } else if (allPendingCheck && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM")) {
       await prisma.bail.update({
         where: { id: bail.id },

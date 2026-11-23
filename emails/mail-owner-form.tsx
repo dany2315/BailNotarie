@@ -1,18 +1,5 @@
-import { 
-  Html, 
-  Head, 
-  Body, 
-  Container, 
-  Section, 
-  Heading, 
-  Text, 
-  Button, 
-  Hr,
-  Img,
-  Link
-} from "@react-email/components";
 import * as React from "react";
-import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
+import { EmailLayout, Kicker, Title, Lead, Steps, InfoCard, Actions, Hint, Trust, Sign } from "./_shared/layout";
 
 interface MailOwnerFormProps {
   firstName: string;
@@ -21,260 +8,74 @@ interface MailOwnerFormProps {
   emailContext?: "landing_owner" | "landing_tenant" | "admin" | "default";
 }
 
-export default function MailOwnerForm({
-  firstName,
-  lastName,
-  formUrl,
-  emailContext = "default"
-}: MailOwnerFormProps) {
-  // Contenu adapté selon le contexte
-  const getContent = () => {
-    switch (emailContext) {
-      case "landing_owner":
-        return {
-          title: `Bonjour ${firstName} ${lastName},`,
-          intro: "Nous vous remercions de votre confiance et de l'intérêt que vous portez à nos services de bail notarié.",
-          mainText: "Pour finaliser votre demande, nous avons besoin que vous complétiez le formulaire avec vos informations personnelles et les détails du bien que vous souhaitez mettre en location.",
-          additionalText: "Vous pouvez compléter ce formulaire maintenant ou y revenir plus tard en utilisant le lien ci-dessous. Votre progression sera sauvegardée.",
-          buttonText: "Accéder au formulaire",
-          showList: false
-        };
-      case "landing_tenant":
-        return {
-          title: `Bonjour ${firstName} ${lastName},`,
-          intro: "Un locataire a initié une demande de bail notarié et vous a indiqué comme propriétaire.",
-          mainText: "Pour poursuivre le processus, nous avons besoin que vous complétiez le formulaire ci-dessous avec vos informations personnelles et les détails du bien concerné.",
-          additionalText: "Ce formulaire vous permettra de renseigner toutes les informations nécessaires à la création du bail notarié.",
-          buttonText: "Compléter le formulaire",
-          showList: false
-        };
-      case "admin":
-        return {
-          title: `Bonjour ${firstName} ${lastName},`,
-          intro: "Un formulaire de bail notarié vous a été assigné par notre équipe.",
-          mainText: "Nous vous invitons à compléter le formulaire ci-dessous avec vos informations personnelles et les détails du bien que vous souhaitez mettre en location.",
-          additionalText: "Ce formulaire vous permettra de renseigner toutes les informations nécessaires à la création du bail notarié.",
-          buttonText: "Accéder au formulaire",
-          showList: true
-        };
-      default:
-        return {
-          title: `Bonjour ${firstName} ${lastName},`,
-          intro: "Nous vous remercions de votre confiance. Pour finaliser la création de votre bail notarié, nous avons besoin que vous complétiez le formulaire ci-dessous avec vos informations personnelles et les détails du bien que vous souhaitez mettre en location.",
-          mainText: "",
-          additionalText: "",
-          buttonText: "Accéder au formulaire",
-          showList: false
-        };
-    }
-  };
+const TO_PREPARE =
+  "Votre pièce d'identité · l'adresse et la surface du bien · le loyer et les charges · vos diagnostics (DPE, électricité, gaz…) · l'e-mail de votre locataire si vous l'avez déjà.";
 
-  const content = getContent();
+/**
+ * Lien du formulaire propriétaire.
+ * - admin : l'équipe ouvre le dossier (après un échange, le plus souvent) ;
+ * - default / landing_tenant : le locataire a indiqué ce propriétaire ;
+ * - landing_owner : le propriétaire a démarré seul.
+ */
+export default function MailOwnerForm({ firstName, formUrl, emailContext = "default" }: MailOwnerFormProps) {
+  const name = (firstName || "").trim();
+
+  if (emailContext === "default" || emailContext === "landing_tenant") {
+    return (
+      <EmailLayout
+        preview="Votre locataire souhaite un bail signé chez le notaire. Complétez votre partie en quelques minutes."
+        reference={["Votre bail notarié", "Profil propriétaire"]}
+        footerNote="Vous recevez cet e-mail car votre locataire vous a indiqué comme propriétaire."
+      >
+        <Steps steps={["Votre locataire", "Votre dossier", "Vérification", "Signature"]} current={1} />
+        <Kicker>Votre locataire a fait la demande</Kicker>
+        <Title>{name ? `${name}, votre` : "Votre"} locataire vous propose un bail notarié</Title>
+        <Lead>
+          Votre locataire a démarré un bail notarié et vous a indiqué comme propriétaire. Renseignez vos informations, celles du bien et les
+          conditions du bail : nous vérifions tout avant de le confier au notaire.
+        </Lead>
+        <InfoCard label="À préparer avant de commencer">{TO_PREPARE}</InfoCard>
+        <Actions primary={{ label: "Compléter mon dossier", href: formUrl }} />
+        <Hint>Vous pouvez vous arrêter à tout moment : vos réponses sont conservées.</Hint>
+        <Trust title="Pourquoi un bail notarié ?">
+          En cas d'impayé, le bail notarié permet d'agir sans attendre un jugement. Vous louez plus sereinement, dès le premier jour.
+        </Trust>
+        <Sign help="Une question en remplissant ? Répondez à cet e-mail, un conseiller vous aide." />
+      </EmailLayout>
+    );
+  }
+
+  const fromTeam = emailContext === "admin";
   return (
-    <Html>
-      <Head />
-      <Body style={{ 
-        backgroundColor: "#f8fafc", 
-        fontFamily: "Arial, sans-serif",
-        margin: 0,
-        padding: 0
-      }}>
-        <Container style={{ 
-          maxWidth: "600px", 
-          margin: "0 auto", 
-          backgroundColor: "#ffffff",
-          borderRadius: "12px",
-          overflow: "hidden",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)"
-        }}>
-          {/* Header avec logo */}
-          <Section style={{ 
-            background: "linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)",
-            paddingTop: "32px",
-            paddingBottom: "32px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "start"
-          }}>
-            <Link
-              href={EMAIL_BASE_URL}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "start",
-                textDecoration: "none",
-                color: "#1e3a8a",
-              }}
-            >
-              <Img
-                src={EMAIL_LOGO_URL}
-                alt="BailNotarie - Plateforme de baux notariés"
-                width="40"
-                height="40"
-                style={{
-                  borderRadius: "50%",
-                  display: "block",
-                }}
-              />
-              <span
-                style={{
-                  marginLeft: "8px",
-                  marginTop: "5px",
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#1e3a8a",
-                }}
-              >
-                BailNotarie
-              </span>
-            </Link>
-
-            <Text style={{ 
-              color: "#1e3a8a",
-              fontSize: "20px",
-              margin: "30px 0px 0px 0px "
-            }}>
-              Votre partenaire pour les baux notariés sécurisés
-            </Text>
-          </Section>
-
-          {/* Contenu principal */}
-          <Section style={{ paddingTop: "40px", paddingBottom: "40px", paddingLeft: "24px", paddingRight: "24px" }}>
-            <Heading style={{ 
-              color: "#1f2937",
-              fontSize: "24px",
-              fontWeight: "bold",
-              margin: "0 0 20px 0"
-            }}>
-              {content.title}
-            </Heading>
-
-            <Text style={{ 
-              color: "#4b5563",
-              fontSize: "16px",
-              lineHeight: "24px",
-              margin: "0 0 20px 0"
-            }}>
-              {content.intro}
-            </Text>
-
-            {content.mainText && (
-              <Text style={{ 
-                color: "#4b5563",
-                fontSize: "16px",
-                lineHeight: "24px",
-                margin: "0 0 20px 0"
-              }}>
-                {content.mainText}
-              </Text>
-            )}
-
-            {content.showList && (
-              <>
-                <Text style={{ 
-                  color: "#4b5563",
-                  fontSize: "16px",
-                  lineHeight: "24px",
-                  margin: "0 0 20px 0"
-                }}>
-                  Ce formulaire vous permettra de renseigner :
-                </Text>
-
-                <ul style={{ 
-                  color: "#4b5563",
-                  fontSize: "16px",
-                  lineHeight: "24px",
-                  margin: "0 0 20px 0",
-                  paddingLeft: "20px"
-                }}>
-                  <li>Vos informations personnelles complètes</li>
-                  <li>Les caractéristiques du bien à louer</li>
-                  <li>Les conditions du bail (loyer, charges, etc.)</li>
-                  <li>Les informations du locataire</li>
-                </ul>
-              </>
-            )}
-
-            {content.additionalText && (
-              <Text style={{ 
-                color: "#4b5563",
-                fontSize: "16px",
-                lineHeight: "24px",
-                margin: "0 0 20px 0"
-              }}>
-                {content.additionalText}
-              </Text>
-            )}
-
-            <Section style={{ 
-              textAlign: "center",
-              margin: "32px 0"
-            }}>
-              <Button
-                href={formUrl}
-                style={{
-                  backgroundColor: "#2563eb",
-                  color: "#ffffff",
-                  padding: "14px 28px",
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  display: "inline-block",
-                  fontSize: "16px",
-                  fontWeight: "600"
-                }}
-              >
-                {content.buttonText}
-              </Button>
-            </Section>
-
-
-          </Section>
-
-          <Hr style={{ 
-            borderColor: "#e5e7eb",
-            margin: "0"
-          }} />
-
-          {/* Footer */}
-          <Section style={{ 
-            paddingTop: "24px",
-            paddingBottom: "24px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "center",
-            backgroundColor: "#f9fafb"
-          }}>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              margin: "0 0 8px 0"
-            }}>
-              <strong>BailNotarie</strong> - Votre partenaire pour les baux notariés
-            </Text>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "12px",
-              margin: "0 0 8px 0"
-            }}>
-              <Link href="tel:+33768098624" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 68 09 86 24</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
-            </Text>
-            <Text style={{ 
-              color: "#9ca3af",
-              fontSize: "12px",
-              margin: 0
-            }}>
-              Cet email a été envoyé automatiquement, merci de ne pas y répondre directement.
-            </Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
+    <EmailLayout
+      preview={
+        fromTeam
+          ? "Suite à notre échange, votre dossier est prêt. Vos réponses sont enregistrées au fur et à mesure."
+          : "Vos réponses sont enregistrées au fur et à mesure : remplissez en une fois ou en plusieurs."
+      }
+      reference={["Votre bail notarié", "Profil propriétaire"]}
+      footerNote="Vous recevez cet e-mail car un dossier de bail notarié a été ouvert à votre nom."
+    >
+      <Steps steps={[fromTeam ? "Échange avec nous" : "Profil choisi", "Votre dossier", "Vérification", "Signature"]} current={1} />
+      <Title>{name ? `${name}, votre` : "Votre"} dossier est prêt, à vous de jouer</Title>
+      <Lead>
+        {fromTeam ? "Suite à notre échange, nous avons ouvert" : "Nous avons ouvert"} votre dossier de bail notarié. Renseignez vos informations,
+        celles du bien et les conditions du bail : nous vérifions tout avant de le confier au notaire.
+      </Lead>
+      <InfoCard label="À préparer avant de commencer">{TO_PREPARE}</InfoCard>
+      <Actions primary={{ label: "Compléter mon dossier", href: formUrl }} />
+      <Hint>Vous pouvez vous arrêter à tout moment : vos réponses sont conservées.</Hint>
+      <Trust title="Pourquoi un bail notarié ?">
+        En cas d'impayé, le bail notarié permet d'agir sans attendre un jugement. Vous louez plus sereinement, dès le premier jour.
+      </Trust>
+      <Sign help="Une question en remplissant ? Répondez à cet e-mail, un conseiller vous aide." />
+    </EmailLayout>
   );
 }
 
-
-
-
-
-
-
+MailOwnerForm.PreviewProps = {
+  firstName: "Thomas",
+  lastName: "Bernard",
+  formUrl: "https://www.bailnotarie.fr/intakes/exemple",
+  emailContext: "admin",
+} satisfies MailOwnerFormProps;

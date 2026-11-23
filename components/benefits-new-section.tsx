@@ -83,7 +83,7 @@ export function BenefitsNewSection() {
                   imageSrc: "https://images.unsplash.com/37/tEREUy1vSfuSu8LzTop3_IMG_2538.jpg?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
                   imageAlt: "Bail notarié en 1 semaine - Rapidité et efficacité",
                 },
-                handleStart: () => router.push('/#process')
+                handleStart: () => router.push('/#processus')
               },
               {
                 value: "securise",

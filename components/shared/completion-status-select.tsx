@@ -23,6 +23,8 @@ interface CompletionStatusSelectProps {
   className?: string;
   viewLabel?: boolean;
   asChild?: boolean;
+  /** Affiche aussi le libellé du statut dans le bouton (sinon : icône seule). */
+  showValueLabel?: boolean;
 }
 
 const statusLabels: Record<CompletionStatus, string> = {
@@ -71,6 +73,7 @@ export function CompletionStatusSelect({
   className,
   viewLabel = true,
   asChild = false,
+  showValueLabel = false,
 }: CompletionStatusSelectProps) {
   const [status, setStatus] = useState<CompletionStatus>(currentStatus);
   const [isPending, startTransition] = useTransition();
@@ -104,6 +107,7 @@ export function CompletionStatusSelect({
         <SelectValue>
           <div className={cn("flex items-center gap-2", currentConfig.textColor)}>
             {currentConfig.icon}
+            {showValueLabel && <span className="font-medium">{currentConfig.label}</span>}
           </div>
         </SelectValue>
       </SelectTrigger>

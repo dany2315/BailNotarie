@@ -1,0 +1,492 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { Archive, ArrowRight, Check, Clock3, Eye, Loader2, RotateCcw, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { CheckSection, StateChip } from "@/components/admin/check-list";
+import { DocumentViewer } from "@/components/leases/document-viewer";
+import { documentKindLabels } from "@/lib/utils/document-labels";
+import {
+  acceptComplementRequest,
+  cancelComplementRequest,
+  remindComplementRequest,
+  reviewComplementItem,
+  type StaffComplementItem,
+  type StaffComplementRequest,
+} from "@/lib/actions/complement-requests";
+import { COMPLEMENT_NOTE_MAX, FIELD_REDO_REASONS, REASON_LABELS, REDO_REASONS, type ComplementReasonValue } from "@/lib/utils/complement";
+import { cn } from "@/lib/utils";
+import { ComplementRemindDialog } from "@/components/complements/complement-remind-dialog";
+
+const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: "Europe/Paris" });
+
+type FieldConflict = Array<{ label: string; before: string; after: string }>;
+
+/**
+ * Demandes de pièces en cours du dossier : ce qui est attendu, ce qui est arrivé, et la décision de l'équipe.
+ * `canArchive` (équipe, et notaire sur ses propres demandes) : en acceptant une pièce, choisir les anciennes
+ * pièces à retirer.
+ */
+export function ComplementRequestsPanel({
+  requests,
+  locked = false,
+  canArchive = false,
+  sentLabel,
+  teamReadOnly = false,
+}: {
+  requests: StaffComplementRequest[];
+  locked?: boolean;
+  canArchive?: boolean;
+  /** Texte d'envoi et de relances à la place du compte global (le notaire ne voit que ses propres relances). */
+  sentLabel?: (request: StaffComplementRequest) => string;
+  /** Espace notaire : les demandes de l'équipe sont affichées en lecture seule, avec le badge « Par l'équipe BailNotarie ». */
+  teamReadOnly?: boolean;
+}) {
+  return (
+    <>
+      {requests.map((request) => (
+        <RequestCard
+          key={request.id}
+          request={request}
+          locked={locked || (teamReadOnly && request.origin === "TEAM")}
+          teamBadge={teamReadOnly && request.origin === "TEAM"}
+          canArchive={canArchive}
+          sentLabel={sentLabel}
+        />
+      ))}
+    </>
+  );
+}
+
+/**
+ * Une ligne de demande seule, avec les mêmes boutons que dans sa carte (accepter, choisir les
+ * anciennes pièces à retirer, redemander). Sert au contrôle guidé de la fiche dossier.
+ */
+export function ComplementItemReview({ item, locked = false, canArchive = false }: { item: StaffComplementItem; locked?: boolean; canArchive?: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState<string | null>(null);
+  const run = async (key: string, action: () => Promise<{ success: true } | { success: false; error: string }>, done: string) => {
+    setBusy(key);
+    const result = await action();
+    setBusy(null);
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(done);
+    router.refresh();
+  };
+  return (
+    <ul className="flex flex-col overflow-hidden rounded-lg border bg-card [&>li]:px-3.5">
+      <ItemRow item={item} locked={locked} busy={busy} run={run} canArchive={canArchive} />
+    </ul>
+  );
+}
+
+function RequestCard({
+  request,
+  locked,
+  canArchive,
+  sentLabel,
+  teamBadge = false,
+}: {
+  request: StaffComplementRequest;
+  locked: boolean;
+  canArchive: boolean;
+  sentLabel?: (request: StaffComplementRequest) => string;
+  teamBadge?: boolean;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const [reminding, setReminding] = React.useState(false);
+  const toReview = request.items.filter((item) => item.status === "PROVIDED").length;
+  const waiting = request.items.filter((item) => item.status === "PENDING").length;
+  const who = request.target === "OWNER" ? "propriétaire" : "locataire";
+  const hasFields = request.items.some((item) => item.type === "FIELD");
+  const hasPieces = request.items.some((item) => item.type !== "FIELD");
+  const what = hasFields && hasPieces ? "Pièces et informations demandées" : hasFields ? "Informations demandées" : "Pièces demandées";
+
+  const run = async (key: string, action: () => Promise<{ success: true } | { success: false; error: string }>, done: string) => {
+    setBusy(key);
+    const result = await action();
+    setBusy(null);
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(done);
+    router.refresh();
+  };
+
+  const sent = sentLabel
+    ? sentLabel(request)
+    : `Envoyée le ${fmtDay(request.createdAt)}${request.sentCount > 1 ? `, relancée ${request.sentCount - 1} fois (dernière le ${fmtDay(request.lastSentAt)})` : ""}`;
+
+  return (
+    <>
+    <CheckSection
+      id={`demande-${request.id}`}
+      title={`${what}${request.origin === "NOTAIRE" ? " par le notaire" : ""} au ${who}`}
+      subtitle={`${request.recipientName} · ${request.submittedAt ? `réponse reçue le ${fmtDay(request.submittedAt)}` : sent}`}
+      headerRight={
+        <span className="flex flex-wrap items-center justify-end gap-1.5">
+        {teamBadge && (
+          <StateChip tone="neutral" className="bg-slate-100 text-slate-700">
+            Par l&apos;équipe BailNotarie
+          </StateChip>
+        )}
+        {request.status === "ACCEPTED" ? (
+          <StateChip tone="neutral" className="bg-green-100 text-green-800">
+            Terminée
+          </StateChip>
+        ) : request.status === "SUBMITTED" ? (
+          <StateChip tone="neutral" className="bg-blue-100 text-blue-800">
+            À vérifier · {toReview}
+          </StateChip>
+        ) : (
+          <StateChip tone="neutral" className="bg-amber-100 text-amber-900">
+            En attente du client
+          </StateChip>
+        )}
+        </span>
+      }
+      footer={
+        locked || request.status === "ACCEPTED" ? undefined : request.status === "SUBMITTED" || (toReview > 0 && waiting === 0) ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              className="h-10 gap-1.5 max-sm:flex-1"
+              disabled={!!busy || toReview === 0}
+              onClick={() => run("accept-all", () => acceptComplementRequest({ requestId: request.id }), "Tout est accepté")}
+            >
+              {busy === "accept-all" ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+              Tout accepter
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {confirmCancel ? (
+              <span className="flex flex-wrap items-center gap-2 text-[13px]">
+                Annuler la demande ?
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  className="h-9"
+                  disabled={!!busy}
+                  onClick={() => run("cancel", () => cancelComplementRequest({ requestId: request.id }), "Demande annulée")}
+                >
+                  {busy === "cancel" && <Loader2 className="size-3.5 animate-spin" />}
+                  Oui, annuler
+                </Button>
+                <Button type="button" size="sm" variant="ghost" className="h-9" onClick={() => setConfirmCancel(false)}>
+                  Non
+                </Button>
+              </span>
+            ) : (
+              <Button type="button" variant="ghost" className="h-10 text-muted-foreground" onClick={() => setConfirmCancel(true)}>
+                Annuler la demande
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 gap-1.5"
+              disabled={!!busy}
+              onClick={() => setReminding(true)}
+            >
+              {busy === "remind" ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+              Relancer
+            </Button>
+          </div>
+        )
+      }
+    >
+      <ul className="flex flex-col divide-y">
+        {request.items.map((item) => (
+          <ItemRow key={item.id} item={item} locked={locked} busy={busy} run={run} canArchive={canArchive} />
+        ))}
+      </ul>
+    </CheckSection>
+    {reminding && <ComplementRemindDialog requestId={request.id} open onOpenChange={setReminding} />}
+    </>
+  );
+}
+
+function ItemRow({
+  item,
+  locked,
+  busy,
+  run,
+  canArchive,
+}: {
+  item: StaffComplementItem;
+  locked: boolean;
+  busy: string | null;
+  run: (key: string, action: () => Promise<{ success: true } | { success: false; error: string }>, done: string) => Promise<void>;
+  canArchive: boolean;
+}) {
+  const field = item.type === "FIELD";
+  const reasons = field ? FIELD_REDO_REASONS : REDO_REASONS;
+  const [redo, setRedo] = React.useState(false);
+  const [reason, setReason] = React.useState<ComplementReasonValue>(reasons[0]);
+  const [note, setNote] = React.useState("");
+  const provided = item.status === "PROVIDED";
+  // Pièce : choix des anciennes pièces à retirer (aucune cochée d'avance : sans choix, elles restent actives).
+  const offersArchive = !field && canArchive && item.replaceable.length > 0;
+  const [choosing, setChoosing] = React.useState(false);
+  const [toArchive, setToArchive] = React.useState<string[]>([]);
+  // Information : le dossier a changé depuis la réponse du client (valeur lors de la réponse → valeur actuelle).
+  const [conflict, setConflict] = React.useState<FieldConflict | null>(null);
+
+  const accept = (options: { archiveDocumentIds?: string[]; confirmConflict?: boolean } = {}) =>
+    run(
+      `accept-${item.id}`,
+      async () => {
+        const result = await reviewComplementItem({ itemId: item.id, decision: "accept", ...options });
+        if (!result.success && result.conflict) {
+          setConflict(result.conflict);
+          return { success: false as const, error: result.error };
+        }
+        if (result.success) {
+          setConflict(null);
+          setChoosing(false);
+        }
+        return result;
+      },
+      field
+        ? "Information acceptée et enregistrée dans le dossier"
+        : options.archiveDocumentIds?.length
+          ? "Pièce acceptée, anciennes pièces archivées"
+          : "Pièce acceptée",
+    );
+
+  return (
+    <li className="grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-2.5 px-5 py-3.5">
+      <span
+        aria-hidden
+        className={cn(
+          "mt-0.5 flex size-[22px] items-center justify-center rounded-full",
+          item.status === "ACCEPTED" && "bg-green-100 text-green-800",
+          provided && "bg-blue-100 text-blue-800",
+          item.status === "PENDING" && "border-2 border-slate-300 text-slate-400",
+        )}
+      >
+        {item.status === "ACCEPTED" ? <Check className="size-3.5" strokeWidth={3} /> : provided ? <Eye className="size-3" /> : <Clock3 className="size-3" />}
+      </span>
+
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-[14.5px] font-semibold leading-snug">{item.label}</span>
+          <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11.5px] font-semibold text-slate-600">{REASON_LABELS[item.reason]}</span>
+        </div>
+        {item.note && <p className="text-[13px] leading-relaxed text-muted-foreground">« {item.note} »</p>}
+        <p
+          className={cn(
+            "text-[13px]",
+            item.status === "ACCEPTED" ? "text-green-800" : provided ? "font-semibold text-blue-800" : "text-muted-foreground",
+          )}
+        >
+          {item.status === "ACCEPTED"
+            ? "Acceptée"
+            : provided
+              ? field
+                ? item.proposal
+                  ? "Renseignée · à vérifier (sera enregistrée dans le dossier quand vous l'accepterez)"
+                  : "Renseignée · à vérifier (déjà enregistrée dans le dossier)"
+                : `Reçue · à vérifier${item.replaceable.length > 0 ? " · vous choisirez en l'acceptant les anciennes pièces à retirer" : ""}`
+              : item.automatic
+                ? "En attente du client · demandée d'elle-même après une de ses réponses"
+                : "En attente du client"}
+        </p>
+
+        {field && item.changes.length > 0 && (
+          <dl className="grid grid-cols-1 gap-1.5 rounded-lg border bg-muted/20 px-3 py-2.5 text-[13px] sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] sm:gap-x-3">
+            {item.changes.map((change) => (
+              <React.Fragment key={change.label}>
+                <dt className="font-medium text-muted-foreground">{change.label}</dt>
+                <dd className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+                  <span className="text-muted-foreground line-through decoration-slate-300">{change.before}</span>
+                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="font-semibold">{change.after}</span>
+                </dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        )}
+        {field && provided && item.changes.length === 0 && <p className="text-[13px] text-muted-foreground">Le client a confirmé les valeurs, sans rien changer.</p>}
+
+        {item.documents.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {item.documents.map((doc) => (
+              <DocumentViewer
+                key={doc.id}
+                document={{ id: doc.id, kind: item.kind, fileKey: doc.fileKey, mimeType: doc.mimeType, label: doc.label } as any}
+                documentKindLabels={documentKindLabels}
+              >
+                <Button type="button" variant="outline" size="sm" className="h-9 max-w-full gap-1.5">
+                  <Eye className="size-4 shrink-0" />
+                  <span className="truncate">Voir le fichier{item.documents.length > 1 ? ` ${item.documents.indexOf(doc) + 1}` : ""}</span>
+                </Button>
+              </DocumentViewer>
+            ))}
+          </div>
+        )}
+
+        {conflict && provided && !locked && (
+          <div className="flex flex-col gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <p className="flex items-start gap-2 text-[13px] font-semibold text-amber-900">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              Le dossier a été modifié depuis la réponse du client.
+            </p>
+            <dl className="grid grid-cols-1 gap-1.5 text-[13px] sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] sm:gap-x-3">
+              {conflict.map((change) => (
+                <React.Fragment key={change.label}>
+                  <dt className="font-medium text-amber-900/80">{change.label}</dt>
+                  <dd className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-amber-950">
+                    <span>lors de la réponse : {change.before || "vide"}</span>
+                    <ArrowRight className="size-3.5 shrink-0" />
+                    <span className="font-semibold">aujourd&apos;hui : {change.after || "vide"}</span>
+                  </dd>
+                </React.Fragment>
+              ))}
+            </dl>
+            <p className="text-[13px] text-amber-900">
+              Accepter remplacera la valeur actuelle par la réponse du client. Sinon, laissez la ligne telle quelle ou redemandez-la.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" className="h-9" disabled={!!busy} onClick={() => setConflict(null)}>
+                Ne rien changer
+              </Button>
+              <Button type="button" size="sm" className="h-9 gap-1.5" disabled={!!busy} onClick={() => accept({ confirmConflict: true })}>
+                {busy === `accept-${item.id}` && <Loader2 className="size-3.5 animate-spin" />}
+                Appliquer la réponse du client
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {choosing && provided && !locked && (
+          <div className="flex flex-col gap-2.5 rounded-lg border bg-muted/30 p-3">
+            <p className="text-[13px] font-semibold">Anciennes pièces à retirer des pièces actives</p>
+            <p className="text-[13px] text-muted-foreground">
+              Cochez celles que la nouvelle pièce remplace. Elles sont archivées : le fichier est conservé et vous pourrez
+              toujours le rouvrir. Sans rien cocher, toutes restent actives.
+            </p>
+            <ul className="flex flex-col gap-1.5">
+              {item.replaceable.map((doc) => (
+                <li key={doc.id} className="flex flex-wrap items-center gap-2">
+                  <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-[13px]">
+                    <input
+                      type="checkbox"
+                      className="size-4 shrink-0 accent-blue-600"
+                      checked={toArchive.includes(doc.id)}
+                      disabled={!!busy}
+                      onChange={(event) => setToArchive((ids) => (event.target.checked ? [...ids, doc.id] : ids.filter((id) => id !== doc.id)))}
+                    />
+                    <span className="truncate">Ancien fichier{item.replaceable.length > 1 ? ` ${item.replaceable.indexOf(doc) + 1}` : ""}</span>
+                    <span className="shrink-0 text-muted-foreground">· reçue le {fmtDay(doc.createdAt)}</span>
+                    {doc.suggested && <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[11.5px] font-semibold text-amber-900">visée par la demande</span>}
+                  </label>
+                  <DocumentViewer
+                    document={{ id: doc.id, kind: item.kind, fileKey: doc.fileKey, mimeType: doc.mimeType, label: doc.label } as any}
+                    documentKindLabels={documentKindLabels}
+                  >
+                    <Button type="button" variant="ghost" size="sm" className="h-8 gap-1">
+                      <Eye className="size-3.5" />
+                      Voir
+                    </Button>
+                  </DocumentViewer>
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" className="h-9" disabled={!!busy} onClick={() => setChoosing(false)}>
+                Annuler
+              </Button>
+              <Button type="button" size="sm" className="h-9 gap-1.5" disabled={!!busy} onClick={() => accept({ archiveDocumentIds: toArchive })}>
+                {busy === `accept-${item.id}` ? <Loader2 className="size-3.5 animate-spin" /> : toArchive.length > 0 ? <Archive className="size-3.5" /> : <Check className="size-3.5" />}
+                {toArchive.length > 0
+                  ? `Accepter et archiver ${toArchive.length} ancienne${toArchive.length > 1 ? "s" : ""} pièce${toArchive.length > 1 ? "s" : ""}`
+                  : "Accepter sans rien retirer"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {provided && !locked && !redo && !choosing && !conflict && (
+          <div className="flex flex-wrap gap-2 pt-0.5">
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 gap-1.5"
+              disabled={!!busy}
+              onClick={() => (offersArchive ? setChoosing(true) : accept())}
+            >
+              {busy === `accept-${item.id}` ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+              Accepter
+            </Button>
+            <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5" disabled={!!busy} onClick={() => setRedo(true)}>
+              <RotateCcw className="size-3.5" />
+              Redemander
+            </Button>
+          </div>
+        )}
+
+        {redo && (
+          <div className="flex flex-col gap-2.5 rounded-lg border bg-muted/30 p-3">
+            <div role="radiogroup" aria-label="Motif" className="flex flex-wrap gap-1.5">
+              {reasons.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={reason === value}
+                  onClick={() => setReason(value)}
+                  className={cn(
+                    "h-8 rounded-full border px-3 text-[12.5px] font-semibold transition-colors",
+                    reason === value ? "border-blue-600 bg-blue-600 text-white" : "border-border bg-background text-foreground/80 hover:border-foreground/30",
+                  )}
+                >
+                  {REASON_LABELS[value]}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              maxLength={COMPLEMENT_NOTE_MAX}
+              rows={2}
+              placeholder="Précision pour le client (facultatif)"
+              className="w-full resize-y rounded-md border bg-background px-3 py-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" className="h-9" disabled={!!busy} onClick={() => setRedo(false)}>
+                Annuler
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-9 gap-1.5"
+                disabled={!!busy}
+                onClick={() =>
+                  run(
+                    `redo-${item.id}`,
+                    () => reviewComplementItem({ itemId: item.id, decision: "redo", reason, note: note.trim() || undefined }),
+                    field ? "Information redemandée : le client a reçu un e-mail" : "Pièce redemandée : le client a reçu un e-mail",
+                  )
+                }
+              >
+                {busy === `redo-${item.id}` && <Loader2 className="size-3.5 animate-spin" />}
+                Redemander au client
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}

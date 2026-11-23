@@ -1,23 +1,57 @@
+import Link from "next/link";
+import { FileText } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth-helpers";
-import { getDossiersByNotaire } from "@/lib/actions/notaires";
-import { DossiersSidebar } from "@/components/notaire/dossiers-sidebar";
+import { getNotaireArchivedDocuments, getNotaireComplementRequests, getNotaireReminders } from "@/lib/actions/complement-requests";
+import { loadNotaireDossier } from "@/lib/notaire/dossier-view";
+import { notaireFormWaits } from "@/lib/notaire/form-reminders";
+import { defaultDossierId, notaireDossierList } from "@/lib/notaire/dossier-list";
+import { NotaireDossierPanel } from "@/components/notaire/notaire-dossier-panel";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-export default async function NotaireDossiersPage() {
+/** Le dossier ouvert (la liste des dossiers est dans le menu latéral). */
+export default async function NotaireDossiersPage({ searchParams }: { searchParams: Promise<{ dossierId?: string }> }) {
   const user = await getCurrentUser();
-  
-  if (!user) {
-    return null;
+  if (!user) return null;
+  const { dossierId } = await searchParams;
+  const list = await notaireDossierList(user.id);
+  // Lien vers un dossier inconnu ou confié à un autre notaire : on le dit, au lieu d'ouvrir
+  // un autre dossier sans prévenir (m33).
+  const unknownLink = !!dossierId && !list.some((d) => d.id === dossierId);
+  const selectedId = unknownLink ? null : dossierId || defaultDossierId(list);
+  const view = selectedId ? await loadNotaireDossier(selectedId) : null;
+  const requests = view?.bailId ? await getNotaireComplementRequests(view.bailId) : [];
+  const archived = view?.bailId ? await getNotaireArchivedDocuments(view.bailId) : [];
+  const formWaits = view?.bailId ? await notaireFormWaits([view.bailId], user.id) : [];
+  const reminders = view?.bailId
+    ? await getNotaireReminders(view.bailId)
+    : { OWNER: { count: 0, lastAt: null }, TENANT: { count: 0, lastAt: null } };
+
+  if (!view) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="max-w-sm text-center">
+          <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <FileText className="size-5" />
+          </span>
+          <p className="mt-4 text-[15px] font-semibold">
+            {unknownLink ? "Dossier introuvable" : list.length === 0 ? "Aucun dossier pour le moment" : "Ce dossier n'est pas accessible"}
+          </p>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
+            {unknownLink
+              ? "Ce lien ne correspond à aucun dossier qui vous est confié. Choisissez un dossier dans le menu."
+              : list.length === 0
+                ? "Les dossiers qui vous sont confiés apparaîtront ici."
+                : "Choisissez un dossier dans le menu."}
+          </p>
+          <Link href="/notaire" className="mt-4 inline-block text-[13.5px] font-medium text-primary hover:underline">
+            Tableau de bord
+          </Link>
+        </div>
+      </div>
+    );
   }
 
-  const dossiers = await getDossiersByNotaire(user.id);
-
-  return (
-    <div className="h-full">
-      <DossiersSidebar dossiers={dossiers} />
-    </div>
-  );
+  return <NotaireDossierPanel key={view.assignmentId} view={view} requests={requests} reminders={reminders} formWaits={formWaits} archived={archived} />;
 }
-

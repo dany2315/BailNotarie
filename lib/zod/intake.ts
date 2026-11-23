@@ -1,4 +1,5 @@
 import { z } from "zod";
+import "@/lib/zod/locale";
 
 export const createIntakeLinkSchema = z.object({
   target: z.enum(["OWNER", "TENANT"]),
@@ -11,7 +12,7 @@ export const createIntakeLinkSchema = z.object({
 export const intakePayloadSchema = z.any();
 
 export const submitIntakeSchema = z.object({
-  token: z.string().min(1, "Le token est requis"),
+  token: z.string("Le token est requis").min(1, "Le token est requis"),
   payload: intakePayloadSchema,
   stepId: z.string().optional(),
   paymentIntentId: z.string().optional(), // ID du PaymentIntent Stripe

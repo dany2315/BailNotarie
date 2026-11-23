@@ -1,11 +1,13 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-picker";
 import { NumberInputGroup } from "@/components/ui/number-input-group";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,6 +26,7 @@ import { RentControlAlert } from "@/components/ui/rent-control-alert";
 import { validateRentAmount } from "@/lib/utils/rent-validation";
 import type { RentValidationResult } from "@/lib/utils/rent-validation";
 
+import { todayInFrance } from "@/lib/bail/dates";
 /** Vérifie que le bien possède les 13 éléments obligatoires pour une location meublée (Décret 2015-981) */
 function isPropertyMeuble(property: any): boolean {
   if (!property) return false;
@@ -57,7 +60,7 @@ const leaseFormSchema = z
         "AWAITING_TENANT_FORM",
         "PENDING_VALIDATION",
         "READY_FOR_NOTARY",
-        "CLIENT_CONTACTED",
+        "CLIENT_CONTACTED", "PROVISION_RECEIVED",
         "SIGNED",
         "TERMINATED",
         "DESISTE",
@@ -126,7 +129,7 @@ const SecurityDepositValidation = ({ control }: { control: any }) => {
 };
 
 interface LeaseFormProps {
-  onSubmit: (data: FormData) => Promise<void>;
+  onSubmit: (data: FormData) => Promise<unknown>;
   initialData?: any;
   properties: any[];
   parties: any[];
@@ -187,7 +190,7 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
       formData.append("securityDeposit", data.securityDeposit || "0");
       if (data.paymentDay) formData.append("paymentDay", data.paymentDay);
 
-      await onSubmit(formData);
+      await unwrapAction(Promise.resolve(onSubmit(formData) as any));
       toast.success(initialData?.id ? "Bail modifié avec succès" : "Bail créé avec succès");
 
       if (onSuccess) {
@@ -445,6 +448,7 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
                     <SelectItem value="PENDING_VALIDATION">En attente de validation</SelectItem>
                     <SelectItem value="READY_FOR_NOTARY">Prêt pour notaire</SelectItem>
                     <SelectItem value="CLIENT_CONTACTED">Client contacté</SelectItem>
+                    <SelectItem value="PROVISION_RECEIVED">Provision reçue</SelectItem>
                     <SelectItem value="SIGNED">Signé</SelectItem>
                     <SelectItem value="TERMINATED">Terminé</SelectItem>
                     <SelectItem value="DESISTE">Désisté</SelectItem>
@@ -466,11 +470,21 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="effectiveDate">Date de prise d'effet *</Label>
-              <Input
-                id="effectiveDate"
-                type="date"
-                {...form.register("effectiveDate")}
-                disabled={isLoading}
+              <Controller
+                name="effectiveDate"
+                control={form.control}
+                render={({ field }) => (
+                  <DateInput
+                    id="effectiveDate"
+                    name={field.name}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    minDate={initialData?.id ? undefined : todayInFrance()}
+                    disabled={isLoading}
+                    aria-invalid={!!form.formState.errors.effectiveDate}
+                  />
+                )}
               />
               {form.formState.errors.effectiveDate && (
                 <p className="text-sm text-destructive">
@@ -481,11 +495,19 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
 
             <div className="space-y-2">
               <Label htmlFor="endDate">Date de fin</Label>
-              <Input
-                id="endDate"
-                type="date"
-                {...form.register("endDate")}
-                disabled={isLoading}
+              <Controller
+                name="endDate"
+                control={form.control}
+                render={({ field }) => (
+                  <DateInput
+                    id="endDate"
+                    name={field.name}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    disabled={isLoading}
+                  />
+                )}
               />
             </div>
           </div>
@@ -496,11 +518,12 @@ export const LeaseForm = forwardRef<LeaseFormRef, LeaseFormProps>(function Lease
               field={form.register("paymentDay")}
               value={form.watch("paymentDay")}
               min={1}
-              max={31}
+              // Nouveau bail : 1 à 28. Bail existant : un jour déjà enregistré (29 à 31) reste accepté.
+              max={initialData?.id ? 31 : 28}
               disabled={isLoading}
               placeholder="5"
             />
-            <p className="text-xs text-muted-foreground">Entre 1 et 31</p>
+            <p className="text-xs text-muted-foreground">Entre 1 et 28</p>
           </div>
         </CardContent>
       </Card>

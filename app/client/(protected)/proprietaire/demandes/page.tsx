@@ -1,7 +1,8 @@
 import { requireProprietaireAuth } from "@/lib/auth-helpers";
 import { getClientProperties } from "@/lib/actions/client-space";
 import { getCommonTenantsForOwner } from "@/lib/actions/leases";
-import { DemandesPageClient } from "@/components/client/demandes-page-client";
+import { OwnerDossiers } from "@/components/client-v2/dossiers";
+import { OWNER_DOSSIERS_VIEW } from "@/lib/config/espace-client";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -14,6 +15,13 @@ export default async function DemandesPage() {
     getCommonTenantsForOwner(client.id),
   ]);
 
-  return <DemandesPageClient biens={biens} locataires={locataires || []} ownerId={client.id} />;
+  return (
+    <OwnerDossiers
+      biens={biens}
+      locataires={locataires || []}
+      ownerId={client.id}
+      variant={OWNER_DOSSIERS_VIEW}
+    />
+  );
 }
 

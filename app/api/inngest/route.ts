@@ -2,7 +2,7 @@ import { serve } from "inngest/next";
 import { inngest } from "@/lib/inngest/client";
 import { sendContactConfirmationEmail, sendContactNotificationEmail } from "@/lib/inngest/functions/contact";
 import { sendNotificationEmail } from "@/lib/inngest/functions/notifications";
-import { sendOwnerFormEmail, sendTenantFormEmail, sendRequestStatusEmail, sendIntakeConfirmationEmail, sendTenantSubmittedNotificationEmail } from "@/lib/inngest/functions/intake-forms";
+import { sendOwnerFormEmail, sendTenantFormEmail, sendIntakeConfirmationEmail, sendTenantSubmittedNotificationEmail } from "@/lib/inngest/functions/intake-forms";
 import { sendLeadConversionEmail } from "@/lib/inngest/functions/leads";
 import { sendBlogCommentNotificationEmail } from "@/lib/inngest/functions/blog-comments";
 import { sendNotaireWelcomeEmail } from "@/lib/inngest/functions/notaires";
@@ -14,6 +14,8 @@ import {
   calculateCompletionStatuses 
 } from "@/lib/inngest/functions/completion-status";
 import { sendCompletionStatusEmail } from "@/lib/inngest/functions/completion-status-email";
+import { syncIrl } from "@/lib/inngest/functions/irl";
+import { sendTenantReconfirmation } from "@/lib/inngest/functions/tenant-reconfirmation";
 import { NextRequest } from "next/server";
 
 const handler = serve({
@@ -24,7 +26,6 @@ const handler = serve({
     sendNotificationEmail,
     sendOwnerFormEmail,
     sendTenantFormEmail,
-    sendRequestStatusEmail,
     sendIntakeConfirmationEmail,
     sendTenantSubmittedNotificationEmail,
     sendLeadConversionEmail,
@@ -37,6 +38,8 @@ const handler = serve({
     calculatePropertyCompletionStatus,
     calculateCompletionStatuses,
     sendCompletionStatusEmail,
+    syncIrl,
+    sendTenantReconfirmation,
   ],
 });
 

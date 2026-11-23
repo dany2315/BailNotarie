@@ -1,9 +1,14 @@
+import { guardAction } from "@/lib/utils/action-error";
 import { createFullClient } from "@/lib/actions/clients";
 import { FullClientForm } from "@/components/clients/full-client-form";
 import { createFullClientSchema } from "@/lib/zod/client";
 
 async function handleSubmit(data: FormData) {
   "use server";
+  return guardAction(() => handleSubmitUnguarded(data));
+}
+
+async function handleSubmitUnguarded(data: FormData) {
   
   const formData: any = {
     type: data.get("type") as "PERSONNE_PHYSIQUE" | "PERSONNE_MORALE",

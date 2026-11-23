@@ -1,7 +1,9 @@
 "use client";
 
+import { useStepBackGesture } from "@/hooks/use-step-back-gesture";
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
@@ -16,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateInput } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -26,10 +29,11 @@ import {
 import { CreatePropertyForm, CreatePropertyFormRef } from "./create-property-form";
 import { BailPaymentStep } from "./bail-payment-step";
 import { LoadingScreen } from "@/components/ui/loading-screen";
-import { RentControlAlert } from "@/components/ui/rent-control-alert";
+import { RentGuide, useRentRules } from "@/components/rent/rent-rules-fields";
+import type { RentRulesAssessment } from "@/lib/rent-rules";
+import { EMPTY_RENT_RULES, type RentRulesFormValues } from "@/lib/utils/rent-draft";
 import { createLease, createTenantFromEmail, saveBailDraft } from "@/lib/actions/leases";
-import { validateRentAmount } from "@/lib/utils/rent-validation";
-import type { RentValidationResult } from "@/lib/utils/rent-validation";
+import { startCommercialLeaseFromSpace } from "@/lib/actions/client-space";
 import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
 import { BailType, BailStatus } from "@prisma/client";
 import { toast } from "sonner";
@@ -37,6 +41,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Home,
+  Store,
   User,
   Building2,
   Plus,
@@ -45,6 +50,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { PAYMENT_DAY_INVALID, paymentDayInvalid, todayInFrance } from "@/lib/bail/dates";
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 const schema = z.object({
@@ -54,10 +60,23 @@ const schema = z.object({
   rentAmount: z.string().min(1, "Le loyer est requis"),
   monthlyCharges: z.string().min(1, "Les charges mensuelles sont requises"),
   securityDeposit: z.string().optional(),
-  effectiveDate: z.string().min(1, "La date de début est requise"),
+  // Date de début et jour de paiement : demandés seulement quand un locataire est choisi (étape « Dates »,
+  // après le locataire). Sans locataire, le bail se crée sans ces deux valeurs.
+  effectiveDate: z.string().optional(),
   endDate: z.string().optional(),
-  paymentDay: z.string().min(1, "Le jour de paiement est requis"),
+  paymentDay: z.string().optional(),
 });
+
+/** Avec un locataire, les deux valeurs sont exigées (le serveur refait ce contrôle). */
+const tenantDateErrors = (values: { tenantId?: string; effectiveDate?: string; paymentDay?: string; savedPaymentDay?: number | null }) => {
+  const errors: Partial<Record<"effectiveDate" | "paymentDay", string>> = {};
+  if (!values.tenantId) return errors;
+  if (!values.effectiveDate) errors.effectiveDate = "La date de début est requise";
+  const day = parseInt(values.paymentDay || "", 10);
+  if (!values.paymentDay) errors.paymentDay = "Le jour de paiement est requis";
+  else if (paymentDayInvalid(values.paymentDay, values.savedPaymentDay)) errors.paymentDay = PAYMENT_DAY_INVALID;
+  return errors;
+};
 
 type FormData = z.infer<typeof schema>;
 
@@ -66,7 +85,7 @@ const STEP_LABELS = ["Bien", "Locataire", "Bail", "Dates", "Paiement"];
 const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
   0: ["propertyId"],
   1: [], // tenantId est optionnel
-  2: ["bailType", "rentAmount", "monthlyCharges"],
+  2: ["bailType", "rentAmount"],
   3: ["effectiveDate", "paymentDay"],
 };
 
@@ -76,13 +95,15 @@ interface DraftBailData {
   id: string;
   bailType: string | null;
   rentAmount: number;
-  monthlyCharges: number;
-  securityDeposit: number;
+  monthlyCharges: number | null;
+  securityDeposit: number | null;
   effectiveDate: string | null;
   endDate: string | null;
   paymentDay: number | null;
   propertyId: string;
   tenantId: string | null;
+  /** Réponses du contrôle du loyer (relocation en zone tendue, complément de loyer). */
+  rentRules?: RentRulesFormValues;
 }
 
 interface CreateBailPageClientProps {
@@ -90,6 +111,8 @@ interface CreateBailPageClientProps {
     id: string;
     label: string | null;
     fullAddress: string | null;
+    /** Bail en cours sur ce bien : pourquoi un nouveau bail n'est pas encore possible. */
+    blockedMessage?: string | null;
   }>;
   locataires: Array<{
     id: string;
@@ -126,9 +149,15 @@ export function CreateBailPageClient({
   };
 
   const [step, setStep] = useState(getInitialStep);
+  // Étape « Bail » : d'abord le loyer, puis les charges et le dépôt de garantie.
+  const [bailPart, setBailPart] = useState<"rent" | "charges">("rent");
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  // Bail commercial : questionnaire dédié (formulaire propriétaire), sur un local existant ou nouveau.
+  const [family, setFamily] = useState<"HABITATION" | "COMMERCIAL">("HABITATION");
+  const [commercialPropertyId, setCommercialPropertyId] = useState<string>("new");
+  const [isStartingCommercial, setIsStartingCommercial] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftBail?.id ?? null);
 
   const [localBiens, setLocalBiens] = useState(biens);
@@ -145,9 +174,15 @@ export function CreateBailPageClient({
     id: string;
     surfaceM2: number | null;
     isMeuble: boolean;
+    dpeClass: string | null;
   } | null>(null);
-  const [rentValidationResult, setRentValidationResult] =
-    useState<RentValidationResult | null>(null);
+  // Contrôle du loyer : réponses, classe DPE saisie si le bien n'en a pas, dernier résultat.
+  const [rentRules, setRentRules] = useState<RentRulesFormValues>(draftBail?.rentRules ?? EMPTY_RENT_RULES);
+  const [dpeInput, setDpeInput] = useState("");
+  const [showRentErrors, setShowRentErrors] = useState(false);
+  const rentRulesResultRef = useRef<RentRulesAssessment | null>(null);
+  // « Continuer » sur l'étape du loyer : passe d'abord d'une question à l'autre.
+  const rentAdvanceRef = useRef<(() => boolean) | null>(null);
 
   const propertyFormRef = useRef<CreatePropertyFormRef>(null);
 
@@ -155,20 +190,25 @@ export function CreateBailPageClient({
 
   const {
     register,
+    control,
     handleSubmit,
     setValue,
     watch,
     trigger,
+    setError,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      propertyId: draftBail?.propertyId || initialPropertyId || "",
+      propertyId:
+        draftBail?.propertyId ||
+        (initialPropertyId && !biens.find((b) => b.id === initialPropertyId)?.blockedMessage ? initialPropertyId : ""),
       tenantId: draftBail?.tenantId || "",
       bailType: (draftBail?.bailType as BailType) || BailType.BAIL_NU_3_ANS,
       rentAmount: draftBail?.rentAmount ? String(draftBail.rentAmount) : "",
-      monthlyCharges: draftBail?.monthlyCharges ? String(draftBail.monthlyCharges) : "",
-      securityDeposit: draftBail?.securityDeposit ? String(draftBail.securityDeposit) : "0",
+      // Des charges saisies à 0 restent 0 ; null = étape jamais remplie.
+      monthlyCharges: draftBail?.monthlyCharges != null ? String(draftBail.monthlyCharges) : "",
+      securityDeposit: draftBail?.securityDeposit != null ? String(draftBail.securityDeposit) : "0",
       effectiveDate: draftBail?.effectiveDate || "",
       endDate: draftBail?.endDate || "",
       paymentDay: draftBail?.paymentDay ? String(draftBail.paymentDay) : "",
@@ -233,6 +273,7 @@ export function CreateBailPageClient({
             id: propertyId,
             surfaceM2: data.surfaceM2 ? Number(data.surfaceM2) : null,
             isMeuble,
+            dpeClass: data.dpeClass ?? null,
           });
           // Si le bien n'est pas meublé et que le type sélectionné est meublé, repasser sur nu 3 ans
           const currentBailType = watch("bailType");
@@ -244,48 +285,127 @@ export function CreateBailPageClient({
           }
         }
       })
-      .catch(() => setSelectedProperty({ id: propertyId, surfaceM2: null, isMeuble: false }));
+      .catch(() => setSelectedProperty({ id: propertyId, surfaceM2: null, isMeuble: false, dpeClass: null }));
   }, [propertyId]);
 
-  // Validation du loyer (zone tendue)
-  useEffect(() => {
-    if (propertyId && rentAmount && selectedProperty) {
-      const rent = parseFloat(rentAmount);
-      if (!isNaN(rent) && rent > 0) {
-        validateRentAmount(propertyId, rent, selectedProperty.surfaceM2)
-          .then((r) => setRentValidationResult(r))
-          .catch(() => setRentValidationResult(null));
-      } else {
-        setRentValidationResult(null);
-      }
-    } else {
-      setRentValidationResult(null);
-    }
-  }, [propertyId, rentAmount, selectedProperty]);
+  // Classe DPE : celle du bien, sinon celle saisie dans le contrôle du loyer.
+  const dpeClass = selectedProperty?.dpeClass || dpeInput || null;
+  // Le loyer : parcours guidé dans les communes qui encadrent les loyers, sinon un simple champ.
+  const rentCheck = useRentRules({
+    enabled: step === 2 && bailPart === "rent" && !!propertyId,
+    propertyId,
+    rentAmount,
+    bailType,
+    bailFamily: "HABITATION",
+    dpeClass,
+    onDpeChange: selectedProperty?.dpeClass ? undefined : setDpeInput,
+    values: rentRules,
+    onChange: (patch) => setRentRules((prev) => ({ ...prev, ...patch })),
+    onResult: (result) => {
+      rentRulesResultRef.current = result;
+    },
+    showErrors: showRentErrors,
+    advanceRef: rentAdvanceRef,
+    onApplyRent: (value) => setValue("rentAmount", String(value), { shouldDirty: true, shouldValidate: true }),
+    onRentChange: (value) => setValue("rentAmount", value, { shouldDirty: true, shouldValidate: !!errors.rentAmount }),
+    rentError: errors.rentAmount?.message,
+  });
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
   const handleBack = useCallback(() => {
-    if (step > 0) {
+    if (step === 2 && bailPart === "charges") {
+      setBailPart("rent");
+    } else if (step === 4 && !watch("tenantId")) {
+      // Sans locataire, l'étape « Dates » n'existe pas : retour aux charges.
+      setStep(2);
+    } else if (step > 0) {
       setStep((s) => s - 1);
     } else {
       router.back();
     }
-  }, [step, router]);
+  }, [step, router, bailPart, watch]);
+
+  // Geste « retour » du téléphone : recule d'une étape comme la flèche (M9, validé le 17/11/2026)
+  useStepBackGesture(`${step}:${bailPart}`, step > 0 || bailPart === "charges", handleBack);
+
+  const startCommercial = async () => {
+    setIsStartingCommercial(true);
+    try {
+      const result = await startCommercialLeaseFromSpace({ propertyId: commercialPropertyId === "new" ? null : commercialPropertyId });
+      if (!result.success) {
+        toast.error(result.error);
+        setIsStartingCommercial(false);
+        return;
+      }
+      if (result.resumed) {
+        toast.info("Un formulaire est déjà en cours : vous le reprenez là où vous l'avez laissé.");
+      }
+      router.push(result.url);
+    } catch {
+      toast.error("Le questionnaire n'a pas pu s'ouvrir. Réessayez.");
+      setIsStartingCommercial(false);
+    }
+  };
 
   const handleNext = useCallback(async () => {
+    // Étape « Le loyer » : tant qu'une question est ouverte, « Continuer » y répond.
+    if (step === 2 && bailPart === "rent" && rentAdvanceRef.current?.()) return;
     const fields = STEP_FIELDS[step];
     if (fields) {
       const valid = await trigger(fields);
       if (!valid) return;
     }
-    if (step === 2 && isSecurityDepositExceeded) {
+    if (step === 2 && bailPart === "charges") {
+      const valid = await trigger(["monthlyCharges"]);
+      if (!valid) return;
+    }
+    if (step === 2 && bailPart === "charges" && isSecurityDepositExceeded) {
       toast.error(
         `Le dépôt de garantie ne peut pas dépasser ${isMeubleBailType ? "2" : "1"} mois de loyer.`
       );
       return;
     }
+    // Sans locataire, l'étape « Dates » n'est pas demandée : on passe au paiement, sans date ni jour de paiement.
+    if (step === 2 && bailPart === "charges" && !watch("tenantId")) {
+      setValue("effectiveDate", "");
+      setValue("endDate", "");
+      setValue("paymentDay", "");
+      handleSubmit((data) => {
+        setPendingFormData(data);
+        setStep(4);
+      })();
+      return;
+    }
+    // Loyer : plafond de l'arrêté et relocation en zone tendue, contrôlés côté serveur avant le paiement.
+    if (step === 2 && bailPart === "rent") {
+      const check = rentRulesResultRef.current;
+      if (!check) {
+        toast.info("Vérification du loyer en cours, réessayez dans un instant.");
+        return;
+      }
+      if (check.ownerBlocking) {
+        setShowRentErrors(true);
+        toast.error("Le loyer ne peut pas être retenu en l'état", {
+          description:
+            check.relocation.status === "missing"
+              ? "Répondez aux questions sur le loyer."
+              : check.supplement.needed && check.supplement.dpeUnknown
+                ? "Indiquez la classe énergétique du logement."
+                : check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over"
+                  ? "Décrivez les atouts du logement ou baissez le loyer."
+                  : "Le loyer dépasse le maximum autorisé : baissez-le.",
+        });
+        return;
+      }
+      setBailPart("charges");
+      return;
+    }
     if (step === 3) {
+      // Locataire choisi : date de début et jour de paiement exigés avant le paiement.
+      const dateErrors = tenantDateErrors({ tenantId: watch("tenantId"), effectiveDate: watch("effectiveDate"), paymentDay: watch("paymentDay"), savedPaymentDay: draftBail?.paymentDay ?? null });
+      for (const [field, message] of Object.entries(dateErrors)) setError(field as "effectiveDate" | "paymentDay", { type: "manual", message });
+      if (Object.keys(dateErrors).length > 0) return;
       handleSubmit((data) => {
         setPendingFormData(data);
         setStep(4);
@@ -293,7 +413,7 @@ export function CreateBailPageClient({
       return;
     }
     setStep((s) => s + 1);
-  }, [step, trigger, handleSubmit, isSecurityDepositExceeded, isMeubleBailType]);
+  }, [step, bailPart, trigger, handleSubmit, isSecurityDepositExceeded, isMeubleBailType, watch, setValue, setError]);
 
   const handleSaveDraft = useCallback(async () => {
     const currentPropertyId = watch("propertyId");
@@ -314,6 +434,8 @@ export function CreateBailPageClient({
         effectiveDate: watch("effectiveDate") || undefined,
         endDate: watch("endDate") || undefined,
         paymentDay: watch("paymentDay") || undefined,
+        rentRules,
+        dpeClass: selectedProperty?.dpeClass ? undefined : dpeInput || undefined,
       });
       setCurrentDraftId(result.bailId);
       toast.success("Brouillon sauvegardé");
@@ -322,23 +444,25 @@ export function CreateBailPageClient({
     } finally {
       setIsSavingDraft(false);
     }
-  }, [currentDraftId, watch]);
+  }, [currentDraftId, watch, rentRules, dpeInput, selectedProperty]);
 
   const handlePaymentSuccess = useCallback(
     async (paymentIntentId: string) => {
       if (!pendingFormData) return;
       try {
         setIsSubmitting(true);
-        const bail = await createLease(
+        const bail = await unwrapAction(createLease(
           {
             ...pendingFormData,
             securityDeposit: pendingFormData.securityDeposit || "0",
             leaseType: "HABITATION",
             status: BailStatus.DRAFT,
+            rentRules,
+            dpeClass: selectedProperty?.dpeClass ? undefined : dpeInput || undefined,
           },
           paymentIntentId,
           currentDraftId ?? undefined
-        );
+        ));
         toast.success("Bail créé avec succès");
         router.push("/client/proprietaire/demandes");
       } catch (error: any) {
@@ -349,7 +473,7 @@ export function CreateBailPageClient({
         setIsSubmitting(false);
       }
     },
-    [pendingFormData, router, currentDraftId]
+    [pendingFormData, router, currentDraftId, rentRules, dpeInput, selectedProperty]
   );
 
   const getLocataireName = (loc: (typeof locataires)[0]) => {
@@ -367,7 +491,7 @@ export function CreateBailPageClient({
   const handlePropertyCreated = (newProp: any) => {
     setLocalBiens((prev) => [
       ...prev,
-      { id: newProp.id, label: newProp.label, fullAddress: newProp.fullAddress },
+      { id: newProp.id, label: newProp.label, fullAddress: newProp.fullAddress, blockedMessage: null },
     ]);
     setValue("propertyId", newProp.id);
     setIsPropertyDrawerOpen(false);
@@ -401,6 +525,85 @@ export function CreateBailPageClient({
       case 0:
         return (
           <div className="space-y-4">
+            {/* Un brouillon est toujours un bail d'habitation : pas de choix à la reprise. */}
+            {!draftBail && (
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Type de bail">
+                {([
+                  { value: "HABITATION", label: "Logement", hint: "Bail d'habitation", icon: Home },
+                  { value: "COMMERCIAL", label: "Local commercial", hint: "Bail commercial", icon: Store },
+                ] as const).map((option) => {
+                  const Icon = option.icon;
+                  const selected = family === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setFamily(option.value)}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all",
+                        selected ? "border-primary bg-primary/5" : "border-border hover:border-primary/30 hover:bg-muted/40"
+                      )}
+                    >
+                      <Icon className={cn("h-4 w-4 shrink-0", selected ? "text-primary" : "text-muted-foreground")} />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">{option.label}</span>
+                        <span className="block text-xs text-muted-foreground">{option.hint}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {family === "COMMERCIAL" ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xl font-semibold">Quel local ?</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Le bail commercial se prépare avec un questionnaire dédié : activité, loyer hors taxes, charges,
+                    travaux. Vos informations déjà connues sont reprises.
+                  </p>
+                </div>
+                <div className="space-y-2.5">
+                  {[{ id: "new", label: "Un nouveau local", fullAddress: "Vous le décrirez dans le questionnaire", blockedMessage: null as string | null | undefined }, ...localBiens].map((bien) => {
+                    const selected = commercialPropertyId === bien.id;
+                    return (
+                      <button
+                        key={bien.id}
+                        type="button"
+                        disabled={!!bien.blockedMessage}
+                        aria-disabled={!!bien.blockedMessage}
+                        onClick={() => !bien.blockedMessage && setCommercialPropertyId(bien.id)}
+                        className={cn(
+                          "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
+                          bien.blockedMessage
+                            ? "cursor-not-allowed border-border bg-muted/30 opacity-70"
+                            : selected
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/30 hover:bg-muted/40"
+                        )}
+                      >
+                        <div className={cn("mt-0.5 p-2 rounded-lg shrink-0", selected ? "bg-primary/10" : "bg-muted")}>
+                          {bien.id === "new" ? (
+                            <Plus className={cn("h-4 w-4", selected ? "text-primary" : "text-muted-foreground")} />
+                          ) : (
+                            <Store className={cn("h-4 w-4", selected ? "text-primary" : "text-muted-foreground")} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{bien.label || "Bien sans libellé"}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{bien.fullAddress || "Adresse non renseignée"}</p>
+                          {bien.blockedMessage && <p className="mt-1.5 text-xs font-medium text-amber-700">{bien.blockedMessage}</p>}
+                        </div>
+                        {selected && <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+          <div className="space-y-4">
             <div>
               <p className="text-xl font-semibold">Quel bien ?</p>
               <p className="text-sm text-muted-foreground mt-1">
@@ -412,15 +615,20 @@ export function CreateBailPageClient({
                 <button
                   key={bien.id}
                   type="button"
+                  disabled={!!bien.blockedMessage}
+                  aria-disabled={!!bien.blockedMessage}
                   onClick={() => {
+                    if (bien.blockedMessage) return;
                     setValue("propertyId", bien.id);
                     trigger("propertyId");
                   }}
                   className={cn(
                     "w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
-                    propertyId === bien.id
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/30 hover:bg-muted/40"
+                    bien.blockedMessage
+                      ? "cursor-not-allowed border-border bg-muted/30 opacity-70"
+                      : propertyId === bien.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/30 hover:bg-muted/40"
                   )}
                 >
                   <div
@@ -443,6 +651,9 @@ export function CreateBailPageClient({
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       {bien.fullAddress || "Adresse non renseignée"}
                     </p>
+                    {bien.blockedMessage && (
+                      <p className="mt-1.5 text-xs font-medium text-amber-700">{bien.blockedMessage}</p>
+                    )}
                   </div>
                   {propertyId === bien.id && (
                     <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
@@ -462,6 +673,8 @@ export function CreateBailPageClient({
             </div>
             {errors.propertyId && (
               <p className="text-sm text-destructive">{errors.propertyId.message}</p>
+            )}
+          </div>
             )}
           </div>
         );
@@ -555,62 +768,13 @@ export function CreateBailPageClient({
 
       case 2:
         return (
+          bailPart === "charges" ? (
           <div className="space-y-5">
             <div>
-              <p className="text-xl font-semibold">Détails du bail</p>
+              <p className="text-xl font-semibold">Charges et dépôt de garantie</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Type, loyer et charges mensuelles
+                Les charges mensuelles et le dépôt de garantie demandé au locataire.
               </p>
-            </div>
-
-            {propertyId && (
-              <RentControlAlert
-                propertyId={propertyId}
-                rentAmount={rentAmount ? parseFloat(rentAmount) : undefined}
-                surfaceM2={selectedProperty?.surfaceM2}
-                validationResult={rentValidationResult}
-              />
-            )}
-
-            <div className="space-y-2">
-              <Label>Type de bail *</Label>
-              <Select
-                value={bailType}
-                onValueChange={(v) => setValue("bailType", v as BailType)}
-              >
-                <SelectTrigger className="w-full h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
-                  <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nu 6 ans</SelectItem>
-                  <SelectItem value={BailType.BAIL_MEUBLE_1_ANS} disabled={!canMeuble}>
-                    Bail meublé 1 an
-                  </SelectItem>
-                  <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS} disabled={!canMeuble}>
-                    Bail meublé 9 mois
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              {!canMeuble && propertyId && (
-                <p className="text-xs text-muted-foreground">
-                  Location meublée indisponible — le bien ne possède pas tous les équipements obligatoires.
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Loyer mensuel (€) *</Label>
-              <Input
-                type="number"
-                placeholder="800"
-                inputMode="decimal"
-                className="w-full h-11"
-                {...register("rentAmount")}
-              />
-              {errors.rentAmount && (
-                <p className="text-sm text-destructive">{errors.rentAmount.message}</p>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -657,6 +821,54 @@ export function CreateBailPageClient({
               )}
             </div>
           </div>
+          ) : (
+          <div className="space-y-5">
+            <div>
+              <p className="text-xl font-semibold">Le loyer</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Nous vous accompagnons pour fixer le bon loyer pour votre logement.
+              </p>
+            </div>
+
+
+            <div className="space-y-2">
+              <Label>Type de bail *</Label>
+              <Select
+                value={bailType}
+                onValueChange={(v) => setValue("bailType", v as BailType)}
+              >
+                <SelectTrigger className="w-full h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
+                  <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nu 6 ans</SelectItem>
+                  <SelectItem value={BailType.BAIL_MEUBLE_1_ANS} disabled={!canMeuble}>
+                    Bail meublé 1 an
+                  </SelectItem>
+                  <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS} disabled={!canMeuble}>
+                    Bail meublé 9 mois
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {!canMeuble && propertyId && (
+                <p className="text-xs text-muted-foreground">
+                  Location meublée indisponible — le bien ne possède pas tous les équipements obligatoires.
+                </p>
+              )}
+            </div>
+
+            {propertyId ? (
+              <RentGuide rules={rentCheck} />
+            ) : (
+              <div className="space-y-2">
+                <Label>Loyer mensuel hors charges (€) *</Label>
+                <Input type="number" placeholder="800" inputMode="decimal" className="w-full h-11" {...register("rentAmount")} />
+                {errors.rentAmount && <p className="text-sm text-destructive">{errors.rentAmount.message}</p>}
+              </div>
+            )}
+          </div>
+          )
         );
 
       case 3:
@@ -665,16 +877,27 @@ export function CreateBailPageClient({
             <div>
               <p className="text-xl font-semibold">Dates du bail</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Durée et échéance de paiement
+                Avec un locataire, indiquez la date de début du bail et le jour de paiement du loyer.
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Date de début *</Label>
-              <Input
-                type="date"
-                className="w-full h-11"
-                {...register("effectiveDate")}
+              <Label htmlFor="effectiveDate">Date de début *</Label>
+              <Controller
+                name="effectiveDate"
+                control={control}
+                render={({ field }) => (
+                  <DateInput
+                    id="effectiveDate"
+                    name={field.name}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    minDate={todayInFrance()}
+                    className="h-11"
+                    aria-invalid={!!errors.effectiveDate}
+                  />
+                )}
               />
               {errors.effectiveDate && (
                 <p className="text-sm text-destructive">{errors.effectiveDate.message}</p>
@@ -693,7 +916,7 @@ export function CreateBailPageClient({
               <Input
                 type="number"
                 min="1"
-                max="31"
+                max={draftBail?.paymentDay && draftBail.paymentDay > 28 ? 31 : 28}
                 placeholder="5"
                 inputMode="numeric"
                 className="w-full h-11"
@@ -756,7 +979,7 @@ export function CreateBailPageClient({
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm leading-tight">Nouveau bail</p>
             <p className="text-xs text-muted-foreground">
-              {STEP_LABELS[step]} · Étape {step + 1}/{STEP_LABELS.length}
+              {step === 2 ? (bailPart === "rent" ? "Le loyer" : "Charges & dépôt") : STEP_LABELS[step]} · Étape {!tenantId && step === 4 ? 4 : step + 1}/{tenantId ? STEP_LABELS.length : STEP_LABELS.length - 1}
             </p>
           </div>
           {step > 0 && step < 4 && (
@@ -775,7 +998,7 @@ export function CreateBailPageClient({
         <div className="shrink-0 h-0.5 bg-muted">
           <div
             className="h-full bg-primary transition-all duration-300 ease-out"
-            style={{ width: `${((step + 1) / STEP_LABELS.length) * 100}%` }}
+            style={{ width: `${((!tenantId && step === 4 ? 4 : step + 1) / (tenantId ? STEP_LABELS.length : STEP_LABELS.length - 1)) * 100}%` }}
           />
         </div>
 
@@ -790,14 +1013,22 @@ export function CreateBailPageClient({
             className="shrink-0 border-t bg-background px-4 py-3"
             style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
           >
-            <Button
-              onClick={handleNext}
-              disabled={isSubmitting}
-              className="w-full h-12 text-base"
-            >
-              {step === 3 ? "Continuer vers le paiement" : "Continuer"}
-              {step < 3 && <ChevronRight className="ml-2 h-4 w-4" />}
-            </Button>
+            {step === 0 && family === "COMMERCIAL" ? (
+              <Button onClick={startCommercial} disabled={isStartingCommercial} className="w-full h-12 text-base">
+                {isStartingCommercial && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Ouvrir le questionnaire du bail commercial
+                {!isStartingCommercial && <ChevronRight className="ml-2 h-4 w-4" />}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNext}
+                disabled={isSubmitting}
+                className="w-full h-12 text-base"
+              >
+                {step === 3 ? "Continuer vers le paiement" : "Continuer"}
+                {step < 3 && <ChevronRight className="ml-2 h-4 w-4" />}
+              </Button>
+            )}
           </div>
         )}
       </div>

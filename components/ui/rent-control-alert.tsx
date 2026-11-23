@@ -143,7 +143,7 @@ export function RentControlAlert({
           <p className="text-xs leading-relaxed flex items-start gap-1.5 text-amber-700/80 dark:text-amber-300/70">
             <Info className="h-3 w-3 mt-0.5 shrink-0" />
             <span>
-              <strong>Exception :</strong> hausse possible si des travaux d'un montant ≥ à la dernière année de loyer ont été réalisés.
+              <strong>Exception :</strong> hausse possible si des travaux d'un montant au moins égal à la dernière année de loyer ont été réalisés.
             </span>
           </p>
         </div>

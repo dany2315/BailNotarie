@@ -3,8 +3,8 @@
 import { FileText, Download, Eye, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentViewer } from "./document-viewer";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { useDownloadFile } from "@/hooks/use-download-file";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 interface Document {
   id: string;
@@ -41,7 +41,7 @@ export function DocumentsList({ documents, documentKindLabels }: DocumentsListPr
                 {documentKindLabels[doc.kind] || doc.kind}
               </p>
               <p className="text-xs text-muted-foreground">
-                {formatDateTime(doc.createdAt)}
+                <LocalDateTime value={doc.createdAt} />
               </p>
             </div>
           </div>

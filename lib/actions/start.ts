@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
-import { triggerOwnerFormEmail, triggerRequestStatusEmail } from "@/lib/inngest/helpers";
+import { triggerOwnerFormEmail } from "@/lib/inngest/helpers";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { createUserForClient } from "@/lib/utils/user-creation";
 import { z } from "zod";
@@ -11,6 +11,8 @@ import { z } from "zod";
 const startOwnerSchema = z.object({
   role: z.literal("PROPRIETAIRE"),
   email: z.string().email("Email invalide"),
+  /** Bail choisi sur l'accueil (« Votre bail notarié commercial commence ici ») : prérempli dans le formulaire. */
+  bailFamily: z.nativeEnum(BailFamille).optional(),
 });
 
 const startTenantSchema = z.object({
@@ -102,13 +104,14 @@ export async function startAsOwner(data: StartOwnerInput) {
         target: "OWNER",
         clientId: client?.id,
         status: "PENDING",
+        bailFamilyPreference: validated.bailFamily ?? null,
       },
     });
 
 
 
     // L'email OTP sera envoyé côté client via Better Auth
-    console.log(`[startAsOwner] Nouveau client créé. token=${intakeLink.token}, isExistingClient=false`);
+    console.log(`[startAsOwner] Nouveau client créé, isExistingClient=false`);
     return { success: true, token: intakeLink.token, isExistingClient: false };
   } else {
     // Client existant : s'assurer qu'un User existe pour l'OTP
@@ -151,12 +154,18 @@ export async function startAsOwner(data: StartOwnerInput) {
       },
     });
 
+    // Formulaire pas encore commencé (aucun bail créé) : le bail choisi sur l'accueil est repris.
+    if (pendingIntakeLink && !pendingIntakeLink.bailId && validated.bailFamily && pendingIntakeLink.bailFamilyPreference !== validated.bailFamily) {
+      await prisma.intakeLink.update({ where: { id: pendingIntakeLink.id }, data: { bailFamilyPreference: validated.bailFamily } });
+    }
+
     if (pendingIntakeLink && client) {
       // Client existant avec formulaire en cours → redirige vers l'espace client
-      console.log(`[startAsOwner] Client existant avec IntakeLink PENDING. token=${pendingIntakeLink.token}, isExistingClient=true`);
+      // Le lien n'est jamais renvoyé ici : saisir l'e-mail d'un autre ne doit pas ouvrir son dossier.
+      // Après le code reçu par e-mail, le propriétaire le retrouve dans son espace client.
+      console.log(`[startAsOwner] Client existant avec IntakeLink PENDING. isExistingClient=true`);
       return {
         success: true,
-        token: pendingIntakeLink.token,
         isExistingClient: true,
       };
     }
@@ -265,7 +274,7 @@ export async function startAsTenant(data: StartTenantInput) {
         alreadyExists: true,
         alreadySubmitted: true,
         message: "Le propriétaire a déjà fait sa demande. Votre demande de bail notarié est en cours de traitement.",
-        redirectTo: "/commencer/suivi",
+        redirectTo: "/client/login",
       };
     }
     else{
@@ -274,7 +283,7 @@ export async function startAsTenant(data: StartTenantInput) {
         alreadyExists: true,
         alreadyPending: false,
         message: "Le propriétaire a déjà fait sa demande. Votre demande de bail notarié est en cours de traitement.",
-        redirectTo: "/commencer/suivi",
+        redirectTo: "/client/login",
       };
     }
   } else {
@@ -346,8 +355,9 @@ export async function startAsTenant(data: StartTenantInput) {
       rentAmount: 0, // Sera mis à jour lors du formulaire propriétaire
       monthlyCharges: 0,
       securityDeposit: 0,
-      effectiveDate: new Date(), // Date temporaire, sera mise à jour
-      paymentDay: 1, // Valeur par défaut
+      // Pas de date provisoire : la date d'effet et le jour de paiement restent vides jusqu'à leur saisie.
+      effectiveDate: null,
+      paymentDay: null,
       propertyId: property.id,
       parties: {
         connect: [
@@ -413,156 +423,10 @@ export async function startAsTenant(data: StartTenantInput) {
     // On continue même si l'email échoue
   }
 
-  return { 
-    success: true, 
-    tenantToken: tenantIntakeLink.token,
-    ownerToken: ownerIntakeLink.token,
-  };
-}
-}
-
-// Récupérer le statut d'une demande par email
-export async function getRequestStatusByEmail(email: string) {
-  const normalizedEmail = email.toLowerCase().trim();
-  
-  // Trouver le client via Person.email ou Entreprise.email
-  const person = await prisma.person.findUnique({
-    where: { email: normalizedEmail },
-    select: { clientId: true },
-  });
-
-  const entreprise = await prisma.entreprise.findUnique({
-    where: { email: normalizedEmail },
-    select: { clientId: true },
-  });
-
-  const clientId = person?.clientId || entreprise?.clientId;
-
-  if (!clientId) {
-    return {
-      success: false,
-      found: false,
-      message: "Aucune demande trouvée pour cet email.",
-    };
-  }
-
-  // Récupérer le client avec toutes ses relations
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    include: {
-      intakeLinks: {
-        where: {
-          status: {
-            in: ["PENDING", "SUBMITTED"],
-          },
-        },
-        include: {
-          bail: {
-            include: {
-              property: true,
-            },
-          },
-          property: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      },
-      bails: {
-        include: {
-          property: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      },
-    },
-  });
-
-  if (!client) {
-    return {
-      success: false,
-      found: false,
-      message: "Aucune demande trouvée pour cet email.",
-    };
-  }
-
-  // Déterminer l'étape actuelle
-  const latestIntakeLink = client.intakeLinks[0];
-  const latestBail = client.bails[0];
-
-  let currentStep = "Aucune étape en cours";
-  let status = "NOT_STARTED";
-
-  if (latestIntakeLink) {
-    if (latestIntakeLink.status === "SUBMITTED") {
-      status = "SUBMITTED";
-      if (latestBail) {
-        switch (latestBail.status) {
-          case "DRAFT":
-            currentStep = "Formulaire soumis - En attente de validation";
-            break;
-          case "PENDING_VALIDATION":
-            currentStep = "En attente de validation par BailNotarié";
-            break;
-          case "READY_FOR_NOTARY":
-            currentStep = "Prêt pour le notaire";
-            break;
-          case "SIGNED":
-            currentStep = "Bail signé";
-            break;
-          case "TERMINATED":
-            currentStep = "Bail terminé";
-            break;
-          default:
-            currentStep = "Formulaire soumis - En attente de traitement";
-        }
-      } else {
-        currentStep = "Formulaire soumis - En attente de traitement";
-      }
-    } else if (latestIntakeLink.status === "PENDING") {
-      status = "PENDING";
-      currentStep = "Formulaire en cours de complétion";
-    }
-  }
-
-  // Récupérer les informations de Person ou Entreprise pour l'email
-  const clientPerson = await prisma.person.findFirst({
-    where: { clientId: client.id, isPrimary: true },
-  });
-
-  const clientEntreprise = await prisma.entreprise.findUnique({
-    where: { clientId: client.id },
-  });
-
-  const firstName = clientPerson?.firstName || null;
-  const lastName = clientPerson?.lastName || null;
-
-  // Envoyer l'email avec les informations de suivi
-  try {
-    await triggerRequestStatusEmail({
-      to: normalizedEmail,
-      firstName: firstName,
-      lastName: lastName,
-      currentStep,
-      status,
-      propertyAddress: latestBail?.property?.fullAddress || null,
-      profilType: client.profilType,
-      intakeLinkToken: latestIntakeLink?.token || null,
-    });
-  } catch (error) {
-    console.error("Erreur lors du déclenchement de l'email de suivi:", error);
-    return {
-      success: false,
-      found: true,
-      message: "Une erreur s'est produite lors de l'envoi de l'email. Veuillez réessayer plus tard.",
-    };
-  }
-
+  // Le lien du propriétaire part par e-mail au propriétaire : il n'est pas renvoyé au locataire.
   return {
     success: true,
-    found: true,
-    message: "Un email contenant les informations de suivi de votre demande a été envoyé à votre adresse email.",
+    tenantToken: tenantIntakeLink.token,
   };
 }
-
+}

@@ -5,12 +5,12 @@ import { Column } from "@/components/data-table/data-table";
 import { DataTable } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { Trash2 } from "lucide-react";
 import { revokeAssignment } from "@/lib/actions/notaires";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 interface Assignation {
   id: string;
@@ -114,7 +114,7 @@ export function AssignationsTable({ assignations }: AssignationsTableProps) {
       header: "Assigné le",
       cell: ({ row }: { row: Assignation }) => (
         <div className="text-sm text-muted-foreground">
-          {formatDateTime(row.assignedAt)}
+          <LocalDateTime value={row.assignedAt} />
         </div>
       ),
     },

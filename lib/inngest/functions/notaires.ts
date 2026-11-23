@@ -10,7 +10,7 @@ export const sendNotaireWelcomeEmail = inngest.createFunction(
       await resendSendEmail({
         from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
         to: event.data.email,
-        subject: "Bienvenue sur BailNotarie - Votre compte notaire",
+        subject: "Votre espace notaire BailNotarie est ouvert",
         react: MailNotaireWelcome({
           userName: event.data.userName,
           email: event.data.email,

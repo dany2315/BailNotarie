@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,7 +56,10 @@ const createBailSchema = z.object({
   securityDeposit: z.string().optional(),
   effectiveDate: z.string().min(1, "La date de début est requise"),
   endDate: z.string().optional(),
-  paymentDay: z.string().min(1, "Le jour de paiement est requis"),
+  paymentDay: z
+    .string()
+    .min(1, "Le jour de paiement est requis")
+    .refine((v) => /^\d{1,2}$/.test(v.trim()) && Number(v) >= 1 && Number(v) <= 28, "Le jour de paiement doit être compris entre 1 et 28."),
 });
 
 type CreateBailFormData = z.infer<typeof createBailSchema>;
@@ -291,7 +295,7 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
         leaseType: "HABITATION",
         status: BailStatus.DRAFT,
       };
-      const bail = await createLease(bailData);
+      const bail = await unwrapAction(createLease(bailData));
       toast.success("Bail créé avec succès");
       
       // Si onBailCreated est fourni, l'appeler au lieu de rediriger
@@ -681,8 +685,8 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                     <SelectValue placeholder="Sélectionner un type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nue 3 ans</SelectItem>
-                    <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nue 6 ans</SelectItem>
+                    <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
+                    <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nu 6 ans</SelectItem>
                     <SelectItem value={BailType.BAIL_MEUBLE_1_ANS}>Bail meublé 1 an</SelectItem>
                     <SelectItem value={BailType.BAIL_MEUBLE_9_MOIS}>Bail meublé 9 mois</SelectItem>
                   </SelectContent>
@@ -770,7 +774,7 @@ export const CreateBailForm = forwardRef<CreateBailFormRef, CreateBailFormProps>
                   id="paymentDay"
                   type="number"
                   min="1"
-                  max="31"
+                  max="28"
                   {...register("paymentDay")}
                   disabled={isLoading}
                   placeholder="5"

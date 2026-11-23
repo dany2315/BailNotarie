@@ -1,266 +1,87 @@
-import { 
-  Html, 
-  Head, 
-  Body, 
-  Container, 
-  Section, 
-  Heading, 
-  Text, 
-  Button,
-  Hr,
-  Img,
-  Link
-} from "@react-email/components";
 import * as React from "react";
-import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
+import { EmailLayout, Title, Lead, KeyValues, Quote, Actions, Sign } from "./_shared/layout";
 
 interface MailNotaireAssignmentProps {
   userName?: string | null;
   clientName: string;
+  /** Adresse du bien (avec la surface si elle est connue). */
   propertyAddress?: string;
+  /** « Location vide, 3 ans »… */
+  bailTypeLabel?: string | null;
+  ownerName?: string | null;
+  /** Vide si aucun locataire n'est encore sur le dossier. */
+  tenantName?: string | null;
+  /** « 1 100 € + 95 € de charges ». */
+  rentText?: string | null;
+  /** Le bien et chaque partie ont été validés par l'équipe. */
+  documentsVerified?: boolean;
+  /** « 1er décembre 2026 ». */
+  effectiveDate?: string | null;
   notes?: string | null;
   interfaceUrl: string;
 }
 
+/** Un dossier est confié au notaire. */
 export default function MailNotaireAssignment({
-  userName,
   clientName,
   propertyAddress,
+  bailTypeLabel,
+  ownerName,
+  tenantName,
+  rentText,
+  documentsVerified,
+  effectiveDate,
   notes,
-  interfaceUrl
+  interfaceUrl,
 }: MailNotaireAssignmentProps) {
+  const owner = (ownerName || clientName || "").trim();
+  const rows: Array<[string, React.ReactNode]> = [];
+  if (bailTypeLabel) rows.push(["Type", bailTypeLabel]);
+  if (propertyAddress) rows.push(["Bien", propertyAddress]);
+  rows.push(["Bailleur", owner]);
+  rows.push(["Locataire", tenantName || "Pas encore indiqué"]);
+  if (rentText) rows.push(["Loyer", rentText]);
+  if (documentsVerified !== undefined) {
+    rows.push([
+      "Pièces",
+      <span key="p" style={{ color: documentsVerified ? "#15803d" : "#b45309", fontWeight: "bold" }}>
+        {documentsVerified ? "Toutes vérifiées par l'équipe" : "Vérification en cours par l'équipe"}
+      </span>,
+    ]);
+  }
+  if (effectiveDate) rows.push(["Entrée prévue", effectiveDate]);
+
+  const parties = [owner, (tenantName || "").trim()].filter(Boolean).join(" / ");
+  const preview = [
+    parties || clientName,
+    documentsVerified ? "pièces vérifiées" : null,
+    effectiveDate ? `entrée prévue le ${effectiveDate}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <Html>
-      <Head />
-      <Body style={{ 
-        backgroundColor: "#f8fafc", 
-        fontFamily: "Arial, sans-serif",
-        margin: 0,
-        padding: 0
-      }}>
-        <Container style={{ 
-          maxWidth: "600px", 
-          margin: "0 auto", 
-          backgroundColor: "#ffffff",
-          borderRadius: "12px",
-          overflow: "hidden",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)"
-        }}>
-          {/* Header avec logo */}
-          <Section style={{ 
-            background: "linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)",
-            paddingTop: "32px",
-            paddingBottom: "32px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "start"
-          }}>
-            <Link
-              href={EMAIL_BASE_URL}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "start",
-                textDecoration: "none",
-                color: "#1e3a8a",
-              }}
-            >
-              <Img
-                src={EMAIL_LOGO_URL}
-                alt="BailNotarie - Plateforme de baux notariés"
-                width="40"
-                height="40"
-                style={{
-                  borderRadius: "50%",
-                  display: "block",
-                }}
-              />
-              <span
-                style={{
-                  marginLeft: "8px",
-                  marginTop: "5px",
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#1e3a8a",
-                }}
-              >
-                BailNotarie
-              </span>
-            </Link>
-
-            <Text style={{ 
-              color: "#1e3a8a",
-              fontSize: "20px",
-              margin: "30px 0px 0px 0px"
-            }}>
-              Votre partenaire pour les baux notariés sécurisés
-            </Text>
-          </Section>
-
-          {/* Contenu principal */}
-          <Section style={{ paddingTop: "40px", paddingBottom: "40px", paddingLeft: "24px", paddingRight: "24px" }}>
-            <Heading style={{ 
-              color: "#2563eb",
-              fontSize: "24px",
-              fontWeight: "bold",
-              margin: "0 0 16px 0",
-              textAlign: "center"
-            }}>
-              📋 Nouveau dossier assigné
-            </Heading>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              {userName ? `Bonjour ${userName},` : "Bonjour,"}
-            </Text>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              Un nouveau dossier vous a été assigné dans votre interface notaire.
-            </Text>
-
-            {/* Détails du dossier */}
-            <Section style={{ 
-              backgroundColor: "#f0f9ff",
-              borderRadius: "8px",
-              paddingTop: "24px",
-              paddingBottom: "24px",
-              paddingLeft: "24px",
-              paddingRight: "24px",
-              margin: "24px 0",
-              border: "2px solid #bfdbfe"
-            }}>
-              <Text style={{ 
-                color: "#1e40af",
-                fontSize: "18px",
-                fontWeight: "bold",
-                margin: "0 0 16px 0"
-              }}>
-                📄 Détails du dossier :
-              </Text>
-              
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "16px",
-                lineHeight: "1.8",
-                margin: "0 0 12px 0"
-              }}>
-                <strong>Client :</strong> {clientName}
-              </Text>
-              
-              {propertyAddress && (
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "16px",
-                  lineHeight: "1.8",
-                  margin: "0 0 12px 0"
-                }}>
-                  <strong>Propriété :</strong> {propertyAddress}
-                </Text>
-              )}
-              
-              {notes && (
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "16px",
-                  lineHeight: "1.8",
-                  margin: "12px 0 0 0",
-                  padding: "16px",
-                  backgroundColor: "#ffffff",
-                  borderRadius: "6px",
-                  border: "1px solid #e5e7eb",
-                  fontStyle: "italic"
-                }}>
-                  <strong>Notes :</strong> {notes}
-                </Text>
-              )}
-            </Section>
-
-            {/* CTA principal */}
-            <Section style={{ textAlign: "center", margin: "32px 0" }}>
-              <Button
-                href={interfaceUrl}
-                style={{ 
-                  backgroundColor: "#2563eb",
-                  color: "#ffffff",
-                  padding: "16px 32px",
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  fontSize: "16px",
-                  fontWeight: "bold",
-                  display: "inline-block"
-                }}
-              >
-                Consulter le dossier
-              </Button>
-            </Section>
-
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              lineHeight: "1.6",
-              margin: "0 0 32px 0",
-              textAlign: "center"
-            }}>
-              Connectez-vous à votre interface notaire pour consulter tous les détails du dossier.
-            </Text>
-          </Section>
-
-          <Hr style={{ 
-            border: "none",
-            borderTop: "1px solid #e5e7eb",
-            margin: "0"
-          }} />
-
-          {/* Footer */}
-          <Section style={{ 
-            paddingTop: "24px",
-            paddingBottom: "24px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "center",
-            backgroundColor: "#f9fafb"
-          }}>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              margin: "0 0 8px 0"
-            }}>
-              <strong>BailNotarie</strong> - Interface Notaire
-            </Text>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "12px",
-              margin: "0 0 8px 0"
-            }}>
-              <Link href="tel:+33768098624" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 68 09 86 24</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
-            </Text>
-            <Text style={{ 
-              color: "#9ca3af",
-              fontSize: "12px",
-              margin: 0
-            }}>
-              Cette notification a été générée automatiquement lors de l'assignation du dossier.
-            </Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
+    <EmailLayout preview={`${preview}.`} reference={["Espace notaire", "Nouveau dossier"]}>
+      <Title>Un nouveau dossier vous est confié</Title>
+      <Lead>Maître, voici le résumé du dossier que nous venons de vous transmettre :</Lead>
+      <KeyValues rows={rows} />
+      {notes && notes.trim() && <Quote author="Un mot de l'équipe">{notes.trim()}</Quote>}
+      <Actions primary={{ label: "Ouvrir le dossier", href: interfaceUrl }} />
+      <Sign closing="Bien cordialement," />
+    </EmailLayout>
   );
 }
 
-
-
-
-
-
-
-
+MailNotaireAssignment.PreviewProps = {
+  userName: "Claire Durand",
+  clientName: "Thomas Bernard",
+  propertyAddress: "12 rue des Lilas, 75011 Paris · 43 m²",
+  bailTypeLabel: "Location vide, 3 ans",
+  ownerName: "Thomas Bernard",
+  tenantName: "Léa Martin",
+  rentText: "1 100 € + 95 € de charges",
+  documentsVerified: true,
+  effectiveDate: "1er décembre 2026",
+  notes: "Le locataire souhaite signer en fin de semaine.",
+  interfaceUrl: "https://www.bailnotarie.fr/notaire/dossiers",
+} satisfies MailNotaireAssignmentProps;

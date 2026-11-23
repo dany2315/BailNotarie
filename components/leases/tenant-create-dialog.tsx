@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -18,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { createTenantForLease } from "@/lib/actions/leases";
+import { TenantDatesFields, tenantDatesError, useTenantDates } from "@/components/shared/tenant-dates-fields";
 
 const tenantFormSchema = z.object({
   email: z.string()
@@ -38,6 +40,8 @@ interface TenantCreateDialogProps {
 export function TenantCreateDialog({ open, onOpenChange, bailId }: TenantCreateDialogProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  // Bail sans date de prise d'effet ni jour de paiement : ils se saisissent ici, avec le locataire.
+  const [dates, setDates] = useTenantDates(bailId, open);
 
   const form = useForm<TenantFormData>({
     resolver: zodResolver(tenantFormSchema),
@@ -47,12 +51,18 @@ export function TenantCreateDialog({ open, onOpenChange, bailId }: TenantCreateD
   });
 
   const handleSubmit = async (data: TenantFormData) => {
+    const datesError = tenantDatesError(dates);
+    if (datesError) {
+      toast.error(datesError);
+      return;
+    }
     setIsLoading(true);
     try {
-      await createTenantForLease({
+      await unwrapAction(createTenantForLease({
         bailId,
         email: data.email,
-      });
+        ...(dates.needed ? { effectiveDate: dates.effectiveDate, paymentDay: dates.paymentDay } : {}),
+      }));
       toast.success("Locataire créé avec succès. Un email a été envoyé au locataire.");
       form.reset();
       onOpenChange(false);
@@ -90,6 +100,8 @@ export function TenantCreateDialog({ open, onOpenChange, bailId }: TenantCreateD
             )}
           </div>
 
+          <TenantDatesFields state={dates} onChange={setDates} disabled={isLoading} />
+
           <div className="flex justify-end gap-4 pt-4">
             <Button
               type="button"
@@ -99,7 +111,7 @@ export function TenantCreateDialog({ open, onOpenChange, bailId }: TenantCreateD
             >
               Annuler
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || dates.loading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -1,5 +1,6 @@
 "use client";
 
+import { unwrapAction } from "@/lib/utils/action-error";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
@@ -90,7 +91,7 @@ export function AddLeadDialog({ open, onOpenChange }: AddLeadDialogProps) {
   const handleSubmit = async (data: LeadFormData) => {
     setIsLoading(true);
     try {
-      const result = await createLead(data);
+      const result = await unwrapAction(createLead(data));
       
       if (data.contactType === "email") {
         if (result.emailSent === false) {

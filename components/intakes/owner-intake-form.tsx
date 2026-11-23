@@ -1,5 +1,7 @@
 "use client";
 
+import { useStepBackGesture } from "@/hooks/use-step-back-gesture";
+import { unwrapAction } from "@/lib/utils/action-error";
 import React, {
   useEffect,
   useMemo,
@@ -57,12 +59,14 @@ import { Stepper } from "@/components/ui/stepper";
 import { FileUpload } from "@/components/ui/file-upload";
 import { DocumentUploaded } from "./document-uploaded";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { CompanyRegistryLookup } from "@/components/intakes/company-registry-lookup";
 import { NationalitySelect } from "@/components/ui/nationality-select";
-import { DatePicker, formatDateToLocalString } from "@/components/ui/date-picker";
+import { DateInput, formatDateToLocalString } from "@/components/ui/date-picker";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { RentControlAlert } from "@/components/ui/rent-control-alert";
-import { validateRentAmount } from "@/lib/utils/rent-validation";
-import type { RentValidationResult } from "@/lib/utils/rent-validation";
+import { RentGuide, useRentRules } from "@/components/rent/rent-rules-fields";
+import type { RentRulesAssessment } from "@/lib/rent-rules";
+import { EMPTY_RENT_RULES, rentRulesToForm, type RentRulesFormValues } from "@/lib/utils/rent-draft";
+import { PROOF_LABELS, relocationProofKinds } from "@/lib/utils/rent-relocation";
 import { computeBailEndDate, dateToIsoDay, formatDateFr } from "@/lib/utils/bail-duration";
 import {
   ArrowLeftIcon,
@@ -107,6 +111,7 @@ import {
 } from "@prisma/client";
 import useIsMobile from "@/hooks/useIsMobile";
 import { ownerFormSchema } from "@/lib/zod/client";
+import { OWNER_PERIODS, PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
 import {
   submitIntake,
   savePartialIntake,
@@ -114,9 +119,46 @@ import {
   getIntakeDocuments,
   deletePersonFromClient,
 } from "@/lib/actions/intakes";
+import { checkOccupancyDeclaration } from "@/lib/actions/rent-check";
+import { getMaritalDocumentKind, needsSubdivisionRules } from "@/lib/utils/required-fields";
+import {
+  firstIncompleteStep,
+  isDocumentProvided,
+  missingDocuments,
+  ownerDocumentRequirements,
+  ownerFieldIssues,
+  shoppingCenterFromAnswer,
+  OWNER_STEP_ORDER,
+  type DocumentRequirement,
+} from "@/lib/rules/dossier-rules";
+import { MATRIMONIAL_REGIME_LABELS } from "@/lib/utils/person-labels";
+import {
+  asksBoughtDuringMarriage,
+  commercialTermsToForm,
+  isCommercialBailType,
+  isPremisesType,
+  spouseMustSign,
+  validateCommercialStep,
+  type CommercialStep,
+} from "@/lib/utils/commercial-terms";
+import {
+  BoughtDuringMarriageQuestion,
+  CommercialActivityStep,
+  CommercialChargesStep,
+  CommercialClausesStep,
+  CommercialDepositStep,
+  CommercialDocumentUploads,
+  CommercialDurationStep,
+  CommercialPropertyDetails,
+  CommercialRentStep,
+  PremisesTypeField,
+} from "./commercial-steps";
 import { Separator } from "../ui/separator";
 import { PaymentStep } from "./payment-step";
 
+import { todayInFrance } from "@/lib/bail/dates";
+import { FAMILY_STATUS_LABELS } from "@/lib/utils/person-labels";
+import { surfaceWarning } from "@/lib/utils/surface";
 // Utiliser z.input pour obtenir le type d'entrée (avant transformation) au lieu de z.infer (après transformation)
 // Cela permet d'avoir propertyLatitude et propertyLongitude comme string dans le formulaire
 type OwnerFormData = z.input<typeof ownerFormSchema>;
@@ -148,10 +190,14 @@ const STEPS = [
   { id: "clientType", title: "Type de client" },
   { id: "clientInfo", title: "Informations client" },
   { id: "summary", title: "Récapitulatif" },
-  { id: "propertyAddress", title: "Adresse du bien" },
+  { id: "propertyAddress", title: "Le bien" },
   { id: "propertyDetails", title: "Caractéristiques du bien" },
+  { id: "commercialActivity", title: "L'activité" },
   { id: "bailType", title: "Type de contrat" },
-  { id: "bailRent", title: "Loyer & charges" },
+  { id: "bailRent", title: "Le loyer" },
+  { id: "bailCharges", title: "Charges & dépôt" },
+  { id: "commercialCharges", title: "Charges et travaux" },
+  { id: "commercialClauses", title: "Garanties et clauses" },
   { id: "bailFurniture", title: "Mobilier" },
   { id: "bailDates", title: "Dates du bail" },
   { id: "tenant", title: "Locataire" },
@@ -160,6 +206,60 @@ const STEPS = [
 ] as const;
 
 type StepId = (typeof STEPS)[number]["id"];
+
+// Bail commercial : certaines étapes changent de nom, d'autres n'existent que pour lui.
+const COMMERCIAL_STEP_TITLES: Partial<Record<StepId, string>> = {
+  propertyAddress: "Le local",
+  propertyDetails: "Caractéristiques du local",
+  bailType: "Durée du bail",
+  bailCharges: "Dépôt et frais",
+};
+
+const isCommercialFamily = (family: unknown) => family === BailFamille.COMMERCIAL;
+
+const stepTitle = (id: StepId, family: unknown) =>
+  (isCommercialFamily(family) && COMMERCIAL_STEP_TITLES[id]) || STEPS.find((s) => s.id === id)?.title || "";
+
+/**
+ * Étape affichée pour ce bail ? (mobilier : meublé).
+ * « Dates du bail » n'est plus une étape : la date de prise d'effet et le jour de paiement se demandent
+ * dans l'étape « Locataire », une fois le locataire indiqué.
+ */
+const isStepVisible = (id: StepId, values: { bailFamily?: unknown; bailType?: unknown }) => {
+  const commercial = isCommercialFamily(values.bailFamily);
+  switch (id) {
+    case "commercialActivity":
+    case "commercialCharges":
+    case "commercialClauses":
+      return commercial;
+    case "bailDates":
+      return false;
+    case "bailFurniture":
+      return !commercial && (values.bailType === BailType.BAIL_MEUBLE_1_ANS || values.bailType === BailType.BAIL_MEUBLE_9_MOIS);
+    default:
+      return true;
+  }
+};
+
+const nextVisibleStep = (from: number, values: { bailFamily?: unknown; bailType?: unknown }) => {
+  for (let i = from + 1; i < STEPS.length; i++) if (isStepVisible(STEPS[i].id, values)) return i;
+  return STEPS.length - 1;
+};
+
+const previousVisibleStep = (from: number, values: { bailFamily?: unknown; bailType?: unknown }) => {
+  for (let i = from - 1; i >= 0; i--) if (isStepVisible(STEPS[i].id, values)) return i;
+  return 0;
+};
+
+/** Contrôles du parcours commercial, par étape du formulaire. */
+const COMMERCIAL_STEP_CHECKS: Partial<Record<StepId, CommercialStep>> = {
+  commercialActivity: "activity",
+  bailType: "duration",
+  bailRent: "rent",
+  bailCharges: "deposit",
+  commercialCharges: "charges",
+  commercialClauses: "clauses",
+};
 
 type IntakeLink = {
   token: string;
@@ -193,6 +293,10 @@ type EntrepriseForm = {
   email: string;
   phone: string;
   fullAddress: string;
+  representativeName?: string;
+  representativeRole?: string;
+  // Société confirmée par le client au registre (recherche SIREN/SIRET)
+  registryConfirmed?: boolean;
   documents: RawDocumentMeta[];
 };
 
@@ -317,6 +421,23 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
   const propertySurfaceM2 = property?.surfaceM2?.toString() ?? "";
   const propertyType = property?.type ?? undefined;
   const propertyLegalStatus = property?.legalStatus ?? undefined;
+  const propertyMainRooms = property?.mainRooms ?? undefined;
+  const propertyConstructionPeriod = property?.constructionPeriod ?? undefined;
+  const propertyDpeClass = property?.dpeClass ?? "";
+  // Copropriété (syndic) et lotissement (ancienneté)
+  const propertySyndicName = property?.syndicName ?? "";
+  const propertySyndicEmail = property?.syndicEmail ?? "";
+  const propertySyndicPhone = property?.syndicPhone ?? "";
+  const propertySubdivisionOver10Years = property?.subdivisionOver10Years ?? "";
+  // Bail commercial : centre commercial, dépendances et conditions du bail
+  const propertyInShoppingCenter =
+    property?.inShoppingCenter === true
+      ? property?.complexType === "ESTATE_COMPLEX" ? "estate_complex" : "shopping_center"
+      : property?.inShoppingCenter === false ? "no" : "";
+  const propertyOutbuildings = property?.outbuildings ?? "";
+  const commercial = commercialTermsToForm(bail?.commercialTerms);
+  // Relocation en zone tendue et complément de loyer (étape « Loyer & charges »).
+  const rentRules = rentRulesToForm(bail);
   const propertyStatus = property?.status ?? PropertyStatus.NON_LOUER;
 
   // Mobilier obligatoire pour location meublée
@@ -336,14 +457,26 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
 
   // Bail
   const bailFamily = bail?.bailFamily ?? intakeLink.bailFamilyPreference ?? BailFamille.HABITATION;
-  const bailType = bail?.bailType ?? BailType.BAIL_NU_3_ANS;
-  const bailRentAmount = bail?.rentAmount?.toString() ?? "";
-  const bailMonthlyCharges = bail?.monthlyCharges?.toString() ?? "";
-  const bailSecurityDeposit = bail?.securityDeposit?.toString() ?? "";
+  // Le type de contrat suit la famille de bail (commercial : 3-6-9 par défaut)
+  const bailType = isCommercialFamily(bailFamily)
+    ? isCommercialBailType(bail?.bailType) ? bail.bailType : BailType.COMMERCIAL_3_6_9
+    : bail?.bailType && !isCommercialBailType(bail.bailType) ? bail.bailType : BailType.BAIL_NU_3_ANS;
+  // Le bail est créé dès l'étape « Type de contrat », avec loyer, charges et dépôt à 0 et une
+  // date d'effet au jour même (colonnes obligatoires en base). Ces valeurs ne sont pas des
+  // saisies : un loyer à 0 veut dire que l'étape « Loyer & charges » n'a jamais été validée,
+  // une date d'effet restée au jour de création du bail, sans jour de paiement, que l'étape
+  // « Dates du bail » ne l'a pas été non plus.
+  const rentStepSaved = Number(bail?.rentAmount ?? 0) > 0;
+  const datesStepSaved =
+    (bail?.paymentDay != null && String(bail.paymentDay) !== "") ||
+    (!!bail?.effectiveDate && String(bail.effectiveDate).slice(0, 10) !== String(bail.createdAt ?? "").slice(0, 10));
+  const bailRentAmount = rentStepSaved ? bail.rentAmount.toString() : "";
+  const bailMonthlyCharges = rentStepSaved ? bail?.monthlyCharges?.toString() ?? "" : "";
+  const bailSecurityDeposit = rentStepSaved ? bail?.securityDeposit?.toString() ?? "" : "";
   const bailPaymentDay = bail?.paymentDay?.toString() ?? "";
 
   const bailEffectiveDate =
-    (bail?.effectiveDate
+    (datesStepSaved && bail?.effectiveDate
       ? toDateValue(bail.effectiveDate)
       : EMPTY_STRING_DATE) as any;
 
@@ -383,6 +516,9 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       email: rootEmail,
       phone: rootPhone,
       fullAddress: entreprise.fullAddress ?? "",
+      representativeName: entreprise.representativeName ?? "",
+      representativeRole: entreprise.representativeRole ?? "",
+      registryConfirmed: entreprise.registryConfirmedByClient === true,
       documents: (entreprise.documents || []).map((doc: any) => ({
         kind: doc.kind,
         fileKey: doc.fileKey,
@@ -401,6 +537,17 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
       persons: [],
       entreprise: entrepriseForm,
       // Bien
+      propertyMainRooms,
+      propertyConstructionPeriod,
+      propertyDpeClass,
+      propertySyndicName,
+      propertySyndicEmail,
+      propertySyndicPhone,
+      propertySubdivisionOver10Years,
+      propertyInShoppingCenter,
+      propertyOutbuildings,
+      commercial,
+      rentRules,
       propertyLabel,
       propertyFullAddress,
       propertyHousenumber,
@@ -472,6 +619,17 @@ const buildDefaultValues = (intakeLink: IntakeLink): FormWithPersons => {
     persons: persons as any,
     entreprise: undefined,
       // Bien
+      propertyMainRooms,
+      propertyConstructionPeriod,
+      propertyDpeClass,
+      propertySyndicName,
+      propertySyndicEmail,
+      propertySyndicPhone,
+      propertySubdivisionOver10Years,
+      propertyInShoppingCenter,
+      propertyOutbuildings,
+      commercial,
+      rentRules,
       propertyLabel,
       propertyFullAddress,
       propertyHousenumber,
@@ -545,18 +703,19 @@ const getRequiredFields = (
       return [
         "propertyFullAddress",
         "propertyInseeCode",
+        "propertySurfaceM2",
+        "propertyType",
       ];
     case "propertyDetails":
       return [
-        "propertySurfaceM2",
-        "propertyType",
         "propertyLegalStatus",
       ];
     case "bailType":
       return ["bailType"];
     case "bailRent":
+      return ["bailRentAmount"];
+    case "bailCharges":
       return [
-        "bailRentAmount",
         "bailMonthlyCharges",
         "bailSecurityDeposit",
       ];
@@ -611,12 +770,6 @@ const findFirstIncompleteStep = (
   intakeLink: IntakeLink,
   clientType: ClientType | ""
 ) => {
-  const isEmpty = (val: any) =>
-    val === undefined ||
-    val === null ||
-    val === "" ||
-    (typeof val === "string" && val.trim() === "");
-
   // Vérifier si le formulaire a réellement été commencé par l'utilisateur
   // (pas seulement prérempli lors de la création)
   const hasStarted = intakeLink.client && (
@@ -632,194 +785,41 @@ const findFirstIncompleteStep = (
     return 0;
   }
 
-  // Step 1 : type de client
-  if (isEmpty(values.type)) {
-    return 1;
-  }
-
-  // Vérification complète du step 2 (Informations client)
-  if (clientType === ClientType.PERSONNE_PHYSIQUE) {
-    // Vérifier que persons existe et n'est pas vide
-    if (isEmpty(values.persons) || !Array.isArray(values.persons) || values.persons.length === 0) {
-      return 2;
-    }
-
-    // Vérifier toutes les personnes (personne principale + autres)
-    for (let i = 0; i < values.persons.length; i++) {
-      const person = values.persons[i];
-      if (!person) {
-        return 2;
-      }
-
-      // Vérifier tous les champs requis pour chaque personne
-      if (
-        isEmpty(person.firstName) ||
-        isEmpty(person.lastName) ||
-        isEmpty(person.profession) ||
-        isEmpty(person.phone) ||
-        isEmpty(person.email) ||
-        isEmpty(person.fullAddress) ||
-        isEmpty(person.nationality) ||
-        isEmpty(person.familyStatus) ||
-        isEmpty(person.birthPlace) ||
-        isEmpty(person.birthDate)
-      ) {
-        return 2;
-      }
-
-      // Vérifier le régime matrimonial si marié
-      if (person.familyStatus === FamilyStatus.MARIE && isEmpty(person.matrimonialRegime)) {
-        return 2;
-      }
-    }
-
-    // Vérifier aussi email et phone au niveau racine (pour compatibilité)
-    if (isEmpty(values.email)) {
-      return 2;
-    }
-    // Le téléphone peut être au niveau racine ou dans la personne principale
-    const hasPhoneAtRoot = !isEmpty(values.phone);
-    const primaryPerson = values.persons.find((p: any) => p.isPrimary) || values.persons[0];
-    const hasPhoneInPerson = primaryPerson && !isEmpty(primaryPerson.phone);
-    if (!hasPhoneAtRoot && !hasPhoneInPerson) {
-      return 2;
-    }
-  } else if (clientType === ClientType.PERSONNE_MORALE) {
-    // Vérifier que entreprise existe
-    if (!values.entreprise) {
-      return 2;
-    }
-
-    // Vérifier tous les champs requis pour l'entreprise
-    if (
-      isEmpty(values.entreprise.legalName) ||
-      isEmpty(values.entreprise.registration) ||
-      isEmpty(values.entreprise.name) ||
-      isEmpty(values.entreprise.email) ||
-      isEmpty(values.entreprise.phone) ||
-      isEmpty(values.entreprise.fullAddress)
-    ) {
-      return 2;
-    }
-
-    // Vérifier aussi email et phone au niveau racine
-    if (isEmpty(values.email)) {
-      return 2;
-    }
-    if (isEmpty(values.phone)) {
-      return 2;
-    }
-  }
-
-  // Indices résolus dynamiquement (la STEPS array a évolué)
-  const idxPropertyAddress = STEPS.findIndex((s) => s.id === "propertyAddress");
-  const idxPropertyDetails = STEPS.findIndex((s) => s.id === "propertyDetails");
-  const idxBailType = STEPS.findIndex((s) => s.id === "bailType");
-  const idxBailRent = STEPS.findIndex((s) => s.id === "bailRent");
-  const idxBailFurniture = STEPS.findIndex((s) => s.id === "bailFurniture");
-  const idxBailDates = STEPS.findIndex((s) => s.id === "bailDates");
-  const idxTenant = STEPS.findIndex((s) => s.id === "tenant");
-  const idxDocuments = STEPS.findIndex((s) => s.id === "documents");
-
-  if (isEmpty(values.propertyFullAddress)) {
-    return idxPropertyAddress;
-  }
-  if (
-    isEmpty(values.propertySurfaceM2) ||
-    isEmpty(values.propertyType) ||
-    isEmpty(values.propertyLegalStatus)
-  ) {
-    return idxPropertyDetails;
-  }
-
-  if (isEmpty(values.bailType)) {
-    return idxBailType;
-  }
-  if (
-    isEmpty(values.bailRentAmount) ||
-    isEmpty(values.bailMonthlyCharges) ||
-    isEmpty(values.bailSecurityDeposit)
-  ) {
-    return idxBailRent;
-  }
-  // Si bail meublé, vérifier que tous les équipements sont cochés
-  const isMeubleBailCheck =
-    values.bailType === BailType.BAIL_MEUBLE_1_ANS ||
-    values.bailType === BailType.BAIL_MEUBLE_9_MOIS;
-  if (isMeubleBailCheck) {
-    const furnitureKeys = [
-      "hasLiterie",
-      "hasRideaux",
-      "hasPlaquesCuisson",
-      "hasFour",
-      "hasRefrigerateur",
-      "hasCongelateur",
-      "hasVaisselle",
-      "hasUstensilesCuisine",
-      "hasTable",
-      "hasSieges",
-      "hasEtageresRangement",
-      "hasLuminaires",
-      "hasMaterielEntretien",
-    ] as const;
-    const allFurniturePresent = furnitureKeys.every(
-      (k) => (values as any)[k] === true
-    );
-    if (!allFurniturePresent) {
-      return idxBailFurniture;
-    }
-  }
-  if (isEmpty(values.bailEffectiveDate) || isEmpty(values.bailPaymentDay)) {
-    return idxBailDates;
-  }
-
+  // Données : première étape où il manque une réponse (règles dans lib/rules/dossier-rules.ts)
   const hasTenant =
-    intakeLink?.bail?.parties?.some(
-      (party: any) => party.profilType === ProfilType.LOCATAIRE
-    ) ?? false;
-  if (isEmpty(values.tenantEmail) && !hasTenant) {
-    return idxTenant;
+    intakeLink?.bail?.parties?.some((party: any) => party.profilType === ProfilType.LOCATAIRE) ?? false;
+  const issues = ownerFieldIssues(values, { isTightZone: (intakeLink as any).property?.isTightZone, hasTenant });
+  let incompleteStep = firstIncompleteStep(issues, OWNER_STEP_ORDER);
+  // Le bail est créé dès l'étape du bien, avec « bail nu 3 ans » par défaut : ce type n'est
+  // une réponse qu'une fois l'étape suivante (le loyer) enregistrée. Avant, on reprend sur
+  // « Type de contrat », le choix par défaut présélectionné (m18).
+  const rentSaved = intakeLink.bail?.rentAmount !== null && intakeLink.bail?.rentAmount !== undefined && intakeLink.bail?.rentAmount !== "";
+  if (incompleteStep === "bailRent" && !rentSaved) incompleteStep = "bailType";
+  if (incompleteStep) return STEPS.findIndex((s) => s.id === incompleteStep);
+
+  // Pièces : celles qui bloquent l'envoi, selon les réponses
+  const dbPersons = [...(intakeLink.client?.persons || [])].sort((a: any, b: any) => Number(!!b.isPrimary) - Number(!!a.isPrimary));
+  const documentRules = ownerDocumentRequirements({
+    clientType: clientType || values.type,
+    persons: clientType === ClientType.PERSONNE_PHYSIQUE && dbPersons.length ? dbPersons : (values as any).persons,
+    entreprise: intakeLink.client?.entreprise,
+    bailFamily: values.bailFamily,
+    property: {
+      legalStatus: values.propertyLegalStatus as string | undefined,
+      subdivisionOver10Years: (values as any).propertySubdivisionOver10Years,
+      ...shoppingCenterFromAnswer((values as any).propertyInShoppingCenter),
+    },
+  });
+  const provided = {
+    persons: dbPersons.map((person: any) => person.documents || []),
+    client: intakeLink.client?.documents || [],
+    entreprise: intakeLink.client?.entreprise?.documents || [],
+    property: intakeLink.property?.documents || [],
+    bail: intakeLink.bail?.documents || [],
+  };
+  if (missingDocuments(documentRules, (rule) => isDocumentProvided(rule, provided)).length > 0) {
+    return STEPS.findIndex((s) => s.id === "documents");
   }
-
-  const clientDocs = intakeLink.client?.documents || [];
-  const propertyDocs = intakeLink.property?.documents || [];
-  const bailDocs = intakeLink.bail?.documents || [];
-
-  if (clientType === ClientType.PERSONNE_MORALE) {
-    const hasKbis = clientDocs.some((d: any) => d.kind === "KBIS");
-    const hasStatutes = clientDocs.some((d: any) => d.kind === "STATUTES");
-    if (!hasKbis || !hasStatutes) return idxDocuments;
-  } else if (clientType === ClientType.PERSONNE_PHYSIQUE) {
-    const hasId = clientDocs.some((d: any) => d.kind === "ID_IDENTITY");
-    if (!hasId) return idxDocuments;
-    const hasLivret = clientDocs.some((d: any) => d.kind === "LIVRET_DE_FAMILLE");
-    const hasPacs = clientDocs.some((d: any) => d.kind === "CONTRAT_DE_PACS");
-    if (!hasLivret || !hasPacs) return idxDocuments;
-  }
-
-  const hasDiagnostics = propertyDocs.some((d: any) => d.kind === "DIAGNOSTICS");
-  const hasTitleDeed = propertyDocs.some((d: any) => d.kind === "TITLE_DEED");
-  if (!hasDiagnostics || !hasTitleDeed) return idxDocuments;
-
-  if (
-    values.propertyLegalStatus === BienLegalStatus.CO_PROPRIETE &&
-    !propertyDocs.some((d: any) => d.kind === "REGLEMENT_COPROPRIETE")
-  ) {
-    return idxDocuments;
-  }
-  if (values.propertyLegalStatus === BienLegalStatus.LOTISSEMENT) {
-    const hasCahier = propertyDocs.some(
-      (d: any) => d.kind === "CAHIER_DE_CHARGE_LOTISSEMENT"
-    );
-    const hasStatut = propertyDocs.some(
-      (d: any) => d.kind === "STATUT_DE_LASSOCIATION_SYNDICALE"
-    );
-    if (!hasCahier || !hasStatut) return idxDocuments;
-  }
-
-  const hasInsurance = bailDocs.some((d: any) => d.kind === "INSURANCE");
-  const hasRib = bailDocs.some((d: any) => d.kind === "RIB");
-  if (!hasInsurance || !hasRib) return 7;
 
   return STEPS.length - 1;
 };
@@ -879,23 +879,24 @@ useEffect(() => {
 
   const [openAccordionValue, setOpenAccordionValue] = useState<string>(`person-0`);
 
-  // Fonction pour gérer les changements d'état d'upload
+  // Uploads en cours, toutes zones confondues. Un compteur et non un booléen :
+  // plusieurs zones peuvent envoyer en même temps, et la fin du premier envoi
+  // ne doit pas réactiver « Continuer » tant qu'un autre tourne encore.
+  const activeUploadsRef = useRef(0);
   const handleUploadStateChange = (isUploading: boolean) => {
-    setIsFileUploading(isUploading);
+    activeUploadsRef.current = Math.max(0, activeUploadsRef.current + (isUploading ? 1 : -1));
+    setIsFileUploading(activeUploadsRef.current > 0);
   };
 
   // File refs
   const kbisRef = useRef<HTMLInputElement>(null);
   const statutesRef = useRef<HTMLInputElement>(null);
-  const livretDeFamilleRef = useRef<HTMLInputElement>(null);
+  const contratDeMariageRef = useRef<HTMLInputElement>(null);
   const contratDePacsRef = useRef<HTMLInputElement>(null);
   const diagnosticsRef = useRef<HTMLInputElement>(null);
   const titleDeedRef = useRef<HTMLInputElement>(null);
   const reglementCoproprieteRef = useRef<HTMLInputElement>(null);
   const cahierChargeLotissementRef = useRef<HTMLInputElement>(null);
-  const statutAssociationSyndicaleRef = useRef<HTMLInputElement>(null);
-  const insuranceOwnerRef = useRef<HTMLInputElement>(null);
-  const ribOwnerRef = useRef<HTMLInputElement>(null);
 
   // Refs dynamiques pour les documents de chaque personne
   const personDocumentRefs = useRef<Record<number, { idIdentity: React.RefObject<HTMLInputElement> }>>({});
@@ -903,7 +904,7 @@ useEffect(() => {
   // File states
   const [kbisFile, setKbisFile] = useState<File | null>(null);
   const [statutesFile, setStatutesFile] = useState<File | null>(null);
-  const [livretDeFamilleFile, setLivretDeFamilleFile] =
+  const [contratDeMariageFile, setContratDeMariageFile] =
     useState<File | null>(null);
   const [contratDePacsFile, setContratDePacsFile] =
     useState<File | null>(null);
@@ -913,11 +914,6 @@ useEffect(() => {
     useState<File | null>(null);
   const [cahierChargeLotissementFile, setCahierChargeLotissementFile] =
     useState<File | null>(null);
-  const [statutAssociationSyndicaleFile, setStatutAssociationSyndicaleFile] =
-    useState<File | null>(null);
-  const [insuranceOwnerFile, setInsuranceOwnerFile] =
-    useState<File | null>(null);
-  const [ribOwnerFile, setRibOwnerFile] = useState<File | null>(null);
 
   // États dynamiques pour les documents de chaque personne
   const [personDocumentFiles, setPersonDocumentFiles] = useState<Record<number, { idIdentity: File | null }>>({});
@@ -941,6 +937,19 @@ useEffect(() => {
   });
 
   const personsWatch = watch("persons");
+  // Le type de contrat suit la famille de bail ; la numérotation ne compte que les étapes affichées
+  const watchedBailFamily = watch("bailFamily");
+  const watchedBailType = watch("bailType");
+  useEffect(() => {
+    const current = getValues("bailType");
+    if (isCommercialFamily(watchedBailFamily) && !isCommercialBailType(current)) {
+      setValue("bailType", BailType.COMMERCIAL_3_6_9, { shouldDirty: true });
+    } else if (!isCommercialFamily(watchedBailFamily) && isCommercialBailType(current)) {
+      setValue("bailType", BailType.BAIL_NU_3_ANS, { shouldDirty: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedBailFamily]);
+  const visibleSteps = STEPS.filter((s) => isStepVisible(s.id, { bailFamily: watchedBailFamily, bailType: watchedBailType }));
   const tenantEmailWatch = watch("tenantEmail");
   const hasTenantInCurrentBail =
     intakeLink?.bail?.parties?.some(
@@ -970,11 +979,11 @@ useEffect(() => {
     // Sauvegarder immédiatement les données mises à jour
     try {
       const payload = mapPersonsToOwnerPayload(getValues() as FormWithPersons);
-      await savePartialIntake({
+      await unwrapAction(savePartialIntake({
         token: intakeLink.token,
         payload,
         stepId: "clientInfo", // La suppression d'une personne concerne toujours l'étape clientInfo
-      });
+      }));
       
       // ✓ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
       const refreshed = await refreshIntakeLinkData();
@@ -1158,18 +1167,27 @@ useEffect(() => {
 
     // On garde une photo des dernières valeurs sauvegardées
     const lastSavedValues = useRef<FormWithPersons>(defaultValues);
+    // Dernier contrôle du loyer (null pendant le calcul) : bloque l'étape « Loyer & charges ».
+    const rentRulesResultRef = useRef<RentRulesAssessment | null>(null);
+    // « Continuer » sur l'étape du loyer : passe d'abord d'une question à l'autre.
+    const rentAdvanceRef = useRef<(() => boolean) | null>(null);
+    const [showRentErrors, setShowRentErrors] = useState(false);
 
     // Initialisation du step UNIQUEMENT au chargement du formulaire
     useEffect(() => {
       lastSavedValues.current = defaultValues as FormWithPersons;
 
-      const initialStep = findFirstIncompleteStep(
+      const foundStep = findFirstIncompleteStep(
         defaultValues,
         intakeLink,
         (defaultValues.type as ClientType | "") ||
           (initialIntakeLink.client?.type as ClientType | "") ||
           ""
       );
+      // Une étape masquée pour ce bail (mobilier, dates en commercial…) renvoie à la suivante
+      const initialStep = isStepVisible(STEPS[foundStep]?.id, defaultValues)
+        ? foundStep
+        : nextVisibleStep(foundStep, defaultValues);
       setCurrentStep(initialStep);
 
       // Si on atterrit sur clientInfo en mode particulier, positionner sur la 1re personne incomplète
@@ -1298,92 +1316,44 @@ useEffect(() => {
       return [];
     });
 
-    if (clientType === ClientType.PERSONNE_MORALE) {
-      if (!hasDocument(kbisRef, kbisFile, "KBIS", undefined, uploadedDocuments)) {
-        errors.push("KBIS requis");
-      }
-      if (!hasDocument(statutesRef, statutesFile, "STATUTES", undefined, uploadedDocuments)) {
-        errors.push("Statuts requis");
-      }
-    } else {
-      // Vérifier les documents pour chaque personne
-      const persons = values.persons || [];
-      persons.forEach((person: any, index: number) => {
-        const personName = person.firstName && person.lastName 
-          ? `${person.firstName} ${person.lastName}` 
-          : `Personne ${index + 1}`;
-        
-        const personRefs = personDocumentRefs.current[index];
-        const personFiles = personDocumentFiles[index] || { idIdentity: null };
-        
-        if (!hasDocument(personRefs?.idIdentity || null, personFiles.idIdentity, "ID_IDENTITY", index, uploadedDocuments)) {
-          errors.push(`Pièce d'identité requise pour ${personName}`);
+    // Règles des pièces : lib/rules/dossier-rules.ts (les mêmes que le serveur et la fiche du bail).
+    const persons = values.persons || [];
+    const rules = ownerDocumentRequirements({
+      clientType,
+      persons,
+      entreprise: values.entreprise as any,
+      bailFamily: values.bailFamily,
+      property: {
+        legalStatus: values.propertyLegalStatus as string | undefined,
+        subdivisionOver10Years: (values as any).propertySubdivisionOver10Years,
+        ...shoppingCenterFromAnswer((values as any).propertyInShoppingCenter),
+      },
+    });
+    // Champs d'envoi de la page (fichier choisi mais pas encore envoyé)
+    const localFile = (rule: DocumentRequirement): [RefObject<HTMLInputElement | null> | null, File | null] => {
+      switch (rule.kind) {
+        case "KBIS": return [kbisRef, kbisFile];
+        case "STATUTES": return [statutesRef, statutesFile];
+        case "ID_IDENTITY": {
+          const index = rule.personIndex ?? 0;
+          return [personDocumentRefs.current[index]?.idIdentity || null, personDocumentFiles[index]?.idIdentity ?? null];
         }
-      });
-      
-      // Documents communs au client (livret de famille, PACS)
-      // Utiliser le statut familial de la première personne
-      const primaryPerson = persons[0];
-      if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
-        if (!hasDocument(livretDeFamilleRef, livretDeFamilleFile, "LIVRET_DE_FAMILLE", undefined, uploadedDocuments)) {
-          errors.push("Livret de famille requis");
-        }
+        case "CONTRAT_DE_MARIAGE": return [contratDeMariageRef, contratDeMariageFile];
+        case "CONTRAT_DE_PACS": return [contratDePacsRef, contratDePacsFile];
+        case "DIAGNOSTICS": return [diagnosticsRef, diagnosticsFile];
+        case "TITLE_DEED": return [titleDeedRef, titleDeedFile];
+        case "REGLEMENT_COPROPRIETE": return [reglementCoproprieteRef, reglementCoproprieteFile];
+        case "CAHIER_DE_CHARGE_LOTISSEMENT": return [cahierChargeLotissementRef, cahierChargeLotissementFile];
+        default: return [null, null];
       }
-      if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
-        if (!hasDocument(contratDePacsRef, contratDePacsFile, "CONTRAT_DE_PACS", undefined, uploadedDocuments)) {
-          errors.push("Contrat de PACS requis");
-        }
-      }
-    }
-
-    if (!hasDocument(diagnosticsRef, diagnosticsFile, "DIAGNOSTICS", undefined, uploadedDocuments)) {
-      errors.push("Diagnostics du bien requis");
-    }
-    if (!hasDocument(titleDeedRef, titleDeedFile, "TITLE_DEED", undefined, uploadedDocuments)) {
-      errors.push("Titre de propriété requis");
-    }
-    if (
-      propertyLegalStatus === BienLegalStatus.CO_PROPRIETE &&
-      !hasDocument(
-        reglementCoproprieteRef,
-        reglementCoproprieteFile,
-        "REGLEMENT_COPROPRIETE",
-        undefined,
-        uploadedDocuments
-      )
-    ) {
-      errors.push("Règlement de copropriété requis");
-    }
-    if (propertyLegalStatus === BienLegalStatus.LOTISSEMENT) {
-      if (
-        !hasDocument(
-          cahierChargeLotissementRef,
-          cahierChargeLotissementFile,
-          "CAHIER_DE_CHARGE_LOTISSEMENT",
-          undefined,
-          uploadedDocuments
-        )
-      ) {
-        errors.push("Cahier des charges du lotissement requis");
-      }
-      if (
-        !hasDocument(
-          statutAssociationSyndicaleRef,
-          statutAssociationSyndicaleFile,
-          "STATUT_DE_LASSOCIATION_SYNDICALE",
-          undefined,
-          uploadedDocuments
-        )
-      ) {
-        errors.push("Statut de l'association syndicale requis");
-      }
-    }
-
-    if (!hasDocument(insuranceOwnerRef, insuranceOwnerFile, "INSURANCE", undefined, uploadedDocuments)) {
-      errors.push("Assurance propriétaire requise");
-    }
-    if (!hasDocument(ribOwnerRef, ribOwnerFile, "RIB", undefined, uploadedDocuments)) {
-      errors.push("RIB requis");
+    };
+    for (const rule of missingDocuments(rules, (rule) => {
+      // Pièces du bail commercial : envoyées directement, seule la liste des pièces reçues compte.
+      if (rule.kind === "SHOPPING_CENTER_RULES") return uploadedDocuments.some((d: any) => d.kind === rule.kind);
+      const [ref, file] = localFile(rule);
+      return hasDocument(ref, file, rule.kind, rule.target === "person" ? rule.personIndex : undefined, uploadedDocuments);
+    })) {
+      errors.push(rule.label);
     }
 
     return { isValid: errors.length === 0, errors };
@@ -1497,22 +1467,42 @@ useEffect(() => {
           "propertyRegion",
           "propertyLatitude",
           "propertyLongitude",
+          "propertySurfaceM2",
+          "propertyType",
         ];
       case "propertyDetails":
         return [
-          "propertySurfaceM2",
-          "propertyType",
           "propertyLegalStatus",
+          "propertyMainRooms",
+          "propertyConstructionPeriod",
+          "propertyDpeClass",
+          "propertySyndicName",
+          "propertySyndicEmail",
+          "propertySyndicPhone",
+          "propertySubdivisionOver10Years",
+          "propertyInShoppingCenter",
+          "propertyOutbuildings",
           "propertyStatus",
         ];
+      case "commercialActivity":
+      case "commercialCharges":
+      case "commercialClauses":
+        return ["commercial", "bailFamily", "bailType"] as (keyof FormWithPersons)[];
       case "bailType":
-        return ["bailType", "bailFamily"];
+        // Bail commercial : « Durée et dates » porte aussi les dates et les conditions
+        // Bail commercial : « Durée et dates » porte la durée et les conditions (la date de prise d'effet et
+        // le jour de paiement partent avec l'étape « Locataire »).
+        return isCommercialFamily(getValues("bailFamily"))
+          ? (["bailType", "bailFamily", "commercial"] as (keyof FormWithPersons)[])
+          : ["bailType", "bailFamily"];
       case "bailRent":
-        return [
-          "bailRentAmount",
-          "bailMonthlyCharges",
-          "bailSecurityDeposit",
-        ];
+        return isCommercialFamily(getValues("bailFamily"))
+          ? (["bailRentAmount", "bailFamily", "commercial"] as (keyof FormWithPersons)[])
+          : ["bailRentAmount", "rentRules" as keyof FormWithPersons];
+      case "bailCharges":
+        return isCommercialFamily(getValues("bailFamily"))
+          ? (["bailMonthlyCharges", "bailSecurityDeposit", "bailFamily", "commercial"] as (keyof FormWithPersons)[])
+          : ["bailMonthlyCharges", "bailSecurityDeposit"];
       case "bailFurniture":
         return [
           "hasLiterie",
@@ -1536,7 +1526,8 @@ useEffect(() => {
           "bailEndDate",
         ];
       case "tenant":
-        return ["tenantEmail"];
+        // Le locataire et, avec lui, la date de prise d'effet et le jour de paiement.
+        return ["tenantEmail", "bailEffectiveDate", "bailEndDate", "bailPaymentDay"];
       default:
         return [];
     }
@@ -1755,15 +1746,12 @@ useEffect(() => {
       const fileRefs = [
         { ref: kbisRef, stateFile: kbisFile },
         { ref: statutesRef, stateFile: statutesFile },
-        { ref: livretDeFamilleRef, stateFile: livretDeFamilleFile },
+        { ref: contratDeMariageRef, stateFile: contratDeMariageFile },
         { ref: contratDePacsRef, stateFile: contratDePacsFile },
         { ref: diagnosticsRef, stateFile: diagnosticsFile },
         { ref: titleDeedRef, stateFile: titleDeedFile },
         { ref: reglementCoproprieteRef, stateFile: reglementCoproprieteFile },
         { ref: cahierChargeLotissementRef, stateFile: cahierChargeLotissementFile },
-        { ref: statutAssociationSyndicaleRef, stateFile: statutAssociationSyndicaleFile },
-        { ref: insuranceOwnerRef, stateFile: insuranceOwnerFile },
-        { ref: ribOwnerRef, stateFile: ribOwnerFile },
       ];
 
       // Vérifier s'il y a de nouveaux fichiers (dans les refs ou les états)
@@ -1899,17 +1887,21 @@ useEffect(() => {
         stepId === "propertyAddress" || stepId === "propertyDetails"
           ? "property"
           : stepId === "bailType" ||
+            stepId === "commercialActivity" ||
+            stepId === "commercialCharges" ||
+            stepId === "commercialClauses" ||
             stepId === "bailRent" ||
+            stepId === "bailCharges" ||
             stepId === "bailFurniture" ||
             stepId === "bailDates"
           ? "bail"
           : stepId;
 
-      await savePartialIntake({
+      await unwrapAction(savePartialIntake({
         token: intakeLink.token,
         payload,
         stepId: backendStepId,
-      });
+      }));
 
       // ✓ Rafraîchir les données pour obtenir les valeurs réellement sauvegardées en DB
       const refreshed = await refreshIntakeLinkData();
@@ -1950,12 +1942,38 @@ useEffect(() => {
 
   const handleNext = async () => {
     const stepId = STEPS[currentStep].id;
+
+    // Étape « Le loyer » : tant qu'une question est ouverte, « Continuer » y répond.
+    if (stepId === "bailRent" && rentAdvanceRef.current?.()) return;
   
     // Si on est sur l'étape "summary", pas besoin de sauvegarder, c'est juste une étape de visionnage
     if (stepId === "summary") {
-      const nextStep = Math.min(currentStep + 1, STEPS.length - 1);
-      setCurrentStep(nextStep);
+      setCurrentStep(nextVisibleStep(currentStep, form.getValues()));
       return;
+    }
+
+    // Bail commercial : contrôles propres à l'étape (activité, durée, loyer HT, frais, travaux, garant)
+    const commercialFlow = isCommercialFamily(form.getValues("bailFamily"));
+    const commercialCheck = commercialFlow ? COMMERCIAL_STEP_CHECKS[stepId] : undefined;
+    if (commercialCheck) {
+      const commercialErrors = validateCommercialStep(commercialCheck, form.getValues("commercial" as any), {
+        bailType: form.getValues("bailType"),
+      });
+      let blocked = Object.keys(commercialErrors).length > 0;
+      for (const [path, message] of Object.entries(commercialErrors)) {
+        form.setError(path as any, { type: "manual", message });
+      }
+      if (stepId === "bailType") {
+        if (!isCommercialBailType(form.getValues("bailType"))) {
+          form.setError("bailType", { type: "manual", message: "Choisissez la durée du bail" });
+          blocked = true;
+        }
+        // La date de prise d'effet et le jour de paiement se demandent avec le locataire (étape « Locataire »).
+      }
+      if (blocked) {
+        toast.error("Complétez les informations de l'étape");
+        return;
+      }
     }
 
     // Cas documents → valider les pièces et aller au paiement
@@ -1989,6 +2007,32 @@ useEffect(() => {
           return;
         }
 
+        // Bail commercial d'un bien commun : le conjoint doit aussi signer (article 1425 du Code civil)
+        if (commercialFlow) {
+          const first = persons[0] as any;
+          if (
+            clientInfoPersonIdx === 0 &&
+            asksBoughtDuringMarriage(first?.familyStatus, first?.matrimonialRegime) &&
+            !form.getValues("commercial.boughtDuringMarriage" as any)
+          ) {
+            form.setError("commercial.boughtDuringMarriage" as any, {
+              type: "manual",
+              message: "Indiquez si le local a été acheté pendant votre mariage",
+            });
+            return;
+          }
+          if (
+            clientInfoPersonIdx === persons.length - 1 &&
+            persons.length < 2 &&
+            spouseMustSign(first?.familyStatus, first?.matrimonialRegime, form.getValues("commercial.boughtDuringMarriage" as any))
+          ) {
+            toast.error("Votre conjoint doit aussi signer le bail commercial", {
+              description: "Ajoutez-le avec « Une autre personne est propriétaire ».",
+            });
+            return;
+          }
+        }
+
         // S'il reste des personnes à éditer, avancer la sous-étape sans changer de step principal
         if (clientInfoPersonIdx < persons.length - 1) {
           // Sauvegarder en arrière-plan puis avancer
@@ -2020,55 +2064,47 @@ useEffect(() => {
       } else {
         // Validation classique pour les autres steps
         const valid = await trigger(fields as any);
-        if (!valid) return;
 
-        // Validation spéciale pour le step bailFurniture : vérifier le mobilier si bail meublé
-        if (stepId === "bailFurniture") {
-          const bailType = form.getValues("bailType");
-          const isMeubleBail = bailType === BailType.BAIL_MEUBLE_1_ANS || bailType === BailType.BAIL_MEUBLE_9_MOIS;
+        // Réponses qui dépendent des autres (habitation ou commercial, copropriété, lotissement,
+        // représentant de la société, adresse choisie dans la liste, mobilier du meublé…) :
+        // règles dans lib/rules/dossier-rules.ts. Le loyer a son propre contrôle juste après.
+        const stepIssues = ownerFieldIssues(form.getValues(), {
+          isTightZone: (intakeLink as any).property?.isTightZone,
+          hasTenant: hasTenantInCurrentBail,
+        }).filter((issue) => issue.step === stepId && issue.level === "blocking" && !issue.path.startsWith("rentRules"));
+        for (const issue of stepIssues) {
+          form.setError(issue.path as any, { type: "manual", message: issue.message });
+        }
+        const missingCategory = stepIssues.length > 0;
+        if (stepId === "bailFurniture" && missingCategory) {
+          form.setError("bailType", { type: "manual", message: "Tous les équipements doivent être présents pour un bail meublé" });
+          toast.error("Mobilier incomplet", {
+            description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
+            duration: 6000,
+          });
+        }
+        if (!valid || missingCategory) return;
 
-          if (isMeubleBail) {
-            const furnitureFields = [
-              'hasLiterie',
-              'hasRideaux',
-              'hasPlaquesCuisson',
-              'hasFour',
-              'hasRefrigerateur',
-              'hasCongelateur',
-              'hasVaisselle',
-              'hasUstensilesCuisine',
-              'hasTable',
-              'hasSieges',
-              'hasEtageresRangement',
-              'hasLuminaires',
-              'hasMaterielEntretien',
-            ] as const;
-
-            const values = form.getValues();
-            const missingFurniture = furnitureFields.filter(
-              (field) => !values[field] || values[field] !== true
-            );
-
-            if (missingFurniture.length > 0) {
-              missingFurniture.forEach((field) => {
-                form.setError(field as keyof FormWithPersons, {
-                  type: 'manual',
-                  message: 'Cet équipement est requis pour un bail meublé',
-                });
-              });
-
-              form.setError('bailType', {
-                type: 'manual',
-                message: 'Tous les équipements doivent être présents pour un bail meublé',
-              });
-
-              toast.error("Mobilier incomplet", {
-                description: "Pour un bail meublé, tous les équipements obligatoires doivent être présents. Veuillez cocher tous les équipements requis.",
-                duration: 6000,
-              });
-
-              return;
-            }
+        // Loyer : plafond de l'arrêté et relocation en zone tendue, contrôlés côté serveur.
+        if (stepId === "bailRent" && form.getValues("bailFamily") !== BailFamille.COMMERCIAL) {
+          const check = rentRulesResultRef.current;
+          if (!check) {
+            toast.info("Vérification du loyer en cours, réessayez dans un instant.");
+            return;
+          }
+          if (check.ownerBlocking) {
+            setShowRentErrors(true);
+            toast.error("Le loyer ne peut pas être enregistré en l'état", {
+              description:
+                check.relocation.status === "missing"
+                  ? "Répondez aux questions sur le loyer."
+                  : check.supplement.needed && check.supplement.dpeUnknown
+                    ? "Indiquez la classe énergétique du logement."
+                    : check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over"
+                      ? "Décrivez les atouts du logement ou baissez le loyer."
+                      : "Le loyer dépasse le maximum autorisé : baissez-le.",
+            });
+            return;
           }
         }
 
@@ -2087,11 +2123,9 @@ useEffect(() => {
     let nextStep: number;
     if (stepId === "clientInfo" && summaryIndex !== -1) {
       nextStep = summaryIndex;
-    } else if (stepId === "bailRent" && !isMeubleBail && bailDatesIndex !== -1) {
-      // Skip "bailFurniture" lorsque le bail n'est pas meublé
-      nextStep = bailDatesIndex;
     } else {
-      nextStep = Math.min(currentStep + 1, STEPS.length - 1);
+      // Étapes masquées pour ce bail (mobilier hors meublé, étapes commerciales…) sautées
+      nextStep = nextVisibleStep(currentStep, { bailFamily: form.getValues("bailFamily"), bailType: computedBailType });
     }
   
     // 3. Sauvegarde
@@ -2167,17 +2201,8 @@ useEffect(() => {
     }
 
     setCurrentStep((prev) => {
-      const target = Math.max(prev - 1, 0);
-      // Skip bailFurniture en arrière si le bail n'est pas meublé
-      if (STEPS[target]?.id === "bailFurniture") {
-        const bailType = form.getValues("bailType");
-        const isMeubleBail =
-          bailType === BailType.BAIL_MEUBLE_1_ANS ||
-          bailType === BailType.BAIL_MEUBLE_9_MOIS;
-        if (!isMeubleBail) {
-          return Math.max(target - 1, 0);
-        }
-      }
+      // Étapes masquées pour ce bail (mobilier hors meublé, étapes commerciales…) sautées
+      const target = previousVisibleStep(prev, { bailFamily: form.getValues("bailFamily"), bailType: form.getValues("bailType") });
       // Quand on entre dans clientInfo en reculant depuis summary, montrer la dernière personne
       if (STEPS[target]?.id === "clientInfo" && clientType === ClientType.PERSONNE_PHYSIQUE) {
         const persons = form.getValues("persons") || [];
@@ -2189,8 +2214,22 @@ useEffect(() => {
     });
   };
 
+  // Geste « retour » du téléphone : recule d'une étape comme la flèche (M9, validé le 17/11/2026)
+  useStepBackGesture(`${currentStep}:${clientInfoPersonIdx}`, currentStep > 0 || clientInfoPersonIdx > 0, handlePrevious);
+
   const handleManualSave = async () => {
     const stepId = STEPS[currentStep].id;
+
+    // Loyer au-dessus du maximum (sans complément possible) : le serveur le refuserait.
+    if (stepId === "bailRent") {
+      const check = rentRulesResultRef.current;
+      const supplementPossible = !!check && check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over";
+      if (check && check.overBy !== null && check.overBy > 0 && !supplementPossible) {
+        setShowRentErrors(true);
+        toast.error("Le loyer dépasse le maximum autorisé", { description: "Baissez-le avant d'enregistrer." });
+        return;
+      }
+    }
     
     // Validation spéciale pour le step bailFurniture : vérifier le mobilier si bail meublé
     if (stepId === "bailFurniture") {
@@ -2272,6 +2311,17 @@ useEffect(() => {
   const onSubmit = async (data: FormWithPersons) => {
     setIsSubmitting(true);
     try {
+      // Dossier commencé avant l'ajout des questions : on y renvoie avant le paiement.
+      if (
+        data.bailFamily !== BailFamille.COMMERCIAL &&
+        (!data.propertyMainRooms || !data.propertyConstructionPeriod || !(data as any).propertyDpeClass)
+      ) {
+        toast.error("Indiquez le nombre de pièces principales, l'époque de construction et la classe énergétique du bien");
+        const detailsIndex = STEPS.findIndex((s) => s.id === "propertyDetails");
+        if (detailsIndex !== -1) setCurrentStep(detailsIndex);
+        setIsSubmitting(false);
+        return;
+      }
       const hasTenantEmailInPayload =
         typeof data.tenantEmail === "string" && data.tenantEmail.trim() !== "";
       if (!hasTenantInCurrentBail && !hasTenantEmailInPayload) {
@@ -2574,7 +2624,8 @@ useEffect(() => {
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm leading-tight">Formulaire bail notarié</p>
           <p className="text-xs text-muted-foreground">
-            {STEPS[currentStep].title} · Étape {currentStep + 1}/{STEPS.length}
+            {stepTitle(STEPS[currentStep].id, watchedBailFamily)} · Étape{" "}
+            {Math.max(1, visibleSteps.findIndex((s) => s.id === STEPS[currentStep].id) + 1)}/{visibleSteps.length}
           </p>
         </div>
         {!isPaymentStepCurrent && (
@@ -2592,7 +2643,7 @@ useEffect(() => {
       <div className="shrink-0 h-0.5 bg-muted">
         <div
           className="h-full bg-primary transition-all duration-300 ease-out"
-          style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
+          style={{ width: `${(Math.max(1, visibleSteps.findIndex((s) => s.id === STEPS[currentStep].id) + 1) / visibleSteps.length) * 100}%` }}
         />
       </div>
 
@@ -2665,12 +2716,31 @@ useEffect(() => {
           {STEPS[currentStep].id === "propertyDetails" && (
             <PropertyStep form={form as any} isMobile={isMobile} slice="details" />
           )}
-          {STEPS[currentStep].id === "bailType" && (
+          {STEPS[currentStep].id === "commercialActivity" && <CommercialActivityStep form={form} />}
+          {STEPS[currentStep].id === "bailType" && isCommercialFamily(watchedBailFamily) && <CommercialDurationStep form={form} withTenantDates={false} />}
+          {STEPS[currentStep].id === "bailType" && !isCommercialFamily(watchedBailFamily) && (
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="type" />
           )}
-          {STEPS[currentStep].id === "bailRent" && (
-            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="rent" />
+          {STEPS[currentStep].id === "bailRent" && isCommercialFamily(watchedBailFamily) && <CommercialRentStep form={form} />}
+          {STEPS[currentStep].id === "bailRent" && !isCommercialFamily(watchedBailFamily) && (
+            <BailStep
+              form={form as any}
+              propertyId={intakeLink.propertyId || intakeLink.property?.id}
+              slice="rent"
+              token={intakeLink.token}
+              showRentErrors={showRentErrors}
+              rentAdvanceRef={rentAdvanceRef}
+              onRentRulesResult={(result) => {
+                rentRulesResultRef.current = result;
+              }}
+            />
           )}
+          {STEPS[currentStep].id === "bailCharges" && isCommercialFamily(watchedBailFamily) && <CommercialDepositStep form={form} />}
+          {STEPS[currentStep].id === "bailCharges" && !isCommercialFamily(watchedBailFamily) && (
+            <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="charges" />
+          )}
+          {STEPS[currentStep].id === "commercialCharges" && <CommercialChargesStep form={form} />}
+          {STEPS[currentStep].id === "commercialClauses" && <CommercialClausesStep form={form} />}
           {STEPS[currentStep].id === "bailFurniture" && (
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="furniture" />
           )}
@@ -2678,11 +2748,17 @@ useEffect(() => {
             <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="dates" />
           )}
           {STEPS[currentStep].id === "tenant" && (
-            <TenantStep
-              form={form as any}
-              hasTenantInCurrentBail={hasTenantInCurrentBail}
-              documentsReadyForSubmission={documentsReadyForSubmission}
-            />
+            <div className="space-y-6">
+              <TenantStep
+                form={form as any}
+                hasTenantInCurrentBail={hasTenantInCurrentBail}
+                documentsReadyForSubmission={documentsReadyForSubmission}
+              />
+              {/* Locataire connu : date de prise d'effet et jour de paiement, exigés dans la même étape. */}
+              {canSubmitOwnerIntake && (
+                <BailStep form={form as any} propertyId={intakeLink.propertyId || intakeLink.property?.id} slice="dates" />
+              )}
+            </div>
           )}
           {STEPS[currentStep].id === "payment" && (() => {
             const ownerPeopleCount =
@@ -2697,6 +2773,7 @@ useEffect(() => {
                 isSubmitting={isSubmitting}
                 rentAmount={parseFloat(String(form.watch("bailRentAmount") ?? "0")) || 0}
                 peopleCount={totalPeopleCount}
+                bailFamily={form.watch("bailFamily")}
               />
             );
           })()}
@@ -2708,41 +2785,32 @@ useEffect(() => {
               fileRefs={{
                 kbisRef: kbisRef as any,
                 statutesRef: statutesRef as any,
-                livretDeFamilleRef: livretDeFamilleRef as any,
+                contratDeMariageRef: contratDeMariageRef as any,
                 contratDePacsRef: contratDePacsRef as any,
                 diagnosticsRef: diagnosticsRef as any,
                 titleDeedRef: titleDeedRef as any,
                 reglementCoproprieteRef: reglementCoproprieteRef as any,
                 cahierChargeLotissementRef: cahierChargeLotissementRef as any,
-                statutAssociationSyndicaleRef: statutAssociationSyndicaleRef as any,
-                insuranceOwnerRef: insuranceOwnerRef as any,
-                ribOwnerRef: ribOwnerRef as any,
               }}
               fileStates={{
                 kbisFile,
                 statutesFile,
-                livretDeFamilleFile,
+                contratDeMariageFile,
                 contratDePacsFile,
                 diagnosticsFile,
                 titleDeedFile,
                 reglementCoproprieteFile,
                 cahierChargeLotissementFile,
-                statutAssociationSyndicaleFile,
-                insuranceOwnerFile,
-                ribOwnerFile,
               }}
               setFileStates={{
                 setKbisFile,
                 setStatutesFile,
-                setLivretDeFamilleFile,
+                setContratDeMariageFile,
                 setContratDePacsFile,
                 setDiagnosticsFile,
                 setTitleDeedFile,
                 setReglementCoproprieteFile,
                 setCahierChargeLotissementFile,
-                setStatutAssociationSyndicaleFile,
-                setInsuranceOwnerFile,
-                setRibOwnerFile,
               }}
               personDocumentRefs={personDocumentRefs.current}
               personDocumentFiles={personDocumentFiles}
@@ -2758,8 +2826,8 @@ useEffect(() => {
         <input type="file" ref={statutesRef} name="statutes" className="hidden" />
         <input
           type="file"
-          ref={livretDeFamilleRef}
-          name="livretDeFamille"
+          ref={contratDeMariageRef}
+          name="contratDeMariage"
           className="hidden"
         />
         <input
@@ -2792,19 +2860,6 @@ useEffect(() => {
           name="cahierChargeLotissement"
           className="hidden"
         />
-        <input
-          type="file"
-          ref={statutAssociationSyndicaleRef}
-          name="statutAssociationSyndicale"
-          className="hidden"
-        />
-        <input
-          type="file"
-          ref={insuranceOwnerRef}
-          name="insuranceOwner"
-          className="hidden"
-        />
-        <input type="file" ref={ribOwnerRef} name="ribOwner" className="hidden" />
         {/* Hidden file inputs for persons */}
         {(personsWatch || []).map((_, index) => {
           const refs = personDocumentRefs.current[index];
@@ -3090,49 +3145,17 @@ const ClientInfoStep = ({
         <div>
           <p className="text-xl font-semibold">Informations de l&apos;entreprise</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Renseignez les informations concernant votre société.
+            Indiquez le numéro de votre société, nous retrouvons ses informations.
           </p>
         </div>
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="entreprise.legalName">Raison sociale *</Label>
-            <Input
-              id="entreprise.legalName"
-              className="h-11"
-              {...form.register("entreprise.legalName" as any)}
-            />
-            {form.formState.errors.entreprise?.legalName && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.entreprise.legalName.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="entreprise.registration">SIREN/SIRET *</Label>
-            <Input
-              id="entreprise.registration"
-              className="h-11"
-              {...form.register("entreprise.registration" as any)}
-            />
-            {form.formState.errors.entreprise?.registration && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.entreprise.registration.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="entreprise.name">Nom commercial *</Label>
-            <Input
-              id="entreprise.name"
-              className="h-11"
-              {...form.register("entreprise.name" as any)}
-            />
-            {form.formState.errors.entreprise?.name && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.entreprise.name.message}
-              </p>
-            )}
-          </div>
+          <CompanyRegistryLookup
+            form={form as any}
+            token={intakeLink.token}
+            showRepresentative={form.watch("bailFamily") === BailFamille.COMMERCIAL}
+            allowUnregistered={false}
+            syncTradeName
+          />
           <div className="space-y-2">
             <Label htmlFor="entreprise.email">Email *</Label>
             <Input
@@ -3167,18 +3190,6 @@ const ClientInfoStep = ({
             {form.formState.errors.entreprise?.phone && (
               <p className="text-sm text-destructive">
                 {form.formState.errors.entreprise.phone.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="entreprise.fullAddress">Adresse complète *</Label>
-            <Textarea 
-              id="entreprise.fullAddress" 
-              {...form.register("entreprise.fullAddress" as any)} 
-            />
-            {form.formState.errors.entreprise?.fullAddress && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.entreprise.fullAddress.message}
               </p>
             )}
           </div>
@@ -3434,7 +3445,7 @@ const ClientInfoStep = ({
                           <SelectContent>
                             {Object.values(FamilyStatus).map((status) => (
                               <SelectItem key={status} value={status}>
-                                {status.replace(/_/g, " ")}
+                                {FAMILY_STATUS_LABELS[status] ?? status}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -3466,13 +3477,22 @@ const ClientInfoStep = ({
                             <SelectContent>
                               {Object.values(MatrimonialRegime).map((regime) => (
                                 <SelectItem key={regime} value={regime}>
-                                  {regime.replace(/_/g, " ")}
+                                  {MATRIMONIAL_REGIME_LABELS[regime] ?? regime}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         )}
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Sans contrat signé chez un notaire, choisissez « Communauté réduite aux acquêts ». En cas de
+                        doute, la page « Mariage » de votre livret de famille l&apos;indique.
+                      </p>
+                      {index === 0 &&
+                        form.watch("bailFamily") === BailFamille.COMMERCIAL &&
+                        asksBoughtDuringMarriage(watchedFamilyStatuses[index], form.watch(`persons.${index}.matrimonialRegime` as any)) && (
+                          <BoughtDuringMarriageQuestion form={form} />
+                        )}
                       {form.formState.errors.persons?.[index]?.matrimonialRegime && (
                         <p className="text-sm text-destructive">
                           {form.formState.errors.persons[index]?.matrimonialRegime?.message}
@@ -3504,11 +3524,16 @@ const ClientInfoStep = ({
                       name={`persons.${index}.birthDate` as any}
                       control={form.control}
                       render={({ field }) => (
-                        <DatePicker
+                        <DateInput
+                          id={`persons.${index}.birthDate`}
+                          name={field.name}
                           value={field.value ? toDateValue(field.value as any) : undefined}
-                          onChange={(val) =>
-                            field.onChange(toDateValue(val as any) || undefined)
-                          }
+                          onChange={(val) => field.onChange(val || undefined)}
+                          onBlur={field.onBlur}
+                          autoComplete="bday"
+                          fromYear={new Date().getFullYear() - 120}
+                          toYear={new Date().getFullYear()}
+                          aria-invalid={!!form.formState.errors.persons?.[index]?.birthDate}
                         />
                       )}
                     />
@@ -3524,6 +3549,17 @@ const ClientInfoStep = ({
             );
           })}
         </Accordion>
+        {form.watch("bailFamily") === BailFamille.COMMERCIAL &&
+          personFields.length < 2 &&
+          spouseMustSign(
+            form.watch("persons.0.familyStatus" as any),
+            form.watch("persons.0.matrimonialRegime" as any),
+            form.watch("commercial.boughtDuringMarriage" as any)
+          ) && (
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              Le local appartient aussi à votre conjoint : il doit signer le bail commercial. Ajoutez-le ci-dessous.
+            </p>
+          )}
         {isLastPerson && personFields.length < 2 && (
           <Button
             type="button"
@@ -3743,7 +3779,7 @@ const SummaryStep = ({ values, clientType }: SummaryStepProps) => {
                   <div>
                     <span className="text-muted-foreground">Statut familial</span>
                     <div className="font-medium">
-                      {person.familyStatus?.replace(/_/g, " ") || "-"}
+                      {(person.familyStatus && FAMILY_STATUS_LABELS[person.familyStatus]) || person.familyStatus || "-"}
                     </div>
                   </div>
                   {person.matrimonialRegime && (
@@ -3786,6 +3822,7 @@ type PropertyStepProps = {
 
 const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
   const propertyInseeCode = useWatch({ control: form.control, name: "propertyInseeCode" });
+  const bailFamily = useWatch({ control: form.control, name: "bailFamily" });
   const showAddress = !slice || slice === "address";
   const showDetails = !slice || slice === "details";
   
@@ -3793,12 +3830,18 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
     <div className="space-y-5">
       <div>
         <p className="text-xl font-semibold">
-          {slice === "details" ? "Caractéristiques du bien" : "Adresse du bien"}
+          {bailFamily === BailFamille.COMMERCIAL
+            ? slice === "details" ? "Caractéristiques du local" : "Le local"
+            : slice === "details" ? "Caractéristiques du bien" : "Le bien"}
         </p>
         <p className="text-sm text-muted-foreground mt-1">
-          {slice === "details"
-            ? "Type d'habitat, surface et régime juridique."
-            : "Adresse complète du bien à louer."}
+          {bailFamily === BailFamille.COMMERCIAL
+            ? slice === "details"
+              ? "Régime juridique, centre commercial et dépendances."
+              : "Adresse, type de local et surface à louer."
+            : slice === "details"
+              ? "Pièces principales, époque de construction et régime juridique."
+              : "Adresse, type d'habitat et surface du bien à louer."}
         </p>
       </div>
       <div className="space-y-4">
@@ -3825,51 +3868,19 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
               form.setValue("propertyLatitude", addressData.latitude ? addressData.latitude.toString() : "" as any);
               form.setValue("propertyLongitude", addressData.longitude ? addressData.longitude.toString() : "" as any);
             }}
-            onChange={(value) => form.setValue("propertyFullAddress", value)}
+            onChange={(value) => {
+              // Texte modifié à la main : l'ancienne localisation ne correspond plus (une suggestion la redonne).
+              form.setValue("propertyFullAddress", value);
+              form.setValue("propertyInseeCode", "");
+              form.setValue("propertyLatitude", "" as any);
+              form.setValue("propertyLongitude", "" as any);
+            }}
             placeholder="Rechercher une adresse..."
             error={form.formState.errors.propertyFullAddress?.message}
           />
-          {form.formState.errors.propertyFullAddress && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.propertyFullAddress.message}
-            </p>
-          )}
         </div>
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="propertyPostalCode">Code postal *</Label>
-          <Input
-            id="propertyPostalCode"
-            className="h-11"
-            {...form.register("propertyPostalCode")}
-            placeholder="75001"
-            value={form.watch("propertyPostalCode") || ""}
-          />
-          {form.formState.errors.propertyPostalCode && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.propertyPostalCode.message}
-            </p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="propertyCity">Ville *</Label>
-          <Input
-            id="propertyCity"
-            className="h-11"
-            {...form.register("propertyCity")}
-            placeholder="Paris"
-            value={form.watch("propertyCity") || ""}
-          />
-          {form.formState.errors.propertyCity && (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.propertyCity.message}
-            </p>
-          )}
-        </div>
-      </div>
-        </>)}
-        {showDetails && (<>
-      <div className="grid gap-3 sm:gap-4 grid-cols-1">
+      {bailFamily === BailFamille.COMMERCIAL && <PremisesTypeField form={form} />}
+      <div className={cn("grid gap-3 sm:gap-4 grid-cols-1", bailFamily === BailFamille.COMMERCIAL && "hidden")}>
         <div className="space-y-2">
           <div className="flex items-center gap-2 pb-2">
             <Label htmlFor="propertyType">Type d'habitat *</Label>
@@ -3942,12 +3953,17 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
           )}
         </div>
       </div>
-      <div className="space-y-4">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Label htmlFor="propertySurfaceM2">Surface *</Label>
             <InfoTooltip
-              content={<p>Surface privative selon diagnostic Loi Carrez</p>}
+              content={
+                isCommercialFamily(form.watch("bailFamily")) ? (
+                  <p>Surface du local loué, indiquée dans les plans, le titre de propriété ou le bail précédent.</p>
+                ) : (
+                  <p>Surface habitable du logement (loi Boutin), indiquée dans les diagnostics. Elle peut être un peu inférieure à la surface loi Carrez.</p>
+                )
+              }
               className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
             >
               <button type="button" className="inline-flex items-center">
@@ -3968,7 +3984,97 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
               {form.formState.errors.propertySurfaceM2.message}
             </p>
           )}
+          {!form.formState.errors.propertySurfaceM2 && surfaceWarning(form.watch("propertySurfaceM2")) && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">{surfaceWarning(form.watch("propertySurfaceM2"))}</p>
+          )}
         </div>
+        </>)}
+        {showDetails && (<>
+        {bailFamily !== BailFamille.COMMERCIAL && (
+          <>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="propertyMainRooms">Nombre de pièces principales *</Label>
+                <InfoTooltip
+                  content={<p><strong>Pièce principale</strong> : pièce où l'on vit ou dort (séjour, salon, chambre). Ne comptent pas : cuisine, salle de bains, WC, entrée, couloir. Ex. : un T2 = séjour + 1 chambre = 2 pièces.</p>}
+                  className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+                >
+                  <button type="button" className="inline-flex items-center" aria-label="Où trouver le nombre de pièces principales">
+                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </InfoTooltip>
+              </div>
+              <Controller
+                name="propertyMainRooms"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value ? String(field.value) : undefined}
+                    onValueChange={(value) => {
+                      field.onChange(Number(value));
+                      form.clearErrors("propertyMainRooms");
+                    }}
+                  >
+                    <SelectTrigger id="propertyMainRooms" className="w-full h-11">
+                      <SelectValue placeholder="Choisir le nombre de pièces" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {ROOMS_LABELS[n]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {form.formState.errors.propertyMainRooms && (
+                <p className="text-sm text-destructive">{form.formState.errors.propertyMainRooms.message as string}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="propertyConstructionPeriod">Époque de construction *</Label>
+                <InfoTooltip
+                  content={<p>Indiquée dans votre titre de propriété ou l'acte de vente, et dans le diagnostic de performance énergétique (DPE, « année de construction »). Le syndic ou le règlement de copropriété peuvent aussi vous la donner.</p>}
+                  className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+                >
+                  <button type="button" className="inline-flex items-center" aria-label="Où trouver l'époque de construction">
+                    <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </InfoTooltip>
+              </div>
+              <Controller
+                name="propertyConstructionPeriod"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    value={typeof field.value === "string" && field.value ? field.value : undefined}
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      form.clearErrors("propertyConstructionPeriod");
+                    }}
+                  >
+                    <SelectTrigger id="propertyConstructionPeriod" className="w-full h-11">
+                      <SelectValue placeholder="Choisir l'époque de construction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OWNER_PERIODS.map((code) => (
+                        <SelectItem key={code} value={code}>
+                          {PERIOD_LABELS[code]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {form.formState.errors.propertyConstructionPeriod && (
+                <p className="text-sm text-destructive">{form.formState.errors.propertyConstructionPeriod.message as string}</p>
+              )}
+            </div>
+            <DpeClassField form={form} isMobile={isMobile} />
+          </>
+        )}
         <div className="space-y-2">
           <Label htmlFor="propertyLegalStatus">Régime juridique *</Label>
           <Controller
@@ -4002,17 +4108,303 @@ const PropertyStep = ({ form, isMobile, slice }: PropertyStepProps) => {
             </p>
           )}
         </div>
-      </div>
+        <LegalStatusDetails form={form} />
+        {bailFamily === BailFamille.COMMERCIAL && <CommercialPropertyDetails form={form} />}
         </>)}
     </div>
   </div>
   );
 };
 
+const DPE_CLASSES = ["A", "B", "C", "D", "E", "F", "G"] as const;
+
+/** Classe énergétique (DPE) : sert au contrôle du loyer (gel du loyer et pas de complément en F ou G). */
+const DpeClassField = ({ form, isMobile }: { form: any; isMobile: boolean }) => {
+  const value = useWatch({ control: form.control, name: "propertyDpeClass" }) as string | undefined;
+  const error = form.formState.errors.propertyDpeClass;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label htmlFor="propertyDpeClass">Classe énergétique (DPE) *</Label>
+        <InfoTooltip
+          content={<p>Lettre de A à G indiquée en première page de votre diagnostic de performance énergétique (DPE). Elle compte pour le loyer : un logement classé F ou G a un loyer gelé.</p>}
+          className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
+        >
+          <button type="button" className="inline-flex items-center" aria-label="Où trouver la classe énergétique">
+            <InfoIcon className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </InfoTooltip>
+      </div>
+      <Controller
+        name="propertyDpeClass"
+        control={form.control}
+        render={({ field }) => (
+          <Select
+            value={typeof field.value === "string" && field.value ? field.value : undefined}
+            onValueChange={(next) => {
+              field.onChange(next);
+              form.clearErrors("propertyDpeClass");
+            }}
+          >
+            <SelectTrigger id="propertyDpeClass" className="w-full h-11">
+              <SelectValue placeholder="Choisir la classe énergétique" />
+            </SelectTrigger>
+            <SelectContent>
+              {DPE_CLASSES.map((cls) => (
+                <SelectItem key={cls} value={cls}>
+                  Classe {cls}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      />
+      {error && <p className="text-sm text-destructive">{error.message as string}</p>}
+      {value === "G" && (
+        <p className="text-sm text-amber-700 dark:text-amber-300">
+          Depuis le 1er janvier 2025, un logement classé G ne peut plus être loué : notre équipe vous contactera.
+        </p>
+      )}
+      {value === "F" && (
+        <p className="text-sm text-amber-700 dark:text-amber-300">
+          Logement classé F : loyer gelé, et location interdite à partir du 1er janvier 2028.
+        </p>
+      )}
+    </div>
+  );
+};
+
+const SUBDIVISION_AGE_OPTIONS = [
+  { value: "YES", label: "Oui, il y a plus de 10 ans" },
+  { value: "NO", label: "Non, il y a moins de 10 ans" },
+  { value: "UNKNOWN", label: "Je ne sais pas" },
+] as const;
+
+/** Copropriété : coordonnées du syndic. Lotissement : ancienneté (au-delà de 10 ans, pas de règlement à fournir). */
+const LegalStatusDetails = ({ form }: { form: any }) => {
+  const legalStatus = useWatch({ control: form.control, name: "propertyLegalStatus" });
+  const errors = form.formState.errors as Record<string, { message?: string } | undefined>;
+  if (legalStatus === BienLegalStatus.CO_PROPRIETE) {
+    return (
+      <div className="space-y-3 rounded-xl border p-4">
+        <div>
+          <p className="font-medium text-sm">Syndic de copropriété</p>
+          <p className="text-xs text-muted-foreground">Le notaire peut lui demander directement certains documents de l&apos;immeuble.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="propertySyndicName">Nom du syndic *</Label>
+          <Input
+            id="propertySyndicName"
+            className="h-11"
+            placeholder="Ex. : Foncia Paris 15, ou nom du syndic bénévole"
+            {...form.register("propertySyndicName", { onChange: () => form.clearErrors("propertySyndicName") })}
+          />
+          {errors.propertySyndicName && <p className="text-sm text-destructive">{errors.propertySyndicName.message}</p>}
+        </div>
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="propertySyndicEmail">E-mail du syndic</Label>
+            <Input
+              id="propertySyndicEmail"
+              type="email"
+              className="h-11"
+              {...form.register("propertySyndicEmail", { onChange: () => form.clearErrors("propertySyndicEmail") })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="propertySyndicPhone">Téléphone du syndic</Label>
+            <Input
+              id="propertySyndicPhone"
+              type="tel"
+              className="h-11"
+              {...form.register("propertySyndicPhone", { onChange: () => form.clearErrors(["propertySyndicEmail", "propertySyndicPhone"]) })}
+            />
+            {errors.propertySyndicPhone && <p className="text-sm text-destructive">{errors.propertySyndicPhone.message}</p>}
+          </div>
+        </div>
+        {errors.propertySyndicEmail && <p className="text-sm text-destructive">{errors.propertySyndicEmail.message}</p>}
+      </div>
+    );
+  }
+  if (legalStatus === BienLegalStatus.LOTISSEMENT) {
+    return (
+      <div className="space-y-2">
+        <Label>Le lotissement a-t-il été créé il y a plus de 10 ans ? *</Label>
+        <p className="text-xs text-muted-foreground">
+          La date figure dans votre acte d&apos;achat (arrêté de lotissement ou permis d&apos;aménager).
+        </p>
+        <Controller
+          name="propertySubdivisionOver10Years"
+          control={form.control}
+          render={({ field }) => (
+            <div className="grid gap-2">
+              {SUBDIVISION_AGE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    field.onChange(option.value);
+                    form.clearErrors("propertySubdivisionOver10Years");
+                  }}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-3 p-3 rounded-xl border-2 text-left text-sm transition-all",
+                    field.value === option.value
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/30 hover:bg-muted/40"
+                  )}
+                >
+                  {option.label}
+                  {field.value === option.value && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
+                </button>
+              ))}
+            </div>
+          )}
+        />
+        {errors.propertySubdivisionOver10Years && (
+          <p className="text-sm text-destructive">{errors.propertySubdivisionOver10Years.message}</p>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
+
+/** Justificatifs du loyer demandés selon les réponses (facultatifs : l'équipe les réclame s'ils manquent). */
+const RentProofUploads = ({
+  form,
+  intakeLink,
+  onUploadStateChange,
+}: {
+  form: any;
+  intakeLink: IntakeLink;
+  onUploadStateChange?: (isUploading: boolean) => void;
+}) => {
+  const rentRules = (useWatch({ control: form.control, name: "rentRules" }) as RentRulesFormValues | undefined) ?? EMPTY_RENT_RULES;
+  const dpeClass = useWatch({ control: form.control, name: "propertyDpeClass" }) as string | undefined;
+  const [files, setFiles] = useState<Record<string, File | null>>({});
+  const kinds = relocationProofKinds(
+    {
+      relocationLetBefore: rentRules.relocationLetBefore === "yes" ? true : rentRules.relocationLetBefore === "no" ? false : null,
+      previousTenantLeftAt: rentRules.previousTenantLeftAt || null,
+      previousRentAmount: null,
+      previousRentRevisedRecently: null,
+      rentIncreaseReason: rentRules.rentIncreaseReason || null,
+      worksAmount: null,
+      worksCompletedAt: null,
+      neighborhoodRent: null,
+    },
+    dpeClass,
+  );
+  if (!kinds.length) return null;
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Justificatifs du loyer</h3>
+        <p className="text-sm text-muted-foreground">
+          Ils prouvent que le loyer respecte les règles de la zone tendue. Si vous ne les avez pas sous la main, vous pourrez les envoyer plus tard.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+        {kinds.map((kind) => (
+          <div key={kind} className="min-w-0 w-full overflow-visible space-y-1">
+            <DocumentUploaded token={intakeLink.token} documentKind={kind}>
+              <FileUpload
+                label={PROOF_LABELS[kind].label}
+                multiple
+                value={files[kind] ?? null}
+                onChange={(file) => setFiles((prev) => ({ ...prev, [kind]: file }))}
+                uploadToken={intakeLink.token}
+                documentKind={kind as any}
+                documentClientId={intakeLink.clientId}
+                onUploadStateChange={onUploadStateChange}
+              />
+            </DocumentUploaded>
+            <p className="text-xs text-muted-foreground">{PROOF_LABELS[kind].hint}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Ville à loyers encadrés : le notaire demande la déclaration d'occupation faite sur
+ * impots.gouv. Facultative ici (l'équipe la réclame si elle manque).
+ */
+const OccupancyDeclarationUpload = ({
+  form,
+  intakeLink,
+  onUploadStateChange,
+}: {
+  form: any;
+  intakeLink: IntakeLink;
+  onUploadStateChange?: (isUploading: boolean) => void;
+}) => {
+  const bailType = useWatch({ control: form.control, name: "bailType" }) as string | undefined;
+  const bailFamily = useWatch({ control: form.control, name: "bailFamily" }) as string | undefined;
+  const effectiveDate = useWatch({ control: form.control, name: "bailEffectiveDate" }) as unknown;
+  const [required, setRequired] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const effectiveDay = toDateValue(effectiveDate as string | Date | null | undefined) ?? null;
+
+  useEffect(() => {
+    if (!bailType) return;
+    let cancelled = false;
+    checkOccupancyDeclaration({ token: intakeLink.token, bailType, bailFamily: bailFamily ?? null, effectiveDate: effectiveDay })
+      .then((result) => {
+        if (!cancelled) setRequired(result.required);
+      })
+      .catch(() => {
+        if (!cancelled) setRequired(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [intakeLink.token, bailType, bailFamily, effectiveDay]);
+
+  if (!required) return null;
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Déclaration d&apos;occupation du logement</h3>
+        <p className="text-sm text-muted-foreground">
+          Votre logement est dans une ville où les loyers sont encadrés : le notaire vérifie l&apos;historique
+          d&apos;occupation. Si vous ne l&apos;avez pas sous la main, vous pourrez l&apos;envoyer plus tard.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+        <div className="min-w-0 w-full overflow-visible space-y-1">
+          <DocumentUploaded token={intakeLink.token} documentKind="OCCUPANCY_DECLARATION">
+            <FileUpload
+              label="Déclaration d'occupation"
+              multiple
+              value={file}
+              onChange={setFile}
+              uploadToken={intakeLink.token}
+              documentKind="OCCUPANCY_DECLARATION"
+              documentClientId={intakeLink.clientId}
+              onUploadStateChange={onUploadStateChange}
+            />
+          </DocumentUploaded>
+          <p className="text-xs text-muted-foreground">
+            Sur impots.gouv.fr, espace particulier › « Biens immobiliers » (Gérer mes biens immobiliers) : la
+            déclaration faite en 2023 et la dernière en vigueur. Une capture d&apos;écran suffit.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 type BailStepProps = {
   form: ReturnType<typeof useForm<FormWithPersons>>;
   propertyId?: string | null;
-  slice?: "type" | "rent" | "furniture" | "dates";
+  slice?: "type" | "rent" | "charges" | "furniture" | "dates";
+  /** Étape loyer : lien d'intake pour le contrôle du loyer, et son résultat. */
+  token?: string;
+  showRentErrors?: boolean;
+  rentAdvanceRef?: React.MutableRefObject<(() => boolean) | null>;
+  onRentRulesResult?: (result: RentRulesAssessment | null) => void;
 };
 
 // Composant séparé pour afficher la validation du dépôt de garantie
@@ -4076,9 +4468,10 @@ const SecurityDepositTooltipContent = ({ control, isMobile }: { control: any, is
   );
 };
 
-const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
+const BailStep = ({ form, propertyId, slice, token, showRentErrors, rentAdvanceRef, onRentRulesResult }: BailStepProps) => {
   const showType = !slice || slice === "type";
   const showRent = !slice || slice === "rent";
+  const showCharges = !slice || slice === "charges";
   const showFurniture = !slice || slice === "furniture";
   const showDates = !slice || slice === "dates";
   
@@ -4100,9 +4493,10 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
 
   // Calcul automatique de la date de fin du bail à partir du type + date de début
   const watchedEffectiveDate = useWatch({ control: form.control, name: "bailEffectiveDate" });
+  const watchedDerogatoryMonths = parseInt(String(useWatch({ control: form.control, name: "commercial.derogatoryMonths" as any }) ?? ""), 10);
   const computedBailEndDate = useMemo(
-    () => computeBailEndDate(watchedEffectiveDate as any, currentBailType as any),
-    [watchedEffectiveDate, currentBailType]
+    () => computeBailEndDate(watchedEffectiveDate as any, currentBailType as any, Number.isFinite(watchedDerogatoryMonths) ? watchedDerogatoryMonths : null),
+    [watchedEffectiveDate, currentBailType, watchedDerogatoryMonths]
   );
   useEffect(() => {
     if (computedBailEndDate) {
@@ -4113,44 +4507,29 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [computedBailEndDate]);
 
-  // Surveillance du loyer et de la surface pour validation zone tendue
+  // Contrôle du loyer (plafond de l'arrêté, relocation en zone tendue, complément de loyer)
   const rentAmount = useWatch({ control: form.control, name: "bailRentAmount" });
-  const surfaceM2 = useWatch({ control: form.control, name: "propertySurfaceM2" });
-  const propertyInseeCode = useWatch({ control: form.control, name: "propertyInseeCode" }) as string | null | undefined;
-  const [rentValidationResult, setRentValidationResult] = useState<RentValidationResult | null>(null);
-  const [propertySurface, setPropertySurface] = useState<number | null>(null);
-
-  // Récupérer la surface du bien si propertyId existe
-  useEffect(() => {
-    if (propertyId) {
-      fetch(`/api/properties/${propertyId}`)
-        .then(res => res.json())
-        .then(data => {
-          setPropertySurface(data.surfaceM2 ? Number(data.surfaceM2) : null);
-        })
-        .catch(() => {
-          setPropertySurface(null);
-        });
-    } else {
-      setPropertySurface(surfaceM2 ? Number(surfaceM2) : null);
-    }
-  }, [propertyId, surfaceM2]);
-
-  // Valider le loyer quand il change
-  useEffect(() => {
-    if (propertyId && rentAmount) {
-      const rent = typeof rentAmount === 'number' ? rentAmount : parseFloat(String(rentAmount) || '0');
-      if (!isNaN(rent) && rent > 0) {
-        validateRentAmount(propertyId, rent, propertySurface)
-          .then(result => setRentValidationResult(result))
-          .catch(() => setRentValidationResult(null));
-      } else {
-        setRentValidationResult(null);
-      }
-    } else {
-      setRentValidationResult(null);
-    }
-  }, [propertyId, rentAmount, propertySurface]);
+  const bailFamily = useWatch({ control: form.control, name: "bailFamily" });
+  const dpeClass = useWatch({ control: form.control, name: "propertyDpeClass" as any }) as string | undefined;
+  const rentRules = (useWatch({ control: form.control, name: "rentRules" as any }) as RentRulesFormValues | undefined) ?? EMPTY_RENT_RULES;
+  // Étape « Le loyer » : parcours guidé dans les communes qui encadrent les loyers, sinon un simple champ.
+  const rentCheck = useRentRules({
+    enabled: showRent && !!token && !!propertyId,
+    token,
+    rentAmount: rentAmount as any,
+    bailType: currentBailType as any,
+    bailFamily: bailFamily as any,
+    dpeClass: dpeClass || null,
+    values: rentRules,
+    onChange: (patch) =>
+      form.setValue("rentRules" as any, { ...(form.getValues("rentRules" as any) ?? EMPTY_RENT_RULES), ...patch } as any, { shouldDirty: true }),
+    onResult: onRentRulesResult,
+    showErrors: showRentErrors,
+    advanceRef: rentAdvanceRef,
+    onApplyRent: (value) => form.setValue("bailRentAmount", String(value) as any, { shouldDirty: true, shouldValidate: true }),
+    onRentChange: (value) => form.setValue("bailRentAmount", value as any, { shouldDirty: true, shouldValidate: !!form.formState.errors.bailRentAmount }),
+    rentError: form.formState.errors.bailRentAmount?.message as string | undefined,
+  });
   
   // Nettoyer les erreurs de mobilier si on passe à un bail nue
   useEffect(() => {
@@ -4167,9 +4546,10 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
   
   const titles: Record<NonNullable<typeof slice>, { title: string; subtitle: string }> = {
     type: { title: "Type de contrat", subtitle: "Choisissez le type de bail à mettre en place." },
-    rent: { title: "Loyer & charges", subtitle: "Montant du loyer, charges et dépôt de garantie." },
+    rent: { title: "Le loyer", subtitle: "Nous vous accompagnons pour fixer le bon loyer pour votre logement." },
+    charges: { title: "Charges et dépôt de garantie", subtitle: "Les charges mensuelles et le dépôt de garantie demandé au locataire." },
     furniture: { title: "Mobilier du logement", subtitle: "Cochez tous les équipements obligatoires pour un bail meublé." },
-    dates: { title: "Dates du bail", subtitle: "Date de prise d'effet, fin éventuelle et jour de paiement." },
+    dates: { title: "Dates du bail", subtitle: "Avec un locataire, indiquez le jour de paiement du loyer et la date de prise d'effet." },
   };
   const header = slice ? titles[slice] : { title: "Informations du bail", subtitle: "Renseignez les paramètres du bail." };
 
@@ -4206,10 +4586,11 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
                 <SelectValue placeholder="Sélectionner" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nue 3 ans</SelectItem>
-                <SelectItem value={BailType.BAIL_NU_6_ANS}>
-                  Bail nue 6 ans (SCI)
-                </SelectItem>
+                <SelectItem value={BailType.BAIL_NU_3_ANS}>Bail nu 3 ans</SelectItem>
+                {/* 6 ans : réservé aux personnes morales (SCI…). Laissé visible s'il est déjà choisi. */}
+                {(form.watch("type") === ClientType.PERSONNE_MORALE || field.value === BailType.BAIL_NU_6_ANS) && (
+                  <SelectItem value={BailType.BAIL_NU_6_ANS}>Bail nu 6 ans (société)</SelectItem>
+                )}
                 <SelectItem value={BailType.BAIL_MEUBLE_1_ANS}>
                   Bail meublé 1 an
                 </SelectItem>
@@ -4228,45 +4609,8 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
         )}
       </div>
       </>)}
-      {showRent && (<>
-      <div className="space-y-2">
-        <div className="flex flex-row items-center gap-2">
-          <Label>Loyer mensuel *</Label>
-          <InfoTooltip
-            content={
-              <div className="max-w-xs">
-                <p className="mb-2">LIMITATIONS DES LOYERS</p>
-                <p className="mb-2">Ce logement peut se situer en zone tendue, où les loyers sont encadrés. Cliquez ici pour vérifier votre situation et rester conforme à la réglementation.</p>
-                <a
-                  href="https://www.service-public.fr/simulateur/calcul/zones-tendues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline hover:text-primary/80"
-                >
-                  https://www.service-public.fr/simulateur/calcul/zones-tendues
-                </a>
-              </div>
-            }
-            className={isMobile ? "bg-background text-foreground max-w-xs" : "max-w-xs"}
-          >
-            <button type="button" className="inline-flex items-center">
-              <InfoIcon className="h-4 w-4 text-muted-foreground" />
-            </button>
-          </InfoTooltip>
-        </div>
-        <NumberInputGroup
-          field={form.register("bailRentAmount")}
-          min={0}
-          step={1}
-          unit="€"
-          className="h-11"
-        />
-        {form.formState.errors.bailRentAmount && (
-          <p className="text-sm text-destructive">
-            {form.formState.errors.bailRentAmount.message}
-          </p>
-        )}
-      </div>
+      {showRent && <RentGuide rules={rentCheck} />}
+      {showCharges && (<>
       <div className="space-y-2">
         <Label>Charges mensuelles *</Label>
         <NumberInputGroup
@@ -4283,16 +4627,6 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
         )}
       </div>
 
-      {/* Avertissement zone tendue - affiché dès l'entrée dans l'étape si le bien est en zone tendue */}
-      {(propertyId || (propertyInseeCode && typeof propertyInseeCode === 'string' && propertyInseeCode.trim() !== "")) && (
-        <RentControlAlert
-          propertyId={propertyId !== null ? propertyId : undefined}
-          inseeCode={propertyInseeCode && typeof propertyInseeCode === 'string' && propertyInseeCode.trim() !== "" ? propertyInseeCode : null}
-          rentAmount={rentAmount ? (typeof rentAmount === 'number' ? rentAmount : parseFloat(String(rentAmount) || '0')) : undefined}
-          surfaceM2={propertySurface}
-          validationResult={rentValidationResult}
-        />
-      )}
 
       <div className="space-y-2">
         <div className="flex flex-row items-center gap-2">
@@ -4327,14 +4661,19 @@ const BailStep = ({ form, propertyId, slice }: BailStepProps) => {
       </div>
 
       <div className="space-y-2">
-        <Label>Date de prise d'effet *</Label>
+        <Label htmlFor="bailEffectiveDate">Date de prise d'effet *</Label>
         <Controller
           name="bailEffectiveDate"
           control={form.control}
           render={({ field }) => (
-            <DatePicker
+            <DateInput
+              id="bailEffectiveDate"
+              name={field.name}
               value={field.value ? toDateValue(field.value as any) : undefined}
-              onChange={(val) => field.onChange(toDateValue(val as any) || "")}
+              onChange={(val) => field.onChange(val || "")}
+              onBlur={field.onBlur}
+              minDate={todayInFrance()}
+              aria-invalid={!!form.formState.errors.bailEffectiveDate}
             />
           )}
         />
@@ -4447,7 +4786,8 @@ const TenantStep = ({
     <CardHeader>
       <CardTitle>Locataire</CardTitle>
       <CardDescription>
-        Cette étape est optionnelle pour l’instant : vous pouvez continuer et revenir plus tard.
+        Cette étape est optionnelle pour l’instant : vous pouvez continuer et revenir plus tard. Si vous indiquez
+        votre locataire, nous vous demandons aussi la date de prise d’effet du bail et le jour de paiement du loyer.
       </CardDescription>
     </CardHeader>
     <CardContent className="space-y-4">
@@ -4478,41 +4818,32 @@ type DocumentsStepProps = {
   fileRefs: {
     kbisRef: RefObject<HTMLInputElement>;
     statutesRef: RefObject<HTMLInputElement>;
-    livretDeFamilleRef: RefObject<HTMLInputElement>;
+    contratDeMariageRef: RefObject<HTMLInputElement>;
     contratDePacsRef: RefObject<HTMLInputElement>;
     diagnosticsRef: RefObject<HTMLInputElement>;
     titleDeedRef: RefObject<HTMLInputElement>;
     reglementCoproprieteRef: RefObject<HTMLInputElement>;
     cahierChargeLotissementRef: RefObject<HTMLInputElement>;
-    statutAssociationSyndicaleRef: RefObject<HTMLInputElement>;
-    insuranceOwnerRef: RefObject<HTMLInputElement>;
-    ribOwnerRef: RefObject<HTMLInputElement>;
   };
   fileStates: {
     kbisFile: File | null;
     statutesFile: File | null;
-    livretDeFamilleFile: File | null;
+    contratDeMariageFile: File | null;
     contratDePacsFile: File | null;
     diagnosticsFile: File | null;
     titleDeedFile: File | null;
     reglementCoproprieteFile: File | null;
     cahierChargeLotissementFile: File | null;
-    statutAssociationSyndicaleFile: File | null;
-    insuranceOwnerFile: File | null;
-    ribOwnerFile: File | null;
   };
   setFileStates: {
     setKbisFile: (file: File | null) => void;
     setStatutesFile: (file: File | null) => void;
-    setLivretDeFamilleFile: (file: File | null) => void;
+    setContratDeMariageFile: (file: File | null) => void;
     setContratDePacsFile: (file: File | null) => void;
     setDiagnosticsFile: (file: File | null) => void;
     setTitleDeedFile: (file: File | null) => void;
     setReglementCoproprieteFile: (file: File | null) => void;
     setCahierChargeLotissementFile: (file: File | null) => void;
-    setStatutAssociationSyndicaleFile: (file: File | null) => void;
-    setInsuranceOwnerFile: (file: File | null) => void;
-    setRibOwnerFile: (file: File | null) => void;
   };
   personDocumentRefs: Record<number, { idIdentity: RefObject<HTMLInputElement | null> }>;
   personDocumentFiles: Record<number, { idIdentity: File | null }>;
@@ -4534,6 +4865,11 @@ const DocumentsStep = ({
   persons,
   onUploadStateChange,
 }: DocumentsStepProps) => {
+  // Contrat de mariage (hors communauté légale) ou convention de PACS, selon la première personne
+  const maritalKind = getMaritalDocumentKind(
+    form.watch(`persons.0.familyStatus` as any) as FamilyStatus | undefined,
+    form.watch(`persons.0.matrimonialRegime` as any) as MatrimonialRegime | undefined
+  );
   // Fonction helper pour vérifier si une personne a un document
   const hasPersonDocument = (personIndex: number, kind: string): boolean => {
     const person = intakeLink.client?.persons?.[personIndex];
@@ -4646,43 +4982,43 @@ const DocumentsStep = ({
                 );
               })}
               
-              {/* Documents communs au client (livret de famille, PACS) */}
+              {/* Documents communs au client (contrat de mariage, convention de PACS) */}
               {persons.length > 0 && (
                 <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-                  {form.watch(`persons.0.familyStatus`) === FamilyStatus.MARIE && (
+                  {maritalKind === "CONTRAT_DE_MARIAGE" && (
                     <div className="min-w-0 w-full overflow-visible">
                       <DocumentUploaded
                         token={intakeLink.token}
-                        documentKind="LIVRET_DE_FAMILLE"
+                        documentKind="CONTRAT_DE_MARIAGE"
                       >
                         <FileUpload
-                          label="Livret de famille *"
+                          label="Contrat de mariage *"
                           multiple
-                          value={fileStates.livretDeFamilleFile}
+                          value={fileStates.contratDeMariageFile}
                           onChange={(file) => {
-                            setFileStates.setLivretDeFamilleFile(file);
-                            if (fileRefs.livretDeFamilleRef.current) {
+                            setFileStates.setContratDeMariageFile(file);
+                            if (fileRefs.contratDeMariageRef.current) {
                               const dt = new DataTransfer();
                               if (file) dt.items.add(file);
-                              fileRefs.livretDeFamilleRef.current.files = dt.files;
+                              fileRefs.contratDeMariageRef.current.files = dt.files;
                             }
                           }}
                           uploadToken={intakeLink.token}
-                          documentKind="LIVRET_DE_FAMILLE"
+                          documentKind="CONTRAT_DE_MARIAGE"
                           documentClientId={intakeLink.clientId}
                           onUploadStateChange={onUploadStateChange}
                         />
                       </DocumentUploaded>
                     </div>
                   )}
-                  {form.watch(`persons.0.familyStatus`) === FamilyStatus.PACS && (
+                  {maritalKind === "CONTRAT_DE_PACS" && (
                     <div className="min-w-0 w-full overflow-visible">
                       <DocumentUploaded
                         token={intakeLink.token}
                         documentKind="CONTRAT_DE_PACS"
                       >
                         <FileUpload
-                          label="Contrat de PACS *"
+                          label="Convention de PACS *"
                           multiple
                           value={fileStates.contratDePacsFile}
                           onChange={(file) => {
@@ -4707,51 +5043,20 @@ const DocumentsStep = ({
           )}
         </div>
 
+      <RentProofUploads form={form} intakeLink={intakeLink} onUploadStateChange={onUploadStateChange} />
+      <OccupancyDeclarationUpload form={form} intakeLink={intakeLink} onUploadStateChange={onUploadStateChange} />
+      {form.watch("bailFamily") === BailFamille.COMMERCIAL && (
+        <CommercialDocumentUploads
+          form={form}
+          intakeLink={intakeLink}
+          isCompany={clientType === ClientType.PERSONNE_MORALE}
+          onUploadStateChange={onUploadStateChange}
+        />
+      )}
+
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Documents du bien et du bail</h3>
         <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
-          <div className="min-w-0 w-full overflow-visible">
-            <DocumentUploaded token={intakeLink.token} documentKind="INSURANCE">
-              <FileUpload
-                label="Assurance propriétaire *"
-                multiple
-                value={fileStates.insuranceOwnerFile}
-                onChange={(file) => {
-                  setFileStates.setInsuranceOwnerFile(file);
-                  if (fileRefs.insuranceOwnerRef.current) {
-                    const dt = new DataTransfer();
-                    if (file) dt.items.add(file);
-                    fileRefs.insuranceOwnerRef.current.files = dt.files;
-                  }
-                }}
-                uploadToken={intakeLink.token}
-                documentKind="INSURANCE"
-                documentClientId={intakeLink.clientId}
-                onUploadStateChange={onUploadStateChange}
-              />
-            </DocumentUploaded>
-          </div>
-          <div className="min-w-0 w-full overflow-visible">
-            <DocumentUploaded token={intakeLink.token} documentKind="RIB">
-              <FileUpload
-                label="RIB signé propriétaire *"
-                multiple
-                value={fileStates.ribOwnerFile}
-                onChange={(file) => {
-                  setFileStates.setRibOwnerFile(file);
-                  if (fileRefs.ribOwnerRef.current) {
-                    const dt = new DataTransfer();
-                    if (file) dt.items.add(file);
-                    fileRefs.ribOwnerRef.current.files = dt.files;
-                  }
-                }}
-                uploadToken={intakeLink.token}
-                documentKind="RIB"
-                documentClientId={intakeLink.clientId}
-                onUploadStateChange={onUploadStateChange}
-              />
-            </DocumentUploaded>
-          </div>
           <div className="min-w-0 w-full overflow-visible">
             <DocumentUploaded token={intakeLink.token} documentKind="DIAGNOSTICS">
               <FileUpload
@@ -4818,9 +5123,14 @@ const DocumentsStep = ({
                   onUploadStateChange={onUploadStateChange}
                 />
               </DocumentUploaded>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Souvent intitulé « État descriptif de division – Règlement de copropriété ». Ajoutez aussi les
+                modificatifs s&apos;il y en a. La version à jour est en général sur l&apos;espace en ligne de votre syndic.
+              </p>
             </div>
           )}
-          {form.watch("propertyLegalStatus") === BienLegalStatus.LOTISSEMENT && (
+          {form.watch("propertyLegalStatus") === BienLegalStatus.LOTISSEMENT &&
+            needsSubdivisionRules(form.watch("propertySubdivisionOver10Years" as any) as string | undefined) && (
             <>
               <div className="min-w-0 w-full overflow-visible">
                 <DocumentUploaded
@@ -4828,7 +5138,7 @@ const DocumentsStep = ({
                   documentKind="CAHIER_DE_CHARGE_LOTISSEMENT"
                 >
                   <FileUpload
-                    label="Cahier des charges lotissement *"
+                    label="Règlement du lotissement *"
                     multiple
                     value={fileStates.cahierChargeLotissementFile}
                     onChange={(file) => {
@@ -4841,30 +5151,6 @@ const DocumentsStep = ({
                     }}
                     uploadToken={intakeLink.token}
                     documentKind="CAHIER_DE_CHARGE_LOTISSEMENT"
-                    documentClientId={intakeLink.clientId}
-                    onUploadStateChange={onUploadStateChange}
-                  />
-                </DocumentUploaded>
-              </div>
-              <div className="min-w-0 w-full overflow-visible">
-                <DocumentUploaded
-                  token={intakeLink.token}
-                  documentKind="STATUT_DE_LASSOCIATION_SYNDICALE"
-                >
-                  <FileUpload
-                    label="Statut de l'association syndicale *"
-                    multiple
-                    value={fileStates.statutAssociationSyndicaleFile}
-                    onChange={(file) => {
-                      setFileStates.setStatutAssociationSyndicaleFile(file);
-                      if (fileRefs.statutAssociationSyndicaleRef.current) {
-                        const dt = new DataTransfer();
-                        if (file) dt.items.add(file);
-                        fileRefs.statutAssociationSyndicaleRef.current.files = dt.files;
-                      }
-                    }}
-                    uploadToken={intakeLink.token}
-                    documentKind="STATUT_DE_LASSOCIATION_SYNDICALE"
                     documentClientId={intakeLink.clientId}
                     onUploadStateChange={onUploadStateChange}
                   />

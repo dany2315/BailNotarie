@@ -1,0 +1,166 @@
+{
+ "suite": "Lot 4 — compléments et archivage",
+ "createdAt": "2026-11-23T21:37:39.838Z",
+ "passed": 21,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "Réponse du client : gardée comme proposition, le bail n’est pas modifié",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Le client retrouve sa réponse sur sa page et peut envoyer sa demande, toujours sans modifier le bail",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "createNotificationForAllUsers": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Acceptation par l’équipe : valeur écrite, journal avant/après et auteur, demande terminée",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Acceptation d’une condition confirmée par le locataire : son accord est archivé et redemandé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "triggerTenantReconfirmationEmail": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Ligne redemandée (refus) : valeurs du bail inchangées",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "email": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Annulation : rien n’est appliqué, et une modification faite entre-temps n’est pas écrasée",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Conflit : le dossier a changé depuis la réponse → rien n’est écrit sans confirmation explicite",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Information à plusieurs champs (nom et prénom) : pas de faux conflit quand rien n’a changé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "« Tout accepter » n’applique pas une information en conflit",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Règles métier à l’acceptation : une réponse devenue invalide n’est pas appliquée",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Permissions : autre client, client lui-même et notaire non assigné ne peuvent ni répondre ni accepter",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Réponse qui rendrait une pièce obligatoire : la pièce est demandée, la fiche de la personne n’est pas modifiée",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Acceptation avec sélection multiple : anciennes pièces archivées, fichiers conservés, reliées à la nouvelle",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Acceptation sans sélection (et « tout accepter ») : les anciennes pièces restent actives, rien n’est supprimé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Pièce archivée : hors des pièces actives et de la complétude, lisible par l’équipe seulement, jamais supprimée",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "s3.delete": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Impossible d’archiver la pièce d’un autre dossier, ou la pièce que le client vient d’envoyer",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Le notaire assigné archive lui-même les anciennes pièces sur sa propre demande, et peut les rouvrir",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Notaire : pas d’accès aux pièces archivées par l’équipe, ni aux demandes de l’équipe, ni au dossier d’un confrère",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Suivi de l’équipe : la ligne « pièce reçue » liste les anciennes pièces remplaçables, sans rien cocher d’avance",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "m11 — « Autre pièce » : seule la pièce désignée sur la ligne est proposée, jamais les autres fichiers du bail",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "m11 — Fichiers de la messagerie et d’une demande du notaire : jamais proposés ni archivables",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

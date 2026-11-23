@@ -79,6 +79,17 @@ function getNotificationMessage(notification: Notification): string {
     }
     case "LEAD_CREATED":
       return "Nouveau lead créé";
+    case "DIAGNOSTICS_TO_REVIEW": {
+      const parts = [
+        metadata.toFix ? `${metadata.toFix} à remplacer` : null,
+        metadata.toCheck ? `${metadata.toCheck} à vérifier` : null,
+      ].filter(Boolean);
+      return `Diagnostics à régler — ${metadata.propertyLabel || "un bien"}${parts.length ? ` : ${parts.join(", ")}` : ""}`;
+    }
+    case "COMPLEMENT_SUBMITTED":
+      return `Réponse reçue — ${metadata.clientName || "le client"} a répondu à la demande${metadata.propertyLabel ? ` (${metadata.propertyLabel})` : ""}`;
+    case "COMPLEMENT_REQUESTED_BY_NOTAIRE":
+      return `Demande du notaire — ${metadata.notaireName || "le notaire"} a demandé ${metadata.count || ""} élément${(metadata.count || 0) > 1 ? "s" : ""} à ${metadata.clientName || "un client"}${metadata.propertyLabel ? ` (${metadata.propertyLabel})` : ""}`;
     case "LEAD_CONVERTED":
       return `Lead converti en ${metadata.newProfilType === "PROPRIETAIRE" ? "propriétaire" : "locataire"}`;
     default:
@@ -100,6 +111,8 @@ function getNotificationLink(notification: Notification): string | null {
       return `/interface/baux/${notification.targetId}`;
     case "INTAKE":
       return `/interface/intakes`;
+    case "NOTAIRE_DOSSIER":
+      return `/notaire/dossiers?dossierId=${notification.targetId}`;
     case "COMMENT":
       // Les commentaires sont sur la page de l'entité concernée
       return null;
@@ -108,7 +121,14 @@ function getNotificationLink(notification: Notification): string | null {
   }
 }
 
-export function NotificationsDropdown() {
+const subscribeNothing = () => () => {};
+
+export function NotificationsDropdown({
+  allHref = "/interface/notifications",
+}: {
+  /** Page de toutes les notifications ; null dans un espace qui n'en a pas (notaire). */
+  allHref?: string | null;
+} = {}) {
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -173,10 +193,23 @@ export function NotificationsDropdown() {
     }
   };
 
+  // Rendu serveur et hydratation : la cloche seule, sans menu Radix. Les identifiants du menu
+  // (radix-_R_…) dépendent de la position dans l'arbre React et ne correspondaient pas toujours
+  // entre le serveur et le navigateur (erreur d'hydratation dans l'espace notaire). Les
+  // notifications se chargent de toute façon côté navigateur : rien n'est perdu.
+  const mounted = React.useSyncExternalStore(subscribeNothing, () => true, () => false);
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" className="relative" aria-label="Notifications" type="button">
+        <Bell className="h-5 w-5" />
+      </Button>
+    );
+  }
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative" aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} non lue${unreadCount > 1 ? "s" : ""}` : "Notifications"}>
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <Badge
@@ -263,10 +296,10 @@ export function NotificationsDropdown() {
             </div>
           )}
         </ScrollArea>
-        {notifications.length > 0 && (
+        {notifications.length > 0 && allHref && (
           <div className="p-2 border-t">
             <Link
-              href="/interface/notifications"
+              href={allHref}
               className="block text-center text-sm text-muted-foreground hover:text-foreground"
               onClick={() => setIsOpen(false)}
             >

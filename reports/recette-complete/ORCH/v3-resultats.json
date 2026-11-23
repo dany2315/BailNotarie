@@ -1,0 +1,22 @@
+[
+ {
+  "id": "M9-locataire-telephone",
+  "ok": true,
+  "detail": "départ étape 3 ; retour 1 → {\"adresse\":\"/intakes/00da7ab8-a0e5-4f69-a923-1acccd3ffdd3\",\"etape\":\"2\",\"marque\":\"pas de rechargement\"} ; retour 2 → {\"adresse\":\"/intakes/00da7ab8-a0e5-4f69-a923-1acccd3ffdd3\",\"etape\":\"1\",\"marque\":\"pas de rechargement\"} ; retour 3 → {\"adresse\":\"/\",\"etape\":\"-\",\"marque\":null}"
+ },
+ {
+  "id": "M9-fleche-puis-geste-telephone",
+  "ok": true,
+  "detail": "après la flèche vers l'étape 1, un geste retour mène à /"
+ },
+ {
+  "id": "M9-locataire-iphone",
+  "ok": true,
+  "detail": "départ étape 3 ; retour 1 → {\"adresse\":\"/intakes/47c4db73-9574-41b0-9bde-f7d300167ab3\",\"etape\":\"2\",\"marque\":\"pas de rechargement\"} ; retour 2 → {\"adresse\":\"/intakes/47c4db73-9574-41b0-9bde-f7d300167ab3\",\"etape\":\"1\",\"marque\":\"pas de rechargement\"} ; retour 3 → {\"adresse\":\"/\",\"etape\":\"-\",\"marque\":null}"
+ },
+ {
+  "id": "M9-fleche-puis-geste-iphone",
+  "ok": true,
+  "detail": "après la flèche vers l'étape 1, un geste retour mène à /"
+ }
+]

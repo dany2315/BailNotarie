@@ -1,0 +1,304 @@
+{
+ "suite": "Lot 1 — paiements",
+ "createdAt": "2026-11-17T16:49:34.090Z",
+ "passed": 32,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "Anomalie 3 de l’audit — paiement « processing » + erreur de mise à jour : aucun nouvel ordre, référence conservée",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Ordre non payé + changement de montant + erreur de mise à jour : 503, aucun nouvel ordre, référence conservée",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "stripe.update": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Stripe injoignable (erreur réseau) : état inconnu, aucun nouvel ordre, référence conservée",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 2
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Paiement confirmé + Stripe injoignable ensuite : la ligne reste « confirmé »",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 2
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Pièce obligatoire manquante : aucun ordre créé ni remis à régler, message qui la nomme",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Pièce manquante mais paiement déjà réussi : jamais bloqué (l’envoi revérifie les pièces)",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Ordre non payé, même montant : repris tel quel, rien de créé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Passage d’habitation à commercial : même ordre, montant mis à jour",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "stripe.update": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Paiement déjà réussi : poursuite sans repayer ; mauvais montant : blocage 409 sans nouvel ordre",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 2
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Ordre annulé : une nouvelle tentative est créée (une seule)",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "stripe.create": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Référence inconnue de Stripe : nouvel ordre créé et enregistré sur le dossier",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "stripe.create": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Double clic / requêtes simultanées : même clé d’idempotence, un seul ordre de paiement",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.create": 2
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Course perdue : l’ordre en trop est annulé, celui du dossier est renvoyé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.create": 1,
+    "stripe.cancel": 1,
+    "stripe.retrieve": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Sans session, ou dossier déjà envoyé : refus sans rien créer",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Vérification : non réglé, mauvais montant, mauvaise devise, mauvais dossier, mauvais compte → refus",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 10
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Rattachement : bail payé une fois, date réelle Stripe, une seule ligne d’historique ; rejeu sans effet",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Paiement déjà utilisé pour un autre dossier : refus (suivi récent et référence ancienne)",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Bail déjà payé par un autre paiement : le second n’écrase rien et reste signalé à l’équipe",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "createLease appelée directement avec le paiement d’un autre compte, non réglé ou inventé : refus, rien de payé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 4
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "createLease avec paiement valide : bail payé, historique unique ; rejeu du même paiement : refus sans second bail",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 2,
+    "createNotificationForAllUsers": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Espace client : rouvrir l’écran de paiement reprend le même ordre ; déjà payé non rattaché : poursuite sans repayer",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.create": 1,
+    "stripe.retrieve": 3
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "submitOwnerForm appelée directement avec un identifiant inventé, non réglé, d’un autre dossier ou d’un autre montant : refus, dossier non payé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 5
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "submitOwnerForm avec paiement vérifié : bail payé à la date Stripe, une ligne d’historique, formulaire envoyé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Reprise — paiement réussi et bail créé, puis panne avant la fin de l’envoi : le nouvel essai reprend le même bail, sans doublon ni second paiement",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 2,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Formulaire propriétaire sans locataire : le paiement reste possible (statut « en attente du locataire »)",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.retrieve": 1,
+    "triggerCompletionStatusesCalculation": 1,
+    "background.after": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Webhook : signature invalide ou absente → 400 ; secret non configuré → 500 ; rien d’écrit",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.webhook.verify": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Webhook — page fermée après un paiement réussi, formulaire pas encore envoyé : preuve conservée, rien d’autre ne bouge",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.webhook.verify": 1,
+    "stripe.retrieve": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Webhook — formulaire déjà envoyé : paiement rattaché une fois ; événement rejoué : aucun doublon",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.webhook.verify": 3
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Webhook — événements dans le désordre : « en cours » reçu après « réussi » ne fait pas régresser",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.webhook.verify": 5
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Webhook — montant inattendu ou paiement étranger : jamais rattaché",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.webhook.verify": 2
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Webhook — panne pendant le traitement : l’événement renvoyé par Stripe est repris jusqu’au bout",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "stripe.webhook.verify": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Dossier non payé : envoi au notaire refusé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

@@ -1,0 +1,60 @@
+{
+ "code": "PUB",
+ "creeLe": "2026-11-16T19:21:51.159Z",
+ "comptes": {
+  "admin": "recette-pub-admin@example.invalid",
+  "notaires": [
+   "recette-pub-notaire1@example.invalid"
+  ]
+ },
+ "dossiers": [
+  {
+   "n": 1,
+   "bailId": "cmwjngtgk000nx1t02axqgmxv",
+   "statut": "PENDING_VALIDATION",
+   "famille": "HABITATION",
+   "adresse": "1 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjngr40000ax1t0ecxz01xb",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-pub-proprio1@example.invalid",
+    "clientId": "cmwjngpk10003x1t0hz6rz2w5",
+    "formulaire": "/commencer/proprietaire/7b22fba9912d51c3ecfd78b8a5d98f853c1980bebb56be81dc8f9cb75fbd7a67"
+   },
+   "locataire": {
+    "email": "recette-pub-locataire1@example.invalid",
+    "clientId": "cmwjngs07000gx1t09gcttroq",
+    "rempli": true,
+    "societe": false,
+    "aUnCompte": true,
+    "formulaire": "/intakes/8dc6cb2b-8b7d-4652-9c46-56c54f900f3b"
+   },
+   "notaire": null,
+   "particularites": []
+  },
+  {
+   "n": 2,
+   "bailId": "cmwjngxcl001fx1t06drq1wj0",
+   "statut": "READY_FOR_NOTARY",
+   "famille": "HABITATION",
+   "adresse": "2 Place Bonnyaud 23000 Guéret",
+   "bienId": "cmwjngw4g0012x1t0diblkp86",
+   "paye": true,
+   "proprietaire": {
+    "email": "recette-pub-proprio2@example.invalid",
+    "clientId": "cmwjngv8a000vx1t0yrvzftwl",
+    "formulaire": "/commencer/proprietaire/4056dd4da91b2023fde7af07c3e559d6ab3efe7e2272f5a9258426f55f7885fb"
+   },
+   "locataire": {
+    "email": "recette-pub-locataire2@example.invalid",
+    "clientId": "cmwjngwgs0018x1t0ss2ekiuq",
+    "rempli": true,
+    "societe": false,
+    "aUnCompte": true,
+    "formulaire": "/intakes/6d10047a-0d9c-4df8-b35e-20d116fc3174"
+   },
+   "notaire": "recette-pub-notaire1@example.invalid",
+   "particularites": []
+  }
+ ]
+}

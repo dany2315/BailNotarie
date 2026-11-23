@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Header } from "@/components/header";
+import { LpNav } from "@/components/lp/lp-nav";
 import { Footer } from "@/components/footer";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,10 +61,10 @@ export default function BlogPage() {
           { name: "Blog" },
         ]}
       />
-      <Header />
-      
-      {/* Hero Section */}
-      <section className="bg-white py-16">
+      {/* La barre flotte sur la section, qui commence donc en haut de
+          l'écran et dégage elle-même sa hauteur. */}
+      <section className="bg-white pb-16 pt-nav">
+        <LpNav overlay />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
@@ -152,28 +152,6 @@ export default function BlogPage() {
                 </div>
               </Card>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Newsletter */}
-      <section className="py-16 bg-blue-600">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Restez informé des dernières actualités
-          </h2>
-          <p className="text-blue-100 mb-8">
-            Recevez nos conseils et guides pratiques directement dans votre boîte mail
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
-            <input
-              type="email"
-              placeholder="Votre adresse email"
-              className="flex-1 px-4 py-3 bg-white rounded-lg border-0 focus:ring-2 focus:ring-blue-300"
-            />
-            <button className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors">
-              S'abonner
-            </button>
           </div>
         </div>
       </section>

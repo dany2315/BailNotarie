@@ -57,6 +57,27 @@ export async function requireRole(allowedRoles: string[]) {
   return user;
 }
 
+/** Rôles de l'équipe BailNotarie (espace /interface). */
+export const STAFF_ROLES: string[] = [Role.ADMINISTRATEUR, Role.OPERATEUR, Role.REVIEWER];
+
+/** Réservé à l'équipe : un client ou un notaire connecté est refusé. */
+export async function requireStaff() {
+  return requireRole(STAFF_ROLES);
+}
+
+/**
+ * Accès aux données d'un client : l'équipe, ou l'utilisateur rattaché à ce client.
+ * Pour les fonctions qui reçoivent un clientId (appelables depuis le navigateur).
+ */
+export async function requireClientAccess(clientId: string) {
+  const user = await requireAuth();
+  if (STAFF_ROLES.includes(user.role)) return user;
+  const { prisma } = await import("./prisma");
+  const own = await prisma.user.findUnique({ where: { id: user.id }, select: { clientId: true } });
+  if (!own?.clientId || own.clientId !== clientId) throw new Error("Forbidden");
+  return user;
+}
+
 /**
  * Vérifie qu'un clientId correspond à un IntakeLink valide (PENDING ou SUBMITTED)
  * Utilisé pour sécuriser les actions d'intake qui ne nécessitent pas d'authentification utilisateur

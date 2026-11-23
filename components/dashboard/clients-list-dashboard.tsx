@@ -6,11 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { CompletionStatusMultiSelect } from "@/components/shared/completion-status-multi-select";
 import { ClientProfilTypeMultiSelect } from "@/components/clients/client-profil-type-multi-select";
-import { formatDateTime } from "@/lib/utils/formatters";
 import { CompletionStatus, ProfilType, ClientType } from "@prisma/client";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 interface Person {
   id: string;
@@ -191,7 +191,7 @@ export function ClientsListDashboard({ clients: initialClients }: ClientsListDas
                     </div>
                     <div className="flex flex-col sm:items-end gap-1">
                       <p className="text-xs text-muted-foreground whitespace-nowrap">
-                        Modifié le {formatDateTime(client.updatedAt)}
+                        Modifié le <LocalDateTime value={client.updatedAt} />
                       </p>
                     </div>
                   </div>

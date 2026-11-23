@@ -1,0 +1,92 @@
+{
+ "suite": "Lot 1 — paiements historiques",
+ "createdAt": "2026-11-17T16:37:33.030Z",
+ "passed": 11,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "Dossier hors liste (nouveau dossier compris) : impossible de le confirmer à la main",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Dossier listé non confirmé : reste non payé partout, envoi au notaire refusé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Confirmation sans date connue : payé, aucune date inventée, identité et preuve enregistrées",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Confirmation avec date connue : la date réelle est conservée à part",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Preuve obligatoire, date future refusée, rôle administrateur exigé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Aucun paiement retrouvé : enregistré, le dossier reste non payé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Confirmation rejouée : sans effet ; dossier déjà payé par Stripe : refus",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Listes et compteurs de l’équipe : le dossier confirmé compte parmi les payés",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Passage automatique à « prêt pour notaire » (toutes les fiches complétées) : jamais sans paiement",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "createNotificationForAllUsers": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Passage automatique à « prêt pour notaire » : dossier payé par Stripe, comportement inchangé",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "createNotificationForAllUsers": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Dossier confirmé : le refus d’envoi au notaire ne porte plus sur le paiement",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

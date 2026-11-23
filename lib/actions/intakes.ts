@@ -1,12 +1,15 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma  } from "@/lib/prisma";
-import { stripe } from "@/lib/stripe";
-import { requireAuth } from "@/lib/auth-helpers";
+import { verifyFeePayment } from "@/lib/payments/dossier-payment";
+import { requireAuth, requireStaff } from "@/lib/auth-helpers";
+import { hasIntakeSession, requireIntakeSession } from "@/lib/intake-session";
+import { dossierFeeCents } from "@/lib/utils/dossier-fee";
 import { createIntakeLinkSchema, submitIntakeSchema } from "@/lib/zod/intake";
 import { ownerFormSchema, tenantFormSchema } from "@/lib/zod/client";
 import { submitOwnerForm, submitTenantForm } from "@/lib/actions/clients";
-import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actions/documents";
+import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/document-storage";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
 import { randomBytes } from "crypto";
@@ -33,8 +36,32 @@ import {
 } from "./intake-handlers";
 
 export async function createIntakeLink(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = createIntakeLinkSchema.parse(data);
+
+  // Un lien doit être rattaché à un dossier et à la personne qui le remplit : c'est à son adresse que le code
+  // d'accès est envoyé. Sans client, le lien s'ouvrait sur « rattaché à aucun dossier » (recette, M13).
+  const bail = validated.leaseId
+    ? await prisma.bail.findUnique({
+        where: { id: validated.leaseId },
+        select: { id: true, propertyId: true, property: { select: { ownerId: true } }, parties: { select: { id: true, profilType: true } } },
+      })
+    : null;
+  if (validated.leaseId && !bail) throw new Error("Bail introuvable.");
+  if (bail && validated.propertyId && validated.propertyId !== bail.propertyId) {
+    throw new Error("Ce bail ne porte pas sur le bien choisi.");
+  }
+  const propertyId = bail?.propertyId ?? validated.propertyId ?? null;
+  let clientId: string | null = null;
+  if (validated.target === "TENANT") {
+    if (!bail) throw new Error("Choisissez le bail du locataire.");
+    clientId = bail.parties.find((party) => party.profilType === ProfilType.LOCATAIRE)?.id ?? null;
+    if (!clientId) throw new Error("Ce bail n'a pas encore de locataire : ajoutez-le d'abord depuis la fiche du dossier.");
+  } else {
+    if (!propertyId) throw new Error("Choisissez le bien ou le bail du propriétaire.");
+    clientId = bail?.property.ownerId ?? (await prisma.property.findUnique({ where: { id: propertyId }, select: { ownerId: true } }))?.ownerId ?? null;
+    if (!clientId) throw new Error("Bien introuvable.");
+  }
 
   const token = randomBytes(32).toString("hex");
 
@@ -42,8 +69,9 @@ export async function createIntakeLink(data: unknown) {
     data: {
       token,
       target: validated.target,
-      propertyId: validated.propertyId,
-      bailId: (validated as any).bailId,
+      propertyId,
+      bailId: bail?.id ?? null,
+      clientId,
       createdById: user.id,
     },
     include: {
@@ -58,7 +86,7 @@ export async function createIntakeLink(data: unknown) {
 }
 
 export async function revokeIntakeLink(id: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const intakeLink = await prisma.intakeLink.update({
     where: { id },
     data: { status: "REVOKED" },
@@ -78,7 +106,7 @@ export async function revokeIntakeLink(id: string) {
 }
 
 export async function regenerateToken(id: string) {
-  await requireAuth();
+  await requireStaff();
   const newToken = randomBytes(32).toString("hex");
   const intakeLink = await prisma.intakeLink.update({
     where: { id },
@@ -112,7 +140,7 @@ export async function getIntakeLinkByToken(token: string) {
             },
           },
           documents: true,
-          
+          commercialTerms: true,
         },
       },
       client: {
@@ -186,6 +214,12 @@ export async function getIntakeLinkByToken(token: string) {
     } : null,
   };  
 
+  // Sans session du client du lien (code non saisi) : statut et cible seulement, pour l'écran de
+  // code et les pages de suivi. Les données du dossier restent fermées.
+  if (!(await hasIntakeSession(intakeLink.clientId))) {
+    return { ...serialized, property: null, bail: null, client: null };
+  }
+
   return serialized;
 }
 
@@ -193,24 +227,11 @@ export async function submitIntake(data: unknown) {
   const validated = submitIntakeSchema.parse(data);
   const { token, payload, paymentIntentId } = validated;
 
-  // Vérifier le paiement Stripe si un PaymentIntentId est fourni
-  if (paymentIntentId) {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    if (paymentIntent.status !== "succeeded") {
-      throw new Error("Le paiement n'a pas été confirmé. Veuillez réessayer.");
-    }
-    if (paymentIntent.amount !== 3990) {
-      throw new Error("Montant de paiement incorrect.");
-    }
-    if (paymentIntent.metadata?.token !== token) {
-      throw new Error("Ce paiement ne correspond pas à ce dossier.");
-    }
-  }
-
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     include: {
       client: true,
+      bail: { select: { bailFamily: true } },
     },
   });
 
@@ -218,9 +239,23 @@ export async function submitIntake(data: unknown) {
     throw new Error("Lien d'intake introuvable");
   }
 
+  // Vérifier le paiement Stripe si un PaymentIntentId est fourni : réglé, pour ce dossier, dans la bonne
+  // devise et du montant du type de bail envoyé (39,90 €, ou 59,90 € pour un bail commercial).
+  // submitOwnerForm refait la même vérification avant d'enregistrer (elle peut être appelée seule).
+  if (paymentIntentId) {
+    const bailFamily = (payload as any)?.bailFamily ?? intakeLink.bail?.bailFamily ?? intakeLink.bailFamilyPreference;
+    await verifyFeePayment(paymentIntentId, {
+      amountCents: dossierFeeCents(bailFamily),
+      intakeLinkId: intakeLink.id,
+      intakeToken: token,
+    });
+  }
+
   if (intakeLink.status !== "PENDING") {
     throw new Error("Ce lien a déjà été utilisé");
   }
+
+  await requireIntakeSession(intakeLink.clientId);
 
   // Si c'est un formulaire propriétaire avec clientId, utiliser submitOwnerForm
   if (intakeLink.target === "OWNER" && intakeLink.clientId) {
@@ -312,7 +347,7 @@ export async function getIntakeLinks(params: {
   status?: string;
   target?: string;
 }) {
-  await requireAuth();
+  await requireStaff();
 
   const where: any = {};
 
@@ -373,6 +408,10 @@ export async function getIntakeLinks(params: {
 // Sauvegarder partiellement les données du formulaire (sans validation complète)
 // Sauvegarde directement en base de données pour optimiser les performances
 export async function savePartialIntake(data: unknown) {
+  return guardAction(() => savePartialIntakeUnguarded(data));
+}
+
+async function savePartialIntakeUnguarded(data: unknown) {
   const validated = submitIntakeSchema.parse(data);
   const { token, payload, stepId } = validated as { token: string; payload: any; stepId?: string };
 
@@ -411,6 +450,13 @@ export async function savePartialIntake(data: unknown) {
   if (intakeLink.status === "EXPIRED") {
     throw new Error("Ce lien a expiré");
   }
+
+  // Formulaire déjà soumis : plus de modification par le lien (le dossier est entre les mains de l'équipe).
+  if (intakeLink.status !== "PENDING") {
+    throw new Error("Ce formulaire a déjà été soumis");
+  }
+
+  await requireIntakeSession(intakeLink.clientId);
 
   const clientId = intakeLink.clientId;
   if (!clientId) {
@@ -696,10 +742,9 @@ export async function handleDocumentsInTransaction(
 }
 
 
-// Récupérer les documents déjà uploadés pour un intake (sans authentification, accessible via token)
+// Récupérer les documents déjà uploadés pour un intake (lien en cours et session de son client)
 // Les documents sont maintenant stockés directement en base de données
 export async function getIntakeDocuments(token: string) {
-  console.log("[getIntakeDocuments] Récupération des documents pour token:", token);
   const intakeLink = await prisma.intakeLink.findUnique({
     where: { token },
     include: {
@@ -714,13 +759,16 @@ export async function getIntakeDocuments(token: string) {
     },
   });
 
-  if (!intakeLink) {
+  // Comme pour l'URL de lecture (lib/document-access.ts) : un lien soumis, expiré ou révoqué ne
+  // donne plus accès aux pièces du dossier.
+  if (!intakeLink || intakeLink.status !== "PENDING") {
     throw new Error("Lien d'intake introuvable");
   }
+  await requireIntakeSession(intakeLink.clientId);
 
   const documents: any[] = [];
 
-  // Récupérer les documents du client (livret de famille, PACS)
+  // Récupérer les documents du client (contrat de mariage, convention de PACS)
   // Ce sont les documents qui ont un clientId mais pas de personId ni entrepriseId
   if (intakeLink.clientId) {
     const clientDocs = await prisma.document.findMany({
@@ -804,17 +852,22 @@ export async function deleteDocumentFromRawPayload(data: {
     },
   });
 
-  if (!intakeLink) {
+  if (!intakeLink || intakeLink.status !== "PENDING") {
     throw new Error("Lien d'intake introuvable");
   }
+  await requireIntakeSession(intakeLink.clientId);
 
-  // Supprimer le fichier du blob si il existe
-  try {
-    const { deleteBlobFiles } = await import("@/lib/actions/documents");
-    await deleteBlobFiles([fileKey]);
-  } catch (error) {
-    // Ne pas faire échouer la suppression si le fichier blob n'existe pas
-    console.error(`Erreur lors de la suppression du fichier blob ${fileKey}:`, error);
+  // Fichier du brouillon seulement : un fichier rattaché à une pièce n'est supprimé que si cette
+  // pièce appartient au lien (plus bas). Sinon, n'importe quel lien pourrait effacer le fichier d'autrui.
+  const referenced = await prisma.document.count({ where: { fileKey } });
+  if (referenced === 0 && typeof fileKey === "string" && fileKey.startsWith("documents/") && !fileKey.includes("..")) {
+    try {
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
+      await deleteBlobFiles([fileKey]);
+    } catch (error) {
+      // Ne pas faire échouer la suppression si le fichier blob n'existe pas
+      console.error(`Erreur lors de la suppression du fichier blob ${fileKey}:`, error);
+    }
   }
 
   let deleted = false;
@@ -878,7 +931,7 @@ export async function deleteDocumentFromRawPayload(data: {
   if (documentToDelete) {
     // Supprimer le fichier du blob si il existe
     try {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
       await deleteBlobFiles([documentToDelete.fileKey]);
     } catch (error) {
       // Ne pas faire échouer la suppression si le fichier blob n'existe pas
@@ -886,7 +939,7 @@ export async function deleteDocumentFromRawPayload(data: {
     }
 
     // Supprimer le document de la base de données
-    const { deleteDocumentFromDB } = await import("@/lib/actions/documents");
+    const { deleteDocumentFromDB } = await import("@/lib/document-storage");
     await deleteDocumentFromDB(documentToDelete.id);
     
     deleted = true;
@@ -897,14 +950,21 @@ export async function deleteDocumentFromRawPayload(data: {
 
 // Supprimer une personne supplémentaire d'un client
 export async function deletePersonFromClient(data: {
+  token: string;
   clientId: string;
   personEmail: string;
 }) {
-  const { clientId, personEmail } = data;
+  const { token, clientId, personEmail } = data;
 
-  if (!clientId || !personEmail) {
-    throw new Error("clientId et personEmail sont requis");
+  if (!token || !clientId || !personEmail) {
+    throw new Error("token, clientId et personEmail sont requis");
   }
+  // Par le lien d'intake en cours de ce client, avec la session ouverte par son code.
+  const link = await prisma.intakeLink.findUnique({ where: { token }, select: { status: true, clientId: true } });
+  if (!link || link.status !== "PENDING" || link.clientId !== clientId) {
+    throw new Error("Lien d'intake introuvable");
+  }
+  await requireIntakeSession(link.clientId);
 
   // Trouver la personne par email et clientId
   const person = await prisma.person.findFirst({

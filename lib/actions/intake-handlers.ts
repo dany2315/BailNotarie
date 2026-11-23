@@ -1,12 +1,121 @@
-"use server";
+// Pas de "use server" : ces fonctions reçoivent un clientId sans vérifier de lien d'intake. Elles
+// ne sont appelées que depuis savePartialIntake (lib/actions/intakes.ts), qui a déjà validé le
+// lien ; exposées en server actions, elles seraient appelables depuis le navigateur.
 
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { ClientType, ProfilType, CompletionStatus, BailType, BailFamille, BailStatus, PropertyStatus } from "@prisma/client";
+import { ClientType, ProfilType, CompletionStatus, BailType, BailFamille, BailStatus, PropertyStatus, EnergyClass } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { handleDocumentsInTransaction } from "./intakes";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { updatePropertyZoneStatus } from "@/lib/services/zone-tendue";
+import { ensurePropertyGeocoded } from "@/lib/geocode";
+import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
+import { assessRentRules } from "@/lib/rent-rules";
+import { rentRulesFromForm } from "@/lib/utils/rent-draft";
+import { euros } from "@/lib/utils/rent-relocation";
+import { commercialTermsFromForm, entrepriseCommercialFields } from "@/lib/utils/commercial-terms";
+import { entrepriseRegistryFields } from "@/lib/services/company-registry";
+import { readAgreementSnapshot, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
+import { DATES_REQUIRED_WITH_TENANT, assertEffectiveDateNotPast, assertPaymentDay, effectiveDateGiven, missingTenantDates } from "@/lib/bail/dates";
+import { computeBailEndDate } from "@/lib/utils/bail-duration";
+
+/**
+ * Pièces principales (1 à 4, 4 = « 4 et plus »), époque de construction et classe énergétique,
+ * ou undefined si absentes ou invalides.
+ */
+function rentCategory(payload: any): { mainRooms?: number; constructionPeriod?: string; dpeClass?: EnergyClass } {
+  const out: { mainRooms?: number; constructionPeriod?: string; dpeClass?: EnergyClass } = {};
+  const rooms = Number(payload.propertyMainRooms);
+  if (Number.isInteger(rooms) && rooms >= 1 && rooms <= 4) out.mainRooms = rooms;
+  if ((OWNER_PERIODS as readonly string[]).includes(payload.propertyConstructionPeriod)) {
+    out.constructionPeriod = payload.propertyConstructionPeriod;
+  }
+  if ((Object.values(EnergyClass) as string[]).includes(payload.propertyDpeClass)) {
+    out.dpeClass = payload.propertyDpeClass as EnergyClass;
+  }
+  return out;
+}
+
+/**
+ * Copropriété (syndic) et lotissement (ancienneté) : écrits seulement quand le formulaire les envoie.
+ */
+function legalStatusDetails(payload: any): {
+  syndicName?: string | null;
+  syndicEmail?: string | null;
+  syndicPhone?: string | null;
+  subdivisionOver10Years?: string | null;
+  inShoppingCenter?: boolean | null;
+  complexType?: string | null;
+  outbuildings?: string | null;
+} {
+  const out: ReturnType<typeof legalStatusDetails> = {};
+  const text = (value: unknown, max: number) =>
+    typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
+  if (payload.propertySyndicName !== undefined) out.syndicName = text(payload.propertySyndicName, 200);
+  if (payload.propertySyndicEmail !== undefined) out.syndicEmail = text(payload.propertySyndicEmail, 200);
+  if (payload.propertySyndicPhone !== undefined) out.syndicPhone = text(payload.propertySyndicPhone, 30);
+  // Même contrôle que les autres adresses et numéros (m5).
+  if (out.syndicEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.syndicEmail)) throw new Error("E-mail du syndic invalide");
+  if (out.syndicPhone && !isValidPhoneNumberSafe(out.syndicPhone)) throw new Error("Numéro de téléphone du syndic invalide");
+  if (payload.propertySubdivisionOver10Years !== undefined) {
+    out.subdivisionOver10Years = ["YES", "NO", "UNKNOWN"].includes(payload.propertySubdivisionOver10Years)
+      ? payload.propertySubdivisionOver10Years
+      : null;
+  }
+  // Bail commercial : centre commercial ou ensemble immobilier, dépendances
+  if (payload.propertyInShoppingCenter !== undefined) {
+    const value = payload.propertyInShoppingCenter;
+    const complexType =
+      value === "estate_complex" ? "ESTATE_COMPLEX" : value === "shopping_center" || value === "yes" || value === true ? "SHOPPING_CENTER" : null;
+    out.inShoppingCenter = complexType ? true : value === false || value === "no" ? false : null;
+    out.complexType = complexType;
+  }
+  if (payload.propertyOutbuildings !== undefined) out.outbuildings = text(payload.propertyOutbuildings, 1000);
+  return out;
+}
+
+/**
+ * Réponses du contrôle du loyer (étape « Loyer & charges ») : relocation en zone tendue et
+ * complément de loyer. Le loyer est contrôlé avec le même moteur que la fiche admin ; au-dessus
+ * du maximum, l'enregistrement est refusé. Retourne les colonnes du bail à écrire.
+ */
+async function rentRulesUpdate(intakeLink: any, payload: any, rentAmount: number | undefined) {
+  if (payload.rentRules === undefined || !intakeLink.propertyId) return {};
+  const answers = rentRulesFromForm(payload.rentRules ?? {});
+  const rent = rentAmount ?? intakeLink.bail?.rentAmount ?? 0;
+  const property = await prisma.property.findUnique({ where: { id: intakeLink.propertyId } });
+  if (!property || !rent) return { ...answers, rentSupplementAmount: null };
+  const check = await assessRentRules({
+    property,
+    bail: {
+      rentAmount: rent,
+      bailType: payload.bailType || intakeLink.bail?.bailType || BailType.BAIL_NU_3_ANS,
+      bailFamily: payload.bailFamily || intakeLink.bail?.bailFamily || BailFamille.HABITATION,
+      effectiveDate: effectiveDateGiven(intakeLink.bail ?? {}) ? intakeLink.bail?.effectiveDate ?? null : null,
+      rentCapExemption: intakeLink.bail?.rentCapExemption ?? null,
+      ...answers,
+    },
+  });
+  // Au-dessus du maximum (hors complément justifié) : refusé, même par « Enregistrer ».
+  const tooHigh = check.overBy !== null && check.overBy > 0 && check.maxRent !== null;
+  const supplementPossible = check.supplement.needed && !check.supplement.forbidden && check.relocation.status !== "over";
+  if (tooHigh && !supplementPossible) {
+    throw new Error(`Le loyer dépasse le maximum autorisé de ${euros(check.maxRent!)} hors charges : baissez-le pour continuer.`);
+  }
+  return {
+    ...answers,
+    // Loyer sous le plafond : pas de complément, l'ancien motif est retiré.
+    rentSupplementReason: check.supplement.needed ? answers.rentSupplementReason : null,
+    rentSupplementAmount: check.supplement.accepted ? check.supplement.amount : null,
+    rentSupplementAt: check.supplement.accepted && answers.rentSupplementReason ? new Date() : null,
+    rentSupplementByName: check.supplement.accepted && answers.rentSupplementReason ? "Propriétaire (formulaire)" : null,
+  };
+}
 import { randomBytes } from "crypto";
+import { birthDateIssue, regimeIfMarried } from "@/lib/utils/person-checks";
+import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
+import { assertSurface } from "@/lib/utils/surface";
 
 // ============================================================================
 // HANDLERS POUR TENANT INTAKE
@@ -40,10 +149,23 @@ export async function handleTenantClientInfoStep(
   payload: any,
   clientId: string,
 ) {
-  const effectivePayload = payload;
+  const effectivePayload = { ...payload };
+
+  // Adresse de l'invitation (saisie par le propriétaire) = adresse de connexion du locataire : elle ne change
+  // pas, et devient aussi l'e-mail de la société s'il choisit « Entreprise ». Écran et serveur appliquent la même règle.
+  const invitationEmail = tenantInvitationEmail(intakeLink);
+  if (invitationEmail) {
+    effectivePayload.email = invitationEmail;
+    if (Array.isArray(effectivePayload.persons) && effectivePayload.persons[0]) {
+      effectivePayload.persons = [{ ...effectivePayload.persons[0], email: invitationEmail }, ...effectivePayload.persons.slice(1)];
+    }
+    if (effectivePayload.entreprise) effectivePayload.entreprise = { ...effectivePayload.entreprise, email: invitationEmail };
+  }
 
   // Vérifications d'email avant la transaction
   await validateTenantEmails(intakeLink, effectivePayload, clientId);
+  // Registre des entreprises : relu ici, hors transaction (appel réseau)
+  const registry = effectivePayload.type === ClientType.PERSONNE_MORALE ? await entrepriseRegistryFields(effectivePayload.entreprise) : {};
 
   await prisma.$transaction(async (tx) => {
     const clientType = effectivePayload.type as ClientType;
@@ -60,7 +182,7 @@ export async function handleTenantClientInfoStep(
     if (clientType === ClientType.PERSONNE_PHYSIQUE) {
       await handleTenantPersons(tx, intakeLink, effectivePayload, clientId);
     } else if (clientType === ClientType.PERSONNE_MORALE) {
-      await handleTenantEntreprise(tx, intakeLink, effectivePayload, clientId);
+      await handleTenantEntreprise(tx, intakeLink, effectivePayload, clientId, registry);
     }
   });
 
@@ -88,6 +210,8 @@ export async function handleTenantLegacySave(
 ) {
   // Utiliser la logique complète de l'ancienne fonction
   await validateTenantEmails(intakeLink, payload, clientId);
+  // Registre des entreprises : relu ici, hors transaction (appel réseau)
+  const registry = payload.type === ClientType.PERSONNE_MORALE ? await entrepriseRegistryFields(payload.entreprise) : {};
 
   await prisma.$transaction(async (tx) => {
     const clientType = payload.type as ClientType;
@@ -102,7 +226,7 @@ export async function handleTenantLegacySave(
     if (clientType === ClientType.PERSONNE_PHYSIQUE) {
       await handleTenantPersons(tx, intakeLink, payload, clientId);
     } else if (clientType === ClientType.PERSONNE_MORALE) {
-      await handleTenantEntreprise(tx, intakeLink, payload, clientId);
+      await handleTenantEntreprise(tx, intakeLink, payload, clientId, registry);
     }
 
     await handleDocumentsInTransaction(tx, payload, clientId, intakeLink);
@@ -145,6 +269,8 @@ export async function handleOwnerClientInfoStep(
 
   // Vérifications d'email avant la transaction
   await validateOwnerEmails(intakeLink, effectivePayload, clientId);
+  // Registre des entreprises : relu ici, hors transaction (appel réseau)
+  const registry = effectivePayload.type === ClientType.PERSONNE_MORALE ? await entrepriseRegistryFields(effectivePayload.entreprise) : {};
 
   await prisma.$transaction(async (tx) => {
     const clientType = effectivePayload.type as ClientType;
@@ -159,7 +285,7 @@ export async function handleOwnerClientInfoStep(
     if (clientType === ClientType.PERSONNE_PHYSIQUE) {
       await handleOwnerPersons(tx, intakeLink, effectivePayload, clientId);
     } else if (clientType === ClientType.PERSONNE_MORALE) {
-      await handleOwnerEntreprise(tx, intakeLink, effectivePayload, clientId);
+      await handleOwnerEntreprise(tx, intakeLink, effectivePayload, clientId, registry);
     }
   });
 
@@ -182,9 +308,15 @@ export async function handleOwnerPropertyStep(
       const updateData: any = {};
       if (payload.propertyLabel) updateData.label = payload.propertyLabel;
       if (payload.propertyFullAddress) updateData.fullAddress = payload.propertyFullAddress;
-      if (payload.propertySurfaceM2) updateData.surfaceM2 = new Decimal(payload.propertySurfaceM2);
+      if (payload.propertySurfaceM2) {
+        assertSurface(payload.propertySurfaceM2);
+        updateData.surfaceM2 = new Decimal(payload.propertySurfaceM2);
+      }
       if (payload.propertyType) updateData.type = payload.propertyType;
       if (payload.propertyLegalStatus) updateData.legalStatus = payload.propertyLegalStatus;
+      // Jamais d'effacement : une valeur absente laisse celle déjà connue (saisie par l'équipe).
+      Object.assign(updateData, rentCategory(payload));
+      Object.assign(updateData, legalStatusDetails(payload));
       if (payload.propertyStatus) updateData.status = payload.propertyStatus;
       // Données géographiques enrichies - normaliser les chaînes vides en null
       if (payload.propertyHousenumber !== undefined) {
@@ -223,10 +355,12 @@ export async function handleOwnerPropertyStep(
         data: {
           label: payload.propertyLabel || "",
           fullAddress: payload.propertyFullAddress || "",
-          surfaceM2: payload.propertySurfaceM2 ? new Decimal(payload.propertySurfaceM2) : null,
+          surfaceM2: payload.propertySurfaceM2 ? (assertSurface(payload.propertySurfaceM2), new Decimal(payload.propertySurfaceM2)) : null,
           type: payload.propertyType || null,
           legalStatus: payload.propertyLegalStatus || null,
           status: payload.propertyStatus || PropertyStatus.NON_LOUER,
+          ...rentCategory(payload),
+          ...legalStatusDetails(payload),
           ownerId: clientId,
           // Données géographiques enrichies - normaliser les chaînes vides en null
           housenumber: payload.propertyHousenumber && payload.propertyHousenumber.trim() ? payload.propertyHousenumber.trim() : null,
@@ -254,8 +388,13 @@ export async function handleOwnerPropertyStep(
 
   // Vérifier et mettre à jour les indicateurs de zone tendue APRÈS la transaction
   // (updatePropertyZoneStatus utilise prisma directement, pas tx, donc le record doit être committé)
-  if (finalPropertyId && payload.propertyInseeCode && payload.propertyType) {
-    await updatePropertyZoneStatus(finalPropertyId, payload.propertyInseeCode, payload.propertyType);
+  if (finalPropertyId) {
+    // Adresse enregistrée sans localisation (ancien brouillon) : localisée à partir du texte.
+    await ensurePropertyGeocoded(finalPropertyId);
+    const located = await prisma.property.findUnique({ where: { id: finalPropertyId }, select: { inseeCode: true, type: true } });
+    if (located?.inseeCode && located.type) {
+      await updatePropertyZoneStatus(finalPropertyId, located.inseeCode, located.type);
+    }
   }
 
   return { success: true };
@@ -267,6 +406,11 @@ export async function handleOwnerBailStep(
   payload: any,
   clientId: string,
 ) {
+  const rentAmountInput = Number.isFinite(parseInt(String(payload.bailRentAmount ?? ""), 10))
+    ? parseInt(String(payload.bailRentAmount), 10)
+    : undefined;
+  const rentRulesData = await rentRulesUpdate(intakeLink, payload, rentAmountInput);
+
   await prisma.$transaction(async (tx) => {
     let bailId = intakeLink.bailId;
     const bailParties = [{ id: clientId }];
@@ -304,37 +448,44 @@ export async function handleOwnerBailStep(
       const updateData: any = {};
       if (payload.bailType) updateData.bailType = payload.bailType;
       if (payload.bailFamily) updateData.bailFamily = payload.bailFamily;
-      if (payload.bailRentAmount !== undefined) {
-        updateData.rentAmount = typeof payload.bailRentAmount === 'string'
-          ? parseInt(payload.bailRentAmount, 10)
-          : payload.bailRentAmount;
+      // Un champ laissé vide (enregistrement d'une étape incomplète) ne remplace pas la valeur.
+      const toInt = (value: unknown) => {
+        const num = typeof value === "string" ? parseInt(value, 10) : Number(value);
+        return Number.isFinite(num) ? num : undefined;
+      };
+      const rentAmount = toInt(payload.bailRentAmount);
+      if (rentAmount !== undefined) updateData.rentAmount = rentAmount;
+      const monthlyCharges = toInt(payload.bailMonthlyCharges);
+      if (monthlyCharges !== undefined) updateData.monthlyCharges = monthlyCharges;
+      const securityDeposit = toInt(payload.bailSecurityDeposit);
+      if (securityDeposit !== undefined) updateData.securityDeposit = securityDeposit;
+      if (payload.bailEffectiveDate) {
+        updateData.effectiveDate = new Date(payload.bailEffectiveDate);
+        assertEffectiveDateNotPast(updateData.effectiveDate, intakeLink.bail.effectiveDate ?? null);
       }
-      if (payload.bailMonthlyCharges !== undefined) {
-        updateData.monthlyCharges = typeof payload.bailMonthlyCharges === 'string'
-          ? parseInt(payload.bailMonthlyCharges, 10) || 0
-          : payload.bailMonthlyCharges || 0;
-      }
-      if (payload.bailSecurityDeposit !== undefined) {
-        updateData.securityDeposit = typeof payload.bailSecurityDeposit === 'string'
-          ? parseInt(payload.bailSecurityDeposit, 10) || 0
-          : payload.bailSecurityDeposit || 0;
-      }
-      if (payload.bailEffectiveDate) updateData.effectiveDate = new Date(payload.bailEffectiveDate);
       if (payload.bailEndDate) updateData.endDate = new Date(payload.bailEndDate);
       if (payload.bailPaymentDay !== undefined) {
+        assertPaymentDay(payload.bailPaymentDay, intakeLink.bail.paymentDay ?? null);
         updateData.paymentDay = typeof payload.bailPaymentDay === 'string'
           ? parseInt(payload.bailPaymentDay, 10) || null
           : payload.bailPaymentDay || null;
       }
+      Object.assign(updateData, rentRulesData);
 
+      // Le locataire a pu confirmer des conditions que le propriétaire modifie ensuite dans son formulaire :
+      // son accord est alors archivé et redemandé (même transaction).
+      const agreement = await readAgreementSnapshot(tx, bailId);
       await tx.bail.update({
         where: { id: bailId },
         data: updateData,
       });
+      await settleTenantAgreement(tx, bailId, agreement, { id: null, name: "Propriétaire (formulaire)" });
     } else {
       if (!propertyId) {
         throw new Error("PropertyId manquant pour créer le bail");
       }
+      if (payload.bailEffectiveDate) assertEffectiveDateNotPast(new Date(payload.bailEffectiveDate));
+      assertPaymentDay(payload.bailPaymentDay);
 
       const newBail = await tx.bail.create({
         data: {
@@ -350,11 +501,14 @@ export async function handleOwnerBailStep(
           securityDeposit: typeof payload.bailSecurityDeposit === 'string'
             ? parseInt(payload.bailSecurityDeposit, 10) || 0
             : payload.bailSecurityDeposit || 0,
-          effectiveDate: payload.bailEffectiveDate ? new Date(payload.bailEffectiveDate) : new Date(),
+          // Sans date saisie, la date d'effet reste vide (jamais la date du jour) : elle est demandée avec
+          // le jour de paiement, une fois le locataire indiqué.
+          effectiveDate: payload.bailEffectiveDate ? new Date(payload.bailEffectiveDate) : null,
           endDate: payload.bailEndDate ? new Date(payload.bailEndDate) : null,
           paymentDay: typeof payload.bailPaymentDay === 'string'
             ? parseInt(payload.bailPaymentDay, 10) || null
             : payload.bailPaymentDay || null,
+          ...rentRulesData,
           propertyId,
           parties: {
             connect: bailParties,
@@ -365,6 +519,18 @@ export async function handleOwnerBailStep(
       await tx.intakeLink.update({
         where: { id: intakeLink.id },
         data: { bailId: newBail.id },
+      });
+      bailId = newBail.id;
+    }
+
+    // Bail commercial : conditions propres (activité, loyer HT, charges, travaux…), jamais pour un bail d'habitation
+    const family = payload.bailFamily || intakeLink.bail?.bailFamily || intakeLink.bailFamilyPreference;
+    const commercialData = family === BailFamille.COMMERCIAL ? commercialTermsFromForm(payload.commercial) : {};
+    if (bailId && Object.keys(commercialData).length > 0) {
+      await tx.bailCommercialTerms.upsert({
+        where: { bailId },
+        create: { bailId, ...commercialData },
+        update: commercialData,
       });
     }
   });
@@ -392,6 +558,33 @@ export async function handleOwnerTenantStep(
     throw new Error("BailId manquant pour ajouter le locataire");
   }
 
+  // Locataire indiqué : la date de prise d'effet et le jour de paiement se saisissent dans cette même étape
+  // et sont exigés avant d'enregistrer le locataire (il recevra son formulaire avec ces conditions).
+  const givenDate = payload.bailEffectiveDate ? new Date(payload.bailEffectiveDate) : null;
+  const tenantEffectiveDate =
+    givenDate && !Number.isNaN(givenDate.getTime())
+      ? givenDate
+      : effectiveDateGiven(intakeLink.bail ?? {})
+        ? (intakeLink.bail.effectiveDate as Date)
+        : null;
+  const parsedDay = Number.parseInt(String(payload.bailPaymentDay ?? ""), 10);
+  const tenantPaymentDay: number | null = Number.isFinite(parsedDay) ? parsedDay : intakeLink.bail?.paymentDay ?? null;
+  if (missingTenantDates({ effectiveDate: tenantEffectiveDate, paymentDay: tenantPaymentDay }).length > 0) {
+    throw new Error(DATES_REQUIRED_WITH_TENANT);
+  }
+  assertEffectiveDateNotPast(tenantEffectiveDate, intakeLink.bail?.effectiveDate ?? null);
+  assertPaymentDay(payload.bailPaymentDay, intakeLink.bail?.paymentDay ?? null);
+  // Date de fin : celle calculée par l'écran, sinon recalculée ici (type de bail + date de prise d'effet).
+  const sentEndDate = payload.bailEndDate ? new Date(payload.bailEndDate) : null;
+  const tenantEndDate =
+    sentEndDate && !Number.isNaN(sentEndDate.getTime())
+      ? sentEndDate
+      : computeBailEndDate(
+          tenantEffectiveDate,
+          payload.bailType || intakeLink.bail?.bailType,
+          Number.parseInt(String(payload.commercial?.derogatoryMonths ?? ""), 10) || null,
+        );
+
   // Récupérer l'ancien email du locataire avant la transaction pour détecter les changements
   const existingTenant = intakeLink.bail?.parties?.find(
     (party: any) => party.profilType === ProfilType.LOCATAIRE
@@ -409,16 +602,32 @@ export async function handleOwnerTenantStep(
 
   // Exécuter la transaction pour créer/mettre à jour le locataire
   await prisma.$transaction(async (tx) => {
+    // Les deux valeurs sont enregistrées avec le locataire, dans la même transaction. Si le locataire avait
+    // déjà confirmé une autre date, son accord est archivé et redemandé.
+    const datesAgreement = await readAgreementSnapshot(tx, intakeLink.bailId);
+    await tx.bail.update({
+      where: { id: intakeLink.bailId },
+      data: {
+        effectiveDate: tenantEffectiveDate,
+        paymentDay: tenantPaymentDay,
+        ...(tenantEndDate && !Number.isNaN(tenantEndDate.getTime()) ? { endDate: tenantEndDate } : {}),
+      },
+    });
+    await settleTenantAgreement(tx, intakeLink.bailId, datesAgreement, { id: null, name: "Propriétaire (formulaire)" });
+
     if (existingTenant) {
       // Mettre à jour l'email de la personne primaire
       const tenantPerson = await tx.person.findFirst({
         where: { clientId: existingTenant.id, isPrimary: true },
       });
       if (tenantPerson && tenantPerson.email?.toLowerCase() !== tenantEmail) {
+        const agreement = await readAgreementSnapshot(tx, intakeLink.bailId);
         await tx.person.update({
           where: { id: tenantPerson.id },
           data: { email: tenantEmail },
         });
+        // Le formulaire part chez une autre personne : l'accord donné par la précédente ne vaut plus.
+        await settleTenantAgreement(tx, intakeLink.bailId, agreement, { id: null, name: "Propriétaire (formulaire)" }, { tenantReplaced: true });
       }
     } else {
       // Créer un nouveau locataire
@@ -560,6 +769,8 @@ export async function handleOwnerLegacySave(
 ) {
   // Utiliser la logique complète de l'ancienne fonction
   await validateOwnerEmails(intakeLink, payload, clientId);
+  // Registre des entreprises : relu ici, hors transaction (appel réseau)
+  const registry = payload.type === ClientType.PERSONNE_MORALE ? await entrepriseRegistryFields(payload.entreprise) : {};
 
   await prisma.$transaction(async (tx) => {
     const clientType = payload.type as ClientType;
@@ -574,7 +785,7 @@ export async function handleOwnerLegacySave(
     if (clientType === ClientType.PERSONNE_PHYSIQUE) {
       await handleOwnerPersons(tx, intakeLink, payload, clientId);
     } else if (clientType === ClientType.PERSONNE_MORALE) {
-      await handleOwnerEntreprise(tx, intakeLink, payload, clientId);
+      await handleOwnerEntreprise(tx, intakeLink, payload, clientId, registry);
     }
 
     await handleDocumentsInTransaction(tx, payload, clientId, intakeLink);
@@ -602,6 +813,14 @@ export async function handleOwnerLegacySave(
 // ============================================================================
 // FONCTIONS HELPER POUR TENANT
 // ============================================================================
+
+/** Adresse connue du locataire à l'ouverture de son formulaire (celle de l'invitation), ou null. */
+function tenantInvitationEmail(intakeLink: any): string | null {
+  const client = intakeLink?.client;
+  const email =
+    client?.persons?.find((p: any) => p.isPrimary)?.email || client?.persons?.[0]?.email || client?.entreprise?.email || null;
+  return email ? String(email).trim().toLowerCase() : null;
+}
 
 async function validateTenantEmails(intakeLink: any, payload: any, clientId: string) {
   const currentClient = intakeLink.client;
@@ -656,6 +875,8 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
   if (primaryPersonData.nationality) primaryPersonDataToUpdate.nationality = primaryPersonData.nationality;
   if (primaryPersonData.familyStatus) primaryPersonDataToUpdate.familyStatus = primaryPersonData.familyStatus;
   if (primaryPersonData.matrimonialRegime) primaryPersonDataToUpdate.matrimonialRegime = primaryPersonData.matrimonialRegime;
+  // Plus marié : le régime n'est pas conservé (m7).
+  if (primaryPersonData.familyStatus && primaryPersonData.familyStatus !== "MARIE") primaryPersonDataToUpdate.matrimonialRegime = null;
   if (primaryPersonData.birthPlace) primaryPersonDataToUpdate.birthPlace = primaryPersonData.birthPlace;
   if (primaryPersonData.birthDate) primaryPersonDataToUpdate.birthDate = new Date(primaryPersonData.birthDate);
 
@@ -698,7 +919,7 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
             fullAddress: personData.fullAddress || null,
             nationality: personData.nationality || null,
             familyStatus: personData.familyStatus || null,
-            matrimonialRegime: personData.matrimonialRegime || null,
+            matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
             birthPlace: personData.birthPlace || null,
             birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
           },
@@ -716,7 +937,7 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
             fullAddress: personData.fullAddress || null,
             nationality: personData.nationality || null,
             familyStatus: personData.familyStatus || null,
-            matrimonialRegime: personData.matrimonialRegime || null,
+            matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
             birthPlace: personData.birthPlace || null,
             birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
             isPrimary: false,
@@ -735,7 +956,7 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
           fullAddress: personData.fullAddress || null,
           nationality: personData.nationality || null,
           familyStatus: personData.familyStatus || null,
-          matrimonialRegime: personData.matrimonialRegime || null,
+          matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
           birthPlace: personData.birthPlace || null,
           birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
           isPrimary: false,
@@ -758,7 +979,7 @@ async function handleTenantPersons(tx: any, intakeLink: any, payload: any, clien
   );
 }
 
-async function handleTenantEntreprise(tx: any, intakeLink: any, payload: any, clientId: string) {
+async function handleTenantEntreprise(tx: any, intakeLink: any, payload: any, clientId: string, registry: object = {}) {
   const entrepriseData: any = {};
   if (payload.entreprise?.legalName) entrepriseData.legalName = payload.entreprise.legalName;
   if (payload.entreprise?.registration) entrepriseData.registration = payload.entreprise.registration;
@@ -766,7 +987,9 @@ async function handleTenantEntreprise(tx: any, intakeLink: any, payload: any, cl
   if (payload.entreprise?.email) entrepriseData.email = payload.entreprise.email.trim().toLowerCase();
   if (payload.entreprise?.fullAddress) entrepriseData.fullAddress = payload.entreprise.fullAddress;
   if (payload.entreprise?.name) entrepriseData.name = payload.entreprise.name;
-  if (payload.entreprise?.nationality) entrepriseData.nationality = payload.entreprise.nationality;
+  // Bail commercial : représentant légal et immatriculation (la société n'a pas de nationalité en base)
+  Object.assign(entrepriseData, entrepriseCommercialFields(payload.entreprise));
+  Object.assign(entrepriseData, registry);
 
   const existingEntreprise = intakeLink.client?.entreprise;
   if (existingEntreprise) {
@@ -916,6 +1139,11 @@ async function validateTenantEmailForOwner(intakeLink: any, payload: any, client
   const tenantEmailToCheck = payload.tenantEmail.trim().toLowerCase();
   const ownerEmail = payload.email?.trim().toLowerCase();
 
+  // Adresse mal formée : refusée avant tout enregistrement, donc avant toute invitation
+  if (!z.string().email().safeParse(tenantEmailToCheck).success) {
+    throw new Error("L'adresse e-mail du locataire n'est pas valide. Vérifiez-la, par exemple prenom.nom@exemple.fr.");
+  }
+
   if (ownerEmail === tenantEmailToCheck) {
     throw new Error(
       "L'email du locataire ne peut pas être le même que l'email du propriétaire. Veuillez utiliser un email différent."
@@ -980,8 +1208,8 @@ async function handleOwnerPersons(tx: any, intakeLink: any, payload: any, client
   await handleTenantPersons(tx, intakeLink, payload, clientId);
 }
 
-async function handleOwnerEntreprise(tx: any, intakeLink: any, payload: any, clientId: string) {
+async function handleOwnerEntreprise(tx: any, intakeLink: any, payload: any, clientId: string, registry: object = {}) {
   // Même logique que handleTenantEntreprise
-  await handleTenantEntreprise(tx, intakeLink, payload, clientId);
+  await handleTenantEntreprise(tx, intakeLink, payload, clientId, registry);
 }
 

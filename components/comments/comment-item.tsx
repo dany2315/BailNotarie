@@ -1,7 +1,7 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { formatDateTime } from "@/lib/utils/formatters";
+import { LocalDateTime } from "@/components/shared/local-date-time";
 
 interface CommentItemProps {
   comment: {
@@ -31,7 +31,7 @@ export function CommentItem({ comment }: CommentItemProps) {
           <div className="flex items-baseline gap-2">
             <p className="text-sm font-semibold text-foreground">{displayName}</p>
             <span className="text-xs text-muted-foreground">
-              {formatDateTime(comment.createdAt)}
+              <LocalDateTime value={comment.createdAt} />
             </span>
           </div>
           <div className="prose prose-sm max-w-none">
@@ -67,7 +67,7 @@ export function CommentItem({ comment }: CommentItemProps) {
         <div className="flex items-baseline gap-2">
           <p className="text-sm font-semibold text-foreground">{displayName}</p>
           <span className="text-xs text-muted-foreground">
-            {formatDateTime(comment.createdAt)}
+            <LocalDateTime value={comment.createdAt} />
           </span>
         </div>
         <div className="prose prose-sm max-w-none">

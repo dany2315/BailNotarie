@@ -1,8 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireClientAuth, requireProprietaireAuth, requireLocataireAuth, getClientFromUser } from "@/lib/auth-helpers";
-import { ProfilType, BailStatus, IntakeTarget } from "@prisma/client";
+import { clientVisibleDocumentWhere } from "@/lib/messaging-privacy";
+import { requireClientAuth, requireProprietaireAuth, requireLocataireAuth, getClientFromUser, requireClientAccess, requireAuth, STAFF_ROLES } from "@/lib/auth-helpers";
+import { ProfilType, BailStatus, IntakeTarget, BailFamille } from "@prisma/client";
+import { randomBytes } from "crypto";
+import { newBailAvailability, newBailBlockedMessage } from "@/lib/utils/bail-availability";
 
 // Types pour les données sérialisées
 type SerializedProperty = {
@@ -134,6 +137,9 @@ function serializeDecimal(obj: any): any {
  * Récupère les données du client lié à l'utilisateur avec profilType
  */
 export async function getClientUserData(userId: string) {
+  // Seulement ses propres données (ou l'équipe).
+  const current = await requireAuth();
+  if (current.id !== userId && !STAFF_ROLES.includes(current.role)) throw new Error("Forbidden");
   const client = await getClientFromUser(userId);
   
   if (!client) {
@@ -154,6 +160,8 @@ export async function getClientUserData(userId: string) {
  * LOCATAIRE : tous les baux où le client est locataire
  */
 export async function getClientBails(clientId: string, profilType: ProfilType) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const bails = await prisma.bail.findMany({
     where: {
       parties: {
@@ -174,6 +182,9 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
       rentAmount: true,
       effectiveDate: true,
       endDate: true,
+      // Accord du locataire sur les conditions : sert à lui signaler une confirmation à renouveler
+      tenantConfirmedTermsAt: true,
+      tenantReconfirmationRequestedAt: true,
       createdAt: true,
       updatedAt: true,
       propertyId: true,
@@ -262,6 +273,8 @@ export async function getClientBails(clientId: string, profilType: ProfilType) {
  * Récupère tous les biens du client (UNIQUEMENT pour propriétaires)
  */
 export async function getClientProperties(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const properties = await prisma.property.findMany({
     where: {
       ownerId: clientId,
@@ -348,6 +361,8 @@ export async function getClientProperties(clientId: string) {
  * Statistiques pour propriétaires
  */
 export async function getProprietaireStats(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const properties = await getClientProperties(clientId);
   const bails = await getClientBails(clientId, ProfilType.PROPRIETAIRE);
 
@@ -374,6 +389,8 @@ export async function getProprietaireStats(clientId: string) {
  * Statistiques pour locataires
  */
 export async function getLocataireStats(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const bails = await getClientBails(clientId, ProfilType.LOCATAIRE);
 
   const stats = {
@@ -394,6 +411,8 @@ export async function getLocataireStats(clientId: string) {
  * Récupère les demandes du notaire non traitées pour un client
  */
 export async function getPendingNotaireRequests(clientId: string, profilType: ProfilType) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   // Récupérer tous les dossiers assignés à ce client
   const dossiers = await prisma.dossierNotaireAssignment.findMany({
     where: {
@@ -469,6 +488,8 @@ export async function getActiveIntakeLinksForClient(clientId: string): Promise<A
   bailType: string | null;
   bailId: string | null;
 }>> {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const links = await prisma.intakeLink.findMany({
     where: { clientId, status: "PENDING" },
     orderBy: { updatedAt: "desc" },
@@ -555,7 +576,7 @@ export async function getActiveIntakeLinksForClient(clientId: string): Promise<A
       } else {
         const bail = link.bail;
         const hasTenant = bail?.parties?.some((p: any) => p.profilType === "LOCATAIRE");
-        const bailDone = !!(bail && bail.rentAmount != null && bail.effectiveDate && bail.paymentDay != null && hasTenant);
+        const bailDone = !!(bail && bail.rentAmount > 0 && bail.effectiveDate && bail.paymentDay != null && hasTenant);
         if (!link.bailId || !bailDone) {
           stage = "bail";
           description = "Complétez les informations du bail (loyer, dates, locataire…).";
@@ -590,10 +611,13 @@ export async function getActiveIntakeLinksForClient(clientId: string): Promise<A
  * Récupère les détails complets d'un bail pour un client
  */
 export async function getClientBailDetails(bailId: string, clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   // Vérifier que le client a accès à ce bail
   const bail = await prisma.bail.findUnique({
     where: { id: bailId },
     include: {
+      commercialTerms: true,
       property: {
         include: {
           owner: {
@@ -601,6 +625,11 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
               persons: { where: { isPrimary: true }, take: 1 },
               entreprise: true,
             },
+          },
+          // Pièces du bien (diagnostics, titre de propriété…) : montrées au seul propriétaire, plus bas.
+          documents: {
+            select: { id: true, kind: true, label: true, fileKey: true, mimeType: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
           },
         },
       },
@@ -622,13 +651,9 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
         },
         take: 1,
       },
+      // Fichiers de la messagerie : seulement ceux du fil de ce client (jamais ceux de l'autre partie)
       documents: {
-        where: {
-          OR: [
-            { clientId: clientId },
-            { clientId: null },
-          ],
-        },
+        where: clientVisibleDocumentWhere(clientId),
         orderBy: {
           createdAt: "desc",
         },
@@ -648,6 +673,31 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
     return null;
   }
 
+  // Le propriétaire voit toutes les pièces du bail et celles du bien ; une autre partie, seulement
+  // les pièces du bail qui la concernent ou communes, et aucune pièce du bien.
+  if (!isOwner) {
+    (bail as any).documents = bail.documents.filter((doc) => doc.clientId === clientId || doc.clientId === null);
+    (bail.property as any).documents = [];
+  }
+
+  // Un locataire ne voit du propriétaire que son nom et ses coordonnées (pas sa date de naissance,
+  // sa situation familiale, etc.).
+  if (!isOwner && bail.property.owner) {
+    const owner: any = bail.property.owner;
+    owner.persons = (owner.persons || []).map((person: any) => ({
+      id: person.id,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      email: person.email,
+      phone: person.phone,
+      isPrimary: person.isPrimary,
+    }));
+    if (owner.entreprise) {
+      const e = owner.entreprise;
+      owner.entreprise = { id: e.id, legalName: e.legalName, name: e.name, email: e.email, phone: e.phone };
+    }
+  }
+
   return serializeDecimal(bail);
 }
 
@@ -655,6 +705,8 @@ export async function getClientBailDetails(bailId: string, clientId: string) {
  * Récupère toutes les informations du client pour l'affichage dans l'espace client
  */
 export async function getClientFullInfo(clientId: string) {
+  // Appelable depuis le navigateur : seulement l'équipe ou l'utilisateur de ce client.
+  await requireClientAccess(clientId);
   const client = await prisma.client.findUnique({
     where: { id: clientId },
     include: {
@@ -676,3 +728,44 @@ export async function getClientFullInfo(clientId: string) {
   return client;
 }
 
+/**
+ * Bail commercial depuis l'espace propriétaire : ouvre le formulaire propriétaire, qui porte le
+ * questionnaire du bail commercial et le paiement, sur un local existant ou nouveau. Un formulaire
+ * déjà en cours est repris plutôt que doublé : son envoi retient le seul lien en attente du client.
+ */
+export async function startCommercialLeaseFromSpace(data: {
+  propertyId?: string | null;
+}): Promise<{ success: true; url: string; resumed: boolean } | { success: false; error: string }> {
+  const { client } = await requireProprietaireAuth();
+
+  const pending = await prisma.intakeLink.findFirst({
+    where: { clientId: client.id, target: IntakeTarget.OWNER, status: "PENDING" },
+    orderBy: { createdAt: "desc" },
+    select: { token: true },
+  });
+  if (pending) return { success: true, url: `/commencer/proprietaire/${pending.token}`, resumed: true };
+
+  const propertyId = typeof data?.propertyId === "string" && data.propertyId ? data.propertyId : null;
+  if (propertyId) {
+    const property = await prisma.property.findFirst({
+      where: { id: propertyId, ownerId: client.id },
+      select: { bails: { select: { id: true, status: true, paidAt: true, endDate: true, effectiveDate: true, bailType: true } } },
+    });
+    if (!property) return { success: false, error: "Bien introuvable" };
+    const blocked = newBailBlockedMessage(newBailAvailability(property.bails));
+    if (blocked) return { success: false, error: blocked };
+  }
+
+  const link = await prisma.intakeLink.create({
+    data: {
+      token: randomBytes(32).toString("hex"),
+      target: IntakeTarget.OWNER,
+      clientId: client.id,
+      propertyId,
+      bailFamilyPreference: BailFamille.COMMERCIAL,
+      status: "PENDING",
+    },
+    select: { token: true },
+  });
+  return { success: true, url: `/commencer/proprietaire/${link.token}`, resumed: false };
+}

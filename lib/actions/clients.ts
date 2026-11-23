@@ -1,7 +1,10 @@
 "use server";
 
+import { guardAction } from "@/lib/utils/action-error";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
+import { ownerMissingDocumentLabels } from "@/lib/owner-documents";
+import { requireAuth, requireStaff } from "@/lib/auth-helpers";
+import { requireIntakeSession } from "@/lib/intake-session";
 import { 
   createBasicClientSchema, 
   createFullClientSchema,
@@ -23,7 +26,7 @@ import {
   triggerIntakeConfirmationEmail,
   triggerTenantSubmittedNotificationEmail
 } from "@/lib/inngest/helpers";
-import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/actions/documents";
+import { handleOwnerFormDocuments, handleTenantFormDocuments } from "@/lib/document-storage";
 import { randomBytes } from "crypto";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { NotificationType } from "@prisma/client";
@@ -33,11 +36,31 @@ import {
   updatePropertyCompletionStatus as calculateAndUpdatePropertyStatus 
 } from "@/lib/utils/completion-status";
 import { createUserForClient } from "@/lib/utils/user-creation";
+import {
+  isDocumentProvided,
+  missingDocuments,
+  ownerDocumentRequirements,
+  shoppingCenterFromAnswer,
+  tenantDocumentRequirements,
+} from "@/lib/rules/dossier-rules";
+import { entrepriseCommercialFields } from "@/lib/utils/commercial-terms";
+import { entrepriseRegistryFields } from "@/lib/services/company-registry";
 import { createBailAuditLog, getClientDisplayName } from "@/lib/actions/bail-audit-log";
+import { readAgreementSnapshot, recordTenantAgreement, settleTenantAgreement } from "@/lib/bail/tenant-agreement";
+import { attachPaymentToBail, verifyFeePayment } from "@/lib/payments/dossier-payment";
+import { dossierFeeCents } from "@/lib/utils/dossier-fee";
+import { isBailPaidById } from "@/lib/payments/paid-check";
+import { DATES_REQUIRED_WITH_TENANT, assertEffectiveDateNotPast, assertPaymentDay, missingTenantDates } from "@/lib/bail/dates";
+import { computeBailEndDate } from "@/lib/utils/bail-duration";
+import { birthDateIssue, regimeIfMarried } from "@/lib/utils/person-checks";
 
 // Créer un client basique (email uniquement) et envoyer un email avec formulaire
 export async function createBasicClient(data: unknown) {
-  const user = await requireAuth();
+  return guardAction(() => createBasicClientUnguarded(data));
+}
+
+async function createBasicClientUnguarded(data: unknown) {
+  const user = await requireStaff();
   const validated = createBasicClientSchema.parse(data);
 
   const email = validated.email.toLowerCase().trim();
@@ -134,11 +157,14 @@ export async function createBasicClient(data: unknown) {
 
 // Créer un client complet (toutes les données)
 export async function createFullClient(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   
   // Essayer d'abord avec le schéma complet (avec bien, bail, locataire)
   try {
     const validated = createFullClientWithPropertySchema.parse(data);
+    // Date de prise d'effet passée : refusée avant de créer quoi que ce soit (m2).
+    assertEffectiveDateNotPast(validated.bailEffectiveDate ?? null);
+    assertPaymentDay(validated.bailPaymentDay);
 
     const providedPersons = Array.isArray((validated as any).persons)
       ? ((validated as any).persons as any[])
@@ -155,7 +181,7 @@ export async function createFullClient(data: unknown) {
             fullAddress: validated.fullAddress,
             nationality: validated.nationality,
             familyStatus: validated.familyStatus,
-            matrimonialRegime: validated.matrimonialRegime,
+            matrimonialRegime: regimeIfMarried(validated.familyStatus, validated.matrimonialRegime),
             birthPlace: validated.birthPlace,
             birthDate: validated.birthDate,
             isPrimary: true,
@@ -210,7 +236,7 @@ export async function createFullClient(data: unknown) {
             fullAddress: person.fullAddress ?? null,
             nationality: person.nationality ?? null,
             familyStatus: (person.familyStatus as any) ?? null,
-            matrimonialRegime: (person.matrimonialRegime as any) ?? null,
+            matrimonialRegime: regimeIfMarried(person.familyStatus, person.matrimonialRegime as any),
             birthPlace: person.birthPlace ?? null,
             birthDate: person.birthDate ? new Date(person.birthDate) : null,
             isPrimary: person.isPrimary ?? index === 0,
@@ -337,7 +363,8 @@ export async function createFullClient(data: unknown) {
         rentAmount: validated.bailRentAmount || 0,
         monthlyCharges: validated.bailMonthlyCharges || 0,
         securityDeposit: validated.bailSecurityDeposit || 0,
-        effectiveDate: validated.bailEffectiveDate ? new Date(validated.bailEffectiveDate) : new Date(),
+        // Sans date saisie, la date d'effet reste vide (jamais la date du jour).
+        effectiveDate: validated.bailEffectiveDate ? new Date(validated.bailEffectiveDate) : null,
         endDate: validated.bailEndDate ? new Date(validated.bailEndDate) : null,
         paymentDay: validated.bailPaymentDay || null,
         propertyId: property.id,
@@ -449,7 +476,7 @@ export async function createFullClient(data: unknown) {
               fullAddress: validated.fullAddress,
               nationality: validated.nationality,
               familyStatus: validated.familyStatus,
-              matrimonialRegime: validated.matrimonialRegime,
+              matrimonialRegime: regimeIfMarried(validated.familyStatus, validated.matrimonialRegime),
               birthPlace: validated.birthPlace,
               birthDate: validated.birthDate,
               isPrimary: true,
@@ -497,7 +524,7 @@ export async function createFullClient(data: unknown) {
                 fullAddress: person.fullAddress ?? null,
                 nationality: person.nationality ?? null,
                 familyStatus: (person.familyStatus as any) ?? null,
-                matrimonialRegime: (person.matrimonialRegime as any) ?? null,
+                matrimonialRegime: regimeIfMarried(person.familyStatus, person.matrimonialRegime as any),
                 birthPlace: person.birthPlace ?? null,
                 birthDate: person.birthDate ? new Date(person.birthDate) : null,
                 isPrimary: person.isPrimary ?? index === 0,
@@ -576,6 +603,40 @@ export async function createFullClient(data: unknown) {
 }
 
 // Soumettre le formulaire propriétaire (crée bien, bail, locataire et envoie email)
+/**
+ * Pièces obligatoires du formulaire propriétaire, revérifiées par le serveur au moment de l'envoi (mêmes règles
+ * que la page : une page restée ouverte sur une ancienne version, ou un bug, ne doit pas laisser passer un
+ * formulaire incomplet). Lève une erreur qui liste toutes les pièces manquantes.
+ */
+async function assertOwnerDocuments(input: {
+  clientId: string;
+  propertyId: string | null;
+  bailId: string | null;
+  bailFamily?: string | null;
+  legalStatus?: string | null;
+  subdivisionOver10Years?: string | null;
+  inShoppingCenter?: string | null;
+}) {
+  const shoppingCenter = shoppingCenterFromAnswer(input.inShoppingCenter);
+  // Même règle que la création de l'ordre de paiement (lib/owner-documents.ts)
+  const missing = await ownerMissingDocumentLabels({
+    clientId: input.clientId,
+    propertyId: input.propertyId,
+    bailId: input.bailId,
+    bailFamily: input.bailFamily,
+    property: {
+      legalStatus: input.legalStatus,
+      subdivisionOver10Years: input.subdivisionOver10Years,
+      inShoppingCenter: shoppingCenter.inShoppingCenter,
+      complexType: shoppingCenter.complexType,
+    },
+  });
+
+  if (missing.length > 0) {
+    throw new Error(`Pièces manquantes : ${missing.join(", ")}. Ajoutez-les avant d'envoyer le formulaire.`);
+  }
+}
+
 export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
   const submittedAt = new Date();
   let validated;
@@ -593,7 +654,9 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     throw error;
   }
 
-  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité)
+  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité), et que la session est celle
+  // de ce client (code reçu par e-mail) ou de l'équipe.
+  await requireIntakeSession(validated.clientId);
   const intakeLink = await prisma.intakeLink.findFirst({
     where: {
       clientId: validated.clientId,
@@ -607,6 +670,17 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
   if (!intakeLink) {
     throw new Error("Accès non autorisé : aucun lien d'intake valide trouvé pour ce client");
   }
+
+  // Paiement des frais de dossier : vérifié ici, auprès de Stripe, quel que soit l'appelant (cette action
+  // peut être appelée directement). Réglé, du montant du type de bail envoyé, dans la bonne devise et créé
+  // pour ce dossier. Un simple identifiant ne suffit jamais à marquer le dossier payé.
+  const paidIntent = paymentIntentId
+    ? await verifyFeePayment(paymentIntentId, {
+        amountCents: dossierFeeCents(validated.bailFamily),
+        intakeLinkId: intakeLink.id,
+        intakeToken: intakeLink.token,
+      })
+    : null;
 
   // Mettre à jour le type du client si nécessaire
   await prisma.client.update({
@@ -654,6 +728,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     if (primaryPersonData.nationality) primaryPersonDataToUpdate.nationality = primaryPersonData.nationality;
     if (primaryPersonData.familyStatus) primaryPersonDataToUpdate.familyStatus = primaryPersonData.familyStatus;
     if (primaryPersonData.matrimonialRegime) primaryPersonDataToUpdate.matrimonialRegime = primaryPersonData.matrimonialRegime;
+    if (primaryPersonData.familyStatus && primaryPersonData.familyStatus !== "MARIE") primaryPersonDataToUpdate.matrimonialRegime = null;
     if (primaryPersonData.birthPlace) primaryPersonDataToUpdate.birthPlace = primaryPersonData.birthPlace;
     if (primaryPersonData.birthDate) primaryPersonDataToUpdate.birthDate = primaryPersonData.birthDate;
 
@@ -703,7 +778,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
             },
@@ -731,7 +806,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
               isPrimary: false,
@@ -752,7 +827,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
               isPrimary: false,
@@ -817,6 +892,9 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     if (validated.entreprise?.email) entrepriseData.email = validated.entreprise.email.trim().toLowerCase();
     if (validated.entreprise?.fullAddress) entrepriseData.fullAddress = validated.entreprise.fullAddress;
     if (validated.entreprise?.name) entrepriseData.name = validated.entreprise.name; // Utiliser legalName comme name
+    Object.assign(entrepriseData, entrepriseCommercialFields(validated.entreprise));
+    // Registre des entreprises : relu côté serveur à partir du SIREN/SIRET confirmé
+    Object.assign(entrepriseData, await entrepriseRegistryFields(validated.entreprise));
 
     if (existingEntreprise) {
       // Mettre à jour l'entreprise existante
@@ -857,6 +935,34 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
         },
       },
     },
+  });
+
+  // Reprise après un envoi interrompu : si ce paiement est déjà rattaché à un bail de ce dossier (le bail
+  // a été créé mais la suite a échoué), on reprend ce bail au lieu d'en créer un second.
+  if (paidIntent && ownerIntakeLink && !ownerIntakeLink.bail) {
+    const prior = await prisma.dossierPayment.findUnique({
+      where: { stripePaymentIntentId: paidIntent.id },
+      select: { bailId: true, intakeLinkId: true },
+    });
+    if (prior?.bailId && prior.intakeLinkId === ownerIntakeLink.id) {
+      const resumed = await prisma.bail.findUnique({ where: { id: prior.bailId }, include: { parties: true } });
+      if (resumed) {
+        ownerIntakeLink.bailId = resumed.id;
+        ownerIntakeLink.bail = resumed;
+      }
+    }
+  }
+  const paymentActor = { id: null, name: "Propriétaire (formulaire)" };
+
+  // Pièces obligatoires : revérifiées ici, avant d'enregistrer le bail et le paiement.
+  await assertOwnerDocuments({
+    clientId: validated.clientId,
+    propertyId: ownerIntakeLink?.propertyId ?? null,
+    bailId: ownerIntakeLink?.bailId ?? null,
+    bailFamily: validated.bailFamily,
+    legalStatus: validated.propertyLegalStatus,
+    subdivisionOver10Years: (validated as any).propertySubdivisionOver10Years,
+    inShoppingCenter: (validated as any).propertyInShoppingCenter,
   });
 
   // Utiliser le bien existant ou en créer un nouveau
@@ -1012,6 +1118,17 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     }
   }
 
+  // Locataire connu (indiqué dans ce formulaire, ou déjà rattaché au bail) : la date de prise d'effet et le
+  // jour de paiement sont exigés. Sans locataire, le formulaire se termine sans ces deux valeurs.
+  const tenantOnBail =
+    !!tenant || !!ownerIntakeLink?.bail?.parties?.some((party: any) => party.profilType === ProfilType.LOCATAIRE);
+  if (tenantOnBail && missingTenantDates({ effectiveDate: validated.bailEffectiveDate, paymentDay: validated.bailPaymentDay }).length > 0) {
+    throw new Error(DATES_REQUIRED_WITH_TENANT);
+  }
+  // Date déjà enregistrée sur le bail (étapes précédentes) : acceptée telle quelle, même passée depuis.
+  assertEffectiveDateNotPast(validated.bailEffectiveDate ?? null, ownerIntakeLink?.bail ? ownerIntakeLink.bail.effectiveDate ?? null : undefined);
+  assertPaymentDay(validated.bailPaymentDay, ownerIntakeLink?.bail?.paymentDay ?? null);
+
   // Utiliser le bail existant ou en créer un nouveau
   let bail;
   let shouldLogTenantAdded = false;
@@ -1036,13 +1153,13 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
       rentAmount: validated.bailRentAmount,
       monthlyCharges: validated.bailMonthlyCharges || 0,
       securityDeposit: validated.bailSecurityDeposit || 0,
-      effectiveDate: validated.bailEffectiveDate,
-      endDate: validated.bailEndDate,
-      paymentDay: validated.bailPaymentDay,
-      ...(paymentIntentId && {
-        stripePaymentIntentId: paymentIntentId,
-        paidAt: new Date(),
-      }),
+      // Le formulaire envoyé fait foi : sans date ni jour de paiement (pas de locataire), les deux restent
+      // vides — une ancienne date provisoire de brouillon n'est pas conservée comme une vraie date.
+      effectiveDate: validated.bailEffectiveDate ?? null,
+      // Date de fin : calculée d'après le type de bail et la date de prise d'effet. Sans date de prise
+      // d'effet, il n'y a pas de date de fin (une ancienne valeur n'est pas conservée).
+      endDate: validated.bailEffectiveDate ? validated.bailEndDate ?? computeBailEndDate(validated.bailEffectiveDate, validated.bailType || BailType.BAIL_NU_3_ANS) : null,
+      paymentDay: validated.bailPaymentDay ?? null,
     };
 
     // Connecter le locataire seulement s'il existe et n'est pas déjà connecté
@@ -1053,34 +1170,50 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
       };
     }
 
-    // Mettre à jour le bail existant
-    bail = await prisma.bail.update({
-      where: { id: ownerIntakeLink.bailId },
-      data: updateData,
+    // Mettre à jour le bail existant. Si le locataire avait déjà confirmé des conditions que ce formulaire
+    // modifie, son accord est archivé et redemandé dans la même transaction.
+    const existingBailId = ownerIntakeLink.bailId;
+    bail = await prisma.$transaction(async (tx) => {
+      const agreement = await readAgreementSnapshot(tx, existingBailId);
+      const updated = await tx.bail.update({
+        where: { id: existingBailId },
+        data: updateData,
+      });
+      await settleTenantAgreement(tx, existingBailId, agreement, { id: null, name: "Propriétaire (formulaire)" });
+      // Paiement rattaché à ce bail et bail marqué payé, une seule fois, avec sa ligne d'historique.
+      if (paidIntent) {
+        await attachPaymentToBail(tx, { intent: paidIntent, bailId: existingBailId, link: { intakeLinkId: intakeLink.id }, actor: paymentActor, at: submittedAt });
+        return tx.bail.findUniqueOrThrow({ where: { id: existingBailId } });
+      }
+      return updated;
     });
 
   } else {
-    // Créer un nouveau bail
-    bail = await prisma.bail.create({
-      data: {
-        bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
-        bailFamily: validated.bailFamily || BailFamille.HABITATION,
-        status: tenant ? BailStatus.AWAITING_TENANT_FORM : BailStatus.AWAITING_TENANT,
-        rentAmount: validated.bailRentAmount,
-        monthlyCharges: validated.bailMonthlyCharges || 0,
-        securityDeposit: validated.bailSecurityDeposit || 0,
-        effectiveDate: validated.bailEffectiveDate,
-        endDate: validated.bailEndDate,
-        paymentDay: validated.bailPaymentDay,
-        propertyId: property.id,
-        ...(paymentIntentId && {
-          stripePaymentIntentId: paymentIntentId,
-          paidAt: new Date(),
-        }),
-        parties: {
-          connect: bailParties,
+    // Créer un nouveau bail. Le bail et le rattachement du paiement vont ensemble : si le paiement ne peut
+    // pas être rattaché (déjà utilisé pour un autre dossier), le bail n'est pas créé.
+    bail = await prisma.$transaction(async (tx) => {
+      const created = await tx.bail.create({
+        data: {
+          bailType: validated.bailType || BailType.BAIL_NU_3_ANS,
+          bailFamily: validated.bailFamily || BailFamille.HABITATION,
+          status: tenant ? BailStatus.AWAITING_TENANT_FORM : BailStatus.AWAITING_TENANT,
+          rentAmount: validated.bailRentAmount,
+          monthlyCharges: validated.bailMonthlyCharges || 0,
+          securityDeposit: validated.bailSecurityDeposit || 0,
+          effectiveDate: validated.bailEffectiveDate ?? null,
+          endDate: validated.bailEffectiveDate ? validated.bailEndDate ?? computeBailEndDate(validated.bailEffectiveDate, validated.bailType || BailType.BAIL_NU_3_ANS) : null,
+          paymentDay: validated.bailPaymentDay ?? null,
+          propertyId: property.id,
+          parties: {
+            connect: bailParties,
+          },
         },
-      },
+      });
+      if (paidIntent) {
+        await attachPaymentToBail(tx, { intent: paidIntent, bailId: created.id, link: { intakeLinkId: intakeLink.id }, actor: paymentActor, at: submittedAt });
+        return tx.bail.findUniqueOrThrow({ where: { id: created.id } });
+      }
+      return created;
     });
   }
 
@@ -1120,15 +1253,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
     });
   }
 
-  if (paymentIntentId) {
-    await createBailAuditLog({
-      bailId: bail.id,
-      eventType: BailAuditEventType.PAYMENT_RECEIVED,
-      actorId: null,
-      actorName: auditActorName,
-      createdAt: bail.paidAt || submittedAt,
-    });
-  }
+  // La ligne « paiement reçu » de l'historique est écrite avec le rattachement du paiement (une seule fois).
 
   if ((shouldLogTenantAdded || (!previousBailStatus && tenant)) && tenant) {
     await createBailAuditLog({
@@ -1333,6 +1458,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
               lastName,
               phone: phone || undefined,
               role: "PROPRIETAIRE",
+              clientId: validated.clientId,
             });
           } catch (error) {
             console.error("Erreur lors de l'envoi de l'email de confirmation au propriétaire:", error);
@@ -1374,7 +1500,9 @@ export async function submitTenantForm(data: unknown) {
     throw error;
   }
 
-  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité)
+  // Vérifier qu'un IntakeLink valide existe pour ce client (sécurité), et que la session est celle
+  // de ce client (code reçu par e-mail) ou de l'équipe.
+  await requireIntakeSession(validated.clientId);
   // Inclure les informations du bail et du propriétaire pour l'envoi de notification
   const intakeLink = await prisma.intakeLink.findFirst({
     where: {
@@ -1466,6 +1594,7 @@ export async function submitTenantForm(data: unknown) {
     if (primaryPersonData.nationality) primaryPersonDataToUpdate.nationality = primaryPersonData.nationality;
     if (primaryPersonData.familyStatus) primaryPersonDataToUpdate.familyStatus = primaryPersonData.familyStatus;
     if (primaryPersonData.matrimonialRegime) primaryPersonDataToUpdate.matrimonialRegime = primaryPersonData.matrimonialRegime;
+    if (primaryPersonData.familyStatus && primaryPersonData.familyStatus !== "MARIE") primaryPersonDataToUpdate.matrimonialRegime = null;
     if (primaryPersonData.birthPlace) primaryPersonDataToUpdate.birthPlace = primaryPersonData.birthPlace;
     if (primaryPersonData.birthDate) primaryPersonDataToUpdate.birthDate = primaryPersonData.birthDate;
 
@@ -1515,7 +1644,7 @@ export async function submitTenantForm(data: unknown) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
             },
@@ -1543,7 +1672,7 @@ export async function submitTenantForm(data: unknown) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
               isPrimary: false,
@@ -1564,7 +1693,7 @@ export async function submitTenantForm(data: unknown) {
               fullAddress: personData.fullAddress || null,
               nationality: personData.nationality || null,
               familyStatus: personData.familyStatus || null,
-              matrimonialRegime: personData.matrimonialRegime || null,
+              matrimonialRegime: regimeIfMarried(personData.familyStatus, personData.matrimonialRegime),
               birthPlace: personData.birthPlace || null,
               birthDate: personData.birthDate ? new Date(personData.birthDate) : null,
               isPrimary: false,
@@ -1598,7 +1727,10 @@ export async function submitTenantForm(data: unknown) {
     if (validated.entreprise?.email) entrepriseData.email = validated.entreprise.email.trim().toLowerCase();
     if (validated.entreprise?.fullAddress) entrepriseData.fullAddress = validated.entreprise.fullAddress;
     if (validated.entreprise?.name) entrepriseData.name = validated.entreprise.name;
-    if (validated.entreprise?.nationality) entrepriseData.nationality = validated.entreprise.nationality;
+    // Bail commercial : représentant légal et immatriculation (la société n'a pas de nationalité en base)
+    Object.assign(entrepriseData, entrepriseCommercialFields(validated.entreprise));
+    // Registre des entreprises : relu côté serveur à partir du SIREN/SIRET confirmé
+    Object.assign(entrepriseData, await entrepriseRegistryFields(validated.entreprise));
 
     if (existingEntreprise) {
       // Mettre à jour l'entreprise existante
@@ -1641,48 +1773,25 @@ export async function submitTenantForm(data: unknown) {
     throw new Error("Client introuvable.");
   }
 
-  if (clientForDocValidation.type === ClientType.PERSONNE_PHYSIQUE) {
-    // Vérifier la pièce d'identité pour chaque personne
-    for (const person of clientForDocValidation.persons) {
-      const hasId = person.documents.some(d => d.kind === DocumentKind.ID_IDENTITY);
-      if (!hasId) {
-        throw new Error(`La pièce d'identité de ${person.firstName ?? ""} ${person.lastName ?? ""} est requise avant de soumettre le formulaire.`.trim());
-      }
-    }
-    // Vérifier livret de famille / contrat de PACS selon le statut de la personne principale
-    const primaryPerson = clientForDocValidation.persons.find(p => p.isPrimary) ?? clientForDocValidation.persons[0];
-    if (primaryPerson?.familyStatus === FamilyStatus.MARIE) {
-      const hasLivret = clientForDocValidation.documents.some(d => d.kind === DocumentKind.LIVRET_DE_FAMILLE);
-      if (!hasLivret) {
-        throw new Error("Le livret de famille est requis avant de soumettre le formulaire.");
-      }
-    }
-    if (primaryPerson?.familyStatus === FamilyStatus.PACS) {
-      const hasPacs = clientForDocValidation.documents.some(d => d.kind === DocumentKind.CONTRAT_DE_PACS);
-      if (!hasPacs) {
-        throw new Error("Le contrat de PACS est requis avant de soumettre le formulaire.");
-      }
-    }
-  } else if (clientForDocValidation.type === ClientType.PERSONNE_MORALE) {
-    const entrepriseDocs = clientForDocValidation.entreprise?.documents ?? [];
-    if (!entrepriseDocs.some(d => d.kind === DocumentKind.KBIS)) {
-      throw new Error("Le KBIS est requis avant de soumettre le formulaire.");
-    }
-    if (!entrepriseDocs.some(d => d.kind === DocumentKind.STATUTES)) {
-      throw new Error("Les statuts de la société sont requis avant de soumettre le formulaire.");
-    }
-  }
-
-  // Assurance locataire (toujours obligatoire)
-  const hasTenantInsurance = clientForDocValidation.documents.some(d => d.kind === DocumentKind.INSURANCE);
-  if (!hasTenantInsurance) {
-    throw new Error("L'assurance locataire est requise avant de soumettre le formulaire.");
-  }
-
-  // RIB locataire (toujours obligatoire)
-  const hasTenantRib = clientForDocValidation.documents.some(d => d.kind === DocumentKind.RIB);
-  if (!hasTenantRib) {
-    throw new Error("Le RIB signé locataire est requis avant de soumettre le formulaire.");
+  // Pièces obligatoires du locataire : mêmes règles que le formulaire (lib/rules/dossier-rules.ts).
+  const tenantPersons = [...clientForDocValidation.persons].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
+  const missingTenantDocs = missingDocuments(
+    tenantDocumentRequirements({
+      clientType: clientForDocValidation.type,
+      persons: tenantPersons,
+      entreprise: clientForDocValidation.entreprise,
+    }),
+    (rule) =>
+      isDocumentProvided(rule, {
+        persons: tenantPersons.map((person) => person.documents),
+        client: clientForDocValidation.documents,
+        entreprise: clientForDocValidation.entreprise?.documents ?? [],
+      }),
+  );
+  if (missingTenantDocs.length > 0) {
+    throw new Error(
+      `Pièces manquantes : ${missingTenantDocs.map((rule) => rule.label).join(", ")}. Ajoutez-les avant d'envoyer le formulaire.`,
+    );
   }
 
   // Mettre à jour l'IntakeLink du locataire comme soumis
@@ -1716,6 +1825,12 @@ export async function submitTenantForm(data: unknown) {
           entreprise: true,
         },
       });
+
+      if (validated.tenantConfirmedTerms) {
+        // L'accord est enregistré avec les conditions du bail à cet instant (ce que le locataire a vu).
+        const confirmedBailId = tenantIntakeLink.bailId;
+        await prisma.$transaction((tx) => recordTenantAgreement(tx, confirmedBailId, validated.clientId, submittedAt));
+      }
 
       await createBailAuditLog({
         bailId: tenantIntakeLink.bailId,
@@ -1857,6 +1972,7 @@ export async function submitTenantForm(data: unknown) {
               lastName,
               phone: phone || undefined,
               role: "LOCATAIRE",
+              clientId: validated.clientId,
             });
           } catch (error) {
             console.error("Erreur lors de l'envoi de l'email de confirmation au locataire:", error);
@@ -1883,7 +1999,7 @@ export async function submitTenantForm(data: unknown) {
 
 // Mettre à jour un client
 export async function updateClient(data: unknown) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const validated = updateClientSchema.parse(data);
   const { id, ...updateData } = validated;
 
@@ -1969,6 +2085,8 @@ export async function updateClient(data: unknown) {
         ...(personData.nationality !== undefined && { nationality: personData.nationality }),
         ...(personData.familyStatus !== undefined && { familyStatus: personData.familyStatus }),
         ...(personData.matrimonialRegime !== undefined && { matrimonialRegime: personData.matrimonialRegime }),
+      // Plus marié : le régime n'est pas conservé (m7).
+      ...(personData.familyStatus !== undefined && personData.familyStatus !== "MARIE" && { matrimonialRegime: null }),
         ...(personData.birthPlace !== undefined && { birthPlace: personData.birthPlace }),
         ...(personData.birthDate !== undefined && { birthDate: personData.birthDate ? new Date(personData.birthDate) : null }),
         ...(personData.isPrimary !== undefined && { isPrimary: personData.isPrimary }),
@@ -2085,7 +2203,7 @@ function getClientName(client: {
 
 // Obtenir le nom d'un client par son ID (pour le dialog de confirmation)
 export async function getClientNameById(id: string): Promise<string> {
-  await requireAuth();
+  await requireStaff();
   const client = await prisma.client.findUnique({
     where: { id },
     select: {
@@ -2118,7 +2236,7 @@ export async function getClientNameById(id: string): Promise<string> {
 
 // Supprimer un client
 export async function deleteClient(id: string): Promise<{ success: true } | { success: false; error: string; blockingEntities?: Array<{ id: string; name: string; type: "CLIENT" | "BAIL" | "PROPERTY"; link: string }> }> {
-  const user = await requireAuth();
+  const user = await requireStaff();
   
   // Récupérer le client avec toutes ses relations
   const client = await prisma.client.findUnique({
@@ -2254,7 +2372,7 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Supprimer les documents et leurs fichiers blob
     if (allDocumentFileKeys.length > 0) {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
       await deleteBlobFiles(allDocumentFileKeys);
     }
 
@@ -2286,7 +2404,7 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Supprimer les documents et leurs fichiers blob
     if (allDocumentFileKeys.length > 0) {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
       await deleteBlobFiles(allDocumentFileKeys);
     }
 
@@ -2301,13 +2419,18 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Supprimer les connexions avec les baux (disconnect le locataire des baux)
     for (const bail of client.bails) {
-      await prisma.bail.update({
-        where: { id: bail.id },
-        data: {
-          parties: {
-            disconnect: { id },
+      // Un locataire retiré du dossier emporte son accord : archivé dans l'historique du bail.
+      await prisma.$transaction(async (tx) => {
+        const agreement = await readAgreementSnapshot(tx, bail.id);
+        await tx.bail.update({
+          where: { id: bail.id },
+          data: {
+            parties: {
+              disconnect: { id },
+            },
           },
-        },
+        });
+        await settleTenantAgreement(tx, bail.id, agreement, { id: null, name: "Équipe BailNotarie (fiche client supprimée)" });
       });
     }
 
@@ -2405,13 +2528,13 @@ export async function deleteClient(id: string): Promise<{ success: true } | { su
 
     // Supprimer tous les fichiers blob
     if (allDocumentFileKeys.length > 0) {
-      const { deleteBlobFiles } = await import("@/lib/actions/documents");
+      const { deleteBlobFiles } = await import("@/lib/document-storage");
       await deleteBlobFiles(allDocumentFileKeys);
     }
 
     // Supprimer tous les documents (biens)
     // Les documents du client seront supprimés automatiquement via cascade quand Person/Entreprise seront supprimés
-    const { deleteDocumentsFromDB } = await import("@/lib/actions/documents");
+    const { deleteDocumentsFromDB } = await import("@/lib/document-storage");
     await deleteDocumentsFromDB({
       propertyId: { in: client.ownedProperties.map(p => p.id) },
     });
@@ -2537,7 +2660,7 @@ function serializeDecimal(obj: any): any {
 
 // Obtenir un client
 export async function getClient(id: string) {
-  await requireAuth();
+  await requireStaff();
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
@@ -2649,7 +2772,7 @@ export interface ClientMissingData {
 
 // Obtenir les données manquantes d'un client (version détaillée)
 export async function getClientMissingData(clientId: string): Promise<ClientMissingData | null> {
-  await requireAuth();
+  await requireStaff();
   
   const { checkClientCompletionDetailed } = await import("@/lib/utils/completion-status");
   
@@ -2701,7 +2824,7 @@ export async function getClients(params: {
   type?: ClientType;
   profilType?: ProfilType;
 }) {
-  await requireAuth();
+  await requireStaff();
 
   const where: any = {};
 
@@ -2784,7 +2907,7 @@ export async function getClients(params: {
 
 // Obtenir tous les clients (pour filtrage côté client)
 export async function getAllClients() {
-  await requireAuth();
+  await requireStaff();
 
   const data = await prisma.client.findMany({
     include: {
@@ -2837,7 +2960,7 @@ export async function getAllClients() {
 
 // Envoyer le lien du formulaire à un client existant
 export async function sendIntakeLinkToClient(clientId: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   // Récupérer le client avec persons et entreprise
   const client = await prisma.client.findUnique({
@@ -2913,7 +3036,7 @@ export async function sendIntakeLinkToClient(clientId: string) {
     try {
       await triggerLeadConversionEmail({
         to: clientEmail,
-        subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
+        subject: "Votre bail notarié en 1 semaine, on s'occupe de tout",
         convertUrl,
       });
     } catch (error) {
@@ -3056,7 +3179,7 @@ export async function sendIntakeLinkToClient(clientId: string) {
 
 // Régénérer l'intakeLink d'un client (remet en PENDING et génère un nouveau token)
 export async function regenerateClientIntakeLink(clientId: string) {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
@@ -3109,7 +3232,7 @@ export async function regenerateClientIntakeLink(clientId: string) {
 
 // Vérifier si un client a un lien de formulaire disponible
 export async function hasIntakeLink(clientId: string): Promise<{ hasLink: boolean; isSubmitted: boolean }> {
-  await requireAuth();
+  await requireStaff();
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
@@ -3162,7 +3285,7 @@ export async function hasIntakeLink(clientId: string): Promise<{ hasLink: boolea
 
 // Obtenir le lien du formulaire pour un client (sans envoyer d'email)
 export async function getIntakeLinkUrl(clientId: string): Promise<string> {
-  const user = await requireAuth();
+  const user = await requireStaff();
 
   // Récupérer le client
   const client = await prisma.client.findUnique({
@@ -3279,7 +3402,7 @@ export async function getIntakeLinkUrl(clientId: string): Promise<string> {
 
 // Mettre à jour le statut de complétion d'un client
 export async function updateClientCompletionStatus(data: { id: string; completionStatus: CompletionStatus }) {
-  const user = await requireAuth();
+  const user = await requireStaff();
   const { id, completionStatus } = data;
 
   // Récupérer l'ancien statut
@@ -3321,6 +3444,7 @@ export async function updateClientCompletionStatus(data: { id: string; completio
           clientName: name,
           entityType: "client",
           entityName: name,
+          clientId: id,
           oldStatus,
           newStatus: completionStatus,
           dashboardUrl: `${baseUrl}${dashboardPath}`,
@@ -3367,7 +3491,10 @@ export async function updateClientCompletionStatus(data: { id: string; completio
       tenantStatus === "PENDING_CHECK" && 
       property.completionStatus === "PENDING_CHECK";
 
-    if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION")) {
+    // Un dossier non payé ne passe pas tout seul à « prêt pour notaire » (règle commune « payé »).
+    if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION") && !(await isBailPaidById(bail.id))) {
+      // Fiches complétées mais frais non payés : le statut ne change pas.
+    } else if (allCompleted && (bail.status === "DRAFT" || bail.status === "AWAITING_TENANT_FORM" || bail.status === "PENDING_VALIDATION")) {
       await prisma.bail.update({
         where: { id: bail.id },
         data: { status: "READY_FOR_NOTARY" }

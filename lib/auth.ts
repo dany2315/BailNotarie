@@ -5,6 +5,7 @@ import { prisma } from "./prisma";
 import { resendSendEmail } from "./resend-rate-limited";
 import MailNotaireOTP from "@/emails/mail-notaire-otp";
 import MailClientOTP from "@/emails/mail-client-otp";
+import { getOtpEmailSubject } from "@/emails/_shared/otp";
 import { Role } from "@prisma/client";
 
 export const auth = betterAuth({
@@ -14,6 +15,10 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     emailVerification: false,
+    // Pas d'inscription publique : les comptes sont créés par l'équipe ou à l'ouverture d'un dossier.
+    // Sans cette option, POST /api/auth/sign-up/email créait un compte au rôle par défaut du schéma,
+    // ADMINISTRATEUR, avec une session ouverte d'office.
+    disableSignUp: true,
   },
   trustedOrigins: [
     "http://localhost:3000",
@@ -77,7 +82,7 @@ export const auth = betterAuth({
             await resendSendEmail({
               from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
               to: normalizedEmail,
-              subject: "Code de connexion - BailNotarie",
+              subject: getOtpEmailSubject(otp),
               react: MailNotaireOTP({
                 userName: user.name || "Notaire",
                 code: otp,
@@ -94,7 +99,7 @@ export const auth = betterAuth({
             await resendSendEmail({
               from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
               to: normalizedEmail,
-              subject: "Code de connexion - BailNotarie",
+              subject: getOtpEmailSubject(otp),
               react: MailClientOTP({
                 userName: clientName || user.name || "Client",
                 code: otp,
@@ -103,8 +108,9 @@ export const auth = betterAuth({
             return;
           }
           
-          // 2c. Autres rôles → erreur
-          throw new Error("Cet email n'est pas associé à un compte valide");
+          // 2c. Autres rôles (équipe) : aucun code, mais pas d'erreur non plus,
+          // pour que la réponse soit la même que pour une adresse inconnue (m41).
+          return;
         }
 
         // 3. Si aucun User n'existe, chercher un Client correspondant
@@ -137,7 +143,7 @@ export const auth = betterAuth({
             await resendSendEmail({
               from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
               to: normalizedEmail,
-              subject: "Code de connexion - BailNotarie",
+              subject: getOtpEmailSubject(otp),
               react: MailClientOTP({
                 userName: `${person.firstName || ""} ${person.lastName || ""}`.trim() || "Client",
                 code: otp,
@@ -162,7 +168,7 @@ export const auth = betterAuth({
                 await resendSendEmail({
                   from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
                   to: normalizedEmail,
-                  subject: "Code de connexion - BailNotarie",
+                  subject: getOtpEmailSubject(otp),
                   react: MailClientOTP({
                     userName: clientName || user.name || "Client",
                     code: otp,
@@ -199,7 +205,7 @@ export const auth = betterAuth({
             await resendSendEmail({
               from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
               to: normalizedEmail,
-              subject: "Code de connexion - BailNotarie",
+              subject: getOtpEmailSubject(otp),
               react: MailClientOTP({
                 userName: entreprise.legalName || entreprise.name || "Client",
                 code: otp,
@@ -224,7 +230,7 @@ export const auth = betterAuth({
                 await resendSendEmail({
                   from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
                   to: normalizedEmail,
-                  subject: "Code de connexion - BailNotarie",
+                  subject: getOtpEmailSubject(otp),
                   react: MailClientOTP({
                     userName: clientName || user.name || "Client",
                     code: otp,

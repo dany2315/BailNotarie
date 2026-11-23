@@ -23,6 +23,7 @@ import {
   formatBailCurrency,
 } from "@/components/leases/bail-cost-estimate";
 import { cn } from "@/lib/utils";
+import { formatDossierFee } from "@/lib/utils/dossier-fee";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -67,12 +68,20 @@ const STRIPE_APPEARANCE = {
 
 // ─── Inner form (accès à stripe/elements via context) ────────────────────────
 
+/** Message d'attente : le paiement existe, son résultat n'est pas encore connu. */
+const PAYMENT_PENDING_MESSAGE =
+  "Votre paiement est en cours de vérification. Ne payez pas une seconde fois : cette page se mettra à jour dès qu'il sera confirmé.";
+
 interface PaymentFormProps {
   onPaymentSuccess: (paymentIntentId: string) => void;
+  /** Paiement envoyé mais pas encore confirmé par la banque : on attend la confirmation. */
+  onPaymentPending: () => void;
   isSubmitting: boolean;
+  /** « 39,90 € » ou « 59,90 € » selon le type de bail. */
+  feeLabel: string;
 }
 
-function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
+function PaymentForm({ onPaymentSuccess, onPaymentPending, isSubmitting, feeLabel }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -103,6 +112,9 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
 
     if (paymentIntent?.status === "succeeded") {
       onPaymentSuccess(paymentIntent.id);
+    } else if (paymentIntent?.status === "processing" || paymentIntent?.status === "requires_capture") {
+      // Paiement parti : surtout ne pas inviter à réessayer, on attend la confirmation.
+      onPaymentPending();
     } else {
       setError("Le paiement n'a pas pu être confirmé. Veuillez réessayer.");
       setIsProcessing(false);
@@ -181,7 +193,7 @@ function PaymentForm({ onPaymentSuccess, isSubmitting }: PaymentFormProps) {
         ) : (
           <>
             <Lock className="mr-2 h-4 w-4" />
-            Payer 39,90€ et finaliser mon dossier
+            Payer {feeLabel} et finaliser mon dossier
           </>
         )}
       </Button>
@@ -197,6 +209,8 @@ interface PaymentStepProps {
   isSubmitting: boolean;
   rentAmount?: number;
   peopleCount?: number;
+  /** Type de bail : les frais de dossier d'un bail commercial sont de 59,90 €. */
+  bailFamily?: string | null;
 }
 
 export function PaymentStep({
@@ -205,12 +219,24 @@ export function PaymentStep({
   isSubmitting,
   rentAmount = 0,
   peopleCount = 2,
+  bailFamily = null,
 }: PaymentStepProps) {
+  const feeLabel = formatDossierFee(bailFamily);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Paiement parti mais pas encore confirmé (ou état impossible à vérifier pour l'instant) : on attend et
+  // on revérifie, sans jamais proposer de payer une seconde fois.
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [checkCount, setCheckCount] = useState(0);
+
   useEffect(() => {
     const controller = new AbortController();
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const waitAndRecheck = (message: string) => {
+      setPendingMessage(message);
+      retry = setTimeout(() => setCheckCount((count) => count + 1), 5000);
+    };
 
     fetch("/api/stripe/create-payment-intent", {
       method: "POST",
@@ -223,8 +249,12 @@ export function PaymentStep({
         if (data.alreadyPaid && data.paymentIntentId) {
           // Le paiement a déjà réussi (ex: retry après échec de soumission)
           // Poursuivre directement la soumission sans repayer
+          setPendingMessage(null);
           onPaymentSuccess(data.paymentIntentId);
+        } else if (data.state === "processing" || data.state === "unknown") {
+          waitAndRecheck(data.message || data.error || PAYMENT_PENDING_MESSAGE);
         } else if (data.clientSecret) {
+          setPendingMessage(null);
           setClientSecret(data.clientSecret);
         } else {
           setLoadError(
@@ -234,12 +264,17 @@ export function PaymentStep({
       })
       .catch((err) => {
         if (err.name !== "AbortError") {
-          setLoadError("Erreur réseau lors de l'initialisation du paiement.");
+          if (pendingMessage) waitAndRecheck(pendingMessage);
+          else setLoadError("Erreur réseau lors de l'initialisation du paiement.");
         }
       });
 
-    return () => controller.abort();
-  }, [token]);
+    return () => {
+      controller.abort();
+      if (retry) clearTimeout(retry);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, checkCount]);
 
   const inclus = [
     "Constitution du dossier en ligne",
@@ -248,13 +283,16 @@ export function PaymentStep({
     "Suivi jusqu'à la signature de l'acte authentique",
   ];
 
-  const notaryCost = rentAmount > 0 ? computeBailNotaryCost(rentAmount, peopleCount) : 0;
+  // Bail d'habitation : émolument réglementé (demi-mois de loyer). Bail commercial : honoraires
+  // libres, fixés par l'étude, donc pas d'estimation chiffrée.
+  const isCommercial = bailFamily === "COMMERCIAL";
+  const notaryCost = rentAmount > 0 && !isCommercial ? computeBailNotaryCost(rentAmount, peopleCount) : 0;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
       {/* Récapitulatif unifié : maintenant (haut, mis en avant) + plus tard (bas, discret) */}
       <div className="rounded-xl border border-blue-100 overflow-hidden bg-white">
-        {/* Section 1 — À payer maintenant : 39,90 € */}
+        {/* Section 1 — À payer maintenant : frais de dossier */}
         <div className="bg-blue-50/60 px-4 py-3">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -274,14 +312,28 @@ export function PaymentStep({
               </div>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-2xl font-bold text-[#4373f5]">39,90€</p>
+              <p className="text-2xl font-bold text-[#4373f5]">{feeLabel}</p>
               <p className="text-xs text-gray-400">TTC</p>
             </div>
           </div>
         </div>
 
-        {/* Section 2 — À régler à la signature : estimation des honoraires */}
-        {rentAmount > 0 && (
+        {/* Section 2 — À régler à la signature : honoraires du notaire (bail commercial : sans montant) */}
+        {isCommercial && (
+          <div className="border-t border-blue-100 bg-gray-50/60 px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              À régler à la signature
+            </p>
+            <p className="font-medium text-sm text-gray-700 mt-1">
+              Honoraires du notaire
+            </p>
+            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+              Pour un bail commercial, les honoraires sont fixés librement par l&apos;étude notariale. Le notaire vous
+              les communique avant la signature.
+            </p>
+          </div>
+        )}
+        {rentAmount > 0 && !isCommercial && (
           <div className="border-t border-blue-100 bg-gray-50/60 px-4 py-3">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -313,6 +365,14 @@ export function PaymentStep({
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{loadError}</span>
         </div>
+      ) : pendingMessage ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-3" role="status">
+          <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-amber-600" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-amber-900">Paiement en cours de vérification</p>
+            <p className="text-sm text-amber-800">{pendingMessage}</p>
+          </div>
+        </div>
       ) : !clientSecret ? (
         <div className="rounded-xl border border-gray-200 bg-white p-8 flex flex-col items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-[#4373f5]" />
@@ -329,7 +389,12 @@ export function PaymentStep({
         >
           <PaymentForm
             onPaymentSuccess={onPaymentSuccess}
+            onPaymentPending={() => {
+              setPendingMessage(PAYMENT_PENDING_MESSAGE);
+              setCheckCount((count) => count + 1);
+            }}
             isSubmitting={isSubmitting}
+            feeLabel={feeLabel}
           />
         </Elements>
       )}

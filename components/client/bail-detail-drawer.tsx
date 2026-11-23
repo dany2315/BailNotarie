@@ -28,6 +28,7 @@ const statusLabels: Record<BailStatus, string> = {
   PENDING_VALIDATION: "En cours de validation",
   READY_FOR_NOTARY: "Prêt pour notaire",
   CLIENT_CONTACTED: "Client contacté",
+  PROVISION_RECEIVED: "Provision reçue",
   SIGNED: "Signé",
   TERMINATED: "Terminé",
   DESISTE: "Désisté",
@@ -41,6 +42,7 @@ const statusColors: Record<BailStatus, string> = {
   PENDING_VALIDATION: "bg-amber-100 text-amber-800 border-amber-200 text-xs",
   READY_FOR_NOTARY: "bg-blue-100 text-blue-800 border-blue-200 text-xs",
   CLIENT_CONTACTED: "bg-purple-100 text-purple-800 border-purple-200 text-xs",
+  PROVISION_RECEIVED: "bg-purple-100 text-purple-800 border-purple-200 text-xs",
   SIGNED: "bg-green-100 text-green-800 border-green-200 text-xs",
   TERMINATED: "bg-gray-100 text-gray-800 border-gray-200 text-xs",
   DESISTE: "bg-red-100 text-red-800 border-red-200 text-xs",
@@ -48,10 +50,12 @@ const statusColors: Record<BailStatus, string> = {
 };
 
 const bailTypeLabels: Record<BailType, string> = {
-  BAIL_NU_3_ANS: "Bail nue 3 ans",
-  BAIL_NU_6_ANS: "Bail nue 6 ans",
+  BAIL_NU_3_ANS: "Bail nu 3 ans",
+  BAIL_NU_6_ANS: "Bail nu 6 ans",
   BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
   BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
+  COMMERCIAL_3_6_9: "Bail commercial 3-6-9",
+  COMMERCIAL_DEROGATOIRE: "Bail commercial dérogatoire",
 };
 
 const bailFamilyLabels: Record<BailFamille, string> = {
@@ -124,7 +128,7 @@ export function BailDetailDrawer({
     : locataire?.persons?.[0]?.email || null;
 
   const notaire = bail?.dossierAssignments?.[0]?.notaire;
-  const calculatedEndDate = bail ? calculateBailEndDate(bail.effectiveDate, bail.bailType) : null;
+  const calculatedEndDate = bail && bail.effectiveDate ? calculateBailEndDate(bail.effectiveDate, bail.bailType) : null;
   const totalMonthly = bail ? bail.rentAmount + bail.monthlyCharges : 0;
 
   return (

@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { isFurnishedBail, maxSecurityDeposit, missingFurniture as missingFurnitureKeys } from "@/lib/rules/dossier-rules";
 import { isValidPhoneNumberSafe } from "@/lib/utils/phone-validation";
+import { OWNER_PERIODS } from "@/lib/utils/rent-cap";
 import { 
   ClientType, 
   ProfilType, 
@@ -13,6 +15,9 @@ import {
   BailStatus,
   DocumentKind
 } from "@prisma/client";
+import { birthDateIssue } from "@/lib/utils/person-checks";
+import "@/lib/zod/locale";
+import { SURFACE_INVALID, surfaceIssue } from "@/lib/utils/surface";
 
 // ============================================================================
 // SCHÉMAS RÉUTILISABLES - Champs communs
@@ -80,7 +85,8 @@ const personFieldsSchema = {
         message: "Numéro de téléphone invalide",
       })
   ),
-  email: z.string()
+  email: z.string("L'email est requis")
+    .min(1, "L'email est requis")
     .email("Email invalide")
     .max(100, "L'email est trop long")
     .toLowerCase()
@@ -115,7 +121,7 @@ const personFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("La date de naissance est requise")
       .min(1, "La date de naissance est requise")
       .transform((val) => {
         const date = new Date(val);
@@ -127,6 +133,10 @@ const personFieldsSchema = {
           }]);
         }
         return date;
+      })
+      .superRefine((val, ctx) => {
+        const issue = birthDateIssue(val as any);
+        if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
       })
   ),
   isPrimary: z.boolean().optional(),
@@ -147,6 +157,32 @@ const personsArraySchema = z.preprocess(
   z.array(z.object(personFieldsSchema)).optional()
 );
 
+/**
+ * Personnes d'un client créé par l'équipe (« Nouveau client complet ») : seuls le nom, le prénom et l'e-mail sont
+ * exigés ; le client complète le reste dans son formulaire (décision de l'utilisateur du 17/11/2026, M14).
+ * Les formulaires du propriétaire et du locataire gardent leurs exigences (personsArraySchema).
+ */
+const teamPersonsArraySchema = z.preprocess(
+  (val) => {
+    if (typeof val === "string") {
+      try {
+        return JSON.parse(val);
+      } catch (error) {
+        return [];
+      }
+    }
+    return val;
+  },
+  z
+    .array(
+      z.object(personFieldsSchema).partial().extend({
+        firstName: personFieldsSchema.firstName,
+        lastName: personFieldsSchema.lastName,
+      }),
+    )
+    .optional()
+);
+
 // Schéma pour les champs de contact avec email requis
 const contactFieldsSchemaWithRequiredEmail = {
   phone: z.string()
@@ -154,7 +190,7 @@ const contactFieldsSchemaWithRequiredEmail = {
     .refine((val) => !val || isValidPhoneNumberSafe(val), {
       message: "Numéro de téléphone invalide",
     }),
-  email: z.string()
+  email: z.string("L'email est requis")
     .min(1, "L'email est requis")
     .email("Email invalide")
     .max(100, "L'email est trop long")
@@ -195,12 +231,16 @@ const physicalPersonFieldsSchema = {
       const date = new Date(val);
       if (isNaN(date.getTime())) return undefined;
       return date;
-    }),
+    })
+    .superRefine((val, ctx) => {
+        const issue = birthDateIssue(val as any);
+        if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+      }),
 };
 
 // Schéma pour les champs de personne morale
 const legalPersonFieldsSchema = {
-  legalName: z.string()
+  legalName: z.string("La raison sociale est requise")
     .min(1, "La raison sociale est requise")
     .max(200, "La raison sociale est trop longue")
     .trim(),
@@ -212,6 +252,44 @@ const legalPersonFieldsSchema = {
 
 // Schéma pour les données du bien
 const propertyFieldsSchema = {
+  // Catégorie du logement pour l'encadrement des loyers. Facultatives ici (anciens dossiers) :
+  // le formulaire les exige pour un bail d'habitation.
+  propertyMainRooms: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
+    z.number().int().min(1, "Nombre de pièces invalide").max(4, "Nombre de pièces invalide").optional()
+  ),
+  propertyConstructionPeriod: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(OWNER_PERIODS, { message: "Époque de construction invalide" }).optional()
+  ),
+  // Classe énergétique (facultative ici, exigée par le formulaire pour un bail d'habitation).
+  propertyDpeClass: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(["A", "B", "C", "D", "E", "F", "G"], { message: "Classe énergétique invalide" }).optional()
+  ),
+  // Relocation en zone tendue et complément de loyer (réponses du contrôle du loyer).
+  rentRules: z.record(z.string(), z.any()).optional(),
+  // Copropriété : syndic. Lotissement : créé il y a plus de 10 ans (YES | NO | UNKNOWN).
+  // Facultatifs ici (anciens dossiers) : le formulaire les exige selon le régime juridique.
+  propertySyndicName: z.string().max(200).trim().optional(),
+  // Même contrôle que les autres adresses et numéros (m5).
+  propertySyndicEmail: z.string().max(200).trim().optional()
+    .refine((val) => !val || z.string().email().safeParse(val).success, "E-mail du syndic invalide"),
+  propertySyndicPhone: z.string().max(30).trim().optional()
+    .refine((val) => !val || isValidPhoneNumberSafe(val), "Numéro de téléphone du syndic invalide"),
+  propertySubdivisionOver10Years: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.enum(["YES", "NO", "UNKNOWN"]).optional()
+  ),
+  // Bail commercial : centre commercial ou ensemble immobilier (yes | no), dépendances, conditions
+  // du bail (réponses du formulaire, nettoyées par commercialTermsFromForm avant l'enregistrement).
+  propertyInShoppingCenter: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val === true ? "yes" : val === false ? "no" : val),
+    // no | shopping_center | estate_complex (yes : ancienne réponse, centre commercial)
+    z.enum(["yes", "no", "shopping_center", "estate_complex"]).optional()
+  ).optional(),
+  propertyOutbuildings: z.string().max(1000).trim().optional(),
+  commercial: z.record(z.string(), z.any()).optional(),
   propertyLabel: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.string()
@@ -231,13 +309,13 @@ const propertyFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("La surface est requise")
       .min(1, "La surface est requise")
       .refine((val) => {
         const num = parseFloat(val);
         return !isNaN(num) && num > 0;
       }, {
-        message: "La surface doit être un nombre positif",
+        message: "La surface doit être supérieure à 0 m².",
       })
       .transform((val) => parseFloat(val))
   ),
@@ -337,13 +415,13 @@ const bailFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("Le montant du loyer est requis")
       .min(1, "Le montant du loyer est requis")
       .refine((val) => {
         const num = parseInt(val, 10);
-        return !isNaN(num) && num >= 0;
+        return !isNaN(num) && num > 0;
       }, {
-        message: "Le montant du loyer doit être un nombre entier positif",
+        message: "Le montant du loyer doit être un nombre entier supérieur à 0",
       })
       .transform((val) => parseInt(val, 10))
   ),
@@ -352,7 +430,7 @@ const bailFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("Les charges mensuelles sont requises")
       .min(1, "Les charges mensuelles sont requises")
       .refine((val) => {
         const num = parseInt(val, 10);
@@ -367,7 +445,7 @@ const bailFieldsSchema = {
       if (val === "" || val === null || val === undefined) return "";
       return String(val);
     },
-    z.string()
+    z.string("Le dépôt de garantie est requis")
       .min(1, "Le dépôt de garantie est requis")
       .refine((val) => {
         const num = parseInt(val, 10);
@@ -377,14 +455,18 @@ const bailFieldsSchema = {
       })
       .transform((val) => parseInt(val, 10))
   ),
+  // Date de prise d'effet et jour de paiement : demandés une fois le locataire connu. Sans locataire, ils
+  // restent vides (le contrôle « exigés avec un locataire » est dans le schéma du formulaire, plus bas, et
+  // refait par le serveur).
   bailEffectiveDate: z.preprocess(
     (val) => {
-      if (val === "" || val === null || val === undefined) return "";
+      if (val === "" || val === null || val === undefined) return undefined;
       return String(val);
     },
     z.string()
-      .min(1, "La date de prise d'effet est requise")
+      .optional()
       .transform((val) => {
+        if (!val) return undefined;
         const date = new Date(val);
         if (isNaN(date.getTime())) {
           throw new z.ZodError([{
@@ -412,18 +494,20 @@ const bailFieldsSchema = {
   ),
   bailPaymentDay: z.preprocess(
     (val) => {
-      if (val === "" || val === null || val === undefined) return "";
+      if (val === "" || val === null || val === undefined) return undefined;
       return String(val);
     },
     z.string()
-      .min(1, "Le jour de paiement est requis")
+      .optional()
       .refine((val) => {
+        if (!val) return true;
         const num = parseInt(val);
-        return !isNaN(num) && num >= 1 && num <= 31;
+        return /^\d{1,2}$/.test(val.trim()) && num >= 1 && num <= 28;
       }, {
-        message: "Le jour de paiement doit être un nombre entre 1 et 31",
+        message: "Le jour de paiement doit être compris entre 1 et 28.",
       })
       .transform((val) => {
+        if (!val) return undefined;
         const num = parseInt(val);
         return num;
       })
@@ -438,18 +522,13 @@ const documentFieldsSchema = {
   
   // Pièces jointes - Client (personne physique)
   idIdentity: z.any().optional(),
-  livretDeFamille: z.any().optional(),
+  contratDeMariage: z.any().optional(),
   contratDePacs: z.any().optional(),
   
   // Pièces jointes - Bien (propriétaire uniquement)
   diagnostics: z.any().optional(),
   reglementCopropriete: z.any().optional(),
   cahierChargeLotissement: z.any().optional(),
-  statutAssociationSyndicale: z.any().optional(),
-  
-  // Pièces jointes - Bail (propriétaire et locataire)
-  insuranceOwner: z.any().optional(),
-  ribOwner: z.any().optional(),
 
   // Pièces jointes - Titre de propriété
   titleDeed: z.any().optional(),
@@ -461,7 +540,8 @@ const documentFieldsSchema = {
 
 // Schéma pour création basique de client (email uniquement)
 export const createBasicClientSchema = z.object({
-  email: z.string()
+  email: z.string("L'email est requis")
+    .min(1, "L'email est requis")
     .email("Email invalide")
     .max(100, "L'email est trop long")
     .toLowerCase()
@@ -475,7 +555,7 @@ export const createOwnerPhysicalClientSchema = z.object({
   profilType: z.literal(ProfilType.PROPRIETAIRE).default(ProfilType.PROPRIETAIRE),
   ...physicalPersonFieldsSchema,
   ...contactFieldsSchemaWithRequiredEmail,
-  persons: personsArraySchema,
+  persons: teamPersonsArraySchema,
 });
 
 // Schéma pour client personne morale PROPRIETAIRE complet
@@ -484,22 +564,23 @@ export const createOwnerLegalClientSchema = z.object({
   profilType: z.literal(ProfilType.PROPRIETAIRE),
   ...legalPersonFieldsSchema,
   ...contactFieldsSchemaWithRequiredEmail,
-  persons: personsArraySchema,
+  persons: teamPersonsArraySchema,
 });
 
 // Schéma pour client LOCATAIRE (minimum requis)
 export const createTenantBasicClientSchema = z.object({
   type: z.literal(ClientType.PERSONNE_PHYSIQUE),
   profilType: z.literal(ProfilType.LOCATAIRE),
-  firstName: z.string()
+  firstName: z.string("Le prénom est requis")
     .min(1, "Le prénom est requis")
     .max(100, "Le prénom est trop long")
     .trim(),
-  lastName: z.string()
+  lastName: z.string("Le nom est requis")
     .min(1, "Le nom est requis")
     .max(100, "Le nom est trop long")
     .trim(),
-  email: z.string()
+  email: z.string("L'email est requis")
+    .min(1, "L'email est requis")
     .email("Email invalide")
     .max(100, "L'email est trop long")
     .toLowerCase()
@@ -535,8 +616,8 @@ export const ownerFormSchema = z
         })
         .optional()
     ),
-    email: z
-      .string()
+    email: z.string("L'email est requis")
+      .min(1, "L'email est requis")
       .email("Email invalide")
       .max(100, "L'email est trop long")
       .toLowerCase()
@@ -572,33 +653,42 @@ export const ownerFormSchema = z
     entreprise: z
       .object({
         legalName: z
-          .string()
+          .string("La raison sociale est requise")
           .min(1, "La raison sociale est requise")
           .max(200, "La raison sociale est trop longue")
           .trim(),
+        // Bail commercial : représentant légal et immatriculation (facultatifs ici)
+        representativeName: z.string().max(200).trim().optional(),
+        representativeRole: z.string().max(200).trim().optional(),
+        isRegistered: z.preprocess(
+          (val) => (val === "yes" ? true : val === "no" ? false : val === "" || val === null ? undefined : val),
+          z.boolean().optional()
+        ).optional(),
         registration: z
-          .string()
+          .string("Le numéro d'enregistrement est requis")
           .min(1, "Le numéro d'enregistrement est requis")
           .max(50, "Le numéro d'enregistrement est trop long")
           .trim(),
+        // Société confirmée au registre : le serveur relit lui-même les données (SIREN/SIRET)
+        registryConfirmed: z.boolean().optional(),
         name: z
-          .string()
+          .string("Le nom commercial est requis")
           .min(1, "Le nom commercial est requis")
           .max(200, "Le nom commercial est trop long")
           .trim(),
-        email: z
-          .string()
+        email: z.string("L'email est requis")
+          .min(1, "L'email est requis")
           .email("Email invalide")
           .max(100, "L'email est trop long")
           .toLowerCase()
           .trim(),
         phone: z
-          .string()
+          .string("Le numéro de téléphone est requis")
           .min(1, "Le numéro de téléphone est requis")
           .max(15, "Le numéro de téléphone est trop long")
           .trim(),
         fullAddress: z
-          .string()
+          .string("L'adresse est requise")
           .min(1, "L'adresse est requise")
           .max(500, "L'adresse est trop longue")
           .trim(),
@@ -611,6 +701,19 @@ export const ownerFormSchema = z
     persons: personsArraySchema,
   })
   .superRefine((data, ctx) => {
+    // ------------------------------------------------------------------
+    // LOCATAIRE INDIQUÉ → date de prise d'effet et jour de paiement exigés
+    // (sans locataire, le formulaire se termine sans ces deux valeurs)
+    // ------------------------------------------------------------------
+    if (data.tenantEmail) {
+      if (!data.bailEffectiveDate) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["bailEffectiveDate"], message: "La date de prise d'effet est requise" });
+      }
+      if (!data.bailPaymentDay) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["bailPaymentDay"], message: "Le jour de paiement est requis" });
+      }
+    }
+
     // ------------------------------------------------------------------
     // PERSONNE PHYSIQUE → tout doit venir de persons[]
     // ------------------------------------------------------------------
@@ -757,46 +860,24 @@ export const ownerFormSchema = z
     // VALIDATION MOBILIER POUR BAIL MEUBLÉ
     // Si un bail meublé est sélectionné, tous les équipements doivent être présents
     // ------------------------------------------------------------------
-    const isMeubleBail = data.bailType === BailType.BAIL_MEUBLE_1_ANS || 
-                         data.bailType === BailType.BAIL_MEUBLE_9_MOIS;
-    
-    if (isMeubleBail) {
-      const furnitureFields = [
-        'hasLiterie',
-        'hasRideaux',
-        'hasPlaquesCuisson',
-        'hasFour',
-        'hasRefrigerateur',
-        'hasCongelateur',
-        'hasVaisselle',
-        'hasUstensilesCuisine',
-        'hasTable',
-        'hasSieges',
-        'hasEtageresRangement',
-        'hasLuminaires',
-        'hasMaterielEntretien',
-      ] as const;
+    // Règles du meublé et du dépôt de garantie : lib/rules/dossier-rules.ts
+    const isMeubleBail = isFurnishedBail(data.bailType);
+    const missingFurniture = missingFurnitureKeys(data as Record<string, unknown>, data.bailType);
+    if (missingFurniture.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bailType"],
+        message: "Pour un bail meublé, tous les équipements obligatoires doivent être présents dans le bien. Veuillez cocher tous les équipements requis.",
+      });
       
-      const missingFurniture = furnitureFields.filter(
-        (field) => !data[field] || data[field] !== true
-      );
-      
-      if (missingFurniture.length > 0) {
+      // Ajouter aussi une erreur sur chaque champ manquant pour guider l'utilisateur
+      missingFurniture.forEach((field) => {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["bailType"],
-          message: "Pour un bail meublé, tous les équipements obligatoires doivent être présents dans le bien. Veuillez cocher tous les équipements requis.",
+          path: [field],
+          message: "Cet équipement est requis pour un bail meublé",
         });
-        
-        // Ajouter aussi une erreur sur chaque champ manquant pour guider l'utilisateur
-        missingFurniture.forEach((field) => {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [field],
-            message: "Cet équipement est requis pour un bail meublé",
-          });
-        });
-      }
+      });
     }
 
     // ------------------------------------------------------------------
@@ -811,9 +892,9 @@ export const ownerFormSchema = z
       ? data.bailSecurityDeposit
       : parseInt(String(data.bailSecurityDeposit) || '0', 10);
     
-    if (rentAmount > 0 && securityDeposit > 0) {
-      const maxDeposit = isMeubleBail ? rentAmount * 2 : rentAmount;
-      
+    // Bail commercial : pas de plafond légal du dépôt de garantie
+    const maxDeposit = maxSecurityDeposit({ bailFamily: data.bailFamily, bailType: data.bailType, rentAmount });
+    if (maxDeposit !== null && securityDeposit > 0) {
       if (securityDeposit > maxDeposit) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -846,8 +927,8 @@ export const tenantFormSchema = z
         })
         .optional()
     ),
-    email: z
-      .string()
+    email: z.string("L'email est requis")
+      .min(1, "L'email est requis")
       .email("Email invalide")
       .max(100, "L'email est trop long")
       .toLowerCase()
@@ -860,44 +941,57 @@ export const tenantFormSchema = z
     entreprise: z
       .object({
         legalName: z
-          .string()
+          .string("La raison sociale est requise")
           .min(1, "La raison sociale est requise")
           .max(200, "La raison sociale est trop longue")
           .trim(),
+        // Bail commercial : représentant légal et immatriculation (facultatifs ici)
+        representativeName: z.string().max(200).trim().optional(),
+        representativeRole: z.string().max(200).trim().optional(),
+        isRegistered: z.preprocess(
+          (val) => (val === "yes" ? true : val === "no" ? false : val === "" || val === null ? undefined : val),
+          z.boolean().optional()
+        ).optional(),
         registration: z
           .string()
-          .min(1, "Le numéro d'enregistrement est requis")
           .max(50, "Le numéro d'enregistrement est trop long")
           .trim(),
+        // Société confirmée au registre : le serveur relit lui-même les données (SIREN/SIRET)
+        registryConfirmed: z.boolean().optional(),
+        // Nom commercial : jamais demandé au locataire ; repris de la raison sociale s'il est vide (plus bas)
         name: z
           .string()
-          .min(1, "Le nom commercial est requis")
           .max(200, "Le nom commercial est trop long")
-          .trim(),
-        email: z
-          .string()
+          .trim()
+          .optional(),
+        email: z.string("L'email est requis")
+          .min(1, "L'email est requis")
           .email("Email invalide")
           .max(100, "L'email est trop long")
           .toLowerCase()
           .trim(),
         phone: z
-          .string()
+          .string("Le numéro de téléphone est requis")
           .min(1, "Le numéro de téléphone est requis")
           .max(15, "Le numéro de téléphone est trop long")
           .trim(),
         fullAddress: z
-          .string()
+          .string("L'adresse est requise")
           .min(1, "L'adresse est requise")
           .max(500, "L'adresse est trop longue")
           .trim(),
+        // Plus demandée à une société (gardée facultative pour les anciens formulaires)
         nationality: z
           .string()
-          .min(1, "La nationalité est requise")
           .max(100, "La nationalité est trop longue")
-          .trim(),
+          .trim()
+          .optional(),
       })
+      .transform((e) => ({ ...e, name: e.name || e.legalName }))
       .optional(),
     documents: z.array(documentMetaSchema).optional(),
+    // Le locataire a confirmé le loyer, les charges et la date d'entrée
+    tenantConfirmedTerms: z.boolean().optional(),
 
     // Personnes (personne principale + autres)
     // 👉 Contient TOUTES les infos perso (nom, prénom, naissance, etc.)
@@ -1043,6 +1137,13 @@ export const tenantFormSchema = z
           path: ["entreprise"],
           message: "Les informations de l'entreprise sont requises",
         });
+      } else if (data.entreprise.isRegistered !== false && !data.entreprise.registration) {
+        // Société en cours de création (bail commercial) : pas encore de SIREN
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["entreprise", "registration"],
+          message: "Le numéro d'enregistrement est requis",
+        });
       }
     }
   });
@@ -1054,9 +1155,9 @@ export const tenantFormSchema = z
 // Schéma pour création complète de client avec bien, bail et locataire (personne physique)
 export const createFullOwnerPhysicalClientWithPropertySchema = createOwnerPhysicalClientSchema.extend({
 
-  email: z.string()
-    .email("Email invalide")
+  email: z.string("L'email est requis")
     .min(1, "L'email est requis")
+    .email("Email invalide")
     .max(100, "L'email est trop long")
     .toLowerCase()
     .trim(),
@@ -1083,6 +1184,7 @@ export const createFullOwnerPhysicalClientWithPropertySchema = createOwnerPhysic
     },
     z.string()
     .optional()
+    .refine((val) => !surfaceIssue(val), SURFACE_INVALID)
   ),
 
   propertyType: z.preprocess(
@@ -1212,6 +1314,7 @@ export const createFullOwnerPhysicalClientWithPropertySchema = createOwnerPhysic
       return String(val);
     },
     z.string()
+      .refine((val) => !val || (/^\d{1,2}$/.test(val.trim()) && Number(val) >= 1 && Number(val) <= 28), "Le jour de paiement doit être compris entre 1 et 28.")
       .transform((val) => {
         const num = parseInt(val);
         return num;
@@ -1347,6 +1450,10 @@ const updatePersonSchema = z.object({
         const date = new Date(val);
         if (isNaN(date.getTime())) return undefined;
         return date;
+      })
+      .superRefine((val, ctx) => {
+        const issue = birthDateIssue(val as any);
+        if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
       })
       .optional()
   ),

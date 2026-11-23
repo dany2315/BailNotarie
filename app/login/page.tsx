@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { signIn, useSession } from "@/lib/auth-client";
 import { LoadingScreen } from "@/components/ui/loading-screen";
+import { authErrorMessage } from "@/lib/auth-error-message";
 
 const loginSchema = z.object({
-  email: z.string().email("Email invalide"),
-  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
+  email: z.string().trim().min(1, "Indiquez votre adresse e-mail").email("Adresse e-mail invalide"),
+  password: z.string().min(1, "Indiquez votre mot de passe").min(6, "Le mot de passe doit contenir au moins 6 caractères"),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -83,7 +83,8 @@ export default function LoginPage() {
   }
 
   if (session) {
-    return null; // Retourner null pendant la redirection
+    // Connecté : l'espace se charge, on le dit au lieu d'afficher une page vide.
+    return <LoadingScreen message="Ouverture de votre espace..." />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,7 +108,7 @@ export default function LoginPage() {
 
       if (error) {
         toast.error("Erreur de connexion", {
-          description: error.message || "Email ou mot de passe incorrect",
+          description: authErrorMessage(error, "Adresse e-mail ou mot de passe incorrect."),
         });
       } else {
         toast.success("Connexion réussie!");
@@ -117,7 +118,7 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       toast.error("Une erreur est survenue", {
-        description: error.message || "Erreur lors de la connexion",
+        description: "La connexion a échoué. Vérifiez votre connexion internet et réessayez.",
       });
     } finally {
       setIsLoading(false);
@@ -134,7 +135,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -189,12 +190,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-4 text-center text-sm">
-            <span className="text-muted-foreground">Pas encore de compte ? </span>
-            <Link href="/register" className="text-primary hover:underline">
-              Créer un compte
-            </Link>
-          </div>
         </CardContent>
       </Card>
     </div>

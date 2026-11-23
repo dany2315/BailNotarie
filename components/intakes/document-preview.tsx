@@ -9,6 +9,7 @@ import { getIntakeDocuments } from "@/lib/actions/intakes";
 import { getDocumentLabel } from "@/lib/utils/document-labels";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
+import { fetchSignedFileUrl } from "@/lib/utils/signed-file-url";
 
 interface DocumentPreviewProps {
   token: string;
@@ -109,7 +110,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
       const response = await fetch("/api/blob/get-signed-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey }),
+        body: JSON.stringify({ fileKey, token }),
       });
 
       if (!response.ok) {
@@ -151,9 +152,12 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
     try {
       // Obtenir une URL signée pour le téléchargement (fonctionne avec clé S3 ou URL complète)
       let downloadUrl = doc.fileKey;
-      
+      let downloadName = doc.label || `document-${doc.id}`;
+
       try {
-        downloadUrl = await getSignedUrlForDocument(doc.fileKey);
+        const signed = await fetchSignedFileUrl(doc.fileKey, { token, download: true });
+        downloadUrl = signed.signedUrl;
+        downloadName = signed.fileName ?? downloadName;
       } catch (error) {
         // Si c'est une URL complète (ancien format), utiliser directement
         if (doc.fileKey?.startsWith("http")) {
@@ -174,7 +178,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
       const url = window.URL.createObjectURL(blob);
       const link = window.document.createElement("a");
       link.href = url;
-      link.download = doc.label || `document-${doc.id}`;
+      link.download = downloadName;
       window.document.body.appendChild(link);
       link.click();
       window.document.body.removeChild(link);
@@ -219,7 +223,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
                     {getDocumentIcon(doc.mimeType)}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
-                        {doc.label || getDocumentLabel(doc.kind)}
+                        {getDocumentLabel(doc.kind)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {formatFileSize(doc.size)} • {new Date(doc.createdAt).toLocaleDateString()}
@@ -258,7 +262,7 @@ export function DocumentPreview({ token, documentKind }: DocumentPreviewProps) {
       <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>{selectedDocument?.label || "Aperçu du document"}</DialogTitle>
+            <DialogTitle>{selectedDocument ? getDocumentLabel(selectedDocument.kind) : "Aperçu du document"}</DialogTitle>
           </DialogHeader>
           <div className="mt-4">
             {selectedDocument && (

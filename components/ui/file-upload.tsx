@@ -1,5 +1,6 @@
 "use client";
 
+import { ALLOWED_FILE_ACCEPT } from "@/lib/utils/allowed-files";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { deleteDocument } from "@/lib/actions/documents";
 import { Button } from "@/components/ui/button";
@@ -80,7 +81,7 @@ export function FileUpload({
   files,
   onFilesChange,
   multiple = false,
-  accept = ".pdf,.doc,.docx,.jpg,.jpeg,.png",
+  accept = ALLOWED_FILE_ACCEPT,
   disabled = false,
   required = false,
   error,
@@ -109,6 +110,8 @@ export function FileUpload({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewImageError, setPreviewImageError] = useState(false);
   const [previewPdfError, setPreviewPdfError] = useState(false);
+  // Demande de synchronisation du parent, traitée après le rendu.
+  const [parentSyncRequest, setParentSyncRequest] = useState(0);
 
   const isMultipleMode = multiple || Boolean(onFilesChange);
   const externalFiles = useMemo(() => {
@@ -147,7 +150,7 @@ export function FileUpload({
       const response = await fetch("/api/blob/get-signed-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey }),
+        body: JSON.stringify({ fileKey, ...(uploadToken && { token: uploadToken }) }),
       });
 
       if (!response.ok) {
@@ -407,6 +410,16 @@ export function FileUpload({
     [isMultipleMode, syncMultipleValue, syncSingleValue]
   );
 
+  // Fin d'upload : la pile vient d'être mise à jour, on en informe le parent
+  // une fois le rendu terminé, avec l'état réellement affiché.
+  useEffect(() => {
+    if (parentSyncRequest === 0) return;
+    syncFilesFromItems(uploadItems);
+    // Seule la demande déclenche la synchronisation ; `uploadItems` est lu
+    // dans le rendu qui l'accompagne.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parentSyncRequest]);
+
   const processFiles = useCallback(
     async (selectedFiles: File[]) => {
       if (selectedFiles.length === 0) {
@@ -489,22 +502,26 @@ export function FileUpload({
 
         if (uploadedKeys.length > 0) {
           onUploadsComplete?.(uploadedKeys);
-          // Envoyer les documents créés pour affichage optimiste, puis refetch après un court délai
+          // Un seul évènement : il porte les documents créés (affichage optimiste)
+          // et déclenche à lui seul la relecture de la liste. Un second envoi,
+          // 200 ms plus tard, relançait une action serveur identique — et les
+          // actions serveur passant une par une, il retardait d'autant la suivante.
           dispatchRefreshEvents(uploadedDocuments);
-          setTimeout(() => dispatchRefreshEvents(), 200);
         }
 
         setUploadItems((current) => {
           // En mode intake (documentKind), retirer les fichiers uploadés de la pile :
           // ils apparaîtront dans DocumentStackList après refetch, évitant la duplication.
           const idsToRemove = new Set(uploadedItemIds);
-          const next =
-            documentKind && idsToRemove.size > 0
-              ? current.filter((item) => !idsToRemove.has(item.id))
-              : current;
-          syncFilesFromItems(next);
-          return next;
+          return documentKind && idsToRemove.size > 0
+            ? current.filter((item) => !idsToRemove.has(item.id))
+            : current;
         });
+        // Le parent est prévenu après le rendu (voir l'effet `parentSyncRequest`) :
+        // l'appeler depuis la fonction de mise à jour ci-dessus, exécutée pendant
+        // le rendu de FileUpload, faisait re-rendre le formulaire entier en plein
+        // rendu (« Cannot update a component while rendering a different one »).
+        setParentSyncRequest((count) => count + 1);
 
         if (uploadedKeys.length > 0 && uploadErrors.length === 0) {
           toast.success(
@@ -599,7 +616,7 @@ export function FileUpload({
         if (item.documentId) {
           updateUploadItem(item.id, { isRemoving: true });
           try {
-            await deleteDocument(item.documentId);
+            await deleteDocument(item.documentId, uploadToken);
             toast.success("Document supprimé avec succès");
             dispatchRefreshEvents();
           } catch (deleteError: any) {

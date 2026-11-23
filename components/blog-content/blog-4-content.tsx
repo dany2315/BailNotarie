@@ -104,7 +104,7 @@ export function Blog4Content() {
             <div className="relative">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <Image
-                  src="/blog/bail-notarie-vs-bail-classique-analyse-comparative.jpg"
+                  src="https://images.unsplash.com/photo-1589994965851-a8f479c573a9?crop=entropy&cs=tinysrgb&fit=crop&w=1000&h=800&q=80"
                   alt="Balance de la justice symbolisant l'équité entre bail notarié renforcé et bail classique"
                   width={500}
                   height={400}

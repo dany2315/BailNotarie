@@ -1,73 +1,72 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import Link from "next/link";
-import dynamic from "next/dynamic";
-import { Header } from "@/components/header";
-import { HeroSectionNew } from "@/components/hero-section-new";
-import { Footer } from "@/components/footer";
 import { generateDynamicMetadata } from "@/lib/dynamic-metadata";
-import { DefinitionSection } from "@/components/DefinitionSection";
+import { Footer } from "@/components/footer";
+import { ScrollReset } from "@/components/scroll-reset";
+import { LpNav } from "@/components/lp/lp-nav";
+import { LpChrome } from "@/components/lp/lp-chrome";
+import { LpHero } from "@/components/lp/lp-hero";
+import { LpDefinition } from "@/components/lp/lp-definition";
 
-// Lazy load des sections below-the-fold pour améliorer le LCP
-const HowItWorksSection = dynamic(() => import("@/components/how-it-works-section").then(mod => ({ default: mod.HowItWorksSection })));
-const PartnershipSection = dynamic(() => import("@/components/partnership-section").then(mod => ({ default: mod.PartnershipSection })));
-const BenefitsNewSection = dynamic(() => import("@/components/benefits-new-section").then(mod => ({ default: mod.BenefitsNewSection })));
-const TestimonialsSection = dynamic(() => import("@/components/testimonials-section").then(mod => ({ default: mod.TestimonialsSection })));
-const FAQSection = dynamic(() => import("@/components/faq-section").then(mod => ({ default: mod.FAQSection })));
-const CTASection = dynamic(() => import("@/components/cta-section").then(mod => ({ default: mod.CTASection })));
-const ContactForm = dynamic(() => import("@/components/contact-form").then(mod => ({ default: mod.ContactForm })));
+/* Toutes les sections sont importées statiquement. Un import dynamique crée
+   une frontière Suspense : pendant que son chunk se télécharge, React remplace
+   le HTML rendu côté serveur par le repli — la section apparaît vide. Sur un
+   réseau mobile lent, cette fenêtre dure assez longtemps pour être vue, et la
+   hauteur de la page bouge à mesure que les morceaux arrivent. La page tient
+   dans un seul morceau : rien ne peut plus se vider ni se décaler. */
+import { LpProcess } from "@/components/lp/lp-process";
+import { LpShowcase } from "@/components/lp/lp-showcase";
+import { LpBenefits } from "@/components/lp/lp-benefits";
+import { LpNotaires } from "@/components/lp/lp-notaires";
+import { LpTestimonials } from "@/components/lp/lp-testimonials";
+import { LpPricing } from "@/components/lp/lp-pricing";
+import { LpFaq } from "@/components/lp/lp-faq";
+import { LpFinalCta } from "@/components/lp/lp-final-cta";
+import { LpContact } from "@/components/lp/lp-contact";
+import { LpBailFamilies, LpBailMarquee } from "@/components/lp/lp-bail-types";
 
-export const metadata: Metadata = generateDynamicMetadata({ page: 'home' });
+export const metadata: Metadata = generateDynamicMetadata({ page: "home" });
 
 export default function Home() {
   return (
-    <main className="min-h-screen">
-      <Header />
-      
-      {/* Hero Section - Solution 100% en ligne */}
-      <HeroSectionNew />
+    <div className="lp-root min-h-screen bg-white antialiased">
+      {/* Un rechargement repart du hero, pas du milieu de la page. */}
+      <ScrollReset />
+      {/* Accorde les barres du navigateur mobile à la section affichée. */}
+      <LpChrome />
+      <LpNav commercialLink />
 
-      {/* Definition Section */}
-      <DefinitionSection />
-      {/* Comment ça marche - 3 étapes */}
-      <HowItWorksSection />
-      
-      {/* Partenariat avec notaires */}
-      <PartnershipSection />
-      
-      {/* Avantages - 100% digital, 1 semaine, 39,90€ */}
-      <BenefitsNewSection />
-      
-      {/* Témoignages */}
-      <TestimonialsSection />
-      
-      {/* FAQ */}
-      <FAQSection />
-      
-      {/* CTA Final */}
-      <CTASection />
-      
-      {/* Section Contact */}
-      <section id="contact" className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-              Une question ? Contactez-nous
-            </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Notre équipe est là pour vous accompagner dans la constitution de votre dossier
-            </p>
-          </div>
-          <ContactForm />
+      <main>
+        <LpHero bailTypes />
+        {/* Les baux que nous préparons, en bande défilante */}
+        <LpBailMarquee />
+        <LpDefinition />
+        {/* Habitation ou commercial : un même parcours */}
+        <LpBailFamilies />
+        <LpProcess />
+        <LpShowcase />
+        <LpBenefits />
+        <LpNotaires />
+        <LpTestimonials />
+        <LpPricing familyToggle />
+        <LpFaq />
+        <LpFinalCta />
+
+        <LpContact />
+
+        <div data-lp-chrome="#ffffff" className="border-t border-slate-200 bg-white py-4 text-center">
+          <p className="text-xs text-slate-400">
+            *Sous conditions, voir{" "}
+            <Link href="/cgv" className="underline underline-offset-2 hover:text-slate-600">
+              CGV
+            </Link>
+          </p>
         </div>
-      </section>
+      </main>
 
-      <div className="bg-gray-50 border-t border-gray-200 py-3 text-center">
-        <p className="text-xs text-gray-400">
-          *Sous conditions, voir <a href="/cgv" className="underline hover:text-gray-600">CGV</a>
-        </p>
+      <div data-lp-chrome="#2b4fc9">
+        <Footer />
       </div>
-
-      <Footer />
-    </main>
+    </div>
   );
 }

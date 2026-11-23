@@ -1,4 +1,5 @@
 import { z } from "zod";
+import "@/lib/zod/locale";
 
 // Helper pour valider le dépôt de garantie selon le type de bail
 function validateSecurityDeposit(
@@ -33,7 +34,7 @@ const createLeaseBaseSchema = z.object({
     .enum(["BAIL_NU_3_ANS", "BAIL_NU_6_ANS", "BAIL_MEUBLE_1_ANS", "BAIL_MEUBLE_9_MOIS"])
     .default("BAIL_NU_3_ANS"),
   status: z
-    .enum(["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"])
+    .enum(["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "PROVISION_RECEIVED", "SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"])
     .default("DRAFT"),
   rentAmount: z.string().transform((val) => {
     const num = parseInt(val, 10);
@@ -56,11 +57,18 @@ const createLeaseBaseSchema = z.object({
       if (isNaN(num) || num < 0) return 0;
       return num;
     }),
-  effectiveDate: z.string().transform((val) => {
-    const date = new Date(val);
-    if (isNaN(date.getTime())) throw new Error("Date de début invalide");
-    return date;
-  }),
+  // Date de début et jour de paiement : demandés une fois le locataire choisi. Sans locataire, ils restent
+  // vides (jamais une date d'attente) ; avec un locataire, ils sont exigés (contrôle plus bas).
+  effectiveDate: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val) return null;
+      const date = new Date(val);
+      if (isNaN(date.getTime())) throw new Error("Date de début invalide");
+      return date;
+    }),
   endDate: z
     .string()
     .optional()
@@ -70,22 +78,30 @@ const createLeaseBaseSchema = z.object({
       if (isNaN(date.getTime())) return undefined;
       return date;
     }),
+  // Hors de 1 à 31 : refusé (plus remplacé par « vide » sans le dire). La limite à 28 se contrôle dans
+  // l'action, qui laisse passer une valeur déjà enregistrée.
   paymentDay: z
     .string()
     .optional()
-    .transform((val) => {
-      if (!val) return null;
-      const num = parseInt(val);
-      if (isNaN(num) || num < 1 || num > 31) return null;
-      return num;
-    }),
+    .nullable()
+    .refine((val) => !val || (/^\d{1,2}$/.test(val.trim()) && Number(val) >= 1 && Number(val) <= 31), "Le jour de paiement doit être compris entre 1 et 28.")
+    .transform((val) => (val ? Number(val) : null)),
   propertyId: z.string().cuid("ID bien invalide").min(1, "Le bien est requis"),
   tenantId: z.string().cuid("ID locataire invalide").optional().or(z.literal("")),
+  // Contrôle du loyer (espace client) : réponses sur la relocation et le complément de loyer,
+  // et classe DPE saisie quand le bien n'en avait pas.
+  rentRules: z.record(z.string(), z.any()).optional(),
+  dpeClass: z.enum(["A", "B", "C", "D", "E", "F", "G"]).optional(),
 });
 
 // Schéma de création avec validation du dépôt de garantie
 export const createLeaseSchema = createLeaseBaseSchema.superRefine((data, ctx) => {
   validateSecurityDeposit(data.bailType, data.rentAmount, data.securityDeposit, ctx);
+  // Locataire choisi : la date de début et le jour de paiement sont exigés dans le même parcours.
+  if (data.tenantId) {
+    if (!data.effectiveDate) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["effectiveDate"], message: "La date de début est requise quand un locataire est indiqué" });
+    if (!data.paymentDay) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["paymentDay"], message: "Le jour de paiement est requis quand un locataire est indiqué" });
+  }
 });
 
 // Schéma de base pour la mise à jour - tous les champs sont optionnels
@@ -96,7 +112,7 @@ const updateLeaseBaseSchema = z.object({
     .enum(["BAIL_NU_3_ANS", "BAIL_NU_6_ANS", "BAIL_MEUBLE_1_ANS", "BAIL_MEUBLE_9_MOIS"])
     .optional(),
   status: z
-    .enum(["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"])
+    .enum(["DRAFT", "AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "PROVISION_RECEIVED", "SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"])
     .optional(),
   rentAmount: z
     .string()
@@ -146,11 +162,12 @@ const updateLeaseBaseSchema = z.object({
   paymentDay: z
     .string()
     .optional()
+    .refine((val) => !val || (/^\d{1,2}$/.test(val.trim()) && Number(val) >= 1 && Number(val) <= 31), "Le jour de paiement doit être compris entre 1 et 28.")
     .transform((val) => {
+      // Pas envoyé (ex. changement de statut seul) : on n'y touche pas. Envoyé vide : on l'efface.
+      if (val === undefined) return undefined;
       if (!val) return null;
-      const num = parseInt(val);
-      if (isNaN(num) || num < 1 || num > 31) return null;
-      return num;
+      return Number(val);
     }),
   propertyId: z.string().cuid("ID bien invalide").optional(),
   tenantId: z.string().cuid("ID locataire invalide").optional(),
@@ -163,7 +180,7 @@ export const updateLeaseSchema = updateLeaseBaseSchema.superRefine((data, ctx) =
 
 export const transitionLeaseSchema = z.object({
   id: z.string().cuid("ID invalide"),
-  nextStatus: z.enum(["AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"]),
+  nextStatus: z.enum(["AWAITING_TENANT", "AWAITING_TENANT_FORM", "PENDING_VALIDATION", "READY_FOR_NOTARY", "CLIENT_CONTACTED", "PROVISION_RECEIVED", "SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"]),
 });
 
 export type CreateLeaseInput = z.infer<typeof createLeaseSchema>;

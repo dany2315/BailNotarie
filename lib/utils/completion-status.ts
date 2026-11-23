@@ -1,3 +1,4 @@
+import { isBailPaidById } from "@/lib/payments/paid-check";
 import { prisma } from "@/lib/prisma";
 import { 
   ClientType, 
@@ -10,7 +11,7 @@ import {
   BailStatus
 } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
-import { getRequiredClientFields, getRequiredPropertyFields } from "./required-fields";
+import { getMaritalDocumentKind, getRequiredClientFields, getRequiredPropertyFields, MARITAL_DOCUMENT_KINDS } from "./required-fields";
 
 /**
  * Type pour les données manquantes détaillées par entité
@@ -29,9 +30,9 @@ export interface MissingDataByEntity {
     missingFields: string[];
     missingDocuments: DocumentKind[];
   } | null;
-  // Documents manquants au niveau client (livret de famille, PACS)
+  // Documents manquants au niveau client (contrat de mariage, convention de PACS)
   clientDocuments: DocumentKind[];
-  // Documents généraux manquants (assurance, RIB pour locataire)
+  // Autres documents généraux manquants
   generalDocuments: DocumentKind[];
 }
 
@@ -73,6 +74,21 @@ export async function checkClientCompletionDetailed(clientId: string): Promise<{
     };
   }
 
+  return computeClientMissingData(client);
+}
+
+/**
+ * Calcul des manques d'un client à partir de ses données déjà chargées
+ * (personnes, société et documents). Même règle que la vérification
+ * détaillée, sans requête : utilisable pour toute une liste de clients.
+ */
+export function computeClientMissingData(client: {
+  type: ClientType;
+  profilType: ProfilType;
+  persons?: Array<any> | null;
+  entreprise?: any | null;
+  documents?: Array<any> | null;
+}): { hasAllFields: boolean; hasAllDocuments: boolean; missingData: MissingDataByEntity } {
   const missingData: MissingDataByEntity = {
     persons: [],
     entreprise: null,
@@ -95,7 +111,8 @@ export async function checkClientCompletionDetailed(clientId: string): Promise<{
   );
 
   // Champs requis pour chaque personne (non seulement la personne principale)
-  const personRequiredFields = ["firstName", "lastName", "nationality", "birthDate", "birthPlace"];
+  // La situation familiale est exigée par les formulaires pour chaque personne.
+  const personRequiredFields = ["firstName", "lastName", "nationality", "birthDate", "birthPlace", "familyStatus"];
   
   // Pour les personnes physiques
   if (client.type === ClientType.PERSONNE_PHYSIQUE) {
@@ -134,13 +151,11 @@ export async function checkClientCompletionDetailed(clientId: string): Promise<{
       }
     }
     
-    // Vérifier les documents au niveau client (livret de famille, PACS)
+    // Vérifier les documents au niveau client (contrat de mariage, convention de PACS)
     const clientDocKinds = (client.documents || []).map((d: any) => d.kind);
-    if (familyStatus === FamilyStatus.MARIE && !clientDocKinds.includes(DocumentKind.LIVRET_DE_FAMILLE)) {
-      missingData.clientDocuments.push(DocumentKind.LIVRET_DE_FAMILLE);
-    }
-    if (familyStatus === FamilyStatus.PACS && !clientDocKinds.includes(DocumentKind.CONTRAT_DE_PACS)) {
-      missingData.clientDocuments.push(DocumentKind.CONTRAT_DE_PACS);
+    const maritalDocument = getMaritalDocumentKind(familyStatus, matrimonialRegime);
+    if (maritalDocument && !clientDocKinds.includes(maritalDocument)) {
+      missingData.clientDocuments.push(maritalDocument);
     }
   }
   
@@ -159,7 +174,7 @@ export async function checkClientCompletionDetailed(clientId: string): Promise<{
     
     // Vérifier les documents entreprise (KBIS, Statuts)
     const entrepriseDocKinds = (entreprise.documents || []).map((d: any) => d.kind);
-    if (!entrepriseDocKinds.includes(DocumentKind.KBIS)) {
+    if (entreprise.isRegistered !== false && !entrepriseDocKinds.includes(DocumentKind.KBIS)) {
       entrepriseMissingDocs.push(DocumentKind.KBIS);
     }
     if (!entrepriseDocKinds.includes(DocumentKind.STATUTES)) {
@@ -174,7 +189,7 @@ export async function checkClientCompletionDetailed(clientId: string): Promise<{
     }
   }
   
-  // Vérifier les documents généraux (assurance, RIB pour locataire)
+  // Vérifier les autres documents généraux
   const allDocuments: any[] = [];
   if (client.persons) {
     for (const person of client.persons) {
@@ -195,8 +210,7 @@ export async function checkClientCompletionDetailed(clientId: string): Promise<{
     (kind) => kind !== DocumentKind.ID_IDENTITY && 
               kind !== DocumentKind.KBIS && 
               kind !== DocumentKind.STATUTES &&
-              kind !== DocumentKind.LIVRET_DE_FAMILLE &&
-              kind !== DocumentKind.CONTRAT_DE_PACS
+              !MARITAL_DOCUMENT_KINDS.includes(kind)
   );
   
   for (const kind of generalRequiredDocs) {
@@ -274,7 +288,8 @@ export async function checkClientCompletion(clientId: string): Promise<{
   );
 
   // Champs requis pour chaque personne (non seulement la personne principale)
-  const personRequiredFields = ["firstName", "lastName", "nationality", "birthDate", "birthPlace"];
+  // La situation familiale est exigée par les formulaires pour chaque personne.
+  const personRequiredFields = ["firstName", "lastName", "nationality", "birthDate", "birthPlace", "familyStatus"];
 
   // Agréger tous les documents depuis persons et entreprise
   const allDocuments: any[] = [];
@@ -290,7 +305,7 @@ export async function checkClientCompletion(clientId: string): Promise<{
   if (client.entreprise?.documents) {
     allDocuments.push(...client.entreprise.documents);
   }
-  // Documents du client (livret de famille, contrat PACS)
+  // Documents du client (contrat de mariage, convention de PACS)
   if (client.documents) {
     allDocuments.push(...client.documents);
   }
@@ -327,7 +342,7 @@ export async function checkClientCompletion(clientId: string): Promise<{
   // Vérifier les documents requis
   // Pour PERSONNE_PHYSIQUE: ID_IDENTITY requis pour CHAQUE personne
   // Pour PERSONNE_MORALE: KBIS et STATUTES requis pour l'entreprise
-  // LIVRET_DE_FAMILLE et CONTRAT_DE_PACS requis au niveau client (une seule fois)
+  // Contrat de mariage ou convention de PACS requis au niveau client (une seule fois)
   const missingDocuments: DocumentKind[] = [];
   
   if (client.type === ClientType.PERSONNE_PHYSIQUE) {
@@ -342,18 +357,16 @@ export async function checkClientCompletion(clientId: string): Promise<{
       }
     }
     
-    // Vérifier les documents client (livret de famille, PACS)
+    // Vérifier les documents client (contrat de mariage, convention de PACS)
     const clientDocKinds = (client.documents || []).map((d: any) => d.kind);
-    if (familyStatus === FamilyStatus.MARIE && !clientDocKinds.includes(DocumentKind.LIVRET_DE_FAMILLE)) {
-      missingDocuments.push(DocumentKind.LIVRET_DE_FAMILLE);
-    }
-    if (familyStatus === FamilyStatus.PACS && !clientDocKinds.includes(DocumentKind.CONTRAT_DE_PACS)) {
-      missingDocuments.push(DocumentKind.CONTRAT_DE_PACS);
+    const maritalDocument = getMaritalDocumentKind(familyStatus, matrimonialRegime);
+    if (maritalDocument && !clientDocKinds.includes(maritalDocument)) {
+      missingDocuments.push(maritalDocument);
     }
   } else if (client.type === ClientType.PERSONNE_MORALE && entreprise) {
     // Vérifier les documents entreprise
     const entrepriseDocKinds = (entreprise.documents || []).map((d: any) => d.kind);
-    if (!entrepriseDocKinds.includes(DocumentKind.KBIS)) {
+    if (entreprise.isRegistered !== false && !entrepriseDocKinds.includes(DocumentKind.KBIS)) {
       missingDocuments.push(DocumentKind.KBIS);
     }
     if (!entrepriseDocKinds.includes(DocumentKind.STATUTES)) {
@@ -361,14 +374,13 @@ export async function checkClientCompletion(clientId: string): Promise<{
     }
   }
   
-  // Vérifier les autres documents requis (assurance, RIB pour locataire)
+  // Vérifier les autres documents requis
   const allDocKinds = allDocuments.map((doc) => doc.kind);
   const otherRequiredDocs = requiredDocuments.filter(
     (kind) => kind !== DocumentKind.ID_IDENTITY && 
               kind !== DocumentKind.KBIS && 
               kind !== DocumentKind.STATUTES &&
-              kind !== DocumentKind.LIVRET_DE_FAMILLE &&
-              kind !== DocumentKind.CONTRAT_DE_PACS
+              !MARITAL_DOCUMENT_KINDS.includes(kind)
   );
   for (const kind of otherRequiredDocs) {
     if (!allDocKinds.includes(kind)) {
@@ -410,7 +422,8 @@ export async function checkPropertyCompletion(propertyId: string): Promise<{
   }
 
   const { requiredFields, requiredDocuments } = getRequiredPropertyFields(
-    property.legalStatus
+    property.legalStatus,
+    property.subdivisionOver10Years
   );
 
   // Vérifier les champs requis
@@ -557,7 +570,7 @@ export async function calculatePropertyCompletionStatus(
 
   // Vérifier s'il y a au moins un document
   const hasAnyDocument = completion.missingDocuments.length < 
-    getRequiredPropertyFields(property.legalStatus).requiredDocuments.length;
+    getRequiredPropertyFields(property.legalStatus, property.subdivisionOver10Years).requiredDocuments.length;
 
   // Si aucune donnée n'a été ajoutée
   if (!hasAnyData && !hasAnyDocument) {
@@ -654,9 +667,13 @@ async function checkAndUpdateBailStatus(bail: any): Promise<void> {
   const tenantPendingCheck = tenant.completionStatus === CompletionStatus.PENDING_CHECK;
   const propertyPendingCheck = property.completionStatus === CompletionStatus.PENDING_CHECK;
 
-  // Si tous sont COMPLETED → passer à READY_FOR_NOTARY
+  // Si tous sont COMPLETED → passer à READY_FOR_NOTARY, seulement si les frais de dossier sont payés
+  // (même règle que l'envoi au notaire par l'équipe : un dossier non payé n'avance pas tout seul).
   if (ownerCompleted && tenantCompleted && propertyCompleted) {
-    if (bail.status === BailStatus.DRAFT || bail.status === BailStatus.AWAITING_TENANT_FORM || bail.status === BailStatus.PENDING_VALIDATION) {
+    if (
+      (bail.status === BailStatus.DRAFT || bail.status === BailStatus.AWAITING_TENANT_FORM || bail.status === BailStatus.PENDING_VALIDATION) &&
+      (await isBailPaidById(bail.id))
+    ) {
       const oldStatus = bail.status;
       await prisma.bail.update({
         where: { id: bail.id },

@@ -1,0 +1,39 @@
+{
+ "suite": "Vue notaire des anciens dossiers",
+ "createdAt": "2026-11-17T15:34:19.850Z",
+ "passed": 4,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "Vue notaire — dossier d9k8sa",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Vue notaire — dossier igz8rv",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Vue notaire — dossier 37helx",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Vue notaire — dossier 8c2nqw",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

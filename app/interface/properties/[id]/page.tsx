@@ -11,8 +11,9 @@ import {
   FamilyStatusBadge,
   MatrimonialRegimeBadge
 } from "@/components/shared/status-badge";
-import { CompletionStatusSelect } from "@/components/shared/completion-status-select";
-import { formatDate, formatCurrency, formatSurface, formatDateTime } from "@/lib/utils/formatters";
+import { CompletionChip } from "@/components/shared/completion-chip";
+import { CompletionStatusDialogButton } from "@/components/shared/completion-status-dialog";
+import { formatDate, formatCurrency, formatSurface } from "@/lib/utils/formatters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ClientType, BailStatus, ProfilType } from "@prisma/client";
@@ -21,6 +22,16 @@ import { DocumentsStackByKind } from "@/components/documents/documents-stack-by-
 import { ButtonGroup } from "@/components/ui/button-group";
 import { DeletePropertyButton } from "@/components/properties/delete-property-button";
 import { documentKindLabels } from "@/lib/utils/document-labels";
+import { assessDpe } from "@/lib/utils/dpe";
+import { DpeEditor } from "@/components/admin/dpe-editor";
+import { DpeSummary, dpeDateValue } from "@/components/admin/dpe-summary";
+import { assessRentCap, describeRentCapZone } from "@/lib/rent-cap";
+import { PERIOD_LABELS, ROOMS_LABELS } from "@/lib/utils/rent-cap";
+import { RentCapEditor } from "@/components/admin/rent-cap-editor";
+import { LocalDateTime } from "@/components/shared/local-date-time";
+
+// Diagnostics envoyés depuis cette page : leur lecture par l'IA continue après la réponse.
+export const maxDuration = 300;
 
 export default async function PropertyDetailPage({
   params,
@@ -39,6 +50,13 @@ export default async function PropertyDetailPage({
     getDocuments({ propertyId: property.id }),
     getDocuments({ clientId: property.owner.id }),
   ]);
+
+  const dpe = assessDpe(property.dpeClass, property.dpeDate);
+  // Encadrement des loyers : territoire et zone du bien (le loyer se contrôle dans chaque dossier).
+  const rentCap = await assessRentCap({
+    property,
+    bail: { rentAmount: 0, bailType: "BAIL_NU_3_ANS", effectiveDate: null, rentSupplementReason: null },
+  });
 
   // Fonction helper pour sérialiser les Decimal
   const serializeDecimal = (value: any): any => {
@@ -70,10 +88,12 @@ export default async function PropertyDetailPage({
   };
 
   const bailTypeLabels: Record<string, string> = {
-    BAIL_NU_3_ANS: "Bail nue 3 ans",
-    BAIL_NU_6_ANS: "Bail nue 6 ans",
+    BAIL_NU_3_ANS: "Bail nu 3 ans",
+    BAIL_NU_6_ANS: "Bail nu 6 ans",
     BAIL_MEUBLE_1_ANS: "Bail meublé 1 an",
     BAIL_MEUBLE_9_MOIS: "Bail meublé 9 mois",
+    COMMERCIAL_3_6_9: "Bail commercial 3-6-9",
+    COMMERCIAL_DEROGATOIRE: "Bail commercial dérogatoire",
   };
 
   const bailFamilyLabels: Record<string, string> = {
@@ -90,7 +110,7 @@ export default async function PropertyDetailPage({
       {/* En-tête */}
       <div className="flex flex-col gap-4">
         <div className="flex items-start gap-3 sm:gap-4">
-          <Link href="/interface/properties">
+          <Link href={`/interface/clients/${property.owner.id}`} aria-label="Retour à la fiche du propriétaire">
             <Button variant="ghost" size="icon" className="shrink-0">
               <ArrowLeft className="size-4" />
             </Button>
@@ -108,13 +128,10 @@ export default async function PropertyDetailPage({
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
           <ButtonGroup className="w-full sm:w-auto justify-end">
             {property.completionStatus && (
-              <CompletionStatusSelect
-                type="property"
-                id={property.id}
-                currentStatus={property.completionStatus}
-                viewLabel={false}
-                asChild
-              />
+              <span className="mr-1 flex items-center gap-1">
+                <CompletionChip status={property.completionStatus} />
+                <CompletionStatusDialogButton type="property" id={property.id} currentStatus={property.completionStatus} />
+              </span>
             )}
             <Button asChild className=" sm:w-auto" variant="outline">
               <Link href={`/interface/properties/${property.id}/edit`}>
@@ -126,6 +143,7 @@ export default async function PropertyDetailPage({
             <DeletePropertyButton 
               propertyId={property.id} 
               propertyAddress={property.fullAddress || property.label || "Bien"}
+              redirectTo={`/interface/clients/${property.owner.id}`}
             />
           </ButtonGroup>
         </div>
@@ -233,6 +251,83 @@ export default async function PropertyDetailPage({
 
           <Separator />
 
+          {/* Section DPE : saisie manuelle depuis le diagnostic */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-col gap-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Diagnostic de performance énergétique</p>
+              <div className="text-sm">
+                <DpeSummary dpeClass={property.dpeClass} gesClass={property.gesClass} dpeDate={property.dpeDate} assessment={dpe} />
+              </div>
+              {dpe.message && (
+                <p className="text-[13px] font-semibold text-red-700">{dpe.message}</p>
+              )}
+            </div>
+            <DpeEditor
+              propertyId={property.id}
+              dpeClass={property.dpeClass}
+              gesClass={property.gesClass}
+              dpeDate={dpeDateValue(property.dpeDate)}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Encadrement des loyers : catégorie du logement au sens de l'arrêté */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-col gap-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Encadrement des loyers</p>
+              {rentCap.territory ? (
+                <div className="flex flex-col gap-1 text-sm">
+                  <span>
+                    {rentCap.territory.label}
+                    {rentCap.status !== "no_data" ? ` · ${describeRentCapZone(rentCap)}` : ""}
+                  </span>
+                  {rentCap.notConcerned === "outside_perimeter" ? (
+                    <span className="text-muted-foreground">Commune encadrée en partie seulement : pas de plafond pour ce logement.</span>
+                  ) : rentCap.status === "no_data" ? (
+                    <span className="text-muted-foreground">Barème officiel pas encore intégré : le loyer se vérifie avec le simulateur officiel.</span>
+                  ) : (
+                  <span className="text-muted-foreground">
+                    {property.mainRooms ? ROOMS_LABELS[Math.min(4, property.mainRooms)] : "Pièces principales à saisir"} ·{" "}
+                    {property.constructionPeriod ? PERIOD_LABELS[property.constructionPeriod] || property.constructionPeriod : "époque de construction à saisir"}
+                  </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    Arrêté en vigueur du {formatDate(rentCap.territory.validFrom)} au {formatDate(rentCap.territory.validTo)} · barème
+                    intégré le {formatDate(rentCap.territory.importedAt)} ·{" "}
+                    <a href={rentCap.territory.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                      texte officiel
+                    </a>
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {rentCap.referentialUnavailable
+                    ? "Référentiel des loyers indisponible : impossible de savoir si la commune est encadrée pour le moment."
+                    : property.inseeCode
+                      ? "Commune non soumise à l'encadrement des loyers."
+                      : "Adresse non localisée : impossible de savoir si la commune est encadrée."}
+                </p>
+              )}
+            </div>
+            {rentCap.territory && rentCap.status !== "no_data" && (
+              <RentCapEditor
+                propertyId={property.id}
+                periods={rentCap.territory.periods}
+                zones={rentCap.territory.zones}
+                zoneMode={rentCap.territory.zoneMode}
+                detectedZone={rentCap.zone && rentCap.zone.source !== "manual" ? rentCap.zone.label : null}
+                allowOutside={rentCap.territory.partialCommune}
+                zoneHint={
+                  rentCap.zoneHint ? (rentCap.zoneHint.kind === "limit" ? rentCap.zoneHint.label : `${rentCap.zoneHint.label} ou hors du périmètre`) : null
+                }
+                values={{ mainRooms: property.mainRooms, constructionPeriod: property.constructionPeriod, rentCapZone: property.rentCapZone }}
+              />
+            )}
+          </div>
+
+          <Separator />
+
           {/* Section Mobilier */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -312,11 +407,10 @@ export default async function PropertyDetailPage({
               </div>
               <CardDescription>Informations du propriétaire</CardDescription>
             </div>
-            <CompletionStatusSelect
-              type="client"
-              id={property.owner.id}
-              currentStatus={property.owner.completionStatus ?? "NOT_STARTED"}
-            />
+            <span className="flex items-center gap-1">
+              <CompletionChip status={property.owner.completionStatus} />
+              <CompletionStatusDialogButton type="client" id={property.owner.id} currentStatus={property.owner.completionStatus ?? "NOT_STARTED"} />
+            </span>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -537,11 +631,11 @@ export default async function PropertyDetailPage({
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 text-sm">
             <div>
               <p className="text-muted-foreground">Créé le</p>
-              <p className="font-medium">{formatDateTime(property.createdAt)}</p>
+              <p className="font-medium"><LocalDateTime value={property.createdAt} /></p>
             </div>
             <div>
               <p className="text-muted-foreground">Modifié le</p>
-              <p className="font-medium">{formatDateTime(property.updatedAt)}</p>
+              <p className="font-medium"><LocalDateTime value={property.updatedAt} /></p>
             </div>
             <div>
               <p className="text-muted-foreground">Créé par</p>
