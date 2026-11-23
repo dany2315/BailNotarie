@@ -1,7 +1,7 @@
 {
  "suite": "Lot 4 — compléments et archivage",
- "createdAt": "2026-11-17T16:43:50.826Z",
- "passed": 19,
+ "createdAt": "2026-11-23T21:37:39.838Z",
+ "passed": 21,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
@@ -143,6 +143,20 @@
   },
   {
    "name": "Suivi de l’équipe : la ligne « pièce reçue » liste les anciennes pièces remplaçables, sans rien cocher d’avance",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "m11 — « Autre pièce » : seule la pièce désignée sur la ligne est proposée, jamais les autres fichiers du bail",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "m11 — Fichiers de la messagerie et d’une demande du notaire : jamais proposés ni archivables",
    "passed": true,
    "error": null,
    "simulated": {},

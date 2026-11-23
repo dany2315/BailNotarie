@@ -957,18 +957,20 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(sortedKeys(a ?? null
  */
 async function replaceableDocuments(item: ItemTarget & { id: string; documentKind: DocumentKind | null; replacesDocumentIds: string[] }, db: Prisma.TransactionClient = prisma) {
   if (!item.documentKind) return [];
+  // Une « autre pièce » est libre : rien ne dit laquelle elle remplace, sauf celles désignées sur la ligne.
+  const sameKindHere = item.documentKind === DocumentKind.OTHER
+    ? []
+    : [{ kind: item.documentKind, personId: item.personId, entrepriseId: item.entrepriseId, clientId: item.clientId, propertyId: item.propertyId, bailId: item.bailId }];
   return db.document.findMany({
     where: {
       archivedAt: null,
+      // Jamais les fichiers de la messagerie ni ceux d'une demande du notaire : ce ne sont pas des pièces du dossier.
+      bailMessages: { none: {} },
+      notaireRequestId: null,
       AND: [
         // Pas les fichiers envoyés pour cette ligne (une pièce sans demande d'origine reste éligible).
         { OR: [{ complementItemId: null }, { complementItemId: { not: item.id } }] },
-        {
-          OR: [
-            { kind: item.documentKind, personId: item.personId, entrepriseId: item.entrepriseId, clientId: item.clientId, propertyId: item.propertyId, bailId: item.bailId },
-            { id: { in: item.replacesDocumentIds } },
-          ],
-        },
+        { OR: [...sameKindHere, { id: { in: item.replacesDocumentIds } }] },
       ],
     },
     select: { ...docSelect, personId: true, entrepriseId: true, clientId: true, propertyId: true, bailId: true },

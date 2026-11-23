@@ -7,14 +7,16 @@ const access = (r) => r.load('lib/document-access.ts');
 const bailOf = (tx, f) => tx.bail.findUnique({ where: { id: f.bail.id } });
 const itemOf = (tx, id) => tx.complementRequestItem.findUnique({ where: { id } });
 const CHARGES = { bailMonthlyCharges: '70', bailSecurityDeposit: '600' };
+/** Pièce typée rattachée au bail (une « autre pièce » ne propose que les pièces désignées : voir m11). */
+const PIECE = 'PREVIOUS_RENT_PROOF';
 
 /** Demande de l'équipe au propriétaire, avec une ligne (information « charges et dépôt » ou pièce). */
 async function request(tx, f, kind = 'FIELD', over = {}) {
   const req = await tx.complementRequest.create({ data: { bailId: f.bail.id, clientId: f.owner.id, target: 'OWNER', recipientEmail: 'test@example.invalid', createdByName: 'TEST', createdById: f.admin.id } });
   const item = await tx.complementRequestItem.create({
     data: {
-      requestId: req.id, kind, label: kind === 'FIELD' ? 'Charges et dépôt de garantie' : 'Autre document',
-      documentKind: kind === 'DOCUMENT' ? 'OTHER' : null, fieldKey: kind === 'FIELD' ? 'bail.charges' : null,
+      requestId: req.id, kind, label: kind === 'FIELD' ? 'Charges et dépôt de garantie' : 'Dernière quittance',
+      documentKind: kind === 'DOCUMENT' ? PIECE : null, fieldKey: kind === 'FIELD' ? 'bail.charges' : null,
       reason: kind === 'FIELD' ? 'TO_CONFIRM' : 'ILLEGIBLE', bailId: f.bail.id, ...over,
     },
   });
@@ -24,8 +26,8 @@ const answer = async (r, f, item, values = CHARGES) => { r.state.user = f.ownerU
 /** Pièce : un ancien fichier actif du bail, et le nouveau envoyé par le client pour la ligne. */
 async function withDocs(tx, f, item, olds = 1) {
   const old = [];
-  for (let i = 0; i < olds; i++) old.push(await tx.document.create({ data: { kind: 'OTHER', label: 'ancien-' + i + '.pdf', fileKey: 'documents/test-old-' + i + '-' + crypto.randomBytes(3).toString('hex'), bailId: f.bail.id, uploadedById: f.ownerUser.id } }));
-  const fresh = await tx.document.create({ data: { kind: 'OTHER', label: 'nouveau.pdf', fileKey: 'documents/test-new-' + crypto.randomBytes(3).toString('hex'), bailId: f.bail.id, complementItemId: item.id, uploadedById: f.ownerUser.id } });
+  for (let i = 0; i < olds; i++) old.push(await tx.document.create({ data: { kind: item.documentKind, label: 'ancien-' + i + '.pdf', fileKey: 'documents/test-old-' + i + '-' + crypto.randomBytes(3).toString('hex'), bailId: f.bail.id, uploadedById: f.ownerUser.id } }));
+  const fresh = await tx.document.create({ data: { kind: item.documentKind, label: 'nouveau.pdf', fileKey: 'documents/test-new-' + crypto.randomBytes(3).toString('hex'), bailId: f.bail.id, complementItemId: item.id, uploadedById: f.ownerUser.id } });
   await tx.complementRequestItem.update({ where: { id: item.id }, data: { status: 'PROVIDED', providedAt: new Date(), replacesDocumentIds: old.slice(0, 1).map((d) => d.id) } });
   return { old, fresh };
 }
@@ -334,5 +336,43 @@ suite('Lot 4 — compléments et archivage', path.join(__dirname, '../../reports
     assert.deepEqual(line.replaceable.map((d) => d.id).sort(), old.map((d) => d.id).sort());
     assert(!line.replaceable.some((d) => d.id === fresh.id));
     assert.equal(line.replaceable.filter((d) => d.suggested).length, 1);
+  });
+
+  await test('m11 — « Autre pièce » : seule la pièce désignée sur la ligne est proposée, jamais les autres fichiers du bail', async (tx, r, f) => {
+    const { item } = await request(tx, f, 'DOCUMENT', { documentKind: 'OTHER', label: 'Autre document' });
+    const { old, fresh } = await withDocs(tx, f, item, 2);
+    const rows = await mod(r).getBailComplementRequests(f.bail.id);
+    const line = rows.flatMap((x) => x.items).find((x) => x.id === item.id);
+    assert.deepEqual(line.replaceable.map((d) => d.id), [old[0].id], 'seule la pièce désignée doit être proposée');
+    assert(!line.replaceable.some((d) => d.id === fresh.id));
+    const refused = await mod(r).reviewComplementItem({ itemId: item.id, decision: 'accept', archiveDocumentIds: [old[1].id] });
+    assert.equal(refused.success, false, 'une autre pièce non désignée ne doit pas pouvoir être archivée');
+    assert.equal((await tx.document.findUnique({ where: { id: old[1].id } })).archivedAt, null);
+    const res = await mod(r).reviewComplementItem({ itemId: item.id, decision: 'accept', archiveDocumentIds: [old[0].id] });
+    assert(res.success, res.error);
+    assert((await tx.document.findUnique({ where: { id: old[0].id } })).archivedAt, 'la pièce désignée doit pouvoir être archivée');
+  });
+
+  await test('m11 — Fichiers de la messagerie et d’une demande du notaire : jamais proposés ni archivables', async (tx, r, f) => {
+    const { item } = await request(tx, f, 'DOCUMENT');
+    const { old } = await withDocs(tx, f, item, 1);
+    const chat = await tx.document.create({ data: { kind: PIECE, label: 'photo-messagerie.jpg', fileKey: 'documents/test-chat-' + crypto.randomBytes(3).toString('hex'), bailId: f.bail.id, uploadedById: f.ownerUser.id } });
+    await tx.bailMessage.create({ data: { bailId: f.bail.id, senderId: f.ownerUser.id, content: 'Fichier: photo-messagerie.jpg', documentId: chat.id } });
+    const chatOther = await tx.document.create({ data: { kind: 'OTHER', label: 'question.pdf', fileKey: 'documents/test-chat2-' + crypto.randomBytes(3).toString('hex'), bailId: f.bail.id, uploadedById: f.ownerUser.id } });
+    await tx.bailMessage.create({ data: { bailId: f.bail.id, senderId: f.ownerUser.id, content: 'Fichier: question.pdf', documentId: chatOther.id } });
+    const notary = await tx.user.create({ data: { email: crypto.randomUUID() + '@example.invalid', name: 'Maître Test', role: 'NOTAIRE', emailVerified: true } });
+    const dossier = await tx.dossierNotaireAssignment.create({ data: { clientId: f.owner.id, propertyId: f.property.id, bailId: f.bail.id, notaireId: notary.id, assignedById: f.admin.id } });
+    const nreq = await tx.notaireRequest.create({ data: { dossierId: dossier.id, title: 'Test', content: 'Test', createdById: notary.id } });
+    const forNotary = await tx.document.create({ data: { kind: PIECE, label: 'reponse-notaire.pdf', fileKey: 'documents/test-nreq-' + crypto.randomBytes(3).toString('hex'), bailId: f.bail.id, notaireRequestId: nreq.id, uploadedById: f.ownerUser.id } });
+    // Même désignés sur la ligne, ils restent exclus.
+    await tx.complementRequestItem.update({ where: { id: item.id }, data: { replacesDocumentIds: [old[0].id, chatOther.id] } });
+    const rows = await mod(r).getBailComplementRequests(f.bail.id);
+    const line = rows.flatMap((x) => x.items).find((x) => x.id === item.id);
+    assert.deepEqual(line.replaceable.map((d) => d.id), [old[0].id], 'seule l’ancienne pièce du dossier doit être proposée');
+    for (const doc of [chat, chatOther, forNotary]) {
+      const res = await mod(r).reviewComplementItem({ itemId: item.id, decision: 'accept', archiveDocumentIds: [doc.id] });
+      assert.equal(res.success, false, doc.label + ' ne doit pas pouvoir être archivé');
+      assert.equal((await tx.document.findUnique({ where: { id: doc.id } })).archivedAt, null);
+    }
   });
 });
