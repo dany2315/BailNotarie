@@ -111,7 +111,7 @@ export default function BlogPage() {
                   <ArticleImage
                     width={800}
                     height={400}
-                    src={article.imageUrl || "/og-cover-v2.png"}
+                    src={article.imageUrl || "/og-cover-v3.png"}
                     alt={article.title}
                     sizes="(max-width: 768px) 100vw, 33vw"
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"

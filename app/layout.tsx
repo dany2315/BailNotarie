@@ -111,7 +111,7 @@ export const metadata: Metadata = {
     description: "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
     images: [
       { 
-        url: "/og-cover-v2.png",
+        url: "/og-cover-v3.png",
         width: 1200,
         height: 630,
         alt: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
@@ -124,7 +124,7 @@ export const metadata: Metadata = {
     description: "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
-    images: ["/og-cover-v2.png"],
+    images: ["/og-cover-v3.png"],
   },
   manifest: '/site.webmanifest',
 };

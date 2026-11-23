@@ -511,7 +511,7 @@ export function BlogPageClient({ article, faqItems = [] }: BlogPageClientProps) 
     <main className="min-h-screen bg-gray-50 pb-28 lg:pb-0">
       <section className="relative min-h-[39vh] md:min-h-[40vh] overflow-hidden">
         <ArticleImage
-          src={article.imageUrl || "/og-cover-v2.png"}
+          src={article.imageUrl || "/og-cover-v3.png"}
           alt={article.title}
           fill
           sizes="100vw"

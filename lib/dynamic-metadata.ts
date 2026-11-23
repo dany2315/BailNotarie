@@ -41,7 +41,7 @@ export function generateBlogPostMetadata(post: {
   description: string;
   slug: string;
   publishedAt: string; // utile si tu ajoutes JSON-LD
-  image?: string;      // peut être relatif: '/og-cover-v2.png'
+  image?: string;      // peut être relatif: '/og-cover-v3.png'
   tags?: string[];
   metaTitle?: string;
   metaDescription?: string;
@@ -66,7 +66,7 @@ export function generateBlogPostMetadata(post: {
       'conseils notaire',
     ],
     canonical,                               // ✅ relatif, sans #
-    ogImage: post.image ?? '/og-cover-v2.png',
+    ogImage: post.image ?? '/og-cover-v3.png',
     ogType: 'article',
   });
 }

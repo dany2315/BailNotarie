@@ -80,7 +80,7 @@ export const defaultMetadata: Metadata = {
       "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
     images: [
       {
-        url: "/og-cover-v2.png",
+        url: "/og-cover-v3.png",
         width: 1200,
         height: 630,
         alt: "BailNotarie - Constituer votre dossier de bail notarié 100% en ligne",
@@ -94,7 +94,7 @@ export const defaultMetadata: Metadata = {
       "Bail notarié en ligne pour propriétaires bailleurs : prix, procédure, signature et force exécutoire. Sécurisez votre location partout en France.",
     site: "@bailnotarie",
     creator: "@bailnotarie",
-    images: ["/og-cover-v2.png"],
+    images: ["/og-cover-v3.png"],
   },
 };
 
@@ -105,7 +105,7 @@ const toAbsoluteUrl = (path: string) => new URL(path, SITE_URL).toString();
 export function generatePageMetadata(pageData: PageMetadata): Metadata {
   // canonical propre, sans fragment
   const canonicalClean = stripHash(pageData.canonical ?? "/");
-  const ogImage = pageData.ogImage || "/og-cover-v2.png";
+  const ogImage = pageData.ogImage || "/og-cover-v3.png";
   const canonicalAbsolute = toAbsoluteUrl(canonicalClean);
   const ogImageAbsolute = ogImage.startsWith("http") ? ogImage : toAbsoluteUrl(ogImage);
 
@@ -186,7 +186,7 @@ export const pageMetadata = {
       "acte authentique",
     ],
     canonical: "/",                // ✅ pas de "#"
-    ogImage: "/og-cover-v2.png",
+    ogImage: "/og-cover-v3.png",
     ogType: "website" as const,
     noIndex: false,
   },
@@ -207,7 +207,7 @@ export const pageMetadata = {
       "expertise notariale",
     ],
     canonical: "/blog",            // ✅ page distincte
-    ogImage: "/og-cover-v2.png",
+    ogImage: "/og-cover-v3.png",
     ogType: "website" as const,
     noIndex: false,
   },
@@ -218,7 +218,7 @@ export const pageMetadata = {
       "La page que vous recherchez n'existe pas. Retrouvez nos services de bail notarié avec force exécutoire renforcée.",
     keywords: ["page introuvable", "erreur 404", "bail notarié", "services notaire"],
     canonical: "/404",
-    ogImage: "/og-cover-v2.png",
+    ogImage: "/og-cover-v3.png",
     ogType: "website" as const,
     noIndex: true,
   },
@@ -239,7 +239,7 @@ export const pageMetadata = {
       "bail location notarié",
     ],
     canonical: "/commencer",
-    ogImage: "/og-cover-v2.png",
+    ogImage: "/og-cover-v3.png",
     ogType: "website" as const,
     noIndex: false,
   },
