@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 
 /** Visuel local servi si la source ne repond pas. */
-const FALLBACK_SRC = "/og-cover-v2.png";
+const FALLBACK_SRC = "/og-cover-v3.png";
 
 type ArticleImageProps = {
   src: string;

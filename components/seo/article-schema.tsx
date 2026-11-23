@@ -49,7 +49,7 @@ export function ArticleSchema({ article }: ArticleSchemaProps) {
     },
     "image": {
       "@type": "ImageObject",
-      "url": article.image || `${baseUrl}/og-cover-v2.png`,
+      "url": article.image || `${baseUrl}/og-cover-v3.png`,
       "width": 1200,
       "height": 630
     },

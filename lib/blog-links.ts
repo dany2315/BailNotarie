@@ -226,7 +226,7 @@ export function getRelatedLinks(slug: string): BlogLink[] {
 }
 
 /** Visuel de repli pour les destinations qui ne sont pas des articles. */
-const FALLBACK_IMAGE = "/og-cover-v2.png";
+const FALLBACK_IMAGE = "/og-cover-v3.png";
 
 export interface BlogLinkWithMedia extends BlogLink {
   /** Vignette : image de l'article cible, ou visuel de repli. */
