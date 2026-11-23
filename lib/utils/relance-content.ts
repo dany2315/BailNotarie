@@ -33,75 +33,106 @@ export interface RelanceEmailInput {
 /** Longueur maximale du texte d'une relance modifié dans l'aperçu. */
 export const RELANCE_BODY_MAX = 3000;
 
-export const RELANCE_CONTENT: Record<RelanceReason, { preview: string; intro: (p: RelanceEmailInput) => string[]; button: string }> = {
+type RelanceContent = {
+  preview: string;
+  /** Petit titre au-dessus du titre (facultatif) et sa couleur. */
+  kicker?: { text: string; tone: "blue" | "amber" };
+  /** Titre de l'e-mail. */
+  title: string;
+  intro: (p: RelanceEmailInput) => string[];
+  /** Encadré sous le texte (facultatif). */
+  card?: { label: string; text: string };
+  button: string;
+  /** Ligne d'aide sous le bouton (facultative). */
+  hint?: string;
+  /** Formule de fin de la signature. */
+  closing?: string;
+};
+
+export const RELANCE_CONTENT: Record<RelanceReason, RelanceContent> = {
   OWNER_FORM: {
-    preview: "Votre dossier de bail notarié n'est pas encore terminé",
+    preview: "Vos réponses sont enregistrées : il ne vous reste que quelques questions.",
+    title: "Reprenez là où vous vous étiez arrêté",
     intro: (p) => [
-      `Votre dossier de bail notarié pour le bien situé ${p.address} n'est pas encore terminé.`,
-      "Il vous reste à compléter votre formulaire et à le valider pour que nous puissions vérifier votre dossier. Vos informations déjà saisies sont conservées.",
+      `Vous avez déjà commencé votre bail notarié pour le bien situé ${p.address}. Vos réponses sont enregistrées : il ne vous reste que quelques questions avant que nous puissions vérifier votre dossier.`,
     ],
-    button: "Reprendre mon dossier",
+    button: "Terminer mon dossier",
+    hint: "Bloqué sur une question ? Répondez à cet e-mail, on vous aide.",
   },
   TENANT_TO_ADD: {
-    preview: "Indiquez-nous votre locataire",
+    preview: "Indiquez son adresse : nous lui envoyons son formulaire et nous occupons du reste.",
+    title: "Votre bail est prêt à accueillir votre locataire",
     intro: (p) => [
-      `Votre dossier de bail notarié pour le bien situé ${p.address} est bien enregistré.`,
-      "Pour continuer, il nous faut les coordonnées de votre locataire : dès que vous l'avez trouvé, indiquez son adresse e-mail depuis votre espace, nous lui enverrons son formulaire.",
-      "Si vous n'avez pas encore de locataire, vous pouvez ignorer ce message.",
+      `Votre dossier pour le bien situé ${p.address} est complet de votre côté. Dès que vous avez trouvé votre locataire, indiquez simplement son adresse e-mail : nous lui envoyons son formulaire, nous le relançons et nous vérifions ses pièces.`,
     ],
+    card: { label: "Ce que vous n'aurez pas à faire", text: "Lui expliquer la démarche, collecter ses justificatifs ou le relancer : on s'en charge." },
     button: "Indiquer mon locataire",
+    hint: "Pas encore de locataire ? Aucun souci, votre dossier reste prêt.",
   },
   TENANT_FORM: {
-    preview: "Votre formulaire locataire est en attente",
+    preview: "Votre propriétaire a terminé sa partie. Quelques minutes suffisent pour la vôtre.",
+    title: "Votre bail n'attend plus que vous",
     intro: (p) => [
-      `Votre propriétaire a lancé un bail notarié pour le bien situé ${p.address}.`,
-      "Votre formulaire locataire n'a pas encore été envoyé : merci de le compléter pour que le bail puisse avancer. Vos informations déjà saisies sont conservées.",
+      `Votre propriétaire a terminé sa partie du bail notarié pour le logement situé ${p.address}. Il ne manque plus que vos informations pour que le notaire prépare l'acte.`,
     ],
-    button: "Compléter mon formulaire",
+    button: "Compléter mes informations",
+    hint: "Vos réponses déjà saisies sont conservées.",
   },
   TENANT_VIA_OWNER: {
-    preview: "Votre locataire n'a pas encore rempli son formulaire",
+    preview: "Un message de votre part suffit souvent à débloquer la situation.",
+    title: "Un message de votre part peut tout débloquer",
     intro: (p) => [
-      `Pour votre bail notarié (${p.address}), ${p.tenantName || "votre locataire"} n'a pas encore rempli son formulaire, malgré nos relances.`,
-      "Pourriez-vous le lui rappeler, ou vérifier avec lui que l'adresse e-mail indiquée est la bonne ? Vous pouvez la corriger depuis votre espace.",
+      `Nous avons relancé ${p.tenantName || "votre locataire"} plusieurs fois pour votre bail notarié (${p.address}), sans réponse. Souvent, notre e-mail est simplement arrivé dans ses indésirables : un mot de votre part suffit en général.`,
+      "Vous pouvez aussi vérifier son adresse e-mail et la corriger depuis votre espace.",
     ],
     button: "Voir mon dossier",
+    closing: "Merci pour votre aide,",
   },
   MISSING_ITEMS: {
-    preview: "Il manque encore quelques éléments à votre dossier",
+    preview: "Il ne manque plus que quelques éléments à votre dossier.",
+    title: "Il ne manque plus que quelques éléments",
     intro: (p) => [`Pour finaliser votre dossier de bail notarié (${p.address}), il nous manque encore :`],
     button: "Accéder à mon espace",
   },
   RENT_CAP: {
-    preview: "Le loyer de votre bail dépasse le plafond légal",
+    preview: "Votre loyer dépasse le plafond autorisé pour ce logement. Deux solutions possibles.",
+    kicker: { text: "À régler avant la signature", tone: "amber" },
+    title: "Sécurisons votre loyer avant de signer",
     intro: (p) => [
-      `Le logement situé ${p.address} est soumis à l'encadrement des loyers. Le loyer indiqué dépasse le loyer de référence majoré :`,
+      `Le logement situé ${p.address} est en zone d'encadrement des loyers. Le loyer prévu dépasse le plafond autorisé pour ce logement :`,
     ],
-    button: "Accéder à mon espace",
+    card: {
+      label: "Pourquoi c'est important",
+      text: "Un loyer au-dessus du plafond peut être contesté par le locataire, avec remboursement du trop-perçu, et exposer à une amende. Mieux vaut le régler maintenant.",
+    },
+    button: "Choisir ma solution",
+    closing: "Nous restons à vos côtés,",
   },
   DIAGNOSTICS: {
-    preview: "Vos diagnostics : quelques points à régler",
-    intro: (p) => [`Nous avons vérifié les diagnostics de votre bien situé ${p.address} :`],
-    button: "Accéder à mon espace",
+    preview: "Voici ce qu'il reste à régler sur vos diagnostics avant la signature.",
+    kicker: { text: "Vos diagnostics", tone: "amber" },
+    title: "Vos diagnostics : quelques points à régler",
+    intro: (p) => [`Nous avons relu les diagnostics du bien situé ${p.address}. Voici ce qu'il reste à régler avant la signature :`],
+    button: "Envoyer mes diagnostics",
   },
 };
 
 export const RELANCE_OUTRO: Partial<Record<RelanceReason, string>> = {
   RENT_CAP:
-    "Deux possibilités : ramener le loyer au plafond, ou justifier un complément de loyer (caractéristiques exceptionnelles du logement : vue, terrasse, prestations…). Répondez-nous en précisant votre choix et, le cas échéant, les éléments qui justifient le complément.",
-  MISSING_ITEMS: "Vous pouvez nous les transmettre depuis votre espace client ou en répondant à ce message.",
-  DIAGNOSTICS: "Répondez simplement à ce message, ou transmettez les documents depuis votre espace client.",
+    "Deux solutions : ramener le loyer au plafond, ou justifier un complément de loyer si le logement a des caractéristiques exceptionnelles (vue, terrasse, prestations…). Répondez-nous en précisant votre choix et, le cas échéant, les éléments qui justifient le complément.",
+  MISSING_ITEMS: "Vous pouvez nous les transmettre depuis votre espace client ou en répondant à cet e-mail.",
+  DIAGNOSTICS: "Envoyez les documents depuis votre espace, ou répondez simplement à cet e-mail pour toute question.",
 };
 
 
 export const RELANCE_SUBJECTS: Record<RelanceReason, string> = {
-  OWNER_FORM: "Votre dossier de bail notarié n'est pas terminé",
-  TENANT_TO_ADD: "Votre bail notarié : indiquez-nous votre locataire",
-  TENANT_FORM: "Votre formulaire locataire est en attente",
-  TENANT_VIA_OWNER: "Votre locataire n'a pas encore rempli son formulaire",
-  MISSING_ITEMS: "Votre bail notarié : éléments manquants",
-  RENT_CAP: "Votre bail notarié : loyer au-dessus du plafond",
-  DIAGNOSTICS: "Votre bail notarié : vos diagnostics",
+  OWNER_FORM: "Votre dossier vous attend là où vous l'avez laissé",
+  TENANT_TO_ADD: "Vous avez trouvé votre locataire ? Un e-mail suffit pour la suite",
+  TENANT_FORM: "Votre bail notarié n'attend plus que vous",
+  TENANT_VIA_OWNER: "Votre locataire n'a pas encore répondu : un petit coup de pouce ?",
+  MISSING_ITEMS: "Votre bail notarié : il ne manque plus que quelques éléments",
+  RENT_CAP: "Sécurisons votre loyer avant la signature",
+  DIAGNOSTICS: "Vos diagnostics : quelques points à régler avant la signature",
 };
 
 /** Contenu de l'e-mail de relance, tel qu'il sera envoyé. */
@@ -121,5 +152,10 @@ export function relanceEmailContent(input: RelanceEmailInput) {
     outro: RELANCE_OUTRO[input.reason] ?? null,
     note: input.note?.trim() || null,
     button: content.button,
+    kicker: content.kicker ?? null,
+    title: content.title,
+    card: content.card ?? null,
+    hint: content.hint ?? null,
+    closing: content.closing ?? "À très vite,",
   };
 }

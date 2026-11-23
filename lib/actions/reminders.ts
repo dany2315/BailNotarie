@@ -548,7 +548,7 @@ export async function sendDiagnosticsToOwner(data: unknown): Promise<{ success: 
     const result = await resendSendEmail({
       from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
       to: owner.email,
-      subject: kind === "blocking" ? "Votre bail notarié : vos diagnostics à mettre à jour" : "Votre bail notarié : quelques questions sur vos diagnostics",
+      subject: kind === "blocking" ? "Vos diagnostics à mettre à jour avant la signature" : "Une petite question sur vos diagnostics",
       react: MailRelance({
         reason: "DIAGNOSTICS",
         name: owner.greetingName || "",

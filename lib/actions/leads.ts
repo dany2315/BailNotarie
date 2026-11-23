@@ -166,7 +166,7 @@ async function createLeadUnguarded(data: unknown) {
       try {
         await triggerLeadConversionEmail({
           to: validated.email,
-          subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
+          subject: "Votre bail notarié en 1 semaine, on s'occupe de tout",
           convertUrl,
         });
         emailSent = true;
@@ -356,7 +356,7 @@ export async function convertLead(data: {
       try {
         await triggerLeadConversionEmail({
           to: clientEmail,
-          subject: "Formulaire de bail notarié - Propriétaire",
+          subject: "Votre dossier propriétaire est ouvert",
           convertUrl: formUrl,
           isOwnerForm: true,
         });

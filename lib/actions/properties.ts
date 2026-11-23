@@ -551,6 +551,7 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
           clientName: name,
           entityType: "property",
           entityName: propertyName,
+          propertyId: id,
           oldStatus,
           newStatus: completionStatus,
           dashboardUrl: `${baseUrl}${dashboardPath}`,

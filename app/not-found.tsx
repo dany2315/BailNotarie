@@ -75,15 +75,15 @@ export default function NotFound() {
               </Link>
 
               <Link 
-                href="/commencer/suivi" 
+                href="/client/login" 
                 className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"
               >
                 <div className="p-2 bg-yellow-100 rounded-lg group-hover:bg-yellow-200 transition-colors">
                   <Search className="h-5 w-5 text-yellow-600" />
                 </div>
                 <div className="text-left">
-                  <h3 className="font-semibold text-gray-900">Suivi de votre dossier</h3>
-                  <p className="text-sm text-gray-600">Suivez le statut de votre dossier de bail notarié en ligne</p>
+                  <h3 className="font-semibold text-gray-900">Votre espace client</h3>
+                  <p className="text-sm text-gray-600">Suivez l'avancement de votre dossier de bail notarié</p>
                 </div>
               </Link>
               

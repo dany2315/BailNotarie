@@ -10,7 +10,9 @@ import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailNotaireAssignment from "@/emails/mail-notaire-assignment";
 import { triggerNotaireWelcomeEmail, triggerDocumentRequestEmail } from "@/lib/inngest/helpers";
 import { pusherServer } from "@/lib/pusher";
-import { createBailAuditLog, getActorName } from "@/lib/actions/bail-audit-log";
+import { createBailAuditLog, getActorName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
+import { formatAgreementValue } from "@/lib/bail/agreement-terms";
+import { formatEuros, formatFrenchDate } from "@/lib/utils/email-format";
 import { notaireReviewForBail } from "@/lib/notaire/review";
 
 // Schémas de validation
@@ -248,15 +250,36 @@ async function assignDossierToNotaireUnguarded(data: unknown) {
                       (client?.persons?.[0] ? `${client.persons[0].firstName || ""} ${client.persons[0].lastName || ""}`.trim() : "Client") ||
                       "Client";
     const propertyAddress = bail.property.fullAddress || undefined;
+    // Résumé du dossier tel qu'il est au moment de l'assignation. « Pièces vérifiées » seulement si l'équipe a
+    // réellement validé le bien et chaque partie.
+    const ownerParty = bail.parties.find((party) => party.profilType === "PROPRIETAIRE") ?? client;
+    const tenantParty = bail.parties.find((party) => party.profilType === "LOCATAIRE") ?? null;
+    const documentsVerified =
+      !!tenantParty &&
+      bail.property.completionStatus === "COMPLETED" &&
+      [ownerParty, tenantParty].every((party) => party?.completionStatus === "COMPLETED");
+    const surface = bail.property.surfaceM2 ? `${Number(bail.property.surfaceM2).toLocaleString("fr-FR")} m²` : null;
+    const rent = formatEuros(bail.rentAmount);
+    const charges = bail.monthlyCharges ? formatEuros(bail.monthlyCharges) : null;
+    const bailTypeLabel = formatAgreementValue("bailType", bail.bailType);
+    const ownerName = getClientGreetingName(ownerParty) || clientName;
+    const tenantName = getClientGreetingName(tenantParty);
+    const effectiveDate = formatFrenchDate(bail.effectiveDate);
 
     await resendSendEmail({
       from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
       to: notaire.email,
-      subject: "Nouveau dossier assigné - BailNotarie",
+      subject: `Nouveau dossier : ${[bailTypeLabel, propertyAddress || clientName].filter(Boolean).join(", ")}`,
       react: MailNotaireAssignment({
         userName: notaire.name,
         clientName,
-        propertyAddress,
+        propertyAddress: [propertyAddress, surface].filter(Boolean).join(" · ") || undefined,
+        bailTypeLabel,
+        ownerName,
+        tenantName,
+        rentText: rent ? `${rent}${charges ? ` + ${charges} de charges` : ""}` : null,
+        documentsVerified,
+        effectiveDate,
         notes: validated.notes || undefined,
         interfaceUrl: `${process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr"}/notaire/dossiers`,
       }),

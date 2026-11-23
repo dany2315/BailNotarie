@@ -1,18 +1,5 @@
-import { 
-  Html, 
-  Head, 
-  Body, 
-  Container, 
-  Section, 
-  Heading, 
-  Text, 
-  Button, 
-  Hr, 
-  Img,
-  Link
-} from "@react-email/components";
 import * as React from "react";
-import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
+import { EmailLayout, Title, Lead, FileLine, Actions, absoluteUrl } from "./_shared/layout";
 
 interface MailDocumentReceivedProps {
   notaireName?: string | null;
@@ -23,252 +10,34 @@ interface MailDocumentReceivedProps {
   chatUrl: string;
 }
 
-export default function MailDocumentReceived({
-  notaireName,
-  clientName,
-  requestTitle,
-  documentNames,
-  bailAddress,
-  chatUrl
-}: MailDocumentReceivedProps) {
-  const safeClientName =
-    typeof clientName === "string" && clientName.trim().length > 0
-      ? clientName
-      : "Client";
-  const safeRequestTitle =
-    typeof requestTitle === "string" && requestTitle.trim().length > 0
-      ? requestTitle
-      : "Demande de document";
-  const safeDocumentNames =
-    Array.isArray(documentNames) && documentNames.length > 0
-      ? documentNames.filter(
-          (name): name is string => typeof name === "string" && name.trim().length > 0
-        )
-      : [];
-  const normalizedDocumentNames =
-    safeDocumentNames.length > 0 ? safeDocumentNames : ["Document"];
-  const safeChatUrl =
-    typeof chatUrl === "string" && chatUrl.trim().length > 0
-      ? chatUrl
-      : EMAIL_BASE_URL;
-
+/** Le client a envoyé la pièce demandée par le notaire. */
+export default function MailDocumentReceived({ clientName, requestTitle, documentNames, bailAddress, chatUrl }: MailDocumentReceivedProps) {
+  const client = typeof clientName === "string" && clientName.trim() ? clientName.trim() : "Votre client";
+  const title = typeof requestTitle === "string" && requestTitle.trim() ? requestTitle.trim() : "Demande de document";
+  const names = (Array.isArray(documentNames) ? documentNames : []).filter((name): name is string => typeof name === "string" && name.trim().length > 0);
+  const files = names.length > 0 ? names : ["Document"];
   return (
-    <Html>
-      <Head />
-      <Body style={{ 
-        backgroundColor: "#f8fafc", 
-        fontFamily: "Arial, sans-serif",
-        margin: 0,
-        padding: 0
-      }}>
-        <Container style={{ 
-          maxWidth: "600px", 
-          margin: "0 auto", 
-          backgroundColor: "#ffffff",
-          borderRadius: "12px",
-          overflow: "hidden",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)"
-        }}>
-          {/* Header avec logo */}
-          <Section style={{ 
-            background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)",
-            paddingTop: "32px",
-            paddingBottom: "32px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "start"
-          }}>
-            <Link
-              href={EMAIL_BASE_URL}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "start",
-                textDecoration: "none",
-                color: "#166534",
-              }}
-            >
-              <Img
-                src={EMAIL_LOGO_URL}
-                alt="BailNotarie - Plateforme de baux notariés"
-                width="40"
-                height="40"
-                style={{
-                  borderRadius: "50%",
-                  display: "block",
-                }}
-              />
-              <span
-                style={{
-                  marginLeft: "8px",
-                  marginTop: "5px",
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#166534",
-                }}
-              >
-                BailNotarie
-              </span>
-            </Link>
-
-            <Text style={{ 
-              color: "#166534",
-              fontSize: "20px",
-              margin: "30px 0px 0px 0px"
-            }}>
-              Document reçu
-            </Text>
-          </Section>
-
-          {/* Contenu principal */}
-          <Section style={{ paddingTop: "40px", paddingBottom: "40px", paddingLeft: "24px", paddingRight: "24px" }}>
-            <Heading style={{ 
-              color: "#16a34a",
-              fontSize: "24px",
-              fontWeight: "bold",
-              margin: "0 0 16px 0",
-              textAlign: "center"
-            }}>
-              ✅ Nouveau document reçu
-            </Heading>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              {notaireName ? `Bonjour ${notaireName},` : "Bonjour,"}
-            </Text>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              <strong>{safeClientName}</strong> a répondu à votre demande de document{bailAddress ? ` concernant le bail situé au ${bailAddress}` : ""}.
-            </Text>
-
-            {/* Détails de la demande */}
-            <Section style={{ 
-              backgroundColor: "#f0fdf4",
-              borderRadius: "8px",
-              paddingTop: "24px",
-              paddingBottom: "24px",
-              paddingLeft: "24px",
-              paddingRight: "24px",
-              margin: "24px 0",
-              border: "2px solid #86efac"
-            }}>
-              <Text style={{ 
-                color: "#166534",
-                fontSize: "16px",
-                fontWeight: "bold",
-                margin: "0 0 16px 0"
-              }}>
-                📋 Demande : {safeRequestTitle}
-              </Text>
-              
-              <Text style={{ 
-                color: "#166534",
-                fontSize: "16px",
-                fontWeight: "bold",
-                margin: "0 0 8px 0"
-              }}>
-                📎 Document{normalizedDocumentNames.length > 1 ? "s" : ""} reçu{normalizedDocumentNames.length > 1 ? "s" : ""} :
-              </Text>
-              
-              {normalizedDocumentNames.map((name, index) => (
-                <Text key={index} style={{ 
-                  color: "#374151",
-                  fontSize: "14px",
-                  margin: "4px 0 4px 16px",
-                  backgroundColor: "#ffffff",
-                  padding: "8px 12px",
-                  borderRadius: "6px",
-                  border: "1px solid #e5e7eb"
-                }}>
-                  • {name}
-                </Text>
-              ))}
-            </Section>
-
-            {/* CTA principal */}
-            <Section style={{ textAlign: "center", margin: "32px 0" }}>
-              <Button
-                href={safeChatUrl}
-                style={{ 
-                  backgroundColor: "#16a34a",
-                  color: "#ffffff",
-                  padding: "16px 32px",
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  fontSize: "16px",
-                  fontWeight: "bold",
-                  display: "inline-block"
-                }}
-              >
-                Voir le document
-              </Button>
-            </Section>
-
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              lineHeight: "1.6",
-              margin: "0 0 32px 0",
-              textAlign: "center"
-            }}>
-              Connectez-vous à votre interface pour consulter et valider le document.
-            </Text>
-          </Section>
-
-          <Hr style={{ 
-            border: "none",
-            borderTop: "1px solid #e5e7eb",
-            margin: "0"
-          }} />
-
-          {/* Footer */}
-          <Section style={{ 
-            paddingTop: "24px",
-            paddingBottom: "24px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "center",
-            backgroundColor: "#f9fafb"
-          }}>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              margin: "0 0 8px 0"
-            }}>
-              <strong>BailNotarie</strong> - Espace notaire
-            </Text>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "12px",
-              margin: "0 0 8px 0"
-            }}>
-              <Link href="tel:+33768098624" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 68 09 86 24</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
-            </Text>
-            <Text style={{ 
-              color: "#9ca3af",
-              fontSize: "12px",
-              margin: 0
-            }}>
-              Vous recevez cet email car un client a répondu à une demande de document.
-            </Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
+    <EmailLayout
+      preview={`${client} a envoyé ${files.length > 1 ? `${files.length} documents` : files[0]}. À valider dans le dossier.`}
+      reference={bailAddress ? ["Dossier", bailAddress] : ["Espace notaire"]}
+    >
+      <Title>
+        {client} a répondu à votre demande « {title} »
+      </Title>
+      <Lead>Maître, {files.length > 1 ? "les pièces que vous aviez demandées sont arrivées" : "la pièce que vous aviez demandée est arrivée"}{bailAddress ? ` dans le dossier du ${bailAddress}` : ""} :</Lead>
+      {files.map((name, index) => (
+        <FileLine key={`${name}-${index}`} name={name} status="reçue aujourd'hui" />
+      ))}
+      <Actions primary={{ label: "Voir et valider", href: absoluteUrl(chatUrl) }} />
+    </EmailLayout>
   );
 }
 
-
-
-
-
-
+MailDocumentReceived.PreviewProps = {
+  notaireName: "Claire Durand",
+  clientName: "Léa Martin",
+  requestTitle: "Attestation d'assurance habitation",
+  documentNames: ["attestation-assurance-martin.pdf"],
+  bailAddress: "12 rue des Lilas, 75011 Paris",
+  chatUrl: "https://www.bailnotarie.fr/notaire/dossiers",
+} satisfies MailDocumentReceivedProps;

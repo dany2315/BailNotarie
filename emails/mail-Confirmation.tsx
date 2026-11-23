@@ -1,18 +1,6 @@
-import { 
-  Html, 
-  Head, 
-  Body, 
-  Container, 
-  Section, 
-  Heading, 
-  Text, 
-  Button, 
-  Hr, 
-  Img,
-  Link
-} from "@react-email/components";
 import * as React from "react";
-import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
+import { EmailLayout, Kicker, Title, Lead, NumberedList, Steps, InfoCard, Quote, Actions, Trust, Sign, HELP_REPLY, HELP_REPLY_OR_CALL, PHONE } from "./_shared/layout";
+import { EMAIL_BASE_URL } from "./_shared/urls";
 
 interface MailConfirmationProps {
   firstName: string;
@@ -21,386 +9,124 @@ interface MailConfirmationProps {
   phone: string;
   message?: string;
   role?: "LOCATAIRE" | "PROPRIETAIRE";
+  /** Adresse du bien, si le dossier est connu. */
+  propertyAddress?: string | null;
+  /** Nom du propriétaire (confirmation du locataire). */
+  ownerName?: string | null;
+  /** Nom du locataire (confirmation du propriétaire). */
+  tenantName?: string | null;
+  /** Le formulaire a déjà été envoyé au locataire ; inconnu si absent. */
+  tenantInvited?: boolean;
 }
 
-export default function MailConfirmation({
-  firstName,
-  lastName,
-  email,
-  phone,
-  message,
-  role
-}: MailConfirmationProps) {
-  const clientSpaceUrl = `${EMAIL_BASE_URL}/client`;
+/**
+ * Trois e-mails dans un même modèle :
+ * - confirmation du formulaire de contact du site (un message est présent) ;
+ * - confirmation d'envoi du formulaire propriétaire (role PROPRIETAIRE) ;
+ * - confirmation d'envoi du formulaire locataire (role LOCATAIRE).
+ */
+export default function MailConfirmation({ firstName, phone, message, role, propertyAddress, ownerName, tenantName, tenantInvited }: MailConfirmationProps) {
+  const name = (firstName || "").trim();
+  const address = (propertyAddress || "").trim();
+  const tenant = (tenantName || "").trim();
+  const owner = (ownerName || "").trim();
+  const dossierUrl = `${EMAIL_BASE_URL}/client`;
 
+  if (role === "PROPRIETAIRE") {
+    return (
+      <EmailLayout
+        preview="Voici les 3 prochaines étapes jusqu'à la signature chez le notaire."
+        reference={address ? ["Dossier", address] : ["Votre bail notarié", "Profil propriétaire"]}
+        footerNote="Vous recevez cet e-mail car vous venez d'envoyer votre dossier de bail notarié."
+      >
+        <Steps steps={["Votre dossier", "Vérification", "Notaire", "Signature"]} current={1} />
+        <Title>Bravo, votre part est faite</Title>
+        <Lead>{name ? `Merci ${name}, votre` : "Merci, votre"} formulaire est bien envoyé. Voici ce qui se passe maintenant :</Lead>
+        <NumberedList
+          items={[
+            { title: "Nous vérifions votre dossier.", text: "Si un élément manque, nous vous le disons précisément, sous 24 h ouvrées." },
+            tenantInvited === true
+              ? {
+                  title: `${tenant || "Votre locataire"} complète ses informations.`,
+                  text: "Nous venons de lui écrire. Pensez à lui dire de regarder ses indésirables.",
+                }
+              : tenantInvited === false
+                ? {
+                    title: "Indiquez votre locataire.",
+                    text: "Dès que vous l'avez trouvé, ajoutez son e-mail depuis votre espace : nous lui écrirons pour qu'il complète ses informations.",
+                  }
+                : {
+                    title: "Votre locataire complète ses informations.",
+                    text: "Si vous nous avez indiqué son e-mail, nous venons de lui écrire : pensez à lui dire de regarder ses indésirables. Sinon, indiquez-le depuis votre espace dès que vous l'avez trouvé.",
+                  },
+            { title: "Le notaire vous contacte.", text: "Il fixe la signature avec vous et vous donne le montant exact de l'acte." },
+          ]}
+        />
+        <Actions primary={{ label: "Suivre mon dossier", href: dossierUrl }} />
+        <Sign closing="Merci de votre confiance," help={HELP_REPLY_OR_CALL} />
+      </EmailLayout>
+    );
+  }
+
+  if (role === "LOCATAIRE") {
+    return (
+      <EmailLayout
+        preview="C'est tout bon de votre côté. Voici la suite jusqu'à la signature."
+        reference={address ? ["Logement", address] : ["Votre bail notarié", "Profil locataire"]}
+        footerNote="Vous recevez cet e-mail car vous venez d'envoyer vos informations de locataire."
+      >
+        <Steps steps={["Propriétaire", "Vous", "Vérification", "Signature"]} current={2} />
+        <Title>C'est tout bon de votre côté</Title>
+        <Lead>
+          {name ? `Merci ${name} ! ` : "Merci ! "}Vos informations sont bien transmises. Nous vérifions maintenant le dossier complet, puis le
+          notaire vous contacte, vous et {owner || "votre propriétaire"}, pour fixer la signature.
+        </Lead>
+        <InfoCard label="Ce qui vous attend">
+          Un bail clair, vérifié par un notaire et conforme à la loi. Vous en recevrez une copie authentique après la signature.
+        </InfoCard>
+        <Actions primary={{ label: "Voir mon dossier", href: dossierUrl }} />
+        <Sign help={HELP_REPLY} />
+      </EmailLayout>
+    );
+  }
+
+  // Formulaire de contact du site.
   return (
-    <Html>
-      <Head />
-      <Body style={{ 
-        backgroundColor: "#f8fafc", 
-        fontFamily: "Arial, sans-serif",
-        margin: 0,
-        padding: 0
-      }}>
-        <Container style={{ 
-          maxWidth: "600px", 
-          margin: "0 auto", 
-          backgroundColor: "#ffffff",
-          borderRadius: "12px",
-          overflow: "hidden",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)"
-        }}>
-          {/* Header avec logo */}
-          <Section style={{ 
-            background: "linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)",
-            paddingTop: "32px",
-            paddingBottom: "32px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "start"
-          }}>
-              <Link
-              href={EMAIL_BASE_URL}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "start",
-                textDecoration: "none",
-                color: "#1e3a8a", // text-blue-900 par ex
-              }}
-            >
-              <Img
-                src={EMAIL_LOGO_URL}
-                alt="BailNotarie - Plateforme de baux notariés"
-                width="40"
-                height="40"
-                style={{
-                  borderRadius: "50%",
-                  display: "block",
-                }}
-              />
-              <span
-                style={{
-                  marginLeft: "8px",
-                  marginTop: "5px",
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#1e3a8a",
-                }}
-              >
-                BailNotarie
-              </span>
-            </Link>
-
-            <Text style={{ 
-              color: "#1e3a8a",
-              fontSize: "20px",
-              margin: "30px 0px 0px 0px "
-            }}>
-              Votre partenaire pour les baux notariés sécurisés
-            </Text>
-
-          </Section>
-
-          {/* Contenu principal */}
-          <Section style={{ paddingTop: "40px", paddingBottom: "40px", paddingLeft: "24px", paddingRight: "24px" }}>
-            <Heading style={{ 
-              color: "#1f2937",
-              fontSize: "24px",
-              fontWeight: "bold",
-              margin: "0 0 16px 0",
-              textAlign: "center"
-            }}>
-              Demande reçue avec succès !
-            </Heading>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              Bonjour {firstName} {lastName},
-            </Text>
-          
-
-            {/* Texte ciblé selon le rôle */}
-            {role === "LOCATAIRE" && (
-              <Section style={{ 
-                backgroundColor: "#f0f9ff",
-                borderRadius: "8px",
-                padding: "24px",
-                margin: "24px 0"
-              }}>
-
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "16px",
-                  lineHeight: "1.6",
-                  margin: "0 0 12px 0"
-                }}>
-                  Votre formulaire de bail notarié a été soumis avec succès. Nous allons maintenant traiter votre demande et vous tenir informé de l'avancement de votre dossier.
-                </Text>
-                <Text style={{ 
-                  color: "#1f2937",
-                  fontSize: "18px",
-                  fontWeight: "bold",
-                  margin: "0 0 16px 0"
-                }}>
-                  🏠 En tant que locataire
-                </Text>
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "16px",
-                  lineHeight: "1.6",
-                  margin: 0
-                }}>
-                  Le bail notarié vous offre une sécurité renforcée et une force exécutoire immédiate, vous protégeant ainsi en cas de litige avec votre propriétaire.
-                </Text>
-              </Section>
-            )}
-
-            {role === "PROPRIETAIRE" && (
-              <>
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "16px",
-                  lineHeight: "1.6",
-                  margin: "0 0 24px 0"
-                }}>
-                  Votre demande de bail notarié a bien été enregistrée.
-                </Text>
-                
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "16px",
-                  lineHeight: "1.6",
-                  margin: "0 0 24px 0"
-                }}>
-                  Après vérification de votre dossier, celui-ci sera transmis à l'un de nos notaires partenaires, qui vous contactera directement pour finaliser le bail et vous communiquer le montant précis de l'acte notarié.
-                </Text>
-
-                <Section style={{ 
-                  backgroundColor: "#f0f9ff",
-                  borderRadius: "8px",
-                  padding: "24px",
-                  margin: "24px 0"
-                }}>
-                  <Text style={{ 
-                    color: "#1f2937",
-                    fontSize: "18px",
-                    fontWeight: "bold",
-                    margin: "0 0 12px 0"
-                  }}>
-                    📩 Côté locataire
-                  </Text>
-                  <Text style={{ 
-                    color: "#374151",
-                    fontSize: "16px",
-                    lineHeight: "1.6",
-                    margin: "0 0 24px 0"
-                  }}>
-                    Votre locataire a reçu un email l'invitant à compléter ses informations. Merci de lui demander de vérifier <strong>ses spams / courriers indésirables si besoin.</strong>   
-                  </Text>
-
-                  <Text style={{ 
-                    color: "#1f2937",
-                    fontSize: "18px",
-                    fontWeight: "bold",
-                    margin: "0 0 12px 0"
-                  }}>
-                    🔐 Votre protection en tant que propriétaire
-                  </Text>
-                  <Text style={{ 
-                    color: "#374151",
-                    fontSize: "16px",
-                    lineHeight: "1.6",
-                    margin: 0
-                  }}>
-                    Le bail notarié vous offre une sécurité juridique renforcée et bénéficie de la force exécutoire, vous permettant d'agir rapidement en cas d'impayé ou de litige.
-                  </Text>
-                </Section>
-              </>
-            )}
-
-            {/* Récapitulatif uniquement si message présent (pour les emails de contact) */}
-            {message && (
-              <>
-              <Section style={{ 
-                backgroundColor: "#f9fafb",
-                borderRadius: "8px",
-                padding: "24px",
-                margin: "24px 0"
-              }}>
-                <Text style={{ 
-                  color: "#1f2937",
-                  fontSize: "18px",
-                  fontWeight: "bold",
-                  margin: "0 0 16px 0"
-                }}>
-                  📋 Récapitulatif de votre demande :
-                </Text>
-                
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "14px",
-                  lineHeight: "1.6",
-                  margin: "0 0 8px 0"
-                }}>
-                  <strong>Nom complet :</strong> {firstName} {lastName}
-                </Text>
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "14px",
-                  lineHeight: "1.6",
-                  margin: "0 0 8px 0"
-                }}>
-                  <strong>Email :</strong> {email}
-                </Text>
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "14px",
-                  lineHeight: "1.6",
-                  margin: "0 0 8px 0"
-                }}>
-                  <strong>Téléphone :</strong> {phone}
-                </Text>
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "14px",
-                  lineHeight: "1.6",
-                  margin: "0 0 16px 0"
-                }}>
-                  <strong>Message :</strong>
-                </Text>
-                <Text style={{ 
-                  color: "#374151",
-                  fontSize: "14px",
-                  lineHeight: "1.6",
-                  margin: "0 0 16px 0",
-                  fontStyle: "italic",
-                  backgroundColor: "#ffffff",
-                  padding: "12px",
-                  borderRadius: "6px",
-                  border: "1px solid #e5e7eb"
-                }}>
-                  "{message}"
-                </Text>
-              </Section>
-                          {/* Points clés */}
-            <Section style={{ 
-              backgroundColor: "#f0f9ff",
-              borderRadius: "8px",
-              padding: "24px",
-              margin: "24px 0"
-            }}>
-              <Text style={{ 
-                color: "#1f2937",
-                fontSize: "18px",
-                fontWeight: "bold",
-                margin: "0 0 16px 0"
-              }}>
-                ⚡ Ce qui vous attend :
-              </Text>
-              
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: "0 0 8px 0"
-              }}>
-                • <strong>Bail notarié</strong> en 1 semaine
-              </Text>
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: "0 0 8px 0"
-              }}>
-                • <strong>Force exécutoire</strong> immédiate
-              </Text>
-              <Text style={{ 
-                color: "#374151",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                margin: 0
-              }}>
-                • <strong>+200 clients</strong> satisfaits
-              </Text>
-            </Section>
-            </>
-            )}
-
-
-
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 32px 0"
-            }}>
-              En attendant notre retour, n'hésitez pas à nous contacter directement au <strong>07 68 09 86 24</strong> pour toute question urgente.
-            </Text>
-
-            {/* CTA principal */}
-            <Section style={{ textAlign: "center", margin: "32px 0" }}>
-              <Button
-                href={clientSpaceUrl}
-                style={{ 
-                  backgroundColor: "#2563eb",
-                  color: "#ffffff",
-                  padding: "16px 32px",
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  fontSize: "16px",
-                  fontWeight: "bold",
-                  display: "inline-block"
-                }}
-              >
-                Accéder à mon espace client
-              </Button>
-            </Section>
-          </Section>
-
-          <Hr style={{ 
-            border: "none",
-            borderTop: "1px solid #e5e7eb",
-            margin: "0"
-          }} />
-
-          {/* Footer */}
-          <Section style={{ 
-            paddingTop: "24px",
-            paddingBottom: "24px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "center",
-            backgroundColor: "#f9fafb"
-          }}>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              margin: "0 0 8px 0"
-            }}>
-              <strong>BailNotarie</strong> - Expert en bail notarié depuis 2019
-            </Text>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "12px",
-              margin: "0 0 8px 0"
-            }}>
-              <Link href="tel:+33768098624" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 68 09 86 24</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
-            </Text>
-            <Text style={{ 
-              color: "#9ca3af",
-              fontSize: "12px",
-              margin: 0
-            }}>
-              Cet email a été envoyé automatiquement, merci de ne pas y répondre directement.
-            </Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
+    <EmailLayout
+      preview="Et si vous voulez gagner du temps, votre dossier peut déjà démarrer en ligne."
+      reference={["Votre demande", "bien reçue"]}
+      footerNote="Vous recevez cet e-mail suite à votre message sur www.bailnotarie.fr."
+    >
+      <Kicker>Demande bien reçue</Kicker>
+      <Title>{name ? `Merci ${name}, un` : "Merci, un"} conseiller vous rappelle sous 24 h ouvrées</Title>
+      <Lead>
+        {phone ? (
+          <>
+            Nous vous appellerons au <b>{phone}</b> pour comprendre votre projet et vous expliquer comment se passe le bail notarié, étape par
+            étape.
+          </>
+        ) : (
+          "Nous revenons vers vous pour comprendre votre projet et vous expliquer comment se passe le bail notarié, étape par étape."
+        )}
+      </Lead>
+      {message && message.trim() && <Quote>« {message.trim()} »</Quote>}
+      <Lead>
+        <b>Vous voulez avancer sans attendre ?</b> Démarrez votre dossier en ligne : nous l'aurons sous les yeux pendant l'appel.
+      </Lead>
+      <Actions primary={{ label: "Démarrer mon bail notarié", href: `${EMAIL_BASE_URL}/commencer` }} />
+      <Trust title="Bail notarié en 1 semaine · force exécutoire · +200 clients accompagnés.">
+        <br />
+        Pressé ? Appelez-nous directement au {PHONE}.
+      </Trust>
+      <Sign />
+    </EmailLayout>
   );
 }
+
+MailConfirmation.PreviewProps = {
+  firstName: "Thomas",
+  lastName: "Bernard",
+  email: "thomas.bernard@exemple.fr",
+  phone: "06 12 34 56 78",
+  message: "Bonjour, je loue un T2 à Paris 11e à partir de janvier et je voudrais un bail notarié. Comment ça se passe ?",
+} satisfies MailConfirmationProps;

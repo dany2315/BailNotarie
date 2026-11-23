@@ -1,23 +1,6 @@
-import { 
-  Html, 
-  Head, 
-  Body, 
-  Container, 
-  Section, 
-  Heading, 
-  Text, 
-  Button, 
-  Hr, 
-  Img,
-  Link
-} from "@react-email/components";
 import * as React from "react";
-import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
+import { EmailLayout, Title, Lead, FileLine, Actions } from "./_shared/layout";
 
-/**
- * Au notaire : le client a répondu à sa demande de compléments (pièces ou informations) et
- * l'a envoyée (m32). Le notaire n'a plus qu'à vérifier la réponse dans le dossier.
- */
 interface MailNotaireComplementAnsweredProps {
   notaireName?: string | null;
   clientName: string;
@@ -27,254 +10,36 @@ interface MailNotaireComplementAnsweredProps {
   dossierUrl: string;
 }
 
-export default function MailNotaireComplementAnswered({
-  notaireName,
-  clientName,
-  itemLabels,
-  bailAddress,
-  dossierUrl
-}: MailNotaireComplementAnsweredProps) {
-  const requestTitle = "Votre demande de compléments";
-  const documentNames = itemLabels;
-  const chatUrl = dossierUrl;
-  const safeClientName =
-    typeof clientName === "string" && clientName.trim().length > 0
-      ? clientName
-      : "Client";
-  const safeRequestTitle =
-    typeof requestTitle === "string" && requestTitle.trim().length > 0
-      ? requestTitle
-      : "Votre demande de compléments";
-  const safeDocumentNames =
-    Array.isArray(documentNames) && documentNames.length > 0
-      ? documentNames.filter(
-          (name): name is string => typeof name === "string" && name.trim().length > 0
-        )
-      : [];
-  const normalizedDocumentNames =
-    safeDocumentNames.length > 0 ? safeDocumentNames : ["Éléments demandés"];
-  const safeChatUrl =
-    typeof chatUrl === "string" && chatUrl.trim().length > 0
-      ? chatUrl
-      : EMAIL_BASE_URL;
+/** Nombre d'éléments, pour l'objet : « 2 éléments à valider ». */
+export function complementAnsweredSubject(clientName: string, count: number) {
+  return `${count > 1 ? `${count} éléments` : "1 élément"} à valider : réponse de ${clientName}`;
+}
 
+/** Le client a répondu à une demande de compléments du notaire. */
+export default function MailNotaireComplementAnswered({ clientName, itemLabels, bailAddress, dossierUrl }: MailNotaireComplementAnsweredProps) {
+  const count = itemLabels.length;
   return (
-    <Html>
-      <Head />
-      <Body style={{ 
-        backgroundColor: "#f8fafc", 
-        fontFamily: "Arial, sans-serif",
-        margin: 0,
-        padding: 0
-      }}>
-        <Container style={{ 
-          maxWidth: "600px", 
-          margin: "0 auto", 
-          backgroundColor: "#ffffff",
-          borderRadius: "12px",
-          overflow: "hidden",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)"
-        }}>
-          {/* Header avec logo */}
-          <Section style={{ 
-            background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)",
-            paddingTop: "32px",
-            paddingBottom: "32px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "start"
-          }}>
-            <Link
-              href={EMAIL_BASE_URL}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "start",
-                textDecoration: "none",
-                color: "#166534",
-              }}
-            >
-              <Img
-                src={EMAIL_LOGO_URL}
-                alt="BailNotarie - Plateforme de baux notariés"
-                width="40"
-                height="40"
-                style={{
-                  borderRadius: "50%",
-                  display: "block",
-                }}
-              />
-              <span
-                style={{
-                  marginLeft: "8px",
-                  marginTop: "5px",
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#166534",
-                }}
-              >
-                BailNotarie
-              </span>
-            </Link>
-
-            <Text style={{ 
-              color: "#166534",
-              fontSize: "20px",
-              margin: "30px 0px 0px 0px"
-            }}>
-              Réponse reçue
-            </Text>
-          </Section>
-
-          {/* Contenu principal */}
-          <Section style={{ paddingTop: "40px", paddingBottom: "40px", paddingLeft: "24px", paddingRight: "24px" }}>
-            <Heading style={{ 
-              color: "#16a34a",
-              fontSize: "24px",
-              fontWeight: "bold",
-              margin: "0 0 16px 0",
-              textAlign: "center"
-            }}>
-              ✅ Votre demande a reçu une réponse
-            </Heading>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              {notaireName ? `Bonjour ${notaireName},` : "Bonjour,"}
-            </Text>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              <strong>{safeClientName}</strong> a répondu à votre demande{bailAddress ? ` concernant le bail situé au ${bailAddress}` : ""}.
-            </Text>
-
-            {/* Détails de la demande */}
-            <Section style={{ 
-              backgroundColor: "#f0fdf4",
-              borderRadius: "8px",
-              paddingTop: "24px",
-              paddingBottom: "24px",
-              paddingLeft: "24px",
-              paddingRight: "24px",
-              margin: "24px 0",
-              border: "2px solid #86efac"
-            }}>
-              <Text style={{ 
-                color: "#166534",
-                fontSize: "16px",
-                fontWeight: "bold",
-                margin: "0 0 16px 0"
-              }}>
-                📋 Demande : {safeRequestTitle}
-              </Text>
-              
-              <Text style={{ 
-                color: "#166534",
-                fontSize: "16px",
-                fontWeight: "bold",
-                margin: "0 0 8px 0"
-              }}>
-                📎 Élément{normalizedDocumentNames.length > 1 ? "s" : ""} fourni{normalizedDocumentNames.length > 1 ? "s" : ""} :
-              </Text>
-              
-              {normalizedDocumentNames.map((name, index) => (
-                <Text key={index} style={{ 
-                  color: "#374151",
-                  fontSize: "14px",
-                  margin: "4px 0 4px 16px",
-                  backgroundColor: "#ffffff",
-                  padding: "8px 12px",
-                  borderRadius: "6px",
-                  border: "1px solid #e5e7eb"
-                }}>
-                  • {name}
-                </Text>
-              ))}
-            </Section>
-
-            {/* CTA principal */}
-            <Section style={{ textAlign: "center", margin: "32px 0" }}>
-              <Button
-                href={safeChatUrl}
-                style={{ 
-                  backgroundColor: "#16a34a",
-                  color: "#ffffff",
-                  padding: "16px 32px",
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  fontSize: "16px",
-                  fontWeight: "bold",
-                  display: "inline-block"
-                }}
-              >
-                Vérifier la réponse
-              </Button>
-            </Section>
-
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              lineHeight: "1.6",
-              margin: "0 0 32px 0",
-              textAlign: "center"
-            }}>
-              Connectez-vous à votre espace pour vérifier la réponse et accepter ou redemander chaque élément.
-            </Text>
-          </Section>
-
-          <Hr style={{ 
-            border: "none",
-            borderTop: "1px solid #e5e7eb",
-            margin: "0"
-          }} />
-
-          {/* Footer */}
-          <Section style={{ 
-            paddingTop: "24px",
-            paddingBottom: "24px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "center",
-            backgroundColor: "#f9fafb"
-          }}>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              margin: "0 0 8px 0"
-            }}>
-              <strong>BailNotarie</strong> - Espace notaire
-            </Text>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "12px",
-              margin: "0 0 8px 0"
-            }}>
-              <Link href="tel:+33768098624" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 68 09 86 24</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
-            </Text>
-            <Text style={{ 
-              color: "#9ca3af",
-              fontSize: "12px",
-              margin: 0
-            }}>
-              Vous recevez cet e-mail car un client a répondu à votre demande de compléments.
-            </Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
+    <EmailLayout
+      preview={`${clientName} a envoyé : ${itemLabels.slice(0, 3).join(", ")}${count > 3 ? "…" : ""}.`}
+      reference={bailAddress ? ["Dossier", bailAddress] : ["Espace notaire"]}
+    >
+      <Title>{clientName} a répondu à votre demande</Title>
+      <Lead>
+        Maître, {count > 1 ? `les ${count} éléments demandés sont arrivés` : "l'élément demandé est arrivé"}. Il ne reste qu'à{" "}
+        {count > 1 ? "les" : "le"} valider ou à {count > 1 ? "les" : "le"} redemander :
+      </Lead>
+      {itemLabels.map((label, index) => (
+        <FileLine key={`${label}-${index}`} name={label} status="à valider" />
+      ))}
+      <Actions primary={{ label: count > 1 ? `Valider les ${count} éléments` : "Valider l'élément", href: dossierUrl }} />
+    </EmailLayout>
   );
 }
 
-
-
-
-
-
+MailNotaireComplementAnswered.PreviewProps = {
+  notaireName: "Claire Durand",
+  clientName: "Thomas Bernard",
+  itemLabels: ["Pièce d'identité de Thomas Bernard", "Règlement de copropriété"],
+  bailAddress: "12 rue des Lilas, 75011 Paris",
+  dossierUrl: "https://www.bailnotarie.fr/notaire/dossiers",
+} satisfies MailNotaireComplementAnsweredProps;

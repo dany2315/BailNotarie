@@ -2,6 +2,8 @@ import { inngest } from "@/lib/inngest/client";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailDocumentRequest from "@/emails/mail-document-request";
 import MailDocumentReceived from "@/emails/mail-document-received";
+import { notaireTitle } from "@/lib/notaire/form-reminders";
+import { senderAs } from "@/lib/utils/email-sender";
 
 /**
  * Envoie un email au client pour une nouvelle demande de document
@@ -13,13 +15,14 @@ export const sendDocumentRequestEmail = inngest.createFunction(
   { event: "email/document-request.send" },
   async ({ event, step }) => {
     await step.run("send-document-request-email", async () => {
+      const notaire = notaireTitle(event.data.notaireName) || "Votre notaire";
       await resendSendEmail({
-        from: "BailNotarie – Notaire <contact@bailnotarie.fr>",
+        from: senderAs(notaireTitle(event.data.notaireName), "contact@bailnotarie.fr"),
         to: event.data.recipientEmail,
-        subject: `📄 Demande de document : ${event.data.requestTitle} - BailNotarie`,
+        subject: `${notaire} a besoin d'un document : ${event.data.requestTitle}`,
         react: MailDocumentRequest({
           recipientName: event.data.recipientName,
-          notaireName: event.data.notaireName,
+          notaireName: notaire,
           requestTitle: event.data.requestTitle,
           requestContent: event.data.requestContent,
           bailAddress: event.data.bailAddress,
@@ -56,9 +59,9 @@ export const sendDocumentReceivedEmail = inngest.createFunction(
           : process.env.NEXT_PUBLIC_URL || "https://www.bailnotarie.fr";
 
       await resendSendEmail({
-        from: "BailNotarie – Client <contact@bailnotarie.fr>",
+        from: "BailNotarie <contact@bailnotarie.fr>",
         to: event.data.notaireEmail,
-        subject: `✅ Document reçu pour : ${requestTitle} - BailNotarie`,
+        subject: `Pièce reçue de ${event.data.clientName || "votre client"} : ${requestTitle}`,
         react: MailDocumentReceived({
           notaireName: event.data.notaireName,
           clientName: event.data.clientName,

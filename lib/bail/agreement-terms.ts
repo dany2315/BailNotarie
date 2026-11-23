@@ -3,6 +3,8 @@
  * aussi dans les composants du navigateur. La logique d'archivage est dans tenant-agreement.ts (serveur).
  */
 
+import { formatEuros, formatFrenchDate } from "@/lib/utils/email-format";
+
 /** Conditions couvertes par l'accord. Le reste du dossier (pièces, relocation, clauses…) ne le remet pas en cause. */
 export const AGREEMENT_FIELDS = [
   "bailFamily",
@@ -68,4 +70,35 @@ export function agreementChanges(before: AgreementTerms, after: AgreementTerms):
     before: before[field] ?? null,
     after: after[field] ?? null,
   }));
+}
+
+const BAIL_FAMILY_TEXT: Record<string, string> = { HABITATION: "Habitation", COMMERCIAL: "Commercial" };
+const BAIL_TYPE_TEXT: Record<string, string> = {
+  BAIL_NU_3_ANS: "Location vide, 3 ans",
+  BAIL_NU_6_ANS: "Location vide, 6 ans",
+  BAIL_MEUBLE_1_ANS: "Location meublée, 1 an",
+  BAIL_MEUBLE_9_MOIS: "Location meublée étudiant, 9 mois",
+  COMMERCIAL_3_6_9: "Bail commercial 3-6-9",
+  COMMERCIAL_DEROGATOIRE: "Bail commercial dérogatoire",
+};
+const PERIODICITY_TEXT: Record<string, string> = { MONTHLY: "Mensuel", QUARTERLY: "Trimestriel" };
+
+/** Valeur d'une condition telle qu'on la montre au locataire (« 1 100 € », « 1er décembre 2026 »…). */
+export function formatAgreementValue(field: AgreementField, value: string | number | null): string {
+  if (value === null || value === undefined || value === "") return "Non renseigné";
+  switch (field) {
+    case "rentAmount":
+    case "monthlyCharges":
+    case "securityDeposit":
+      return formatEuros(Number(value)) ?? String(value);
+    case "effectiveDate":
+    case "endDate":
+      return formatFrenchDate(String(value)) ?? String(value);
+    case "bailFamily":
+      return BAIL_FAMILY_TEXT[String(value)] ?? String(value);
+    case "bailType":
+      return BAIL_TYPE_TEXT[String(value)] ?? String(value);
+    case "rentPeriodicity":
+      return PERIODICITY_TEXT[String(value)] ?? String(value);
+  }
 }

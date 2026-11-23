@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 import { ClientType, ProfilType, BailType, BailFamille, BailStatus, PropertyStatus, NotificationType } from "@prisma/client";
-import { triggerOwnerFormEmail, triggerRequestStatusEmail } from "@/lib/inngest/helpers";
+import { triggerOwnerFormEmail } from "@/lib/inngest/helpers";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { createUserForClient } from "@/lib/utils/user-creation";
 import { z } from "zod";
@@ -274,7 +274,7 @@ export async function startAsTenant(data: StartTenantInput) {
         alreadyExists: true,
         alreadySubmitted: true,
         message: "Le propriétaire a déjà fait sa demande. Votre demande de bail notarié est en cours de traitement.",
-        redirectTo: "/commencer/suivi",
+        redirectTo: "/client/login",
       };
     }
     else{
@@ -283,7 +283,7 @@ export async function startAsTenant(data: StartTenantInput) {
         alreadyExists: true,
         alreadyPending: false,
         message: "Le propriétaire a déjà fait sa demande. Votre demande de bail notarié est en cours de traitement.",
-        redirectTo: "/commencer/suivi",
+        redirectTo: "/client/login",
       };
     }
   } else {
@@ -430,149 +430,3 @@ export async function startAsTenant(data: StartTenantInput) {
   };
 }
 }
-
-// Récupérer le statut d'une demande par email
-export async function getRequestStatusByEmail(email: string) {
-  const normalizedEmail = email.toLowerCase().trim();
-  
-  // Trouver le client via Person.email ou Entreprise.email
-  const person = await prisma.person.findUnique({
-    where: { email: normalizedEmail },
-    select: { clientId: true },
-  });
-
-  const entreprise = await prisma.entreprise.findUnique({
-    where: { email: normalizedEmail },
-    select: { clientId: true },
-  });
-
-  const clientId = person?.clientId || entreprise?.clientId;
-
-  if (!clientId) {
-    return {
-      success: false,
-      found: false,
-      message: "Aucune demande trouvée pour cet email.",
-    };
-  }
-
-  // Récupérer le client avec toutes ses relations
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    include: {
-      intakeLinks: {
-        where: {
-          status: {
-            in: ["PENDING", "SUBMITTED"],
-          },
-        },
-        include: {
-          bail: {
-            include: {
-              property: true,
-            },
-          },
-          property: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      },
-      bails: {
-        include: {
-          property: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      },
-    },
-  });
-
-  if (!client) {
-    return {
-      success: false,
-      found: false,
-      message: "Aucune demande trouvée pour cet email.",
-    };
-  }
-
-  // Déterminer l'étape actuelle
-  const latestIntakeLink = client.intakeLinks[0];
-  const latestBail = client.bails[0];
-
-  let currentStep = "Aucune étape en cours";
-  let status = "NOT_STARTED";
-
-  if (latestIntakeLink) {
-    if (latestIntakeLink.status === "SUBMITTED") {
-      status = "SUBMITTED";
-      if (latestBail) {
-        switch (latestBail.status) {
-          case "DRAFT":
-            currentStep = "Formulaire soumis - En attente de validation";
-            break;
-          case "PENDING_VALIDATION":
-            currentStep = "En attente de validation par BailNotarié";
-            break;
-          case "READY_FOR_NOTARY":
-            currentStep = "Prêt pour le notaire";
-            break;
-          case "SIGNED":
-            currentStep = "Bail signé";
-            break;
-          case "TERMINATED":
-            currentStep = "Bail terminé";
-            break;
-          default:
-            currentStep = "Formulaire soumis - En attente de traitement";
-        }
-      } else {
-        currentStep = "Formulaire soumis - En attente de traitement";
-      }
-    } else if (latestIntakeLink.status === "PENDING") {
-      status = "PENDING";
-      currentStep = "Formulaire en cours de complétion";
-    }
-  }
-
-  // Récupérer les informations de Person ou Entreprise pour l'email
-  const clientPerson = await prisma.person.findFirst({
-    where: { clientId: client.id, isPrimary: true },
-  });
-
-  const clientEntreprise = await prisma.entreprise.findUnique({
-    where: { clientId: client.id },
-  });
-
-  const firstName = clientPerson?.firstName || null;
-  const lastName = clientPerson?.lastName || null;
-
-  // Envoyer l'email avec les informations de suivi
-  try {
-    await triggerRequestStatusEmail({
-      to: normalizedEmail,
-      firstName: firstName,
-      lastName: lastName,
-      currentStep,
-      status,
-      propertyAddress: latestBail?.property?.fullAddress || null,
-      profilType: client.profilType,
-      intakeLinkToken: latestIntakeLink?.token || null,
-    });
-  } catch (error) {
-    console.error("Erreur lors du déclenchement de l'email de suivi:", error);
-    return {
-      success: false,
-      found: true,
-      message: "Une erreur s'est produite lors de l'envoi de l'email. Veuillez réessayer plus tard.",
-    };
-  }
-
-  return {
-    success: true,
-    found: true,
-    message: "Un email contenant les informations de suivi de votre demande a été envoyé à votre adresse email.",
-  };
-}
-

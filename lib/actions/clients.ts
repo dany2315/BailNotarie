@@ -1458,6 +1458,7 @@ export async function submitOwnerForm(data: unknown, paymentIntentId?: string) {
               lastName,
               phone: phone || undefined,
               role: "PROPRIETAIRE",
+              clientId: validated.clientId,
             });
           } catch (error) {
             console.error("Erreur lors de l'envoi de l'email de confirmation au propriétaire:", error);
@@ -1971,6 +1972,7 @@ export async function submitTenantForm(data: unknown) {
               lastName,
               phone: phone || undefined,
               role: "LOCATAIRE",
+              clientId: validated.clientId,
             });
           } catch (error) {
             console.error("Erreur lors de l'envoi de l'email de confirmation au locataire:", error);
@@ -3034,7 +3036,7 @@ export async function sendIntakeLinkToClient(clientId: string) {
     try {
       await triggerLeadConversionEmail({
         to: clientEmail,
-        subject: "Bienvenue chez BailNotarie - Choisissez votre profil",
+        subject: "Votre bail notarié en 1 semaine, on s'occupe de tout",
         convertUrl,
       });
     } catch (error) {
@@ -3442,6 +3444,7 @@ export async function updateClientCompletionStatus(data: { id: string; completio
           clientName: name,
           entityType: "client",
           entityName: name,
+          clientId: id,
           oldStatus,
           newStatus: completionStatus,
           dashboardUrl: `${baseUrl}${dashboardPath}`,

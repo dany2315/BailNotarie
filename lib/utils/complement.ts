@@ -43,11 +43,11 @@ export function reasonSentence(reason: ComplementReasonValue, kind: ComplementIt
 
 /** Message proposé par défaut, modifiable par l'équipe dans l'aperçu. */
 export const DEFAULT_COMPLEMENT_MESSAGE =
-  "Pour finaliser votre dossier de bail notarié, nous avons besoin des pièces ci-dessous. Vous pouvez les envoyer en quelques minutes depuis votre espace.";
+  "Votre dossier est presque prêt : il ne nous manque que les pièces ci-dessous. Vous pouvez les envoyer en quelques minutes depuis votre espace, une photo nette prise au téléphone suffit.";
 
 /** Message par défaut quand la demande contient des informations à compléter. */
 export const DEFAULT_COMPLEMENT_FIELDS_MESSAGE =
-  "Pour finaliser votre dossier de bail notarié, nous avons besoin des éléments ci-dessous. Vous pouvez les compléter en quelques minutes depuis votre espace.";
+  "Votre dossier est presque prêt : il ne nous manque que les éléments ci-dessous. Vous pouvez les compléter en quelques minutes depuis votre espace.";
 
 export function defaultComplementMessage(hasFields: boolean) {
   return hasFields ? DEFAULT_COMPLEMENT_FIELDS_MESSAGE : DEFAULT_COMPLEMENT_MESSAGE;
@@ -58,10 +58,10 @@ export function defaultComplementMessage(hasFields: boolean) {
  * encore attendues (le message du premier envoi, lui, peut ne plus l'être).
  */
 export const REMINDER_COMPLEMENT_MESSAGE =
-  "Il nous manque encore les pièces ci-dessous pour finaliser votre dossier de bail notarié. Vous pouvez les envoyer en quelques minutes depuis votre espace.";
+  "Tout le reste de votre dossier avance : il ne nous manque plus que les pièces ci-dessous. Vous ne les avez pas sous la main ? Répondez à cet e-mail, nous vous aidons à les obtenir.";
 
 export const REMINDER_COMPLEMENT_FIELDS_MESSAGE =
-  "Il nous manque encore les éléments ci-dessous pour finaliser votre dossier de bail notarié. Vous pouvez les compléter en quelques minutes depuis votre espace.";
+  "Tout le reste de votre dossier avance : il ne nous manque plus que les éléments ci-dessous. Une question ? Répondez à cet e-mail, nous vous aidons.";
 
 /** « 2 pièces et 1 information », « 3 informations », « 1 pièce ». */
 export function complementCountLabel(items: Array<{ kind?: ComplementItemKindValue | string | null }>) {
@@ -99,10 +99,16 @@ export function complementEmailContent(input: ComplementEmailInput) {
   const count = input.items.length;
   const hasFields = input.items.some((item) => item.kind === "FIELD");
   const what = complementCountLabel(input.items);
-  const verb = hasFields ? "à compléter" : "à nous envoyer";
+  const firstName = input.name?.trim();
   return {
-    subject: input.reminder ? `Rappel : ${what} ${verb} pour votre bail notarié` : `Votre bail notarié : ${what} ${verb}`,
-    preview: input.reminder ? `Il nous manque encore ${what} pour votre dossier` : `Nous avons besoin de ${what} pour votre dossier`,
+    subject: input.reminder
+      ? `${firstName ? `${firstName}, votre` : "Votre"} dossier n'attend plus que ${what}`
+      : `Plus que ${what} pour finaliser votre dossier`,
+    preview: input.reminder
+      ? `Il ne manque plus que ${what} pour finaliser votre dossier. Besoin d'aide ? Répondez à cet e-mail.`
+      : `${input.items.map((item) => item.label).slice(0, 3).join(", ")} : quelques minutes suffisent.`,
+    /** Titre de l'e-mail. */
+    title: input.reminder ? `Il ne manque plus que ${what}` : `Plus que ${what} pour finaliser votre dossier`,
     greeting: `Bonjour${input.name ? ` ${input.name}` : ""},`,
     context: `Dossier : ${input.address}`,
     message:

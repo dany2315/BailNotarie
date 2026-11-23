@@ -1,18 +1,5 @@
-import { 
-  Html, 
-  Head, 
-  Body, 
-  Container, 
-  Section, 
-  Heading, 
-  Text, 
-  Hr,
-  Img,
-  Link,
-  Preview
-} from "@react-email/components";
 import * as React from "react";
-import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./_shared/urls";
+import { EmailLayout, Title, Lead, CodeBox } from "./_shared/layout";
 import { getOtpEmailPreview } from "./_shared/otp";
 
 interface MailNotaireOTPProps {
@@ -20,210 +7,19 @@ interface MailNotaireOTPProps {
   code: string;
 }
 
-export default function MailNotaireOTP({
-  userName,
-  code
-}: MailNotaireOTPProps) {
+/** Code de connexion à l'espace notaire. */
+export default function MailNotaireOTP({ code }: MailNotaireOTPProps) {
   return (
-    <Html>
-      <Head />
-      <Preview>{getOtpEmailPreview(code)}</Preview>
-      <Body style={{ 
-        backgroundColor: "#f8fafc", 
-        fontFamily: "Arial, sans-serif",
-        margin: 0,
-        padding: 0
-      }}>
-        <Container style={{ 
-          maxWidth: "600px", 
-          margin: "0 auto", 
-          backgroundColor: "#ffffff",
-          borderRadius: "12px",
-          overflow: "hidden",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)"
-        }}>
-          {/* Header avec logo */}
-          <Section style={{ 
-            background: "linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)",
-            paddingTop: "32px",
-            paddingBottom: "32px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "start"
-          }}>
-            <Link
-              href={EMAIL_BASE_URL}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "start",
-                textDecoration: "none",
-                color: "#1e3a8a",
-              }}
-            >
-              <Img
-                src={EMAIL_LOGO_URL}
-                alt="BailNotarie - Plateforme de baux notariés"
-                width="40"
-                height="40"
-                style={{
-                  borderRadius: "50%",
-                  display: "block",
-                }}
-              />
-              <span
-                style={{
-                  marginLeft: "8px",
-                  marginTop: "5px",
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#1e3a8a",
-                }}
-              >
-                BailNotarie
-              </span>
-            </Link>
-
-            <Text style={{ 
-              color: "#1e3a8a",
-              fontSize: "20px",
-              margin: "30px 0px 0px 0px"
-            }}>
-              Votre partenaire pour les baux notariés sécurisés
-            </Text>
-          </Section>
-
-          {/* Contenu principal */}
-          <Section style={{ paddingTop: "40px", paddingBottom: "40px", paddingLeft: "24px", paddingRight: "24px" }}>
-            <Heading style={{ 
-              color: "#2563eb",
-              fontSize: "24px",
-              fontWeight: "bold",
-              margin: "0 0 16px 0",
-              textAlign: "center"
-            }}>
-              🔐 Code de connexion
-            </Heading>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              {userName ? `Bonjour ${userName},` : "Bonjour,"}
-            </Text>
-            
-            <Text style={{ 
-              color: "#374151",
-              fontSize: "16px",
-              lineHeight: "1.6",
-              margin: "0 0 24px 0"
-            }}>
-              Vous avez demandé un code de connexion pour accéder à votre interface notaire.
-            </Text>
-
-            {/* Code OTP */}
-            <Section style={{ 
-              backgroundColor: "#f0f9ff",
-              borderRadius: "8px",
-              paddingTop: "32px",
-              paddingBottom: "32px",
-              paddingLeft: "24px",
-              paddingRight: "24px",
-              margin: "24px 0",
-              border: "2px solid #bfdbfe",
-              textAlign: "center"
-            }}>
-              <Text style={{ 
-                color: "#1e40af",
-                fontSize: "14px",
-                fontWeight: "bold",
-                margin: "0 0 16px 0",
-                textTransform: "uppercase",
-                letterSpacing: "1px"
-              }}>
-                Votre code de connexion
-              </Text>
-              
-              <Text style={{ 
-                color: "#1e40af",
-                fontSize: "48px",
-                fontWeight: "bold",
-                margin: "0",
-                letterSpacing: "8px",
-                fontFamily: "monospace"
-              }}>
-                {code}
-              </Text>
-            </Section>
-
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              lineHeight: "1.6",
-              margin: "24px 0",
-              textAlign: "center"
-            }}>
-              ⏱️ Ce code est valide pendant 10 minutes.
-            </Text>
-
-            <Text style={{ 
-              color: "#dc2626",
-              fontSize: "14px",
-              lineHeight: "1.6",
-              margin: "24px 0",
-              textAlign: "center",
-              fontWeight: "bold"
-            }}>
-              ⚠️ Ne partagez jamais ce code avec personne.
-            </Text>
-          </Section>
-
-          <Hr style={{ 
-            border: "none",
-            borderTop: "1px solid #e5e7eb",
-            margin: "0"
-          }} />
-
-          {/* Footer */}
-          <Section style={{ 
-            paddingTop: "24px",
-            paddingBottom: "24px",
-            paddingLeft: "24px",
-            paddingRight: "24px",
-            textAlign: "center",
-            backgroundColor: "#f9fafb"
-          }}>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "14px",
-              margin: "0 0 8px 0"
-            }}>
-              <strong>BailNotarie</strong> - Interface Notaire
-            </Text>
-            <Text style={{ 
-              color: "#6b7280",
-              fontSize: "12px",
-              margin: "0 0 8px 0"
-            }}>
-              <Link href="tel:+33768098624" style={{ color: "#6b7280", textDecoration: "none" }}>📞 07 68 09 86 24</Link> | <Link href={EMAIL_BASE_URL} style={{ color: "#6b7280", textDecoration: "none" }}>🌐 www.bailnotarie.fr</Link>
-            </Text>
-            <Text style={{ 
-              color: "#9ca3af",
-              fontSize: "12px",
-              margin: 0
-            }}>
-              Si vous n'avez pas demandé ce code, veuillez ignorer cet email.
-            </Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
+    <EmailLayout preview={getOtpEmailPreview(code)} reference={["Espace notaire", "Connexion"]}>
+      <Title>Votre code de connexion</Title>
+      <Lead>Maître, saisissez ce code pour accéder à votre espace notaire :</Lead>
+      <CodeBox code={code} note="Valable 10 minutes" />
+      <Lead small>Vous n'avez rien demandé ? Ignorez cet e-mail : sans ce code, personne ne peut accéder à vos dossiers.</Lead>
+    </EmailLayout>
   );
 }
 
 MailNotaireOTP.PreviewProps = {
-  userName: "Maître Durand",
+  userName: "Claire Durand",
   code: "482913",
 } satisfies MailNotaireOTPProps;

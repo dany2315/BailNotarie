@@ -15,6 +15,8 @@ export type TenantReconfirmationEmailData = {
   /** Date de la demande, telle qu'enregistrée sur le dossier (ISO) : sert à n'envoyer que pour cette demande-là. */
   requestedAt: string;
   changedLabels: string[];
+  /** Avant / après, mis en forme. Absent pour les demandes envoyées avant l'ajout de ce détail. */
+  changes?: Array<{ label: string; before: string; after: string }>;
 };
 
 /**
@@ -55,12 +57,13 @@ export async function sendTenantReconfirmationEmail(data: TenantReconfirmationEm
     name: getClientGreetingName(tenant) || "",
     address: bail.property?.fullAddress || bail.property?.label || "votre logement",
     changedLabels: data.changedLabels,
+    changes: data.changes,
     actionUrl: `${BASE_URL()}/client/locataire/baux/${data.bailId}`,
   };
   const result = await resendSendEmail({
     from: FROM,
     to: email,
-    subject: tenantReconfirmationSubject,
+    subject: tenantReconfirmationSubject(props.name),
     react: MailTenantReconfirmation(props),
   });
   if (result?.error) throw new Error(`Envoi impossible : ${result.error.message}`);

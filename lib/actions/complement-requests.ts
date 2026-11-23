@@ -21,7 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientFromUser, requireAuth, requireRole } from "@/lib/auth-helpers";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailComplement from "@/emails/mail-complement";
-import MailNotaireComplementAnswered from "@/emails/mail-notaire-complement-answered";
+import MailNotaireComplementAnswered, { complementAnsweredSubject } from "@/emails/mail-notaire-complement-answered";
 import { getActorName, getClientDisplayName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
 import { deleteDocumentFromDB } from "@/lib/document-storage";
 import { queueDiagnosticReading } from "@/lib/diagnostics/run";
@@ -1772,7 +1772,7 @@ export async function submitComplementRequest(data: unknown): Promise<{ success:
           await resendSendEmail({
             from: FROM,
             to: assignment.notaire.email,
-            subject: `Réponse reçue de ${clientName} - BailNotarie`,
+            subject: complementAnsweredSubject(clientName, request.items.length),
             react: MailNotaireComplementAnswered({
               notaireName: assignment.notaire.name,
               clientName,

@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
       // avant même l'affichage d'une page.
       { source: "/register", destination: "/client/login", permanent: false },
       { source: "/register/:path*", destination: "/client/login", permanent: false },
+      // L'ancienne page de suivi par e-mail n'existe plus : l'avancement se suit dans l'espace client.
+      { source: "/commencer/suivi", destination: "/client/login", permanent: true },
     ];
   },
 
@@ -54,10 +56,6 @@ const nextConfig: NextConfig = {
       // racine ; celui-ci ayant ete retire, elles doivent etre explicitement exclues.
       {
         source: "/commencer/deja-soumis",
-        headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
-      },
-      {
-        source: "/commencer/suivi",
         headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
       },
       {

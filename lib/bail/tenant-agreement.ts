@@ -23,7 +23,7 @@ export {
   type AgreementField,
   type AgreementTerms,
 } from "@/lib/bail/agreement-terms";
-import { AGREEMENT_FIELD_LABELS, agreementChanges, agreementTerms, type AgreementChange, type AgreementTerms } from "@/lib/bail/agreement-terms";
+import { AGREEMENT_FIELD_LABELS, agreementChanges, agreementTerms, formatAgreementValue, type AgreementChange, type AgreementTerms } from "@/lib/bail/agreement-terms";
 import { triggerTenantReconfirmationEmail } from "@/lib/inngest/helpers";
 
 const AGREEMENT_SELECT = {
@@ -156,6 +156,11 @@ export async function settleTenantAgreement(
       bailId,
       requestedAt: requestedAt.toISOString(),
       changedLabels: changes.map((change) => AGREEMENT_FIELD_LABELS[change.field]),
+      changes: changes.map((change) => ({
+        label: AGREEMENT_FIELD_LABELS[change.field],
+        before: formatAgreementValue(change.field, change.before),
+        after: formatAgreementValue(change.field, change.after),
+      })),
     }).catch((error) => console.error("[tenant-agreement] e-mail de reconfirmation", error));
   }
   return { invalidated: true, reason, changes };

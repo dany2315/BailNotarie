@@ -11,7 +11,7 @@ const SITE_URL = "https://www.bailnotarie.fr";
  * apparait automatiquement.
  *
  * N'y figurent que les pages publiques indexables. Les pages de tunnel
- * (/commencer/suivi, /commencer/deja-soumis...) et les espaces authentifies en
+ * (/commencer/deja-soumis, /commencer/success...) et les espaces authentifies en
  * sont exclus : ils sont en noindex via next.config.ts.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
