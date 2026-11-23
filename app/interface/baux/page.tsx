@@ -60,7 +60,8 @@ export default async function LeasesPage({
   };
 
   // Par défaut : les dossiers qui attendent depuis le plus longtemps d'abord.
-  const sortParam = urlParams.get("sort") === "recent" ? "recent" : "attente";
+  // Par défaut : les plus récents d’abord ; « Attente la plus longue » sur demande.
+  const sortParam = urlParams.get("sort") === "attente" ? "attente" : "recent";
 
   const [result, paymentCounts, statusCounts, notaires] = await Promise.all([
     getLeases({

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole, requireProprietaireAuth, requireStaff, requireClientAccess, STAFF_ROLES } from "@/lib/auth-helpers";
 import { createLeaseSchema, updateLeaseSchema, transitionLeaseSchema } from "@/lib/zod/lease";
 import { revalidatePath } from "next/cache";
-import { BailAuditEventType, BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus, EnergyClass } from "@prisma/client";
+import { BailAuditEventType, BailFamille, BailType, BailStatus, ProfilType, NotificationType, ClientType, Role, CompletionStatus, EnergyClass, Prisma } from "@prisma/client";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { DeletionBlockedError, createDeletionError } from "@/lib/types/deletion-errors";
 import { z } from "zod";
@@ -728,6 +728,52 @@ export async function getLease(id: string) {
 }
 
 /** Filtre « Notaire » de la liste : « none » = non assigné, sinon l'id du notaire. */
+/** Lettres accentuées et leur équivalent sans accent (même longueur : translate() remplace lettre par lettre). */
+const ACCENTED = "àáâãäåçèéêëìíîïñòóôõöùúûüýÿ";
+const PLAIN = "aaaaaaceeeeiiiinooooouuuuyy";
+
+/** Texte en minuscules sans accents, comme la colonne comparée côté base. */
+function normalizeSearch(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/**
+ * Recherche de la liste des dossiers : chaque mot saisi doit se retrouver dans l'adresse ou le libellé du
+ * bien, ou dans le prénom, le nom, l'e-mail ou la société d'une des parties. Majuscules et accents ignorés :
+ * « johan massin », « Massin Johan » et « Géraldine » / « Geraldine » trouvent le même dossier.
+ */
+async function bailSearchWhere(search: string): Promise<Prisma.BailWhereInput> {
+  const words = normalizeSearch(search).split(/\s+/).filter(Boolean).slice(0, 8);
+  if (words.length === 0) return {};
+  const norm = (column: Prisma.Sql) => Prisma.sql`translate(lower(coalesce(${column}, '')), ${ACCENTED}, ${PLAIN})`;
+  const conditions = words.map((word) => {
+    const like = `%${word.replace(/[\\%_]/g, (c) => "\\" + c)}%`;
+    return Prisma.sql`(
+      ${norm(Prisma.sql`pr."fullAddress"`)} LIKE ${like}
+      OR ${norm(Prisma.sql`pr."label"`)} LIKE ${like}
+      OR EXISTS (
+        SELECT 1 FROM "_BailClients" bc
+        LEFT JOIN "Person" p ON p."clientId" = bc."B"
+        LEFT JOIN "Entreprise" e ON e."clientId" = bc."B"
+        WHERE bc."A" = b."id" AND (
+          ${norm(Prisma.sql`p."firstName"`)} LIKE ${like}
+          OR ${norm(Prisma.sql`p."lastName"`)} LIKE ${like}
+          OR ${norm(Prisma.sql`p."email"`)} LIKE ${like}
+          OR ${norm(Prisma.sql`e."legalName"`)} LIKE ${like}
+          OR ${norm(Prisma.sql`e."name"`)} LIKE ${like}
+          OR ${norm(Prisma.sql`e."email"`)} LIKE ${like}
+        )
+      )
+    )`;
+  });
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT b."id" FROM "Bail" b
+    LEFT JOIN "Property" pr ON pr."id" = b."propertyId"
+    WHERE ${Prisma.join(conditions, " AND ")}
+  `;
+  return { id: { in: rows.map((row) => row.id) } };
+}
+
 function notaireWhere(notaire?: string) {
   if (!notaire) return {};
   if (notaire === "none") return { dossierAssignments: { none: {} } };
@@ -787,17 +833,7 @@ export async function getLeases(params: {
   }
 
   if (params.search) {
-    where.OR = [
-      { property: { fullAddress: { contains: params.search, mode: "insensitive" } } },
-      // Recherche dans les personnes des parties
-      { parties: { some: { persons: { some: { firstName: { contains: params.search, mode: "insensitive" } } } } } },
-      { parties: { some: { persons: { some: { lastName: { contains: params.search, mode: "insensitive" } } } } } },
-      { parties: { some: { persons: { some: { email: { contains: params.search, mode: "insensitive" } } } } } },
-      // Recherche dans les entreprises des parties
-      { parties: { some: { entreprise: { legalName: { contains: params.search, mode: "insensitive" } } } } },
-      { parties: { some: { entreprise: { name: { contains: params.search, mode: "insensitive" } } } } },
-      { parties: { some: { entreprise: { email: { contains: params.search, mode: "insensitive" } } } } },
-    ];
+    where.AND = [...(where.AND ?? []), await bailSearchWhere(params.search)];
   }
 
   const page = params.page || 1;
@@ -887,15 +923,7 @@ export async function getLeaseStatusCounts(params: {
   if (params.payment === "paid") where.AND = [PAID_WHERE];
   else if (params.payment === "unpaid") where.AND = [UNPAID_WHERE];
   if (params.search) {
-    where.OR = [
-      { property: { fullAddress: { contains: params.search, mode: "insensitive" } } },
-      { parties: { some: { persons: { some: { firstName: { contains: params.search, mode: "insensitive" } } } } } },
-      { parties: { some: { persons: { some: { lastName: { contains: params.search, mode: "insensitive" } } } } } },
-      { parties: { some: { persons: { some: { email: { contains: params.search, mode: "insensitive" } } } } } },
-      { parties: { some: { entreprise: { legalName: { contains: params.search, mode: "insensitive" } } } } },
-      { parties: { some: { entreprise: { name: { contains: params.search, mode: "insensitive" } } } } },
-      { parties: { some: { entreprise: { email: { contains: params.search, mode: "insensitive" } } } } },
-    ];
+    where.AND = [...(where.AND ?? []), await bailSearchWhere(params.search)];
   }
 
   const groups = await prisma.bail.groupBy({ by: ["status"], where, _count: { _all: true } });
@@ -939,15 +967,7 @@ export async function getLeasePaymentCounts(params: {
   }
 
   if (params.search) {
-    baseWhere.OR = [
-      { property: { fullAddress: { contains: params.search, mode: "insensitive" } } },
-      { parties: { some: { persons: { some: { firstName: { contains: params.search, mode: "insensitive" } } } } } },
-      { parties: { some: { persons: { some: { lastName: { contains: params.search, mode: "insensitive" } } } } } },
-      { parties: { some: { persons: { some: { email: { contains: params.search, mode: "insensitive" } } } } } },
-      { parties: { some: { entreprise: { legalName: { contains: params.search, mode: "insensitive" } } } } },
-      { parties: { some: { entreprise: { name: { contains: params.search, mode: "insensitive" } } } } },
-      { parties: { some: { entreprise: { email: { contains: params.search, mode: "insensitive" } } } } },
-    ];
+    baseWhere.AND = [...(baseWhere.AND ?? []), await bailSearchWhere(params.search)];
   }
 
   const [total, unpaid, paid] = await Promise.all([
