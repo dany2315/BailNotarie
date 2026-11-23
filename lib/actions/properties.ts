@@ -499,9 +499,14 @@ export async function getProperties(params: {
 }
 
 // Mettre à jour le statut de complétion d'un bien
-export async function updatePropertyCompletionStatus(data: { id: string; completionStatus: CompletionStatus }) {
+export async function updatePropertyCompletionStatus(data: {
+  id: string;
+  completionStatus: CompletionStatus;
+  /** false : pas d'e-mail au propriétaire (il en reçoit déjà un pour la même validation, ex. envoi au notaire). */
+  notify?: boolean;
+}) {
   const user = await requireStaff();
-  const { id, completionStatus } = data;
+  const { id, completionStatus, notify = true } = data;
 
   // Récupérer l'ancien statut et le propriétaire
   const property = await prisma.property.findUnique({
@@ -533,7 +538,7 @@ export async function updatePropertyCompletionStatus(data: { id: string; complet
   });
 
   // Envoyer un email de notification au propriétaire si le statut a changé (asynchrone)
-  if (oldStatus !== completionStatus && property.ownerId) {
+  if (notify && oldStatus !== completionStatus && property.ownerId) {
     const { getClientEmailAndName } = await import("../utils/client-email");
     const { triggerCompletionStatusEmail } = await import("../inngest/helpers");
     

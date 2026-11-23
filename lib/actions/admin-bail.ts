@@ -258,13 +258,16 @@ export async function validateAndSendToNotary(
       }
     }
 
+    // Un seul e-mail « Dossier validé » par personne : si la fiche du propriétaire vient d'être validée, il
+    // reçoit déjà cet e-mail ; la validation du bien n'en envoie pas un second.
+    const ownerNotified = owner.completionStatus !== CompletionStatus.COMPLETED;
     for (const party of [owner, tenant]) {
       if (party.completionStatus !== CompletionStatus.COMPLETED) {
         await updateClientCompletionStatus({ id: party.id, completionStatus: CompletionStatus.COMPLETED });
       }
     }
     if (bail.property.completionStatus !== CompletionStatus.COMPLETED) {
-      await updatePropertyCompletionStatus({ id: bail.propertyId, completionStatus: CompletionStatus.COMPLETED });
+      await updatePropertyCompletionStatus({ id: bail.propertyId, completionStatus: CompletionStatus.COMPLETED, notify: !ownerNotified });
     }
 
     const after = await prisma.bail.findUnique({ where: { id: bailId }, select: { status: true } });
