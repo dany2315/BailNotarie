@@ -15,7 +15,7 @@ export function DashboardActionButtons() {
     <>
       <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center">
         <Button asChild size="sm" className="h-10 gap-1.5 sm:h-8">
-          <Link href="/interface/clients/new">
+          <Link href="/interface/baux/new">
             <Plus className="size-4" />
             <span className="hidden sm:inline">Nouveau dossier</span>
             <span className="sm:hidden">Dossier</span>

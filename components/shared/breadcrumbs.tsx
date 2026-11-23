@@ -16,6 +16,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   recherche: "Recherche",
   edit: "Modifier",
   new: "Nouveau",
+  existant: "Propriétaire déjà client",
 };
 
 export function Breadcrumbs() {
