@@ -121,6 +121,8 @@ function getNotificationLink(notification: Notification): string | null {
   }
 }
 
+const subscribeNothing = () => () => {};
+
 export function NotificationsDropdown({
   allHref = "/interface/notifications",
 }: {
@@ -190,6 +192,19 @@ export function NotificationsDropdown({
       router.push(link);
     }
   };
+
+  // Rendu serveur et hydratation : la cloche seule, sans menu Radix. Les identifiants du menu
+  // (radix-_R_…) dépendent de la position dans l'arbre React et ne correspondaient pas toujours
+  // entre le serveur et le navigateur (erreur d'hydratation dans l'espace notaire). Les
+  // notifications se chargent de toute façon côté navigateur : rien n'est perdu.
+  const mounted = React.useSyncExternalStore(subscribeNothing, () => true, () => false);
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" className="relative" aria-label="Notifications" type="button">
+        <Bell className="h-5 w-5" />
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
