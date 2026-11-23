@@ -549,6 +549,22 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
   const bailDocKinds = new Set((bailDocuments as any[]).map((doc) => doc.kind as string));
   const proofIds = (bailDocuments as any[]).filter((doc) => relocation?.proofs.includes(doc.kind)).map((doc) => doc.id).sort();
   const missingProofs = (relocation?.proofs ?? []).filter((kind) => !bailDocKinds.has(kind));
+  // Justificatifs manquants : pièces du bail, demandées avec les autres pièces (pas de demande à part ici).
+  const proofLabel = (kind: string) => PROOF_LABELS[kind]?.label.toLowerCase() ?? kind;
+  const proofRequestedOn = (kind: string) => {
+    const request = complementRequests.find((r) => r.target === "OWNER" && r.items.some((item) => item.kind === kind && item.status === "PENDING"));
+    return request ? formatDate(request.lastSentAt) : null;
+  };
+  const proofsAsked = missingProofs.filter((kind) => proofRequestedOn(kind));
+  const proofsToAsk = missingProofs.filter((kind) => !proofRequestedOn(kind));
+  const proofsNote = [
+    proofsAsked.length > 0 &&
+      `Justificatif${proofsAsked.length > 1 ? "s" : ""} déjà demandé${proofsAsked.length > 1 ? "s" : ""} au propriétaire le ${proofRequestedOn(proofsAsked[0])} : ${proofsAsked.map(proofLabel).join(", ")}`,
+    proofsToAsk.length > 0 &&
+      `Justificatif${proofsToAsk.length > 1 ? "s" : ""} à demander : ${proofsToAsk.map(proofLabel).join(", ")} (dans les pièces du bail : ${proofsToAsk.length > 1 ? "ils partent" : "il part"} avec la demande de pièces au propriétaire)`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const relocAuto = !relocation || relocation.status === "not_concerned";
   const relocMissing =
     !!relocation &&
@@ -1254,13 +1270,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                         : relocation.status === "missing" && !relocation.undeclared
                           ? `À compléter : ${relocation.missing.join(", ")}`
                           : missingProofs.length
-                            ? `Justificatif${missingProofs.length > 1 ? "s" : ""} à demander : ${missingProofs.map((kind) => PROOF_LABELS[kind]?.label.toLowerCase()).join(", ")}`
+                            ? proofsNote
                             : null
                   }
                   actions={
                     !bailLocked && ((!!relocation && relocation.notConcerned === null) || (!relocMissing && relocAuto)) ? (
                       <>
-                        {relocation && relocation.notConcerned === null && relocMissing && owner && (
+                        {/* « Demander » seulement s'il manque des réponses du propriétaire. Les justificatifs manquants
+                            sont des pièces du bail : ils partent dans la demande de pièces (fin de vérification). */}
+                        {relocation && relocation.notConcerned === null && (relocation.status === "missing" || relocation.undeclared) && owner && (
                           <AskFieldsButton bailId={lease.id} target="OWNER" scope="bail" targetId={lease.id} fields={["relocationLetBefore"]} />
                         )}
                         {relocation && relocation.notConcerned === null && (
@@ -1312,7 +1330,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                           <span className="text-[13px]">
                             Justificatifs :{" "}
                             {relocation.proofs
-                              .map((kind) => `${PROOF_LABELS[kind]?.label.toLowerCase()} (${bailDocKinds.has(kind) ? "reçu" : "à demander"})`)
+                              .map((kind) => `${PROOF_LABELS[kind]?.label.toLowerCase()} (${bailDocKinds.has(kind) ? "reçu" : proofRequestedOn(kind) ? "demandé" : "à demander"})`)
                               .join(", ")}
                           </span>
                         )}
