@@ -1,0 +1,53 @@
+{
+ "suite": "Recherche des dossiers",
+ "createdAt": "2026-11-23T23:33:57.348Z",
+ "passed": 6,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "Prénom et nom ensemble, dans les deux ordres",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Accents ignorés des deux côtés",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Libellé du bien, adresse et e-mail",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Tous les mots doivent correspondre ; caractères spéciaux sans effet de joker",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Compteurs des onglets et du paiement : même recherche que la liste",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Recherche combinée aux filtres (statut, paiement) et recherche vide",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

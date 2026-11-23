@@ -46,7 +46,7 @@ export function LeaseListToolbar({
   const payment = searchParams.get("payment");
   const family = searchParams.get("type");
   const notaire = searchParams.get("notaire");
-  const sort = searchParams.get("sort") === "recent" ? "recent" : "attente";
+  const sort = searchParams.get("sort") === "attente" ? "attente" : "recent";
   const anyActive = !!(payment || family || notaire);
 
   return (
@@ -107,10 +107,10 @@ export function LeaseListToolbar({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-52">
             {[
-              { value: "attente", label: "Attente la plus longue" },
               { value: "recent", label: "Plus récents" },
+              { value: "attente", label: "Attente la plus longue" },
             ].map((option) => (
-              <DropdownMenuItem key={option.value} onSelect={() => update({ sort: option.value === "attente" ? null : option.value })} className="gap-2">
+              <DropdownMenuItem key={option.value} onSelect={() => update({ sort: option.value === "recent" ? null : option.value })} className="gap-2">
                 <Check className={cn("size-4", sort === option.value ? "opacity-100" : "opacity-0")} />
                 {option.label}
               </DropdownMenuItem>
