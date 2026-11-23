@@ -164,6 +164,8 @@ const updateLeaseBaseSchema = z.object({
     .optional()
     .refine((val) => !val || (/^\d{1,2}$/.test(val.trim()) && Number(val) >= 1 && Number(val) <= 31), "Le jour de paiement doit être compris entre 1 et 28.")
     .transform((val) => {
+      // Pas envoyé (ex. changement de statut seul) : on n'y touche pas. Envoyé vide : on l'efface.
+      if (val === undefined) return undefined;
       if (!val) return null;
       return Number(val);
     }),
