@@ -17,12 +17,11 @@ import { cn } from "@/lib/utils";
 
 /* ---------- Fond de page -------------------------------------------------- */
 
-/** Le canevas commun aux trois pages : dégradé très doux + halo bleu discret
-    en haut, pour que la barre de navigation flottante ait quelque chose à
-    laisser deviner derrière elle. */
-/** Hauteur de la barre de sous-page (barre du site, marge, fil d'Ariane) : le halo remonte d'autant. */
-const SUBBAR_RISE = "calc(-1 * (var(--lp-nav-h, 76px) + 4.5rem))";
-
+/** Le canevas commun aux pages de l'espace client : la couleur unie du fond,
+    la même que sous la fiche d'un bien ou la page d'un bail. Pas de halo :
+    le fondu de la barre d'onglets tombe sur cette couleur, et le haut de la
+    page reste d'un seul tenant au lieu de montrer une bande au-dessus d'un
+    dégradé. */
 export function OwnerCanvas({
   children,
   className,
@@ -36,22 +35,12 @@ export function OwnerCanvas({
   return (
     <div
       className={cn(
-        "relative min-h-full",
+        "relative min-h-full bg-background",
         navOffset && "pt-[calc(var(--lp-nav-h,76px)+0.5rem)] sm:pt-0",
         className,
       )}
     >
-      {/* Sous une barre de sous-page, le halo remonte derrière elle jusqu'en haut de l'écran : un seul fond
-          continu, sans bande d'une autre couleur au-dessus du titre. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[420px] overflow-hidden"
-        style={navOffset ? undefined : { top: SUBBAR_RISE, height: `calc(420px - ${SUBBAR_RISE})` }}
-      >
-        <div className="absolute -top-40 left-1/2 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-[#4373f5]/[0.11] blur-[110px]" />
-        <div className="absolute -top-24 right-[8%] h-[260px] w-[260px] rounded-full bg-[#8b5cf6]/[0.09] blur-[100px]" />
-      </div>
-      <div className="relative">{children}</div>
+      {children}
     </div>
   );
 }
