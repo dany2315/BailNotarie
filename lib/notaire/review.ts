@@ -16,6 +16,8 @@ export interface NotaireReview {
   /** Pièces obligatoires absentes. */
   missing: number;
   done: boolean;
+  /** Le notaire a déjà validé au moins une pièce de ce dossier. */
+  started: boolean;
   /** Pourquoi « Le bail est signé » n'est pas encore possible (null quand c'est possible). */
   reason: string | null;
 }
@@ -137,7 +139,7 @@ export function notaireReview(
       : missing > 0
         ? `${missing} pièce${missing > 1 ? "s" : ""} obligatoire${missing > 1 ? "s" : ""} manquante${missing > 1 ? "s" : ""} : demandez-la${missing > 1 ? "s" : ""} au client.`
         : null;
-  return { groups, toVerify, missing, done: reason === null, reason };
+  return { groups, toVerify, missing, done: reason === null, reason, started: mine.size > 0 };
 }
 
 /** État de la vérification d'un notaire sur un bail (pour refuser « signé » côté serveur). */

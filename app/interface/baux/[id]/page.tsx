@@ -28,7 +28,7 @@ import { intakeSummary } from "@/lib/utils/intake-summary";
 import { PartyCheckSection, buildPartyPoints, docPoints, docRowKeys, partyPieceRows, withVerified, type KbisCheck } from "@/components/admin/party-check-section";
 import { CheckList, CheckPoint, CheckSection, StateChip } from "@/components/admin/check-list";
 import { ValidateAllButton } from "@/components/admin/verify-buttons";
-import { pointKey, summarize, summaryChip } from "@/lib/utils/verification";
+import { NOTAIRE_KEY_PREFIX, pointKey, summarize, summaryChip } from "@/lib/utils/verification";
 import { prisma } from "@/lib/prisma";
 import { DocumentChecklist } from "@/components/documents/document-checklist";
 import { DiagnosticsLegend } from "@/components/documents/diagnostics-legend";
@@ -324,6 +324,9 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
     getMissingFieldCounts(lease.id),
   ]);
   const verifiedKeys = new Set(verificationChecks.map((c) => c.pointKey));
+  // Vérification déjà commencée par l'équipe : un point validé, ou une demande de pièces en cours.
+  const reviewStarted =
+    verificationChecks.some((c) => !c.pointKey.startsWith(NOTAIRE_KEY_PREFIX)) || complementRequests.some((r) => r.origin === "TEAM");
 
   // Pièces du client hors personnes et société (déjà affichées dans leur bloc).
   // Une pièce du bail ou du bien a sa propre section, même si un client y est aussi rattaché.
@@ -495,10 +498,14 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         },
       )
     : [];
-  const bailDocRows = buildChecklistRows([], (bailDocuments as any[]).map(toChecklistDocument), {
+  // Justificatifs de la relocation en zone tendue (dernier loyer, logements comparables…) : de vraies pièces
+  // du bail, exigées selon les réponses du propriétaire. Absentes, elles sont « manquantes » et partent,
+  // cochées d'avance, dans la demande de fin de vérification au propriétaire.
+  const relocationProofKinds = isCommercial ? [] : (rentRules?.relocation?.proofs ?? []);
+  const bailDocRows = buildChecklistRows(relocationProofKinds, (bailDocuments as any[]).map(toChecklistDocument), {
     keyPrefix: `bail-${lease.id}`,
     target: { bailId: lease.id },
-    labels: ruleLabels,
+    labels: { ...ruleLabels, ...Object.fromEntries(relocationProofKinds.map((kind) => [kind, PROOF_LABELS[kind]?.label])) },
     optionalKinds: bailRules.map((rule) => rule.kind),
     extras: { [DocumentKind.DIAGNOSTICS]: <DiagnosticsLegend key="diagnostics-legend" /> },
   });
@@ -1534,7 +1541,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 <span className="text-sm font-bold">
                   {overall.verified} / {overall.total}
                 </span>
-                {!pastVerification && <StartReviewButton />}
+                {!pastVerification && <StartReviewButton started={reviewStarted} />}
               </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -1580,6 +1587,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
                 ? undefined
                 : {
                     legalChecks,
+                    started: reviewStarted,
                     legalPending,
                     answers,
                     relances,

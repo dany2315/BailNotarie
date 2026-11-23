@@ -2145,8 +2145,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                   {...form.register("entreprise.email", {
                     required: "L'email est requis",
                   })}
+                  // Lecture seule (la valeur part avec le formulaire), mais d'aspect désactivé : grisé, sans focus.
                   readOnly={isEmailLocked}
-                  className={`h-11 ${isEmailLocked ? "bg-muted cursor-not-allowed" : ""}`}
+                  aria-readonly={isEmailLocked || undefined}
+                  tabIndex={isEmailLocked ? -1 : undefined}
+                  className={`h-11 ${isEmailLocked ? "bg-slate-100 text-muted-foreground cursor-not-allowed focus-visible:border-input focus-visible:ring-0" : ""}`}
                 />
                 {isEmailLocked && (
                   <p className="text-sm text-muted-foreground">L&apos;email ne peut pas être modifié</p>
@@ -2306,8 +2309,11 @@ export function TenantIntakeForm({ intakeLink: initialIntakeLink }: { intakeLink
                           {...form.register(`persons.${index}.email` as any, {
                             required: "L'email est requis",
                           })}
+                          // Adresse de l'invitation : lecture seule, d'aspect désactivé (grisé, sans focus).
                           readOnly={isEmailLocked && index === 0}
-                          className={`h-11 ${isEmailLocked && index === 0 ? "bg-muted cursor-not-allowed" : ""}`}
+                          aria-readonly={(isEmailLocked && index === 0) || undefined}
+                          tabIndex={isEmailLocked && index === 0 ? -1 : undefined}
+                          className={`h-11 ${isEmailLocked && index === 0 ? "bg-slate-100 text-muted-foreground cursor-not-allowed focus-visible:border-input focus-visible:ring-0" : ""}`}
                         />
                         {isEmailLocked && index === 0 && (
                           <p className="text-sm text-muted-foreground">L'email ne peut pas être modifié</p>

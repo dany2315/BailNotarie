@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { useFiche } from "./fiche-context";
 import { PieceCard, pieceInfos, type PieceInfo, type PieceState } from "./piece-cards";
 import { PieceSheet } from "./piece-sheet";
-import { GuidedReview, START_REVIEW_EVENT, type AnswerInfo, type BasketEntry, type RelanceInfo } from "./guided-review";
+import { GuidedReview, reviewButtonLabel, START_REVIEW_EVENT, type AnswerInfo, type BasketEntry, type RelanceInfo } from "./guided-review";
 
 export interface PieceGroup {
   id: string;
@@ -52,6 +52,8 @@ export function PiecesSection({
     sendButton?: React.ReactNode;
     finish?: { title: string; hint: string };
     audience?: "equipe" | "notaire";
+    /** Vérification déjà commencée (pièce validée ou demande envoyée) : « Continuer la vérification ». */
+    started?: boolean;
   };
   /** Lecture des diagnostics (décisions par diagnostic, envoi au propriétaire) : dans le panneau de la pièce. */
   diagnostics?: React.ReactNode;
@@ -123,7 +125,7 @@ export function PiecesSection({
         {guided && (
           <Button type="button" className="h-10 gap-1.5" onClick={startReview}>
             <Play className="size-4" />
-            Commencer la vérification
+            {reviewButtonLabel(guided.started)}
           </Button>
         )}
       </header>

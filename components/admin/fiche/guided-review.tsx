@@ -18,11 +18,16 @@ import type { PieceGroup } from "./pieces-section";
 /** Lance le parcours depuis n'importe où dans la fiche (carte « À faire avant l'envoi »). */
 export const START_REVIEW_EVENT = "fiche:start-review";
 
-export function StartReviewButton() {
+/** « Continuer la vérification » une fois commencée (une pièce validée ou une demande envoyée). */
+export function reviewButtonLabel(started?: boolean) {
+  return started ? "Continuer la vérification" : "Commencer la vérification";
+}
+
+export function StartReviewButton({ started }: { started?: boolean }) {
   return (
     <Button type="button" size="sm" className="h-9 gap-1.5" onClick={() => window.dispatchEvent(new Event(START_REVIEW_EVENT))}>
       <Play className="size-3.5" />
-      Commencer la vérification
+      {reviewButtonLabel(started)}
     </Button>
   );
 }

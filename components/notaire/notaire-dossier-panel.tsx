@@ -219,6 +219,8 @@ export function NotaireDossierPanel({
                 answers: [],
                 relances: [],
                 audience: "notaire",
+                // Déjà commencée : une pièce validée par le notaire, ou une demande envoyée par lui.
+                started: view.review.started || requests.some((r) => r.origin === "NOTAIRE"),
               }}
             />
           )}
