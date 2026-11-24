@@ -8,8 +8,9 @@ import { EMAIL_BASE_URL, EMAIL_LOGO_URL } from "./urls";
  * boutons…) gardent le même dessin d'un e-mail à l'autre.
  */
 
-export const PHONE = "07 68 09 86 24";
-export const PHONE_HREF = "tel:+33768098624";
+import { PHONE, PHONE_HREF, HELP_REPLY, HELP_REPLY_OR_CALL } from "./contact";
+
+export { PHONE, PHONE_HREF, HELP_REPLY, HELP_REPLY_OR_CALL };
 
 const C = {
   ink: "#0f172a",
@@ -417,9 +418,6 @@ export function Sign({ closing = "À très vite,", team = "L'équipe BailNotarie
   );
 }
 
-/** Ligne d'aide la plus courante. */
-export const HELP_REPLY = "Une question ? Répondez simplement à cet e-mail.";
-export const HELP_REPLY_OR_CALL = `Une question ? Répondez simplement à cet e-mail ou appelez-nous au ${PHONE}.`;
 
 /** Lien absolu à partir d'un chemin du site. */
 export function absoluteUrl(pathOrUrl: string | null | undefined) {

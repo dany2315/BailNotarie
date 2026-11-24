@@ -7,8 +7,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getComplementReminderPreview, remindComplementRequest, type ComplementReminderPreviewData } from "@/lib/actions/complement-requests";
-import { COMPLEMENT_MESSAGE_MAX, complementEmailContent, type ComplementEmailItem } from "@/lib/utils/complement";
-import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/components/emails/email-preview-frame";
+import { complementEmailContent, type ComplementEmailItem } from "@/lib/utils/complement";
+import { ComplementEmailPreview } from "@/components/complements/complement-email-preview";
 
 /**
  * Aperçu de l'e-mail de rappel d'une demande de pièces, fidèle à l'envoi : seulement ce qui est encore attendu,
@@ -34,25 +34,20 @@ export function ComplementReminderPreview({
   message: string | null;
   onMessageChange: (value: string) => void;
 }) {
-  const content = complementEmailContent({ name: greetingName, address, message: null, reminder: true, items });
+  // Sans message modifié : le texte de rappel prévu.
+  const planned = complementEmailContent({ name: greetingName, address, message: null, reminder: true, items }).message;
   return (
-    <EmailPreviewFrame to={email} toName={recipientName} toRole={role} subject={content.subject}>
-      <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
-      <p className="mt-0.5 text-[12.5px] text-slate-500">{content.context}</p>
-      <div className="mt-4">
-        <EditableEmailText label="Message de l'e-mail" value={message ?? content.message} onChange={onMessageChange} maxLength={COMPLEMENT_MESSAGE_MAX} />
-      </div>
-      <ul className="mt-4 flex flex-col gap-2">
-        {content.items.map((item, i) => (
-          <li key={`${item.label}-${i}`} className="rounded-[10px] border border-slate-200 px-3.5 py-3">
-            <p className="text-[14px] font-bold leading-snug text-slate-900">{item.label}</p>
-            <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600">{item.detail}</p>
-          </li>
-        ))}
-      </ul>
-      <EmailPreviewButton>{content.button}</EmailPreviewButton>
-      <p className="mt-4 text-center text-[12.5px] text-slate-500">{content.outro}</p>
-    </EmailPreviewFrame>
+    <ComplementEmailPreview
+      reminder
+      name={greetingName}
+      recipientName={recipientName}
+      email={email}
+      role={role}
+      address={address}
+      items={items}
+      message={message ?? planned}
+      onMessageChange={onMessageChange}
+    />
   );
 }
 
