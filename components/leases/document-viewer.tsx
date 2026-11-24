@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useFileProgress } from "@/hooks/use-file-progress";
+import { FileLoadProgress } from "@/components/shared/file-load-progress";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Image as ImageIcon, File, ExternalLink, Loader2 } from "lucide-react";
+import { FileText, Image as ImageIcon, File, ExternalLink } from "lucide-react";
 import { getS3PublicUrl } from "@/hooks/use-s3-public-url";
 import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 
@@ -112,6 +114,11 @@ export function DocumentViewer({
   };
 
   const isLoadingSignedUrl = open && !signedUrl;
+  // Image ou PDF : téléchargés avec leur progression, puis affichés depuis la mémoire du navigateur.
+  // Si ce téléchargement échoue, l'aperçu repart de l'adresse signée, comme avant.
+  const previewable = fileType === "image" || fileType === "pdf";
+  const file = useFileProgress(open && signedUrl && previewable ? signedUrl : null, document.mimeType);
+  const src = file.status === "done" ? file.objectUrl : file.status === "error" ? signedUrl : null;
   const loadFailed = !!signedUrl && failedUrl === signedUrl;
 
   return (
@@ -149,30 +156,20 @@ export function DocumentViewer({
           
           <div className="flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 overflow-auto p-4 bg-muted/30 rounded-lg min-h-[50vh]">
-              {isLoadingSignedUrl ? (
-                <div className="flex flex-col items-center justify-center w-full min-h-[60vh] gap-6">
-                  <div className="flex flex-col items-center justify-center gap-4 rounded-xl border bg-background/80 px-10 py-12 shadow-sm">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                      <Loader2 className="size-7 animate-spin text-primary" />
-                    </div>
-                    <div className="text-center space-y-1">
-                      <p className="text-sm font-medium text-foreground">Chargement du document</p>
-                      <p className="text-xs text-muted-foreground truncate max-w-[280px]" title={documentName}>
-                        {documentName}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-1.5" aria-hidden>
-                    <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse" />
-                    <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse [animation-delay:150ms]" />
-                    <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse [animation-delay:300ms]" />
+              {isLoadingSignedUrl || (previewable && !src) ? (
+                <div className="flex flex-col items-center justify-center w-full min-h-[60vh]">
+                  <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-xl border bg-background/80 px-8 py-10 shadow-sm">
+                    <p className="max-w-full truncate text-sm font-semibold text-foreground" title={documentName}>
+                      {documentName}
+                    </p>
+                    <FileLoadProgress loaded={file.loaded} total={file.total} label="Chargement du document" />
                   </div>
                 </div>
               ) : signedUrl && fileType === "image" && !loadFailed ? (
                 <div className="w-full h-full flex items-center justify-center">
                   <img
-                    key={signedUrl}
-                    src={signedUrl}
+                    key={src!}
+                    src={src!}
                     alt={documentName}
                     className="max-w-full max-h-[70vh] object-contain rounded-lg"
                     onError={() => setFailedUrl(signedUrl)}
@@ -181,8 +178,8 @@ export function DocumentViewer({
               ) : signedUrl && fileType === "pdf" && !loadFailed ? (
                 <div className="w-full h-full">
                   <iframe
-                    key={signedUrl}
-                    src={getPdfPreviewUrl(signedUrl)}
+                    key={src!}
+                    src={getPdfPreviewUrl(src!)}
                     className="w-full h-[70vh] rounded-lg border"
                     title={documentName}
                     onError={() => setFailedUrl(signedUrl)}
