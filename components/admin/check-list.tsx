@@ -69,16 +69,24 @@ export function CheckPoint({
   const [open, setOpen] = React.useState(false);
   if (fiche) {
     // Un rond seulement quand il y a quelque chose à faire : une donnée manquante, ou un point à valider.
+    // Sans rond, la colonne du rond n'existe que sur grand écran (alignement) : sur téléphone, le texte prend toute la largeur.
+    const hasBullet = state === "missing" || !!verify;
     const bullet =
-      state === "missing" ? <PointIcon state="missing" /> : verify ? <VerifyBullet {...verify} /> : <span aria-hidden className="size-[22px]" />;
+      state === "missing" ? <PointIcon state="missing" /> : verify ? <VerifyBullet {...verify} /> : <span aria-hidden className="hidden size-[22px] @2xl:block" />;
+    const col = hasBullet ? "col-start-2" : "col-start-1";
     const showBody = !foldable || open;
     // Rien à faire sur la ligne : les boutons (Modifier…) n'apparaissent qu'au survol, sur ordinateur.
     const quiet = state !== "missing" && !actionsBelow;
     return (
-      <li className="group grid grid-cols-[22px_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-5 py-3.5 @2xl:grid-cols-[22px_150px_minmax(0,1fr)_auto]">
+      <li
+        className={cn(
+          "group grid gap-x-3 gap-y-1.5 px-4 py-3.5 sm:px-5 @2xl:grid-cols-[22px_150px_minmax(0,1fr)_auto]",
+          hasBullet ? "grid-cols-[22px_minmax(0,1fr)]" : "grid-cols-1",
+        )}
+      >
         {bullet}
-        <span className="pt-0.5 text-[13.5px] font-medium leading-snug text-muted-foreground">{label}</span>
-        <div className="col-start-2 flex min-w-0 flex-col gap-1.5 @2xl:col-start-3 @2xl:pt-0.5">
+        <span className="pt-0.5 text-[13.5px] font-medium leading-snug text-muted-foreground @2xl:col-start-2">{label}</span>
+        <div className={cn(col, "flex min-w-0 flex-col gap-1.5 @2xl:col-start-3 @2xl:pt-0.5")}>
           {showBody && children && <div className="whitespace-pre-line break-words text-[14.5px] leading-relaxed text-foreground">{children}</div>}
           {note && <span className="whitespace-pre-line text-[13px] font-semibold text-red-700">{note}</span>}
           {(tags || claimKeys) && (
@@ -103,7 +111,8 @@ export function CheckPoint({
         {!actionsBelow && actions && (
           <div
             className={cn(
-              "col-start-2 flex flex-wrap items-start gap-2 @2xl:col-start-4 @2xl:justify-end",
+              col,
+              "flex flex-wrap items-start gap-2 @2xl:col-start-4 @2xl:justify-end",
               quiet && "transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100",
             )}
           >

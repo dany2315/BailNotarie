@@ -143,10 +143,12 @@ export function PieceSheet({
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full gap-0 overflow-hidden p-0 sm:max-w-[min(1100px,100vw)]">
-        <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_400px] lg:grid-rows-1">
+        {/* Téléphone : une seule colonne qui défile (la pièce, puis ce qu'il faut vérifier), « Précédente /
+            Suivante » toujours en bas. Grand écran : la pièce à gauche, la vérification à droite. */}
+        <div className="flex h-full min-h-0 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:grid-rows-1 lg:overflow-hidden">
           {/* La pièce en grand */}
-          <div className="flex min-h-[40vh] min-w-0 flex-col bg-slate-100 lg:min-h-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-2 border-b bg-card px-4 py-2.5">
+          <div className="flex h-[45dvh] min-w-0 shrink-0 flex-col bg-slate-100 lg:h-auto lg:min-h-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 border-b bg-card py-2.5 pl-4 pr-12 lg:pr-4">
               <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold" title={name}>
                 {name}
               </span>
@@ -178,9 +180,9 @@ export function PieceSheet({
               {doc && (
                 <>
                   <DocumentViewer document={doc} documentKindLabels={documentKindLabels}>
-                    <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5">
+                    <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" aria-label="Agrandir">
                       <Maximize2 className="size-3.5" />
-                      Agrandir
+                      <span className="hidden sm:inline">Agrandir</span>
                     </Button>
                   </DocumentViewer>
                   <Button
@@ -190,9 +192,10 @@ export function PieceSheet({
                     className="h-8 gap-1.5"
                     disabled={isFileDownloading(doc.fileKey)}
                     onClick={() => downloadFile(doc.fileKey, name)}
+                    aria-label="Télécharger"
                   >
                     {isFileDownloading(doc.fileKey) ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-                    Télécharger
+                    <span className="hidden sm:inline">Télécharger</span>
                   </Button>
                 </>
               )}
@@ -246,9 +249,9 @@ export function PieceSheet({
           </div>
 
           {/* Ce qu'il faut vérifier, et la réponse */}
-          <div className="flex min-h-0 flex-col">
+          <div className="flex flex-col lg:min-h-0">
             {/* En-tête fixe : quelle pièce, de qui */}
-            <div className="flex shrink-0 flex-col gap-2 border-b bg-card px-5 pb-4 pt-5 pr-12">
+            <div className="flex shrink-0 flex-col gap-2 border-b bg-card px-5 pb-4 pt-4 lg:pr-12 lg:pt-5">
               <div className="flex items-center gap-2">
                 <span className="rounded-md bg-slate-900 px-2 py-0.5 text-[11.5px] font-bold tabular-nums text-white">
                   {index + 1} / {total}
@@ -277,7 +280,7 @@ export function PieceSheet({
             </div>
 
             {/* Zone qui défile : de « À vérifier » jusqu'aux actions */}
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
+            <div className="flex flex-col gap-4 px-5 py-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
 
             {claim?.status === "PROVIDED" && (
               <div className="flex flex-col gap-2">
@@ -485,9 +488,9 @@ export function PieceSheet({
             </div>
 
             {/* Bas fixe : les fichiers de la pièce, puis précédente / suivante */}
-            <div className="flex shrink-0 flex-col gap-3 border-t bg-card px-5 py-3">
+            <div className="sticky bottom-0 z-10 flex shrink-0 flex-col gap-3 border-t bg-card px-5 py-3 lg:static">
             {files.length > 0 && (
-              <div className="flex flex-col gap-1 text-[12.5px] text-muted-foreground">
+              <div className="hidden flex-col gap-1 text-[12.5px] text-muted-foreground lg:flex">
                 <p className="font-semibold text-foreground">Fichiers de la pièce{files.length > 1 ? ` (${files.length})` : ""}</p>
                 <div className="flex max-h-[4.5rem] flex-col gap-0.5 overflow-y-auto">
                   {files.map((file, i) => (
