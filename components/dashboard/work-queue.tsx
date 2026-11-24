@@ -9,12 +9,6 @@ import { STALE_AFTER_DAYS, STATUS_LABELS, getStage, type BailStatusValue } from 
 import type { QueueItem } from "@/lib/actions/admin-dashboard";
 
 type TabKey = "nous" | "client" | "notaire";
-type SortKey = "recent" | "ancien";
-
-const SORTS: Array<{ key: SortKey; label: string }> = [
-  { key: "recent", label: "Plus récents" },
-  { key: "ancien", label: "Plus anciens" },
-];
 
 const TABS: Array<{ key: TabKey; label: string; short: string; hint: string }> = [
   {
@@ -55,14 +49,10 @@ const BAIL_TYPE_LABELS: Record<string, string> = {
 export function WorkQueue({ items }: { items: QueueItem[] }) {
   const [tab, setTab] = React.useState<TabKey>("nous");
   const current = TABS.find((t) => t.key === tab)!;
-  // Ordre choisi par l'équipe, le même pour les trois onglets ; par défaut, les plus récents d'abord
-  // (dernière activité du dossier, comme la colonne « depuis N j »).
-  const [sort, setSort] = React.useState<SortKey>("recent");
+  // Les trois onglets : les dossiers les plus récents d'abord (dernière activité, comme la colonne « depuis N j »).
   const visible = items
     .filter((item) => belongsTo(item, tab))
-    .sort((a, b) =>
-      sort === "recent" ? b.lastActivityAt.localeCompare(a.lastActivityAt) : a.lastActivityAt.localeCompare(b.lastActivityAt),
-    );
+    .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
 
   return (
     <section className="min-w-0 overflow-hidden rounded-xl border bg-card">
@@ -92,39 +82,21 @@ export function WorkQueue({ items }: { items: QueueItem[] }) {
       <div className="flex flex-col gap-1.5 border-b bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
         <p>{current.hint}</p>
         {/* Légende des points : temps écoulé depuis la dernière activité du dossier. */}
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <span>Dernière activité :</span>
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-2 rounded-full bg-green-600" />
-              moins de 3 j
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-2 rounded-full bg-amber-500" />
-              3 à 7 j
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-2 rounded-full bg-red-600" />
-              plus de {STALE_AFTER_DAYS} j
-            </span>
-          </p>
-          <div role="group" aria-label="Ordre des dossiers" className="inline-flex rounded-lg border bg-background p-0.5 text-xs">
-            {SORTS.map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                aria-pressed={sort === option.key}
-                onClick={() => setSort(option.key)}
-                className={cn(
-                  "min-h-8 rounded-md px-2.5 font-medium transition-colors",
-                  sort === option.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <span>Dernière activité :</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-2 rounded-full bg-green-600" />
+            moins de 3 j
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-2 rounded-full bg-amber-500" />
+            3 à 7 j
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="size-2 rounded-full bg-red-600" />
+            plus de {STALE_AFTER_DAYS} j
+          </span>
+        </p>
       </div>
 
       {visible.length === 0 ? (

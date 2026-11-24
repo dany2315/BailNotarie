@@ -1,6 +1,6 @@
 {
  "suite": "Tri de « À traiter »",
- "createdAt": "2026-11-24T07:47:02.199Z",
+ "createdAt": "2026-11-24T07:56:10.096Z",
  "passed": 2,
  "failed": 0,
  "networkAttempts": 0,
@@ -15,7 +15,7 @@
    "networkAttempts": 0
   },
   {
-   "name": "Les trois onglets : « Plus récents » par défaut, « Plus anciens » au choix",
+   "name": "Les trois onglets : le plus récent en tête",
    "passed": true,
    "error": null,
    "simulated": {},
