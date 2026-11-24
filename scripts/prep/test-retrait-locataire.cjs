@@ -136,7 +136,8 @@ suite('Retrait du locataire', path.join(__dirname, '../../reports/prep/tests-ret
     assert.equal(c.greeting, 'Bonjour Marie,');
     assert(c.paragraphs[0].includes('Paul Martin') && c.paragraphs[0].includes('12 rue des Lilas'));
     assert(/espace client/.test(c.paragraphs.join(' ')));
-    assert(/prise d'effet/.test(c.card.text) && /jour de paiement/.test(c.card.text));
+    assert(/prise d'effet/.test(c.paragraphs[2]) && /jour de paiement/.test(c.paragraphs[2]), 'dates dans le texte');
+    assert.equal(c.card, null, 'plus d’encadré');
     assert.equal(c.button, 'Indiquer mon nouveau locataire');
     assert(RELANCE_SUBJECTS.TENANT_REMOVED.length > 10);
   });
