@@ -1,4 +1,4 @@
-// Retrait du locataire (désistement) : sa fiche est supprimée (sauf autre dossier ou messages), le dossier
+// Retrait du locataire (désistement) : sa fiche est supprimée (sauf s’il a un autre dossier), le dossier
 // repasse « En attente du locataire », les dates qui dépendaient de lui sont effacées, et le propriétaire
 // peut être prévenu par e-mail.
 const path = require('path');
@@ -65,14 +65,16 @@ suite('Retrait du locataire', path.join(__dirname, '../../reports/prep/tests-ret
     assert.equal(r.state.suppressed['s3.delete'] || 0, 0, 'aucun fichier effacé');
   });
 
-  await test('Fiche gardée s’il a écrit dans une discussion', async (tx, r, f) => {
-    await tx.bailMessage.create({ data: { bailId: f.bail.id, senderId: f.tenantUser.id, content: 'Bonjour' } });
+  await test('Messages de discussion : ceux du locataire supprimés avec sa fiche, les autres gardés', async (tx, r, f) => {
+    const mine = await tx.bailMessage.create({ data: { bailId: f.bail.id, senderId: f.tenantUser.id, content: 'Bonjour' } });
+    const ownerMessage = await tx.bailMessage.create({ data: { bailId: f.bail.id, senderId: f.ownerUser.id, content: 'Bonjour Maître' } });
     const result = plain(await edit(r).removeBailTenantAdmin({ bailId: f.bail.id }));
     assert.equal(result.success, true, JSON.stringify(result));
-    assert.equal(result.data.tenantDeleted, false);
-    assert.match(result.data.keptReason, /discussion/);
-    assert(await tx.client.findUnique({ where: { id: f.tenant.id } }), 'fiche gardée');
-    assert(await tx.user.findUnique({ where: { id: f.tenantUser.id } }), 'compte gardé (ses messages)');
+    assert.equal(result.data.tenantDeleted, true);
+    assert.equal(await tx.client.findUnique({ where: { id: f.tenant.id } }), null, 'fiche supprimée');
+    assert.equal(await tx.user.findUnique({ where: { id: f.tenantUser.id } }), null, 'compte supprimé');
+    assert.equal(await tx.bailMessage.findUnique({ where: { id: mine.id } }), null, 'message du locataire supprimé');
+    assert(await tx.bailMessage.findUnique({ where: { id: ownerMessage.id } }), 'message du propriétaire gardé');
   });
 
   await test('Le propriétaire est redemandé les dates pour son nouveau locataire', async (tx, r, f) => {

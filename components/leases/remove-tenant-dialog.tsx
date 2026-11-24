@@ -92,8 +92,8 @@ export function RemoveTenantDialog({
           <ul className="flex flex-col gap-2 text-sm">
             <li>
               <span className="font-medium">Supprimé :</span> {tenantLabel}, avec sa fiche client, ses pièces, son accès à
-              l&apos;espace client et ses demandes de pièces. C&apos;est définitif. Seule exception : s&apos;il est aussi locataire d&apos;un
-              autre dossier ou s&apos;il a écrit dans une discussion, il est seulement retiré de ce dossier et sa fiche est gardée.
+              l&apos;espace client, ses demandes de pièces et ses messages dans la discussion. C&apos;est définitif. Seule exception :
+              s&apos;il est aussi locataire d&apos;un autre dossier, il est seulement retiré de ce dossier et sa fiche est gardée.
             </li>
             <li>
               <span className="font-medium">Effacés :</span> la date de prise d&apos;effet, le jour de paiement et la date de fin. Ils

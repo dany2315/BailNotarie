@@ -578,19 +578,11 @@ export async function removeBailTenantAdmin(data: unknown): Promise<Result<Remov
   const nextStatus = bail.status === BailStatus.DRAFT ? bail.status : BailStatus.AWAITING_TENANT;
   const actorName = getActorName(user);
 
-  // Un locataire seul ne sert à rien : sa fiche est supprimée d'office (pièces, compte, formulaires).
-  // Deux exceptions, où la supprimer casserait autre chose : il est locataire d'un autre dossier, ou il
-  // a écrit dans une discussion (ses messages sont rattachés à son compte).
-  const [otherBails, messages] = await Promise.all([
-    prisma.bail.count({ where: { id: { not: bailId }, parties: { some: { id: previous.id } } } }),
-    prisma.bailMessage.count({ where: { sender: { clientId: previous.id } } }),
-  ]);
+  // Un locataire seul ne sert à rien : sa fiche est supprimée d'office (pièces, compte, formulaires,
+  // messages de discussion). Seule exception : il est aussi locataire d'un autre dossier.
+  const otherBails = await prisma.bail.count({ where: { id: { not: bailId }, parties: { some: { id: previous.id } } } });
   const keptReason =
-    otherBails > 0
-      ? `il est aussi locataire dans ${otherBails > 1 ? `${otherBails} autres dossiers` : "un autre dossier"}`
-      : messages > 0
-        ? "il a écrit dans la discussion d'un dossier"
-        : null;
+    otherBails > 0 ? `il est aussi locataire dans ${otherBails > 1 ? `${otherBails} autres dossiers` : "un autre dossier"}` : null;
 
   const fileKeys = await prisma.$transaction(async (tx) => {
     const agreement = await readAgreementSnapshot(tx, bailId);
@@ -635,12 +627,14 @@ export async function removeBailTenantAdmin(data: unknown): Promise<Result<Remov
     );
     if (keptReason) return [];
 
-    // Suppression de la fiche : ses pièces (lignes ici, fichiers après l'écriture), son compte de
-    // connexion, ses formulaires ; ses demandes de pièces et relances partent avec la fiche.
+    // Suppression de la fiche : ses pièces (lignes ici, fichiers après l'écriture), ses messages de
+    // discussion, son compte de connexion, ses formulaires ; ses demandes de pièces et relances partent
+    // avec la fiche.
     const documents = await tx.document.findMany({
       where: { OR: [{ clientId: previous.id }, { person: { clientId: previous.id } }, { entreprise: { clientId: previous.id } }] },
       select: { fileKey: true },
     });
+    await tx.bailMessage.deleteMany({ where: { sender: { clientId: previous.id } } });
     await tx.user.deleteMany({ where: { clientId: previous.id } });
     await tx.intakeLink.deleteMany({ where: { clientId: previous.id } });
     await tx.client.delete({ where: { id: previous.id } });

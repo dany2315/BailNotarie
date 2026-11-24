@@ -1,6 +1,6 @@
 {
  "suite": "Retrait du locataire",
- "createdAt": "2026-11-24T10:18:53.583Z",
+ "createdAt": "2026-11-24T10:28:44.409Z",
  "passed": 10,
  "failed": 0,
  "networkAttempts": 0,
@@ -24,7 +24,7 @@
    "networkAttempts": 0
   },
   {
-   "name": "Fiche gardée s’il a écrit dans une discussion",
+   "name": "Messages de discussion : ceux du locataire supprimés avec sa fiche, les autres gardés",
    "passed": true,
    "error": null,
    "simulated": {},
