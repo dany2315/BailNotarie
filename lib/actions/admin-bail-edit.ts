@@ -9,16 +9,23 @@ import {
   BailType,
   ClientType,
   CompletionStatus,
+  ComplementRequestStatus,
   IntakeStatus,
   NotificationType,
   ProfilType,
+  ReminderChannel,
+  ReminderReason,
+  ReminderTarget,
   Role,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { computeBailEndDate } from "@/lib/utils/bail-duration";
 import { EFFECTIVE_DATE_IN_PAST, PAYMENT_DAY_INVALID, effectiveDateInPast, paymentDayInvalid } from "@/lib/bail/dates";
 import { requireRole } from "@/lib/auth-helpers";
-import { createBailAuditLog, getActorName, getClientDisplayName } from "@/lib/actions/bail-audit-log";
+import { createBailAuditLog, getActorName, getClientDisplayName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
+import { resendSendEmail } from "@/lib/resend-rate-limited";
+import MailRelance from "@/emails/mail-relance";
+import { RELANCE_BODY_MAX, RELANCE_SUBJECTS } from "@/lib/utils/relance-content";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
 import { getStageKey } from "@/lib/utils/bail-stage";
@@ -507,6 +514,195 @@ export async function changeBailTenantAdmin(data: unknown): Promise<Result<{ ten
   revalidatePath(`/interface/clients/${tenant.id}`);
   if (previous) revalidatePath(`/interface/clients/${previous.id}`);
   return { success: true, data: { tenantName: option.name, formSent } };
+}
+
+/* ------------------------------------------------------------------ */
+/* Retrait du locataire (désistement)                                   */
+/* ------------------------------------------------------------------ */
+
+const removeTenantSchema = z.object({
+  bailId: z.string().min(1),
+  revalidate: revalidateField,
+});
+
+const partyInclude = {
+  persons: { orderBy: { isPrimary: "desc" as const }, take: 1, select: { firstName: true, lastName: true, email: true } },
+  entreprise: { select: { legalName: true, name: true, email: true } },
+};
+
+export type RemovedTenantInfo = {
+  /** Nom du locataire retiré, tel qu'il apparaît dans l'e-mail au propriétaire. */
+  tenantName: string;
+  owner: { name: string | null; greetingName: string | null; email: string | null };
+  address: string;
+};
+
+/**
+ * Le locataire s'est désisté : il est retiré du dossier sans être remplacé. Sa fiche client est
+ * conservée ; ses formulaires et demandes de pièces encore ouverts pour ce dossier sont fermés ; son
+ * accord est archivé. Ce qui dépendait de lui est effacé (date de prise d'effet, jour de paiement,
+ * date de fin calculée) et le dossier repasse « En attente du locataire » : le propriétaire indique
+ * son nouveau locataire depuis son espace, avec ces dates, comme la première fois.
+ *
+ * Possible aussi chez le notaire : il reste assigné, et l'équipe lui renvoie le dossier (« Envoyer au
+ * notaire ») une fois le nouveau locataire vérifié. Plus rien après la signature ou la clôture.
+ */
+export async function removeBailTenantAdmin(data: unknown): Promise<Result<RemovedTenantInfo>> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = removeTenantSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, revalidate } = parsed.data;
+
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    include: {
+      property: { select: { label: true, fullAddress: true } },
+      parties: { select: { id: true, type: true, profilType: true, ...partyInclude } },
+    },
+  });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  const stage = getStageKey(bail.status);
+  if (stage === "signe" || stage === "clos") return { success: false, error: "Dossier signé ou clos : retrait du locataire impossible" };
+  const owner = bail.parties.find((p) => p.profilType === ProfilType.PROPRIETAIRE);
+  const previous = bail.parties.find((p) => p.profilType === ProfilType.LOCATAIRE);
+  if (!owner) return { success: false, error: "Le dossier n'a pas de propriétaire" };
+  if (!previous) return { success: false, error: "Ce dossier n'a pas de locataire" };
+
+  const tenantName = getClientDisplayName(previous) || "Locataire sans nom";
+  // Brouillon : le propriétaire n'a pas fini son formulaire, le dossier reste en brouillon.
+  const nextStatus = bail.status === BailStatus.DRAFT ? bail.status : BailStatus.AWAITING_TENANT;
+  const actorName = getActorName(user);
+
+  await prisma.$transaction(async (tx) => {
+    const agreement = await readAgreementSnapshot(tx, bailId);
+    await tx.bail.update({
+      where: { id: bailId },
+      data: {
+        parties: { set: [{ id: owner.id }] },
+        effectiveDate: null,
+        paymentDay: null,
+        endDate: null,
+        ...(nextStatus !== bail.status && { status: nextStatus }),
+        updatedById: user.id,
+      },
+    });
+    // L'accord donné par ce locataire ne vaut plus : archivé, à redemander au prochain.
+    await settleTenantAgreement(tx, bailId, agreement, { id: user.id, name: actorName });
+    await tx.intakeLink.updateMany({
+      where: { bailId, clientId: previous.id, target: "TENANT", status: IntakeStatus.PENDING },
+      data: { status: IntakeStatus.REVOKED },
+    });
+    await tx.complementRequest.updateMany({
+      where: {
+        bailId,
+        clientId: previous.id,
+        status: { in: [ComplementRequestStatus.OPEN, ComplementRequestStatus.SUBMITTED] },
+      },
+      data: { status: ComplementRequestStatus.CANCELLED, closedAt: new Date() },
+    });
+    // Historique : un changement de statut qui porte le nom du locataire retiré (affiché « a retiré le locataire … »).
+    await createBailAuditLog(
+      {
+        bailId,
+        eventType: BailAuditEventType.STATUS_CHANGED,
+        actorId: user.id,
+        actorName,
+        fromStatus: bail.status,
+        toStatus: nextStatus,
+        tenantId: previous.id,
+        tenantName,
+      },
+      tx,
+    );
+  });
+
+  if (revalidate) revalidatePath(revalidate);
+  revalidatePath(`/interface/baux/${bailId}`);
+  revalidatePath("/interface/baux");
+  revalidatePath("/interface");
+  revalidatePath(`/interface/clients/${previous.id}`);
+  revalidatePath(`/interface/clients/${owner.id}`);
+  return {
+    success: true,
+    data: {
+      tenantName,
+      owner: {
+        name: getClientDisplayName(owner) || null,
+        greetingName: getClientGreetingName(owner),
+        email: (owner.type === ClientType.PERSONNE_MORALE ? owner.entreprise?.email : owner.persons[0]?.email) || null,
+      },
+      address: bail.property?.label || bail.property?.fullAddress || "",
+    },
+  };
+}
+
+const notifyRemovedSchema = z.object({
+  bailId: z.string().min(1),
+  tenantName: z.string().trim().min(1).max(200),
+  body: z.string().trim().max(RELANCE_BODY_MAX).optional(),
+  note: z.string().trim().max(1000).optional(),
+});
+
+/**
+ * Après le retrait du locataire, l'équipe peut prévenir le propriétaire (aperçu relu et modifiable
+ * avant l'envoi). L'envoi compte comme une demande « locataire à indiquer » pour le rythme des relances.
+ */
+export async function notifyOwnerTenantRemovedAdmin(data: unknown): Promise<Result<{ email: string }>> {
+  const user = await requireRole([Role.ADMINISTRATEUR]);
+  const parsed = notifyRemovedSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Données invalides" };
+  const { bailId, tenantName, body, note } = parsed.data;
+
+  const bail = await prisma.bail.findUnique({
+    where: { id: bailId },
+    include: {
+      property: { select: { label: true, fullAddress: true } },
+      parties: { select: { id: true, type: true, profilType: true, ...partyInclude } },
+    },
+  });
+  if (!bail) return { success: false, error: "Dossier introuvable" };
+  const owner = bail.parties.find((p) => p.profilType === ProfilType.PROPRIETAIRE);
+  if (!owner) return { success: false, error: "Le dossier n'a pas de propriétaire" };
+  const email = (owner.type === ClientType.PERSONNE_MORALE ? owner.entreprise?.email : owner.persons[0]?.email) || null;
+  if (!email) return { success: false, error: "Le propriétaire n'a pas d'adresse e-mail" };
+
+  const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+  try {
+    const result = await resendSendEmail({
+      from: "BailNotarie – Équipe <contact@bailnotarie.fr>",
+      to: email,
+      subject: RELANCE_SUBJECTS.TENANT_REMOVED,
+      react: MailRelance({
+        reason: "TENANT_REMOVED",
+        name: getClientGreetingName(owner) || "",
+        address: bail.property?.label || bail.property?.fullAddress || "",
+        actionUrl: `${baseUrl}/client/proprietaire/baux/${bailId}`,
+        tenantName,
+        note: note || undefined,
+        body: body || undefined,
+      }),
+    });
+    if (result.error) throw new Error(result.error.message);
+  } catch (error) {
+    console.error("[notifyOwnerTenantRemovedAdmin]", error);
+    return { success: false, error: `Envoi impossible à ${email}` };
+  }
+
+  await prisma.bailReminder.create({
+    data: {
+      bailId,
+      clientId: owner.id,
+      target: ReminderTarget.OWNER,
+      reason: ReminderReason.TENANT_TO_ADD,
+      channel: ReminderChannel.EMAIL,
+      recipientEmail: email,
+      note: note || null,
+      createdById: user.id,
+      createdByName: getActorName(user),
+    },
+  });
+  revalidatePath(`/interface/baux/${bailId}`);
+  return { success: true, data: { email } };
 }
 
 /* ------------------------------------------------------------------ */

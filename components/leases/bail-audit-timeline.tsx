@@ -22,6 +22,10 @@ function getEventSentence(log: BailAuditLog) {
     case BailAuditEventType.TENANT_FORM_SUBMITTED:
       return `${log.tenantName || log.actorName} a soumis son formulaire locataire`;
     case BailAuditEventType.STATUS_CHANGED:
+      // Changement de statut qui porte un locataire : c'est son retrait du dossier (désistement).
+      if (log.tenantName) {
+        return `${log.actorName} a retiré le locataire ${log.tenantName} du dossier : statut "${getBailStatusLabel(log.toStatus || "")}"`;
+      }
       return `${log.actorName} a fait passer le bail de statut "${getBailStatusLabel(log.fromStatus || "")}" à "${getBailStatusLabel(log.toStatus || "")}"`;
     case BailAuditEventType.NOTAIRE_ASSIGNED:
       return `${log.actorName} a assigné le dossier au notaire ${log.notaireName || "sélectionné"}`;
