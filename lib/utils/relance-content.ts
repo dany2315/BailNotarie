@@ -123,12 +123,8 @@ export const RELANCE_CONTENT: Record<RelanceReason, RelanceContent> = {
     intro: (p) => [
       `Nous vous confirmons que ${p.tenantName || "le locataire prévu"} n'est plus rattaché à votre projet de location pour le bien situé ${p.address}.`,
       "Votre dossier, lui, est conservé : vos informations et celles de votre bien restent enregistrées, vous n'avez rien à refaire.",
-      "Dès que vous aurez trouvé le bon locataire, il vous suffit de l'indiquer directement depuis votre espace client. Nous lui enverrons son formulaire, le relancerons si besoin et vérifierons ses pièces.",
+      "Dès que vous aurez trouvé le bon locataire, il vous suffit de l'indiquer directement depuis votre espace client, avec la date de prise d'effet du bail et le jour de paiement du loyer. Nous lui enverrons son formulaire, le relancerons si besoin et vérifierons ses pièces.",
     ],
-    card: {
-      label: "À indiquer avec votre nouveau locataire",
-      text: "La date de prise d'effet du bail et le jour de paiement du loyer, qui dépendaient du locataire précédent : ils vous seront simplement redemandés à ce moment-là.",
-    },
     button: "Indiquer mon nouveau locataire",
     hint: "Pas encore trouvé ? Aucun souci, votre dossier reste prêt et nous restons disponibles.",
   },
