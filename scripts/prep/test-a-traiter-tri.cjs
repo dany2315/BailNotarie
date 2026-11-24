@@ -1,5 +1,5 @@
 // Page « À traiter » (admin) : chaque dossier porte sa dernière activité, et les trois onglets
-// se lisent du plus récent au plus ancien par défaut, ou l’inverse au choix.
+// se lisent du plus récent au plus ancien.
 const path = require('path');
 const { test, suite, assert } = require('./harness.cjs');
 
@@ -19,18 +19,16 @@ suite('Tri de « À traiter »', path.join(__dirname, '../../reports/prep/tests-
     assert(queue.some((i) => i.id === f.bail.id), 'le dossier de test est dans la file');
   });
 
-  await test('Les trois onglets : « Plus récents » par défaut, « Plus anciens » au choix', async (tx, r, f) => {
+  await test('Les trois onglets : le plus récent en tête', async (tx, r, f) => {
     const { queue } = plain(await dash(r).getAdminDashboardData());
     // Même règle que components/dashboard/work-queue.tsx.
-    const order = (tab, sort) => queue
+    const order = (tab) => queue
       .filter((i) => tab === 'nous' ? i.actor === 'nous' : tab === 'notaire' ? i.actor === 'notaire' : ['proprietaire', 'locataire', 'client'].includes(i.actor))
-      .sort((a, b) => sort === 'recent' ? b.lastActivityAt.localeCompare(a.lastActivityAt) : a.lastActivityAt.localeCompare(b.lastActivityAt));
+      .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
     for (const tab of ['nous', 'client', 'notaire']) {
-      const recent = order(tab, 'recent');
-      for (let i = 1; i < recent.length; i++) assert(recent[i - 1].days <= recent[i].days, `${tab} récents : jours croissants`);
-      const ancien = order(tab, 'ancien');
-      for (let i = 1; i < ancien.length; i++) assert(ancien[i - 1].days >= ancien[i].days, `${tab} anciens : jours décroissants`);
-      assert.equal(recent.length, ancien.length);
+      const list = order(tab);
+      for (let i = 1; i < list.length; i++) assert(list[i - 1].lastActivityAt >= list[i].lastActivityAt, `${tab} : ordre`);
+      for (let i = 1; i < list.length; i++) assert(list[i - 1].days <= list[i].days, `${tab} : jours croissants`);
     }
   });
 });
