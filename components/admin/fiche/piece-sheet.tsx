@@ -12,6 +12,8 @@ import { ComplementComposer } from "@/components/complements/complement-composer
 import { ComplementItemReview } from "@/components/complements/complement-requests-panel";
 import { setVerificationPoints } from "@/lib/actions/verification";
 import { useDownloadFile } from "@/hooks/use-download-file";
+import { useFileProgress } from "@/hooks/use-file-progress";
+import { FileLoadProgress } from "@/components/shared/file-load-progress";
 import { documentKindLabels } from "@/lib/utils/document-labels";
 import { getPdfPreviewUrl } from "@/lib/utils/pdf-preview";
 import { COMPLEMENT_NOTE_MAX, REASON_LABELS, REDO_REASONS, type ComplementReasonValue } from "@/lib/utils/complement";
@@ -136,6 +138,9 @@ export function PieceSheet({
     });
 
   const kind = doc ? fileKindOf(doc) : "other";
+  // La pièce arrive avec sa progression ; si ce téléchargement échoue, elle s'affiche depuis son adresse, comme avant.
+  const file = useFileProgress(doc && url && (kind === "image" || kind === "pdf") ? url : null, doc?.mimeType);
+  const src = file.status === "done" ? file.objectUrl : file.status === "error" ? url : null;
   const hints = HINTS[row.kind] ?? DEFAULT_HINTS;
   // Nom de la pièce, jamais le nom du fichier enregistré (« Pièce d'identité · fichier 2 »).
   const name = doc ? `${info.label}${files.length > 1 ? ` · fichier ${fileIndex + 1}` : ""}` : info.label;
@@ -222,19 +227,19 @@ export function PieceSheet({
                 ))}
               </nav>
             )}
-            <div className={cn("flex min-h-0 min-w-0 flex-1 justify-center overflow-y-auto p-4", kind === "pdf" && url && !pdfFailed ? "items-start" : "items-center")}>
+            <div className={cn("flex min-h-0 min-w-0 flex-1 justify-center overflow-y-auto p-4", kind === "pdf" && src && !pdfFailed ? "items-start" : "items-center")}>
               {!doc ? (
                 <div className="flex flex-col items-center gap-2 text-center text-[14px] text-muted-foreground">
                   <File className="size-10" />
                   Pas encore de fichier pour cette pièce.
                 </div>
-              ) : !url ? (
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              ) : !url || ((kind === "image" || kind === "pdf") && !src) ? (
+                <FileLoadProgress loaded={file.loaded} total={file.total} />
               ) : kind === "image" ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={url} alt={name} className="max-h-full max-w-full rounded-md object-contain shadow-sm" />
+                <img src={src!} alt={name} className="max-h-full max-w-full rounded-md object-contain shadow-sm" />
               ) : kind === "pdf" && !pdfFailed ? (
-                <PdfPages key={url} url={url} onFail={() => setPdfFailed(true)} />
+                <PdfPages key={src!} url={src!} onFail={() => setPdfFailed(true)} />
               ) : kind === "pdf" ? (
                 // Lecture impossible (fichier protégé, réseau) : le lecteur du navigateur prend le relais.
                 <iframe src={getPdfPreviewUrl(url)} title={name} className="size-full min-h-[60vh] rounded-md border bg-white lg:min-h-0" />
