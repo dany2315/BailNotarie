@@ -1,6 +1,6 @@
 {
  "suite": "Tri de « À traiter »",
- "createdAt": "2026-11-24T07:01:36.155Z",
+ "createdAt": "2026-11-24T07:47:02.199Z",
  "passed": 2,
  "failed": 0,
  "networkAttempts": 0,
@@ -15,7 +15,7 @@
    "networkAttempts": 0
   },
   {
-   "name": "Onglets client et notaire : le plus récent en tête ; « À faire » inchangé",
+   "name": "Les trois onglets : « Plus récents » par défaut, « Plus anciens » au choix",
    "passed": true,
    "error": null,
    "simulated": {},
