@@ -1,0 +1,25 @@
+{
+ "suite": "Tri de « À traiter »",
+ "createdAt": "2026-11-24T07:01:36.155Z",
+ "passed": 2,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "Chaque ligne porte sa dernière activité, cohérente avec « depuis N j »",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Onglets client et notaire : le plus récent en tête ; « À faire » inchangé",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

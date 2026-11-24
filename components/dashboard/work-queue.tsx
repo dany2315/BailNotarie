@@ -21,13 +21,13 @@ const TABS: Array<{ key: TabKey; label: string; short: string; hint: string }> =
     key: "client",
     label: "En attente du client",
     short: "Client",
-    hint: "Le propriétaire ou le locataire doit agir ; la prochaine relance est indiquée. Dès qu'elle est due, le dossier passe dans « À faire par nous ».",
+    hint: "Le propriétaire ou le locataire doit agir ; la prochaine relance est indiquée. Dès qu'elle est due, le dossier passe dans « À faire par nous ». Les plus récents en premier.",
   },
   {
     key: "notaire",
     label: "Chez le notaire",
     short: "Notaire",
-    hint: "Suivi uniquement : le notaire a la main.",
+    hint: "Suivi uniquement : le notaire a la main. Les plus récents en premier.",
   },
 ];
 
@@ -49,7 +49,11 @@ const BAIL_TYPE_LABELS: Record<string, string> = {
 export function WorkQueue({ items }: { items: QueueItem[] }) {
   const [tab, setTab] = React.useState<TabKey>("nous");
   const current = TABS.find((t) => t.key === tab)!;
-  const visible = items.filter((item) => belongsTo(item, tab));
+  // « À faire par nous » garde l'ordre du serveur (ce qui attend depuis le plus longtemps d'abord) ;
+  // les onglets de suivi (client, notaire) montrent les plus récents d'abord.
+  const visible = items
+    .filter((item) => belongsTo(item, tab))
+    .sort((a, b) => (tab === "nous" ? 0 : b.lastActivityAt.localeCompare(a.lastActivityAt)));
 
   return (
     <section className="min-w-0 overflow-hidden rounded-xl border bg-card">

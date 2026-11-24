@@ -25,8 +25,8 @@ import {
   type ReminderTargetValue,
 } from "@/lib/utils/reminders";
 import { formatPhone } from "@/lib/utils/phone-format";
-import { RELANCE_BODY_MAX, relanceEmailContent } from "@/lib/utils/relance-content";
-import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/components/emails/email-preview-frame";
+import { relanceEmailContent } from "@/lib/utils/relance-content";
+import { RelanceEmailPreview } from "@/components/emails/relance-email-preview";
 import { cn } from "@/lib/utils";
 import { LocalDateTime } from "@/components/shared/local-date-time";
 
@@ -308,36 +308,21 @@ export function RemindDialog({ bailId, open, onOpenChange, focus = "due", initia
               )}
               {need && <p className={cn("text-[12.5px]", need.due ? "font-semibold text-amber-800" : "text-muted-foreground")}>{needStatus(need)}</p>}
 
-              <EmailPreviewFrame to={active.party.email} toName={active.party.name} toRole={TARGET_LABELS[active.target]} subject={content.subject}>
-                <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
-                <div className="mt-3">
-                  <EditableEmailText
-                    label="Texte de l'e-mail"
-                    value={bodies[active.key] ?? content.paragraphs.join("\n\n")}
-                    onChange={(value) => setBodies((current) => ({ ...current, [active.key]: value }))}
-                    maxLength={RELANCE_BODY_MAX}
-                  />
-                </div>
-                {content.items.length > 0 && (
-                  <ul className="mt-3 flex list-disc flex-col gap-1 pl-5 text-[14px] text-slate-800">
-                    {content.items.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                )}
-                {content.outro && <p className="mt-3 text-[14.5px] leading-[1.55] text-slate-600">{content.outro}</p>}
-                <div className="mt-4">
-                  <EditableEmailText
-                    boxed
-                    label="Un mot de l'équipe (facultatif)"
-                    placeholder="Ajouter un mot pour le client (facultatif)"
-                    value={note}
-                    onChange={setNote}
-                    maxLength={1000}
-                  />
-                </div>
-                <EmailPreviewButton>{content.button}</EmailPreviewButton>
-              </EmailPreviewFrame>
+              <RelanceEmailPreview
+                content={content}
+                reason={active.reason}
+                address={panel?.address || ""}
+                to={active.party.email}
+                toName={active.party.name}
+                toRole={TARGET_LABELS[active.target]}
+                body={bodies[active.key] ?? null}
+                onBodyChange={(value) => setBodies((current) => ({ ...current, [active.key]: value }))}
+                note={note}
+                onNoteChange={setNote}
+                noteLabel="Un mot de l'équipe (facultatif)"
+                notePlaceholder="Ajouter un mot pour le client (facultatif)"
+                noteMax={1000}
+              />
 
               {/* Plusieurs relances sans réponse, locataire pas encore trouvé : les autres gestes possibles, sur une ligne. */}
               {need && (need.escalated || need.reason === "TENANT_TO_ADD") && (

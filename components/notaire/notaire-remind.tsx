@@ -10,9 +10,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { remindNotaireTarget, type NotaireReminderSummary, type StaffComplementRequest } from "@/lib/actions/complement-requests";
 import { sendNotaireFormReminder } from "@/lib/actions/reminders";
 import type { NotaireFormWait } from "@/lib/notaire/form-reminders";
-import { RELANCE_BODY_MAX, relanceEmailContent } from "@/lib/utils/relance-content";
-import { COMPLEMENT_MESSAGE_MAX, complementEmailContent } from "@/lib/utils/complement";
-import { EditableEmailText, EmailPreviewButton, EmailPreviewFrame } from "@/components/emails/email-preview-frame";
+import { relanceEmailContent } from "@/lib/utils/relance-content";
+import { RelanceEmailPreview } from "@/components/emails/relance-email-preview";
 import { ComplementReminderPreview } from "@/components/complements/complement-remind-dialog";
 
 type Target = "OWNER" | "TENANT";
@@ -184,24 +183,21 @@ export function NotaireFormRemindDialog({ wait, open, onOpenChange }: { wait: No
               ? `Vous l'avez déjà relancé ${wait.mine} fois, la dernière le ${fmtDay(wait.myLastAt)}.`
               : "Vous ne l'avez pas encore relancé."}
           </p>
-          <EmailPreviewFrame to={wait.email} toName={wait.partyName} toRole={wait.target === "OWNER" ? "Propriétaire" : "Locataire"} subject={content.subject}>
-            <p className="text-[17px] font-bold text-slate-800">{content.greeting}</p>
-            <div className="mt-3">
-              <EditableEmailText label="Texte de l'e-mail" value={body ?? content.paragraphs.join("\n\n")} onChange={setBody} maxLength={RELANCE_BODY_MAX} />
-            </div>
-            {content.outro && <p className="mt-3 text-[14.5px] leading-[1.55] text-slate-600">{content.outro}</p>}
-            <div className="mt-4">
-              <EditableEmailText
-                boxed
-                label="Votre mot au client"
-                placeholder="Un mot pour le client (facultatif)"
-                value={note}
-                onChange={setNote}
-                maxLength={1500}
-              />
-            </div>
-            <EmailPreviewButton>{content.button}</EmailPreviewButton>
-          </EmailPreviewFrame>
+          <RelanceEmailPreview
+            content={content}
+            reason={wait.reason}
+            address={wait.address}
+            to={wait.email}
+            toName={wait.partyName}
+            toRole={wait.target === "OWNER" ? "Propriétaire" : "Locataire"}
+            body={body}
+            onBodyChange={setBody}
+            note={note}
+            onNoteChange={setNote}
+            noteLabel="Votre mot au client"
+            notePlaceholder="Un mot pour le client (facultatif)"
+            noteMax={1500}
+          />
         </div>
         {!wait.email && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
