@@ -1554,14 +1554,15 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
         <div className="flex min-w-0 flex-col gap-4">
           {/* À faire avant l'envoi : la seule liste à lire pour savoir quoi faire */}
           <section className="flex flex-col gap-3 rounded-xl border bg-card p-[18px]">
-            <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-base font-semibold">{pastVerification ? "Dossier transmis au notaire" : "À faire avant l'envoi"}</h2>
-              <span className="flex items-center gap-3">
-                <span className="text-sm font-bold">
+            {/* Téléphone : titre et avancement sur une ligne, le bouton en dessous sur toute la largeur. */}
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-base font-semibold">{pastVerification ? "Dossier transmis au notaire" : "À faire avant l'envoi"}</h2>
+                <span className="whitespace-nowrap text-sm font-bold tabular-nums">
                   {overall.verified} / {overall.total}
                 </span>
-                {!pastVerification && <StartReviewButton started={reviewStarted} />}
-              </span>
+              </div>
+              {!pastVerification && <StartReviewButton started={reviewStarted} className="h-10 w-full sm:h-9 sm:w-auto" />}
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />

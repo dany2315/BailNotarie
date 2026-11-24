@@ -23,9 +23,9 @@ export function reviewButtonLabel(started?: boolean) {
   return started ? "Continuer la vérification" : "Commencer la vérification";
 }
 
-export function StartReviewButton({ started }: { started?: boolean }) {
+export function StartReviewButton({ started, className }: { started?: boolean; className?: string }) {
   return (
-    <Button type="button" size="sm" className="h-9 gap-1.5" onClick={() => window.dispatchEvent(new Event(START_REVIEW_EVENT))}>
+    <Button type="button" size="sm" className={cn("h-9 gap-1.5", className)} onClick={() => window.dispatchEvent(new Event(START_REVIEW_EVENT))}>
       <Play className="size-3.5" />
       {reviewButtonLabel(started)}
     </Button>
