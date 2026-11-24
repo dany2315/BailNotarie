@@ -97,6 +97,8 @@ export interface QueueItem {
   /** Précision affichée après l'action (formulaire envoyé, relancé, ouvert…). */
   detail: string | null;
   days: number;
+  /** Dernière activité du dossier (ISO), pour trier les onglets de suivi du plus récent au plus ancien. */
+  lastActivityAt: string;
   /** Le bouton ouvre la fenêtre de relance (au lieu du dossier). */
   remind: boolean;
 }
@@ -285,6 +287,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       primary: next.primary,
       detail,
       days: daysSince(getLastActivity(bail.updatedAt, bail.auditLogs[0]?.createdAt)),
+      lastActivityAt: getLastActivity(bail.updatedAt, bail.auditLogs[0]?.createdAt).toISOString(),
       remind,
     };
   });
