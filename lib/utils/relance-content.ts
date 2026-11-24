@@ -10,7 +10,9 @@ export type RelanceReason =
   | "TENANT_VIA_OWNER"
   | "MISSING_ITEMS"
   | "RENT_CAP"
-  | "DIAGNOSTICS";
+  | "DIAGNOSTICS"
+  /** Pas une relance : le propriétaire est prévenu que le locataire prévu a été retiré du dossier. */
+  | "TENANT_REMOVED";
 
 export interface RelanceEmailInput {
   reason: RelanceReason;
@@ -22,7 +24,7 @@ export interface RelanceEmailInput {
   actionUrl: string;
   /** Éléments listés (éléments manquants, ou détail du loyer). */
   items?: string[];
-  /** Nom du locataire, pour la relance du propriétaire à son sujet. */
+  /** Nom du locataire, pour la relance du propriétaire à son sujet (ou le locataire retiré du dossier). */
   tenantName?: string;
   /** Message libre ajouté par l'équipe. */
   note?: string;
@@ -115,6 +117,21 @@ export const RELANCE_CONTENT: Record<RelanceReason, RelanceContent> = {
     intro: (p) => [`Nous avons relu les diagnostics du bien situé ${p.address}. Voici ce qu'il reste à régler avant la signature :`],
     button: "Envoyer mes diagnostics",
   },
+  TENANT_REMOVED: {
+    preview: "Votre dossier est conservé : indiquez votre nouveau locataire dès que vous l'aurez trouvé.",
+    title: "Votre dossier attend votre nouveau locataire",
+    intro: (p) => [
+      `Nous vous confirmons que ${p.tenantName || "le locataire prévu"} n'est plus rattaché à votre projet de location pour le bien situé ${p.address}.`,
+      "Votre dossier, lui, est conservé : vos informations et celles de votre bien restent enregistrées, vous n'avez rien à refaire.",
+      "Dès que vous aurez trouvé le bon locataire, il vous suffit de l'indiquer directement depuis votre espace client. Nous lui enverrons son formulaire, le relancerons si besoin et vérifierons ses pièces.",
+    ],
+    card: {
+      label: "À indiquer avec votre nouveau locataire",
+      text: "La date de prise d'effet du bail et le jour de paiement du loyer, qui dépendaient du locataire précédent : ils vous seront simplement redemandés à ce moment-là.",
+    },
+    button: "Indiquer mon nouveau locataire",
+    hint: "Pas encore trouvé ? Aucun souci, votre dossier reste prêt et nous restons disponibles.",
+  },
 };
 
 export const RELANCE_OUTRO: Partial<Record<RelanceReason, string>> = {
@@ -133,6 +150,7 @@ export const RELANCE_SUBJECTS: Record<RelanceReason, string> = {
   MISSING_ITEMS: "Votre bail notarié : il ne manque plus que quelques éléments",
   RENT_CAP: "Sécurisons votre loyer avant la signature",
   DIAGNOSTICS: "Vos diagnostics : quelques points à régler avant la signature",
+  TENANT_REMOVED: "Votre bail notarié : votre dossier attend votre nouveau locataire",
 };
 
 /** Contenu de l'e-mail de relance, tel qu'il sera envoyé. */

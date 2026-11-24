@@ -1,0 +1,72 @@
+{
+ "suite": "Retrait du locataire",
+ "createdAt": "2026-11-24T08:30:32.756Z",
+ "passed": 8,
+ "failed": 0,
+ "networkAttempts": 0,
+ "databaseRestored": true,
+ "tables": 41,
+ "results": [
+  {
+   "name": "Le locataire est retiré, les dates effacées, le statut « En attente du locataire »",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Le propriétaire est redemandé les dates pour son nouveau locataire",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Parcours complet : le propriétaire indique son nouveau locataire et les nouvelles dates",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "createNotificationForAllUsers": 1,
+    "triggerTenantFormEmail": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Prévenir le propriétaire : un e-mail, compté comme demande « locataire à indiquer »",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "email": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Chez le notaire : retrait possible, le notaire reste assigné",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Refus : dossier sans locataire, ou signé, ou clos",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Réservé aux administrateurs",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Texte de l’e-mail : nom du locataire, adresse, dates à redonner",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  }
+ ]
+}

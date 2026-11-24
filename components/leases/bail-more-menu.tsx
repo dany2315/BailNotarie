@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Copy, GraduationCap, ListChecks, Trash2, UserCog } from "lucide-react";
+import { ChevronDown, Copy, GraduationCap, ListChecks, Trash2, UserCog, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import type { BailStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { AssignDossierDialog } from "@/components/notaires/assign-dossier-dialog
 import { LeaseStatusSelect } from "@/components/leases/lease-status-select";
 import { DeleteLeaseDialog } from "@/components/leases/delete-lease-dialog";
 import { ChangeTenantDialog } from "@/components/leases/change-tenant-dialog";
+import { RemoveTenantDialog } from "@/components/leases/remove-tenant-dialog";
 import { deleteLease } from "@/lib/actions/leases";
 import { MenuHeader, MenuItemRich } from "@/components/admin/fiche/menu-item";
 
@@ -27,6 +28,8 @@ interface BailMoreMenuProps {
   tenant?: { id: string; name: string } | null;
   /** Dossier pas encore transmis au notaire, avec un locataire : on peut le remplacer. */
   canChangeTenant?: boolean;
+  /** Dossier avec un locataire, ni signé ni clos (même chez le notaire) : on peut le retirer. */
+  canRemoveTenant?: boolean;
   /** Classes du bouton « Plus » (hauteur alignée sur les autres actions). */
   triggerClassName?: string;
   /**
@@ -40,13 +43,14 @@ interface BailMoreMenuProps {
  * Actions rares de la fiche bail, rangées sous « Plus » : aucune n'est
  * retirée, elles cèdent seulement la place au bouton principal.
  */
-export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerClassName, currentNotaire }: BailMoreMenuProps) {
+export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, canRemoveTenant, triggerClassName, currentNotaire }: BailMoreMenuProps) {
   // Dossier clos (signé, terminé, abandonné) : plus de changement de notaire.
   const canChangeNotaire = !!currentNotaire && !["SIGNED", "TERMINATED", "DESISTE", "CLASSE_SANS_SUITE"].includes(status);
   const router = useRouter();
   const [assignOpen, setAssignOpen] = React.useState(false);
   const [statusOpen, setStatusOpen] = React.useState(false);
   const [tenantOpen, setTenantOpen] = React.useState(false);
+  const [removeTenantOpen, setRemoveTenantOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<{
@@ -88,6 +92,11 @@ export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerC
           {canChangeTenant && (
             <DropdownMenuItem className="cursor-pointer rounded-lg px-2 py-1.5" onSelect={() => setTenantOpen(true)}>
               <MenuItemRich icon={<UserCog />} title="Changer de locataire" hint={tenant ? `Actuel : ${tenant.name}` : "Remplacer le locataire du dossier"} />
+            </DropdownMenuItem>
+          )}
+          {canRemoveTenant && (
+            <DropdownMenuItem className="cursor-pointer rounded-lg px-2 py-1.5" onSelect={() => setRemoveTenantOpen(true)}>
+              <MenuItemRich icon={<UserMinus />} title="Retirer le locataire" hint="Désistement : le propriétaire en indiquera un nouveau" />
             </DropdownMenuItem>
           )}
           {canChangeNotaire && (
@@ -138,6 +147,15 @@ export function BailMoreMenu({ bailId, status, tenant, canChangeTenant, triggerC
       {canChangeTenant && (
         <ChangeTenantDialog open={tenantOpen} onOpenChange={setTenantOpen} bailId={bailId} currentTenant={tenant ?? null} />
       )}
+
+      {/* Toujours monté : après le retrait, le dossier n'a plus de locataire mais l'aperçu de l'e-mail reste affiché. */}
+      <RemoveTenantDialog
+        open={removeTenantOpen}
+        onOpenChange={setRemoveTenantOpen}
+        bailId={bailId}
+        currentTenant={tenant ?? null}
+        notaireName={currentNotaire?.name ?? null}
+      />
 
       {canChangeNotaire && (
         <AssignDossierDialog

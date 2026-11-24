@@ -1469,6 +1469,7 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
               status={lease.status}
               tenant={tenant && tenantName ? { id: tenant.id, name: tenantName } : null}
               canChangeTenant={!!tenant && !pastVerification}
+              canRemoveTenant={!!tenant && stage.key !== "signe" && stage.key !== "clos"}
               triggerClassName="h-10 gap-1.5 px-3"
               currentNotaire={followUp.notaire ? { id: followUp.notaire.id, name: followUp.notaire.name } : null}
             />
