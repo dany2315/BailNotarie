@@ -25,6 +25,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { createBailAuditLog, getActorName, getClientDisplayName, getClientGreetingName } from "@/lib/actions/bail-audit-log";
 import { resendSendEmail } from "@/lib/resend-rate-limited";
 import MailRelance from "@/emails/mail-relance";
+import { deleteBlobFiles } from "@/lib/document-storage";
 import { RELANCE_BODY_MAX, RELANCE_SUBJECTS } from "@/lib/utils/relance-content";
 import { createNotificationForAllUsers } from "@/lib/utils/notifications";
 import { triggerTenantFormEmail } from "@/lib/inngest/helpers";
@@ -535,11 +536,15 @@ export type RemovedTenantInfo = {
   tenantName: string;
   owner: { name: string | null; greetingName: string | null; email: string | null };
   address: string;
+  /** Fiche client du locataire supprimée (cas normal). */
+  tenantDeleted: boolean;
+  /** Pourquoi la fiche est gardée, quand elle ne peut pas être supprimée sans casser autre chose. */
+  keptReason: string | null;
 };
 
 /**
- * Le locataire s'est désisté : il est retiré du dossier sans être remplacé. Sa fiche client est
- * conservée ; ses formulaires et demandes de pièces encore ouverts pour ce dossier sont fermés ; son
+ * Le locataire s'est désisté : il est retiré du dossier sans être remplacé, et sa fiche client est
+ * supprimée (sauf exceptions ci-dessous) ; ses formulaires et demandes de pièces encore ouverts pour ce dossier sont fermés ; son
  * accord est archivé. Ce qui dépendait de lui est effacé (date de prise d'effet, jour de paiement,
  * date de fin calculée) et le dossier repasse « En attente du locataire » : le propriétaire indique
  * son nouveau locataire depuis son espace, avec ces dates, comme la première fois.
@@ -573,7 +578,21 @@ export async function removeBailTenantAdmin(data: unknown): Promise<Result<Remov
   const nextStatus = bail.status === BailStatus.DRAFT ? bail.status : BailStatus.AWAITING_TENANT;
   const actorName = getActorName(user);
 
-  await prisma.$transaction(async (tx) => {
+  // Un locataire seul ne sert à rien : sa fiche est supprimée d'office (pièces, compte, formulaires).
+  // Deux exceptions, où la supprimer casserait autre chose : il est locataire d'un autre dossier, ou il
+  // a écrit dans une discussion (ses messages sont rattachés à son compte).
+  const [otherBails, messages] = await Promise.all([
+    prisma.bail.count({ where: { id: { not: bailId }, parties: { some: { id: previous.id } } } }),
+    prisma.bailMessage.count({ where: { sender: { clientId: previous.id } } }),
+  ]);
+  const keptReason =
+    otherBails > 0
+      ? `il est aussi locataire dans ${otherBails > 1 ? `${otherBails} autres dossiers` : "un autre dossier"}`
+      : messages > 0
+        ? "il a écrit dans la discussion d'un dossier"
+        : null;
+
+  const fileKeys = await prisma.$transaction(async (tx) => {
     const agreement = await readAgreementSnapshot(tx, bailId);
     await tx.bail.update({
       where: { id: bailId },
@@ -614,7 +633,24 @@ export async function removeBailTenantAdmin(data: unknown): Promise<Result<Remov
       },
       tx,
     );
+    if (keptReason) return [];
+
+    // Suppression de la fiche : ses pièces (lignes ici, fichiers après l'écriture), son compte de
+    // connexion, ses formulaires ; ses demandes de pièces et relances partent avec la fiche.
+    const documents = await tx.document.findMany({
+      where: { OR: [{ clientId: previous.id }, { person: { clientId: previous.id } }, { entreprise: { clientId: previous.id } }] },
+      select: { fileKey: true },
+    });
+    await tx.user.deleteMany({ where: { clientId: previous.id } });
+    await tx.intakeLink.deleteMany({ where: { clientId: previous.id } });
+    await tx.client.delete({ where: { id: previous.id } });
+    return documents.map((d) => d.fileKey).filter(Boolean);
   });
+
+  // Fichiers effacés une fois la base à jour : un échec ici laisse des fichiers orphelins, jamais un dossier incohérent.
+  if (fileKeys.length > 0) {
+    await deleteBlobFiles(fileKeys).catch((error) => console.error("[removeBailTenantAdmin] fichiers", error));
+  }
 
   if (revalidate) revalidatePath(revalidate);
   revalidatePath(`/interface/baux/${bailId}`);
@@ -632,6 +668,8 @@ export async function removeBailTenantAdmin(data: unknown): Promise<Result<Remov
         email: (owner.type === ClientType.PERSONNE_MORALE ? owner.entreprise?.email : owner.persons[0]?.email) || null,
       },
       address: bail.property?.label || bail.property?.fullAddress || "",
+      tenantDeleted: !keptReason,
+      keptReason,
     },
   };
 }

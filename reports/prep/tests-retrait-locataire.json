@@ -1,14 +1,30 @@
 {
  "suite": "Retrait du locataire",
- "createdAt": "2026-11-24T08:30:32.756Z",
- "passed": 8,
+ "createdAt": "2026-11-24T10:18:53.583Z",
+ "passed": 10,
  "failed": 0,
  "networkAttempts": 0,
  "databaseRestored": true,
  "tables": 41,
  "results": [
   {
-   "name": "Le locataire est retiré, les dates effacées, le statut « En attente du locataire »",
+   "name": "Le locataire est retiré et sa fiche supprimée, les dates effacées, « En attente du locataire »",
+   "passed": true,
+   "error": null,
+   "simulated": {
+    "s3.delete": 1
+   },
+   "networkAttempts": 0
+  },
+  {
+   "name": "Fiche gardée s’il est aussi locataire d’un autre dossier",
+   "passed": true,
+   "error": null,
+   "simulated": {},
+   "networkAttempts": 0
+  },
+  {
+   "name": "Fiche gardée s’il a écrit dans une discussion",
    "passed": true,
    "error": null,
    "simulated": {},

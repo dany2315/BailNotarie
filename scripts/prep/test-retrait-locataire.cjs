@@ -1,5 +1,6 @@
-// Retrait du locataire (désistement) : le dossier repasse « En attente du locataire », les dates qui
-// dépendaient du locataire sont effacées, et le propriétaire peut être prévenu par e-mail.
+// Retrait du locataire (désistement) : sa fiche est supprimée (sauf autre dossier ou messages), le dossier
+// repasse « En attente du locataire », les dates qui dépendaient de lui sont effacées, et le propriétaire
+// peut être prévenu par e-mail.
 const path = require('path');
 const { test, suite, assert } = require('./harness.cjs');
 
@@ -7,8 +8,10 @@ const edit = (r) => r.load('lib/actions/admin-bail-edit.ts');
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
 suite('Retrait du locataire', path.join(__dirname, '../../reports/prep/tests-retrait-locataire.json'), async () => {
-  await test('Le locataire est retiré, les dates effacées, le statut « En attente du locataire »', async (tx, r, f) => {
+  await test('Le locataire est retiré et sa fiche supprimée, les dates effacées, « En attente du locataire »', async (tx, r, f) => {
     await tx.bail.update({ where: { id: f.bail.id }, data: { endDate: new Date('2029-11-30T00:00:00Z') } });
+    const person = await tx.person.findFirst({ where: { clientId: f.tenant.id } });
+    const piece = await tx.document.create({ data: { kind: 'ID_IDENTITY', personId: person.id, fileKey: 'documents/test-locataire-retire', mimeType: 'application/pdf' } });
     const tenantForm = await tx.intakeLink.create({ data: { token: 'test-' + f.bail.id, target: 'TENANT', clientId: f.tenant.id, propertyId: f.property.id, bailId: f.bail.id, status: 'PENDING' } });
     const request = await tx.complementRequest.create({
       data: { bailId: f.bail.id, clientId: f.tenant.id, target: 'TENANT', recipientEmail: 'x@example.invalid', createdByName: 'Test' },
@@ -30,10 +33,15 @@ suite('Retrait du locataire', path.join(__dirname, '../../reports/prep/tests-ret
     assert.equal(bail.endDate, null);
     assert.deepEqual(bail.parties.map((p) => p.id), [f.owner.id], 'seul le propriétaire reste');
 
-    assert.equal((await tx.client.findUnique({ where: { id: f.tenant.id } })) !== null, true, 'fiche du locataire conservée');
-    assert.equal((await tx.intakeLink.findUnique({ where: { id: tenantForm.id } })).status, 'REVOKED', 'formulaire locataire désactivé');
+    assert.equal(result.data.tenantDeleted, true);
+    assert.equal(result.data.keptReason, null);
+    assert.equal(await tx.client.findUnique({ where: { id: f.tenant.id } }), null, 'fiche du locataire supprimée');
+    assert.equal(await tx.user.findUnique({ where: { id: f.tenantUser.id } }), null, 'accès à l’espace client supprimé');
+    assert.equal(await tx.document.findUnique({ where: { id: piece.id } }), null, 'pièce supprimée');
+    assert.equal(r.state.suppressed['s3.delete'], 1, 'fichier de la pièce effacé');
+    assert.equal(await tx.intakeLink.findUnique({ where: { id: tenantForm.id } }), null, 'formulaire locataire supprimé');
     assert.equal((await tx.intakeLink.findUnique({ where: { id: f.intake.id } })).status, 'PENDING', 'formulaire du propriétaire intact');
-    assert.equal((await tx.complementRequest.findUnique({ where: { id: request.id } })).status, 'CANCELLED', 'demande au locataire annulée');
+    assert.equal(await tx.complementRequest.findUnique({ where: { id: request.id } }), null, 'demande au locataire supprimée avec la fiche');
     assert.equal((await tx.complementRequest.findUnique({ where: { id: ownerRequest.id } })).status, 'OPEN', 'demande au propriétaire intacte');
 
     const log = await tx.bailAuditLog.findFirst({ where: { bailId: f.bail.id, eventType: 'STATUS_CHANGED' }, orderBy: { createdAt: 'desc' } });
@@ -41,6 +49,30 @@ suite('Retrait du locataire', path.join(__dirname, '../../reports/prep/tests-ret
     assert.equal(log.toStatus, 'AWAITING_TENANT');
     assert.equal(log.tenantName, 'Test Locataire');
     assert.equal(r.state.suppressed.email || 0, 0, 'aucun e-mail sans décision de l’équipe');
+  });
+
+  await test('Fiche gardée s’il est aussi locataire d’un autre dossier', async (tx, r, f) => {
+    const other = await tx.bail.create({ data: { propertyId: f.property.id, rentAmount: 500, status: 'PENDING_VALIDATION', parties: { connect: [{ id: f.owner.id }, { id: f.tenant.id }] } } });
+    const result = plain(await edit(r).removeBailTenantAdmin({ bailId: f.bail.id }));
+    assert.equal(result.success, true, JSON.stringify(result));
+    assert.equal(result.data.tenantDeleted, false);
+    assert.match(result.data.keptReason, /autre dossier/);
+    assert(await tx.client.findUnique({ where: { id: f.tenant.id } }), 'fiche gardée');
+    const otherBail = await tx.bail.findUnique({ where: { id: other.id }, include: { parties: { select: { id: true } } } });
+    assert(otherBail.parties.some((p) => p.id === f.tenant.id), 'toujours locataire de l’autre dossier');
+    const bail = await tx.bail.findUnique({ where: { id: f.bail.id }, include: { parties: { select: { id: true } } } });
+    assert.deepEqual(bail.parties.map((p) => p.id), [f.owner.id]);
+    assert.equal(r.state.suppressed['s3.delete'] || 0, 0, 'aucun fichier effacé');
+  });
+
+  await test('Fiche gardée s’il a écrit dans une discussion', async (tx, r, f) => {
+    await tx.bailMessage.create({ data: { bailId: f.bail.id, senderId: f.tenantUser.id, content: 'Bonjour' } });
+    const result = plain(await edit(r).removeBailTenantAdmin({ bailId: f.bail.id }));
+    assert.equal(result.success, true, JSON.stringify(result));
+    assert.equal(result.data.tenantDeleted, false);
+    assert.match(result.data.keptReason, /discussion/);
+    assert(await tx.client.findUnique({ where: { id: f.tenant.id } }), 'fiche gardée');
+    assert(await tx.user.findUnique({ where: { id: f.tenantUser.id } }), 'compte gardé (ses messages)');
   });
 
   await test('Le propriétaire est redemandé les dates pour son nouveau locataire', async (tx, r, f) => {
@@ -94,13 +126,13 @@ suite('Retrait du locataire', path.join(__dirname, '../../reports/prep/tests-ret
     assert.equal(bail.status, 'AWAITING_TENANT');
     assert.equal(bail.parties.length, 1);
     assert.equal((await tx.dossierNotaireAssignment.findUnique({ where: { id: assignment.id } })).notaireId, notaire.id, 'le notaire reste assigné');
-    assert.equal((await tx.complementRequest.findUnique({ where: { id: notaryRequest.id } })).status, 'CANCELLED', 'demande du notaire au locataire annulée');
+    assert.equal(await tx.complementRequest.findUnique({ where: { id: notaryRequest.id } }), null, 'demande du notaire au locataire supprimée avec la fiche');
     const log = await tx.bailAuditLog.findFirst({ where: { bailId: f.bail.id, eventType: 'STATUS_CHANGED' }, orderBy: { createdAt: 'desc' } });
     assert.equal(log.fromStatus, 'CLIENT_CONTACTED');
   });
 
   await test('Refus : dossier sans locataire, ou signé, ou clos', async (tx, r, f) => {
-    await edit(r).removeBailTenantAdmin({ bailId: f.bail.id });
+    await tx.bail.update({ where: { id: f.bail.id }, data: { parties: { disconnect: { id: f.tenant.id } } } });
     const again = plain(await edit(r).removeBailTenantAdmin({ bailId: f.bail.id }));
     assert.equal(again.success, false);
     assert.match(again.error, /pas de locataire/);
