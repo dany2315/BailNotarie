@@ -50,7 +50,11 @@ export function RemoveTenantDialog({
       toast.error(result.error);
       return;
     }
-    toast.success(`${result.data.tenantName} a été retiré du dossier`);
+    toast.success(
+      result.data.tenantDeleted
+        ? `${result.data.tenantName} a été retiré du dossier et sa fiche supprimée`
+        : `${result.data.tenantName} a été retiré du dossier · fiche gardée : ${result.data.keptReason}`,
+    );
     setRemoved(result.data);
   };
 
@@ -87,8 +91,9 @@ export function RemoveTenantDialog({
           </DialogHeader>
           <ul className="flex flex-col gap-2 text-sm">
             <li>
-              <span className="font-medium">Retiré du dossier :</span> {tenantLabel}. Sa fiche client est conservée ; son formulaire et
-              ses demandes de pièces encore ouverts pour ce dossier sont fermés.
+              <span className="font-medium">Supprimé :</span> {tenantLabel}, avec sa fiche client, ses pièces, son accès à
+              l&apos;espace client, ses demandes de pièces et ses messages dans la discussion. C&apos;est définitif. Seule exception :
+              s&apos;il est aussi locataire d&apos;un autre dossier, il est seulement retiré de ce dossier et sa fiche est gardée.
             </li>
             <li>
               <span className="font-medium">Effacés :</span> la date de prise d&apos;effet, le jour de paiement et la date de fin. Ils
@@ -120,7 +125,10 @@ export function RemoveTenantDialog({
           <DialogHeader>
             <DialogTitle>Prévenir le propriétaire ?</DialogTitle>
             <DialogDescription>
-              {removed.tenantName} est retiré du dossier. Vous pouvez relire et modifier l&apos;e-mail avant de l&apos;envoyer, ou ne pas
+              {removed.tenantDeleted
+                ? `${removed.tenantName} est retiré du dossier et sa fiche est supprimée.`
+                : `${removed.tenantName} est retiré du dossier ; sa fiche est gardée, car ${removed.keptReason}.`}{" "}
+              Vous pouvez relire et modifier l&apos;e-mail avant de l&apos;envoyer, ou ne pas
               prévenir le propriétaire.
             </DialogDescription>
           </DialogHeader>
